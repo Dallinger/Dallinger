@@ -20,7 +20,7 @@
 
 {% block scripts %}
 	<script>
-		window.opener.location.reload(true);
-		window.close();
+		window.opener.location = "/recruiter-exit?participant_id=" + dallinger.identity.participantId;
+		// window.close();
 	</script>
 {% endblock %}

@@ -78,6 +78,21 @@ def Experiment(args):
     return klass(args)
 
 
+@app.route("/recruiter-exit", methods=["GET"])
+@nocache
+def recriter_exit():
+    participant_id = request.args.get("participant_id")
+    if participant_id is None:
+        raise ExperimentError("page_not_found")
+
+    participant = models.Participant.query.get(participant_id)
+
+    recruiter = recruiters.by_name(participant.recruiter_id)
+    exp = Experiment(session)
+
+    return recruiter.exit_response(experiment=exp, participant=participant)
+
+
 # Load the experiment's extra routes, if any.
 try:
     from dallinger_experiment.experiment import extra_routes
@@ -501,12 +516,6 @@ def mturk_exit():
         raise ExperimentError("improper_inputs")
     config = _config()
 
-    # hit_id = request.args["hitId"]
-    # assignment_id = request.args["assignmentId"]
-    # app_id = config.get("id", "unknown")
-    # mode = config.get("mode")
-    # debug_mode = mode == "debug"
-    # worker_id = request.args.get("workerId")
     participant = models.Participant.query.get(participant_id)
 
     recruiter_name = request.args.get("recruiter")

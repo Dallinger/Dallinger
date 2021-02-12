@@ -117,6 +117,12 @@ class Recruiter(object):
         """A recruiter may provide a means to directly compensate a worker."""
         raise NotImplementedError
 
+    def exit_response(self, experiment, participant):
+        """The recruiter returns an appropriate page on experiment/questionnaire
+        submission.
+        """
+        raise NotImplementedError
+
     def reward_bonus(self, assignment_id, amount, reason):
         """Throw an error."""
         raise NotImplementedError
@@ -164,6 +170,17 @@ class CLIRecruiter(Recruiter):
     def __init__(self):
         super(CLIRecruiter, self).__init__()
         self.config = get_config()
+
+    def exit_response(self, experiment, participant):
+        return flask.render_template(
+            "thanks.html",
+            hitid=participant.hit_id,
+            assignmentid=participant.assignment_id,
+            workerid=participant.worker_id,
+            external_submit_url=self.external_submission_url,
+            mode=self.config.get("mode"),
+            app_id=self.config.get("id"),
+        )
 
     def open_recruitment(self, n=1):
         """Return initial experiment URL list, plus instructions
@@ -527,6 +544,17 @@ class MTurkRecruiter(Recruiter):
                 '"{}" is not a valid mode for MTurk recruitment. '
                 'The value of "mode" must be either "sandbox" or "live"'.format(mode)
             )
+
+    def exit_response(self, experiment, participant):
+        return flask.render_template(
+            "thanks.html",
+            hitid=participant.hit_id,
+            assignmentid=participant.assignment_id,
+            workerid=participant.worker_id,
+            external_submit_url=self.external_submission_url,
+            mode=self.config.get("mode"),
+            app_id=self.config.get("id"),
+        )
 
     @property
     def external_submission_url(self):
