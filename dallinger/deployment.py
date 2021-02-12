@@ -17,7 +17,6 @@ import time
 from six.moves import shlex_quote as quote
 from six.moves.urllib.parse import urlparse
 from six.moves.urllib.parse import urlunparse
-from subprocess import check_output
 from unicodedata import normalize
 
 from dallinger import data
@@ -28,7 +27,7 @@ from dallinger import registration
 from dallinger.config import get_config
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuLocalWrapper
-from dallinger.utils import abspath_from_egg
+from dallinger.docker.tools import DockerComposeWrapper
 from dallinger.utils import connect_to_redis
 from dallinger.utils import dallinger_package_path
 from dallinger.utils import ensure_directory
@@ -565,6 +564,9 @@ class HerokuLocalDeployment(object):
     tmp_dir = None
     dispatch = {}  # Subclass may provide handlers for Heroku process output
     environ = None
+    DEPLOY_NAME = "Heroku"
+    WRAPPER_CLASS = HerokuLocalWrapper
+    DO_INIT_DB = True
 
     def configure(self):
         self.exp_config.update({"mode": "debug", "loglevel": 0})
@@ -575,6 +577,10 @@ class HerokuLocalDeployment(object):
         )
 
     def update_dir(self):
+        # FIXME: this call is used for implicit communication between classes in this file
+        # and service wrappers (HerokuLocalWrapper, DockerComposeWrapper).
+        # This communication should be made explicit, passing this path around instead of
+        # changing a global state.
         os.chdir(self.tmp_dir)
         # Update the logfile to the new directory
         config = get_config()
@@ -585,20 +591,21 @@ class HerokuLocalDeployment(object):
         config.write()
 
     def run(self):
-        """Set up the environment, get a HerokuLocalWrapper instance, and pass
+        """Set up the environment, get a wrapper instance, and pass
         it to the concrete class's execute() method.
         """
         self.configure()
         self.setup()
         self.update_dir()
-        db.init_db(drop_all=True)
+        if self.DO_INIT_DB:
+            db.init_db(drop_all=True)
         config = get_config()
         environ = None
         if self.environ:
             environ = os.environ.copy()
             environ.update(self.environ)
-        self.out.log("Starting up the Heroku Local server...")
-        with HerokuLocalWrapper(
+        self.out.log(f"Starting up the {self.DEPLOY_NAME} Local server...")
+        with self.WRAPPER_CLASS(
             config, self.out, verbose=self.verbose, env=environ
         ) as wrapper:
             try:
@@ -763,53 +770,12 @@ class DebugDeployment(HerokuLocalDeployment):
         return super(DebugDeployment, self).notify(message)
 
 
-class DockerDeployment(DebugDeployment):
-    """Experimental/stub
-    Feed Docker the directory created for Heroku
-    (after a bit of massaging).
-    """
+class DockerDebugDeployment(DebugDeployment):
+    """Run the experiment in a local docker-compose based environment."""
 
-    def run(self):
-        """Generate the directory for Heroku"""
-        self.configure()
-        self.setup()
-        self.update_dir()
-        self.copy_docker_compse_files()
-        os.chdir(self.tmp_dir)
-        os.system("docker-compose up --build -d")
-
-        def shutdown():
-            os.chdir(self.tmp_dir)
-            os.system("docker-compose down")
-
-        atexit.register(shutdown)
-        # Wait for postgres to complete initialization
-        while b"ready to accept connections" not in check_output(
-            ["docker-compose", "logs", "postgresql"]
-        ):
-            time.sleep(2)
-
-        os.system("docker-compose exec worker dallinger-housekeeper initdb")
-        dashboard_url = "{}/dashboard/".format(get_base_url())
-        if not self.no_browsers:
-            self.open_dashboard(dashboard_url)
-        # To build the docker images and upload them to heroku run the following
-        # command in self.tmp_dir:
-        # heroku container:push --recursive -a ${HEROKU_APP_NAME}
-        # To make sure the app has the necessary addons:
-        # heroku addons:create -a ${HEROKU_APP_NAME} heroku-postgresql:hobby-dev
-        # heroku addons:create -a ${HEROKU_APP_NAME} heroku-redis:hobby-dev
-        # To release containers:
-        # heroku container:release web worker -a ${HEROKU_APP_NAME}
-        # To initialize the database:
-        # heroku run dallinger-housekeeper initdb -a $HEROKU_APP_NAME
-
-    def copy_docker_compse_files(self):
-        for filename in ["docker-compose.yml", "Dockerfile.web", "Dockerfile.worker"]:
-            path = abspath_from_egg(
-                "dallinger", f"dallinger/command_line/docker/{filename}"
-            )
-            shutil.copy2(path, self.tmp_dir)
+    DEPLOY_NAME = "Docker"
+    WRAPPER_CLASS = DockerComposeWrapper
+    DO_INIT_DB = False  # The DockerComposeWrapper will take care of it
 
     def setup(self):
         """Override setup to be able to build the experiment directory
