@@ -23,7 +23,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install runtime dependencies
 RUN apt-get update && \
-    apt-get install -y libpq5 python3-pip enchant tzdata && \
+    apt-get install -y libpq5 python3-pip enchant tzdata --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
 COPY . /dallinger
