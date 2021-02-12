@@ -2,7 +2,6 @@ name: continuous-integration
 on: [push]
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
     environment: CI
@@ -42,14 +41,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: '11.0.0'
-      - name: NVM
-        run: |
-          curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-          nvm install 10
-          yarn --frozen-lockfile --ignore-engines
+          node-version: '10'
+      - name: Install node packages
+        run: yarn --frozen-lockfile --ignore-engines
       - name: Set up Ruby
         uses: actions/setup-ruby@v1
         with:
@@ -116,3 +110,13 @@ jobs:
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
         if: matrix.python-version == 3.9 && contains(github.ref, '/tags/v')
+
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v2
+    - name: Install dependencies
+      run: pip install black
+    - uses: pre-commit/action@v2.0.0
+    
