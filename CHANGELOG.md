@@ -1,6 +1,14 @@
 # Change Log
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v7.0.0](https://github.com/dallinger/dallinger/tree/v7.0.0) (2021-02-11)
+- Infrastructure: Drop support for python 2.x :-/
+- Infrastructure: Add support for python 3.9 :-)
+- Infrastructure: Update versions of many dependencies, which had been impossible while retaining python 2 compatibility
+- Feature: Core objects with implement `fail()` now accept an option reason for failure, which will be stored
+in a `failed_reason` database columns
+
+
 ## [v6.6.0](https://github.com/dallinger/dallinger/tree/v6.6.0) (2021-01-04)
 - Bugfix: Escape HTML stored in DB records for display in the Database Dashboard
 - Bugfix: Support display of JSON lists in Database Dashboard
