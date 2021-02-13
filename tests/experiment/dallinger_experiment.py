@@ -1,6 +1,4 @@
 import os.path
-from flask.wrappers import Response
-from flask_login import login_required
 
 from dallinger.config import get_config
 from dallinger.experiment import Experiment, experiment_route
@@ -52,7 +50,7 @@ class TestExperiment(Experiment):
     def custom_route(cls):
         return "A custom route for {}.".format(cls.__name__)
 
-    @dashboard_tab("Custom Tab", "/custom_dashboard", after_route="monitoring")
+    @dashboard_tab("Custom Tab", "custom_dashboard", after_route="monitoring")
     @classmethod
     def custom_dashboard(cls):
         return "A custom dashboard for {}.".format(cls.__name__)

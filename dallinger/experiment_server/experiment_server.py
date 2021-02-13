@@ -16,7 +16,7 @@ from flask import (
     send_from_directory,
     url_for,
 )
-from flask_login import LoginManager
+from flask_login import LoginManager, login_required
 from jinja2 import TemplateNotFound
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
@@ -94,6 +94,8 @@ try:
     for route in routes:
         route_func = getattr(exp_klass, route["func_name"], None)
         if route_func is not None:
+            # All dashboard routes require login
+            route_func = login_required(route_func)
             bp.route(route["rule"], *route["args"], **dict(route["kwargs"]))(route_func)
     if routes:
         app.register_blueprint(bp)

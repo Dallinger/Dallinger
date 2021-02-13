@@ -62,12 +62,12 @@ a "My Experiment" tab to the dashboard:
 
     class MyExperimentClass(Experiment
 
-        @dashboard_tab("My Experiment", "/my-experiment")
+        @dashboard_tab("My Experiment", "my_experiment")
         def my_experiment():
             return "Hello, World. This is some information about My Experiment"
 
 This will regsiter the flask route on the dashboard as
-``/dashboard/my-experiment`` under a tab named "My Experiment".
+``/dashboard/my_experiment`` under a tab named "My Experiment".
 
 The dashboard also supports nested tab/menus using the
 :attr:`~dallinger.experiment_server.dashboard.DashboardTab` object:
