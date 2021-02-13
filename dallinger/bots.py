@@ -116,7 +116,9 @@ class BotBase(object):
             self.driver.get(self.URL)
             logger.info("Loaded ad page.")
             begin = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.CLASS_NAME, "btn-primary"))
+                EC.element_to_be_clickable(
+                    (By.CSS_SELECTOR, "button.btn-primary, button.btn-success")
+                )
             )
             begin.click()
             logger.info("Clicked begin experiment button.")

@@ -940,7 +940,7 @@ class BotRecruiter(Recruiter):
             url = "{}/ad?{}".format(base_url, ad_parameters)
             urls.append(url)
             bot = factory(url, assignment_id=assignment, worker_id=worker, hit_id=hit)
-            job = q.enqueue(bot.run_experiment, timeout=self._timeout)
+            job = q.enqueue(bot.run_experiment, job_timeout=self._timeout)
             logger.warning("Created job {} for url {}.".format(job.id, url))
 
         return urls
