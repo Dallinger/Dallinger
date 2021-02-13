@@ -1,0 +1,51 @@
+{% extends "layout.html" %}
+
+{% block stylesheets %}
+    <style>
+      body {
+          padding:0px;
+          margin: 0px;
+          background-color: white;
+          color: black;
+          font-weight: 300;
+          font-size: 13pt;
+      }
+
+      #adlogo {
+          float: right;
+          width: 140px;
+          padding: 2px;
+          border: none;
+      }
+
+      #container {
+          position: absolute;
+          top: 0px; /* Header Height */
+          bottom: 0px; /* Footer Height */
+          left: 0px;
+          right: 0px;
+          padding: 100px;
+          padding-top: 5%;
+          border: 18px solid #f3f3f3;
+          background: white;
+      }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <div id="container">
+      <div class="well">
+        <h1>MTurk HIT Submission</h1>
+        <hr>
+
+        <p>To complete your MTurk HIT, simply press the button below.</p>
+
+        <form style="width: auto;" id="mturk_form" action="{{ external_submit_url }}" method="post">
+          <input type="hidden" id="assignmentId" name="assignmentId" value="{{ assignmentid }}"  />
+          <input type="hidden" id="hitId" name="hitId" value="{{ hitid }}"  />
+          <input type="hidden" id="workerId" name="workerId" value="{{ workerid }}"  />
+          <input type="submit" class="btn btn-success btn-large" value="Complete HIT" />
+        </form>
+
+      </div>
+{% endblock %}

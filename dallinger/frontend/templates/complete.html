@@ -54,7 +54,7 @@
 	    function loadExitPageInMainWindow() {
 	    	// Redirect parent window to exit route
 	        window.opener.location = "/recruiter-exit?participant_id=" + dallinger.identity.participantId;
-	        // Close separate window that held the main experiment.
+	        // Close separate window (this one) that held the main experiment.
 	        window.close();
 	    }
 	</script>
