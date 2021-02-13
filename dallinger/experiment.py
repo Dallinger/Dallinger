@@ -1486,16 +1486,18 @@ EXPERIMENT_ROUTE_REGISTRATIONS = []
 
 
 def experiment_route(rule, *args, **kwargs):
-    """Register experiment functions or classmethod as routes on the
-    :attr:`Experiment.experiment_routes` Blueprint. This decorator defers
-    registration of the routes until experiment server setup to
-    allow routes to be overriden.
+    """Creates a decorator to register experiment functions or classmethods as
+    routes on the ``Experiment.experiment_routes`` blueprint. Accepts all
+    standard flask ``route`` arguments. The registration is deferred until
+    experiment server setup to allow routes to be overridden.
+
+    :returns: A decorator to register methods from a class as experiment routes.
     """
     registered_routes = EXPERIMENT_ROUTE_REGISTRATIONS
     route = {
         "rule": rule,
         "args": args,
-        "kwargs": tuple(kwargs),
+        "kwargs": tuple(kwargs.items()),
     }
 
     def new_func(func):

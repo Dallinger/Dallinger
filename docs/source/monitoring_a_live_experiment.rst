@@ -46,25 +46,33 @@ Customizing the Dashboard
 
 .. module:: dallinger.experiment_server.dashboard
 
-You can add custom tabs to the Dallinger Dashboard by adding and registering
-new `Flask routes <https://flask.palletsprojects.com/en/1.1.x/quickstart/#routing>`__ on the ``dashboard`` `Blueprint <https://flask.palletsprojects.com/en/1.1.x/tutorial/views/>`__, and resgistering the view as a ``dashboard_tab``. For example in your ``experiment.py`` you
-could add the following code to add a "My Experiment" tab to the dashboard:
+You can add custom tabs to the Dallinger Dashboard by registering new
+new `Flask routes <https://flask.palletsprojects.com/en/1.1.x/quickstart/#routing>`__ on the ``dashboard``
+using the ``dashboard_tab`` decorator:
+
+.. autofunction:: dashboard_tab
+
+For example in your custom Experiment class could add the following code to add
+a "My Experiment" tab to the dashboard:
 
 .. code-block:: python
 
-  from dallinger.experiment_server.dashboard import dashboard, dashboard_tabs
+  from dallinger.experiment import Experiment
+  from dallinger.experiment_server.dashboard import dashboard_tab
 
-  @dashboard.route("my-experiment")
-  def my_experiment():
-    return "Hello, World. This is some information about My Experiment"
+    class MyExperimentClass(Experiment
 
-  dashboard_tabs.insert("My Experiment", "my-experiment")
+        @dashboard_tab("My Experiment", "/my-experiment")
+        def my_experiment():
+            return "Hello, World. This is some information about My Experiment"
 
+This will regsiter the flask route on the dashboard as
+``/dashboard/my-experiment`` under a tab named "My Experiment".
 
-The dashboard also supports nested tab/menus using the :attr:`~dallinger.experiment_server.dashboard.DashboardTab` object:
+The dashboard also supports nested tab/menus using the
+:attr:`~dallinger.experiment_server.dashboard.DashboardTab` object:
 
 .. code-block:: python
-
 
   from dallinger.experiment_server.dashboard import dashboard_tabs, DashboardTab
 
@@ -94,7 +102,8 @@ available tabs on your experiment's dashboard:
     .. automethod:: remove
 
 
-The :attr:`~dallinger.experiment_server.dashboard.DashboardTab` object used by the various ``insert_tab*`` methods provide the following API:
+The :attr:`~dallinger.experiment_server.dashboard.DashboardTab` object used by
+the various ``insert_tab*`` methods provide the following API:
 
 .. autoclass:: DashboardTab
 

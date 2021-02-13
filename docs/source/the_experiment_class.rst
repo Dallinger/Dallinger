@@ -27,10 +27,10 @@ what to do with the database when the server receives requests from outside.
   .. autoattribute:: experiment_repeats
     :annotation:
 
-  .. autoinstanceattribute:: experiment_routes
+  .. autoattribute:: experiment_routes
     :annotation:
 
-  .. autoinstanceattribute:: recruiter
+  .. autoattribute:: recruiter
     :annotation:
 
   .. autoattribute:: initial_recruitment_size

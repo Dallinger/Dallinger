@@ -213,3 +213,34 @@ class TestTaskRegistration(object):
             "trigger": "interval",
             "kwargs": (("minutes", 15),),
         }
+
+
+class TestRouteRegistration(object):
+    @pytest.fixture
+    def cleared_routes(self):
+        from dallinger import experiment
+
+        routes = experiment.EXPERIMENT_ROUTE_REGISTRATIONS
+        orig_routes = routes[:]
+        routes.clear()
+        yield routes
+        routes[:] = orig_routes
+
+    def test_deferred_route_decorator(self, cleared_routes):
+        from dallinger.experiment import experiment_route
+
+        decorator = experiment_route("/route", method=["POST", "GET"])
+        assert len(cleared_routes) == 0
+
+        def fake_route():
+            pass
+
+        # Decorator does not modify or wrap the function
+        assert decorator(fake_route) is fake_route
+        assert len(cleared_routes) == 1
+        assert cleared_routes[0] == {
+            "rule": "/route",
+            "kwargs": (("method", ["POST", "GET"]),),
+            "func_name": "fake_route",
+            "args": (),
+        }

@@ -1,7 +1,10 @@
 import os.path
+from flask.wrappers import Response
+from flask_login import login_required
 
 from dallinger.config import get_config
 from dallinger.experiment import Experiment, experiment_route
+from dallinger.experiment_server.dashboard import dashboard_tab
 
 
 class TestExperiment(Experiment):
@@ -47,8 +50,12 @@ class TestExperiment(Experiment):
     @experiment_route("/custom_route")
     @classmethod
     def custom_route(cls):
-        """Get all the drawings."""
         return "A custom route for {}.".format(cls.__name__)
+
+    @dashboard_tab("Custom Tab", "/custom_dashboard", after_route="monitoring")
+    @classmethod
+    def custom_dashboard(cls):
+        return "A custom dashboard for {}.".format(cls.__name__)
 
 
 class ZSubclassThatSortsLower(TestExperiment):

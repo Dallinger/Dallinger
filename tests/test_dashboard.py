@@ -9,6 +9,16 @@ from dallinger.experiment_server.dashboard import DashboardTab
 
 class TestDashboardTabs(object):
     @pytest.fixture
+    def cleared_tab_routes(self):
+        from dallinger.experiment_server import dashboard
+
+        routes = dashboard.DASHBOARD_ROUTE_REGISTRATIONS
+        orig_routes = routes[:]
+        routes.clear()
+        yield routes
+        routes[:] = orig_routes
+
+    @pytest.fixture
     def dashboard_tabs(self):
         from dallinger.experiment_server.dashboard import DashboardTabs
 
@@ -88,6 +98,30 @@ class TestDashboardTabs(object):
 
         dashboard_tabs.remove("index")
         assert len(list(dashboard_tabs)) == 0
+
+    def test_deferred_tab_decorator(self, cleared_tab_routes):
+        from dallinger.experiment_server.dashboard import dashboard_tab
+
+        decorator = dashboard_tab(
+            "My Dashboard", "/route", before_route="network", method=["POST", "GET"]
+        )
+        assert len(cleared_tab_routes) == 0
+
+        def fake_route():
+            pass
+
+        # Decorator does not modify or wrap the function
+        assert decorator(fake_route) is fake_route
+        assert len(cleared_tab_routes) == 1
+        assert cleared_tab_routes[0] == {
+            "title": "My Dashboard",
+            "rule": "/route",
+            "before_route": "network",
+            "after_route": None,
+            "kwargs": (("method", ["POST", "GET"]),),
+            "func_name": "fake_route",
+            "args": (),
+        }
 
 
 class TestDashboard(object):
@@ -347,6 +381,13 @@ class TestDashboardCoreRoutes(object):
         loggedout_resp = logged_in.get("/dashboard/")
         assert loggedout_resp.status_code == 302
         assert loggedout_resp.location.endswith("/dashboard/login?next=%2Fdashboard%2F")
+
+    # Cannot be isolated because route registration happens at import time
+    @pytest.mark.xfail
+    def test_custom_route(self, logged_in):
+        resp = logged_in.get("/dashboard/custom_dashboard")
+        assert resp.status_code == 200
+        assert "A custom dashboard for TestExperiment." in resp.data.decode("utf8")
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")

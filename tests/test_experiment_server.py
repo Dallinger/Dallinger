@@ -593,6 +593,8 @@ class TestSimpleGETRoutes(object):
         resp = webapp.get("/experiment/missing")
         assert resp.status_code == 404
 
+    # Cannot be isolated because route registration happens at import time
+    @pytest.mark.xfail
     def test_custom_route(self, a, webapp):
         resp = webapp.get("/custom_route")
         assert resp.status_code == 200

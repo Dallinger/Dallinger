@@ -765,3 +765,55 @@ def database_action(route_name):
     if result.get("message"):
         flash(result["message"], "success")
     return success_response(**result)
+
+
+DASHBOARD_ROUTE_REGISTRATIONS = []
+
+
+def dashboard_tab(title, rule, *args, **kwargs):
+    """Creates a decorator to register experiment functions or classmethods as
+    dashboard tabs. Adds a tab with a ``title`` at a route location determined
+    by the ``rule`` parameter along with any other flask ``route`` arguments.
+    Registers the decorated method as a route on the
+    :attr:`dallinger.experiment_server.dashboard.dashboard` Blueprint. The
+    registration is deferred until experiment server setup to allow routes to be
+    overridden. Optionally accepts ``after_route`` and ``before_route``
+    arguments to specify tab ordering relative to other named routes.
+
+    :param title: The dashboard tab title
+    :type title: str
+    :param rule: The flask rule path
+    :type title: str
+    :param after_route: Optional name of a tab after which to insert
+                        this tab
+    :type title: str
+    :param before_route: Optional name of a tab before which to insert
+                         this tab
+    :type title: str
+
+    :returns: Returns a decorator to register methods from a class as dashboard
+              routes.
+    """
+    registered_routes = DASHBOARD_ROUTE_REGISTRATIONS
+    after_route = kwargs.pop("after_route", None)
+    before_route = kwargs.pop("before_route", None)
+    route = {
+        "rule": rule,
+        "args": args,
+        "kwargs": tuple(kwargs.items()),
+        "title": title,
+        "after_route": after_route,
+        "before_route": before_route,
+    }
+
+    def new_func(func):
+        # Check `__func__` in case we have a classmethod or staticmethod
+        base_func = getattr(func, "__func__", func)
+        name = getattr(base_func, "__name__", None)
+        if name is not None:
+            route["func_name"] = name
+            if route not in registered_routes:
+                registered_routes.append(route)
+        return func
+
+    return new_func

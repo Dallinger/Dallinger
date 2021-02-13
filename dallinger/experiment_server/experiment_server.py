@@ -86,7 +86,7 @@ except ImportError:
 else:
     app.register_blueprint(extra_routes)
 
-# Register extra_routes defined on experiment class
+
 try:
     exp_klass = experiment.load()
     bp = exp_klass.experiment_routes
@@ -97,8 +97,29 @@ try:
             bp.route(route["rule"], *route["args"], **dict(route["kwargs"]))(route_func)
     if routes:
         app.register_blueprint(bp)
+
+    dash_routes = dashboard.DASHBOARD_ROUTE_REGISTRATIONS
+    for route in dash_routes:
+        route_func = getattr(exp_klass, route["func_name"], None)
+        if route_func is not None:
+            dashboard.dashboard.route(
+                route["rule"], *route["args"], **dict(route["kwargs"])
+            )(route_func)
+            tabs = dashboard.dashboard_tabs
+            if route.get("before_route"):
+                tabs.insert_before_route(
+                    route["title"], route["rule"], route["before_route"]
+                )
+            elif route.get("after_route"):
+                tabs.insert_after_route(
+                    route["title"], route["rule"], route["after_route"]
+                )
+            else:
+                tabs.insert(route["title"])
+
 except ImportError:
     pass
+
 
 # Ideally, we'd only load recruiter routes if the recruiter is active, but
 # it turns out this is complicated, so for now we always register our
