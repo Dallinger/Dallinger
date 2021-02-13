@@ -1,17 +1,13 @@
 repos:
 
-- repo: local
+- repo: https://github.com/psf/black
+  rev: 20.8b1 # update with `pre-commit autoupdate`
   hooks:
-  - id: black
-    name: black
-    entry: black
-    args: [--quiet]
-    language: system
-    types: [python]
-    files: ^(tests|dallinger|dallinger_scripts|demos)/
+    - id: black
+      language_version: python3 # Should be a command that runs python3.6+
+      files: ^(tests|dallinger|dallinger_scripts|demos)/
 
-- repo: git://github.com/pre-commit/pre-commit-hooks
-  rev: v2.1.0
+- repo: https://gitlab.com/pycqa/flake8
+  rev: '3.8.4'
   hooks:
   - id: flake8
-    stages: [push]
