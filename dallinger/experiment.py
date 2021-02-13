@@ -429,6 +429,19 @@ class Experiment(object):
         """
         return "Thank for participating! Here is your bonus."
 
+    def exit_info_for(self, participant):
+        """An experiment can return a dictionary of infomation that will
+        be shown to the participant after at the very last point in their
+        lifecycle, if the HIT is not submitted to an external recruitment
+        service for submission.
+        """
+        return {
+            "Assignment ID": participant.assignment_id,
+            "HIT ID": participant.hit_id,
+            "Base Pay": participant.base_pay,
+            "Bonus": participant.bonus,
+        }
+
     def attention_check(self, participant):
         """Check if participant performed adequately.
 

@@ -239,6 +239,8 @@ def assemble_experiment_temp_dir(config):
         os.path.join("templates", "complete.html"),
         os.path.join("templates", "questionnaire.html"),
         os.path.join("templates", "thanks.html"),
+        os.path.join("templates", "exit_recruiter.html"),
+        os.path.join("templates", "exit_recruiter_mturk.html"),
         os.path.join("templates", "waiting.html"),
         os.path.join("templates", "login.html"),
         os.path.join("templates", "dashboard_lifecycle.html"),

@@ -172,14 +172,15 @@ class CLIRecruiter(Recruiter):
         self.config = get_config()
 
     def exit_response(self, experiment, participant):
+        """Delegate to the experiment for possible values to show to the
+        participant.
+        """
+        exit_info = sorted(experiment.exit_info_for(participant).items())
+
         return flask.render_template(
-            "thanks.html",
-            hitid=participant.hit_id,
-            assignmentid=participant.assignment_id,
-            workerid=participant.worker_id,
-            external_submit_url=self.external_submission_url,
-            mode=self.config.get("mode"),
-            app_id=self.config.get("id"),
+            "exit_recruiter.html",
+            recruiter=self.__class__.__name__,
+            participant_exit_info=exit_info,
         )
 
     def open_recruitment(self, n=1):
@@ -547,13 +548,11 @@ class MTurkRecruiter(Recruiter):
 
     def exit_response(self, experiment, participant):
         return flask.render_template(
-            "thanks.html",
+            "exit_recruiter_mturk.html",
             hitid=participant.hit_id,
             assignmentid=participant.assignment_id,
             workerid=participant.worker_id,
             external_submit_url=self.external_submission_url,
-            mode=self.config.get("mode"),
-            app_id=self.config.get("id"),
         )
 
     @property

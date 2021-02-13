@@ -1,18 +1,49 @@
 {% extends "layout.html" %}
 
+{% block stylesheets %}
+    <style>
+        body {
+            padding:0px;
+            margin: 0px;
+            background-color: white;
+            color: black;
+            font-weight: 300;
+            font-size: 13pt;
+        }
+        #adlogo {
+            float: right;
+            width: 140px;
+            padding: 2px;
+            border: none;
+        }
+        #completion {
+            position: absolute;
+            top: 0px; /* Header Height */
+            bottom: 0px; /* Footer Height */
+            left: 0px;
+            right: 0px;
+            padding: 100px;
+            padding-top: 5%;
+            border: 18px solid #f3f3f3;
+            background: white;
+        }
+    </style>
+{% endblock %}
+
 {% block body %}
-	<div id="container-not-an-ad">
-		<div id="ad">
-			<div class="row">
-				<div class="col-xs-2">
-					<img id="adlogo" src="/static/images/logo.png" alt="Lab Logo" />
-				</div>
-				<div class="col-xs-10">
-					<h1>Returning to HIT window.</h1>
-					<p>You are being redirected back to the HIT window, which should refresh.
-					If you do not see the HIT submission form when you return, try refreshing
-					the page.</p>
-				</div>
+	<div id="completion">
+		<div class="row">
+			<div class="col-xs-2">
+				<img id="adlogo" src="/static/images/logo.png" alt="Lab Logo" />
+			</div>
+			<div class="col-xs-10">
+				<h1>You're almost finished!</h1>
+				<p>Thank you for completing the questionnaire.</p>
+				<p>To close this window and complete your assignment via the recruitment service,
+				click this button:</p>
+                <button type="button"
+                        class="btn btn-primary"
+                        onclick="loadExitPageInMainWindow()">Finish</button>
 			</div>
 		</div>
 	</div>
@@ -20,7 +51,11 @@
 
 {% block scripts %}
 	<script>
-		window.opener.location = "/recruiter-exit?participant_id=" + dallinger.identity.participantId;
-		// window.close();
+	    function loadExitPageInMainWindow() {
+	    	// Redirect parent window to exit route
+	        window.opener.location = "/recruiter-exit?participant_id=" + dallinger.identity.participantId;
+	        // Close separate window that held the main experiment.
+	        window.close();
+	    }
 	</script>
 {% endblock %}

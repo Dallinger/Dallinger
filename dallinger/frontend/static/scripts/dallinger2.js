@@ -381,10 +381,7 @@ var dallinger = (function () {
       }).done(function () {
         deferred.resolve();
         dallinger.allowExit();
-        // dallinger.goToPage("recruiter-exit");
-
-        window.opener.location = "/recruiter-exit?participant_id=" + dallinger.identity.participantId;
-        // window.close();
+        dallinger.goToPage("complete");
       }).fail(function (err) {
         deferred.reject(err);
       });

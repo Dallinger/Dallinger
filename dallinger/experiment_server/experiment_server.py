@@ -388,22 +388,6 @@ def launch():
     return success_response(recruitment_msg=message)
 
 
-def should_show_thanks_page_to(participant):
-    """In the context of the /ad route, should the participant be shown
-    the thanks.html page instead of ad.html?
-    """
-    if participant is None:
-        return False
-    status = participant.status
-    marked_done = participant.end_time is not None
-    ready_for_external_submission = (
-        status in ("overrecruited", "working") and marked_done
-    )
-    assignment_complete = status in ("submitted", "approved")
-
-    return assignment_complete or ready_for_external_submission
-
-
 @app.route("/ad", methods=["GET"])
 @nocache
 def advertisement():
@@ -468,30 +452,17 @@ def advertisement():
         except exc.SQLAlchemyError:
             pass
 
+    if participant and participant.status == "working":
+        # Once participants have finished the instructions, we do not allow
+        # them to start the task again.
+        raise ExperimentError("already_started_exp_mturk")
+
     recruiter_name = request.args.get("recruiter")
     if recruiter_name:
         recruiter = recruiters.by_name(recruiter_name)
     else:
         recruiter = recruiters.from_config(config)
         recruiter_name = recruiter.nickname
-
-    if should_show_thanks_page_to(participant):
-        # They've either done, or they're from a recruiter that requires
-        # submission of an external form to complete their participation.
-        return render_template(
-            "thanks.html",
-            hitid=hit_id,
-            assignmentid=assignment_id,
-            workerid=worker_id,
-            external_submit_url=recruiter.external_submission_url,
-            mode=config.get("mode"),
-            app_id=app_id,
-            query_string=request.query_string,
-        )
-    if participant and participant.status == "working":
-        # Once participants have finished the instructions, we do not allow
-        # them to start the task again.
-        raise ExperimentError("already_started_exp_mturk")
 
     # Participant has not yet agreed to the consent. They might not
     # even have accepted the HIT.
@@ -505,38 +476,6 @@ def advertisement():
         app_id=app_id,
         query_string=request.query_string.decode(),
     )
-
-
-@app.route("/mturk-exit", methods=["GET"])
-@nocache
-def mturk_exit():
-    """"""
-    participant_id = request.args.get("participant_id")
-    if participant_id is None:
-        raise ExperimentError("improper_inputs")
-    config = _config()
-
-    participant = models.Participant.query.get(participant_id)
-
-    recruiter_name = request.args.get("recruiter")
-    if recruiter_name:
-        recruiter = recruiters.by_name(recruiter_name)
-    else:
-        recruiter = recruiters.from_config(config)
-        recruiter_name = recruiter.nickname
-
-    if should_show_thanks_page_to(participant):
-        # They've either done, or they're from a recruiter that requires
-        # submission of an external form to complete their participation.
-        return render_template(
-            "thanks.html",
-            hitid=participant.hit_id,
-            assignmentid=participant.assignment_id,
-            workerid=participant.worker_id,
-            external_submit_url=recruiter.external_submission_url,
-            mode=config.get("mode"),
-            app_id=config.get("id", "unknown"),
-        )
 
 
 @app.route("/summary", methods=["GET"])
