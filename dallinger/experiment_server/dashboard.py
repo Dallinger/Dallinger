@@ -6,6 +6,7 @@ from copy import deepcopy
 from datetime import datetime
 from datetime import timedelta
 from six.moves.urllib.parse import urlencode
+from xml.sax.saxutils import escape
 from flask import Blueprint
 from flask import current_app
 from flask import abort, flash, redirect, render_template, request, url_for
@@ -648,16 +649,19 @@ def prep_datatables_options(table_data):
 
             display_key = key + "_display"
             value = row[key]
-            row[display_key] = "<code>{}</code>".format(
-                json.dumps(value, default=date_handler)
-            )
+            if not isinstance(value, (six.text_type, six.binary_type)):
+                row[display_key] = "<code>{}</code>".format(
+                    escape(json.dumps(value, default=date_handler))
+                )
+            else:
+                row[display_key] = escape(value)
+            col["data"] = {
+                "_": key,
+                "filter": key,
+                "display": display_key,
+            }
 
             if isinstance(row[key], (list, dict)):
-                col["data"] = {
-                    "_": key,
-                    "filter": key,
-                    "display": display_key,
-                }
                 col["searchPanes"] = {
                     "orthogonal": {
                         "display": "filter",
@@ -672,9 +676,9 @@ def prep_datatables_options(table_data):
             if isinstance(row[key], dict):
                 # Make sure SearchPanes can show dict values reasonably
                 row[key] = json.dumps(value, default=date_handler)
-                # Add indentation
+                # Add indentation to dicts
                 row[display_key] = "<code>{}</code>".format(
-                    json.dumps(value, default=date_handler, indent=True)
+                    escape(json.dumps(value, default=date_handler, indent=True))
                 )
             elif isinstance(row[key], list):
                 # Make sure SearchPanes can show list values reasonably
