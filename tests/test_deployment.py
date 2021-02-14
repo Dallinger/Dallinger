@@ -330,7 +330,6 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("templates", "error.html"), dst)
         assert found_in(os.path.join("templates", "error-complete.html"), dst)
         assert found_in(os.path.join("templates", "launch.html"), dst)
-        assert found_in(os.path.join("templates", "complete.html"), dst)
 
     def test_setup_uses_specified_python_version(self, active_config, setup_experiment):
         active_config.extend({"heroku_python_version": "2.7.14"})
