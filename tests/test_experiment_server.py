@@ -371,58 +371,58 @@ class TestQuestion(object):
 @pytest.mark.slow
 class TestWorkerComplete(object):
     def test_with_no_participant_id_returns_error(self, webapp):
-        resp = webapp.get("/worker_complete")
+        resp = webapp.post("/worker_complete")
         assert resp.status_code == 400
         assert b"participantId parameter is required" in resp.data
 
     def test_with_invalid_participant_id_returns_error(self, webapp):
-        resp = webapp.get("/worker_complete?participant_id=-1")
+        resp = webapp.post("/worker_complete", data={"participant_id": "-1"})
         assert resp.status_code == 400
         assert b"ParticipantId not found: -1" in resp.data
 
     def test_with_valid_participant_id_returns_success(self, a, webapp):
-        resp = webapp.get(
-            "/worker_complete?participant_id={}".format(a.participant().id)
+        resp = webapp.post(
+            "/worker_complete", data={"participant_id": a.participant().id}
         )
         assert resp.status_code == 200
 
     def test_sets_end_time(self, a, webapp, db_session):
         participant = a.participant()
-        webapp.get("/worker_complete?participant_id={}".format(participant.id))
+        webapp.post("/worker_complete", data={"participant_id": participant.id})
         assert db_session.merge(participant).end_time is not None
 
     def test_records_notification_if_debug_mode(self, a, webapp):
-        webapp.get("/worker_complete?participant_id={}".format(a.participant().id))
+        webapp.post("/worker_complete", data={"participant_id": a.participant().id})
         assert models.Notification.query.one().event_type == u"AssignmentSubmitted"
 
     def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
-        webapp.get(
-            "/worker_complete?participant_id={}".format(
-                a.participant(recruiter_id="bots").id
-            )
+        webapp.post(
+            "/worker_complete",
+            data={"participant_id": a.participant(recruiter_id="bots").id},
         )
+
         assert models.Notification.query.one().event_type == u"BotAssignmentSubmitted"
 
     def test_records_notification_for_non_mturk_recruiter(
         self, a, webapp, active_config
     ):
         active_config.extend({"mode": u"sandbox", "recruiter": u"CLIRecruiter"})
-        webapp.get(
-            "/worker_complete?participant_id={}".format(
-                a.participant(recruiter_id="cli").id
-            )
+        webapp.post(
+            "/worker_complete",
+            data={"participant_id": a.participant(recruiter_id="cli").id},
         )
+
         assert models.Notification.query.one().event_type == u"AssignmentSubmitted"
 
     def test_records_no_notification_mturk_recruiter_and_nondebug(
         self, a, webapp, active_config
     ):
         active_config.extend({"mode": u"sandbox", "assign_qualifications": False})
-        webapp.get(
-            "/worker_complete?participant_id={}".format(
-                a.participant(recruiter_id="mturk").id
-            )
+        webapp.post(
+            "/worker_complete",
+            data={"participant_id": a.participant(recruiter_id="mturk").id},
         )
+
         assert models.Notification.query.all() == []
 
     def test_notifies_recruiter_when_participant_completes(
@@ -434,10 +434,9 @@ class TestWorkerComplete(object):
         with mock.patch(
             "dallinger.recruiters.MTurkRecruiter.notify_completed"
         ) as notify_completed:
-            webapp.get(
-                "/worker_complete?participant_id={}".format(
-                    a.participant(recruiter_id="mturk").id
-                )
+            webapp.post(
+                "/worker_complete",
+                data={"participant_id": a.participant(recruiter_id="mturk").id},
             )
             args, _ = notify_completed.call_args
             assert isinstance(args[0], Participant)

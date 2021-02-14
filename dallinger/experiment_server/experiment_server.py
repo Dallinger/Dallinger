@@ -1544,11 +1544,11 @@ def check_for_duplicate_assignments(participant):
         q.enqueue(worker_function, "AssignmentAbandoned", None, d.id)
 
 
-@app.route("/worker_complete", methods=["GET"])
+@app.route("/worker_complete", methods=["POST"])
 @db.scoped_session_decorator
 def worker_complete():
     """Complete worker."""
-    participant_id = request.args.get("participant_id")
+    participant_id = request.values.get("participant_id")
     if not participant_id:
         return error_response(
             error_type="bad request", error_text="participantId parameter is required"
