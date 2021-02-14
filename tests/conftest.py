@@ -13,8 +13,10 @@ def check_firefox(request):
 
 @pytest.fixture(scope="module")
 def check_chrome(request):
-    if not request.config.getvalue("chrome"):
-        pytest.skip("--chrome was not specified")
+    if not request.config.getvalue("chrome") and not request.config.getvalue(
+        "chrome_headless"
+    ):
+        pytest.skip("neither --chrome nor --chrome-headless was specified")
 
 
 @pytest.fixture(scope="module")

@@ -35,7 +35,7 @@ jobs:
       - name: Check out Dallinger repository
         uses: actions/checkout@v2
       - name: Install Ubuntu packages
-        run: sudo apt-get --yes install pandoc enchant snapd curl
+        run: sudo apt-get --yes install pandoc enchant snapd curl chromium-browser chromium-chromedriver
       - name: Install snap packages
         run: sudo snap install --classic heroku
       - name: Set up Node.js
