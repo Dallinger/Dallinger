@@ -18,6 +18,12 @@ def check_chrome(request):
 
 
 @pytest.fixture(scope="module")
+def check_chrome_headless(request):
+    if not request.config.getvalue("chrome_headless"):
+        pytest.skip("--chrome-headless was not specified")
+
+
+@pytest.fixture(scope="module")
 def check_webdriver(request):
     if not request.config.getvalue("webdriver"):
         pytest.skip("--webdriver was not specified")

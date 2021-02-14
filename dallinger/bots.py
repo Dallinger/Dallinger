@@ -23,11 +23,13 @@ DRIVER_MAP = {
     "phantomjs": webdriver.PhantomJS,
     "firefox": webdriver.Firefox,
     "chrome": webdriver.Chrome,
+    "chrome_headless": webdriver.Chrome,
 }
 CAPABILITY_MAP = {
     "phantomjs": webdriver.DesiredCapabilities.PHANTOMJS,
     "firefox": webdriver.DesiredCapabilities.FIREFOX,
     "chrome": webdriver.DesiredCapabilities.CHROME,
+    "chrome_headless": webdriver.DesiredCapabilities.CHROME,
 }
 
 
@@ -97,6 +99,12 @@ class BotBase(object):
                     kwargs = {
                         "service_args": ["--local-storage-path={}".format(tmpdirname)],
                     }
+                elif driver_type.lower() == "chrome_headless":
+                    from selenium.webdriver.chrome.options import Options
+
+                    chrome_options = Options()
+                    chrome_options.add_argument("--headless")
+                    kwargs = {"chrome_options": chrome_options}
                 driver = driver_class(**kwargs)
 
         if driver is None:
@@ -116,7 +124,9 @@ class BotBase(object):
             self.driver.get(self.URL)
             logger.info("Loaded ad page.")
             begin = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.CLASS_NAME, "btn-primary"))
+                EC.element_to_be_clickable(
+                    (By.CSS_SELECTOR, "button.btn-primary, button.btn-success")
+                )
             )
             begin.click()
             logger.info("Clicked begin experiment button.")

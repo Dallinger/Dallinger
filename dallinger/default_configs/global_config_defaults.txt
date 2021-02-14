@@ -23,7 +23,7 @@ assign_qualifications = False
 us_only = False
 
 [Bots]
-webdriver_type = phantomjs
+webdriver_type = chrome_headless
 chrome-path = /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 
 [Heroku]

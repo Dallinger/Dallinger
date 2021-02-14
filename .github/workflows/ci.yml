@@ -2,9 +2,37 @@ name: continuous-integration
 on: [push]
 
 jobs:
+
+  check_mturk_changes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+
+      - name: check for mturk changes
+        id: check_files
+        run: |
+          echo "========== check paths of modified files =========="
+          git diff --name-only HEAD^ HEAD > files.txt
+          while IFS= read -r file
+          do
+            echo $file
+            if [[ $file == *mturk.py ]] || [[ $file == *recruiters.py ]]; then
+              echo "This modified file is MTurk related."
+              echo "::set-output name=mturk_changed::true"
+              break
+            else
+              echo "This modified file is not MTurk related."
+              echo "::set-output name=mturk_changed::false"
+            fi
+          done < files.txt
+
   build:
     runs-on: ubuntu-latest
     environment: CI
+    needs: check_mturk_changes
     strategy:
       matrix:
         python-version: [3.7, 3.8, 3.9]
@@ -36,6 +64,8 @@ jobs:
         uses: actions/checkout@v2
       - name: Install Ubuntu packages
         run: sudo apt-get --yes install pandoc enchant snapd curl
+      - name: Chromedriver setup
+        uses: nanasess/setup-chromedriver@v1.0.5
       - name: Install snap packages
         run: sudo snap install --classic heroku
       - name: Set up Node.js
@@ -83,7 +113,7 @@ jobs:
           aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
-          tox
+          tox ${{ needs.check_mturk_changes.outputs.mturk_changed == 'true' && '-- --mturkfull' || ''}}
         if: matrix.python-version == 3.9
       - name: Run Fast Tests Only
         env:
@@ -117,4 +147,3 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions/setup-python@v2
     - uses: pre-commit/action@v2.0.0
-    

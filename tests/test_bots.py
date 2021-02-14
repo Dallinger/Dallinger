@@ -17,21 +17,21 @@ class TestBots(object):
         assert bot
 
     @pytest.mark.slow
-    def test_bot_driver_default_is_phantomjs(self, active_config):
+    def test_bot_driver_default_is_chrome(self, active_config):
         from dallinger.bots import BotBase
 
         bot = BotBase("http://dallinger.io")
-        assert isinstance(bot.driver, webdriver.PhantomJS)
+        assert isinstance(bot.driver, webdriver.Chrome)
         bot.driver.quit()
 
     @pytest.mark.slow
-    def test_bot_using_phantomjs(self, active_config):
+    def test_bot_using_chrome_headless(self, active_config):
         """Create a bot."""
-        active_config.extend({"webdriver_type": u"phantomjs"})
+        active_config.extend({"webdriver_type": u"chrome_headless"})
         from dallinger.bots import BotBase
 
         bot = BotBase("http://dallinger.io")
-        assert isinstance(bot.driver, webdriver.PhantomJS)
+        assert isinstance(bot.driver, webdriver.Chrome)
         bot.driver.quit()
 
     @pytest.mark.usefixtures("check_firefox")
@@ -53,12 +53,12 @@ class TestBots(object):
         assert isinstance(bot.driver, webdriver.Chrome)
 
     @pytest.mark.usefixtures("check_webdriver")
-    @pytest.mark.usefixtures("check_phantomjs")
-    def test_bot_using_webdriver_phantomjs(self, active_config):
+    @pytest.mark.usefixtures("check_chrome_headless")
+    def test_bot_using_webdriver_chrome_headless(self, active_config):
         """Create a bot."""
         active_config.extend(
             {
-                "webdriver_type": u"phantomjs",
+                "webdriver_type": u"chrome_headless",
                 "webdriver_url": self._config.getvalue("webdriver").decode("ascii"),
             }
         )
@@ -66,7 +66,7 @@ class TestBots(object):
 
         bot = BotBase("http://dallinger.io")
         assert isinstance(bot.driver, webdriver.Remote)
-        assert bot.driver.capabilities["browserName"] == "phantomjs"
+        assert bot.driver.capabilities["browserName"] == "chrome"
 
     @pytest.mark.usefixtures("check_webdriver")
     @pytest.mark.usefixtures("check_firefox")

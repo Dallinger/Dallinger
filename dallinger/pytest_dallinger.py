@@ -163,7 +163,7 @@ def stub_config():
         u"threads": u"1",
         u"title": u"fake experiment title",
         u"us_only": True,
-        u"webdriver_type": u"phantomjs",
+        u"webdriver_type": u"chrome_headless",
         u"whimsical": True,
         u"replay": False,
         u"worker_multiplier": 1.5,
@@ -455,6 +455,7 @@ DRIVER_MAP = {
     u"phantomjs": webdriver.PhantomJS,
     u"firefox": webdriver.Firefox,
     u"chrome": webdriver.Chrome,
+    u"chrome_headless": webdriver.Chrome,
 }
 
 
@@ -475,13 +476,19 @@ def selenium_recruits(request, recruitment_loop):
     def recruits():
         for url in recruitment_loop:
             kwargs = {}
-            driver_class = DRIVER_MAP.get(request.param, webdriver.PhantomJS)
+            driver_class = DRIVER_MAP.get(request.param, webdriver.Chrome)
             if driver_class is webdriver.PhantomJS:
                 # PhantomJS needs a new local storage for every run
                 tmpdirname = tempfile.mkdtemp()
                 kwargs = {
                     "service_args": ["--local-storage-path={}".format(tmpdirname)],
                 }
+            elif request.param == "chrome_headless":
+                from selenium.webdriver.chrome.options import Options
+
+                chrome_options = Options()
+                chrome_options.add_argument("--headless")
+                kwargs = {"chrome_options": chrome_options}
             driver = driver_class(**kwargs)
             driver.get(url)
             try:
@@ -497,7 +504,7 @@ def selenium_recruits(request, recruitment_loop):
 
 @pytest.fixture
 def bot_recruits(request, active_config, recruitment_loop):
-    driver_type = request.param or u"phantomjs"
+    driver_type = request.param or u"chrome_headless"
     active_config.set(u"webdriver_type", driver_type)
 
     def recruit_bots():
@@ -522,6 +529,11 @@ def bot_recruits(request, active_config, recruitment_loop):
 
 def pytest_addoption(parser):
     parser.addoption("--chrome", action="store_true", help="Run chrome tests")
+    parser.addoption(
+        "--chrome-headless",
+        action="store_true",
+        help="Run chrome tests with headless driver",
+    )
     parser.addoption("--firefox", action="store_true", help="Run firefox tests")
     parser.addoption("--phantomjs", action="store_true", help="Run phantomjs tests")
     parser.addoption(
