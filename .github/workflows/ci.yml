@@ -4,6 +4,7 @@ on: [push]
 jobs:
 
   check_mturk_changes:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -31,6 +32,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     environment: CI
+    needs: check_mturk_changes
     strategy:
       matrix:
         python-version: [3.7, 3.8, 3.9]
@@ -98,12 +100,6 @@ jobs:
       - name: Python Installers
         run: |
           pip install --upgrade pip wheel tox
-
-  test:
-    needs:
-      - build
-      - check_mturk_changes
-    steps:
       - name: Before Tox
         run: |
           bundle exec danger
@@ -130,10 +126,6 @@ jobs:
         run: |
           tox -e fast
         if: matrix.python-version != 3.9
-
-  release:
-    needs: test
-    steps:
       - name: Set up deployment
         env:
           CHANDLER_GITHUB_API_TOKEN: ${{ secrets.CHANDLER_GITHUB_API_TOKEN }}
