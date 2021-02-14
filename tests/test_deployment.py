@@ -329,6 +329,8 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("static", "robots.txt"), dst)
         assert found_in(os.path.join("templates", "error.html"), dst)
         assert found_in(os.path.join("templates", "error-complete.html"), dst)
+        assert found_in(os.path.join("templates", "exit_recruiter.html"), dst)
+        assert found_in(os.path.join("templates", "exit_recruiter_mturk.html"), dst)
         assert found_in(os.path.join("templates", "launch.html"), dst)
 
     def test_setup_uses_specified_python_version(self, active_config, setup_experiment):
