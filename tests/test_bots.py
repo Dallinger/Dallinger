@@ -53,7 +53,7 @@ class TestBots(object):
         assert isinstance(bot.driver, webdriver.Chrome)
 
     @pytest.mark.usefixtures("check_webdriver")
-    @pytest.mark.usefixtures("check_chrome")
+    @pytest.mark.usefixtures("check_chrome_headless")
     def test_bot_using_webdriver_chrome_headless(self, active_config):
         """Create a bot."""
         active_config.extend(
