@@ -334,14 +334,14 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("templates", "launch.html"), dst)
 
     def test_setup_uses_specified_python_version(self, active_config, setup_experiment):
-        active_config.extend({"heroku_python_version": "2.7.14"})
+        active_config.extend({"heroku_python_version": "3.8.7"})
 
         exp_id, dst = setup_experiment(log=mock.Mock())
 
         with open(os.path.join(dst, "runtime.txt"), "r") as file:
             version = file.read()
 
-        assert version == "python-2.7.14"
+        assert version == "python-3.8.7"
 
     def test_setup_procfile_no_clock(self, setup_experiment):
         config = get_config()
