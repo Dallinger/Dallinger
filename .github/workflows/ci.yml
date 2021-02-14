@@ -2,6 +2,32 @@ name: continuous-integration
 on: [push]
 
 jobs:
+
+  check_mturk_changes:
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+
+      - name: check for mturk changes
+        id: check_files
+        run: |
+          echo "========== check paths of modified files =========="
+          git diff --name-only HEAD^ HEAD > files.txt
+          while IFS= read -r file
+          do
+            echo $file
+            if [[ $file == *mturk.py ]] || [[ $file == *recruiters.py ]]; then
+              echo "This modified file is MTurk related."
+              echo "::set-output name=mturk_changed::true"
+              break
+            else
+              echo "This modified file is not MTurk related."
+              echo "::set-output name=mturk_changed::false"
+            fi
+          done < files.txt
+
   build:
     runs-on: ubuntu-latest
     environment: CI
@@ -35,7 +61,9 @@ jobs:
       - name: Check out Dallinger repository
         uses: actions/checkout@v2
       - name: Install Ubuntu packages
-        run: sudo apt-get --yes install pandoc enchant snapd curl chromium-browser chromium-chromedriver
+        run: sudo apt-get --yes install pandoc enchant snapd curl
+      - name: Chromedriver setup
+        uses: nanasess/setup-chromedriver@v1.0.5
       - name: Install snap packages
         run: sudo snap install --classic heroku
       - name: Set up Node.js
@@ -70,6 +98,12 @@ jobs:
       - name: Python Installers
         run: |
           pip install --upgrade pip wheel tox
+
+  test:
+    needs:
+      - build
+      - check_mturk_changes
+    steps:
       - name: Before Tox
         run: |
           bundle exec danger
@@ -83,7 +117,7 @@ jobs:
           aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
-          tox
+          tox ${{ needs.check_mturk_changes.outputs.mturk_changed == 'true' && '-- --mturkfull' || ''}}
         if: matrix.python-version == 3.9
       - name: Run Fast Tests Only
         env:
@@ -96,6 +130,10 @@ jobs:
         run: |
           tox -e fast
         if: matrix.python-version != 3.9
+
+  release:
+    needs: test
+    steps:
       - name: Set up deployment
         env:
           CHANDLER_GITHUB_API_TOKEN: ${{ secrets.CHANDLER_GITHUB_API_TOKEN }}
@@ -117,4 +155,3 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions/setup-python@v2
     - uses: pre-commit/action@v2.0.0
-    
