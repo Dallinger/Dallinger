@@ -434,6 +434,15 @@ class Experiment(object):
         be shown to the participant after at the very last point in their
         lifecycle, if the HIT is not submitted to an external recruitment
         service for submission.
+
+        For complete control over the exit page, a customized version of
+        the ``exit_recruiter.html`` template can be included in the experient
+        directory, and this will override the default provided by Dallinger.
+
+        :param participant: the ``Participant`` instance for which to calculate
+            an exit value
+        :returns: ``dict`` which may be rendered to the worker as an HTML table
+            when they submit their assigment.
         """
         return {
             "Assignment ID": participant.assignment_id,
