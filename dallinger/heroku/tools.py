@@ -383,7 +383,7 @@ class HerokuLocalWrapper(object):
     STREAM_SENTINEL = ""
 
     def __init__(
-        self, config, output, experiment_name, tmp_dir, verbose=True, env=None
+        self, config, output, experiment_name=None, tmp_dir=None, verbose=True, env=None
     ):
         self.config = config
         self.out = output
@@ -391,6 +391,7 @@ class HerokuLocalWrapper(object):
         self.env = env if env is not None else os.environ.copy()
         self._record = []
         self._process = None
+        # tmp_dir and experiment_name are here just for simmetry with the Docker wrapper
         self.experiment_name = experiment_name
         self.tmp_dir = tmp_dir
 
