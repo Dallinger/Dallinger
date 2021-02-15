@@ -87,7 +87,9 @@ else:
     app.register_blueprint(extra_routes)
 
 
-try:
+# Skipping coverage testing on this for now because it only runs at import time
+# and cannot be exercised within tests
+try:  # pragma: no cover
     exp_klass = experiment.load()
     bp = exp_klass.experiment_routes
     routes = experiment.EXPERIMENT_ROUTE_REGISTRATIONS
