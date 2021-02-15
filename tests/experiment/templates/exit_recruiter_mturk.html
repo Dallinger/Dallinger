@@ -1,0 +1,17 @@
+{% block body %}
+    <div id="container">
+      <div class="well">
+        <h1>MTurk HIT Submission</h1>
+        <hr>
+
+        <p>To complete your MTurk HIT, simply press the button below.</p>
+
+        <form style="width: auto;" id="mturk_form" action="{{ external_submit_url }}" method="post">
+          <input type="hidden" id="assignmentId" name="assignmentId" value="{{ assignmentid }}"  />
+          <input type="hidden" id="hitId" name="hitId" value="{{ hitid }}"  />
+          <input type="hidden" id="workerId" name="workerId" value="{{ workerid }}"  />
+          <input type="submit" class="btn btn-success btn-large" value="Complete HIT" />
+        </form>
+
+      </div>
+{% endblock %}

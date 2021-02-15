@@ -83,10 +83,21 @@ def Experiment(args):
 def recriter_exit():
     participant_id = request.args.get("participant_id")
     if participant_id is None:
-        raise ExperimentError("page_not_found")
-
+        return error_response(
+            error_type="/recruiter-exit GET: param participant_id is required",
+            status=400,
+        )
     participant = models.Participant.query.get(participant_id)
+    if participant is None:
+        return error_response(
+            error_type="/recruiter-exit GET: no participant found for ID {}".format(
+                participant_id
+            ),
+            status=404,
+        )
 
+    # Get the recruiter from the participant rather than config, to support
+    # MultiRecruiter experiments
     recruiter = recruiters.by_name(participant.recruiter_id)
     exp = Experiment(session)
 

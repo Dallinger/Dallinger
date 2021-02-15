@@ -339,6 +339,61 @@ class TestWorkerComplete(object):
             assert isinstance(args[0], Participant)
 
 
+@pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
+class TestRecruiterExit(object):
+    def test_with_no_participant_id_returns_error(self, webapp):
+        resp = webapp.get("/recruiter-exit")
+
+        assert resp.status_code == 400
+        assert b"param participant_id is required" in resp.data
+
+    def test_with_invalid_participant_id_returns_error(self, webapp):
+        resp = webapp.get("/recruiter-exit?participant_id=-1")
+
+        assert resp.status_code == 404
+        assert b"no participant found for ID -1" in resp.data
+
+    def test_with_valid_participant_id_returns_success(self, a, webapp):
+        resp = webapp.get(
+            "/recruiter-exit?participant_id={}".format(a.participant().id)
+        )
+
+        assert resp.status_code == 200
+
+    def test_debug_mode_renders_exit_page_for_hotair_recruiter(self, a, webapp):
+        participant = a.participant()
+        resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
+
+        assert b"HotAirRecruiter" in resp.data
+
+    def test_delegates_to_participants_recruiter(self, a, webapp):
+        participant = a.participant(recruiter_id="cli")
+        resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
+
+        assert b"CLIRecruiter" in resp.data
+
+    def test_nonmturk_recruiters_delegate_experiment_for_info_to_display(
+        self, a, webapp
+    ):
+        participant = a.participant(assignment_id="some distinctive ID")
+        resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
+
+        assert participant.assignment_id in str(resp.data)
+
+    def test_mturk_recruiter_renders_hit_submission_form(
+        self, a, webapp, active_config
+    ):
+        active_config.extend({"mode": u"sandbox"})
+        participant = a.participant(recruiter_id="mturk")
+        resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
+
+        assert (
+            b'action="https://workersandbox.mturk.com/mturk/externalSubmit"'
+            in resp.data
+        )
+
+
 @pytest.fixture
 def mock_messenger():
     from dallinger.notifications import NotifiesAdmin
