@@ -102,9 +102,6 @@ jobs:
       - name: Before Tox
         run: |
           bundle exec danger
-      - name: Codecov.io check
-        run: |
-          bash <(curl -s https://codecov.io/bash)
       - name: Run Full Tox
         env:
           DATABASE_URL: postgresql://dallinger:dallinger@localhost/dallinger
@@ -130,6 +127,10 @@ jobs:
           tox -e fast
           npm run test --coverage
         if: matrix.python-version != 3.9
+      - name: Codecov.io check
+        run: |
+          bash <(curl -s https://codecov.io/bash)
+        if: matrix.python-version == 3.9
 
   docker:
     runs-on: ubuntu-latest
