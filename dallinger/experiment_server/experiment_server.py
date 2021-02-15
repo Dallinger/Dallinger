@@ -78,32 +78,6 @@ def Experiment(args):
     return klass(args)
 
 
-@app.route("/recruiter-exit", methods=["GET"])
-@nocache
-def recriter_exit():
-    participant_id = request.args.get("participant_id")
-    if participant_id is None:
-        return error_response(
-            error_type="/recruiter-exit GET: param participant_id is required",
-            status=400,
-        )
-    participant = models.Participant.query.get(participant_id)
-    if participant is None:
-        return error_response(
-            error_type="/recruiter-exit GET: no participant found for ID {}".format(
-                participant_id
-            ),
-            status=404,
-        )
-
-    # Get the recruiter from the participant rather than config, to support
-    # MultiRecruiter experiments
-    recruiter = recruiters.by_name(participant.recruiter_id)
-    exp = Experiment(session)
-
-    return recruiter.exit_response(experiment=exp, participant=participant)
-
-
 # Load the experiment's extra routes, if any.
 try:
     from dallinger_experiment.experiment import extra_routes
@@ -487,6 +461,36 @@ def advertisement():
         app_id=app_id,
         query_string=request.query_string.decode(),
     )
+
+
+@app.route("/recruiter-exit", methods=["GET"])
+@nocache
+def recriter_exit():
+    """Display an exit page defined by the Participant's Recruiter.
+    The Recruiter may in term delegate to the Experiment for additional
+    values to display.
+    """
+    participant_id = request.args.get("participant_id")
+    if participant_id is None:
+        return error_response(
+            error_type="/recruiter-exit GET: param participant_id is required",
+            status=400,
+        )
+    participant = models.Participant.query.get(participant_id)
+    if participant is None:
+        return error_response(
+            error_type="/recruiter-exit GET: no participant found for ID {}".format(
+                participant_id
+            ),
+            status=404,
+        )
+
+    # Get the recruiter from the participant rather than config, to support
+    # MultiRecruiter experiments
+    recruiter = recruiters.by_name(participant.recruiter_id)
+    exp = Experiment(session)
+
+    return recruiter.exit_response(experiment=exp, participant=participant)
 
 
 @app.route("/summary", methods=["GET"])
