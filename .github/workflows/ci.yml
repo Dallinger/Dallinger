@@ -102,6 +102,9 @@ jobs:
       - name: Before Tox
         run: |
           bundle exec danger
+      - name: Codecov.io check
+        run: |
+          bash <(curl -s https://codecov.io/bash)
       - name: Run Full Tox
         env:
           DATABASE_URL: postgresql://dallinger:dallinger@localhost/dallinger

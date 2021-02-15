@@ -11,7 +11,6 @@ from selenium.common.exceptions import TimeoutException
 
 from dallinger.bots import BotBase
 from dallinger.experiment import Experiment, experiment_route
-from dallinger import db
 from dallinger.networks import Chain
 
 
@@ -72,8 +71,10 @@ class MCMCP(Experiment):
         return len([info for info in infos if info.chosen]) * 2 == len(infos)
 
     @experiment_route("/choice/<int:node_id>/<int:choice>", methods=["POST"])
-    def choice(node_id, choice):
+    @classmethod
+    def choice(cls, node_id, choice):
         from .models import Agent
+        from dallinger import db
 
         try:
             exp = MCMCP(db.session)

@@ -28,14 +28,16 @@ class SheepMarket(Experiment):
         return Empty(max_size=2)
 
     @experiment_route("/drawings")
-    def getdrawings():
+    @classmethod
+    def getdrawings(cls):
         """Get all the drawings."""
         infos = Info.query.all()
         sketches = [json.loads(info.contents) for info in infos]
         return jsonify(drawings=sketches)
 
     @experiment_route("/gallery")
-    def viewdrawings():
+    @classmethod
+    def viewdrawings(cls):
         """Render the gallery."""
         try:
             return render_template("gallery.html")
