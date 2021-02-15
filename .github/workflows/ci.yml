@@ -19,7 +19,7 @@ jobs:
           while IFS= read -r file
           do
             echo $file
-            if [[ $file == *mturk.py ]] || [[ $file == *recruiters.py ]]; then
+            if [[ $file == *mturk.py ]]; then
               echo "This modified file is MTurk related."
               echo "::set-output name=mturk_changed::true"
               break
