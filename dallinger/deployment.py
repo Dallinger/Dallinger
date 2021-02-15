@@ -13,7 +13,6 @@ import tempfile
 import threading
 import time
 
-from pathlib import Path
 from six.moves import shlex_quote as quote
 from six.moves.urllib.parse import urlparse
 from six.moves.urllib.parse import urlunparse
@@ -284,7 +283,7 @@ def assemble_experiment_temp_dir(config):
 
 
 def setup_experiment(
-    log, debug=True, verbose=False, app=None, exp_config=None, check_postgres=True
+    log, debug=True, verbose=False, app=None, exp_config=None, local_checks=True
 ):
     """Checks the experiment's python dependencies, then prepares a temp directory
     with files merged from the custom experiment and Dallinger.
@@ -294,20 +293,20 @@ def setup_experiment(
     """
 
     # Verify that the Postgres server is running.
-    if check_postgres:
+    if local_checks:
         try:
             db.check_connection()
         except Exception:
             log("There was a problem connecting to the Postgres database!")
             raise
 
-    # Check that the demo-specific requirements are satisfied.
-    try:
-        with open("requirements.txt", "r") as f:
-            dependencies = [r for r in f.readlines() if r[:3] != "-e "]
-    except (OSError, IOError):
-        dependencies = []
-    pkg_resources.require(dependencies)
+        # Check that the demo-specific requirements are satisfied.
+        try:
+            with open("requirements.txt", "r") as f:
+                dependencies = [r for r in f.readlines() if r[:3] != "-e "]
+        except (OSError, IOError):
+            dependencies = []
+        pkg_resources.require(dependencies)
 
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
@@ -562,7 +561,6 @@ class HerokuLocalDeployment(object):
 
     exp_id = None
     tmp_dir = None
-    experiment_name = None
     dispatch = {}  # Subclass may provide handlers for Heroku process output
     environ = None
     DEPLOY_NAME = "Heroku"
@@ -595,8 +593,6 @@ class HerokuLocalDeployment(object):
         """Set up the environment, get a wrapper instance, and pass
         it to the concrete class's execute() method.
         """
-        self.experiment_directory = os.getcwd()
-        self.experiment_name = Path(self.experiment_directory).name
         self.configure()
         self.setup()
         self.update_dir()
@@ -611,7 +607,7 @@ class HerokuLocalDeployment(object):
         with self.WRAPPER_CLASS(
             config,
             self.out,
-            self.experiment_name,
+            self.original_dir,
             self.tmp_dir,
             verbose=self.verbose,
             env=environ,
@@ -793,7 +789,7 @@ class DockerDebugDeployment(DebugDeployment):
         self.exp_id, self.tmp_dir = setup_experiment(
             self.out.log,
             exp_config=self.exp_config,
-            check_postgres=False,
+            local_checks=False,
         )
 
 

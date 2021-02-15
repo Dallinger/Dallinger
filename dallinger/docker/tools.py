@@ -3,12 +3,18 @@ import os
 import shutil
 import time
 
+from jinja2 import Template
+from pathlib import Path
 from subprocess import check_output
 
 from dallinger.utils import abspath_from_egg
 
 
 client = docker.APIClient(base_url="unix://var/run/docker.sock")
+
+docker_compose_template = Template(
+    abspath_from_egg("dallinger", "dallinger/docker/docker-compose.yml.j2").read_text()
+)
 
 
 class DockerComposeWrapper(object):
@@ -29,23 +35,23 @@ class DockerComposeWrapper(object):
     shell_command = "docker-compose"
     MONITOR_STOP = object()
 
-    def __init__(
-        self, config, output, experiment_name, tmp_dir, verbose=True, env=None
-    ):
+    def __init__(self, config, output, original_dir, tmp_dir, verbose=True, env=None):
         self.config = config
         self.out = output
         self.verbose = verbose
         self.env = env if env is not None else os.environ.copy()
         self.tmp_dir = tmp_dir
-        self.experiment_name = experiment_name
+        self.original_dir = original_dir
+        self.experiment_name = Path(self.original_dir).name
         self._record = []
 
     def copy_docker_compse_files(self):
-        for filename in ["docker-compose.yml", "Dockerfile.web", "Dockerfile.worker"]:
-            path = abspath_from_egg(
-                "dallinger", f"dallinger/command_line/docker/{filename}"
-            )
+        for filename in ["Dockerfile.web", "Dockerfile.worker"]:
+            path = abspath_from_egg("dallinger", f"dallinger/docker/{filename}")
             shutil.copy2(path, self.tmp_dir)
+        volumes = [f"{self.original_dir}:{self.original_dir}"]
+        with open(os.path.join(self.tmp_dir, "docker-compose.yml"), "w") as fh:
+            fh.write(docker_compose_template.render(volumes=volumes))
         with open(os.path.join(self.tmp_dir, ".env"), "w") as fh:
             fh.write(f"COMPOSE_PROJECT_NAME=${self.experiment_name}")
 
@@ -92,7 +98,11 @@ class DockerComposeWrapper(object):
                 errors.append(line)
         if errors:
             self.out.error("Some services did not start properly:")
-            map(self.out.error, errors)
+            for error in errors:
+                self.out.error(error)
+                self.out.error(
+                    client.attach(error.split(" ")[0], logs=True).decode("utf-8")
+                )
             raise DockerStartupError
         return self
 
@@ -102,9 +112,14 @@ class DockerComposeWrapper(object):
     def stop(self):
         os.system(f"docker-compose -f '{self.tmp_dir}/docker-compose.yml' down")
 
+    def get_container_name(self, service_name):
+        """Return the name of the first container for the given service name
+        as it is known to docker, as opposed to docker-compose.
+        """
+        return f"{self.experiment_name}_{service_name}_1"
+
     def monitor(self, listener):
-        web_container_name = f"{self.experiment_name}_web_1"
-        logs = client.attach(web_container_name, stream=True, logs=True)
+        logs = client.attach(self.get_container_name("web"), stream=True, logs=True)
         for raw_line in logs:
             line = raw_line.decode("utf-8")
             self._record.append(line)
