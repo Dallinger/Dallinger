@@ -94,8 +94,6 @@ try:
     for route in routes:
         route_func = getattr(exp_klass, route["func_name"], None)
         if route_func is not None:
-            # All dashboard routes require login
-            route_func = login_required(route_func)
             bp.route(route["rule"], *route["args"], **dict(route["kwargs"]))(route_func)
     if routes:
         app.register_blueprint(bp)
@@ -104,6 +102,8 @@ try:
     for route in dash_routes:
         route_func = getattr(exp_klass, route["func_name"], None)
         if route_func is not None:
+            # All dashboard routes require login
+            route_func = login_required(route_func)
             dashboard.dashboard.route(
                 route["rule"], *route["args"], **dict(route["kwargs"])
             )(route_func)
