@@ -13,6 +13,7 @@ import tempfile
 import threading
 import time
 
+from pathlib import Path
 from six.moves import shlex_quote as quote
 from six.moves.urllib.parse import urlparse
 from six.moves.urllib.parse import urlunparse
@@ -561,6 +562,7 @@ class HerokuLocalDeployment(object):
 
     exp_id = None
     tmp_dir = None
+    experiment_name = None
     dispatch = {}  # Subclass may provide handlers for Heroku process output
     environ = None
     DEPLOY_NAME = "Heroku"
@@ -593,6 +595,8 @@ class HerokuLocalDeployment(object):
         """Set up the environment, get a wrapper instance, and pass
         it to the concrete class's execute() method.
         """
+        self.experiment_directory = os.getcwd()
+        self.experiment_name = Path(self.experiment_directory).name
         self.configure()
         self.setup()
         self.update_dir()
@@ -605,7 +609,12 @@ class HerokuLocalDeployment(object):
             environ.update(self.environ)
         self.out.log(f"Starting up the {self.DEPLOY_NAME} Local server...")
         with self.WRAPPER_CLASS(
-            config, self.out, verbose=self.verbose, env=environ
+            config,
+            self.out,
+            self.experiment_name,
+            self.tmp_dir,
+            verbose=self.verbose,
+            env=environ,
         ) as wrapper:
             try:
                 self.execute(wrapper)

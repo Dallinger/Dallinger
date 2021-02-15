@@ -24,12 +24,15 @@ class DockerComposeWrapper(object):
 
     shell_command = "docker-compose"
 
-    def __init__(self, config, output, verbose=True, env=None):
+    def __init__(
+        self, config, output, experiment_name, tmp_dir, verbose=True, env=None
+    ):
         self.config = config
         self.out = output
         self.verbose = verbose
         self.env = env if env is not None else os.environ.copy()
-        self.tmp_dir = os.getcwd()
+        self.tmp_dir = tmp_dir
+        self.experiment_name = experiment_name
 
     def copy_docker_compse_files(self):
         for filename in ["docker-compose.yml", "Dockerfile.web", "Dockerfile.worker"]:
@@ -37,16 +40,26 @@ class DockerComposeWrapper(object):
                 "dallinger", f"dallinger/command_line/docker/{filename}"
             )
             shutil.copy2(path, self.tmp_dir)
+        with open(os.path.join(self.tmp_dir, ".env"), "w") as fh:
+            fh.write(f"COMPOSE_PROJECT_NAME=${self.experiment_name}")
 
     def __enter__(self):
         self.copy_docker_compse_files()
         os.system("docker-compose up --build -d")
         # Wait for postgres to complete initialization
         while b"ready to accept connections" not in check_output(
-            ["docker-compose", "logs", "postgresql"]
+            [
+                "docker-compose",
+                "-f",
+                f"{self.tmp_dir}/docker-compose.yml",
+                "logs",
+                "postgresql",
+            ]
         ):
             time.sleep(2)
-        os.system("docker-compose exec worker dallinger-housekeeper initdb")
+        os.system(
+            f"docker-compose -f '{self.tmp_dir}/docker-compose.yml' exec worker dallinger-housekeeper initdb"
+        )
         return self
 
     def __exit__(self, exctype, excinst, exctb):

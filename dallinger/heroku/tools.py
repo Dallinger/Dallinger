@@ -382,13 +382,17 @@ class HerokuLocalWrapper(object):
     MONITOR_STOP = object()
     STREAM_SENTINEL = ""
 
-    def __init__(self, config, output, verbose=True, env=None):
+    def __init__(
+        self, config, output, experiment_name, tmp_dir, verbose=True, env=None
+    ):
         self.config = config
         self.out = output
         self.verbose = verbose
         self.env = env if env is not None else os.environ.copy()
         self._record = []
         self._process = None
+        self.experiment_name = experiment_name
+        self.tmp_dir = tmp_dir
 
     def start(self, timeout_secs=60):
         """Start the heroku local subprocess group and verify that
