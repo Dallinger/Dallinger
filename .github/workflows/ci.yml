@@ -186,10 +186,10 @@ jobs:
               ${{ runner.os }}-
       - name: Install Ubuntu packages
         run: sudo apt-get --yes install pandoc enchant snapd curl
-      - name: Install requirements
+      - name: Install python wheel package
         run: pip install wheel
-      - name: Install requirements
-        run: pip install -r build-requirements.txt .
+      - name: Install python requirements
+        run: pip install -r build-requirements.txt .[data]
       - name: Run docker tests (only one for now)
         run: RUN_DOCKER=1 pytest -k test_docker_debug_bots --runslow --runbot -rsx -s -v
 
