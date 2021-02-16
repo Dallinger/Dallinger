@@ -103,7 +103,10 @@ class TestDashboardTabs(object):
         from dallinger.experiment_server.dashboard import dashboard_tab
 
         decorator = dashboard_tab(
-            "My Dashboard", "/route", before_route="network", method=["POST", "GET"]
+            "My Dashboard",
+            "/route",
+            before_route="network",
+            method=["POST", "GET"],
         )
         assert len(cleared_tab_routes) == 0
 
@@ -118,6 +121,7 @@ class TestDashboardTabs(object):
             "rule": "/route",
             "before_route": "network",
             "after_route": None,
+            "tab": None,
             "kwargs": (("method", ["POST", "GET"]),),
             "func_name": "fake_route",
             "args": (),
@@ -388,6 +392,22 @@ class TestDashboardCoreRoutes(object):
         resp = logged_in.get("/dashboard/custom_dashboard")
         assert resp.status_code == 200
         assert "A custom dashboard for TestExperiment." in resp.data.decode("utf8")
+
+    # Cannot be isolated because route registration happens at import time
+    @pytest.mark.xfail
+    def test_custom_route_requires_login(self, webapp):
+        resp = webapp.get("/dashboard/custom_dashboard")
+        assert resp.status_code == 401
+
+    # Cannot be isolated because route registration happens at import time
+    @pytest.mark.xfail
+    def test_custom_route_tabs(self, logged_in):
+        tabs = logged_in.application.config["dashboard_tabs"]
+        tab_titles = [t.title for t in tabs]
+        # Inserted after "monitoring"
+        assert "Custom Tab" in tab_titles
+        index = tab_titles.index("Custom Tab")
+        assert tab_titles[index - 1] == "Monitoring"
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")

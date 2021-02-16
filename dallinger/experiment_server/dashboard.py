@@ -791,6 +791,11 @@ def dashboard_tab(title, rule, *args, **kwargs):
     :param before_route: Optional name of a tab before which to insert
                          this tab
     :type before_route: str
+    :param tab: Optional
+                :attr:`~dallinger.experiment_server.dashboard.DashboardTab`
+                instance if you need to provide nested dashboard menus,
+                or other tab features.
+    :type tab: :attr:`~dallinger.experiment_server.dashboard.DashboardTab`
 
     :returns: Returns a decorator to register methods from a class as dashboard
               routes.
@@ -798,6 +803,7 @@ def dashboard_tab(title, rule, *args, **kwargs):
     registered_routes = DASHBOARD_ROUTE_REGISTRATIONS
     after_route = kwargs.pop("after_route", None)
     before_route = kwargs.pop("before_route", None)
+    full_tab = kwargs.pop("tab", None)
     route = {
         "rule": rule,
         "args": args,
@@ -805,6 +811,7 @@ def dashboard_tab(title, rule, *args, **kwargs):
         "title": title,
         "after_route": after_route,
         "before_route": before_route,
+        "tab": full_tab,
     }
 
     return deferred_route_decorator(route, registered_routes)

@@ -113,17 +113,25 @@ if exp_klass is not None:  # pragma: no cover
             dashboard.dashboard.route(
                 route["rule"], *route["args"], **dict(route["kwargs"])
             )(route_func)
+            route_name = route["rule"].strip("/")
             tabs = dashboard.dashboard_tabs
-            if route.get("before_route"):
+            full_tab = route.get("tab")
+            if route.get("before_route") and full_tab:
+                tabs.insert_tab_before_route(full_tab, route["before_route"])
+            elif route.get("before_route"):
                 tabs.insert_before_route(
-                    route["title"], route["rule"], route["before_route"]
+                    route["title"], route_name, route["before_route"]
                 )
+            elif route.get("after_route") and full_tab:
+                tabs.insert_tab_after_route(full_tab, route["after_route"])
             elif route.get("after_route"):
                 tabs.insert_after_route(
-                    route["title"], route["rule"], route["after_route"]
+                    route["title"], route_name, route["after_route"]
                 )
+            elif full_tab:
+                tabs.insert(full_tab)
             else:
-                tabs.insert(route["title"])
+                tabs.insert(route["title"], route_name)
 
 
 # Ideally, we'd only load recruiter routes if the recruiter is active, but
