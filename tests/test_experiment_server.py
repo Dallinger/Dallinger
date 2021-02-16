@@ -100,7 +100,7 @@ class TestAdvertisement(object):
     def test_returns_error_without_hitId_and_assignmentId(self, webapp):
         resp = webapp.get("/ad")
         assert resp.status_code == 500
-        assert b"hit_assign_worker_id_not_set_in_mturk" in resp.data
+        assert b"hit_assign_worker_id_not_set_by_recruiter" in resp.data
 
     def test_with_no_worker_id_and_nonexistent_hit_and_assignment(self, webapp):
         resp = webapp.get("/ad?hitId=foo&assignmentId=bar")
@@ -143,7 +143,7 @@ class TestAdvertisement(object):
             )
         )
         assert resp.status_code == 500
-        assert b"already_started_exp_mturk" in resp.data
+        assert b"already_started_exp" in resp.data
 
     def test_still_working_in_sandbox_mode_returns_error(
         self, a, webapp, active_config
@@ -156,7 +156,7 @@ class TestAdvertisement(object):
             )
         )
         assert resp.status_code == 500
-        assert b"already_started_exp_mturk" in resp.data
+        assert b"already_started_exp" in resp.data
 
     def test_previously_completed_same_exp_fails_if_not_debug(
         self, a, webapp, active_config

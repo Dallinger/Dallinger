@@ -409,7 +409,7 @@ def advertisement():
     worker_id = entry_data.get("worker_id")
 
     if not (hit_id and assignment_id):
-        raise ExperimentError("hit_assign_worker_id_not_set_in_mturk")
+        raise ExperimentError("hit_assign_worker_id_not_set_by_recruiter")
 
     if worker_id is not None:
         # First check if this workerId has completed the task before
@@ -440,7 +440,7 @@ def advertisement():
     if participant and participant.status == "working":
         # Once participants have finished the instructions, we do not allow
         # them to start the task again.
-        raise ExperimentError("already_started_exp_mturk")
+        raise ExperimentError("already_started_exp")
 
     recruiter_name = request.args.get("recruiter")
     if recruiter_name:
