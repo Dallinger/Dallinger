@@ -184,6 +184,10 @@ jobs:
             restore-keys: |
               ${{ runner.os }}-pip-
               ${{ runner.os }}-
+      - name: Install Ubuntu packages
+        run: sudo apt-get --yes install pandoc enchant snapd curl
+      - name: Install requirements
+        run: pip install wheel
       - name: Install requirements
         run: pip install -r build-requirements.txt .
       - name: Run docker tests (only one for now)
