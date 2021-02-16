@@ -92,7 +92,7 @@ class Experiment(object):
     #: Flask Blueprint for experiment. Functions and methods on the class
     #: should be registered as Flask routes using the
     #: :func:`~dallinger.experiment.experiment_route` decorator. Route
-    #: function scan not be instance methods and should either be
+    #: functions can not be instance methods and should either be
     #: plain functions or classmethods. You can also register route functions
     #: at the module level using the standard `route` decorator on this
     #: Blueprint.

@@ -89,8 +89,12 @@ else:
 
 # Skipping coverage testing on this for now because it only runs at import time
 # and cannot be exercised within tests
-try:  # pragma: no cover
+try:
     exp_klass = experiment.load()
+except ImportError:
+    exp_klass = None  # pragma: no cover
+
+if exp_klass is not None:  # pragma: no cover
     bp = exp_klass.experiment_routes
     routes = experiment.EXPERIMENT_ROUTE_REGISTRATIONS
     for route in routes:
@@ -120,9 +124,6 @@ try:  # pragma: no cover
                 )
             else:
                 tabs.insert(route["title"])
-
-except ImportError:
-    pass
 
 
 # Ideally, we'd only load recruiter routes if the recruiter is active, but
