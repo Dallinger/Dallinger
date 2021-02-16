@@ -146,6 +146,13 @@ jobs:
     steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
+      - name: Cache Docker layers
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
       - name: Build dallinger/dallinger docker image
         uses: docker/build-push-action@v2
         with:
@@ -153,6 +160,8 @@ jobs:
           load: true
           target: dallinger
           tags: dallinger/dallinger:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache
       - name: Build dallinger/dallinger-bot docker image
         uses: docker/build-push-action@v2
         with:
@@ -160,6 +169,8 @@ jobs:
           load: true
           target: dallinger-bot
           tags: dallinger/dallinger-bot:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache
       - uses: actions/checkout@v2
       - name: Set up Python 3.9
         uses: actions/setup-python@v2
