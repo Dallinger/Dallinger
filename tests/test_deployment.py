@@ -841,7 +841,7 @@ class TestDebugServer(object):
 
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
-@pytest.mark.skip
+@pytest.mark.docker
 class TestDockerServer(object):
     @pytest.mark.usefixtures("check_runbot")
     def test_docker_debug_bots(self, env):
@@ -856,8 +856,10 @@ class TestDockerServer(object):
         try:
             p.expect_exact("Server is running", timeout=300)
             p.expect_exact("Recruitment is complete", timeout=600)
-            p.expect_exact("Experiment completed", timeout=60)
-            p.expect_exact("Local Heroku process terminated", timeout=10)
+            p.expect_exact("'status': 'success'", timeout=60)
+            p.expect_exact("Experiment completed", timeout=10)
+            p.expect_exact("Removing bartlett1932_web_1", timeout=20)
+            p.expect(pexpect.EOF)
         finally:
             try:
                 p.sendcontrol("c")
