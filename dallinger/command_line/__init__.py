@@ -801,7 +801,7 @@ def dallinger_housekeeper():
     from logging.config import fileConfig
 
     fileConfig(
-        os.path.join(os.path.dirname(__file__), "logging.ini"),
+        os.path.join(os.path.dirname(__file__), "..", "logging.ini"),
         disable_existing_loggers=False,
     )
 

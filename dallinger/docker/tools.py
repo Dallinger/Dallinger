@@ -6,6 +6,7 @@ import time
 from jinja2 import Template
 from pathlib import Path
 from subprocess import check_output
+from subprocess import CalledProcessError
 
 from dallinger.utils import abspath_from_egg
 
@@ -62,11 +63,15 @@ class DockerComposeWrapper(object):
         with open(os.path.join(self.tmp_dir, "docker-compose.yml"), "w") as fh:
             fh.write(
                 docker_compose_template.render(
-                    volumes=volumes, experiment_name=self.experiment_name
+                    volumes=volumes,
+                    experiment_name=self.experiment_name,
+                    needs_chrome=self.needs_chrome,
                 )
             )
         with open(os.path.join(self.tmp_dir, ".env"), "w") as fh:
-            fh.write(f"COMPOSE_PROJECT_NAME=${self.experiment_name}")
+            fh.write(f"COMPOSE_PROJECT_NAME=${self.experiment_name}\n")
+            fh.write(f"UID={os.getuid()}\n")
+            fh.write(f"GID={os.getgid()}\n")
 
     def __enter__(self):
         return self.start()
@@ -93,9 +98,22 @@ class DockerComposeWrapper(object):
             ]
         ):
             time.sleep(2)
-        os.system(
-            f"docker-compose -f '{self.tmp_dir}/docker-compose.yml' exec worker dallinger-housekeeper initdb"
-        )
+        try:
+            check_output(
+                [
+                    "docker-compose",
+                    "-f",
+                    f"{self.tmp_dir}/docker-compose.yml",
+                    "exec",
+                    "worker",
+                    "dallinger-housekeeper",
+                    "initdb",
+                ]
+            )
+        except CalledProcessError:
+            self.out.error("There was a problem initializing the database")
+            self.stop()
+            raise
         # Make sure the containers are all started
         status = check_output(
             [
@@ -140,6 +158,9 @@ class DockerComposeWrapper(object):
         return f"{self.experiment_name}_{service_name}_1"
 
     def monitor(self, listener):
+        # How can we get a stream for two containers?
+        # Or, as an alternative, how do we combine two of these (blocking?) iterators?
+        # logs = self.client.events(filters={"ancestor": [f"{self.experiment_name}-web", f"{self.experiment_name}-worker"]})
         logs = self.client.attach(
             self.get_container_name("web"), stream=True, logs=True
         )

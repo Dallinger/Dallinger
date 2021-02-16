@@ -21,25 +21,38 @@ services:
       - "6379:6379"
   worker:
     image: {{ experiment_name }}-worker
+    user: "${UID}:${GID}"
     build: 
       context: .
       dockerfile: ./Dockerfile.worker
+{%- if needs_chrome %}
+    cap_add:
+        - SYS_ADMIN
+{%- endif %}
     volumes:
+      - "/dev/shm:/dev/shm"
 {%- for volumestr in volumes %}
       - "{{ volumestr }}"
 {%- endfor %}
     environment: &commonenv
+      HOST: web # Tell the worker where we expect the web service to be
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://dallinger:dallinger@postgresql/dallinger
       FLASK_SECRET_KEY: DO_NOT_USE_IN_PRODUCTION
+      DISPLAY: novnc:0.0
+      HOME: /tmp
   web:
     image: {{ experiment_name }}-web
+    user: "${UID}:${GID}"
     build: 
       context: .
       dockerfile: ./Dockerfile.web
-{%- if volumes %}
-    volumes:
+{%- if needs_chrome %}
+    cap_add: # Is it really necessary?
+        - SYS_ADMIN # Or only needed for the `worker` container?
 {%- endif %}
+    volumes:
+      - "/dev/shm:/dev/shm"
 {%- for volumestr in volumes %}
       - "{{ volumestr }}"
 {%- endfor %}
@@ -48,6 +61,14 @@ services:
       PORT: 5000
     ports:
       - "5000:5000"
+{%- if needs_chrome %}
+  novnc:
+    image: theasp/novnc:latest
+    environment:
+      - RUN_XTERM=no
+    ports:
+      - "8080:8080"
+{%- endif %}
 
 volumes:
   dallinger_pg_data:

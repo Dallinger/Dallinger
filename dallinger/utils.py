@@ -41,6 +41,11 @@ def connect_to_redis(url=None):
 
 
 def get_base_url():
+    """Returns the base url for the experiment.
+    Looks into environment variable HOST first, then in the
+    experiment config.
+    If the URL is on Heroku makes sure the protocol is https.
+    """
     config = get_config()
     host = os.getenv("HOST", config.get("host"))
     if host == "0.0.0.0":

@@ -1,4 +1,5 @@
 # syntax = docker/dockerfile:1.2
+###################### Image with build tools to compile wheels ###############
 FROM ubuntu:20.04 as wheels
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -18,6 +19,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     mkdir /wheelhouse && \
     python3 -m pip wheel --wheel-dir=/wheelhouse -r requirements.txt
 
+
+###################### Dallinger base image ###################################
 FROM ubuntu:20.04 as dallinger
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -44,6 +47,7 @@ ENV LANG C.UTF-8
 
 CMD /bin/bash
 
+###################### Dallinger bot image ####################################
 FROM dallinger as dallinger-bot
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -62,4 +66,3 @@ RUN OUR_CHROME_VERSION=$(google-chrome --version |sed "s/Google Chrome //;s/ //;
     busybox wget https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip -O /tmp/chromedriver_linux64.zip && \
     busybox unzip /tmp/chromedriver_linux64.zip -d /usr/local/bin/ && \
     rm /tmp/chromedriver_linux64.zip
-
