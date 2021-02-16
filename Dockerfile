@@ -55,7 +55,7 @@ RUN --mount=type=cache,target=/chromedownload \
     apt update && \
     `# We install busybox to be able to use wget and later unzip, and to minimize image size` \
     apt install -y busybox && \
-    ([ -f google-chrome-stable_current_amd64.deb ] || busybox wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O /chromedownload/google-chrome-stable_current_amd64.deb) &&  \
+    ([ -f /chromedownload/google-chrome-stable_current_amd64.deb ] || busybox wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O /chromedownload/google-chrome-stable_current_amd64.deb) &&  \
     apt install -y --no-install-recommends /chromedownload/google-chrome-stable_current_amd64.deb && \
     rm -rf /var/lib/apt/lists/*
 
