@@ -16,11 +16,6 @@ from dallinger.experiment import Experiment
 logger = logging.getLogger(__file__)
 
 
-def extra_parameters():
-    config = get_config()
-    config.register("num_participants", int)
-
-
 class Bartlett1932(Experiment):
     """Define the structure of the experiment."""
 
@@ -39,6 +34,11 @@ class Bartlett1932(Experiment):
         self.initial_recruitment_size = 1
         if session:
             self.setup()
+
+    @classmethod
+    def extra_parameters(cls):
+        config = get_config()
+        config.register("num_participants", int)
 
     def configure(self):
         config = get_config()

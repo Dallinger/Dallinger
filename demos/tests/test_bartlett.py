@@ -18,9 +18,7 @@ class TestBartlett1932(object):
 
     @pytest.fixture
     def bartlett_config(self, active_config):
-        from dlgr.demos.bartlett1932.experiment import extra_parameters
-
-        extra_parameters()
+        active_config.register_extra_parameters()
         active_config.set("num_participants", 3)
         yield active_config
 

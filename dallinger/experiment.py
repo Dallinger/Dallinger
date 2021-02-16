@@ -161,6 +161,14 @@ class Experiment(object):
         else:
             self.widget = module.ExperimentWidget(self)
 
+    @classmethod
+    def extra_parameters(cls):
+        """Override this classmethod to register new config variables. It is
+        called during config load. See
+        :ref:`Extra Configuration <extra-configuration>` for an example.
+        """
+        pass
+
     def configure(self):
         """Load experiment configuration here"""
         pass
@@ -1008,7 +1016,7 @@ class Experiment(object):
 
             try:
                 extra_parameters()
-                extra_parameters.loaded = True
+                config._module_params_loaded = True
             except KeyError:
                 pass
         except ImportError:
@@ -1074,11 +1082,6 @@ class Experiment(object):
         self.import_session.close()
         session.rollback()
         session.close()
-        # Remove marker preventing experiment config variables being reloaded
-        try:
-            del module.extra_parameters.loaded
-        except AttributeError:
-            pass
         config._reset(register_defaults=True)
         del sys.modules["dallinger_experiment"]
 
@@ -1270,7 +1273,10 @@ def load():
         try:
             from dallinger_experiment import experiment
         except ImportError:
-            from dallinger_experiment import dallinger_experiment as experiment
+            try:
+                from dallinger_experiment import dallinger_experiment as experiment
+            except ImportError:
+                import dallinger_experiment as experiment
 
         classes = inspect.getmembers(experiment, is_experiment_class)
 
