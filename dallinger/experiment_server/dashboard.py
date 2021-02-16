@@ -784,13 +784,13 @@ def dashboard_tab(title, rule, *args, **kwargs):
     :param title: The dashboard tab title
     :type title: str
     :param rule: The flask rule path
-    :type title: str
+    :type rule: str
     :param after_route: Optional name of a tab after which to insert
                         this tab
-    :type title: str
+    :type after_route: str
     :param before_route: Optional name of a tab before which to insert
                          this tab
-    :type title: str
+    :type before_route: str
 
     :returns: Returns a decorator to register methods from a class as dashboard
               routes.
