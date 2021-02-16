@@ -841,6 +841,33 @@ class TestDebugServer(object):
 
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
+@pytest.mark.skip
+class TestDockerServer(object):
+    @pytest.mark.usefixtures("check_runbot")
+    def test_docker_debug_bots(self, env):
+        # Make sure debug server runs to completion with bots
+        p = pexpect.spawn(
+            "dallinger",
+            ["docker", "debug", "--verbose", "--bot"],
+            env=env,
+            encoding="utf-8",
+        )
+        p.logfile = sys.stdout
+        try:
+            p.expect_exact("Server is running", timeout=300)
+            p.expect_exact("Recruitment is complete", timeout=600)
+            p.expect_exact("Experiment completed", timeout=60)
+            p.expect_exact("Local Heroku process terminated", timeout=10)
+        finally:
+            try:
+                p.sendcontrol("c")
+                p.read()
+            except IOError:
+                pass
+
+
+@pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
+@pytest.mark.slow
 class TestLoad(object):
 
     exp_id = "some_experiment_id"

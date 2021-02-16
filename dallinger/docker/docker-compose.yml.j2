@@ -8,12 +8,19 @@ services:
       POSTGRES_DB: dallinger
     volumes:
       - dallinger_pg_data:/var/lib/postgresql/data
+    ports:
+      # bots might need to communicate with postgresql
+      - "5432:5432"
   redis:
     image: redis
     command: redis-server --appendonly yes
     volumes:
       - dallinger_redis_data:/data
+      # bots might need to communicate with redis
+    ports:
+      - "6379:6379"
   worker:
+    image: {{ experiment_name }}-worker
     build: 
       context: .
       dockerfile: ./Dockerfile.worker
@@ -26,6 +33,7 @@ services:
       DATABASE_URL: postgresql://dallinger:dallinger@postgresql/dallinger
       FLASK_SECRET_KEY: DO_NOT_USE_IN_PRODUCTION
   web:
+    image: {{ experiment_name }}-web
     build: 
       context: .
       dockerfile: ./Dockerfile.web

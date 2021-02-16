@@ -10,8 +10,6 @@ from subprocess import check_output
 from dallinger.utils import abspath_from_egg
 
 
-client = docker.APIClient(base_url="unix://var/run/docker.sock")
-
 docker_compose_template = Template(
     abspath_from_egg("dallinger", "dallinger/docker/docker-compose.yml.j2").read_text()
 )
@@ -35,7 +33,16 @@ class DockerComposeWrapper(object):
     shell_command = "docker-compose"
     MONITOR_STOP = object()
 
-    def __init__(self, config, output, original_dir, tmp_dir, verbose=True, env=None):
+    def __init__(
+        self,
+        config,
+        output,
+        original_dir,
+        tmp_dir,
+        verbose=True,
+        env=None,
+        needs_chrome=False,
+    ):
         self.config = config
         self.out = output
         self.verbose = verbose
@@ -44,6 +51,8 @@ class DockerComposeWrapper(object):
         self.original_dir = original_dir
         self.experiment_name = Path(self.original_dir).name
         self._record = []
+        self.needs_chrome = needs_chrome
+        self.client = docker.APIClient(base_url="unix://var/run/docker.sock")
 
     def copy_docker_compse_files(self):
         for filename in ["Dockerfile.web", "Dockerfile.worker"]:
@@ -51,7 +60,11 @@ class DockerComposeWrapper(object):
             shutil.copy2(path, self.tmp_dir)
         volumes = [f"{self.original_dir}:{self.original_dir}"]
         with open(os.path.join(self.tmp_dir, "docker-compose.yml"), "w") as fh:
-            fh.write(docker_compose_template.render(volumes=volumes))
+            fh.write(
+                docker_compose_template.render(
+                    volumes=volumes, experiment_name=self.experiment_name
+                )
+            )
         with open(os.path.join(self.tmp_dir, ".env"), "w") as fh:
             fh.write(f"COMPOSE_PROJECT_NAME=${self.experiment_name}")
 
@@ -60,7 +73,15 @@ class DockerComposeWrapper(object):
 
     def start(self):
         self.copy_docker_compse_files()
-        os.system("docker-compose up --build -d")
+        env = {"DOCKER_BUILDKIT": "1"}
+        build_arg = ""
+        if self.needs_chrome:
+            build_arg = "--build-arg DALLINGER_DOCKER_IMAGE=dallinger/dallinger-bot"
+        check_output(
+            f"docker-compose build {build_arg}".split(),
+            env={**os.environ.copy(), **env},
+        )
+        check_output("docker-compose up -d".split(), env={**os.environ.copy(), **env})
         # Wait for postgres to complete initialization
         while b"ready to accept connections" not in check_output(
             [
@@ -101,7 +122,7 @@ class DockerComposeWrapper(object):
             for error in errors:
                 self.out.error(error)
                 self.out.error(
-                    client.attach(error.split(" ")[0], logs=True).decode("utf-8")
+                    self.client.attach(error.split(" ")[0], logs=True).decode("utf-8")
                 )
             raise DockerStartupError
         return self
@@ -119,7 +140,9 @@ class DockerComposeWrapper(object):
         return f"{self.experiment_name}_{service_name}_1"
 
     def monitor(self, listener):
-        logs = client.attach(self.get_container_name("web"), stream=True, logs=True)
+        logs = self.client.attach(
+            self.get_container_name("web"), stream=True, logs=True
+        )
         for raw_line in logs:
             line = raw_line.decode("utf-8")
             self._record.append(line)

@@ -563,6 +563,7 @@ class HerokuLocalDeployment(object):
     tmp_dir = None
     dispatch = {}  # Subclass may provide handlers for Heroku process output
     environ = None
+    bot = False
     DEPLOY_NAME = "Heroku"
     WRAPPER_CLASS = HerokuLocalWrapper
     DO_INIT_DB = True
@@ -611,6 +612,7 @@ class HerokuLocalDeployment(object):
             self.tmp_dir,
             verbose=self.verbose,
             env=environ,
+            needs_chrome=self.bot,
         ) as wrapper:
             try:
                 self.execute(wrapper)
