@@ -93,7 +93,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('build-requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('*.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
             ${{ runner.os }}-
@@ -180,7 +180,7 @@ jobs:
         uses: actions/cache@v2
         with:
             path: ~/.cache/pip
-            key: ${{ runner.os }}-pip-${{ hashFiles('build-requirements.txt') }}
+            key: ${{ runner.os }}-pip-${{ hashFiles('*.txt') }}
             restore-keys: |
               ${{ runner.os }}-pip-
               ${{ runner.os }}-
