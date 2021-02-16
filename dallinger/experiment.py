@@ -46,8 +46,7 @@ from dallinger.information import Gene, Meme, State
 from dallinger.nodes import Agent, Source, Environment
 from dallinger.transformations import Compression, Response
 from dallinger.transformations import Mutation, Replication
-from dallinger.utils import struct_to_html
-
+from dallinger.utils import deferred_route_decorator, struct_to_html
 
 from dallinger.networks import Empty
 
@@ -1500,14 +1499,4 @@ def experiment_route(rule, *args, **kwargs):
         "kwargs": tuple(kwargs.items()),
     }
 
-    def new_func(func):
-        # Check `__func__` in case we have a classmethod or staticmethod
-        base_func = getattr(func, "__func__", func)
-        name = getattr(base_func, "__name__", None)
-        if name is not None:
-            route["func_name"] = name
-            if route not in registered_routes:
-                registered_routes.append(route)
-        return func
-
-    return new_func
+    return deferred_route_decorator(route, registered_routes)

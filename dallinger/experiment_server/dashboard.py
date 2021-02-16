@@ -21,6 +21,7 @@ from flask_login.utils import login_url as make_login_url
 from dallinger import recruiters
 from dallinger.heroku.tools import HerokuApp
 from dallinger.config import get_config
+from dallinger.utils import deferred_route_decorator
 from .utils import date_handler, error_response, success_response
 
 
@@ -806,14 +807,4 @@ def dashboard_tab(title, rule, *args, **kwargs):
         "before_route": before_route,
     }
 
-    def new_func(func):
-        # Check `__func__` in case we have a classmethod or staticmethod
-        base_func = getattr(func, "__func__", func)
-        name = getattr(base_func, "__name__", None)
-        if name is not None:
-            route["func_name"] = name
-            if route not in registered_routes:
-                registered_routes.append(route)
-        return func
-
-    return new_func
+    return deferred_route_decorator(route, registered_routes)
