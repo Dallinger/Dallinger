@@ -240,8 +240,23 @@ Create a participant. Returns a JSON description of the participant as
 
     POST /participant
 
-Loads a participant from a running experiment by ``assignment_id`` and
-returns a JSON description. ``assignment_id`` should be passed as data.
+Create a participant from a running experiment using arbitrary
+``entry_information`` passed as POST data. The experiment or recruiter is
+responsible for transforming ``entry_information`` data into the
+``assignment_id``, ``hit_id``, and ``worker_id`` data needed to create a
+participant. See
+:func:`~dallinger.experiment.Experiment.normalize_entry_information`.
+
+
+::
+
+    POST /load-participant
+
+Loads a participant from a running experiment by ``assignment_id`` or arbitrary
+``entry_information`` passed as POST data. The experiment or recruiter is
+responsible for transforming ``entry_information`` data into an
+``assignment_id`` data needed to lookup a participant.
+See :func:`~dallinger.experiment.Experiment.normalize_entry_information`.
 
 ::
 

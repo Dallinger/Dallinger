@@ -33,7 +33,7 @@
             <h4>Do you understand and consent to these terms?</h4>
             <br>
             {% block consent_button %}
-            <button type="button" class="btn btn-primary btn-lg" id="consent" onClick="window.location='/instructions/instruct-ready?hit_id={{ hit_id }}&assignment_id={{ assignment_id }}&worker_id={{ worker_id }}&mode={{ mode }}';" style="float: left;">I agree
+            <button type="button" class="btn btn-primary btn-lg" id="consent" onClick="window.location='/instructions/instruct-ready?{{query_string | safe}}';" style="float: left;">I agree
             </button>
             {% endblock consent_button %}
             {% block reject_button %}

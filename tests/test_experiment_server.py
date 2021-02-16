@@ -110,6 +110,20 @@ class TestAdvertisement(object):
         resp = webapp.get("/ad?hitId=foo&assignmentId=bar&workerId=baz")
         assert b"Thanks for accepting this HIT." in resp.data
 
+    def test_checks_normalize_entry_info(self, webapp):
+        with mock.patch(
+            "dallinger.experiment.Experiment.normalize_entry_information"
+        ) as normalizer:
+            normalizer.side_effect = lambda *args: {
+                "assignment_id": "baz",
+                "worker_id": "bar",
+                "hit_id": "foo",
+                "entry_information": args[-1],
+            }
+            resp = webapp.get("/ad?some_random_info=1")
+            assert b"Thanks for accepting this HIT." in resp.data
+            normalizer.assert_called_once_with({"some_random_info": "1"})
+
     def test_checks_browser_exclusion_rules(self, webapp, active_config):
         active_config.extend({"browser_exclude_rule": u"tablet, bot"})
         resp = webapp.get(
@@ -638,6 +652,23 @@ class TestSimpleGETRoutes(object):
         )
         assert b"Informed Consent Form" in resp.data
 
+    def test_consent_checks_normalize_entry_info(self, webapp):
+        with mock.patch(
+            "dallinger.experiment.Experiment.normalize_entry_information"
+        ) as normalizer:
+            normalizer.side_effect = lambda *args: {
+                "assignment_id": "baz",
+                "worker_id": "bar",
+                "hit_id": "foo",
+                "entry_information": args[-1],
+            }
+            resp = webapp.get(
+                "/consent",
+                query_string={"some_random_info": "1"},
+            )
+            assert b"Informed Consent Form" in resp.data
+            normalizer.assert_called_once_with({"some_random_info": "1"})
+
     def test_not_found(self, webapp):
         resp = webapp.get("/BOGUS")
         assert resp.status_code == 404
@@ -710,18 +741,18 @@ class TestParticipantByAssignmentRoute(object):
             "dallinger.experiment.Experiment.load_participant"
         ) as load_participant:
             load_participant.side_effect = lambda *args: p
-            webapp.post("/participant", data={"assignment_id": p.assignment_id})
+            webapp.post("/load-participant", data={"assignment_id": p.assignment_id})
             load_participant.assert_called_once_with(p.assignment_id)
 
     def test_load_participant(self, a, webapp):
         p = a.participant()
-        resp = webapp.post("/participant", data={"assignment_id": p.assignment_id})
+        resp = webapp.post("/load-participant", data={"assignment_id": p.assignment_id})
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "success"
         assert data.get("participant").get("status") == u"working"
 
     def test_missing_assignment(self, webapp):
-        resp = webapp.post("/participant")
+        resp = webapp.post("/load-participant")
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "error"
         assert "no participant found" in data.get("html")
@@ -729,11 +760,30 @@ class TestParticipantByAssignmentRoute(object):
     def test_assignment_invalid(self, webapp):
         nonexistent_assignment_id = "asfkhaskjfhhjlkasf"
         resp = webapp.post(
-            "/participant", data={"assignment_id": nonexistent_assignment_id}
+            "/load-participant", data={"assignment_id": nonexistent_assignment_id}
         )
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "error"
         assert "no participant found" in data.get("html")
+
+    def test_load_participant_calls_normalize_entry_information(
+        self, a, db_session, webapp
+    ):
+        p = a.participant()
+        with mock.patch(
+            "dallinger.experiment.Experiment.normalize_entry_information"
+        ) as normalizer:
+            normalizer.side_effect = lambda *args: {
+                "assignment_id": p.assignment_id,
+                "worker_id": p.worker_id,
+                "hit_id": p.hit_id,
+                "entry_information": args[-1],
+            }
+            resp = webapp.post("/load-participant", data={"random_info": "123"})
+            data = json.loads(resp.data.decode("utf8"))
+            normalizer.assert_called_once_with({"random_info": "123"})
+            assert data.get("status") == "success"
+            assert data.get("participant").get("status") == u"working"
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
@@ -760,7 +810,7 @@ class TestParticipantCreateRoute(object):
             create_participant.side_effect = lambda *args: p
             webapp.post("/participant/1/1/1/debug")
             create_participant.assert_called_once_with(
-                "1", "1", "1", "debug", None, None
+                "1", "1", "1", "debug", None, None, None
             )
 
     def test_creates_participant_if_worker_id_unique(self, webapp):
@@ -817,6 +867,44 @@ class TestParticipantCreateRoute(object):
         )
 
         assert resp.status_code == 200
+
+    def test_post_participant_calls_normalize_entry_information(
+        self, a, db_session, webapp
+    ):
+        with mock.patch(
+            "dallinger.experiment.Experiment.normalize_entry_information"
+        ) as normalizer:
+            normalizer.side_effect = lambda *args: {
+                "assignment_id": "MY_ASSIGNMENT",
+                "worker_id": "MY_WORKER",
+                "hit_id": "MY_HIT",
+                "entry_information": args[-1],
+            }
+            webapp.post("/participant", data={"my_value": "1"})
+            normalizer.assert_called_once_with({"my_value": "1"})
+
+    def test_post_participant_calls_original_route(self, a, db_session, webapp):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.create_participant"
+        ) as create_participant:
+            create_participant.side_effect = lambda *args, **kw: "Result"
+            webapp.post(
+                "/participant",
+                data={
+                    "hitId": "H",
+                    "workerId": "W",
+                    "assignmentId": "A",
+                    "mode": "debug",
+                    "additional_stuff": "1",
+                },
+            )
+            create_participant.assert_called_once_with(
+                hit_id="H",
+                worker_id="W",
+                assignment_id="A",
+                mode="debug",
+                entry_information={"additional_stuff": "1"},
+            )
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")

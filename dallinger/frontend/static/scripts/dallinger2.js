@@ -101,6 +101,8 @@ var dallinger = (function () {
     set participantId(value) { dlgr.storage.set('participant_id', value); },
     get fingerprintHash() { return dlgr.storage.get('fingerprint_hash'); },
     set fingerprintHash(value) { dlgr.storage.set('fingerprint_hash', value);},
+    get entryInformation() { return dlgr.storage.get('entry_information'); },
+    set entryInformation(value) { dlgr.storage.set('entry_information', value);},
 
     initialize: function () {
       this.recruiter = dlgr.getUrlParameter('recruiter');
@@ -108,6 +110,17 @@ var dallinger = (function () {
       this.workerId = dlgr.getUrlParameter('worker_id');
       this.assignmentId = dlgr.getUrlParameter('assignment_id');
       this.mode = dlgr.getUrlParameter('mode');
+      // Store all url parameters as entry information.
+      // This won't work in IE, but should work in Edge.
+      var entry_info = {};
+      var query_params = new URLSearchParams(location.search);
+      for (const [k, v] of query_params) {
+        entry_info[k] = v;
+      }
+      this.entryInformation = entry_info;
+      if (this.entryInformation.mode) {
+        delete this.entryInformation.mode;
+      }
       var _self = this;
       new Fingerprint2().get(function(result){
         _self.fingerprintHash = result;
@@ -379,8 +392,8 @@ var dallinger = (function () {
   };
 
   /**
-   * Create a new experiment `Participant` by making a ``POST`` request to
-   * the experiment `/participant/` route. If the experiment requires a
+   * Create a new experiment ``Participant`` by making a ``POST`` request to
+   * the experiment ``/participant/`` route. If the experiment requires a
    * quorum, the response will not resolve until the quorum is met. If the
    * participant is requested after the quorum has already been reached, the
    * ``dallinger.skip_experiment`` flag will be set and the experiment will
@@ -388,20 +401,31 @@ var dallinger = (function () {
    *
    * This method is called automatically by the default waiting room page.
    *
+   * @example
+   * // Create a new participant using entry information from dallinger.identity
+   * result = dallinger.createParticipant();
+   * result.done(function () {... handle ``data.status`` ...});
+   *
    * @returns {jQuery.Deferred} See :ref:`deferreds-label`
    */
   dlgr.createParticipant = function() {
-    var deferred = $.Deferred(),
-        url = "/participant/" + dlgr.identity.workerId + "/" + dlgr.identity.hitId +
-          "/" + dlgr.identity.assignmentId + "/" + dlgr.identity.mode + "?fingerprint_hash=" +
-          (dlgr.identity.fingerprintHash) + '&recruiter=' + dlgr.identity.recruiter;
+    var url = "/participant";
+    var data = {};
+    var deferred = $.Deferred();
+    if (dlgr.identity.assignment_id) {
+      url += "/" + dlgr.identity.workerId + "/" + dlgr.identity.hitId +
+            "/" + dlgr.identity.assignmentId + "/" + dlgr.identity.mode + "?fingerprint_hash=" +
+            (dlgr.identity.fingerprintHash) + '&recruiter=' + dlgr.identity.recruiter;
+    } else {
+      data = dlgr.identity.entryInformation;
+    }
 
     if (dlgr.identity.participantId !== undefined && dlgr.identity.participantId !== 'undefined') {
       deferred.resolve();
     } else {
       $(function () {
         $('.btn-success').prop('disabled', true);
-        dlgr.post(url).done(function (resp) {
+        dlgr.post(url, data).done(function (resp) {
           console.log(resp);
           $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
@@ -429,20 +453,30 @@ var dallinger = (function () {
 
   /**
    * Load an existing `Participant` into the dlgr.identity by making a ``POST``
-   * request to the experiment `/participant` route with an ``assignment_id``.
+   * request to the experiment `/participant` route with some ``assignment_info``
+   * which can be a scalar ``assignment_id`` or an object with ``entry_information``
+   * parameters
    *
    * @returns {jQuery.Deferred} See :ref:`deferreds-label`
    */
-  dlgr.loadParticipant = function(assignment_id) {
-    var deferred = $.Deferred(),
-        url = '/participant';
+  dlgr.loadParticipant = function(assignment_info) {
+    var data,
+        deferred = $.Deferred(),
+        url = '/load-participant';
+
+    if (typeof assignment_info === "object") {
+      data = assignment_info;
+      dlgr.identity.entryInformation = assignment_info;
+    } else {
+      data = {assignment_id: assignment_info}
+    }
 
     if (dlgr.identity.participantId !== undefined && dlgr.identity.participantId !== 'undefined') {
       deferred.resolve();
     } else {
       $(function () {
         $('.btn-success').prop('disabled', true);
-        dlgr.post(url, {assignment_id: assignment_id}).done(function (resp) {
+        dlgr.post(url, data).done(function (resp) {
           console.log(resp);
           $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;

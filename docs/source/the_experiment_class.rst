@@ -108,6 +108,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: node_post_request
 
+  .. automethod:: normalize_entry_information
+
   .. automethod:: recruit
 
   .. automethod:: replay_event
