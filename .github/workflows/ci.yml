@@ -150,9 +150,9 @@ jobs:
         uses: actions/cache@v2
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ hashFiles('Dockerfile') }}
+          key: ${{ runner.os }}-buildx1-${{ hashFiles('Dockerfile') }}
           restore-keys: |
-            ${{ runner.os }}-buildx-
+            ${{ runner.os }}-buildx1-
       - name: Build dallinger/dallinger docker image
         uses: docker/build-push-action@v2
         with:
@@ -160,8 +160,8 @@ jobs:
           load: true
           target: dallinger
           tags: dallinger/dallinger:latest
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache
+          cache-from: type=local,src=/tmp/.buildx-cache/base
+          cache-to: type=local,dest=/tmp/.buildx-cache/base
       - name: Build dallinger/dallinger-bot docker image
         uses: docker/build-push-action@v2
         with:
@@ -169,8 +169,8 @@ jobs:
           load: true
           target: dallinger-bot
           tags: dallinger/dallinger-bot:latest
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache
+          cache-from: type=local,src=/tmp/.buildx-cache/bot
+          cache-to: type=local,dest=/tmp/.buildx-cache/bot
       - uses: actions/checkout@v2
       - name: Set up Python 3.9
         uses: actions/setup-python@v2
