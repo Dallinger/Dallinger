@@ -1396,10 +1396,9 @@ def is_experiment_class(cls):
     )
 
 
-def load(initialize=True):
+def load():
     """Load the active experiment."""
-    if initialize:
-        initialize_experiment_package(os.getcwd())
+    initialize_experiment_package(os.getcwd())
     try:
         try:
             from dallinger_experiment import experiment
