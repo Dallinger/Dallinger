@@ -40,7 +40,6 @@ services:
 {%- endif %}
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://dallinger:dallinger@postgresql/dallinger
-      FLASK_SECRET_KEY: "${FLASK_SECRET_KEY}"
       HOME: /tmp
   web:
     image: {{ experiment_name }}-web
