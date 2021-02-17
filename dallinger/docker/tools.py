@@ -167,7 +167,7 @@ class DockerComposeWrapper(object):
             self.get_container_name("web"), stream=True, logs=True
         )
         for raw_line in logs:
-            line = raw_line.decode("utf-8")
+            line = raw_line.decode("utf-8", errors="ignore")
             self._record.append(line)
             if self.verbose:
                 self.out.blather(line)
