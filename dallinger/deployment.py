@@ -794,12 +794,6 @@ class DockerDebugDeployment(DebugDeployment):
             local_checks=False,
         )
 
-    def open_dashboard(self, url):
-        if not self.no_browsers:
-            # Open the VNC view over the containerized services
-            open_browser("http://localhost:8080/vnc_auto.html")
-        super().open_dashboard(url)
-
 
 class LoaderDeployment(HerokuLocalDeployment):
     dispatch = {"Replay ready: (.*)$": "start_replay"}

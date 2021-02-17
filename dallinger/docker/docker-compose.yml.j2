@@ -39,7 +39,6 @@ services:
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://dallinger:dallinger@postgresql/dallinger
       FLASK_SECRET_KEY: "${FLASK_SECRET_KEY}"
-      DISPLAY: novnc:0.0
       HOME: /tmp
   web:
     image: {{ experiment_name }}-web
@@ -61,14 +60,6 @@ services:
       PORT: 5000
     ports:
       - "5000:5000"
-{%- if needs_chrome %}
-  novnc:
-    image: theasp/novnc:latest
-    environment:
-      - RUN_XTERM=no
-    ports:
-      - "8080:8080"
-{%- endif %}
 
 volumes:
   dallinger_pg_data:
