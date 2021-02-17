@@ -35,7 +35,9 @@ services:
       - "{{ volumestr }}"
 {%- endfor %}
     environment: &commonenv
+{%- if needs_chrome %}
       HOST: web # Tell the worker where we expect the web service to be
+{%- endif %}
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://dallinger:dallinger@postgresql/dallinger
       FLASK_SECRET_KEY: "${FLASK_SECRET_KEY}"
