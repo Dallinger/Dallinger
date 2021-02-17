@@ -38,7 +38,7 @@ services:
       HOST: web # Tell the worker where we expect the web service to be
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://dallinger:dallinger@postgresql/dallinger
-      FLASK_SECRET_KEY: DO_NOT_USE_IN_PRODUCTION
+      FLASK_SECRET_KEY: "${FLASK_SECRET_KEY}"
       DISPLAY: novnc:0.0
       HOME: /tmp
   web:
