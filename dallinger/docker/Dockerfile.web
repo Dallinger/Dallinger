@@ -1,4 +1,4 @@
-ARG DALLINGER_DOCKER_IMAGE=dallinger/dallinger:latest
+ARG DALLINGER_DOCKER_IMAGE=dallingerimages/dallinger:latest
 FROM $DALLINGER_DOCKER_IMAGE
 # Use a dallinger base image to build an experiment image
 COPY . /experiment

@@ -81,7 +81,9 @@ class DockerComposeWrapper(object):
         env = {"DOCKER_BUILDKIT": "1"}
         build_arg = ""
         if self.needs_chrome:
-            build_arg = "--build-arg DALLINGER_DOCKER_IMAGE=dallinger/dallinger-bot"
+            build_arg = (
+                "--build-arg DALLINGER_DOCKER_IMAGE=dallingerimages/dallinger-bot"
+            )
         check_output(
             f"docker-compose build {build_arg}".split(),
             env={**os.environ.copy(), **env},

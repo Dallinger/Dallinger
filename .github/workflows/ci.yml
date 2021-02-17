@@ -153,22 +153,22 @@ jobs:
           key: ${{ runner.os }}-buildx1-${{ hashFiles('Dockerfile') }}
           restore-keys: |
             ${{ runner.os }}-buildx1-
-      - name: Build dallinger/dallinger docker image
+      - name: Build dallingerimages/dallinger docker image
         uses: docker/build-push-action@v2
         with:
           push: false
           load: true
           target: dallinger
-          tags: dallinger/dallinger:latest
+          tags: dallingerimages/dallinger:latest
           cache-from: type=local,src=/tmp/.buildx-cache/base
           cache-to: type=local,dest=/tmp/.buildx-cache/base
-      - name: Build dallinger/dallinger-bot docker image
+      - name: Build dallingerimages/dallinger-bot docker image
         uses: docker/build-push-action@v2
         with:
           push: false
           load: true
           target: dallinger-bot
-          tags: dallinger/dallinger-bot:latest
+          tags: dallingerimages/dallinger-bot:latest
           cache-from: type=local,src=/tmp/.buildx-cache/bot
           cache-to: type=local,dest=/tmp/.buildx-cache/bot
       - uses: actions/checkout@v2
