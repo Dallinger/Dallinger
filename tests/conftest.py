@@ -204,7 +204,7 @@ def pytest_collection_modifyitems(config, items):
         # --runslow given in cli: do not skip slow tests
         run_slow = True
     if os.environ.get("RUN_DOCKER"):
-        # --runslow given in cli: do not skip slow tests
+        # RUN_DOCKER environment variable set: do not skip docker tests
         run_docker = True
     skip_slow = pytest.mark.skip(reason="need --runslow option to run")
     skip_docker = pytest.mark.skip(reason="need RUN_DOCKER environment variable")
