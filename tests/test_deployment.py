@@ -5,6 +5,7 @@ import mock
 import os
 import pexpect
 import pytest
+import re
 import six
 import sys
 import tempfile
@@ -844,7 +845,7 @@ class TestDebugServer(object):
 @pytest.mark.docker
 class TestDockerServer(object):
     @pytest.mark.usefixtures("check_runbot")
-    def test_docker_debug_bots(self, env):
+    def test_docker_debug_with_bots(self, env):
         # Make sure debug server runs to completion with bots
         p = pexpect.spawn(
             "dallinger",
@@ -856,6 +857,38 @@ class TestDockerServer(object):
         try:
             p.expect_exact("Server is running", timeout=300)
             p.expect_exact("Recruitment is complete", timeout=600)
+            p.expect_exact("'status': 'success'", timeout=60)
+            p.expect_exact("Experiment completed", timeout=10)
+            p.expect_exact("Removing bartlett1932_web_1", timeout=20)
+            p.expect(pexpect.EOF)
+        finally:
+            try:
+                p.sendcontrol("c")
+                p.read()
+            except IOError:
+                pass
+
+    @pytest.mark.usefixtures("check_runbot")
+    def test_docker_debug_without_bots(self, env):
+        sys.path.append(os.getcwd())
+        from experiment import Bot
+
+        # Make sure debug server runs to completion without bots
+        p = pexpect.spawn(
+            "dallinger",
+            ["docker", "debug", "--verbose", "--no-browsers"],
+            env=env,
+            encoding="utf-8",
+        )
+        p.logfile = sys.stdout
+        try:
+            p.expect_exact("Server is running", timeout=60)
+            p.expect_exact("Initial recruitment list:", timeout=20)
+            p.expect("New participant requested.*", 30)
+            Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
+            p.expect("New participant requested.*", 30)
+            Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
+            p.expect_exact("Recruitment is complete", timeout=60)
             p.expect_exact("'status': 'success'", timeout=60)
             p.expect_exact("Experiment completed", timeout=10)
             p.expect_exact("Removing bartlett1932_web_1", timeout=20)
