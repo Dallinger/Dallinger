@@ -73,13 +73,13 @@ def mturk():
 class TestVerify(object):
     @pytest.fixture
     def v_package(self):
-        from dallinger.command_line import verify_package
+        from dallinger.command_line.utils import verify_package
 
         return verify_package
 
     @pytest.fixture
     def v_directory(self):
-        from dallinger.command_line import verify_directory
+        from dallinger.command_line.utils import verify_directory
 
         return verify_directory
 
@@ -96,7 +96,7 @@ class TestVerify(object):
 
     def test_too_big_returns_false(self, v_directory):
         with mock.patch(
-            "dallinger.command_line.ExperimentFileSource.size",
+            "dallinger.command_line.utils.ExperimentFileSource.size",
             new_callable=mock.PropertyMock,
         ) as size:
             size.return_value = 6000000  # 6 MB, so over the limit
@@ -104,7 +104,7 @@ class TestVerify(object):
 
     def test_under_limit_returns_true(self, v_directory):
         with mock.patch(
-            "dallinger.command_line.ExperimentFileSource.size",
+            "dallinger.command_line.utils.ExperimentFileSource.size",
             new_callable=mock.PropertyMock,
         ) as size:
             size.return_value = 4000000  # 4 MB, so under the limit
@@ -214,7 +214,7 @@ class TestDebugCommand(object):
         assert "directory is not a valid Dallinger experiment" in result.output
 
     def test_bad_config_prevents_deployment(self, debug, deployment, active_config):
-        with mock.patch("dallinger.command_line.verify_config") as verify_config:
+        with mock.patch("dallinger.command_line.utils.verify_config") as verify_config:
             verify_config.side_effect = ValueError()
             returned = CliRunner().invoke(debug, [])
         assert (

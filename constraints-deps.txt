@@ -71,6 +71,7 @@ openpyxl==3.0.6
 packaging==20.9
 pandas==1.2.1
 pandocfilters==1.4.3
+paramiko==2.7.2
 parsimonious==0.7.0
 parso==0.8.1
 pexpect==4.8.0

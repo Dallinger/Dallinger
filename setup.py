@@ -28,6 +28,7 @@ setup_args = dict(
     entry_points={
         'console_scripts': [
             'dallinger = dallinger.command_line:dallinger',
+            'dallinger-housekeeper = dallinger.command_line:dallinger_housekeeper',
             'dallinger_heroku_web = dallinger_scripts.web:main',
             'dallinger_heroku_worker = dallinger_scripts.worker:main',
             'dallinger_heroku_clock = dallinger_scripts.clock:main',
@@ -61,7 +62,8 @@ setup_args = dict(
             "tox",
             "sphinx-js",
             "sphinx_rtd_theme",
-        ]
+        ],
+        ':python_version <= "3.7"': ['importlib_metadata'],
     }
 )
 

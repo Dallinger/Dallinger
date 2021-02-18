@@ -199,10 +199,17 @@ def pytest_addoption(parser):
 
 
 def pytest_collection_modifyitems(config, items):
+    run_slow = run_docker = False
     if config.getoption("--runslow"):
         # --runslow given in cli: do not skip slow tests
-        return
+        run_slow = True
+    if os.environ.get("RUN_DOCKER"):
+        # RUN_DOCKER environment variable set: do not skip docker tests
+        run_docker = True
     skip_slow = pytest.mark.skip(reason="need --runslow option to run")
+    skip_docker = pytest.mark.skip(reason="need RUN_DOCKER environment variable")
     for item in items:
-        if "slow" in item.keywords:
+        if "slow" in item.keywords and not run_slow:
             item.add_marker(skip_slow)
+        if "docker" in item.keywords and not run_docker:
+            item.add_marker(skip_docker)

@@ -12,6 +12,11 @@ import sys
 import tempfile
 import webbrowser
 from pkg_resources import get_distribution
+
+try:
+    from importlib.metadata import files as files_metadata
+except ImportError:
+    from importlib_metadata import files as files_metadata
 from six.moves.urllib.parse import urlparse
 
 from dallinger.config import get_config
@@ -36,6 +41,11 @@ def connect_to_redis(url=None):
 
 
 def get_base_url():
+    """Returns the base url for the experiment.
+    Looks into environment variable HOST first, then in the
+    experiment config.
+    If the URL is on Heroku makes sure the protocol is https.
+    """
     config = get_config()
     host = os.getenv("HOST", config.get("host"))
     if host == "0.0.0.0":
@@ -329,3 +339,16 @@ def struct_to_html(data):
 
     parts.append("</ul>")
     return "\n".join(parts)
+
+
+def abspath_from_egg(egg, path):
+    """Given a path relative to the egg root, find the absolute
+    filesystem path for that resource.
+    For instance this file's absolute path can be found invoking
+    `abspath_from_egg("dallinger", "dallinger/utils.py")`.
+    Returns a `pathlib.Path` object or None if the path was not found.
+    """
+    for file in files_metadata(egg):
+        if str(file) == path:
+            return file.locate()
+    return None

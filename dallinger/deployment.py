@@ -26,6 +26,7 @@ from dallinger import registration
 from dallinger.config import get_config
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuLocalWrapper
+from dallinger.docker.tools import DockerComposeWrapper
 from dallinger.utils import connect_to_redis
 from dallinger.utils import dallinger_package_path
 from dallinger.utils import ensure_directory
@@ -281,7 +282,9 @@ def assemble_experiment_temp_dir(config):
     return dst
 
 
-def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
+def setup_experiment(
+    log, debug=True, verbose=False, app=None, exp_config=None, local_checks=True
+):
     """Checks the experiment's python dependencies, then prepares a temp directory
     with files merged from the custom experiment and Dallinger.
 
@@ -290,19 +293,20 @@ def setup_experiment(log, debug=True, verbose=False, app=None, exp_config=None):
     """
 
     # Verify that the Postgres server is running.
-    try:
-        db.check_connection()
-    except Exception:
-        log("There was a problem connecting to the Postgres database!")
-        raise
+    if local_checks:
+        try:
+            db.check_connection()
+        except Exception:
+            log("There was a problem connecting to the Postgres database!")
+            raise
 
-    # Check that the demo-specific requirements are satisfied.
-    try:
-        with open("requirements.txt", "r") as f:
-            dependencies = [r for r in f.readlines() if r[:3] != "-e "]
-    except (OSError, IOError):
-        dependencies = []
-    pkg_resources.require(dependencies)
+        # Check that the demo-specific requirements are satisfied.
+        try:
+            with open("requirements.txt", "r") as f:
+                dependencies = [r for r in f.readlines() if r[:3] != "-e "]
+        except (OSError, IOError):
+            dependencies = []
+        pkg_resources.require(dependencies)
 
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
@@ -559,6 +563,10 @@ class HerokuLocalDeployment(object):
     tmp_dir = None
     dispatch = {}  # Subclass may provide handlers for Heroku process output
     environ = None
+    bot = False
+    DEPLOY_NAME = "Heroku"
+    WRAPPER_CLASS = HerokuLocalWrapper
+    DO_INIT_DB = True
 
     def configure(self):
         self.exp_config.update({"mode": "debug", "loglevel": 0})
@@ -569,6 +577,10 @@ class HerokuLocalDeployment(object):
         )
 
     def update_dir(self):
+        # FIXME: this call is used for implicit communication between classes in this file
+        # and service wrappers (HerokuLocalWrapper, DockerComposeWrapper).
+        # This communication should be made explicit, passing this path around instead of
+        # changing a global state.
         os.chdir(self.tmp_dir)
         # Update the logfile to the new directory
         config = get_config()
@@ -579,21 +591,28 @@ class HerokuLocalDeployment(object):
         config.write()
 
     def run(self):
-        """Set up the environment, get a HerokuLocalWrapper instance, and pass
+        """Set up the environment, get a wrapper instance, and pass
         it to the concrete class's execute() method.
         """
         self.configure()
         self.setup()
         self.update_dir()
-        db.init_db(drop_all=True)
+        if self.DO_INIT_DB:
+            db.init_db(drop_all=True)
         config = get_config()
         environ = None
         if self.environ:
             environ = os.environ.copy()
             environ.update(self.environ)
-        self.out.log("Starting up the Heroku Local server...")
-        with HerokuLocalWrapper(
-            config, self.out, verbose=self.verbose, env=environ
+        self.out.log(f"Starting up the {self.DEPLOY_NAME} Local server...")
+        with self.WRAPPER_CLASS(
+            config,
+            self.out,
+            self.original_dir,
+            self.tmp_dir,
+            verbose=self.verbose,
+            env=environ,
+            needs_chrome=self.bot,
         ) as wrapper:
             try:
                 self.execute(wrapper)
@@ -755,6 +774,25 @@ class DebugDeployment(HerokuLocalDeployment):
         if self.complete:
             return HerokuLocalWrapper.MONITOR_STOP
         return super(DebugDeployment, self).notify(message)
+
+
+class DockerDebugDeployment(DebugDeployment):
+    """Run the experiment in a local docker-compose based environment."""
+
+    DEPLOY_NAME = "Docker"
+    WRAPPER_CLASS = DockerComposeWrapper
+    DO_INIT_DB = False  # The DockerComposeWrapper will take care of it
+
+    def setup(self):
+        """Override setup to be able to build the experiment directory
+        without a working postgresql (it will work inside the docker compose env).
+        Maybe the postgres check can be removed altogether?
+        """
+        self.exp_id, self.tmp_dir = setup_experiment(
+            self.out.log,
+            exp_config=self.exp_config,
+            local_checks=False,
+        )
 
 
 class LoaderDeployment(HerokuLocalDeployment):

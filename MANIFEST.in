@@ -10,6 +10,6 @@ include constraints-deps.txt
 include setup_utils.py
 include README.md
 include LICENSE
-include incubator.jpg
+include incubator.png
 
 prune *.pyc
