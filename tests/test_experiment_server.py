@@ -97,16 +97,12 @@ class TestAppConfiguration(object):
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
 class TestAdvertisement(object):
-    def test_returns_error_without_hitId_and_assignmentId(self, webapp):
+    def test_returns_error_without_hitId_assignmentId_and_workerId(self, webapp):
         resp = webapp.get("/ad")
         assert resp.status_code == 500
         assert b"hit_assign_worker_id_not_set_by_recruiter" in resp.data
 
-    def test_with_no_worker_id_and_nonexistent_hit_and_assignment(self, webapp):
-        resp = webapp.get("/ad?hitId=foo&assignmentId=bar")
-        assert b"Thanks for accepting this HIT." in resp.data
-
-    def test_with_nonexistent_hit_worker_and_assignment(self, webapp):
+    def test_accepts_any_ids(self, webapp):
         resp = webapp.get("/ad?hitId=foo&assignmentId=bar&workerId=baz")
         assert b"Thanks for accepting this HIT." in resp.data
 
@@ -135,33 +131,7 @@ class TestAdvertisement(object):
         assert resp.status_code == 500
         assert b"browser_type_not_allowed" in resp.data
 
-    def test_still_working_in_debug_mode_returns_error(self, a, webapp):
-        p = a.participant()
-        resp = webapp.get(
-            "/ad?hitId={}&assignmentId={}&workerId={}".format(
-                p.hit_id, p.assignment_id, p.worker_id
-            )
-        )
-        assert resp.status_code == 500
-        assert b"already_started_exp" in resp.data
-
-    def test_still_working_in_sandbox_mode_returns_error(
-        self, a, webapp, active_config
-    ):
-        active_config.extend({"mode": u"sandbox"})
-        p = a.participant()
-        resp = webapp.get(
-            "/ad?hitId={}&assignmentId={}&workerId={}".format(
-                p.hit_id, p.assignment_id, p.worker_id
-            )
-        )
-        assert resp.status_code == 500
-        assert b"already_started_exp" in resp.data
-
-    def test_previously_completed_same_exp_fails_if_not_debug(
-        self, a, webapp, active_config
-    ):
-        active_config.extend({"mode": u"sandbox"})
+    def test_previously_completed_same_exp_fails(self, a, webapp):
         p = a.participant()
         resp = webapp.get(
             "/ad?hitId={}&assignmentId={}&workerId={}".format(
@@ -170,15 +140,6 @@ class TestAdvertisement(object):
         )
         assert resp.status_code == 500
         assert b"already_did_exp_hit" in resp.data
-
-    def test_previously_completed_same_exp_ok_if_debug(self, a, webapp, active_config):
-        p = a.participant()
-        resp = webapp.get(
-            "/ad?hitId={}&assignmentId={}&workerId={}".format(
-                p.hit_id, "some_previous_assignmentID", p.worker_id
-            )
-        )
-        assert b"Thanks for accepting this HIT." in resp.data
 
 
 @pytest.mark.usefixtures("experiment_dir")
@@ -632,37 +593,6 @@ class TestSimpleGETRoutes(object):
     def test_nonexisting_experiment_property(self, webapp):
         resp = webapp.get("/experiment/missing")
         assert resp.status_code == 404
-
-
-@pytest.mark.usefixtures("experiment_dir")
-@pytest.mark.slow
-class TestAdRoute(object):
-    def test_ad(self, webapp):
-        resp = webapp.get(
-            "/ad", query_string={"hitId": "debug", "assignmentId": "1", "mode": "debug"}
-        )
-        assert b"Psychology Experiment" in resp.data
-        assert (
-            b'Please click the "Accept HIT" button on the Amazon site' not in resp.data
-        )
-        assert b"Begin Experiment" in resp.data
-
-    def test_ad_before_acceptance(self, webapp):
-        resp = webapp.get(
-            "/ad",
-            query_string={
-                "hitId": "debug",
-                "assignmentId": "ASSIGNMENT_ID_NOT_AVAILABLE",
-                "mode": "debug",
-            },
-        )
-        assert b'Please click the "Accept HIT" button on the Amazon site' in resp.data
-        assert b"Begin Experiment" not in resp.data
-
-    def test_ad_no_params(self, webapp):
-        resp = webapp.get("/ad")
-        assert resp.status_code == 500
-        assert b"Psychology Experiment - Error" in resp.data
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")

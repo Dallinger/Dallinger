@@ -395,12 +395,7 @@ def advertisement():
         raise ExperimentError("browser_type_not_allowed")
 
     entry_information = request.args.to_dict()
-
     app_id = config.get("id", "unknown")
-    mode = config.get("mode")
-    debug_mode = mode == "debug"
-    participant = None
-
     exp = Experiment(session)
     entry_data = exp.normalize_entry_information(entry_information)
 
@@ -408,39 +403,19 @@ def advertisement():
     assignment_id = entry_data.get("assignment_id")
     worker_id = entry_data.get("worker_id")
 
-    if not (hit_id and assignment_id):
+    if not (hit_id and assignment_id and worker_id):
         raise ExperimentError("hit_assign_worker_id_not_set_by_recruiter")
 
-    if worker_id is not None:
-        # First check if this workerId has completed the task before
-        # under a different assignment (v1):
-        already_participated = bool(
-            models.Participant.query.filter(
-                models.Participant.assignment_id != assignment_id
-            )
-            .filter(models.Participant.worker_id == worker_id)
-            .count()
-        )
+    # Check if this workerId has completed the task before
+    already_participated = (
+        models.Participant.query.filter(
+            models.Participant.worker_id == worker_id
+        ).first()
+        is not None
+    )
 
-        if already_participated and not debug_mode:
-            raise ExperimentError("already_did_exp_hit")
-
-        # Next, check for participants already associated with this very
-        # assignment, and retain their status, if found:
-        try:
-            participant = (
-                models.Participant.query.filter(models.Participant.hit_id == hit_id)
-                .filter(models.Participant.assignment_id == assignment_id)
-                .filter(models.Participant.worker_id == worker_id)
-                .one()
-            )
-        except exc.SQLAlchemyError:
-            pass
-
-    if participant and participant.status == "working":
-        # Once participants have finished the instructions, we do not allow
-        # them to start the task again.
-        raise ExperimentError("already_started_exp")
+    if already_participated:
+        raise ExperimentError("already_did_exp_hit")
 
     recruiter_name = request.args.get("recruiter")
     if recruiter_name:
