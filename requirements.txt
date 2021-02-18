@@ -4,8 +4,6 @@ APScheduler
 cached-property
 boto3
 click
-docker
-docker-compose
 faker
 Flask-Sockets
 Flask
