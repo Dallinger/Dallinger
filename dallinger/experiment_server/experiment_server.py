@@ -467,7 +467,7 @@ def advertisement():
 @nocache
 def recriter_exit():
     """Display an exit page defined by the Participant's Recruiter.
-    The Recruiter may in term delegate to the Experiment for additional
+    The Recruiter may in turn delegate to the Experiment for additional
     values to display.
     """
     participant_id = request.args.get("participant_id")
