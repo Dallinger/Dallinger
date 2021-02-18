@@ -63,6 +63,10 @@ setup_args = dict(
             "sphinx-js",
             "sphinx_rtd_theme",
         ],
+        'docker': [
+            "docker",
+            "docker-compose"
+        ],
         ':python_version <= "3.7"': ['importlib_metadata'],
     }
 )

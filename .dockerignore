@@ -1,0 +1,11 @@
+.direnv
+.git
+*.db
+*.dmg
+node_modules
+snapshots
+data
+server.log
+__pycache__
+.tox
+Dockerfile

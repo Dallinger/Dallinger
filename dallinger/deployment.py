@@ -26,7 +26,6 @@ from dallinger import registration
 from dallinger.config import get_config
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuLocalWrapper
-from dallinger.docker.tools import DockerComposeWrapper
 from dallinger.utils import connect_to_redis
 from dallinger.utils import dallinger_package_path
 from dallinger.utils import ensure_directory
@@ -774,25 +773,6 @@ class DebugDeployment(HerokuLocalDeployment):
         if self.complete:
             return HerokuLocalWrapper.MONITOR_STOP
         return super(DebugDeployment, self).notify(message)
-
-
-class DockerDebugDeployment(DebugDeployment):
-    """Run the experiment in a local docker-compose based environment."""
-
-    DEPLOY_NAME = "Docker"
-    WRAPPER_CLASS = DockerComposeWrapper
-    DO_INIT_DB = False  # The DockerComposeWrapper will take care of it
-
-    def setup(self):
-        """Override setup to be able to build the experiment directory
-        without a working postgresql (it will work inside the docker compose env).
-        Maybe the postgres check can be removed altogether?
-        """
-        self.exp_id, self.tmp_dir = setup_experiment(
-            self.out.log,
-            exp_config=self.exp_config,
-            local_checks=False,
-        )
 
 
 class LoaderDeployment(HerokuLocalDeployment):

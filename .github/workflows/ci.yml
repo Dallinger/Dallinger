@@ -189,7 +189,7 @@ jobs:
       - name: Install python wheel package
         run: pip install wheel
       - name: Install python requirements
-        run: pip install -r build-requirements.txt .[data]
+        run: pip install -r build-requirements.txt .[data,docker]
       - name: Run docker tests (only one for now)
         run: RUN_DOCKER=1 pytest -k test_docker_debug --runslow --runbot -rsx -s -v
 
