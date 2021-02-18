@@ -5,6 +5,7 @@ async-generator==1.10
 attrs==20.3.0
 Babel==2.9.0
 backcall==0.2.0
+bcrypt==3.2.0
 bleach==3.2.3
 boto3==1.16.59
 botocore==1.19.63
@@ -16,6 +17,7 @@ cfgv==3.2.0
 chardet==4.0.0
 click==7.1.2
 commonmark==0.9.1
+cryptography==3.4.6
 decorator==4.4.2
 defusedxml==0.6.0
 distlib==0.3.1
@@ -88,6 +90,7 @@ pycparser==2.20
 pyenchant==3.2.0
 pyflakes==2.2.0
 Pygments==2.7.4
+pynacl==1.4.0
 pyparsing==2.4.7
 pyrsistent==0.17.3
 python-dateutil==2.8.1
