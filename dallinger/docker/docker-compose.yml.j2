@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: dallinger
       POSTGRES_DB: dallinger
     volumes:
-      - dallinger_pg_data:/var/lib/postgresql/data
+      - dallinger_{{ experiment_name }}_pg_data:/var/lib/postgresql/data
     ports:
       # bots might need to communicate with postgresql
       - "5432:5432"
@@ -15,9 +15,9 @@ services:
     image: redis
     command: redis-server --appendonly yes
     volumes:
-      - dallinger_redis_data:/data
-      # bots might need to communicate with redis
+      - dallinger_{{ experiment_name }}_redis_data:/data
     ports:
+      # bots might need to communicate with redis
       - "6379:6379"
   worker:
     image: {{ experiment_name }}-worker
@@ -63,5 +63,5 @@ services:
       - "5000:5000"
 
 volumes:
-  dallinger_pg_data:
-  dallinger_redis_data:
+  dallinger_{{ experiment_name }}_pg_data:
+  dallinger_{{ experiment_name }}_redis_data:

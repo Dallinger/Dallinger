@@ -3,9 +3,9 @@
 APScheduler
 cached-property
 boto3
+click
 docker
 docker-compose
-click
 faker
 Flask-Sockets
 Flask
@@ -17,6 +17,7 @@ gevent
 greenlet
 gunicorn
 localconfig
+paramiko[ssh]
 pexpect
 psycopg2
 psutil

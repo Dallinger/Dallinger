@@ -1,6 +1,7 @@
 import docker
 import os
 import shutil
+import sys
 import time
 
 from jinja2 import Template
@@ -60,6 +61,9 @@ class DockerComposeWrapper(object):
             path = abspath_from_egg("dallinger", f"dallinger/docker/{filename}")
             shutil.copy2(path, self.tmp_dir)
         volumes = [f"{self.original_dir}:{self.original_dir}"]
+        editable_dallinger_path = get_editable_dallinger_path()
+        if editable_dallinger_path:
+            volumes.append(f"{editable_dallinger_path}:/dallinger")
         with open(os.path.join(self.tmp_dir, "docker-compose.yml"), "w") as fh:
             fh.write(
                 docker_compose_template.render(
@@ -152,7 +156,7 @@ class DockerComposeWrapper(object):
         self.stop()
 
     def stop(self):
-        os.system(f"docker-compose -f '{self.tmp_dir}/docker-compose.yml' down")
+        os.system(f"docker-compose -f '{self.tmp_dir}/docker-compose.yml' stop")
 
     def get_container_name(self, service_name):
         """Return the name of the first container for the given service name
@@ -189,3 +193,15 @@ class DockerComposeWrapper(object):
 
 class DockerStartupError(RuntimeError):
     """Some docker containers had problems starting"""
+
+
+def get_editable_dallinger_path():
+    """In case dallinger was installed as editable package
+    (for instance with `pip install -e`) it returns its location.
+    Otherwise returns False.
+    """
+    for path_item in sys.path:
+        egg_link = os.path.join(path_item, "dallinger.egg-link")
+        if os.path.isfile(egg_link):
+            return open(egg_link).read().split()[0]
+    return False

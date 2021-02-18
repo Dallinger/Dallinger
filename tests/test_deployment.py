@@ -849,7 +849,7 @@ class TestDockerServer(object):
         # Make sure debug server runs to completion with bots
         p = pexpect.spawn(
             "dallinger",
-            ["docker", "debug", "--verbose", "--bot"],
+            ["docker", "debug", "--verbose", "--bot", "--no-browsers"],
             env=env,
             encoding="utf-8",
         )
@@ -859,7 +859,7 @@ class TestDockerServer(object):
             p.expect_exact("Recruitment is complete", timeout=600)
             p.expect_exact("'status': 'success'", timeout=60)
             p.expect_exact("Experiment completed", timeout=10)
-            p.expect_exact("Removing bartlett1932_web_1", timeout=20)
+            p.expect_exact("Stopping bartlett1932_web_1", timeout=20)
             p.expect(pexpect.EOF)
         finally:
             try:
@@ -891,7 +891,7 @@ class TestDockerServer(object):
             p.expect_exact("Recruitment is complete", timeout=60)
             p.expect_exact("'status': 'success'", timeout=60)
             p.expect_exact("Experiment completed", timeout=10)
-            p.expect_exact("Removing bartlett1932_web_1", timeout=20)
+            p.expect_exact("Stopping bartlett1932_web_1", timeout=20)
             p.expect(pexpect.EOF)
         finally:
             try:
