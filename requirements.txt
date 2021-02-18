@@ -15,7 +15,6 @@ gevent
 greenlet
 gunicorn
 localconfig
-paramiko
 pexpect
 psycopg2
 psutil
