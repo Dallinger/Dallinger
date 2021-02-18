@@ -15,7 +15,7 @@ gevent
 greenlet
 gunicorn
 localconfig
-paramiko[ssh]
+paramiko
 pexpect
 psycopg2
 psutil
