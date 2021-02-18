@@ -37,6 +37,8 @@ setup_args = dict(
         'pytest11': ['pytest_dallinger = dallinger.pytest_dallinger'],
     },
     extras_require={
+        # Extras should be replicated in requirements-extras-list.txt
+        # so that pip-compile can pin their dependencies for us
         'jupyter': [
             "jupyter",
             "ipywidgets",

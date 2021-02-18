@@ -1,0 +1,7 @@
+-c constraints.txt
+jupyter
+ipywidgets
+pandas
+tablib[all]
+docker
+docker-compose

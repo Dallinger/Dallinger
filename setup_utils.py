@@ -7,20 +7,17 @@ REQUIREMENT_RE = re.compile(r'^(([^=]+)[=<>]+[^#]+)(#.*)?$')
 def update_pins(setup_args):
     # Use requirements and constraints to set version pins
     packages = set()
-    constraint_files = []
     install_dir = os.path.dirname(__file__)
-    with open(os.path.join(install_dir, 'requirements.txt')) as requirements:
+    with open(os.path.join(install_dir, 'requirements-list.txt')) as requirements:
         for r in requirements:
             if r.lower().strip() == 'dallinger':
                 continue
-            if r.startswith('-c '):
-                constraint_files.append(r.replace('-c ', '').strip())
             if not r.startswith('-') or r.startswith('#'):
                 package = r.strip().lower()
                 packages.add(package)
 
     requirements = []
-    for fname in constraint_files:
+    for fname in ["constraints.txt", "constraints-extras.txt"]:
         with open(os.path.join(install_dir, fname)) as constraints:
             for c in constraints:
                 matches = REQUIREMENT_RE.match(c.strip())
