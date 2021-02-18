@@ -429,6 +429,28 @@ class Experiment(object):
         """
         return "Thank for participating! Here is your bonus."
 
+    def exit_info_for(self, participant):
+        """An experiment can return a dictionary of infomation that will
+        be shown to the participant at the very last point in their
+        lifecycle, if the HIT is not submitted to an external recruitment
+        service for submission.
+
+        For complete control over the exit page, a customized version of
+        the ``exit_recruiter.html`` template can be included in the experient
+        directory, and this will override the default provided by Dallinger.
+
+        :param participant: the ``Participant`` instance for which to calculate
+            an exit value
+        :returns: ``dict`` which may be rendered to the worker as an HTML table
+            when they submit their assigment.
+        """
+        return {
+            "Assignment ID": participant.assignment_id,
+            "HIT ID": participant.hit_id,
+            "Base Pay": participant.base_pay,
+            "Bonus": participant.bonus,
+        }
+
     def attention_check(self, participant):
         """Check if participant performed adequately.
 

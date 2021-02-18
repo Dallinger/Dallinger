@@ -362,7 +362,9 @@ var dallinger = (function () {
 
   /**
    * Notify the experiment that the participant's assignment is complete.
-   * Performs a ``GET`` request to the experiment's ``/worker_complete`` route.
+   * Performs a ``POST`` request to the experiment's ``/worker_complete`` route,
+   * then redirects the main/parent window to the ``/recruiter-exit`` route and
+   * closes the secondary window in which the experiment ran.
    *
    * @example
    * // Mark the assignment complete and perform a custom function when successful
@@ -374,20 +376,22 @@ var dallinger = (function () {
    * @returns {jQuery.Deferred} See :ref:`deferreds-label`
    */
   dlgr.submitAssignment = function() {
-    var deferred = $.Deferred();
-    dlgr.get('/participant/' + dlgr.identity.participantId).done(function (resp) {
-      dlgr.get('/worker_complete', {
-        'participant_id': dlgr.identity.participantId
-      }).done(function () {
-        deferred.resolve();
-        dallinger.allowExit();
-        window.location = "/complete";
-      }).fail(function (err) {
-        deferred.reject(err);
-      });
+    var deferred = $.Deferred(),
+        participantId = dlgr.identity.participantId;
+
+    dlgr.post('/worker_complete', {
+        'participant_id': participantId
+    }).done(function () {
+      deferred.resolve();
+      dlgr.allowExit();
+      // Redirect parent window to recruiter exit route
+      window.opener.location = "/recruiter-exit?participant_id=" + participantId;
+      // Close separate window (this one) that held the main experiment.
+      window.close();
     }).fail(function (err) {
       deferred.reject(err);
     });
+
     return deferred;
   };
 

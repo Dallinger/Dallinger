@@ -94,6 +94,7 @@ class ExperimentError(Exception):
             hit_assign_worker_id_not_set_in_consent=1002,
             hit_assign_worker_id_not_set_in_exp=1003,
             hit_assign_appears_in_database_more_than_once=1004,
+            hit_assign_worker_id_not_set_by_recruiter=1006,
             already_started_exp=1008,
             already_started_exp_mturk=1009,
             already_did_exp_hit=1010,

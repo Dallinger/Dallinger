@@ -227,11 +227,10 @@ def verify_no_conflicts(verbose=True):
     conflicts = False
 
     reserved_files = [
-        os.path.join("templates", "complete.html"),
         os.path.join("templates", "error.html"),
         os.path.join("templates", "error-complete.html"),
+        os.path.join("templates", "exit_recruiter_mturk.html"),
         os.path.join("templates", "launch.html"),
-        os.path.join("templates", "thanks.html"),
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger2.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),

@@ -97,16 +97,12 @@ class TestAppConfiguration(object):
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
 class TestAdvertisement(object):
-    def test_returns_error_without_hitId_and_assignmentId(self, webapp):
+    def test_returns_error_without_hitId_assignmentId_and_workerId(self, webapp):
         resp = webapp.get("/ad")
         assert resp.status_code == 500
-        assert b"hit_assign_worker_id_not_set_in_mturk" in resp.data
+        assert b"hit_assign_worker_id_not_set_by_recruiter" in resp.data
 
-    def test_with_no_worker_id_and_nonexistent_hit_and_assignment(self, webapp):
-        resp = webapp.get("/ad?hitId=foo&assignmentId=bar")
-        assert b"Thanks for accepting this HIT." in resp.data
-
-    def test_with_nonexistent_hit_worker_and_assignment(self, webapp):
+    def test_accepts_any_ids(self, webapp):
         resp = webapp.get("/ad?hitId=foo&assignmentId=bar&workerId=baz")
         assert b"Thanks for accepting this HIT." in resp.data
 
@@ -135,33 +131,7 @@ class TestAdvertisement(object):
         assert resp.status_code == 500
         assert b"browser_type_not_allowed" in resp.data
 
-    def test_still_working_in_debug_mode_returns_error(self, a, webapp):
-        p = a.participant()
-        resp = webapp.get(
-            "/ad?hitId={}&assignmentId={}&workerId={}".format(
-                p.hit_id, p.assignment_id, p.worker_id
-            )
-        )
-        assert resp.status_code == 500
-        assert b"already_started_exp_mturk" in resp.data
-
-    def test_still_working_in_sandbox_mode_returns_error(
-        self, a, webapp, active_config
-    ):
-        active_config.extend({"mode": u"sandbox"})
-        p = a.participant()
-        resp = webapp.get(
-            "/ad?hitId={}&assignmentId={}&workerId={}".format(
-                p.hit_id, p.assignment_id, p.worker_id
-            )
-        )
-        assert resp.status_code == 500
-        assert b"already_started_exp_mturk" in resp.data
-
-    def test_previously_completed_same_exp_fails_if_not_debug(
-        self, a, webapp, active_config
-    ):
-        active_config.extend({"mode": u"sandbox"})
+    def test_previously_completed_same_exp_fails(self, a, webapp):
         p = a.participant()
         resp = webapp.get(
             "/ad?hitId={}&assignmentId={}&workerId={}".format(
@@ -170,118 +140,6 @@ class TestAdvertisement(object):
         )
         assert resp.status_code == 500
         assert b"already_did_exp_hit" in resp.data
-
-    def test_previously_completed_same_exp_ok_if_debug(self, a, webapp, active_config):
-        p = a.participant()
-        resp = webapp.get(
-            "/ad?hitId={}&assignmentId={}&workerId={}".format(
-                p.hit_id, "some_previous_assignmentID", p.worker_id
-            )
-        )
-        assert b"Thanks for accepting this HIT." in resp.data
-
-    def test_submitted_hit_shows_thanks_page_in_debug(self, a, webapp):
-        p = a.participant()
-        p.status = u"submitted"
-        resp = webapp.get(
-            "/ad?hitId={}&assignmentId={}&workerId={}".format(
-                p.hit_id, p.assignment_id, p.worker_id
-            )
-        )
-        assert (
-            b"If this were a real HIT, you would push a button to finish" in resp.data
-        )
-
-    def test_shows_thanks_page_if_participant_is_working_but_has_end_time(
-        self, a, webapp
-    ):
-        p = a.participant()
-        p.end_time = datetime.now()
-        resp = webapp.get(
-            "/ad?hitId={}&assignmentId={}&workerId={}".format(
-                p.hit_id, p.assignment_id, p.worker_id
-            )
-        )
-        assert (
-            b"If this were a real HIT, you would push a button to finish" in resp.data
-        )
-
-    def test_working_hit_shows_thanks_page_in_sandbox_mode(
-        self, a, webapp, active_config
-    ):
-        active_config.extend({"mode": u"sandbox"})
-        p = a.participant()
-        p.end_time = datetime.now()
-        resp = webapp.get(
-            "/ad?hitId={}&assignmentId={}&workerId={}".format(
-                p.hit_id, p.assignment_id, p.worker_id
-            )
-        )
-        assert (
-            b'action="https://workersandbox.mturk.com/mturk/externalSubmit"'
-            in resp.data
-        )
-
-    def test_working_hit_shows_thanks_page_in_live_mode(self, a, webapp, active_config):
-        active_config.extend({"mode": u"live"})
-        p = a.participant()
-        p.end_time = datetime.now()
-        resp = webapp.get(
-            "/ad?hitId={}&assignmentId={}&workerId={}".format(
-                p.hit_id, p.assignment_id, p.worker_id
-            )
-        )
-        assert b'action="https://www.mturk.com/mturk/externalSubmit"' in resp.data
-
-    def test_overrecruit_sees_thanks_page_in_sandbox(self, a, webapp, active_config):
-        active_config.extend({"mode": u"sandbox"})
-        p = a.participant()
-        p.end_time = datetime.now()
-        p.status = u"overrecruited"
-        resp = webapp.get(
-            "/ad?hitId={}&assignmentId={}&workerId={}".format(
-                p.hit_id, p.assignment_id, p.worker_id
-            )
-        )
-        assert (
-            b'action="https://workersandbox.mturk.com/mturk/externalSubmit"'
-            in resp.data
-        )
-
-    def test_overrecruit_sees_thanks_page_in_live_mode(self, a, webapp, active_config):
-        active_config.extend({"mode": u"live"})
-        p = a.participant()
-        p.end_time = datetime.now()
-        p.status = u"overrecruited"
-        resp = webapp.get(
-            "/ad?hitId={}&assignmentId={}&workerId={}".format(
-                p.hit_id, p.assignment_id, p.worker_id
-            )
-        )
-        assert b'action="https://www.mturk.com/mturk/externalSubmit"' in resp.data
-
-    @pytest.mark.skip(reason="fails pending support for different recruiters")
-    def test_submitted_hit_shows_thanks_page_in_sandbox(self, a, webapp, active_config):
-        active_config.extend({"mode": u"sandbox"})
-        p = a.participant()
-        p.status = u"submitted"
-        resp = webapp.get(
-            "/ad?hitId={}&assignmentId={}&workerId={}".format(
-                p.hit_id, p.assignment_id, p.worker_id
-            )
-        )
-        assert b"To complete the HIT, simply press the button below." in resp.data
-
-    def test_recruiter_without_external_submission(self, a, webapp, active_config):
-        active_config.extend({"mode": u"sandbox"})
-        p = a.participant()
-        p.status = u"submitted"
-        resp = webapp.get(
-            "/ad?recruiter=cli&hitId={}&assignmentId={}&workerId={}".format(
-                p.hit_id, p.assignment_id, p.worker_id
-            )
-        )
-        assert b"You're all done!" in resp.data
 
 
 @pytest.mark.usefixtures("experiment_dir")
@@ -371,58 +229,58 @@ class TestQuestion(object):
 @pytest.mark.slow
 class TestWorkerComplete(object):
     def test_with_no_participant_id_returns_error(self, webapp):
-        resp = webapp.get("/worker_complete")
+        resp = webapp.post("/worker_complete")
         assert resp.status_code == 400
         assert b"participantId parameter is required" in resp.data
 
     def test_with_invalid_participant_id_returns_error(self, webapp):
-        resp = webapp.get("/worker_complete?participant_id=-1")
+        resp = webapp.post("/worker_complete", data={"participant_id": "-1"})
         assert resp.status_code == 400
         assert b"ParticipantId not found: -1" in resp.data
 
     def test_with_valid_participant_id_returns_success(self, a, webapp):
-        resp = webapp.get(
-            "/worker_complete?participant_id={}".format(a.participant().id)
+        resp = webapp.post(
+            "/worker_complete", data={"participant_id": a.participant().id}
         )
         assert resp.status_code == 200
 
     def test_sets_end_time(self, a, webapp, db_session):
         participant = a.participant()
-        webapp.get("/worker_complete?participant_id={}".format(participant.id))
+        webapp.post("/worker_complete", data={"participant_id": participant.id})
         assert db_session.merge(participant).end_time is not None
 
     def test_records_notification_if_debug_mode(self, a, webapp):
-        webapp.get("/worker_complete?participant_id={}".format(a.participant().id))
+        webapp.post("/worker_complete", data={"participant_id": a.participant().id})
         assert models.Notification.query.one().event_type == u"AssignmentSubmitted"
 
     def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
-        webapp.get(
-            "/worker_complete?participant_id={}".format(
-                a.participant(recruiter_id="bots").id
-            )
+        webapp.post(
+            "/worker_complete",
+            data={"participant_id": a.participant(recruiter_id="bots").id},
         )
+
         assert models.Notification.query.one().event_type == u"BotAssignmentSubmitted"
 
     def test_records_notification_for_non_mturk_recruiter(
         self, a, webapp, active_config
     ):
         active_config.extend({"mode": u"sandbox", "recruiter": u"CLIRecruiter"})
-        webapp.get(
-            "/worker_complete?participant_id={}".format(
-                a.participant(recruiter_id="cli").id
-            )
+        webapp.post(
+            "/worker_complete",
+            data={"participant_id": a.participant(recruiter_id="cli").id},
         )
+
         assert models.Notification.query.one().event_type == u"AssignmentSubmitted"
 
     def test_records_no_notification_mturk_recruiter_and_nondebug(
         self, a, webapp, active_config
     ):
         active_config.extend({"mode": u"sandbox", "assign_qualifications": False})
-        webapp.get(
-            "/worker_complete?participant_id={}".format(
-                a.participant(recruiter_id="mturk").id
-            )
+        webapp.post(
+            "/worker_complete",
+            data={"participant_id": a.participant(recruiter_id="mturk").id},
         )
+
         assert models.Notification.query.all() == []
 
     def test_notifies_recruiter_when_participant_completes(
@@ -434,13 +292,67 @@ class TestWorkerComplete(object):
         with mock.patch(
             "dallinger.recruiters.MTurkRecruiter.notify_completed"
         ) as notify_completed:
-            webapp.get(
-                "/worker_complete?participant_id={}".format(
-                    a.participant(recruiter_id="mturk").id
-                )
+            webapp.post(
+                "/worker_complete",
+                data={"participant_id": a.participant(recruiter_id="mturk").id},
             )
             args, _ = notify_completed.call_args
             assert isinstance(args[0], Participant)
+
+
+@pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
+class TestRecruiterExit(object):
+    def test_with_no_participant_id_returns_error(self, webapp):
+        resp = webapp.get("/recruiter-exit")
+
+        assert resp.status_code == 400
+        assert b"param participant_id is required" in resp.data
+
+    def test_with_invalid_participant_id_returns_error(self, webapp):
+        resp = webapp.get("/recruiter-exit?participant_id=-1")
+
+        assert resp.status_code == 404
+        assert b"no participant found for ID -1" in resp.data
+
+    def test_with_valid_participant_id_returns_success(self, a, webapp):
+        resp = webapp.get(
+            "/recruiter-exit?participant_id={}".format(a.participant().id)
+        )
+
+        assert resp.status_code == 200
+
+    def test_debug_mode_renders_exit_page_for_hotair_recruiter(self, a, webapp):
+        participant = a.participant()
+        resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
+
+        assert b"HotAirRecruiter" in resp.data
+
+    def test_delegates_to_participants_recruiter(self, a, webapp):
+        participant = a.participant(recruiter_id="cli")
+        resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
+
+        assert b"CLIRecruiter" in resp.data
+
+    def test_nonmturk_recruiters_delegate_experiment_for_info_to_display(
+        self, a, webapp
+    ):
+        participant = a.participant(assignment_id="some distinctive ID")
+        resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
+
+        assert participant.assignment_id in str(resp.data)
+
+    def test_mturk_recruiter_renders_hit_submission_form(
+        self, a, webapp, active_config
+    ):
+        active_config.extend({"mode": u"sandbox"})
+        participant = a.participant(recruiter_id="mturk")
+        resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
+
+        assert (
+            b'action="https://workersandbox.mturk.com/mturk/externalSubmit"'
+            in resp.data
+        )
 
 
 @pytest.fixture
@@ -681,37 +593,6 @@ class TestSimpleGETRoutes(object):
     def test_nonexisting_experiment_property(self, webapp):
         resp = webapp.get("/experiment/missing")
         assert resp.status_code == 404
-
-
-@pytest.mark.usefixtures("experiment_dir")
-@pytest.mark.slow
-class TestAdRoute(object):
-    def test_ad(self, webapp):
-        resp = webapp.get(
-            "/ad", query_string={"hitId": "debug", "assignmentId": "1", "mode": "debug"}
-        )
-        assert b"Psychology Experiment" in resp.data
-        assert (
-            b'Please click the "Accept HIT" button on the Amazon site' not in resp.data
-        )
-        assert b"Begin Experiment" in resp.data
-
-    def test_ad_before_acceptance(self, webapp):
-        resp = webapp.get(
-            "/ad",
-            query_string={
-                "hitId": "debug",
-                "assignmentId": "ASSIGNMENT_ID_NOT_AVAILABLE",
-                "mode": "debug",
-            },
-        )
-        assert b'Please click the "Accept HIT" button on the Amazon site' in resp.data
-        assert b"Begin Experiment" not in resp.data
-
-    def test_ad_no_params(self, webapp):
-        resp = webapp.get("/ad")
-        assert resp.status_code == 500
-        assert b"Psychology Experiment - Error" in resp.data
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")

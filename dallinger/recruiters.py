@@ -117,6 +117,12 @@ class Recruiter(object):
         """A recruiter may provide a means to directly compensate a worker."""
         raise NotImplementedError
 
+    def exit_response(self, experiment, participant):
+        """The recruiter returns an appropriate page on experiment/questionnaire
+        submission.
+        """
+        raise NotImplementedError
+
     def reward_bonus(self, assignment_id, amount, reason):
         """Throw an error."""
         raise NotImplementedError
@@ -164,6 +170,18 @@ class CLIRecruiter(Recruiter):
     def __init__(self):
         super(CLIRecruiter, self).__init__()
         self.config = get_config()
+
+    def exit_response(self, experiment, participant):
+        """Delegate to the experiment for possible values to show to the
+        participant.
+        """
+        exit_info = sorted(experiment.exit_info_for(participant).items())
+
+        return flask.render_template(
+            "exit_recruiter.html",
+            recruiter=self.__class__.__name__,
+            participant_exit_info=exit_info,
+        )
 
     def open_recruitment(self, n=1):
         """Return initial experiment URL list, plus instructions
@@ -528,11 +546,20 @@ class MTurkRecruiter(Recruiter):
                 'The value of "mode" must be either "sandbox" or "live"'.format(mode)
             )
 
+    def exit_response(self, experiment, participant):
+        return flask.render_template(
+            "exit_recruiter_mturk.html",
+            hitid=participant.hit_id,
+            assignmentid=participant.assignment_id,
+            workerid=participant.worker_id,
+            external_submit_url=self.external_submission_url,
+        )
+
     @property
     def external_submission_url(self):
         """On experiment completion, participants are returned to
         the Mechanical Turk site to submit their HIT, which in turn triggers
-        notifications to the /notifications route.
+        notifications to the /mturk-sns-listener route.
         """
         if self.is_sandbox:
             return "https://workersandbox.mturk.com/mturk/externalSubmit"

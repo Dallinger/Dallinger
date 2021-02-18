@@ -82,6 +82,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: extra_parameters
 
+  .. automethod:: exit_info_for
+
   .. automethod:: fail_participant
 
   .. automethod:: get_network_for_participant

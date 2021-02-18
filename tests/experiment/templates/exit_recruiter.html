@@ -1,0 +1,20 @@
+{% block body %}
+    <div id="container">
+      <div class="well">
+        <i>{{ recruiter }}</i>
+        <h1>You're finished!</h1>
+        <hr>
+        {% if participant_exit_info %}
+        <p>Below is information you may need to receive compensation for your
+        participation.</p>
+        <table class="table table-sm table-striped">
+            <tbody>
+            {% for key, value in participant_exit_info %}
+                <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+      </div>
+{% endblock %}

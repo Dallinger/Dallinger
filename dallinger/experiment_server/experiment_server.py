@@ -373,22 +373,6 @@ def launch():
     return success_response(recruitment_msg=message)
 
 
-def should_show_thanks_page_to(participant):
-    """In the context of the /ad route, should the participant be shown
-    the thanks.html page instead of ad.html?
-    """
-    if participant is None:
-        return False
-    status = participant.status
-    marked_done = participant.end_time is not None
-    ready_for_external_submission = (
-        status in ("overrecruited", "working") and marked_done
-    )
-    assignment_complete = status in ("submitted", "approved")
-
-    return assignment_complete or ready_for_external_submission
-
-
 @app.route("/ad", methods=["GET"])
 @nocache
 def advertisement():
@@ -411,12 +395,7 @@ def advertisement():
         raise ExperimentError("browser_type_not_allowed")
 
     entry_information = request.args.to_dict()
-
     app_id = config.get("id", "unknown")
-    mode = config.get("mode")
-    debug_mode = mode == "debug"
-    participant = None
-
     exp = Experiment(session)
     entry_data = exp.normalize_entry_information(entry_information)
 
@@ -424,34 +403,19 @@ def advertisement():
     assignment_id = entry_data.get("assignment_id")
     worker_id = entry_data.get("worker_id")
 
-    if not (hit_id and assignment_id):
-        raise ExperimentError("hit_assign_worker_id_not_set_in_mturk")
+    if not (hit_id and assignment_id and worker_id):
+        raise ExperimentError("hit_assign_worker_id_not_set_by_recruiter")
 
-    if worker_id is not None:
-        # First check if this workerId has completed the task before
-        # under a different assignment (v1):
-        already_participated = bool(
-            models.Participant.query.filter(
-                models.Participant.assignment_id != assignment_id
-            )
-            .filter(models.Participant.worker_id == worker_id)
-            .count()
-        )
+    # Check if this workerId has completed the task before
+    already_participated = (
+        models.Participant.query.filter(
+            models.Participant.worker_id == worker_id
+        ).first()
+        is not None
+    )
 
-        if already_participated and not debug_mode:
-            raise ExperimentError("already_did_exp_hit")
-
-        # Next, check for participants already associated with this very
-        # assignment, and retain their status, if found:
-        try:
-            participant = (
-                models.Participant.query.filter(models.Participant.hit_id == hit_id)
-                .filter(models.Participant.assignment_id == assignment_id)
-                .filter(models.Participant.worker_id == worker_id)
-                .one()
-            )
-        except exc.SQLAlchemyError:
-            pass
+    if already_participated:
+        raise ExperimentError("already_did_exp_hit")
 
     recruiter_name = request.args.get("recruiter")
     if recruiter_name:
@@ -459,24 +423,6 @@ def advertisement():
     else:
         recruiter = recruiters.from_config(config)
         recruiter_name = recruiter.nickname
-
-    if should_show_thanks_page_to(participant):
-        # They've either done, or they're from a recruiter that requires
-        # submission of an external form to complete their participation.
-        return render_template(
-            "thanks.html",
-            hitid=hit_id,
-            assignmentid=assignment_id,
-            workerid=worker_id,
-            external_submit_url=recruiter.external_submission_url,
-            mode=config.get("mode"),
-            app_id=app_id,
-            query_string=request.query_string,
-        )
-    if participant and participant.status == "working":
-        # Once participants have finished the instructions, we do not allow
-        # them to start the task again.
-        raise ExperimentError("already_started_exp_mturk")
 
     # Participant has not yet agreed to the consent. They might not
     # even have accepted the HIT.
@@ -490,6 +436,36 @@ def advertisement():
         app_id=app_id,
         query_string=request.query_string.decode(),
     )
+
+
+@app.route("/recruiter-exit", methods=["GET"])
+@nocache
+def recriter_exit():
+    """Display an exit page defined by the Participant's Recruiter.
+    The Recruiter may in turn delegate to the Experiment for additional
+    values to display.
+    """
+    participant_id = request.args.get("participant_id")
+    if participant_id is None:
+        return error_response(
+            error_type="/recruiter-exit GET: param participant_id is required",
+            status=400,
+        )
+    participant = models.Participant.query.get(participant_id)
+    if participant is None:
+        return error_response(
+            error_type="/recruiter-exit GET: no participant found for ID {}".format(
+                participant_id
+            ),
+            status=404,
+        )
+
+    # Get the recruiter from the participant rather than config, to support
+    # MultiRecruiter experiments
+    recruiter = recruiters.by_name(participant.recruiter_id)
+    exp = Experiment(session)
+
+    return recruiter.exit_response(experiment=exp, participant=participant)
 
 
 @app.route("/summary", methods=["GET"])
@@ -1558,11 +1534,11 @@ def check_for_duplicate_assignments(participant):
         q.enqueue(worker_function, "AssignmentAbandoned", None, d.id)
 
 
-@app.route("/worker_complete", methods=["GET"])
+@app.route("/worker_complete", methods=["POST"])
 @db.scoped_session_decorator
 def worker_complete():
     """Complete worker."""
-    participant_id = request.args.get("participant_id")
+    participant_id = request.values.get("participant_id")
     if not participant_id:
         return error_response(
             error_type="bad request", error_text="participantId parameter is required"
