@@ -403,19 +403,20 @@ def advertisement():
     assignment_id = entry_data.get("assignment_id")
     worker_id = entry_data.get("worker_id")
 
-    if not (hit_id and assignment_id and worker_id):
+    if not (hit_id and assignment_id):
         raise ExperimentError("hit_assign_worker_id_not_set_by_recruiter")
 
-    # Check if this workerId has completed the task before
-    already_participated = (
-        models.Participant.query.filter(
-            models.Participant.worker_id == worker_id
-        ).first()
-        is not None
-    )
+    if worker_id is not None:
+        # Check if this workerId has completed the task before
+        already_participated = (
+            models.Participant.query.filter(
+                models.Participant.worker_id == worker_id
+            ).first()
+            is not None
+        )
 
-    if already_participated:
-        raise ExperimentError("already_did_exp_hit")
+        if already_participated:
+            raise ExperimentError("already_did_exp_hit")
 
     recruiter_name = request.args.get("recruiter")
     if recruiter_name:
