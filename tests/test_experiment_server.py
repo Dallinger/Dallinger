@@ -97,7 +97,7 @@ class TestAppConfiguration(object):
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
 class TestAdvertisement(object):
-    def test_returns_error_without_hitId_assignmentId(self, webapp):
+    def test_returns_error_without_hitId_and_assignmentId(self, webapp):
         resp = webapp.get("/ad")
         assert resp.status_code == 500
         assert b"hit_assign_worker_id_not_set_by_recruiter" in resp.data
