@@ -4,7 +4,7 @@ cached-property==1.5.2
 click==7.1.2
 docker==4.4.3
 docker-compose==1.28.3
-faker==5.8.0
+faker==6.5.0
 flask-crossdomain==0.1
 flask-login==0.5.0
 flask-sockets==0.2.1
