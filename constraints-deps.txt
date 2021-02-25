@@ -6,7 +6,7 @@ attrs==20.3.0
 Babel==2.9.0
 backcall==0.2.0
 bleach==3.2.3
-boto3==1.16.59
+boto3==1.17.16
 botocore==1.19.63
 bump2version==1.0.1
 cached-property==1.5.2
