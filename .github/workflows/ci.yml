@@ -162,6 +162,8 @@ jobs:
           tags: dallingerimages/dallinger:latest
           cache-from: type=local,src=/tmp/.buildx-cache/base
           cache-to: type=local,dest=/tmp/.buildx-cache/base
+      - name: Make sure dallinger script entry point is working
+        run: docker run -v $PWD:/dallinger --rm dallingerimages/dallinger python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
       - name: Build dallingerimages/dallinger-bot docker image
         uses: docker/build-push-action@v2
         with:
@@ -171,6 +173,8 @@ jobs:
           tags: dallingerimages/dallinger-bot:latest
           cache-from: type=local,src=/tmp/.buildx-cache/bot
           cache-to: type=local,dest=/tmp/.buildx-cache/bot
+      - name: Make sure dallinger script entry point is working
+        run: docker run -v $PWD:/dallinger --rm dallingerimages/dallinger-bot python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
       - uses: actions/checkout@v2
       - name: Set up Python 3.9
         uses: actions/setup-python@v2
@@ -189,7 +193,7 @@ jobs:
       - name: Install python wheel package
         run: pip install wheel
       - name: Install python requirements
-        run: pip install -r build-requirements.txt .[data,docker]
+        run: pip install -r build-requirements.txt .[data]
       - name: Run docker tests (only one for now)
         run: RUN_DOCKER=1 pytest -k test_docker_debug --runslow --runbot -rsx -s -v
 
