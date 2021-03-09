@@ -76,6 +76,11 @@ add the ``mturkfull`` option when running the tests::
 
   pytest --mturkfull --runslow
 
+To run the JavaScript tests, run::
+
+  npm run test --coverage
+
+
 Linting
 ~~~~~~~
 

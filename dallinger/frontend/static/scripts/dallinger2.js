@@ -106,9 +106,9 @@ var dallinger = (function () {
 
     initialize: function () {
       this.recruiter = dlgr.getUrlParameter('recruiter');
-      this.hitId = dlgr.getUrlParameter('hit_id');
-      this.workerId = dlgr.getUrlParameter('worker_id');
-      this.assignmentId = dlgr.getUrlParameter('assignment_id');
+      this.hitId = dlgr.getUrlParameter('hitId');
+      this.workerId = dlgr.getUrlParameter('workerId');
+      this.assignmentId = dlgr.getUrlParameter('assignmentId');
       this.mode = dlgr.getUrlParameter('mode');
       // Store all url parameters as entry information.
       // This won't work in IE, but should work in Edge.
@@ -416,7 +416,7 @@ var dallinger = (function () {
     var url = "/participant";
     var data = {};
     var deferred = $.Deferred();
-    if (dlgr.identity.assignment_id) {
+    if (dlgr.identity.assignmentId) {
       url += "/" + dlgr.identity.workerId + "/" + dlgr.identity.hitId +
             "/" + dlgr.identity.assignmentId + "/" + dlgr.identity.mode + "?fingerprint_hash=" +
             (dlgr.identity.fingerprintHash) + '&recruiter=' + dlgr.identity.recruiter;

@@ -114,6 +114,7 @@ jobs:
           aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           tox ${{ needs.check_mturk_changes.outputs.mturk_changed == 'true' && '-- --mturkfull' || ''}}
+          npm run test --coverage
         if: matrix.python-version == 3.9
       - name: Run Fast Tests Only
         env:
