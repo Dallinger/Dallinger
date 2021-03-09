@@ -63,7 +63,7 @@ class DockerComposeWrapper(object):
         volumes = [f"{self.original_dir}:{self.original_dir}"]
         editable_dallinger_path = get_editable_dallinger_path()
         if editable_dallinger_path:
-            volumes.append(f"{editable_dallinger_path}:/dallinger")
+            volumes.append(f"{editable_dallinger_path}/dallinger:/dallinger/dallinger")
         with open(os.path.join(self.tmp_dir, "docker-compose.yml"), "w") as fh:
             fh.write(
                 docker_compose_template.render(
