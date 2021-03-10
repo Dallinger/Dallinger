@@ -1,3 +1,4 @@
+from dallinger.notifications import admin_notifier
 from dallinger.config import get_config
 from dallinger.config import initialize_experiment_package
 from dallinger.deployment import ExperimentFileSource
@@ -6,6 +7,7 @@ from functools import wraps
 import click
 import inspect
 import os
+import signal
 import sys
 import tempfile
 
@@ -24,6 +26,22 @@ header = r"""
 """.format(
     "v" + __version__
 )
+
+
+IDLE_TEMPLATE = """Dear experimenter,
+
+This is an automated email from Dallinger. You are receiving this email because
+your dyno has been running for over {minutes_so_far} minutes.
+
+The application id is: {app_id}
+
+To see the logs, use the command "dallinger logs --app {app_id}"
+To pause the app, use the command "dallinger hibernate --app {app_id}"
+To destroy the app, use the command "dallinger destroy --app {app_id}"
+
+
+The Dallinger dev. team.
+"""
 
 
 def log(msg, chevrons=True, verbose=True, **kw):
@@ -252,3 +270,34 @@ def verify_no_conflicts(verbose=True):
         log("✓ no file conflicts", chevrons=False, verbose=verbose)
 
     return True
+
+
+def report_idle_after(seconds):
+    """Report_idle_after after certain number of seconds."""
+
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            def _handle_timeout(signum, frame):
+                config = get_config()
+                if not config.ready:
+                    config.load()
+                message = {
+                    "subject": "Idle Experiment.",
+                    "body": IDLE_TEMPLATE.format(
+                        app_id=config.get("id"), minutes_so_far=round(seconds / 60)
+                    ),
+                }
+                log("Reporting problem with idle experiment...")
+                admin_notifier(config).send(**message)
+
+            signal.signal(signal.SIGALRM, _handle_timeout)
+            signal.alarm(seconds)
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                signal.alarm(0)
+            return result
+
+        return wraps(func)(wrapper)
+
+    return decorator

@@ -1,16 +1,13 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-
 """The Dallinger command-line utility."""
 
 from __future__ import print_function
 from __future__ import unicode_literals
 
 from collections import Counter
-from functools import wraps
 import os
 import shutil
-import signal
 import sys
 import tabulate
 import time
@@ -28,7 +25,7 @@ from dallinger.deployment import DebugDeployment
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
 from dallinger.command_line.docker import docker
-from dallinger.notifications import admin_notifier
+from dallinger.command_line.utils import report_idle_after
 from dallinger.notifications import SMTPMailer
 from dallinger.notifications import EmailConfig
 from dallinger.notifications import MessengerError
@@ -47,53 +44,6 @@ from dallinger.utils import generate_random_id
 from dallinger.version import __version__
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
-
-
-idle_template = """Dear experimenter,
-
-This is an automated email from Dallinger. You are receiving this email because
-your dyno has been running for over {minutes_so_far} minutes.
-
-The application id is: {app_id}
-
-To see the logs, use the command "dallinger logs --app {app_id}"
-To pause the app, use the command "dallinger hibernate --app {app_id}"
-To destroy the app, use the command "dallinger destroy --app {app_id}"
-
-
-The Dallinger dev. team.
-"""
-
-
-def report_idle_after(seconds):
-    """Report_idle_after after certain number of seconds."""
-
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            def _handle_timeout(signum, frame):
-                config = get_config()
-                if not config.ready:
-                    config.load()
-                message = {
-                    "subject": "Idle Experiment.",
-                    "body": idle_template.format(
-                        app_id=config.get("id"), minutes_so_far=round(seconds / 60)
-                    ),
-                }
-                log("Reporting problem with idle experiment...")
-                admin_notifier(config).send(**message)
-
-            signal.signal(signal.SIGALRM, _handle_timeout)
-            signal.alarm(seconds)
-            try:
-                result = func(*args, **kwargs)
-            finally:
-                signal.alarm(0)
-            return result
-
-        return wraps(func)(wrapper)
-
-    return decorator
 
 
 def verify_id(ctx, param, app):
