@@ -16,6 +16,10 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - dallinger_{{ experiment_name }}_redis_data:/data
+    healthcheck:
+        test: "[ $$(redis-cli ping) = 'PONG' ]"
+        interval: 2s
+        timeout: 1s
     ports:
       # bots might need to communicate with redis
       - "6379:6379"

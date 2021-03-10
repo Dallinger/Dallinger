@@ -81,6 +81,35 @@ class DockerComposeWrapper(object):
     def __enter__(self):
         return self.start()
 
+    def wait_redis_ready(self):
+        """Block until the redis server in the docker-compose configuration
+        is ready to accept connections.
+        """
+        response = ""
+        while response.strip() != b"PONG":
+            if response:
+                self.out.blather(f"Waiting for redis (got {response})\n")
+            response = self.run_compose(
+                [
+                    "exec",
+                    "redis",
+                    "redis-cli",
+                    "ping",
+                ]
+            )
+            time.sleep(1)
+        self.out.blather("Redis ready\n")
+
+    def wait_postgres_ready(self):
+        """Block until the postgresql server in the docker-compose configuration
+        is ready to accept connections.
+        """
+        needle = b"ready to accept connections"
+        while needle not in self.run_compose(["logs", "postgresql"]):
+            self.out.blather("Waiting for postgresql\n")
+            time.sleep(1)
+        self.out.blather("Postgresql ready\n")
+
     def start(self):
         self.copy_docker_compse_files()
         env = {"DOCKER_BUILDKIT": "1"}
@@ -95,43 +124,26 @@ class DockerComposeWrapper(object):
         )
         check_output("docker-compose up -d".split(), env={**os.environ.copy(), **env})
         # Wait for postgres to complete initialization
-        while b"ready to accept connections" not in check_output(
-            [
-                "docker-compose",
-                "-f",
-                f"{self.tmp_dir}/docker-compose.yml",
-                "logs",
-                "postgresql",
-            ]
-        ):
-            time.sleep(2)
+        self.wait_postgres_ready()
         try:
-            check_output(
+            self.run_compose(
                 [
-                    "docker-compose",
-                    "-f",
-                    f"{self.tmp_dir}/docker-compose.yml",
                     "exec",
                     "worker",
                     "dallinger-housekeeper",
                     "initdb",
                 ]
             )
+
         except CalledProcessError:
             self.out.error("There was a problem initializing the database")
             self.stop()
             raise
+        self.wait_redis_ready()
         # Make sure the containers are all started
-        status = check_output(
-            [
-                "docker-compose",
-                "-f",
-                f"{self.tmp_dir}/docker-compose.yml",
-                "ps",
-            ]
-        )
+        status = self.run_compose(["ps"])
         errors = []
-        # docker-compose output looks like this:
+        # docker-compose ps output looks like this:
         #             Name                           Command               State     Ports
         # -----------------------------------------------------------------------------------
         # function_learning_postgresql_1   docker-entrypoint.sh postgres    Up       5432/tcp
@@ -178,6 +190,24 @@ class DockerComposeWrapper(object):
                 self.out.blather(line)
             if listener(line) is self.MONITOR_STOP:
                 return
+
+    def run_compose(self, compose_commands):
+        """Run a command in the (already built) tmp directory of the current experiment
+        `compose_commands` should be a list of tokens to be passed to docker compose.
+        Examples:
+        # return the output of `docker-compose ps`
+        compose_commands = ["ps"]
+        # Run redis-cli ping inside the redis container and return its output
+        compose_commands = ["exec", "redis", "redis-cli", "ping"]
+        """
+        return check_output(
+            [
+                "docker-compose",
+                "-f",
+                f"{self.tmp_dir}/docker-compose.yml",
+            ]
+            + compose_commands
+        )
 
     # To build the docker images and upload them to heroku run the following
     # command in self.tmp_dir:
