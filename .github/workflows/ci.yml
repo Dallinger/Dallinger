@@ -31,7 +31,6 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    environment: CI
     needs: check_mturk_changes
     strategy:
       matrix:
