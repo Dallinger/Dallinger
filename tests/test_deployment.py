@@ -856,7 +856,7 @@ class TestDockerServer(object):
         )
         p.logfile = sys.stdout
         try:
-            p.expect_exact("Server is running", timeout=60)
+            p.expect_exact("Server is running", timeout=180)
             p.expect_exact("Recruitment is complete", timeout=120)
             p.expect_exact("'status': 'success'", timeout=60)
             p.expect_exact("Experiment completed", timeout=10)
