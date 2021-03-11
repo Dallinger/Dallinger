@@ -845,7 +845,6 @@ class TestDebugServer(object):
 @pytest.mark.slow
 @pytest.mark.docker
 class TestDockerServer(object):
-    @pytest.mark.skip(reason="Fails when run from pytest. Is run separately in CI")
     def test_docker_debug_with_bots(self, env):
         # Make sure debug server runs to completion with bots
         p = pexpect.spawn(

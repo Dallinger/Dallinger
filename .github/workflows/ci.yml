@@ -195,15 +195,6 @@ jobs:
         run: pip install --upgrade pip wheel tox
       - name: Chromedriver setup
         uses: nanasess/setup-chromedriver@v1.0.5
-      - name: Run experiment with docker using bots
-        run: |
-          pip install -c dev-requirements.txt .[data]
-          dallinger docker start-services
-          sleep 5
-          cd demos/dlgr/demos/bartlett1932
-          dallinger debug --verbose --bot --no-browsers
-          dallinger docker stop-services
-          dallinger docker remove-services-data
       - name: Run docker tests
         run: tox -e dockertests
       - name: Show docker logs
