@@ -194,8 +194,8 @@ jobs:
         run: sudo apt-get --yes install pandoc enchant snapd curl
       - name: Install and upgrade wheel, pip and tox
         run: pip install --upgrade pip wheel tox
-      - uses: nanasess/setup-chromedriver@master
-        name: Setup chromedriver
+      - name: Chromedriver setup
+        uses: nanasess/setup-chromedriver@v1.0.5
       - name: Run docker tests
         run: tox -e dockertests
       - name: Show docker logs
