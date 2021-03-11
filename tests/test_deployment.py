@@ -887,7 +887,7 @@ class TestDockerServer(object):
             Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
             p.expect("New participant requested.*", 30)
             Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
-            p.expect_exact("Recruitment is complete", timeout=60)
+            p.expect_exact("Recruitment is complete", timeout=120)
             p.expect_exact("'status': 'success'", timeout=60)
             p.expect_exact("Experiment completed", timeout=10)
             p.expect_exact("Stopping bartlett1932_web_1", timeout=20)
