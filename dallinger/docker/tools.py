@@ -113,7 +113,7 @@ class DockerComposeWrapper(object):
     def start(self):
         self.copy_docker_compse_files()
         env = {"DOCKER_BUILDKIT": "1"}
-        build_arg = ""
+        build_arg = "--progress=plain"
         if self.needs_chrome:
             build_arg = (
                 "--build-arg DALLINGER_DOCKER_IMAGE=dallingerimages/dallinger-bot"
