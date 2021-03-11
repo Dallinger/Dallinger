@@ -845,7 +845,6 @@ class TestDebugServer(object):
 @pytest.mark.slow
 @pytest.mark.docker
 class TestDockerServer(object):
-    @pytest.mark.usefixtures("check_runbot")
     def test_docker_debug_with_bots(self, env):
         # Make sure debug server runs to completion with bots
         p = pexpect.spawn(
@@ -869,7 +868,6 @@ class TestDockerServer(object):
             except IOError:
                 pass
 
-    @pytest.mark.usefixtures("check_runbot")
     def test_docker_debug_without_bots(self, env):
         sys.path.append(os.getcwd())
         from experiment import Bot
