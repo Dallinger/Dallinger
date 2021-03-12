@@ -8,6 +8,10 @@ services:
       POSTGRES_DB: dallinger
     volumes:
       - dallinger_{{ experiment_name }}_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
     ports:
       # bots might need to communicate with postgresql
       - "5432:5432"
@@ -16,11 +20,20 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - dallinger_{{ experiment_name }}_redis_data:/data
+    healthcheck:
+        test: "[ $$(redis-cli ping) = 'PONG' ]"
+        interval: 2s
+        timeout: 1s
     ports:
       # bots might need to communicate with redis
       - "6379:6379"
   worker:
     image: {{ experiment_name }}-worker
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     user: "${UID}:${GID}"
     build: 
       context: .

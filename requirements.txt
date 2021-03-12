@@ -4,6 +4,8 @@ APScheduler
 cached-property
 boto3
 click
+docker
+docker-compose
 faker
 Flask-Sockets
 Flask
@@ -15,6 +17,7 @@ gevent
 greenlet
 gunicorn
 localconfig
+paramiko[ssh]  # Remove this when docker dependencies are removed
 pexpect
 psycopg2
 psutil

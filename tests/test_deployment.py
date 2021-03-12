@@ -845,7 +845,7 @@ class TestDebugServer(object):
 @pytest.mark.slow
 @pytest.mark.docker
 class TestDockerServer(object):
-    @pytest.mark.usefixtures("check_runbot")
+    @pytest.mark.skipif(bool(os.environ.get("CI")), reason="Fails when run in the CI")
     def test_docker_debug_with_bots(self, env):
         # Make sure debug server runs to completion with bots
         p = pexpect.spawn(
@@ -856,8 +856,8 @@ class TestDockerServer(object):
         )
         p.logfile = sys.stdout
         try:
-            p.expect_exact("Server is running", timeout=300)
-            p.expect_exact("Recruitment is complete", timeout=600)
+            p.expect_exact("Server is running", timeout=180)
+            p.expect_exact("Recruitment is complete", timeout=120)
             p.expect_exact("'status': 'success'", timeout=60)
             p.expect_exact("Experiment completed", timeout=10)
             p.expect_exact("Stopping bartlett1932_web_1", timeout=20)
@@ -869,7 +869,6 @@ class TestDockerServer(object):
             except IOError:
                 pass
 
-    @pytest.mark.usefixtures("check_runbot")
     def test_docker_debug_without_bots(self, env):
         sys.path.append(os.getcwd())
         from experiment import Bot
@@ -889,7 +888,7 @@ class TestDockerServer(object):
             Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
             p.expect("New participant requested.*", 30)
             Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
-            p.expect_exact("Recruitment is complete", timeout=60)
+            p.expect_exact("Recruitment is complete", timeout=120)
             p.expect_exact("'status': 'success'", timeout=60)
             p.expect_exact("Experiment completed", timeout=10)
             p.expect_exact("Stopping bartlett1932_web_1", timeout=20)

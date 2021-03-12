@@ -174,6 +174,10 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache/bot
           cache-to: type=local,dest=/tmp/.buildx-cache/bot
       - uses: actions/checkout@v2
+      - name: Make sure dallinger script entry point is working
+        run: docker run --rm dallingerimages/dallinger python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
+      - name: Make sure dallinger script entry point is working with dallinger source mounted as volume
+        run: docker run -v $PWD/dallinger:/dallinger/dallinger --rm dallingerimages/dallinger python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
       - name: Set up Python 3.9
         uses: actions/setup-python@v2
         with:
@@ -188,12 +192,15 @@ jobs:
               ${{ runner.os }}-
       - name: Install Ubuntu packages
         run: sudo apt-get --yes install pandoc enchant snapd curl
-      - name: Install python wheel package
-        run: pip install wheel
-      - name: Install python requirements
-        run: pip install -r build-requirements.txt .[data,docker]
-      - name: Run docker tests (only one for now)
-        run: RUN_DOCKER=1 pytest -k test_docker_debug --runslow --runbot -rsx -s -v
+      - name: Install and upgrade wheel, pip and tox
+        run: pip install --upgrade pip wheel tox
+      - name: Chromedriver setup
+        uses: nanasess/setup-chromedriver@v1.0.5
+      - name: Run docker tests
+        run: tox -e dockertests
+      - name: Show docker logs
+        if: ${{ always() }}
+        run: for container in $(docker ps -a -q); do echo "***** $(docker ps -a|grep $container) *******"; docker logs $container; done
 
 
   pre-commit:
