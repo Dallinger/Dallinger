@@ -352,3 +352,15 @@ def abspath_from_egg(egg, path):
         if str(file) == path:
             return file.locate()
     return None
+
+
+def get_editable_dallinger_path():
+    """In case dallinger was installed as editable package
+    (for instance with `pip install -e`) it returns its location.
+    Otherwise returns False.
+    """
+    for path_item in sys.path:
+        egg_link = os.path.join(path_item, "dallinger.egg-link")
+        if os.path.isfile(egg_link):
+            return open(egg_link).read().split()[0]
+    return False

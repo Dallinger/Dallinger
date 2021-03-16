@@ -8,6 +8,7 @@ from __future__ import unicode_literals
 
 from collections import Counter
 from functools import wraps
+from pathlib import Path
 import os
 import shutil
 import signal
@@ -25,6 +26,7 @@ from dallinger import data
 from dallinger import db
 from dallinger.deployment import deploy_sandbox_shared_setup
 from dallinger.deployment import DebugDeployment
+from dallinger.deployment import ensure_constraints_file_presence
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
 from dallinger.command_line.docker import docker
@@ -792,6 +794,17 @@ def apps():
         out.log(tabulate.tabulate(listing, headers, tablefmt="psql"), chevrons=False)
     else:
         out.log("No heroku apps found for user {}".format(my_user))
+
+
+@dallinger.command()
+@require_exp_directory
+def generate_constraints():
+    """Update an experiment's constraints.txt pinned dependencies based on requirements.txt."""
+    experiment_dir = Path(os.getcwd())
+    constraints_path = experiment_dir / "constraints.txt"
+    if constraints_path.exists():
+        constraints_path.unlink()
+    ensure_constraints_file_presence(str(experiment_dir))
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)

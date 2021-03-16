@@ -13,9 +13,11 @@ import tempfile
 import threading
 import time
 
+from pathlib import Path
 from six.moves import shlex_quote as quote
 from six.moves.urllib.parse import urlparse
 from six.moves.urllib.parse import urlunparse
+from subprocess import check_output
 from unicodedata import normalize
 
 from dallinger import data
@@ -30,6 +32,7 @@ from dallinger.utils import connect_to_redis
 from dallinger.utils import dallinger_package_path
 from dallinger.utils import ensure_directory
 from dallinger.utils import get_base_url
+from dallinger.utils import get_editable_dallinger_path
 from dallinger.utils import open_browser
 from dallinger.utils import GitClient
 from faker import Faker
@@ -76,7 +79,7 @@ class ExperimentFileSource(object):
         """A Set of all files copyable in the source directory, accounting for
         exclusions.
         """
-        return {path for path in self._walk()}
+        return set(self._walk())
 
     @property
     def size(self):
@@ -194,6 +197,10 @@ def assemble_experiment_temp_dir(config):
     - Templates and static resources from Dallinger
     - An export of the loaded configuration
     - Heroku-specific files (Procile, runtime.txt) from Dallinger
+    - A requirements.txt file with the contents from the constraints.txt file
+      in the experiment (Dallinger should have generated one with pip-compile
+      if needed by the time we reach this code)
+    - A dallinger zip (only if dallinger is installed in editable mode)
 
     Assumes the experiment root directory is the current working directory.
 
@@ -278,6 +285,20 @@ def assemble_experiment_temp_dir(config):
 
     ExplicitFileSource(os.getcwd()).selective_copy_to(dst)
 
+    requirements_path = Path(dst) / "requirements.txt"
+    # Overwrite the requirements.txt file with the contents of the constraints.txt file
+    (Path(dst) / "constraints.txt").replace(requirements_path)
+
+    dallinger_path = get_editable_dallinger_path()
+    if dallinger_path:
+        egg_name = build_and_place(dallinger_path, dst)
+        # Replace the line about dallinger in requirements.txt so that
+        # it refers to the just generated package
+        constraints_text = requirements_path.read_text()
+        new_constraints_text = re.sub(
+            "dallinger==.*", f"file:{egg_name}", constraints_text
+        )
+        requirements_path.write_text(new_constraints_text)
     return dst
 
 
@@ -306,7 +327,7 @@ def setup_experiment(
         except (OSError, IOError):
             dependencies = []
         pkg_resources.require(dependencies)
-
+    ensure_constraints_file_presence(os.getcwd())
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
 
@@ -350,6 +371,54 @@ def setup_experiment(
         )
 
     return (heroku_app_id, temp_dir)
+
+
+def ensure_constraints_file_presence(directory: str):
+    """Looks into the path represented by the string `directory`.
+    Does nothing if a `constraints.txt` file exists there.
+    Otherwise it creates the constraints.txt file based on the
+    contents of the `requirements.txt` file.
+    If the `requirements.txt` does not exist one is created with
+    `dallinger` as its only dependency.
+    """
+    constraints_path = Path(directory) / "constraints.txt"
+    requirements_path = Path(directory) / "requirements.txt"
+    if constraints_path.exists():
+        return
+    if not requirements_path.exists():
+        requirements_path.write_text("dallinger\n")
+    os.environ["CUSTOM_COMPILE_COMMAND"] = "dallinger generate-constraints"
+    prev_cwd = os.getcwd()
+    try:
+        os.chdir(directory)
+        os.system("pip-compile requirements.txt -o constraints.txt")
+    finally:
+        os.chdir(prev_cwd)
+    # Make the path the experiment requirements.txt file relative
+    constraints_contents = constraints_path.read_text()
+    constraints_contents_amended = re.sub(
+        "via -r .*requirements.txt", "via -r requirements.txt", constraints_contents
+    )
+    constraints_path.write_text(constraints_contents_amended)
+
+
+def build_and_place(source: str, destination: str) -> str:
+    """Builds a python egg with the source found at `source` and places it in
+    `destination`.
+    Only works if dallinger is currently installed in editable mode.
+
+    Returns the full path of the newly created distribution file.
+    """
+    old_dir = os.getcwd()
+    try:
+        os.chdir(source)
+        check_output("python -m build", shell=True)
+        # The built package is the last addition to the `dist` directory
+        package_path = max(Path(source).glob("dist/*"), key=os.path.getctime)
+        shutil.copy(package_path, destination)
+    finally:
+        os.chdir(old_dir)
+    return package_path.name
 
 
 INITIAL_DELAY = 1

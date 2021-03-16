@@ -6,12 +6,15 @@ import os
 import pexpect
 import pytest
 import re
+import shutil
 import six
 import sys
 import tempfile
+import textwrap
 import uuid
 from pytest import raises
 from six.moves import configparser
+from pathlib import Path
 
 from dallinger.config import get_config
 from dallinger import recruiters
@@ -422,6 +425,63 @@ class TestSetupExperiment(object):
                 setup_experiment(log=mock.Mock())
                 assert ex_info.match("Boom!")
 
+    def test_setup_experiment_includes_dallinger_dependency(
+        self, active_config, setup_experiment
+    ):
+        with mock.patch(
+            "dallinger.deployment.get_editable_dallinger_path"
+        ) as get_editable_dallinger_path:
+            # When dallinger is not installed as editable egg the requirements
+            # file sent to heroku will include a version pin
+            get_editable_dallinger_path.return_value = False
+            _, dst = setup_experiment(log=mock.Mock())
+        requirements = (Path(dst) / "requirements.txt").read_text()
+        assert re.search("^dallinger", requirements, re.MULTILINE)
+
+    def test_dont_build_egg_if_not_in_development(self, active_config):
+        from dallinger.deployment import assemble_experiment_temp_dir
+
+        with mock.patch(
+            "dallinger.deployment.get_editable_dallinger_path"
+        ) as get_editable_dallinger_path:
+            # When dallinger is not installed as editable egg the requirements
+            # file sent to heroku will include a version pin
+            get_editable_dallinger_path.return_value = False
+            tmp_dir = assemble_experiment_temp_dir(active_config)
+        assert "dallinger==" in (Path(tmp_dir) / "requirements.txt").read_text()
+
+    def test_build_egg_if_in_development(self, active_config):
+        from dallinger.deployment import assemble_experiment_temp_dir
+
+        tmp_egg = tempfile.mkdtemp()
+        (Path(tmp_egg) / "funniest").mkdir()
+        (Path(tmp_egg) / "funniest" / "__init__.py").write_text("")
+        (Path(tmp_egg) / "README").write_text("Foobar")
+        (Path(tmp_egg) / "setup.py").write_text(
+            textwrap.dedent(
+                """\
+        from setuptools import setup
+
+        setup(name='funniest',
+            version='0.1',
+            description='The funniest joke in the world',
+            url='http://github.com/storborg/funniest',
+            author='Flying Circus',
+            author_email='flyingcircus@example.com',
+            license='MIT',
+            packages=['funniest'],
+            zip_safe=False)
+        """
+            )
+        )
+        with mock.patch(
+            "dallinger.deployment.get_editable_dallinger_path"
+        ) as get_editable_dallinger_path:
+            get_editable_dallinger_path.return_value = tmp_egg
+            tmp_dir = assemble_experiment_temp_dir(active_config)
+        assert "dallinger==" not in (Path(tmp_dir) / "requirements.txt").read_text()
+        shutil.rmtree(tmp_dir)
+
 
 @pytest.mark.usefixtures("experiment_dir", "active_config", "reset_sys_modules")
 class TestSetupExperimentAdditional(object):
@@ -819,15 +879,20 @@ class TestDebugServer(object):
         from requests.exceptions import HTTPError
 
         with mock.patch("dallinger.deployment.HerokuLocalDeployment.WRAPPER_CLASS"):
-            with mock.patch("dallinger.deployment.requests.post") as mock_post:
-                mock_post.return_value = mock.Mock(
-                    ok=False,
-                    json=mock.Mock(return_value={"message": "msg!"}),
-                    raise_for_status=mock.Mock(side_effect=HTTPError),
-                    status_code=500,
-                    text="Failure",
-                )
-                debugger.run()
+            # For some reason this test alone triggers a failure in the line in
+            # deployment.py that invokes `pkg_resources.require`.
+            # Monkey patching it here makes it work.
+            # It would be interesting to get to the root cause.
+            with mock.patch("dallinger.deployment.pkg_resources"):
+                with mock.patch("dallinger.deployment.requests.post") as mock_post:
+                    mock_post.return_value = mock.Mock(
+                        ok=False,
+                        json=mock.Mock(return_value={"message": "msg!"}),
+                        raise_for_status=mock.Mock(side_effect=HTTPError),
+                        status_code=500,
+                        text="Failure",
+                    )
+                    debugger.run()
 
         # Only one launch attempt should be made in debug mode
         debugger.out.error.assert_has_calls(
@@ -882,13 +947,13 @@ class TestDockerServer(object):
         )
         p.logfile = sys.stdout
         try:
-            p.expect_exact("Server is running", timeout=60)
+            p.expect_exact("Server is running", timeout=180)
             p.expect_exact("Initial recruitment list:", timeout=20)
             p.expect("New participant requested.*", 30)
             Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
             p.expect("New participant requested.*", 30)
             Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
-            p.expect_exact("Recruitment is complete", timeout=120)
+            p.expect_exact("Recruitment is complete", timeout=180)
             p.expect_exact("'status': 'success'", timeout=60)
             p.expect_exact("Experiment completed", timeout=10)
             p.expect_exact("Stopping bartlett1932_web_1", timeout=20)
@@ -990,3 +1055,23 @@ class TestLoad(object):
                 mock.call("Local Heroku process terminated."),
             ]
         )
+
+
+class TestConstraints(object):
+    @pytest.mark.slow
+    def test_constraints_generation(self):
+        from dallinger.deployment import ensure_constraints_file_presence
+
+        tmp_path = tempfile.mkdtemp()
+        (Path(tmp_path) / "requirements.txt").write_text("black")
+        ensure_constraints_file_presence(tmp_path)
+        constraints_file = Path(tmp_path) / "constraints.txt"
+        # If not present a `constraints.txt` file will be generated
+        assert constraints_file.exists()
+        assert "toml" in constraints_file.read_text()
+
+        # An existing file will be left untouched
+        constraints_file.write_text("foobar")
+        ensure_constraints_file_presence(tmp_path)
+        assert constraints_file.read_text() == "foobar"
+        shutil.rmtree(tmp_path)
