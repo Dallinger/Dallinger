@@ -79,6 +79,7 @@ setup_args = dict(
         "dev": [
             "alabaster",
             "black",
+            "build",
             "bumpversion",
             "coverage",
             "coverage_pth",

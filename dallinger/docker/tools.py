@@ -1,7 +1,6 @@
 import docker
 import os
 import shutil
-import sys
 import time
 
 from jinja2 import Template
@@ -10,7 +9,7 @@ from subprocess import check_output
 from subprocess import CalledProcessError
 
 from dallinger.utils import abspath_from_egg
-
+from dallinger.utils import get_editable_dallinger_path
 
 docker_compose_template = Template(
     abspath_from_egg("dallinger", "dallinger/docker/docker-compose.yml.j2").read_text()
@@ -222,15 +221,3 @@ class DockerComposeWrapper(object):
 
 class DockerStartupError(RuntimeError):
     """Some docker containers had problems starting"""
-
-
-def get_editable_dallinger_path():
-    """In case dallinger was installed as editable package
-    (for instance with `pip install -e`) it returns its location.
-    Otherwise returns False.
-    """
-    for path_item in sys.path:
-        egg_link = os.path.join(path_item, "dallinger.egg-link")
-        if os.path.isfile(egg_link):
-            return open(egg_link).read().split()[0]
-    return False

@@ -10,6 +10,7 @@ import shutil
 import six
 import sys
 import tempfile
+import textwrap
 import uuid
 from pytest import raises
 from six.moves import configparser
@@ -427,9 +428,53 @@ class TestSetupExperiment(object):
     def test_setup_experiment_includes_dallinger_dependency(
         self, active_config, setup_experiment
     ):
-        exp_id, dst = setup_experiment(log=mock.Mock())
+        _, dst = setup_experiment(log=mock.Mock())
         requirements = (Path(dst) / "requirements.txt").read_text()
         assert re.search("^dallinger", requirements, re.MULTILINE)
+
+    def test_dont_build_egg_if_not_in_development(self, active_config):
+        from dallinger.deployment import assemble_experiment_temp_dir
+
+        with mock.patch(
+            "dallinger.deployment.get_editable_dallinger_path"
+        ) as get_editable_dallinger_path:
+            # When dallinger is not installed as editable egg the requirements
+            # file sent to heroku will include a version pin
+            get_editable_dallinger_path.return_value = False
+            tmp_dir = assemble_experiment_temp_dir(active_config)
+        assert "dallinger==" in (Path(tmp_dir) / "requirements.txt").read_text()
+
+    def test_build_egg_if_in_development(self, active_config):
+        from dallinger.deployment import assemble_experiment_temp_dir
+
+        tmp_egg = tempfile.mkdtemp()
+        (Path(tmp_egg) / "funniest").mkdir()
+        (Path(tmp_egg) / "funniest" / "__init__.py").write_text("")
+        (Path(tmp_egg) / "README").write_text("Foobar")
+        (Path(tmp_egg) / "setup.py").write_text(
+            textwrap.dedent(
+                """\
+        from setuptools import setup
+
+        setup(name='funniest',
+            version='0.1',
+            description='The funniest joke in the world',
+            url='http://github.com/storborg/funniest',
+            author='Flying Circus',
+            author_email='flyingcircus@example.com',
+            license='MIT',
+            packages=['funniest'],
+            zip_safe=False)
+        """
+            )
+        )
+        with mock.patch(
+            "dallinger.deployment.get_editable_dallinger_path"
+        ) as get_editable_dallinger_path:
+            get_editable_dallinger_path.return_value = tmp_egg
+            tmp_dir = assemble_experiment_temp_dir(active_config)
+        assert "dallinger==" not in (Path(tmp_dir) / "requirements.txt").read_text()
+        shutil.rmtree(tmp_dir)
 
 
 @pytest.mark.usefixtures("experiment_dir", "active_config", "reset_sys_modules")
