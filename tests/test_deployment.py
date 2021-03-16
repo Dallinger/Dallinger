@@ -428,7 +428,13 @@ class TestSetupExperiment(object):
     def test_setup_experiment_includes_dallinger_dependency(
         self, active_config, setup_experiment
     ):
-        _, dst = setup_experiment(log=mock.Mock())
+        with mock.patch(
+            "dallinger.deployment.get_editable_dallinger_path"
+        ) as get_editable_dallinger_path:
+            # When dallinger is not installed as editable egg the requirements
+            # file sent to heroku will include a version pin
+            get_editable_dallinger_path.return_value = False
+            _, dst = setup_experiment(log=mock.Mock())
         requirements = (Path(dst) / "requirements.txt").read_text()
         assert re.search("^dallinger", requirements, re.MULTILINE)
 
