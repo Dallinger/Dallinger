@@ -373,9 +373,7 @@ def ensure_constraints_file_presence(directory: str):
         return
     if not requirements_path.exists():
         requirements_path.write_text("dallinger\n")
-    os.environ[
-        "CUSTOM_COMPILE_COMMAND"
-    ] = "rm constraints.txt\n#\n# and re-run dallinger in this experiment directory."
+    os.environ["CUSTOM_COMPILE_COMMAND"] = "dallinger generate-constraints"
     prev_cwd = os.getcwd()
     try:
         os.chdir(directory)
