@@ -424,6 +424,13 @@ class TestSetupExperiment(object):
                 setup_experiment(log=mock.Mock())
                 assert ex_info.match("Boom!")
 
+    def test_setup_experiment_includes_dallinger_dependency(
+        self, active_config, setup_experiment
+    ):
+        exp_id, dst = setup_experiment(log=mock.Mock())
+        requirements = (Path(dst) / "requirements.txt").read_text()
+        assert re.search("^dallinger", requirements, re.MULTILINE)
+
 
 @pytest.mark.usefixtures("experiment_dir", "active_config", "reset_sys_modules")
 class TestSetupExperimentAdditional(object):
