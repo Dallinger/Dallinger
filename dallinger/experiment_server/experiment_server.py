@@ -427,6 +427,7 @@ def advertisement():
 
     # Participant has not yet agreed to the consent. They might not
     # even have accepted the HIT.
+    exp.log("Setting query_string to {}".format(request.query_string.decode()))
     return render_template(
         "ad.html",
         recruiter=recruiter_name,
@@ -566,6 +567,9 @@ def consent():
     hit_id = entry_data.get("hit_id")
     assignment_id = entry_data.get("assignment_id")
     worker_id = entry_data.get("worker_id")
+    exp.log(
+        "In consent/, setting query_string to {}".format(request.query_string.decode())
+    )
     return render_template(
         "consent.html",
         hit_id=hit_id,
@@ -1539,6 +1543,7 @@ def check_for_duplicate_assignments(participant):
 @db.scoped_session_decorator
 def worker_complete():
     """Complete worker."""
+    db.logger.warn("Expecting a POST in worker_complete")
     participant_id = request.values.get("participant_id")
     if not participant_id:
         return error_response(
