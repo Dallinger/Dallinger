@@ -62,7 +62,7 @@ jobs:
       - name: Check out Dallinger repository
         uses: actions/checkout@v2
       - name: Install Ubuntu packages
-        run: sudo apt-get --yes install enchant snapd curl
+        run: sudo apt-get --yes install pandoc enchant snapd curl
       - name: Chromedriver setup
         uses: nanasess/setup-chromedriver@v1.0.5
       - name: Install snap packages
