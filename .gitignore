@@ -3,6 +3,7 @@
 *.log
 *.db
 *.egg-info
+/build/
 /.coverage*
 /coverage.xml
 /cover/
