@@ -31,7 +31,6 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    environment: CI
     needs: check_mturk_changes
     strategy:
       matrix:
@@ -72,8 +71,6 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: '10'
-      - name: Install node packages
-        run: yarn --frozen-lockfile --ignore-engines
       - name: Set up Ruby
         uses: actions/setup-ruby@v1
         with:
@@ -128,20 +125,6 @@ jobs:
           tox -e fast
           npm run test --coverage
         if: matrix.python-version != 3.9
-      - name: Set up deployment
-        env:
-          CHANDLER_GITHUB_API_TOKEN: ${{ secrets.CHANDLER_GITHUB_API_TOKEN }}
-        run: |
-          pandoc --from=markdown --to=rst --output=README.rst README.md
-          pip install build
-          python -m build --sdist --wheel .
-          chandler push --tag-prefix=v
-        if: matrix.python-version == 3.9 && contains(github.ref, '/tags/v')
-      - name: Deploy
-        uses: pypa/gh-action-pypi-publish@master
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
-        if: matrix.python-version == 3.9 && contains(github.ref, '/tags/v')
 
   docker:
     runs-on: ubuntu-latest
@@ -191,7 +174,7 @@ jobs:
               ${{ runner.os }}-pip-
               ${{ runner.os }}-
       - name: Install Ubuntu packages
-        run: sudo apt-get --yes install pandoc enchant snapd curl
+        run: sudo apt-get --yes install enchant snapd curl
       - name: Install and upgrade wheel, pip and tox
         run: pip install --upgrade pip wheel tox
       - name: Chromedriver setup
