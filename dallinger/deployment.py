@@ -375,7 +375,8 @@ def setup_experiment(
 
 def ensure_constraints_file_presence(directory: str):
     """Looks into the path represented by the string `directory`.
-    Does nothing if a `constraints.txt` file exists there.
+    Does nothing if a `constraints.txt` file exists there and is
+    newer than a sibling `requirements.txt` file.
     Otherwise it creates the constraints.txt file based on the
     contents of the `requirements.txt` file.
     If the `requirements.txt` does not exist one is created with
@@ -384,7 +385,16 @@ def ensure_constraints_file_presence(directory: str):
     constraints_path = Path(directory) / "constraints.txt"
     requirements_path = Path(directory) / "requirements.txt"
     if constraints_path.exists():
-        return
+        is_up_to_date = (
+            requirements_path.exists()
+            and constraints_path.lstat().st_mtime > requirements_path.lstat().st_mtime
+        )
+        if is_up_to_date:
+            return
+        else:
+            raise ValueError(
+                "\nChanges detected to requirements.txt: run the command\n    dallinger generate-constraints\nand retry"
+            )
     if not requirements_path.exists():
         requirements_path.write_text("dallinger\n")
     os.environ["CUSTOM_COMPILE_COMMAND"] = "dallinger generate-constraints"
