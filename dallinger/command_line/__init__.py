@@ -6,20 +6,23 @@
 from __future__ import print_function
 from __future__ import unicode_literals
 
-from collections import Counter
-from functools import wraps
-from pathlib import Path
+import click
 import os
+import requests
 import shutil
 import signal
 import sys
 import tabulate
 import time
+import warnings
 import webbrowser
 
-import click
-import requests
+from collections import Counter
+from functools import wraps
+from pathlib import Path
 from rq import Worker, Connection
+from sqlalchemy import exc as sa_exc
+
 
 from dallinger.config import get_config
 from dallinger import data
@@ -111,6 +114,7 @@ def verify_id(ctx, param, app):
 
 
 click.disable_unicode_literals_warning = True
+warnings.simplefilter("ignore", category=sa_exc.SAWarning)
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
