@@ -51,6 +51,11 @@ from dallinger.utils import check_call
 from dallinger.utils import generate_random_id
 from dallinger.version import __version__
 
+
+click.disable_unicode_literals_warning = True
+warnings.simplefilter("ignore", category=sa_exc.SAWarning)
+
+
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
 
 
@@ -111,10 +116,6 @@ def verify_id(ctx, param, app):
             "UUID beginning with {}-...".format(app[5:13])
         )
     return app
-
-
-click.disable_unicode_literals_warning = True
-warnings.simplefilter("ignore", category=sa_exc.SAWarning)
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
