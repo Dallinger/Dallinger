@@ -391,6 +391,10 @@ def ensure_constraints_file_presence(directory: str):
         )
         if is_up_to_date:
             return
+        else:
+            raise ValueError(
+                "\nChanges detected to requirements.txt: run the command\n    dallinger generate-constraints\nand retry"
+            )
     if not requirements_path.exists():
         requirements_path.write_text("dallinger\n")
     os.environ["CUSTOM_COMPILE_COMMAND"] = "dallinger generate-constraints"
