@@ -101,7 +101,7 @@ requests==2.25.1
     # via dallinger
 rq==1.7.0
     # via dallinger
-s3transfer==0.3.4
+s3transfer==0.3.5
     # via boto3
 selenium==3.141.0
     # via dallinger
