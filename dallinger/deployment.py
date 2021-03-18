@@ -378,8 +378,10 @@ def ensure_constraints_file_presence(directory: str):
     """Looks into the path represented by the string `directory`.
     Does nothing if a `constraints.txt` file exists there and is
     newer than a sibling `requirements.txt` file.
+    If it exists but is not up to date a ValueError exception is raised.
     Otherwise it creates the constraints.txt file based on the
     contents of the `requirements.txt` file.
+
     If the `requirements.txt` does not exist one is created with
     `dallinger` as its only dependency.
     """
@@ -396,13 +398,18 @@ def ensure_constraints_file_presence(directory: str):
                 "\nChanges detected to requirements.txt: run the command\n    dallinger generate-constraints\nand retry"
             )
 
-    os.environ[
-        "CUSTOM_COMPILE_COMMAND"
-    ] = f"dallinger generate-constraints\n#\n# Compiled from a requirement.txt file with sha: {requirements_path_sha}"
     prev_cwd = os.getcwd()
     try:
         os.chdir(directory)
-        os.system("pip-compile requirements.txt -o constraints.txt")
+        compile_info = f"dallinger generate-constraints\n#\n# Compiled from a requirement.txt file with sha: {requirements_path_sha}"
+        check_output(
+            "pip-compile requirements.txt -o constraints.txt",
+            shell=True,
+            env=dict(
+                os.environ,
+                CUSTOM_COMPILE_COMMAND=compile_info,
+            ),
+        )
     finally:
         os.chdir(prev_cwd)
     # Make the path the experiment requirements.txt file relative
