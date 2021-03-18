@@ -403,8 +403,7 @@ def ensure_constraints_file_presence(directory: str):
         os.chdir(directory)
         compile_info = f"dallinger generate-constraints\n#\n# Compiled from a requirement.txt file with sha: {requirements_path_sha}"
         check_output(
-            "pip-compile requirements.txt -o constraints.txt",
-            shell=True,
+            ["pip-compile", "requirements.txt", "-o", "constraints.txt"],
             env=dict(
                 os.environ,
                 CUSTOM_COMPILE_COMMAND=compile_info,
@@ -430,7 +429,7 @@ def build_and_place(source: str, destination: str) -> str:
     old_dir = os.getcwd()
     try:
         os.chdir(source)
-        check_output("python -m build", shell=True)
+        check_output(["python", "-m", "build"])
         # The built package is the last addition to the `dist` directory
         package_path = max(Path(source).glob("dist/*"), key=os.path.getctime)
         shutil.copy(package_path, destination)

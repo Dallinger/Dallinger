@@ -88,9 +88,7 @@ class DockerComposeWrapper(object):
         while response.strip() != b"PONG":
             if response:
                 self.out.blather(f"Waiting for redis (got {response})\n")
-            response = self.run_compose(
-                "exec redis redis-cli ping",
-            )
+            response = self.run_compose(["exec", "redis", "redis-cli", "ping"])
             time.sleep(1)
         self.out.blather("Redis ready\n")
 
@@ -99,7 +97,7 @@ class DockerComposeWrapper(object):
         is ready to accept connections.
         """
         needle = b"ready to accept connections"
-        while needle not in self.run_compose("logs postgresql"):
+        while needle not in self.run_compose(["logs", "postgresql"]):
             self.out.blather("Waiting for postgresql\n")
             time.sleep(1)
         self.out.blather("Postgresql ready\n")
@@ -107,22 +105,21 @@ class DockerComposeWrapper(object):
     def start(self):
         self.copy_docker_compse_files()
         env = {"DOCKER_BUILDKIT": "1"}
-        build_arg = "--progress=plain "
+        build_args = ["--progress=plain"]
         if self.needs_chrome:
-            build_arg += (
-                "--build-arg DALLINGER_DOCKER_IMAGE=dallingerimages/dallinger-bot"
-            )
+            build_args += [
+                "--build-arg",
+                "DALLINGER_DOCKER_IMAGE=dallingerimages/dallinger-bot",
+            ]
         check_output(
-            f"docker-compose build {build_arg}".split(),
+            ["docker-compose", "build"] + build_args,
             env={**os.environ.copy(), **env},
         )
         check_output("docker-compose up -d".split(), env={**os.environ.copy(), **env})
         # Wait for postgres to complete initialization
         self.wait_postgres_ready()
         try:
-            self.run_compose(
-                "exec worker dallinger-housekeeper initdb",
-            )
+            self.run_compose(["exec", "worker", "dallinger-housekeeper", "initdb"])
         except CalledProcessError:
             self.out.error("There was a problem initializing the database")
             self.stop()
@@ -130,7 +127,7 @@ class DockerComposeWrapper(object):
         self.wait_redis_ready()
         # Make sure the containers are all started
         errors = []
-        for container_id in self.run_compose("ps -q").decode("utf-8").split():
+        for container_id in self.run_compose(["ps", "-q"]).decode("utf-8").split():
             container = docker.client.from_env().containers.get(container_id)
             try:
                 health = container.attrs["State"]["Health"]["Status"]
@@ -179,16 +176,17 @@ class DockerComposeWrapper(object):
 
     def run_compose(self, compose_commands: str):
         """Run a command in the (already built) tmp directory of the current experiment
-        `compose_commands` should be a string to be appended to the docker-compose command.
+        `compose_commands` should be an array of strings to be appended to the
+        docker-compose command.
         Examples:
         # return the output of `docker-compose ps`
-        compose_commands = "ps"
+        compose_commands = ["ps"]
         # Run `redis-cli ping` inside the `redis` container and return its output
-        compose_commands = "exec redis redis-cli ping"]
+        compose_commands = ["exec", "redis", "redis-cli", "ping"]
         """
         return check_output(
-            f"docker-compose -f {self.tmp_dir}/docker-compose.yml {compose_commands}",
-            shell=True,
+            ["docker-compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
+            + compose_commands,
         )
 
     # To build the docker images and upload them to heroku run the following
