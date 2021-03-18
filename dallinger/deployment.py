@@ -191,8 +191,11 @@ class ExplicitFileSource(object):
             shutil.copyfile(from_path, to_path)
 
 
-def assemble_experiment_temp_dir(config):
+def assemble_experiment_temp_dir(config, for_remote=False):
     """Create a temp directory from which to run an experiment.
+    If for_remote is set to True the preparation includes bundling
+    the local dallinger version if it was installed in editable mode.
+
     The new directory will include:
     - Copies of custom experiment files which don't match the exclusion policy
     - Templates and static resources from Dallinger
@@ -290,16 +293,17 @@ def assemble_experiment_temp_dir(config):
     # Overwrite the requirements.txt file with the contents of the constraints.txt file
     (Path(dst) / "constraints.txt").replace(requirements_path)
 
-    dallinger_path = get_editable_dallinger_path()
-    if dallinger_path:
-        egg_name = build_and_place(dallinger_path, dst)
-        # Replace the line about dallinger in requirements.txt so that
-        # it refers to the just generated package
-        constraints_text = requirements_path.read_text()
-        new_constraints_text = re.sub(
-            "dallinger==.*", f"file:{egg_name}", constraints_text
-        )
-        requirements_path.write_text(new_constraints_text)
+    if for_remote:
+        dallinger_path = get_editable_dallinger_path()
+        if dallinger_path:
+            egg_name = build_and_place(dallinger_path, dst)
+            # Replace the line about dallinger in requirements.txt so that
+            # it refers to the just generated package
+            constraints_text = requirements_path.read_text()
+            new_constraints_text = re.sub(
+                "dallinger==.*", f"file:{egg_name}", constraints_text
+            )
+            requirements_path.write_text(new_constraints_text)
     return dst
 
 
@@ -359,7 +363,7 @@ def setup_experiment(
     if not config.get("dashboard_password", None):
         config.set("dashboard_password", fake.password(length=20, special_chars=False))
 
-    temp_dir = assemble_experiment_temp_dir(config)
+    temp_dir = assemble_experiment_temp_dir(config, for_remote=not local_checks)
     log("Deployment temp directory: {}".format(temp_dir), chevrons=False)
 
     # Zip up the temporary directory and place it in the cwd.
