@@ -910,6 +910,15 @@ class TestDebugServer(object):
 @pytest.mark.slow
 @pytest.mark.docker
 class TestDockerServer(object):
+    @pytest.fixture(autouse=True)
+    def stop_all_docker_containers(self, env):
+        import docker
+
+        client = docker.client.from_env()
+        for container in client.containers.list():
+            if container.name.startswith("bartlett1932"):
+                container.stop()
+
     @pytest.mark.skipif(bool(os.environ.get("CI")), reason="Fails when run in the CI")
     def test_docker_debug_with_bots(self, env):
         # Make sure debug server runs to completion with bots
