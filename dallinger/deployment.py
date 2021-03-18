@@ -13,6 +13,7 @@ import tempfile
 import threading
 import time
 
+from hashlib import md5
 from pathlib import Path
 from six.moves import shlex_quote as quote
 from six.moves.urllib.parse import urlparse
@@ -377,31 +378,37 @@ def ensure_constraints_file_presence(directory: str):
     """Looks into the path represented by the string `directory`.
     Does nothing if a `constraints.txt` file exists there and is
     newer than a sibling `requirements.txt` file.
+    If it exists but is not up to date a ValueError exception is raised.
     Otherwise it creates the constraints.txt file based on the
     contents of the `requirements.txt` file.
+
     If the `requirements.txt` does not exist one is created with
     `dallinger` as its only dependency.
     """
     constraints_path = Path(directory) / "constraints.txt"
     requirements_path = Path(directory) / "requirements.txt"
+    if not requirements_path.exists():
+        requirements_path.write_text("dallinger\n")
+    requirements_path_sha = md5(requirements_path.read_bytes()).hexdigest()
     if constraints_path.exists():
-        is_up_to_date = (
-            requirements_path.exists()
-            and constraints_path.lstat().st_mtime > requirements_path.lstat().st_mtime
-        )
-        if is_up_to_date:
+        if requirements_path_sha in constraints_path.read_text():
             return
         else:
             raise ValueError(
                 "\nChanges detected to requirements.txt: run the command\n    dallinger generate-constraints\nand retry"
             )
-    if not requirements_path.exists():
-        requirements_path.write_text("dallinger\n")
-    os.environ["CUSTOM_COMPILE_COMMAND"] = "dallinger generate-constraints"
+
     prev_cwd = os.getcwd()
     try:
         os.chdir(directory)
-        os.system("pip-compile requirements.txt -o constraints.txt")
+        compile_info = f"dallinger generate-constraints\n#\n# Compiled from a requirement.txt file with sha: {requirements_path_sha}"
+        check_output(
+            ["pip-compile", "requirements.txt", "-o", "constraints.txt"],
+            env=dict(
+                os.environ,
+                CUSTOM_COMPILE_COMMAND=compile_info,
+            ),
+        )
     finally:
         os.chdir(prev_cwd)
     # Make the path the experiment requirements.txt file relative
@@ -422,7 +429,7 @@ def build_and_place(source: str, destination: str) -> str:
     old_dir = os.getcwd()
     try:
         os.chdir(source)
-        check_output("python -m build", shell=True)
+        check_output(["python", "-m", "build"])
         # The built package is the last addition to the `dist` directory
         package_path = max(Path(source).glob("dist/*"), key=os.path.getctime)
         shutil.copy(package_path, destination)

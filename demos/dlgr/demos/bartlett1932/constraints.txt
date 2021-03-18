@@ -4,6 +4,8 @@
 #
 #    dallinger generate-constraints
 #
+# Compiled from a requirement.txt file with sha: d0bfb8e6474319a7832980a687befbb2
+#
 apscheduler==3.7.0
     # via dallinger
 boto3==1.16.59

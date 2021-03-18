@@ -433,7 +433,7 @@ class TestSetupExperiment(object):
         ) as get_editable_dallinger_path:
             # When dallinger is not installed as editable egg the requirements
             # file sent to heroku will include a version pin
-            get_editable_dallinger_path.return_value = False
+            get_editable_dallinger_path.return_value = None
             _, dst = setup_experiment(log=mock.Mock())
         requirements = (Path(dst) / "requirements.txt").read_text()
         assert re.search("^dallinger", requirements, re.MULTILINE)
@@ -446,7 +446,7 @@ class TestSetupExperiment(object):
         ) as get_editable_dallinger_path:
             # When dallinger is not installed as editable egg the requirements
             # file sent to heroku will include a version pin
-            get_editable_dallinger_path.return_value = False
+            get_editable_dallinger_path.return_value = None
             tmp_dir = assemble_experiment_temp_dir(active_config)
         assert "dallinger==" in (Path(tmp_dir) / "requirements.txt").read_text()
 
@@ -910,6 +910,15 @@ class TestDebugServer(object):
 @pytest.mark.slow
 @pytest.mark.docker
 class TestDockerServer(object):
+    @pytest.fixture(autouse=True)
+    def stop_all_docker_containers(self, env):
+        import docker
+
+        client = docker.client.from_env()
+        for container in client.containers.list():
+            if container.name.startswith("bartlett1932"):
+                container.stop()
+
     @pytest.mark.skipif(bool(os.environ.get("CI")), reason="Fails when run in the CI")
     def test_docker_debug_with_bots(self, env):
         # Make sure debug server runs to completion with bots
@@ -921,11 +930,11 @@ class TestDockerServer(object):
         )
         p.logfile = sys.stdout
         try:
-            p.expect_exact("Server is running", timeout=180)
-            p.expect_exact("Recruitment is complete", timeout=120)
-            p.expect_exact("'status': 'success'", timeout=60)
+            p.expect_exact("Server is running", timeout=240)
+            p.expect_exact("Recruitment is complete", timeout=180)
+            p.expect_exact("'status': 'success'", timeout=120)
             p.expect_exact("Experiment completed", timeout=10)
-            p.expect_exact("Stopping bartlett1932_web_1", timeout=20)
+            p.expect_exact("Stopping bartlett1932_web_1", timeout=30)
             p.expect(pexpect.EOF)
         finally:
             try:
@@ -948,14 +957,14 @@ class TestDockerServer(object):
         p.logfile = sys.stdout
         try:
             p.expect_exact("Server is running", timeout=180)
-            p.expect_exact("Initial recruitment list:", timeout=20)
-            p.expect("New participant requested.*", 30)
+            p.expect_exact("Initial recruitment list:", timeout=30)
+            p.expect("New participant requested.*", 50)
             Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
-            p.expect("New participant requested.*", 30)
+            p.expect("New participant requested.*", 50)
             Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
-            p.expect_exact("Recruitment is complete", timeout=180)
-            p.expect_exact("'status': 'success'", timeout=60)
-            p.expect_exact("Experiment completed", timeout=10)
+            p.expect_exact("Recruitment is complete", timeout=240)
+            p.expect_exact("'status': 'success'", timeout=120)
+            p.expect_exact("Experiment completed", timeout=20)
             p.expect_exact("Stopping bartlett1932_web_1", timeout=20)
             p.expect(pexpect.EOF)
         finally:
@@ -1072,6 +1081,7 @@ class TestConstraints(object):
 
         # An existing file will be left untouched
         constraints_file.write_text("foobar")
-        ensure_constraints_file_presence(tmp_path)
+        with pytest.raises(ValueError):
+            ensure_constraints_file_presence(tmp_path)
         assert constraints_file.read_text() == "foobar"
         shutil.rmtree(tmp_path)

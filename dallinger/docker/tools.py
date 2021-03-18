@@ -88,14 +88,7 @@ class DockerComposeWrapper(object):
         while response.strip() != b"PONG":
             if response:
                 self.out.blather(f"Waiting for redis (got {response})\n")
-            response = self.run_compose(
-                [
-                    "exec",
-                    "redis",
-                    "redis-cli",
-                    "ping",
-                ]
-            )
+            response = self.run_compose(["exec", "redis", "redis-cli", "ping"])
             time.sleep(1)
         self.out.blather("Redis ready\n")
 
@@ -112,46 +105,38 @@ class DockerComposeWrapper(object):
     def start(self):
         self.copy_docker_compse_files()
         env = {"DOCKER_BUILDKIT": "1"}
-        build_arg = "--progress=plain "
+        build_args = ["--progress=plain"]
         if self.needs_chrome:
-            build_arg += (
-                "--build-arg DALLINGER_DOCKER_IMAGE=dallingerimages/dallinger-bot"
-            )
+            build_args += [
+                "--build-arg",
+                "DALLINGER_DOCKER_IMAGE=dallingerimages/dallinger-bot",
+            ]
         check_output(
-            f"docker-compose build {build_arg}".split(),
+            ["docker-compose", "build"] + build_args,
             env={**os.environ.copy(), **env},
         )
         check_output("docker-compose up -d".split(), env={**os.environ.copy(), **env})
         # Wait for postgres to complete initialization
         self.wait_postgres_ready()
         try:
-            self.run_compose(
-                [
-                    "exec",
-                    "worker",
-                    "dallinger-housekeeper",
-                    "initdb",
-                ]
-            )
+            self.run_compose(["exec", "worker", "dallinger-housekeeper", "initdb"])
         except CalledProcessError:
             self.out.error("There was a problem initializing the database")
             self.stop()
             raise
         self.wait_redis_ready()
         # Make sure the containers are all started
-        status = self.run_compose(["ps"])
         errors = []
-        # docker-compose ps output looks like this:
-        #             Name                           Command               State     Ports
-        # -----------------------------------------------------------------------------------
-        # function_learning_postgresql_1   docker-entrypoint.sh postgres    Up       5432/tcp
-        # function_learning_redis_1        docker-entrypoint.sh redis ...   Up       6379/tcp
-        # function_learning_web_1          /bin/sh -c dallinger_herok ...   Exit 1
-        # function_learning_worker_1       /bin/sh -c dallinger_herok ...   Up
-        # ^^^ a final newline
-        for line in status.decode("utf-8").split("\n")[2:-1]:
-            if "Up" not in line:
-                errors.append(line)
+        for container_id in self.run_compose(["ps", "-q"]).decode("utf-8").split():
+            container = docker.client.from_env().containers.get(container_id)
+            try:
+                health = container.attrs["State"]["Health"]["Status"]
+            except KeyError:
+                health = (
+                    "healthy"  # Containers with no health check just need to be running
+                )
+            if container.status != "running" or health != "healthy":
+                errors.append(f"{container.name}: {container.status} - {health}")
         if errors:
             self.out.error("Some services did not start properly:")
             for error in errors:
@@ -189,22 +174,19 @@ class DockerComposeWrapper(object):
             if listener(line) is self.MONITOR_STOP:
                 return
 
-    def run_compose(self, compose_commands):
+    def run_compose(self, compose_commands: str):
         """Run a command in the (already built) tmp directory of the current experiment
-        `compose_commands` should be a list of tokens to be passed to docker compose.
+        `compose_commands` should be an array of strings to be appended to the
+        docker-compose command.
         Examples:
         # return the output of `docker-compose ps`
         compose_commands = ["ps"]
-        # Run redis-cli ping inside the redis container and return its output
+        # Run `redis-cli ping` inside the `redis` container and return its output
         compose_commands = ["exec", "redis", "redis-cli", "ping"]
         """
         return check_output(
-            [
-                "docker-compose",
-                "-f",
-                f"{self.tmp_dir}/docker-compose.yml",
-            ]
-            + compose_commands
+            ["docker-compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
+            + compose_commands,
         )
 
     # To build the docker images and upload them to heroku run the following
