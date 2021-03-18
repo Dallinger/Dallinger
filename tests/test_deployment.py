@@ -433,7 +433,7 @@ class TestSetupExperiment(object):
         ) as get_editable_dallinger_path:
             # When dallinger is not installed as editable egg the requirements
             # file sent to heroku will include a version pin
-            get_editable_dallinger_path.return_value = False
+            get_editable_dallinger_path.return_value = None
             _, dst = setup_experiment(log=mock.Mock())
         requirements = (Path(dst) / "requirements.txt").read_text()
         assert re.search("^dallinger", requirements, re.MULTILINE)
@@ -446,7 +446,7 @@ class TestSetupExperiment(object):
         ) as get_editable_dallinger_path:
             # When dallinger is not installed as editable egg the requirements
             # file sent to heroku will include a version pin
-            get_editable_dallinger_path.return_value = False
+            get_editable_dallinger_path.return_value = None
             tmp_dir = assemble_experiment_temp_dir(active_config)
         assert "dallinger==" in (Path(tmp_dir) / "requirements.txt").read_text()
 
