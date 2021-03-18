@@ -948,10 +948,10 @@ class TestDockerServer(object):
         p.logfile = sys.stdout
         try:
             p.expect_exact("Server is running", timeout=180)
-            p.expect_exact("Initial recruitment list:", timeout=20)
-            p.expect("New participant requested.*", 30)
+            p.expect_exact("Initial recruitment list:", timeout=30)
+            p.expect("New participant requested.*", 50)
             Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
-            p.expect("New participant requested.*", 30)
+            p.expect("New participant requested.*", 50)
             Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
             p.expect_exact("Recruitment is complete", timeout=180)
             p.expect_exact("'status': 'success'", timeout=60)
