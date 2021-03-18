@@ -39,6 +39,7 @@ setup_args = dict(
         "APScheduler",
         "cached-property",
         "boto3",
+        "build",
         "click",
         "faker",
         "Flask-Sockets",
@@ -79,7 +80,6 @@ setup_args = dict(
         "dev": [
             "alabaster",
             "black",
-            "build",
             "bumpversion",
             "coverage",
             "coverage_pth",
