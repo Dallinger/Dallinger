@@ -478,7 +478,7 @@ class TestSetupExperiment(object):
             "dallinger.deployment.get_editable_dallinger_path"
         ) as get_editable_dallinger_path:
             get_editable_dallinger_path.return_value = tmp_egg
-            tmp_dir = assemble_experiment_temp_dir(active_config)
+            tmp_dir = assemble_experiment_temp_dir(active_config, for_remote=True)
         assert "dallinger==" not in (Path(tmp_dir) / "requirements.txt").read_text()
         shutil.rmtree(tmp_dir)
 
