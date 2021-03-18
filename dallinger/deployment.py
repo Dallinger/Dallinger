@@ -13,6 +13,7 @@ import tempfile
 import threading
 import time
 
+from hashlib import md5
 from pathlib import Path
 from six.moves import shlex_quote as quote
 from six.moves.urllib.parse import urlparse
@@ -384,20 +385,20 @@ def ensure_constraints_file_presence(directory: str):
     """
     constraints_path = Path(directory) / "constraints.txt"
     requirements_path = Path(directory) / "requirements.txt"
+    if not requirements_path.exists():
+        requirements_path.write_text("dallinger\n")
+    requirements_path_sha = md5(requirements_path.read_bytes()).hexdigest()
     if constraints_path.exists():
-        is_up_to_date = (
-            requirements_path.exists()
-            and constraints_path.lstat().st_mtime > requirements_path.lstat().st_mtime
-        )
-        if is_up_to_date:
+        if requirements_path_sha in constraints_path.read_text():
             return
         else:
             raise ValueError(
                 "\nChanges detected to requirements.txt: run the command\n    dallinger generate-constraints\nand retry"
             )
-    if not requirements_path.exists():
-        requirements_path.write_text("dallinger\n")
-    os.environ["CUSTOM_COMPILE_COMMAND"] = "dallinger generate-constraints"
+
+    os.environ[
+        "CUSTOM_COMPILE_COMMAND"
+    ] = f"dallinger generate-constraints\n#\n# Compiled from a requirement.txt file with sha: {requirements_path_sha}"
     prev_cwd = os.getcwd()
     try:
         os.chdir(directory)

@@ -1072,6 +1072,7 @@ class TestConstraints(object):
 
         # An existing file will be left untouched
         constraints_file.write_text("foobar")
-        ensure_constraints_file_presence(tmp_path)
+        with pytest.raises(ValueError):
+            ensure_constraints_file_presence(tmp_path)
         assert constraints_file.read_text() == "foobar"
         shutil.rmtree(tmp_path)
