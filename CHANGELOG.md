@@ -1,6 +1,30 @@
 # Change Log
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
+
+## [v7.1.0](https://github.com/dallinger/dallinger/tree/v7.1.0) (2021-03-19)
 - Initial docker support: `dallinger docker debug` command to run dallinger in a local container
+- Feature: For experiments not using the MTurk Recruiter, it is now
+  possible to display customizable information to the worker on experiment
+  completion via a new ``exit_info_for(participant)`` method on the
+  experiment class, which can be overridden in custom Experiment
+  subclasses. For example, you might show a randomly generated code that
+  is used to validate their session with an external recruitment service.
+  The template for this exit page (``exit_recruiter.html``) can also be
+  overridden in custom experiments.
+- The /ad route is now greatly simplified
+- No longer pin all transitive dependencies, so experiments can more easily
+  specify the versions they require
+- Suppress ``duplicate use of [blah] as value for polymorphic_identity``
+  warnings
+- Further speedups for ``dallinger debug`` startup time
+- New CLI command ``dallinger generate-constraints`` automatically generates
+  a constraints.txt file based on the current experiment environment, so the
+  versions deployed to the remote environment match what's been tested locally
+- Bugfix: correct extraction of URL parameters into ``dallinger.identity``
+  JavaScript object
+- Bugfix: normalize database connection scheme to prevent errors with Heroku
+  deployment
+
 
 ## [v7.0.0](https://github.com/dallinger/dallinger/tree/v7.0.0) (2021-02-11)
 - Infrastructure: Drop support for python 2.x :-/
