@@ -320,6 +320,7 @@ def setup_experiment(
     # Verify that the Postgres server is running.
     if local_checks:
         try:
+            log("Checking your local Postgres database connection...")
             db.check_connection()
         except Exception:
             log("There was a problem connecting to the Postgres database!")
