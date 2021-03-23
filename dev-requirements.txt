@@ -321,7 +321,7 @@ py==1.10.0
     # via
     #   pytest
     #   tox
-pycodestyle==2.6.0
+pycodestyle==2.7.0
     # via
     #   dallinger
     #   flake8
