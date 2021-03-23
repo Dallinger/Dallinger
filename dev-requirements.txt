@@ -373,7 +373,7 @@ pyzmq==22.0.3
     #   jupyter-client
     #   notebook
     #   qtconsole
-qtconsole==5.0.2
+qtconsole==5.0.3
     # via jupyter
 qtpy==1.9.0
     # via qtconsole
