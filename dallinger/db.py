@@ -60,13 +60,20 @@ def create_db_engine(db_url, pool_size=1000):
     return create_engine(db_url, pool_size=pool_size)
 
 
-def check_connection():
+def check_connection(timeout_secs=3):
     """Test that postgres is running and that we can connect using the
     configured URI.
 
     Raises a psycopg2.OperationalError on failure.
     """
-    conn = psycopg2.connect(db_url)
+    try:
+        conn = psycopg2.connect(db_url, connect_timeout=timeout_secs)
+    except psycopg2.OperationalError as exc:
+        raise Exception(
+            f"Failed to connect to Postgres at {db_url}. "
+            "Is Postgres running on port 5432?"
+        ) from exc
+
     conn.close()
 
 
