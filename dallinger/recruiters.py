@@ -1172,7 +1172,7 @@ def from_config(config):
     # Special case 3: if we're not using bots and we're in debug mode,
     # ignore any configured recruiter:
     if debug_mode:
-        return HotAirRecruiter()
+        return by_name(config.get("debug_recruiter", "HotAirRecruiter"))
 
     # Configured recruiter:
     if recruiter is not None:
@@ -1192,16 +1192,16 @@ def _descendent_classes(cls):
             yield cls
 
 
-BY_NAME = {}
-for cls in _descendent_classes(Recruiter):
-    BY_NAME[cls.__name__] = BY_NAME[cls.nickname] = cls
-
 
 def by_name(name):
     """Attempt to return a recruiter class by name.
 
     Actual class names and known nicknames are both supported.
     """
+    BY_NAME = {}
+    for cls in _descendent_classes(Recruiter):
+        BY_NAME[cls.__name__] = BY_NAME[cls.nickname] = cls
+
     klass = BY_NAME.get(name)
     if klass is not None:
         return klass()
