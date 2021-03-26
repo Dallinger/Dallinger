@@ -80,7 +80,7 @@ coverage==5.5
     #   codecov
     #   coverage-pth
     #   dallinger
-cryptography==3.4.6
+cryptography==3.4.7
     # via paramiko
 decorator==4.4.2
     # via ipython
