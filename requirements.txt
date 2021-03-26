@@ -10,7 +10,7 @@ apscheduler==3.7.0
     # via dallinger
 boto3==1.17.35
     # via dallinger
-botocore==1.20.36
+botocore==1.20.37
     # via
     #   boto3
     #   s3transfer
@@ -113,7 +113,7 @@ six==1.15.0
     #   sqlalchemy-postgres-copy
 sqlalchemy-postgres-copy==0.5.0
     # via dallinger
-sqlalchemy==1.4.2
+sqlalchemy==1.4.3
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
