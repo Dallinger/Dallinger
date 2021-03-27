@@ -355,7 +355,7 @@ python-dateutil==2.8.1
     #   faker
     #   jupyter-client
     #   pandas
-python-dotenv==0.15.0
+python-dotenv==0.16.0
     # via docker-compose
 pytz==2021.1
     # via
