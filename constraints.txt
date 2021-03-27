@@ -147,7 +147,7 @@ greenlet==1.0.0
     # via
     #   dallinger
     #   gevent
-gunicorn==20.0.4
+gunicorn==20.1.0
     # via dallinger
 identify==2.2.1
     # via pre-commit
