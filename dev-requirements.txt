@@ -258,7 +258,7 @@ notebook==6.3.0
     # via
     #   jupyter
     #   widgetsnbextension
-numpy==1.20.1
+numpy==1.20.2
     # via pandas
 odfpy==1.4.1
     # via tablib
