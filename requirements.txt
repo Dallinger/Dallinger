@@ -25,7 +25,7 @@ click==7.1.2
     #   dallinger
     #   flask
     #   rq
-faker==6.6.3
+faker==7.0.0
     # via dallinger
 flask-crossdomain==0.1
     # via dallinger
