@@ -281,7 +281,7 @@ paramiko==2.7.2
     # via docker
 parsimonious==0.7.0
     # via sphinx-js
-parso==0.8.1
+parso==0.8.2
     # via jedi
 pathspec==0.8.1
     # via black
