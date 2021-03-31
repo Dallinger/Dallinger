@@ -265,7 +265,11 @@ def export(id, local=False, scrub_pii=False):
             # Register experiment UUID with dallinger
             register(id, url)
         except AttributeError:
-            logger.error("You don't have an S3 bucket accessible for a remote export!")
+            logger.warn(
+                "You don't have an S3 bucket accessible for a remote export! "
+                "Either add an S3 bucket, or run with the --local option to "
+                "avoid this warning. (Your local export still completed normally.)"
+            )
 
     return path_to_data
 
