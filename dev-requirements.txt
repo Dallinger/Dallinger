@@ -392,7 +392,7 @@ requests==2.25.1
     #   docker
     #   docker-compose
     #   sphinx
-rq==1.7.0
+rq==1.8.0
     # via dallinger
 s3transfer==0.3.6
     # via boto3
