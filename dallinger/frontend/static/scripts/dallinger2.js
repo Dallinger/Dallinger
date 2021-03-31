@@ -433,20 +433,27 @@ var dallinger = (function () {
           console.log(resp);
           $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
-          if (resp.quorum && resp.quorum.n !== resp.quorum.q) {
-            if (resp.quorum.overrecruited) {
-              dlgr.skip_experiment = true;
-              // reached quorum; resolve immediately
+          if (! resp.quorum) {  // We're not using a waiting room.
+            deferred.resolve();
+            return;
+          }
+
+          // We've got a waiting room, so run waiting room checks...
+          if (resp.quorum.overrecruited) {
+            // If we're overrecruited, no need to check anything else.
+            dlgr.skip_experiment = true;
+            deferred.resolve();
+            return;
+          }
+
+          if (resp.quorum.n < resp.quorum.q) {
+            // wait for quorum, then resolve
+            dlgr.updateProgressBar(resp.quorum.n, resp.quorum.q);
+            dlgr.waitForQuorum().done(function () {
               deferred.resolve();
-            } else {
-              // wait for quorum, then resolve
-              dlgr.updateProgressBar(resp.quorum.n, resp.quorum.q);
-              dlgr.waitForQuorum().done(function () {
-                deferred.resolve();
-              });
-            }
+            });
           } else {
-            // no quorum; resolve immediately
+            // last through the door; resolve immediately
             deferred.resolve();
           }
         });
