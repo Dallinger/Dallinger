@@ -258,11 +258,14 @@ def export(id, local=False, scrub_pii=False):
     # Backup data on S3 unless run locally
     if not local:
         bucket = user_s3_bucket()
-        bucket.upload_file(path_to_data, data_filename)
-        url = _generate_s3_url(bucket, data_filename)
+        try:
+            bucket.upload_file(path_to_data, data_filename)
+            url = _generate_s3_url(bucket, data_filename)
 
-        # Register experiment UUID with dallinger
-        register(id, url)
+            # Register experiment UUID with dallinger
+            register(id, url)
+        except AttributeError:
+            logger.error("You don't have an S3 bucket accessible for a remote export!")
 
     return path_to_data
 
