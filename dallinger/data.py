@@ -266,9 +266,10 @@ def export(id, local=False, scrub_pii=False):
             register(id, url)
         except AttributeError:
             logger.warn(
-                "You don't have an S3 bucket accessible for a remote export! "
+                "Your local export completed normally, but you don't have an "
+                "Amazon S3 bucket accessible for a remote export. "
                 "Either add an S3 bucket, or run with the --local option to "
-                "avoid this warning. (Your local export still completed normally.)"
+                'avoid this warning. Run "dallinger export -h" for more details.'
             )
 
     return path_to_data

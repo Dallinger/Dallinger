@@ -708,8 +708,18 @@ def awaken(app, databaseurl):
 
 @dallinger.command()
 @click.option("--app", default=None, callback=verify_id, help="Experiment id")
-@click.option("--local", is_flag=True, flag_value=True, help="Export local data")
-@click.option("--no-scrub", is_flag=True, flag_value=True, help="Scrub PII")
+@click.option(
+    "--local",
+    is_flag=True,
+    flag_value=True,
+    help="Only export data locally, rather than to Amazon S3",
+)
+@click.option(
+    "--no-scrub",
+    is_flag=True,
+    flag_value=True,
+    help="Scrub PII (Personally Identifiable Information)",
+)
 def export(app, local, no_scrub):
     """Export the data."""
     log(header, chevrons=False)
