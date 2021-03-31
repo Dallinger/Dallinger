@@ -99,7 +99,7 @@ redis==3.5.3
     #   rq
 requests==2.25.1
     # via dallinger
-rq==1.7.0
+rq==1.8.0
     # via dallinger
 s3transfer==0.3.6
     # via boto3
