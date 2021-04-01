@@ -35,6 +35,12 @@ with warnings.catch_warnings():
         logger.debug("Failed to import tablib.")
 
 
+class S3BucketUnavailable(Exception):
+    """No Amazon S3 bucket could be found based on the user's
+    configuration.
+    """
+
+
 table_names = [
     "info",
     "network",
@@ -265,12 +271,7 @@ def export(id, local=False, scrub_pii=False):
             # Register experiment UUID with dallinger
             register(id, url)
         except AttributeError:
-            logger.warn(
-                "Your local export completed normally, but you don't have an "
-                "Amazon S3 bucket accessible for a remote export. "
-                "Either add an S3 bucket, or run with the --local option to "
-                'avoid this warning. Run "dallinger export -h" for more details.'
-            )
+            raise S3BucketUnavailable("Could not find and S3 bucket!")
 
     return path_to_data
 
