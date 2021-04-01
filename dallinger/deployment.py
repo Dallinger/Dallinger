@@ -753,13 +753,19 @@ class DebugDeployment(HerokuLocalDeployment):
             "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
         }
 
+    def with_proxy_port(self, url):
+        if self.proxy_port is not None:
+            self.out.log("Using proxy port {}".format(self.proxy_port))
+            url = url.replace(str(get_config().get("base_port")), self.proxy_port)
+        return url
+
     def configure(self):
         super(DebugDeployment, self).configure()
         if self.bot:
             self.exp_config["recruiter"] = "bots"
 
     def execute(self, heroku):
-        base_url = get_base_url()
+        base_url = self.with_proxy_port(get_base_url())
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
         self.out.log("Launching the experiment...")
         try:
@@ -773,7 +779,7 @@ class DebugDeployment(HerokuLocalDeployment):
         else:
             if result["status"] == "success":
                 self.out.log(result["recruitment_msg"])
-                dashboard_url = "{}/dashboard/".format(get_base_url())
+                dashboard_url = "{}/dashboard/".format(base_url)
                 self.display_dashboard_access_details(dashboard_url)
                 if not self.no_browsers:
                     self.open_dashboard(dashboard_url)
@@ -799,10 +805,8 @@ class DebugDeployment(HerokuLocalDeployment):
         if self.no_browsers:
             self.out.log(recruiters.NEW_RECRUIT_LOG_PREFIX + ": " + match.group(1))
             return
-        url = match.group(1)
-        if self.proxy_port is not None:
-            self.out.log("Using proxy port {}".format(self.proxy_port))
-            url = url.replace(str(get_config().get("base_port")), self.proxy_port)
+        url = self.with_proxy_port(match.group(1))
+
         open_browser(url)
 
     def display_dashboard_access_details(self, url):
