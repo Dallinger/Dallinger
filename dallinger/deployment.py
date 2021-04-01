@@ -298,7 +298,7 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
             log(
                 "Dallinger is installed as an editable package, "
                 "and so will be copied and deployed in its current state, "
-                "ignoring any version specified in your experiment's "
+                "ignoring the dallinger version specified in your experiment's "
                 "requirements.txt file!"
             )
             egg_name = build_and_place(dallinger_path, dst)
