@@ -447,9 +447,12 @@ class TestSetupExperiment(object):
             # When dallinger is not installed as editable egg the requirements
             # file sent to heroku will include a version pin
             get_editable_dallinger_path.return_value = None
-            tmp_dir = assemble_experiment_temp_dir(active_config)
+            log = mock.Mock()
+            tmp_dir = assemble_experiment_temp_dir(log, active_config)
+
         assert "dallinger==" in (Path(tmp_dir) / "requirements.txt").read_text()
 
+    @pytest.mark.slow
     def test_build_egg_if_in_development(self, active_config):
         from dallinger.deployment import assemble_experiment_temp_dir
 
@@ -478,7 +481,10 @@ class TestSetupExperiment(object):
             "dallinger.deployment.get_editable_dallinger_path"
         ) as get_editable_dallinger_path:
             get_editable_dallinger_path.return_value = tmp_egg
-            tmp_dir = assemble_experiment_temp_dir(active_config, for_remote=True)
+            log = mock.Mock()
+            tmp_dir = assemble_experiment_temp_dir(log, active_config, for_remote=True)
+
+        assert "Dallinger is installed as an editable package" in log.call_args[0][0]
         assert "dallinger==" not in (Path(tmp_dir) / "requirements.txt").read_text()
         shutil.rmtree(tmp_dir)
 
