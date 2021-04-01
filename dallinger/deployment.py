@@ -191,7 +191,7 @@ class ExplicitFileSource(object):
             shutil.copyfile(from_path, to_path)
 
 
-def assemble_experiment_temp_dir(config, for_remote=False):
+def assemble_experiment_temp_dir(log, config, for_remote=False):
     """Create a temp directory from which to run an experiment.
     If for_remote is set to True the preparation includes bundling
     the local dallinger version if it was installed in editable mode.
@@ -292,10 +292,15 @@ def assemble_experiment_temp_dir(config, for_remote=False):
     requirements_path = Path(dst) / "requirements.txt"
     # Overwrite the requirements.txt file with the contents of the constraints.txt file
     (Path(dst) / "constraints.txt").replace(requirements_path)
-
     if for_remote:
         dallinger_path = get_editable_dallinger_path()
         if dallinger_path:
+            log(
+                "Dallinger is installed as an editable package, "
+                "and so will be copied and deployed in its current state, "
+                "ignoring the dallinger version specified in your experiment's "
+                "requirements.txt file!"
+            )
             egg_name = build_and_place(dallinger_path, dst)
             # Replace the line about dallinger in requirements.txt so that
             # it refers to the just generated package
@@ -364,7 +369,7 @@ def setup_experiment(
     if not config.get("dashboard_password", None):
         config.set("dashboard_password", fake.password(length=20, special_chars=False))
 
-    temp_dir = assemble_experiment_temp_dir(config, for_remote=not local_checks)
+    temp_dir = assemble_experiment_temp_dir(log, config, for_remote=not local_checks)
     log("Deployment temp directory: {}".format(temp_dir), chevrons=False)
 
     # Zip up the temporary directory and place it in the cwd.
@@ -501,7 +506,7 @@ def deploy_sandbox_shared_setup(
         config.load()
     heroku.sanity_check(config)
     (heroku_app_id, tmp) = setup_experiment(
-        log, debug=False, app=app, exp_config=exp_config
+        log, debug=False, app=app, exp_config=exp_config, local_checks=False
     )
 
     # Register the experiment using all configured registration services.

@@ -112,7 +112,8 @@ def experiment_dir_merged(experiment_dir, active_config):
         # When dallinger is not installed as editable egg the requirements
         # file sent to heroku will include a version pin
         get_editable_dallinger_path.return_value = None
-        destination = assemble_experiment_temp_dir(active_config)
+        log = mock.Mock()
+        destination = assemble_experiment_temp_dir(log, active_config)
         os.chdir(destination)
         yield
     os.chdir(current_dir)
