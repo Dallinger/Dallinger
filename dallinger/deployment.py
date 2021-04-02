@@ -765,7 +765,7 @@ class DebugDeployment(HerokuLocalDeployment):
             self.exp_config["recruiter"] = "bots"
 
     def execute(self, heroku):
-        base_url = self.with_proxy_port(get_base_url())
+        base_url = get_base_url()
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
         self.out.log("Launching the experiment...")
         try:
@@ -779,7 +779,7 @@ class DebugDeployment(HerokuLocalDeployment):
         else:
             if result["status"] == "success":
                 self.out.log(result["recruitment_msg"])
-                dashboard_url = "{}/dashboard/".format(base_url)
+                dashboard_url = self.with_proxy_port("{}/dashboard/".format(base_url))
                 self.display_dashboard_access_details(dashboard_url)
                 if not self.no_browsers:
                     self.open_dashboard(dashboard_url)
