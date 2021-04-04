@@ -347,7 +347,7 @@ pyparsing==2.4.7
     # via packaging
 pyrsistent==0.17.3
     # via jsonschema
-pytest==6.2.2
+pytest==6.2.3
     # via dallinger
 python-dateutil==2.8.1
     # via
