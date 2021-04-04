@@ -82,7 +82,7 @@ coverage==5.5
     #   dallinger
 cryptography==3.4.7
     # via paramiko
-decorator==4.4.2
+decorator==5.0.5
     # via ipython
 defusedxml==0.7.1
     # via
