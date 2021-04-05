@@ -42,7 +42,6 @@ default_keys = (
     ("dashboard_user", six.text_type, [], True),
     ("database_size", six.text_type, []),
     ("database_url", six.text_type, [], True),
-    ("debug_recruiter", six.text_type, []),
     ("description", six.text_type, []),
     ("duration", float, []),
     ("dyno_type", six.text_type, []),
