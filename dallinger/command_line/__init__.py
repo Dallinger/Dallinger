@@ -712,7 +712,7 @@ def awaken(app, databaseurl):
     "--local",
     is_flag=True,
     flag_value=True,
-    help="Only export data locally, rather than to Amazon S3",
+    help="Only export data locally, skipping the Amazon S3 copy",
 )
 @click.option(
     "--no-scrub",
@@ -721,7 +721,8 @@ def awaken(app, databaseurl):
     help="Scrub PII (Personally Identifiable Information)",
 )
 def export(app, local, no_scrub):
-    """Export the data."""
+    """Export the experiment data to a zip archive on your local computer, and
+    by default, to Amazon S3."""
     log(header, chevrons=False)
     try:
         data.export(str(app), local=local, scrub_pii=(not no_scrub))
