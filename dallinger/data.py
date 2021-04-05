@@ -270,8 +270,13 @@ def export(id, local=False, scrub_pii=False):
 
             # Register experiment UUID with dallinger
             register(id, url)
+            print(
+                "A copy of your export was saved also to Amazon S3:\n"
+                f" - bucket name: {bucket.name}\n"
+                f" - bucket URL: {url}"
+            )
         except AttributeError:
-            raise S3BucketUnavailable("Could not find and S3 bucket!")
+            raise S3BucketUnavailable("Could not find an S3 bucket!")
 
     return path_to_data
 
