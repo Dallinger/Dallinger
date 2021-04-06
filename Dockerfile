@@ -12,12 +12,12 @@ RUN apt-get update && \
     apt-get install -y libpq-dev python3-pip python3-dev enchant tzdata pandoc && \
     rm -rf /var/lib/apt/lists/*
 
-COPY constraints.txt  dev-requirements.txt  requirements.txt /dallinger/
+COPY constraints.txt requirements.txt /dallinger/
 WORKDIR /dallinger
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     mkdir /wheelhouse && \
-    python3 -m pip wheel --wheel-dir=/wheelhouse -r requirements.txt
+    python3 -m pip wheel --wheel-dir=/wheelhouse -r requirements.txt -c constraints.txt
 
 
 ###################### Dallinger base image ###################################
@@ -29,14 +29,15 @@ RUN apt-get update && \
     apt-get install -y libpq5 python3-pip enchant tzdata --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
-COPY constraints.txt  dev-requirements.txt  requirements.txt /dallinger/
+COPY constraints.txt requirements.txt /dallinger/
 WORKDIR /dallinger
 
 RUN --mount=type=bind,source=/wheelhouse,from=wheels,target=/wheelhouse \
-    python3 -m pip install --find-links /wheelhouse -r requirements.txt
+    (ls -l /wheelhouse || (echo 'You need to enable docker buildkit to build dallinger: DOCKER_BUILDKIT=1' && false) ) &&\
+    python3 -m pip install --find-links file:///wheelhouse -r requirements.txt -c constraints.txt
 
 COPY . /dallinger
-RUN python3 -m pip install --find-links /wheelhouse -e .[data]
+RUN python3 -m pip install --find-links file:///wheelhouse -e .[data]
 
 # Add two ENV variables as a fix when using python3, to prevent this error:
 # Click will abort further execution because Python 3 was configured
