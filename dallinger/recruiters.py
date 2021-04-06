@@ -1170,9 +1170,9 @@ def from_config(config):
             return recruiter
 
     # Special case 3: if we're not using bots and we're in debug mode,
-    # if present, use the configured recruiter or else fallback to HotAirRecruiter:
+    # ignore any configured recruiter:
     if debug_mode:
-        return by_name(config.get("recruiter", "HotAirRecruiter"))
+        return by_name(config.get("debug_recruiter", "HotAirRecruiter"))
 
     # Configured recruiter:
     if recruiter is not None:
