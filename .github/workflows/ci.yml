@@ -129,6 +129,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v2
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
       - name: Cache Docker layers
@@ -160,7 +161,6 @@ jobs:
         run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-      - uses: actions/checkout@v2
       - name: Make sure dallinger script entry point is working
         run: docker run --rm ghcr.io/dallinger/dallinger python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
       - name: Make sure dallinger script entry point is working with dallinger source mounted as volume
