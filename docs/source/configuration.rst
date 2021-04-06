@@ -146,6 +146,10 @@ Amazon Mechanical Turk Recruitment
 ``duration`` *float*
     How long in hours participants have until the HIT will time out.
 
+``disable_when_duration_exceeded`` *boolean*
+    Whether to disable recruiting and expire the HIT when the duration has been
+    exceeded.
+
 ``us_only`` *boolean*
     Controls whether this HIT is available only to MTurk workers in the U.S.
 

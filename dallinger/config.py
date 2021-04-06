@@ -43,6 +43,7 @@ default_keys = (
     ("database_size", six.text_type, []),
     ("database_url", six.text_type, [], True),
     ("description", six.text_type, []),
+    ("disable_when_duration_exceeded", bool, []),
     ("duration", float, []),
     ("dyno_type", six.text_type, []),
     ("dyno_type_web", six.text_type, []),

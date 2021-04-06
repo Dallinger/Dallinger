@@ -727,7 +727,8 @@ class MTurkRecruiter(Recruiter):
                 self._send_notification_missing_rest_notification_for(participant)
                 unsubmitted.append(summary)
 
-        if unsubmitted:
+        disable_hit = self.config.get("disable_when_duration_exceeded", True)
+        if disable_hit and unsubmitted:
             self._disable_autorecruit()
             self.close_recruitment()
             pick_one = unsubmitted[0]
