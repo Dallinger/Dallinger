@@ -178,9 +178,17 @@ To limit the output to HITs associated with a Dallinger experiment, specify the 
 expire
 ^^^^^^
 
-Expire (set to status ``Reviewable``) all MTurk HITs for a dallinger app.
+Expire (set to status ``Reviewable``) MTurk HITs.
 
-A required ``--app <app>`` parameter specifies the experiment by its id. An optional ``--sandbox`` flag indicates to look for HITs in the MTurk sandbox.
+With the ``--app <experiment ID>`` parameter, the command will attempt
+to expire any HITs associtated with a specific experiment, based on the
+presence of this ID in the HIT's ``annotation`` field.
+With the ``--hit_id <HIT ID>`` parameter, the command will instead attempt to expire the specified HIT directly.
+An optional ``--sandbox`` flag indicates to look for HITs in the MTurk
+sandbox.
+Note that if a HIT already has the MTurk status ``Reviewable``, the
+command will still report a success (and there is no risk in
+running the command against an already-expired HIT).
 
 extend_mturk_hit
 ^^^^^^^^^^^^^^^^
