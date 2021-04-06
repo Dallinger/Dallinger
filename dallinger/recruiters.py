@@ -1192,7 +1192,6 @@ def _descendent_classes(cls):
             yield cls
 
 
-
 def by_name(name):
     """Attempt to return a recruiter class by name.
 
