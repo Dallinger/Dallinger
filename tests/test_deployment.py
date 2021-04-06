@@ -949,6 +949,7 @@ class TestDockerServer(object):
             except IOError:
                 pass
 
+    @pytest.mark.flaky(reruns=5)
     def test_docker_debug_without_bots(self, env):
         sys.path.append(os.getcwd())
         from experiment import Bot

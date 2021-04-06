@@ -91,6 +91,7 @@ setup_args = dict(
             "pycodestyle",
             "pypandoc",
             "pytest",
+            "pytest-rerunfailures",
             "recommonmark",
             "sphinxcontrib-spelling",
             "Sphinx",

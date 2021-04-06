@@ -47,9 +47,7 @@ bump2version==1.0.1
 bumpversion==0.6.0
     # via dallinger
 cached-property==1.5.2
-    # via
-    #   dallinger
-    #   docker-compose
+    # via dallinger
 certifi==2020.12.5
     # via requests
 cffi==1.14.5
@@ -147,6 +145,7 @@ greenlet==1.0.0
     # via
     #   dallinger
     #   gevent
+    #   sqlalchemy
 gunicorn==20.1.0
     # via dallinger
 identify==2.2.2
@@ -286,7 +285,9 @@ parso==0.8.2
 pathspec==0.8.1
     # via black
 pep517==0.10.0
-    # via build
+    # via
+    #   build
+    #   pip-tools
 pexpect==4.8.0
     # via
     #   dallinger
@@ -347,8 +348,12 @@ pyparsing==2.4.7
     # via packaging
 pyrsistent==0.17.3
     # via jsonschema
-pytest==6.2.3
+pytest-rerunfailures==9.1.1
     # via dallinger
+pytest==6.2.3
+    # via
+    #   dallinger
+    #   pytest-rerunfailures
 python-dateutil==2.8.1
     # via
     #   botocore
