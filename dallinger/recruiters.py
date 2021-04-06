@@ -1197,10 +1197,10 @@ def by_name(name):
 
     Actual class names and known nicknames are both supported.
     """
-    BY_NAME = {}
+    by_name = {}
     for cls in _descendent_classes(Recruiter):
-        BY_NAME[cls.__name__] = BY_NAME[cls.nickname] = cls
+        by_name[cls.__name__] = by_name[cls.nickname] = cls
 
-    klass = BY_NAME.get(name)
+    klass = by_name.get(name)
     if klass is not None:
         return klass()
