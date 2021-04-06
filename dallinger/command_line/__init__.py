@@ -548,21 +548,37 @@ def hits(app, sandbox):
 
 
 @dallinger.command()
-@click.option("--app", default=None, callback=verify_id, help="Experiment id")
+@click.option("--hit_id", default=None, help="MTurk HIT ID")
+@click.option("--app", default=None, help="Experiment ID")
 @click.option(
     "--sandbox",
     is_flag=True,
     flag_value=True,
     help="Look for HITs in the MTurk sandbox rather than the live/production environment",
 )
-def expire(app, sandbox, exit=True):
-    """Expire (set to "Reviewable") MTurk HITs for an experiment id."""
+def expire(hit_id, app, sandbox, exit=True):
+    """Expire (set to "Reviewable") an MTurk HIT by specifying a HIT ID, or by
+    specifying a Dallinger experiment ID, in which case HITs with the experiment
+    ID in their ``annotation`` field will be expired.
+    """
+    if (hit_id and app) or not (hit_id or app):
+        raise click.BadParameter("Must specify --hit_id or --app, but not both.")
+    if app is not None:
+        verify_id(None, "--app", app)
+    service = _mturk_service_from_config(sandbox)
+
+    # Assemble the list of HITs to expire
+    if hit_id:
+        targets = [hit_id]
+    else:  # Find HITs based on --app value
+        targets = [
+            h["id"]
+            for h in service.get_hits(hit_filter=lambda h: h.get("annotation") == app)
+        ]
+
     success = []
     failures = []
-    service = _mturk_service_from_config(sandbox)
-    hits = _current_hits(service, app)
-    for hit in hits:
-        hit_id = hit["id"]
+    for hit_id in targets:
         try:
             service.expire_hit(hit_id=hit_id)
             success.append(hit_id)
@@ -570,18 +586,24 @@ def expire(app, sandbox, exit=True):
             failures.append(hit_id)
     out = Output()
     if success:
-        out.log("Expired {} hits: {}".format(len(success), ", ".join(success)))
+        out.log(
+            "Expired {} hit[s] (which may have already been expired): {}".format(
+                len(success), ", ".join(success)
+            )
+        )
     if failures:
         out.log(
             "Could not expire {} hit[s]: {}".format(len(failures), ", ".join(failures))
         )
     if not success and not failures:
-        out.log("No hits found for this application.")
+        out.error("Failed to find any matching HITs on MTurk.")
         if not sandbox:
             out.log(
-                "If this experiment was run in the MTurk sandbox, use: "
-                "`dallinger expire --sandbox --app {}`".format(app)
+                "If this experiment was run in the MTurk sandbox, use:\n"
+                "  `dallinger expire --sandbox --app {}`".format(app),
+                chevrons=False,
             )
+        out.log("You can run `dallinger hits` to help troubleshoot.", chevrons=False)
     if exit and not success:
         sys.exit(1)
 
