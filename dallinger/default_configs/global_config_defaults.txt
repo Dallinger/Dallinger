@@ -21,6 +21,7 @@ enable_global_experiment_registry = False
 auto_recruit = False
 assign_qualifications = False
 us_only = False
+disable_when_duration_exceeded = True
 
 [Bots]
 webdriver_type = chrome_headless

@@ -995,6 +995,25 @@ class TestMTurkRecruiter(object):
             participants[0].hit_id
         )
 
+    def test_flag_prevents_disabling_autorecruit(self, a, recruiter, requests):
+        recruiter.mturkservice.get_assignment.return_value = {"status": None}
+        participants = [a.participant()]
+
+        recruiter.config.set("disable_when_duration_exceeded", False)
+        recruiter.notify_duration_exceeded(participants, datetime.now())
+
+        requests.patch.assert_not_called()
+
+    def test_flag_prevents_expiring_hit(self, a, recruiter):
+        recruiter.mturkservice.get_assignment.return_value = {"status": None}
+        participants = [a.participant()]
+
+        recruiter.config.set("disable_when_duration_exceeded", False)
+
+        recruiter.notify_duration_exceeded(participants, datetime.now())
+
+        recruiter.mturkservice.expire_hit.assert_not_called()
+
 
 class TestRedisTally(object):
     @pytest.fixture
