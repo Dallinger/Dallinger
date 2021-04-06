@@ -23,6 +23,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 ###################### Dallinger base image ###################################
 FROM ubuntu:20.04 as dallinger
 ENV DEBIAN_FRONTEND=noninteractive
+LABEL org.opencontainers.image.source https://github.com/Dallinger/Dallinger
 
 # Install runtime dependencies
 RUN apt-get update && \
@@ -51,6 +52,7 @@ CMD /bin/bash
 ###################### Dallinger bot image ####################################
 FROM dallinger as dallinger-bot
 ENV DEBIAN_FRONTEND=noninteractive
+LABEL org.opencontainers.image.source https://github.com/Dallinger/Dallinger
 
 RUN --mount=type=cache,target=/chromedownload \
     apt update && \
