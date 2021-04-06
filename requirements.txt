@@ -14,6 +14,8 @@ botocore==1.20.44
     # via
     #   boto3
     #   s3transfer
+build==0.3.1.post1
+    # via dallinger
 cached-property==1.5.2
     # via dallinger
 certifi==2020.12.5
@@ -55,6 +57,7 @@ greenlet==1.0.0
     # via
     #   dallinger
     #   gevent
+    #   sqlalchemy
 gunicorn==20.1.0
     # via dallinger
 idna==2.10
@@ -75,6 +78,10 @@ markupsafe==1.1.1
     # via
     #   jinja2
     #   wtforms
+packaging==20.9
+    # via build
+pep517==0.10.0
+    # via build
 pexpect==4.8.0
     # via dallinger
 psutil==5.8.0
@@ -85,6 +92,8 @@ psycopg2==2.8.6
     #   sqlalchemy-postgres-copy
 ptyprocess==0.7.0
     # via pexpect
+pyparsing==2.4.7
+    # via packaging
 python-dateutil==2.8.1
     # via
     #   botocore
@@ -123,6 +132,10 @@ text-unidecode==1.3
     # via faker
 timeago==1.0.15
     # via dallinger
+toml==0.10.2
+    # via
+    #   build
+    #   pep517
 tzlocal==2.1
     # via
     #   apscheduler

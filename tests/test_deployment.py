@@ -912,6 +912,12 @@ class TestDebugServer(object):
         )
 
 
+if os.environ.get("CI"):
+    MAX_DOCKER_RERUNS = 5
+else:
+    MAX_DOCKER_RERUNS = 1
+
+
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
 @pytest.mark.docker
@@ -949,6 +955,7 @@ class TestDockerServer(object):
             except IOError:
                 pass
 
+    @pytest.mark.flaky(reruns=MAX_DOCKER_RERUNS)
     def test_docker_debug_without_bots(self, env):
         sys.path.append(os.getcwd())
         from experiment import Bot
