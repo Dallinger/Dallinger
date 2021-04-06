@@ -508,7 +508,8 @@ def hits(app, sandbox):
     """
     if app is not None:
         verify_id(None, "--app", app)
-    formatted = []
+    formatted_hit_list = []
+    dateformat = "%Y/%-m/%-d %I:%M:%S %p"
     for h in _current_hits(_mturk_service_from_config(sandbox), app):
         title = h["title"][:40] + "..." if len(h["title"]) > 40 else h["title"]
         description = (
@@ -516,22 +517,22 @@ def hits(app, sandbox):
             if len(h["description"]) > 60
             else h["description"]
         )
-        formatted.append(
+        formatted_hit_list.append(
             [
                 h["id"],
                 title,
                 h["annotation"],
                 h["status"],
-                h["created"],
-                h["expiration"],
+                h["created"].strftime(dateformat),
+                h["expiration"].strftime(dateformat),
                 description,
             ]
         )
     out = Output()
-    out.log("Found {} hit[s]:".format(len(formatted)))
+    out.log("Found {} hit[s]:".format(len(formatted_hit_list)))
     out.log(
         tabulate.tabulate(
-            formatted,
+            formatted_hit_list,
             headers=[
                 "Hit ID",
                 "Title",
@@ -572,7 +573,7 @@ def expire(app, sandbox, exit=True):
         out.log("Expired {} hits: {}".format(len(success), ", ".join(success)))
     if failures:
         out.log(
-            "Could not expire {} hits: {}".format(len(failures), ", ".join(failures))
+            "Could not expire {} hit[s]: {}".format(len(failures), ", ".join(failures))
         )
     if not success and not failures:
         out.log("No hits found for this application.")

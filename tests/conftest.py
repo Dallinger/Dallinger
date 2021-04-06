@@ -1,6 +1,8 @@
 import mock
 import os
 import pytest
+from datetime import datetime
+from tzlocal import get_localzone
 
 pytest_plugins = ["pytest_dallinger"]
 
@@ -138,6 +140,30 @@ def aws_creds():
         "aws_secret_access_key": config.get("aws_secret_access_key"),
     }
     return creds
+
+
+@pytest.fixture
+def fake_parsed_hit():
+    """Format returned by dallinger.mturk.MTurkService"""
+    return {
+        "annotation": "test-experiment-id",
+        "assignments_available": 2,
+        "assignments_completed": 0,
+        "assignments_pending": 0,
+        "created": get_localzone().localize(datetime.now()),
+        "description": "Recall a list of words.",
+        "expiration": get_localzone().localize(datetime.now()),
+        "id": "fake-hit-id",
+        "keywords": ["Memory", "wordlist"],
+        "max_assignments": 2,
+        "qualification_type_ids": ["QUAL_ID_1", "QUAL_ID_2"],
+        "review_status": "NotReviewed",
+        "reward": 2.00,
+        "status": "Reviewable",
+        "title": "Fake HIT Title",
+        "type_id": "fake type id",
+        "worker_url": "http://the-hit-url",
+    }
 
 
 @pytest.fixture

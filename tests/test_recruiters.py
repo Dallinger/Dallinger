@@ -2,7 +2,6 @@ import json
 import mock
 import pytest
 from datetime import datetime
-from tzlocal import get_localzone
 from dallinger.models import Participant
 from dallinger.experiment import Experiment
 from dallinger.mturk import MTurkQualificationRequirements
@@ -472,20 +471,7 @@ def requests():
 
 
 @pytest.fixture
-def fake_hit():
-    return {
-        "annotation": "test-experiment-id",
-        "created": get_localzone().localize(datetime.now()),
-        "id": "fake-hit-id",
-        "title": "Fake HIT Title",
-        "reward": 2.00,
-        "type_id": "fake type id",
-        "worker_url": "http://the-hit-url",
-    }.copy()
-
-
-@pytest.fixture
-def mturkservice(active_config, fake_hit):
+def mturkservice(active_config, fake_parsed_hit):
     from dallinger.mturk import MTurkService
 
     mturk = mock.create_autospec(
@@ -501,7 +487,7 @@ def mturkservice(active_config, fake_hit):
         "name": "QualificationType name",
         "id": "QualificationType id",
     }
-    mturk.create_hit.return_value = fake_hit
+    mturk.create_hit.return_value = fake_parsed_hit
     mturk.get_hits.return_value = iter([])
 
     return mturk
@@ -735,7 +721,7 @@ class TestMTurkRecruiter(object):
         )
 
     def test_open_recruitment_raises_error_if_hit_already_in_progress(
-        self, fake_hit, recruiter
+        self, fake_parsed_hit, recruiter
     ):
         from dallinger.recruiters import MTurkRecruiterException
 
@@ -746,24 +732,26 @@ class TestMTurkRecruiter(object):
     def test_supresses_assignment_submitted(self, recruiter):
         assert recruiter.submitted_event() is None
 
-    def test_current_hit_id_with_active_experiment(self, recruiter, fake_hit):
+    def test_current_hit_id_with_active_experiment(self, recruiter, fake_parsed_hit):
         recruiter.open_recruitment()
-        assert recruiter.current_hit_id() == fake_hit["id"]
+        assert recruiter.current_hit_id() == fake_parsed_hit["id"]
 
     def test_current_hit_id_with_no_active_experiment(self, recruiter):
         assert recruiter.current_hit_id() is None
 
     def test_recruit_auto_recruit_on_recruits_for_current_hit(
-        self, fake_hit, recruiter
+        self, fake_parsed_hit, recruiter
     ):
         recruiter.open_recruitment()
         recruiter.recruit()
 
         recruiter.mturkservice.extend_hit.assert_called_once_with(
-            fake_hit["id"], number=1, duration_hours=1.0
+            fake_parsed_hit["id"], number=1, duration_hours=1.0
         )
 
-    def test_recruit_auto_recruit_off_does_not_extend_hit(self, fake_hit, recruiter):
+    def test_recruit_auto_recruit_off_does_not_extend_hit(
+        self, fake_parsed_hit, recruiter
+    ):
         recruiter.config["auto_recruit"] = False
         recruiter.open_recruitment()
         recruiter.recruit()
@@ -822,17 +810,17 @@ class TestMTurkRecruiter(object):
 
     @pytest.mark.xfail
     def test_close_recruitment(self, recruiter):
-        fake_hit_id = "fake HIT id"
+        fake_parsed_hit_id = "fake HIT id"
         recruiter.open_recruitment()
         recruiter.close_recruitment()
-        recruiter.mturkservice.expire_hit.assert_called_once_with(fake_hit_id)
+        recruiter.mturkservice.expire_hit.assert_called_once_with(fake_parsed_hit_id)
 
-    def test_compensate_worker(self, fake_hit, recruiter):
+    def test_compensate_worker(self, fake_parsed_hit, recruiter):
         result = recruiter.compensate_worker(
             worker_id="XWZ", email="w@example.com", dollars=10
         )
         assert result == {
-            "hit": fake_hit,
+            "hit": fake_parsed_hit,
             "qualification": {
                 "name": "QualificationType name",
                 "id": "QualificationType id",
@@ -1042,7 +1030,7 @@ class TestMTurkLargeRecruiter(object):
             return r
 
     def test_open_recruitment_raises_error_if_experiment_in_progress(
-        self, fake_hit, recruiter
+        self, fake_parsed_hit, recruiter
     ):
         from dallinger.recruiters import MTurkRecruiterException
 
@@ -1106,7 +1094,7 @@ class TestMTurkLargeRecruiter(object):
         )
 
     def test_recruit_draws_on_initial_pool_before_extending_hit(
-        self, fake_hit, recruiter
+        self, fake_parsed_hit, recruiter
     ):
         recruiter.open_recruitment(n=recruiter.pool_size - 1)
         recruiter.recruit(n=1)
@@ -1115,18 +1103,18 @@ class TestMTurkLargeRecruiter(object):
         recruiter.recruit(n=1)
 
         recruiter.mturkservice.extend_hit.assert_called_once_with(
-            fake_hit["id"], duration_hours=1.0, number=1
+            fake_parsed_hit["id"], duration_hours=1.0, number=1
         )
 
     def test_recruits_more_immediately_if_initial_recruitment_exceeds_pool_size(
-        self, fake_hit, recruiter
+        self, fake_parsed_hit, recruiter
     ):
         recruiter.open_recruitment(n=recruiter.pool_size + 1)
 
         recruiter.recruit(n=5)
 
         recruiter.mturkservice.extend_hit.assert_called_once_with(
-            fake_hit["id"], duration_hours=1.0, number=5
+            fake_parsed_hit["id"], duration_hours=1.0, number=5
         )
 
     def test_recruit_auto_recruit_off_does_not_extend_hit(self, recruiter):

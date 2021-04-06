@@ -57,13 +57,10 @@ def data():
 
 
 @pytest.fixture
-def mturk():
+def mturk(fake_parsed_hit):
     with mock.patch("dallinger.command_line.MTurkService") as mock_mturk:
         mock_instance = mock.Mock()
-        mock_instance.get_hits.return_value = [
-            {"id": "hit-id-1"},
-            {"id": "hit-id-2", "annotation": "exp-id-2"},
-        ]
+        mock_instance.get_hits.return_value = [fake_parsed_hit]
         mock_mturk.return_value = mock_instance
         yield mock_mturk
 
@@ -1140,9 +1137,8 @@ class TestHits(object):
         result = CliRunner().invoke(expire, ["--app", "exp-id-2"])
         assert result.exit_code == 1
         mturk_instance.get_hits.assert_called_once()
-        mturk_instance.expire_hit.call_count = 2
-        assert output.log.call_count == 1
-        assert "Could not expire 2 hits:" in str(output.log.call_args_list[0])
+        mturk_instance.expire_hit.assert_called_once_with(hit_id="fake-hit-id")
+        assert "Could not expire 1 hit[s]:" in str(output.log.call_args_list[0])
 
 
 class TestApps(object):
