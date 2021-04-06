@@ -489,25 +489,60 @@ def hibernate(app):
 
 
 def _current_hits(service, app):
-    return service.get_hits(hit_filter=lambda h: h.get("annotation") == app)
+    if app is not None:
+        return service.get_hits(hit_filter=lambda h: h.get("annotation") == app)
+    return service.get_hits()
 
 
 @dallinger.command()
-@click.option("--app", default=None, callback=verify_id, help="Experiment id")
+@click.option("--app", default=None, help="Experiment id")
 @click.option(
     "--sandbox",
     is_flag=True,
     flag_value=True,
-    help="Is the app running in the sandbox?",
+    help="Look for HITs in the MTurk sandbox rather than the live/production environment",
 )
 def hits(app, sandbox):
-    """List hits for an experiment id."""
-    hit_list = list(_current_hits(_mturk_service_from_config(sandbox), app))
-    out = Output()
-    out.log(
-        "Found {} hits for this experiment id: {}".format(
-            len(hit_list), ", ".join(h["id"] for h in hit_list)
+    """List all HITs for the user's configured MTurk request account,
+    or for a specific experiment id.
+    """
+    if app is not None:
+        verify_id(None, "--app", app)
+    formatted = []
+    for h in _current_hits(_mturk_service_from_config(sandbox), app):
+        title = h["title"][:40] + "..." if len(h["title"]) > 40 else h["title"]
+        description = (
+            h["description"][:60] + "..."
+            if len(h["description"]) > 60
+            else h["description"]
         )
+        formatted.append(
+            [
+                h["id"],
+                title,
+                h["annotation"],
+                h["status"],
+                h["created"],
+                h["expiration"],
+                description,
+            ]
+        )
+    out = Output()
+    out.log("Found {} hit[s]:".format(len(formatted)))
+    out.log(
+        tabulate.tabulate(
+            formatted,
+            headers=[
+                "Hit ID",
+                "Title",
+                "Annotation (experiment ID)",
+                "Status",
+                "Created",
+                "Expiration",
+                "Description",
+            ],
+        ),
+        chevrons=False,
     )
 
 
@@ -517,10 +552,10 @@ def hits(app, sandbox):
     "--sandbox",
     is_flag=True,
     flag_value=True,
-    help="Is the app running in the sandbox?",
+    help="Look for HITs in the MTurk sandbox rather than the live/production environment",
 )
 def expire(app, sandbox, exit=True):
-    """Expire hits for an experiment id."""
+    """Expire (set to "Reviewable") MTurk HITs for an experiment id."""
     success = []
     failures = []
     service = _mturk_service_from_config(sandbox)
