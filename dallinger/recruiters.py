@@ -648,7 +648,7 @@ class MTurkRecruiter(Recruiter):
                 "sender": self.config.get("dallinger_email_address"),
                 "recipients": [email],
                 "body": (
-                    "A special compenstation HIT is available for you to complete on MTurk.\n\n"
+                    "A special compensation HIT is available for you to complete on MTurk.\n\n"
                     "Title: {title}\n"
                     "Reward: ${reward:.2f}\n"
                     "URL: {worker_url}"
