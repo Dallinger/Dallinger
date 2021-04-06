@@ -718,7 +718,7 @@ def awaken(app, databaseurl):
     "--no-scrub",
     is_flag=True,
     flag_value=True,
-    help="Don't scrub PII (Personally Identifiable Information)",
+    help="Don’t scrub PII (Personally Identifiable Information) - if not specified PII will be scrubbed",
 )
 def export(app, local, no_scrub):
     """Export the experiment data to a zip archive on your local computer, and
