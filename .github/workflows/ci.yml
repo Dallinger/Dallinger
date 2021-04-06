@@ -135,9 +135,9 @@ jobs:
         uses: actions/cache@v2
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx1-${{ hashFiles('Dockerfile') }}
+          key: ${{ runner.os }}-buildx2-${{ hashFiles('Dockerfile', 'requirements.txt', 'constraints.txt') }}
           restore-keys: |
-            ${{ runner.os }}-buildx1-
+            ${{ runner.os }}-buildx2-
       - name: Build dallingerimages/dallinger docker image
         uses: docker/build-push-action@v2
         with:
@@ -145,8 +145,8 @@ jobs:
           load: true
           target: dallinger
           tags: dallingerimages/dallinger:latest
-          cache-from: type=local,src=/tmp/.buildx-cache/base
-          cache-to: type=local,dest=/tmp/.buildx-cache/base
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
       - name: Build dallingerimages/dallinger-bot docker image
         uses: docker/build-push-action@v2
         with:
@@ -154,8 +154,12 @@ jobs:
           load: true
           target: dallinger-bot
           tags: dallingerimages/dallinger-bot:latest
-          cache-from: type=local,src=/tmp/.buildx-cache/bot
-          cache-to: type=local,dest=/tmp/.buildx-cache/bot
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+      - name: Move docker cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
       - uses: actions/checkout@v2
       - name: Make sure dallinger script entry point is working
         run: docker run --rm dallingerimages/dallinger python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
