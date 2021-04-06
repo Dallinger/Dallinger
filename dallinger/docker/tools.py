@@ -109,7 +109,7 @@ class DockerComposeWrapper(object):
         if self.needs_chrome:
             build_args += [
                 "--build-arg",
-                "DALLINGER_DOCKER_IMAGE=dallingerimages/dallinger-bot",
+                "DALLINGER_DOCKER_IMAGE=ghcr.io/dallinger/dallinger-bot",
             ]
         check_output(
             ["docker-compose", "build"] + build_args,
