@@ -57,13 +57,10 @@ def data():
 
 
 @pytest.fixture
-def mturk():
+def mturk(fake_parsed_hit):
     with mock.patch("dallinger.command_line.MTurkService") as mock_mturk:
         mock_instance = mock.Mock()
-        mock_instance.get_hits.return_value = [
-            {"id": "hit-id-1"},
-            {"id": "hit-id-2", "annotation": "exp-id-2"},
-        ]
+        mock_instance.get_hits.return_value = [fake_parsed_hit]
         mock_mturk.return_value = mock_instance
         yield mock_mturk
 
@@ -1083,7 +1080,7 @@ class TestHits(object):
 
         return expire
 
-    def test_hits(self, hits, mturk):
+    def test_hits_allows_specifying_app_id(self, hits, mturk):
         result = CliRunner().invoke(hits, ["--app", "exp-id-2"])
         assert result.exit_code == 0
         mturk_instance = mturk.return_value
@@ -1093,12 +1090,19 @@ class TestHits(object):
         CliRunner().invoke(hits, ["--sandbox", "--app", "exp-id-2"])
         assert "sandbox=True" in str(mturk.call_args_list[0])
 
-    def test_expire(self, expire, mturk):
+    def test_expire_supports_specifying_app_id(self, expire, mturk):
         result = CliRunner().invoke(expire, ["--app", "exp-id-2"])
         assert result.exit_code == 0
         mturk_instance = mturk.return_value
         mturk_instance.get_hits.assert_called_once()
         mturk_instance.expire_hit.assert_called()
+
+    def test_expire_supports_specifying_hit_id(self, expire, mturk):
+        result = CliRunner().invoke(expire, ["--hit_id", "some-hit-id"])
+        assert result.exit_code == 0
+        mturk_instance = mturk.return_value
+        mturk_instance.get_hits.assert_not_called()
+        mturk_instance.expire_hit.assert_called_once()
 
     def test_expire_no_hits(self, expire, mturk, output):
         mturk_instance = mturk.return_value
@@ -1107,17 +1111,6 @@ class TestHits(object):
         assert result.exit_code == 1
         mturk_instance.get_hits.assert_called_once()
         mturk_instance.expire_hit.assert_not_called()
-        assert output.log.call_count == 2
-
-        output.log.assert_has_calls(
-            [
-                mock.call("No hits found for this application."),
-                mock.call(
-                    "If this experiment was run in the MTurk sandbox, use: "
-                    "`dallinger expire --sandbox --app exp-id-2`"
-                ),
-            ]
-        )
 
     def test_expire_no_hits_sandbox(self, expire, mturk, output):
         mturk_instance = mturk.return_value
@@ -1126,7 +1119,6 @@ class TestHits(object):
         assert result.exit_code == 1
         mturk_instance.get_hits.assert_called_once()
         mturk_instance.expire_hit.assert_not_called()
-        output.log.assert_called_once_with("No hits found for this application.")
 
     def test_expire_with_failure(self, expire, mturk, output):
         mturk_instance = mturk.return_value
@@ -1140,9 +1132,8 @@ class TestHits(object):
         result = CliRunner().invoke(expire, ["--app", "exp-id-2"])
         assert result.exit_code == 1
         mturk_instance.get_hits.assert_called_once()
-        mturk_instance.expire_hit.call_count = 2
-        assert output.log.call_count == 1
-        assert "Could not expire 2 hits:" in str(output.log.call_args_list[0])
+        mturk_instance.expire_hit.assert_called_once_with(hit_id="fake-hit-id")
+        assert "Could not expire 1 hit[s]:" in str(output.log.call_args_list[0])
 
 
 class TestApps(object):

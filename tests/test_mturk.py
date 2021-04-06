@@ -292,10 +292,10 @@ def with_cleanup(aws_creds, request):
     finally:
         try:
             for hit in service.get_hits(test_hits_only):
-                service.disable_hit(hit["id"])
+                service.mturk.delete_hit(HITId=hit["id"])
         except Exception:
             # Broad exception so we don't leak credentials in Travis CI logs
-            pass
+            print("Something went wrong in test HIT cleanup!!!")
 
 
 @pytest.fixture(scope="class")
