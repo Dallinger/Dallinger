@@ -81,7 +81,7 @@ An optional ``--no-scrub`` flag will stop the scrubbing of personally
 identifiable information in the export. The scrubbing of PII is enabled by
 default.
 
-email_test
+email-test
 ~~~~~~~~~~
 
 Validate email settings derived from Dallinger Configuration and send a test
@@ -168,16 +168,19 @@ from the MTurk sandbox.
 hits
 ^^^^
 
-List all MTurk HITs for a dallinger app. A required ``--app <app>``
-parameter specifies the experiment by its id. An optional ``--sandbox``
-flag indicates to look for HITs in the MTurk sandbox.
+List all MTurk HITs for your account based on your dallinger AWS configuration, or for a specific dallinger experiment by ID.
+
+By default, all your HITs will be displayed for either the MTurk sandbox
+(if the ``--sandbox`` flag is set) or production environment.
+To limit the output to HITs associated with a Dallinger experiment, specify the full experiment ID with the ``--app <app>`` flag.
+
 
 expire
 ^^^^^^
 
-Expire all MTurk HITs for a dallinger app. A required ``--app <app>``
-parameter specifies the experiment by its id. An optional ``--sandbox``
-flag indicates to look for HITs in the MTurk sandbox.
+Expire (set to status ``Reviewable``) all MTurk HITs for a dallinger app.
+
+A required ``--app <app>`` parameter specifies the experiment by its id. An optional ``--sandbox`` flag indicates to look for HITs in the MTurk sandbox.
 
 extend_mturk_hit
 ^^^^^^^^^^^^^^^^
