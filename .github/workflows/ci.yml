@@ -130,6 +130,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Get version
+        id: vars
+        run: echo ::set-output name=version::$(grep version\ = setup.cfg|sed -e 's/.*= //')
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
       - name: Cache Docker layers
@@ -145,7 +148,7 @@ jobs:
           push: false
           load: true
           target: dallinger
-          tags: ghcr.io/dallinger/dallinger:latest
+          tags: ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }}
           cache-from: type=local,mode=max,src=/tmp/.buildx-cache/dallinger
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new/dallinger
       - name: Build ghcr.io/dallinger/dallinger-bot docker image
@@ -154,7 +157,7 @@ jobs:
           push: false
           load: true
           target: dallinger-bot
-          tags: ghcr.io/dallinger/dallinger-bot:latest
+          tags: ghcr.io/dallinger/dallinger-bot:${{ steps.vars.outputs.version }}
           cache-from: type=local,mode=max,src=/tmp/.buildx-cache/dallinger-bot
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new/dallinger-bot
       - name: Move docker cache
@@ -162,9 +165,9 @@ jobs:
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
       - name: Make sure dallinger script entry point is working
-        run: docker run --rm ghcr.io/dallinger/dallinger python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
+        run: docker run --rm ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }} python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
       - name: Make sure dallinger script entry point is working with dallinger source mounted as volume
-        run: docker run -v $PWD/dallinger:/dallinger/dallinger --rm ghcr.io/dallinger/dallinger python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
+        run: docker run -v $PWD/dallinger:/dallinger/dallinger --rm ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }} python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
       - name: Set up Python 3.9
         uses: actions/setup-python@v2
         with:
