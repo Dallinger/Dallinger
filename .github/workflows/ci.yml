@@ -187,6 +187,7 @@ jobs:
         run: tox -e dockertests
       - name: Show docker logs
         if: ${{ always() }}
+        continue-on-error: true
         run: for container in $(docker ps -a -q); do echo "***** $(docker ps -a|grep $container) *******"; docker logs $container; done
 
 
