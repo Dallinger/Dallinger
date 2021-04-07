@@ -16,6 +16,7 @@ from dallinger.command_line.utils import header
 from dallinger.command_line.utils import log
 from dallinger.command_line.utils import require_exp_directory
 from dallinger.command_line.utils import verify_id
+from dallinger.deployment import _handle_launch_data
 from dallinger.docker.tools import build_image
 from dallinger.utils import setup_experiment
 from dallinger.redis_utils import connect_to_redis
@@ -144,7 +145,6 @@ def deploy_heroku_docker(
     team = config.get("heroku_team", None)
     heroku_app = HerokuApp(dallinger_uid=heroku_app_id, output=out, team=team)
     heroku_app.bootstrap(buildpack=None)
-    heroku_app.push_containers()
 
     # Set up add-ons and AWS environment variables.
     database_size = config.get("database_size")
@@ -168,6 +168,7 @@ def deploy_heroku_docker(
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
+        "dashboard_password": config["dashboard_password"],
         "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
     }
 
@@ -180,31 +181,46 @@ def deploy_heroku_docker(
 
     heroku_app.set_multiple(**heroku_config)
 
+    # While the addons start up we push the containers
+    heroku_app.push_containers()
+
     # Wait for Redis database to be ready.
     log("Waiting for Redis (this can take a couple minutes)...", nl=False)
     ready = False
     while not ready:
         try:
-            r = connect_to_redis(url=heroku_app.redis_url)
-            r.set("foo", "bar")
+            connect_to_redis(url=heroku_app.redis_url)
             ready = True
             log("\n✓ connected at {}".format(heroku_app.redis_url), chevrons=False)
         except (ValueError, redis.exceptions.ConnectionError):
             time.sleep(2)
             log(".", chevrons=False, nl=False)
 
-    # WIP Incomplete
+    heroku_app.release_containers()
 
-    # To build the docker images and upload them to heroku run the following
-    # command in self.tmp_dir:
-    # heroku container:push --recursive -a ${HEROKU_APP_NAME}
-    # To make sure the app has the necessary addons:
-    # heroku addons:create -a ${HEROKU_APP_NAME} heroku-postgresql:hobby-dev
-    # heroku addons:create -a ${HEROKU_APP_NAME} heroku-redis:hobby-dev
-    # To release containers:
-    # heroku container:release web worker -a ${HEROKU_APP_NAME}
-    # To initialize the database:
-    # heroku run dallinger-housekeeper initdb -a $HEROKU_APP_NAME
+    # Launch the experiment.
+    log("Launching the experiment on the remote server and starting recruitment...")
+    launch_url = "{}/launch".format(heroku_app.url)
+    log("Calling {}".format(launch_url), chevrons=False)
+    launch_data = _handle_launch_data(launch_url, error=log)
+    result = {
+        "app_name": heroku_app.name,
+        "app_home": heroku_app.url,
+        "dashboard_url": "{}/dashboard/".format(heroku_app.url),
+        "recruitment_msg": launch_data.get("recruitment_msg", None),
+    }
+
+    log("Experiment details:")
+    log("App home: {}".format(result["app_home"]), chevrons=False)
+    log("Dashboard URL: {}".format(result["dashboard_url"]), chevrons=False)
+    log("Dashboard user: {}".format(config.get("dashboard_user")), chevrons=False)
+    log(
+        "Dashboard password: {}".format(config.get("dashboard_password")),
+        chevrons=False,
+    )
+
+    log("Recruiter info:")
+    log(result["recruitment_msg"], chevrons=False)
 
     # Return to the branch whence we came.
     os.chdir(cwd)
@@ -214,7 +230,6 @@ def deploy_heroku_docker(
             config.get("id"), heroku_app_id
         )
     )
-    # launch_data = _handle_launch_data(launch_url, error=log)
 
     result = {
         "app_name": heroku_app.name,

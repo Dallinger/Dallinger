@@ -147,6 +147,10 @@ class HerokuApp(HerokuCommandRunner):
             self._run(["heroku", "container:login"])
             self._run(["heroku", "container:push", "--recursive", "-a", self.name])
 
+    def release_containers(self):
+        """Start the dynos for web and worker"""
+        self._run(["heroku", "container:release", "web", "worker", "-a", self.name])
+
     @property
     def name(self):
         return app_name(self.dallinger_uid)
