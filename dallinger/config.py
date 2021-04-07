@@ -42,6 +42,7 @@ default_keys = (
     ("dashboard_user", six.text_type, [], True),
     ("database_size", six.text_type, []),
     ("database_url", six.text_type, [], True),
+    ("debug_recruiter", six.text_type, []),
     ("description", six.text_type, []),
     ("disable_when_duration_exceeded", bool, []),
     ("duration", float, []),
