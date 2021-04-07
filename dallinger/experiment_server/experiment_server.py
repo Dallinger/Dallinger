@@ -1560,6 +1560,9 @@ def _worker_complete(participant_id):
     if not participant:
         raise KeyError()
 
+    if participant.end_time is not None:  # Provide idempotence
+        return
+
     participant.end_time = datetime.now()
     session.commit()
 
