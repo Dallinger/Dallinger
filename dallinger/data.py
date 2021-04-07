@@ -35,6 +35,12 @@ with warnings.catch_warnings():
         logger.debug("Failed to import tablib.")
 
 
+class S3BucketUnavailable(Exception):
+    """No Amazon S3 bucket could be found based on the user's
+    configuration.
+    """
+
+
 table_names = [
     "info",
     "network",
@@ -258,11 +264,23 @@ def export(id, local=False, scrub_pii=False):
     # Backup data on S3 unless run locally
     if not local:
         bucket = user_s3_bucket()
-        bucket.upload_file(path_to_data, data_filename)
-        url = _generate_s3_url(bucket, data_filename)
-
-        # Register experiment UUID with dallinger
-        register(id, url)
+        config = get_config()
+        try:
+            bucket.upload_file(path_to_data, data_filename)
+            registration_url = _generate_s3_url(bucket, data_filename)
+            s3_console_url = (
+                f"https://s3.console.aws.amazon.com/s3/object/{bucket.name}"
+                f"?region={config.aws_region}&prefix={data_filename}"
+            )
+            # Register experiment UUID with dallinger
+            register(id, registration_url)
+            print(
+                "A copy of your export was saved also to Amazon S3:\n"
+                f" - bucket name: {bucket.name}\n"
+                f" - S3 console URL: {s3_console_url}"
+            )
+        except AttributeError:
+            raise S3BucketUnavailable("Could not find an S3 bucket!")
 
     return path_to_data
 
@@ -333,7 +351,7 @@ def archive_data(id, src, dst):
                 arcname = filename.replace(src, "").lstrip("/")
                 zf.write(filename, arcname)
     shutil.rmtree(src)
-    print("Done. Data available in {}-data.zip".format(id))
+    print(f"Done. Local export available in {dst}")
 
 
 def _get_canonical_aws_user_id(s3):

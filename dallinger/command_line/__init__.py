@@ -708,12 +708,31 @@ def awaken(app, databaseurl):
 
 @dallinger.command()
 @click.option("--app", default=None, callback=verify_id, help="Experiment id")
-@click.option("--local", is_flag=True, flag_value=True, help="Export local data")
-@click.option("--no-scrub", is_flag=True, flag_value=True, help="Scrub PII")
+@click.option(
+    "--local",
+    is_flag=True,
+    flag_value=True,
+    help="Only export data locally, skipping the Amazon S3 copy",
+)
+@click.option(
+    "--no-scrub",
+    is_flag=True,
+    flag_value=True,
+    help="Don't scrub PII (Personally Identifiable Information) - if not specified PII will be scrubbed",
+)
 def export(app, local, no_scrub):
-    """Export the data."""
+    """Export the experiment data to a zip archive on your local computer, and
+    by default, to Amazon S3."""
     log(header, chevrons=False)
-    data.export(str(app), local=local, scrub_pii=(not no_scrub))
+    try:
+        data.export(str(app), local=local, scrub_pii=(not no_scrub))
+    except data.S3BucketUnavailable:
+        log(
+            "Your local export completed normally, but you don't have an "
+            "Amazon S3 bucket accessible for a remote export. "
+            "Either add an S3 bucket, or run with the --local option to "
+            'avoid this warning. Run "dallinger export -h" for more details.'
+        )
 
 
 @dallinger.command()
