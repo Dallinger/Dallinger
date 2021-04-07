@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import requests
+import time
 
 from rq import Queue
 from sqlalchemy import func
@@ -27,6 +28,7 @@ from dallinger.mturk import MTurkQuestions
 from dallinger.mturk import MTurkService
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkServiceException
+from dallinger.mturk import QualificationNotFoundException
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
 from dallinger.utils import ParticipationTime
@@ -609,13 +611,25 @@ class MTurkRecruiter(Recruiter):
         """Assigns MTurk Qualifications to a worker.
 
         @param worker_id       string  the MTurk worker ID
-        @param qualifications  dict    `name` and `description` keys
+        @param qualifications  list of dict w/   `name`, `description` and
+                               (optional) `score` keys
         """
+        by_name = {qual["name"]: qual for qual in qualifications}
         result = self._ensure_mturk_qualifications(qualifications)
-        for qualification_id in result["new_qualification_ids"]:
-            self.mturkservice.increment_qualification_score(qualification_id, worker_id)
-        for name in result["existing_qualification_names"]:
-            self.mturkservice.increment_named_qualification_score(name, worker_id)
+        for qual in result["new_qualifications"]:
+            score = by_name[qual["name"]].get("score")
+            if score is not None:
+                self.mturkservice.assign_qualification(
+                    qual["id"], worker_id, qual["score"]
+                )
+            else:
+                self.mturkservice.increment_qualification_score(qual["id"], worker_id)
+        for name in result["existing_qualifications"]:
+            score = by_name[name].get("score")
+            if score is not None:
+                self.mturkservice.assign_named_qualification(name, worker_id, score)
+            else:
+                self.mturkservice.increment_named_qualification_score(name, worker_id)
 
     def compensate_worker(self, worker_id, email, dollars, notify=True):
         """Pay a worker by means of a special HIT that only they can see."""
@@ -867,14 +881,37 @@ class MTurkRecruiter(Recruiter):
         """Create MTurk Qualifications for names that don't already exist,
         but also return names that already do.
         """
-        result = {"new_qualification_ids": [], "existing_qualification_names": []}
-        for name, desc in qualifications.items():
+        result = {"new_qualifications": [], "existing_qualifications": []}
+        for qual in qualifications:
+            name = qual["name"]
+            desc = qual["description"]
             try:
-                result["new_qualification_ids"].append(
-                    self.mturkservice.create_qualification_type(name, desc)["id"]
+                result["new_qualifications"].append(
+                    {
+                        "name": name,
+                        "id": self.mturkservice.create_qualification_type(name, desc)[
+                            "id"
+                        ],
+                        "available": False,
+                    }
                 )
             except DuplicateQualificationNameError:
-                result["existing_qualification_names"].append(name)
+                result["existing_qualifications"].append(name)
+
+        # We need to make sure the new qualifications are actually ready
+        # for assignment, as there's a small delay.
+        for tries in range(5):
+            for new in result["new_qualifications"]:
+                if new["available"]:
+                    continue
+                try:
+                    self.mturkservice.get_qualification_type_by_name(new["name"])
+                except QualificationNotFoundException:
+                    time.sleep(1)
+                else:
+                    new["available"] = True
+            if all([n["available"] for n in result["new_qualifications"]]):
+                break
 
         return result
 

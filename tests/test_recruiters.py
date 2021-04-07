@@ -820,7 +820,11 @@ class TestMTurkRecruiter(object):
         self, recruiter
     ):
         recruiter.assign_experiment_qualifications(
-            "some worker id", {"One": "Description of One", "Two": "Description of Two"}
+            "some worker id",
+            [
+                {"name": "One", "description": "Description of One"},
+                {"name": "Two", "description": "Description of Two"},
+            ],
         )
 
         assert recruiter.mturkservice.create_qualification_type.call_args_list == [
@@ -848,7 +852,11 @@ class TestMTurkRecruiter(object):
         )
 
         recruiter.assign_experiment_qualifications(
-            "some worker id", {"One": "Description of One", "Two": "Description of Two"}
+            "some worker id",
+            [
+                {"name": "One", "description": "Description of One"},
+                {"name": "Two", "description": "Description of Two"},
+            ],
         )
 
         assert (

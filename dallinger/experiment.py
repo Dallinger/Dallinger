@@ -195,15 +195,23 @@ class Experiment(object):
         to the experiment run. The property `group_qualifications` defines
         additional qualifications to assign.
 
-        Type should be a dictionary of name -> description pairs, or
-        an empty dictionary.
+        Type should be a list of dictionaries with "name", "description", and
+        optionally "score" (an integer), or an empty list.
+
+        If no "score" is provided, the recruiter will increment the worker's
+        current score for the qualification, setting it to 1 if it doesn't
+        previously exist.
         """
         experiment_qualification_desc = "Experiment-specific qualification"
         config = get_config()
-        quals = {config.get("id"): experiment_qualification_desc}
-        quals.update(self.group_qualifications)
+        quals = [
+            {
+                "name": config.get("id"),
+                "description": experiment_qualification_desc,
+            }
+        ]
 
-        return quals
+        return quals + self.group_qualifications
 
     @property
     def group_qualifications(self):
@@ -213,8 +221,12 @@ class Experiment(object):
         as a comma-delimited list of additional qualifications to assign,
         but this property can be overridden to provide different behavior.
 
-        Type should be a dictionary of name -> description pairs, or
-        an empty dictionary.
+        Type should be a list of dictionaries with "name", "description", and
+        optionally "score" (an integer), or an empty list.
+
+        If no "score" is provided, the recruiter will increment the worker's
+        current score for the qualification, setting it to 1 if it doesn't
+        previously exist.
         """
         group_qualification_desc = "Experiment group qualification"
         config = get_config()
@@ -222,7 +234,10 @@ class Experiment(object):
             n.strip() for n in config.get("group_name", "").split(",") if n.strip()
         ]
 
-        return {name: group_qualification_desc for name in qualification_names}
+        return [
+            {"name": name, "description": group_qualification_desc}
+            for name in qualification_names
+        ]
 
     @property
     def qualification_active(self):
