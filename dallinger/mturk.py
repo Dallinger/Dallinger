@@ -355,6 +355,22 @@ class MTurkService(object):
             )
         )
 
+    def assign_named_qualification(self, name, worker_id, score, notify=False):
+        """Score a worker for a specific named qualification"""
+        qtype = self.get_qualification_type_by_name(name)
+        if qtype is None:
+            raise QualificationNotFoundException(
+                'No Qualification exists with name "{}"'.format(name)
+            )
+        return self._is_ok(
+            self.mturk.associate_qualification_with_worker(
+                QualificationTypeId=qtype["id"],
+                WorkerId=worker_id,
+                IntegerValue=score,
+                SendNotification=notify,
+            )
+        )
+
     def increment_qualification_score(self, qualification_id, worker_id, notify=False):
         """Increment the current qualification score for a worker, on a
         qualification with the provided ID.

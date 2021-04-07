@@ -134,9 +134,12 @@ class TestExperimentBaseClass(object):
             == [
                 mock.call(
                     worker_id="some worker id",
-                    qualifications={
-                        "TEST_EXPERIMENT_UID": "Experiment-specific qualification",
-                    },
+                    qualifications=[
+                        {
+                            "name": "TEST_EXPERIMENT_UID",
+                            "description": "Experiment-specific qualification",
+                        },
+                    ],
                 )
             ]
         )
@@ -154,11 +157,20 @@ class TestExperimentBaseClass(object):
             == [
                 mock.call(
                     worker_id="some worker id",
-                    qualifications={
-                        "TEST_EXPERIMENT_UID": "Experiment-specific qualification",
-                        "some-group-1": "Experiment group qualification",
-                        "some-group-2": "Experiment group qualification",
-                    },
+                    qualifications=[
+                        {
+                            "name": "TEST_EXPERIMENT_UID",
+                            "description": "Experiment-specific qualification",
+                        },
+                        {
+                            "name": "some-group-1",
+                            "description": "Experiment group qualification",
+                        },
+                        {
+                            "name": "some-group-2",
+                            "description": "Experiment group qualification",
+                        },
+                    ],
                 )
             ]
         )
