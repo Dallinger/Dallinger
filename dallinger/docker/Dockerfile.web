@@ -3,5 +3,5 @@ FROM $DALLINGER_DOCKER_IMAGE
 # Use a dallinger base image to build an experiment image
 COPY . /experiment
 WORKDIR /experiment
-RUN bash -c "python3 -m pip install -r <(grep -v ^dallinger requirements.txt)"
+RUN bash -c "python3 -m pip install -r requirements.txt"
 CMD dallinger_heroku_web

@@ -1,8 +1,14 @@
 import docker
+import io
+import json
 import os
+import pkg_resources
+import re
 import shutil
+import tarfile
 import time
 
+from hashlib import sha256
 from jinja2 import Template
 from pathlib import Path
 from subprocess import check_output
@@ -14,6 +20,7 @@ from dallinger.utils import get_editable_dallinger_path
 docker_compose_template = Template(
     abspath_from_egg("dallinger", "dallinger/docker/docker-compose.yml.j2").read_text()
 )
+client = docker.client.from_env()
 
 
 class DockerComposeWrapper(object):
@@ -53,21 +60,28 @@ class DockerComposeWrapper(object):
         self.experiment_name = Path(self.original_dir).name
         self._record = []
         self.needs_chrome = needs_chrome
-        self.client = docker.APIClient(base_url="unix://var/run/docker.sock")
 
     def copy_docker_compse_files(self):
+        """Populate the experiment tmp dir with files needed for docker
+        deployment: the docker compose config and the web/worker Dockerfiles.
+        """
         for filename in ["Dockerfile.web", "Dockerfile.worker"]:
             path = abspath_from_egg("dallinger", f"dallinger/docker/{filename}")
             shutil.copy2(path, self.tmp_dir)
-        volumes = [f"{self.original_dir}:{self.original_dir}"]
+        volumes = [
+            f"{self.original_dir}:{self.original_dir}",
+            f"{self.tmp_dir}:/experiment",
+        ]
         editable_dallinger_path = get_editable_dallinger_path()
         if editable_dallinger_path:
             volumes.append(f"{editable_dallinger_path}/dallinger:/dallinger/dallinger")
+        tag = get_experiment_image_tag(self.tmp_dir)
         with open(os.path.join(self.tmp_dir, "docker-compose.yml"), "w") as fh:
             fh.write(
                 docker_compose_template.render(
                     volumes=volumes,
                     experiment_name=self.experiment_name,
+                    experiment_image=f"{self.experiment_name}:{tag}",
                     needs_chrome=self.needs_chrome,
                 )
             )
@@ -104,18 +118,8 @@ class DockerComposeWrapper(object):
 
     def start(self):
         self.copy_docker_compse_files()
-        env = {"DOCKER_BUILDKIT": "1"}
-        build_args = ["--progress=plain"]
-        if self.needs_chrome:
-            build_args += [
-                "--build-arg",
-                "DALLINGER_DOCKER_IMAGE=ghcr.io/dallinger/dallinger-bot",
-            ]
-        check_output(
-            ["docker-compose", "build"] + build_args,
-            env={**os.environ.copy(), **env},
-        )
-        check_output("docker-compose up -d".split(), env={**os.environ.copy(), **env})
+        self.build_image()
+        check_output("docker-compose up -d".split())
         # Wait for postgres to complete initialization
         self.wait_postgres_ready()
         try:
@@ -128,7 +132,7 @@ class DockerComposeWrapper(object):
         # Make sure the containers are all started
         errors = []
         for container_id in self.run_compose(["ps", "-q"]).decode("utf-8").split():
-            container = docker.client.from_env().containers.get(container_id)
+            container = client.containers.get(container_id)
             try:
                 health = container.attrs["State"]["Health"]["Status"]
             except KeyError:
@@ -142,10 +146,62 @@ class DockerComposeWrapper(object):
             for error in errors:
                 self.out.error(error)
                 self.out.error(
-                    self.client.attach(error.split(" ")[0], logs=True).decode("utf-8")
+                    client.api.attach(error.split(" ")[0], logs=True).decode("utf-8")
                 )
             raise DockerStartupError
         return self
+
+    def build_image(self):
+        """Build the docker image for the experiment."""
+        tag = get_experiment_image_tag(self.tmp_dir)
+        image_name = f"{self.experiment_name}:{tag}"
+        try:
+            client.api.inspect_image(image_name)
+            self.out.blather(f"Image {image_name} found\n")
+            return
+        except docker.errors.ImageNotFound:
+            self.out.blather(f"Image {image_name} not found - building\n")
+
+        dockerfile_text = fr"""FROM {get_base_image(self.tmp_dir)}
+        COPY requirements.txt /experiment/
+        WORKDIR /experiment
+        RUN python3 -m pip install -r requirements.txt
+        COPY prepare_container.sh /experiment/
+        RUN echo 'Running script prepare_container.sh' && \
+            chmod 755 ./prepare_container.sh && \
+            ./prepare_container.sh
+        """
+        dockerfile = io.BytesIO(dockerfile_text.encode())
+        context = io.BytesIO()
+        context_tar = tarfile.open(fileobj=context, mode="w:gz", dereference=True)
+        info = tarfile.TarInfo(name="Dockerfile")
+        info.size = len(dockerfile_text)
+        context_tar.addfile(info, fileobj=dockerfile)
+        context_tar.add(
+            str(Path(self.tmp_dir) / "requirements.txt"), arcname="requirements.txt"
+        )
+        context_tar.add(
+            str(Path(self.tmp_dir) / "prepare_container.sh"),
+            arcname="prepare_container.sh",
+        )
+        context_tar.close()
+        context.seek(0)
+        output = client.api.build(
+            fileobj=context, custom_context=True, tag=image_name, encoding="gzip"
+        )
+
+        for lines in output:
+            for line in re.split(br"\r\n|\n", lines):
+                if not line:  # Split empty lines
+                    continue
+                line_decoded = json.loads(line)
+                if "error" in line_decoded:
+                    raise BuildError(line_decoded["error"])
+                print(line_decoded.get("stream", ""), end="")
+                if "error" in line_decoded:
+                    print(line_decoded.get("error", ""))
+                if "aux" in line_decoded:
+                    print(f'Built image: {line_decoded["aux"]["ID"]}')
 
     def __exit__(self, exctype, excinst, exctb):
         self.stop()
@@ -162,10 +218,8 @@ class DockerComposeWrapper(object):
     def monitor(self, listener):
         # How can we get a stream for two containers?
         # Or, as an alternative, how do we combine two of these (blocking?) iterators?
-        # logs = self.client.events(filters={"ancestor": [f"{self.experiment_name}-web", f"{self.experiment_name}-worker"]})
-        logs = self.client.attach(
-            self.get_container_name("web"), stream=True, logs=True
-        )
+        # logs = client.api.events(filters={"ancestor": [f"{self.experiment_name}-web", f"{self.experiment_name}-worker"]})
+        logs = client.api.attach(self.get_container_name("web"), stream=True, logs=True)
         for raw_line in logs:
             line = raw_line.decode("utf-8", errors="ignore")
             self._record.append(line)
@@ -203,3 +257,49 @@ class DockerComposeWrapper(object):
 
 class DockerStartupError(RuntimeError):
     """Some docker containers had problems starting"""
+
+
+class BuildError(RuntimeError):
+    """There was a problem building the docker image"""
+
+
+def get_base_image(experiment_tmp_path: str, needs_chrome: bool = False) -> str:
+    """Inspects an experiment tmp directory and determines the version
+    of dallinger required by the experiment.
+    Returns a docker image name and tag. For example:
+    `ghcr.io/dallinger/dallinger-bot:7.1.0`
+    """
+    dallinger_version = get_required_dallinger_version(experiment_tmp_path)
+    base_image_name = "ghcr.io/dallinger/dallinger"
+    if needs_chrome:
+        base_image_name += "-bot"
+    return f"{base_image_name}:{dallinger_version}"
+
+
+def get_required_dallinger_version(experiment_tmp_path: str) -> str:
+    """Examine the requirements.txt in an experiment tmp directory
+    and return the dallinger version required by the experiment.
+    """
+    requirements_text = (Path(experiment_tmp_path) / "requirements.txt").read_text()
+    requirements = pkg_resources.parse_requirements(requirements_text)
+    # The should be a single spec in the form `("==", "7.1.0")`
+    return [el.specs[0][1] for el in requirements if el.name == "dallinger"][0]
+
+
+def get_experiment_image_tag(experiment_tmp_path: str) -> str:
+    """Return a docker image tag to be used for the experiment.
+
+    The tag needs to be a hash of all the files that, when changed,
+    require the image to be rebuilt.
+
+    When an experiment is changed an older image can still be used,
+    as long as no dependencies or build script changed.
+    The experiment directory can then be mounted to have the latest changes.
+    This saves the need to rebuild the image too often.
+    """
+    files = "requirements.txt", "prepare_container.sh"
+    hash = sha256()
+    for filename in files:
+        filepath = Path(experiment_tmp_path) / filename
+        hash.update(filepath.read_bytes())
+    return hash.hexdigest()[:8]

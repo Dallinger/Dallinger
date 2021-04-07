@@ -28,16 +28,14 @@ services:
       # bots might need to communicate with redis
       - "6379:6379"
   worker:
-    image: {{ experiment_name }}-worker
+    image: {{ experiment_image }}
+    command: dallinger_heroku_worker
     depends_on:
       postgresql:
         condition: service_healthy
       redis:
         condition: service_healthy
     user: "${UID}:${GID}"
-    build: 
-      context: .
-      dockerfile: ./Dockerfile.worker
 {%- if needs_chrome %}
     cap_add:
         - SYS_ADMIN
@@ -55,11 +53,14 @@ services:
       DATABASE_URL: postgresql://dallinger:dallinger@postgresql/dallinger
       HOME: /tmp
   web:
-    image: {{ experiment_name }}-web
+    image: {{ experiment_image }}
     user: "${UID}:${GID}"
-    build: 
-      context: .
-      dockerfile: ./Dockerfile.web
+    command: dallinger_heroku_web
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 {%- if needs_chrome %}
     cap_add: # Is it really necessary?
         - SYS_ADMIN # Or only needed for the `worker` container?

@@ -195,6 +195,8 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
     """Create a temp directory from which to run an experiment.
     If for_remote is set to True the preparation includes bundling
     the local dallinger version if it was installed in editable mode.
+    This is always needed for docker debug and deployment, but not needed for
+    local Heroku debugging.
 
     The new directory will include:
     - Copies of custom experiment files which don't match the exclusion policy
@@ -205,6 +207,7 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
       in the experiment (Dallinger should have generated one with pip-compile
       if needed by the time we reach this code)
     - A dallinger zip (only if dallinger is installed in editable mode)
+    - A prepare_container.sh script (possibly empty)
 
     Assumes the experiment root directory is the current working directory.
 
@@ -287,6 +290,13 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
         src = os.path.join(dallinger_root, "heroku", "Procfile_no_clock")
         shutil.copy(src, os.path.join(dst, "Procfile"))
 
+    dst_prepare_container = Path(dst) / "prepare_container.sh"
+    if not dst_prepare_container.exists():
+        shutil.copyfile(
+            Path(dallinger_root) / "docker" / "prepare_container.sh",
+            dst_prepare_container,
+        )
+
     ExplicitFileSource(os.getcwd()).selective_copy_to(dst)
 
     requirements_path = Path(dst) / "requirements.txt"
@@ -294,12 +304,16 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
     (Path(dst) / "constraints.txt").replace(requirements_path)
     if for_remote:
         dallinger_path = get_editable_dallinger_path()
-        if dallinger_path:
+        if dallinger_path and not os.environ.get("DALLINGER_NO_EGG_BUILD"):
             log(
                 "Dallinger is installed as an editable package, "
                 "and so will be copied and deployed in its current state, "
                 "ignoring the dallinger version specified in your experiment's "
-                "requirements.txt file!"
+                "requirements.txt file!\n"
+                "If you don't need this you can speed up startup time by setting "
+                "the environment variable DALLINGER_NO_EGG_BUILD:\n"
+                "    export DALLINGER_NO_EGG_BUILD=1\n"
+                "or you can install dallinger without the editable (-e) flag."
             )
             egg_name = build_and_place(dallinger_path, dst)
             # Replace the line about dallinger in requirements.txt so that
