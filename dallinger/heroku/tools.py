@@ -118,11 +118,13 @@ class HerokuApp(HerokuCommandRunner):
         self.dallinger_uid = dallinger_uid
         super(HerokuApp, self).__init__(output, team)
 
-    def bootstrap(self):
+    def bootstrap(self, buildpack="heroku/python"):
         """Creates the heroku app and local git remote. Call this once you're
         in the local repo you're going to use.
         """
-        cmd = ["heroku", "apps:create", self.name, "--buildpack", "heroku/python"]
+        cmd = ["heroku", "apps:create", self.name]
+        if buildpack:
+            cmd += ["--buildpack", buildpack]
 
         # If a team is specified, assign the app to the team.
         if self.team:
@@ -133,6 +135,17 @@ class HerokuApp(HerokuCommandRunner):
         self.set_multiple(
             HOST=self.url, CREATOR=self.login_name(), DALLINGER_UID=self.dallinger_uid
         )
+
+    def push_containers(self):
+        """Push docker containers to Heroku.
+        Reuqires Dockerfile.web and Dockerfile.worker to be present.
+        """
+        try:
+            # We optimistically assume the user is already logged in
+            self._run(["heroku", "container:push", "--recursive", "-a", self.name])
+        except subprocess.CalledProcessError:
+            self._run(["heroku", "container:login"])
+            self._run(["heroku", "container:push", "--recursive", "-a", self.name])
 
     @property
     def name(self):

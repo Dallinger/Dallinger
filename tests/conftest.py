@@ -103,7 +103,7 @@ def experiment_dir_merged(experiment_dir, active_config):
     """A temp directory with files from the standard test experiment, merged
     with standard Dallinger files by the same process that occurs in production.
     """
-    from dallinger.deployment import assemble_experiment_temp_dir
+    from dallinger.utils import assemble_experiment_temp_dir
     from dallinger.deployment import ensure_constraints_file_presence
 
     current_dir = os.getcwd()

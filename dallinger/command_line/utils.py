@@ -1,6 +1,6 @@
 from dallinger.config import get_config
 from dallinger.config import initialize_experiment_package
-from dallinger.deployment import ExperimentFileSource
+from dallinger.utils import ExperimentFileSource
 from dallinger.version import __version__
 from functools import wraps
 import click
@@ -258,3 +258,15 @@ def verify_no_conflicts(verbose=True):
         log("✓ no file conflicts", chevrons=False, verbose=verbose)
 
     return True
+
+
+def verify_id(ctx, param, app):
+    """Verify the experiment id."""
+    if app is None:
+        raise click.BadParameter("Select an experiment using the --app parameter.")
+    elif app[0:5] == "dlgr-":
+        raise click.BadParameter(
+            "The --app parameter requires the full "
+            "UUID beginning with {}-...".format(app[5:13])
+        )
+    return app

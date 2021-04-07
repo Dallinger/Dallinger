@@ -115,7 +115,7 @@ class TestExperimentFilesSource(object):
 
     @pytest.fixture
     def subject(self):
-        from dallinger.deployment import ExperimentFileSource
+        from dallinger.utils import ExperimentFileSource
 
         return ExperimentFileSource
 
@@ -439,7 +439,7 @@ class TestSetupExperiment(object):
         assert re.search("^dallinger", requirements, re.MULTILINE)
 
     def test_dont_build_egg_if_not_in_development(self, active_config):
-        from dallinger.deployment import assemble_experiment_temp_dir
+        from dallinger.utils import assemble_experiment_temp_dir
 
         with mock.patch(
             "dallinger.deployment.get_editable_dallinger_path"
@@ -454,7 +454,7 @@ class TestSetupExperiment(object):
 
     @pytest.mark.slow
     def test_build_egg_if_in_development(self, active_config):
-        from dallinger.deployment import assemble_experiment_temp_dir
+        from dallinger.utils import assemble_experiment_temp_dir
 
         tmp_egg = tempfile.mkdtemp()
         (Path(tmp_egg) / "funniest").mkdir()

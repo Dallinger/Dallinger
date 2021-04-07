@@ -17,7 +17,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.exc import OperationalError
 
-from dallinger.utils import connect_to_redis
+from dallinger.redis_utils import connect_to_redis
 
 
 logger = logging.getLogger("dallinger.db")

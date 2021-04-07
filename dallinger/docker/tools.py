@@ -4,7 +4,6 @@ import json
 import os
 import pkg_resources
 import re
-import shutil
 import tarfile
 import time
 
@@ -62,12 +61,7 @@ class DockerComposeWrapper(object):
         self.needs_chrome = needs_chrome
 
     def copy_docker_compse_files(self):
-        """Populate the experiment tmp dir with files needed for docker
-        deployment: the docker compose config and the web/worker Dockerfiles.
-        """
-        for filename in ["Dockerfile.web", "Dockerfile.worker"]:
-            path = abspath_from_egg("dallinger", f"dallinger/docker/{filename}")
-            shutil.copy2(path, self.tmp_dir)
+        """Prepare a docker-compose.yml file and place it in the experiment tmp dir"""
         volumes = [
             f"{self.original_dir}:{self.original_dir}",
             f"{self.tmp_dir}:/experiment",
@@ -118,7 +112,7 @@ class DockerComposeWrapper(object):
 
     def start(self):
         self.copy_docker_compse_files()
-        self.build_image()
+        build_image(self.tmp_dir, self.experiment_name, self.out)
         check_output("docker-compose up -d".split())
         # Wait for postgres to complete initialization
         self.wait_postgres_ready()
@@ -150,58 +144,6 @@ class DockerComposeWrapper(object):
                 )
             raise DockerStartupError
         return self
-
-    def build_image(self):
-        """Build the docker image for the experiment."""
-        tag = get_experiment_image_tag(self.tmp_dir)
-        image_name = f"{self.experiment_name}:{tag}"
-        try:
-            client.api.inspect_image(image_name)
-            self.out.blather(f"Image {image_name} found\n")
-            return
-        except docker.errors.ImageNotFound:
-            self.out.blather(f"Image {image_name} not found - building\n")
-
-        dockerfile_text = fr"""FROM {get_base_image(self.tmp_dir)}
-        COPY requirements.txt /experiment/
-        WORKDIR /experiment
-        RUN python3 -m pip install -r requirements.txt
-        COPY prepare_container.sh /experiment/
-        RUN echo 'Running script prepare_container.sh' && \
-            chmod 755 ./prepare_container.sh && \
-            ./prepare_container.sh
-        """
-        dockerfile = io.BytesIO(dockerfile_text.encode())
-        context = io.BytesIO()
-        context_tar = tarfile.open(fileobj=context, mode="w:gz", dereference=True)
-        info = tarfile.TarInfo(name="Dockerfile")
-        info.size = len(dockerfile_text)
-        context_tar.addfile(info, fileobj=dockerfile)
-        context_tar.add(
-            str(Path(self.tmp_dir) / "requirements.txt"), arcname="requirements.txt"
-        )
-        context_tar.add(
-            str(Path(self.tmp_dir) / "prepare_container.sh"),
-            arcname="prepare_container.sh",
-        )
-        context_tar.close()
-        context.seek(0)
-        output = client.api.build(
-            fileobj=context, custom_context=True, tag=image_name, encoding="gzip"
-        )
-
-        for lines in output:
-            for line in re.split(br"\r\n|\n", lines):
-                if not line:  # Split empty lines
-                    continue
-                line_decoded = json.loads(line)
-                if "error" in line_decoded:
-                    raise BuildError(line_decoded["error"])
-                print(line_decoded.get("stream", ""), end="")
-                if "error" in line_decoded:
-                    print(line_decoded.get("error", ""))
-                if "aux" in line_decoded:
-                    print(f'Built image: {line_decoded["aux"]["ID"]}')
 
     def __exit__(self, exctype, excinst, exctb):
         self.stop()
@@ -242,17 +184,6 @@ class DockerComposeWrapper(object):
             ["docker-compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
             + compose_commands,
         )
-
-    # To build the docker images and upload them to heroku run the following
-    # command in self.tmp_dir:
-    # heroku container:push --recursive -a ${HEROKU_APP_NAME}
-    # To make sure the app has the necessary addons:
-    # heroku addons:create -a ${HEROKU_APP_NAME} heroku-postgresql:hobby-dev
-    # heroku addons:create -a ${HEROKU_APP_NAME} heroku-redis:hobby-dev
-    # To release containers:
-    # heroku container:release web worker -a ${HEROKU_APP_NAME}
-    # To initialize the database:
-    # heroku run dallinger-housekeeper initdb -a $HEROKU_APP_NAME
 
 
 class DockerStartupError(RuntimeError):
@@ -303,3 +234,55 @@ def get_experiment_image_tag(experiment_tmp_path: str) -> str:
         filepath = Path(experiment_tmp_path) / filename
         hash.update(filepath.read_bytes())
     return hash.hexdigest()[:8]
+
+
+def build_image(tmp_dir, experiment_name, out) -> str:
+    """Build the docker image for the experiment and return its name."""
+    tag = get_experiment_image_tag(tmp_dir)
+    image_name = f"{experiment_name}:{tag}"
+    try:
+        client.api.inspect_image(image_name)
+        out.blather(f"Image {image_name} found\n")
+        return image_name
+    except docker.errors.ImageNotFound:
+        out.blather(f"Image {image_name} not found - building\n")
+
+    dockerfile_text = fr"""FROM {get_base_image(tmp_dir)}
+    COPY requirements.txt /experiment/
+    WORKDIR /experiment
+    RUN python3 -m pip install -r requirements.txt
+    COPY prepare_container.sh /experiment/
+    RUN echo 'Running script prepare_container.sh' && \
+        chmod 755 ./prepare_container.sh && \
+        ./prepare_container.sh
+    """
+    dockerfile = io.BytesIO(dockerfile_text.encode())
+    context = io.BytesIO()
+    context_tar = tarfile.open(fileobj=context, mode="w:gz", dereference=True)
+    info = tarfile.TarInfo(name="Dockerfile")
+    info.size = len(dockerfile_text)
+    context_tar.addfile(info, fileobj=dockerfile)
+    context_tar.add(str(Path(tmp_dir) / "requirements.txt"), arcname="requirements.txt")
+    context_tar.add(
+        str(Path(tmp_dir) / "prepare_container.sh"),
+        arcname="prepare_container.sh",
+    )
+    context_tar.close()
+    context.seek(0)
+    output = client.api.build(
+        fileobj=context, custom_context=True, tag=image_name, encoding="gzip"
+    )
+
+    for lines in output:
+        for line in re.split(br"\r\n|\n", lines):
+            if not line:  # Split empty lines
+                continue
+            line_decoded = json.loads(line)
+            if "error" in line_decoded:
+                raise BuildError(line_decoded["error"])
+            out.blather(line_decoded.get("stream", ""))
+            if "error" in line_decoded:
+                out.blather(line_decoded.get("error", "") + "\n")
+            if "aux" in line_decoded:
+                out.blather(f'Built image: {line_decoded["aux"]["ID"]}' + "\n")
+    return image_name

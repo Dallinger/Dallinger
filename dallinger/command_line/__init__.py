@@ -29,7 +29,6 @@ from dallinger import data
 from dallinger import db
 from dallinger.deployment import deploy_sandbox_shared_setup
 from dallinger.deployment import DebugDeployment
-from dallinger.deployment import ensure_constraints_file_presence
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
 from dallinger.command_line.docker import docker
@@ -47,7 +46,9 @@ from dallinger.command_line.utils import header
 from dallinger.command_line.utils import log
 from dallinger.command_line.utils import require_exp_directory
 from dallinger.command_line.utils import verify_package
+from dallinger.command_line.utils import verify_id
 from dallinger.utils import check_call
+from dallinger.utils import ensure_constraints_file_presence
 from dallinger.utils import generate_random_id
 from dallinger.version import __version__
 
@@ -104,18 +105,6 @@ def report_idle_after(seconds):
         return wraps(func)(wrapper)
 
     return decorator
-
-
-def verify_id(ctx, param, app):
-    """Verify the experiment id."""
-    if app is None:
-        raise click.BadParameter("Select an experiment using the --app parameter.")
-    elif app[0:5] == "dlgr-":
-        raise click.BadParameter(
-            "The --app parameter requires the full "
-            "UUID beginning with {}-...".format(app[5:13])
-        )
-    return app
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
