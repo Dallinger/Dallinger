@@ -618,10 +618,11 @@ var dallinger = (function () {
    * @param {string} [name=questionnaire] - optional questionnaire name
    */
   dlgr.submitQuestionnaire = function (name) {
-    var inputs = $("form :input");
+    var $inputs = $("form :input");
+    var $button = $("button#submit-questionnaire");
     var spinner = dlgr.BusyForm();
     var formDict = {};
-    $.each(inputs, function(key, input) {
+    $.each($inputs, function(key, input) {
       if (input.name !== "") {
         formDict[input.name] = $(input).val();
       }
@@ -632,9 +633,10 @@ var dallinger = (function () {
       number: 1,
       response: JSON.stringify(formDict)
     });
-    spinner.freeze([$('form :input')]);
-    xhr.done(dlgr.submitAssignment);
-    xhr.always(function () { spinner.unfreeze(); });
+    spinner.freeze([$inputs, $button]);
+    xhr.done(function () {
+      dlgr.submitAssignment().always(function () { spinner.unfreeze(); });
+    });
   };
 
   /**
