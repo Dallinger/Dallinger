@@ -907,6 +907,11 @@ class MTurkRecruiter(Recruiter):
                 try:
                     self.mturkservice.get_qualification_type_by_name(new["name"])
                 except QualificationNotFoundException:
+                    logger.warn(
+                        "Did not find qualification {}. Trying again...".format(
+                            new["name"]
+                        )
+                    )
                     time.sleep(1)
                 else:
                     new["available"] = True
