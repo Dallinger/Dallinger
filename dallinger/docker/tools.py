@@ -240,6 +240,7 @@ def build_image(tmp_dir, experiment_name, out) -> str:
     """Build the docker image for the experiment and return its name."""
     tag = get_experiment_image_tag(tmp_dir)
     image_name = f"{experiment_name}:{tag}"
+    base_image_name = get_base_image(tmp_dir)
     try:
         client.api.inspect_image(image_name)
         out.blather(f"Image {image_name} found\n")
@@ -247,7 +248,7 @@ def build_image(tmp_dir, experiment_name, out) -> str:
     except docker.errors.ImageNotFound:
         out.blather(f"Image {image_name} not found - building\n")
 
-    dockerfile_text = fr"""FROM {get_base_image(tmp_dir)}
+    dockerfile_text = fr"""FROM {base_image_name}
     COPY requirements.txt /experiment/
     WORKDIR /experiment
     RUN python3 -m pip install -r requirements.txt
@@ -279,6 +280,16 @@ def build_image(tmp_dir, experiment_name, out) -> str:
                 continue
             line_decoded = json.loads(line)
             if "error" in line_decoded:
+                if line_decoded["error"] == "name unknown":
+                    out.blather(
+                        f"The base image for this dallinger version ({base_image_name}) was not found\n"
+                    )
+                    out.blather(
+                        "Try to update the dallinger version in requirements.txt and re-run\n"
+                    )
+                    out.blather("    dallinger generate-constraints\n")
+                    line_decoded["error"] == "name unknown"
+                    raise BuildError(f"Image {base_image_name} not found")
                 raise BuildError(line_decoded["error"])
             out.blather(line_decoded.get("stream", ""))
             if "error" in line_decoded:
