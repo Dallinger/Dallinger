@@ -429,7 +429,7 @@ class TestSetupExperiment(object):
         self, active_config, setup_experiment
     ):
         with mock.patch(
-            "dallinger.deployment.get_editable_dallinger_path"
+            "dallinger.utils.get_editable_dallinger_path"
         ) as get_editable_dallinger_path:
             # When dallinger is not installed as editable egg the requirements
             # file sent to heroku will include a version pin
@@ -442,7 +442,7 @@ class TestSetupExperiment(object):
         from dallinger.utils import assemble_experiment_temp_dir
 
         with mock.patch(
-            "dallinger.deployment.get_editable_dallinger_path"
+            "dallinger.utils.get_editable_dallinger_path"
         ) as get_editable_dallinger_path:
             # When dallinger is not installed as editable egg the requirements
             # file sent to heroku will include a version pin
@@ -478,7 +478,7 @@ class TestSetupExperiment(object):
             )
         )
         with mock.patch(
-            "dallinger.deployment.get_editable_dallinger_path"
+            "dallinger.utils.get_editable_dallinger_path"
         ) as get_editable_dallinger_path:
             get_editable_dallinger_path.return_value = tmp_egg
             log = mock.Mock()
@@ -889,7 +889,7 @@ class TestDebugServer(object):
             # deployment.py that invokes `pkg_resources.require`.
             # Monkey patching it here makes it work.
             # It would be interesting to get to the root cause.
-            with mock.patch("dallinger.deployment.pkg_resources"):
+            with mock.patch("dallinger.utils.pkg_resources"):
                 with mock.patch("dallinger.deployment.requests.post") as mock_post:
                     mock_post.return_value = mock.Mock(
                         ok=False,
@@ -1082,7 +1082,7 @@ class TestLoad(object):
 class TestConstraints(object):
     @pytest.mark.slow
     def test_constraints_generation(self):
-        from dallinger.deployment import ensure_constraints_file_presence
+        from dallinger.utils import ensure_constraints_file_presence
 
         tmp_path = tempfile.mkdtemp()
         (Path(tmp_path) / "requirements.txt").write_text("black")
