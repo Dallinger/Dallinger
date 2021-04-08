@@ -635,7 +635,13 @@ var dallinger = (function () {
     });
     spinner.freeze([$inputs, $button]);
     xhr.done(function () {
-      dlgr.submitAssignment().always(function () { spinner.unfreeze(); });
+      dlgr.submitAssignment().done(function () {
+       spinner.unfreeze();
+      }).fail(function (rejection) {
+        dlgr.error(rejection);
+      });
+    }).fail(function (rejection) {
+      dlgr.error(rejection);
     });
   };
 
