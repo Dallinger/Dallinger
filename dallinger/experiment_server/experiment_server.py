@@ -1557,7 +1557,7 @@ def worker_complete():
 
 def _worker_complete(participant_id):
     participant = models.Participant.query.get(participant_id)
-    if not participant:
+    if participant is None:
         raise KeyError()
 
     if participant.end_time is not None:  # Provide idempotence
