@@ -1,6 +1,8 @@
 import pytest
 import mock
 
+from dallinger.models import Participant
+
 
 def is_uuid(thing):
     return len(thing) == 36
@@ -118,3 +120,77 @@ class TestExperimentBaseClass(object):
             }
             exp.normalize_entry_information({"foo": "bar"})
             normalizer.assert_called_once_with({"foo": "bar"})
+
+    def test_participant_task_completed_grants_qualification_for_experiment_id(
+        self, exp
+    ):
+        participant = mock.Mock(spec=Participant, worker_id="some worker id")
+
+        exp.participant_task_completed(participant)
+
+        assert (
+            participant.recruiter.assign_experiment_qualifications.call_args_list
+            == [
+                mock.call(
+                    worker_id="some worker id",
+                    qualifications=[
+                        {
+                            "name": "TEST_EXPERIMENT_UID",
+                            "description": "Experiment-specific qualification",
+                        },
+                    ],
+                )
+            ]
+        )
+
+    def test_participant_task_completed_adds_group_qualification_if_group(
+        self, active_config, exp
+    ):
+        active_config.set("group_name", " some-group-1, some-group-2  ")
+        participant = mock.Mock(spec=Participant, worker_id="some worker id")
+
+        exp.participant_task_completed(participant)
+
+        assert (
+            participant.recruiter.assign_experiment_qualifications.call_args_list
+            == [
+                mock.call(
+                    worker_id="some worker id",
+                    qualifications=[
+                        {
+                            "name": "TEST_EXPERIMENT_UID",
+                            "description": "Experiment-specific qualification",
+                        },
+                        {
+                            "name": "some-group-1",
+                            "description": "Experiment group qualification",
+                        },
+                        {
+                            "name": "some-group-2",
+                            "description": "Experiment group qualification",
+                        },
+                    ],
+                )
+            ]
+        )
+
+    def test_participant_task_completed_skips_assigning_qualification_if_so_configured(
+        self, active_config, exp
+    ):
+        participant = mock.Mock(spec=Participant, worker_id="some worker id")
+        active_config.set("assign_qualifications", False)
+
+        exp.participant_task_completed(participant)
+
+        participant.recruiter.assign_experiment_qualifications.assert_not_called()
+
+    def test_participant_task_completed_skips_assigning_qualification_if_overrecruited(
+        self, exp
+    ):
+        participant = mock.Mock(
+            spec=Participant, worker_id="some worker id", status="overrecruited"
+        )
+
+        exp.participant_task_completed(participant)
+
+        participant.recruiter.assign_experiment_qualifications.assert_not_called()

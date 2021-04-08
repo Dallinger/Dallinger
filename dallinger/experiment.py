@@ -187,6 +187,44 @@ class Experiment(object):
         """
         return recruiters.from_config(get_config())
 
+    def calculate_qualifications(self, participant):
+        """All the qualifications we want to assign to a worker.
+
+        This default implementation produces qualifications compatible with
+        Dallinger's standard recruiters, and the MTurkRecruiter in particular.
+
+        Workers will always be assigned one qualification specific to the
+        experiment run. If a "group_name" config value is set, this will be
+        parsed for additional qualifications to grant.
+
+        Return type is a list of dictionaries with "name", "description", and
+        optionally "score" (an integer), or an empty list.
+
+        """
+        experiment_qualification_desc = "Experiment-specific qualification"
+        group_qualification_desc = "Experiment group qualification"
+        config = get_config()
+        group_names = [
+            n.strip() for n in config.get("group_name", "").split(",") if n.strip()
+        ]
+
+        # Experiment-run specific:
+        quals = [
+            {
+                "name": config.get("id"),
+                "description": experiment_qualification_desc,
+            }
+        ]
+        # From group_name:
+        quals.extend(
+            [
+                {"name": name, "description": group_qualification_desc}
+                for name in group_names
+            ]
+        )
+
+        return quals
+
     def is_overrecruited(self, waiting_count):
         """Returns True if the number of people waiting is in excess of the
         total number expected, indicating that this and subsequent users should
@@ -463,8 +501,39 @@ class Experiment(object):
         """
         return True
 
+    def participant_task_completed(self, participant):
+        """Called when an experiment task is finished and submitted, and prior
+        to data and attendance checks.
+
+        Assigns the qualifications to the Participant, via their recruiter.
+        These will include one Qualification for the experiment
+        ID, and others for the configured group_name, if it's been set.
+
+        Overrecruited participants don't receive qualifications, since they
+        haven't actually completed the experiment. This allows them to remain
+        eligible for future runs.
+
+        :param participant: the ``Participant`` instance
+        """
+        config = get_config()
+        if not bool(config.get("assign_qualifications")):
+            logger.info("Qualification assignment is globally disabled; ignoring.")
+            return
+
+        if participant.status == "overrecruited":
+            return
+
+        quals = self.calculate_qualifications(participant)
+        participant.recruiter.assign_experiment_qualifications(
+            worker_id=participant.worker_id, qualifications=quals
+        )
+
     def submission_successful(self, participant):
-        """Run when a participant submits successfully."""
+        """Run when a participant's experiment submission passes data
+        and attendence checks.
+
+        :param participant: the ``Participant`` instance
+        """
         pass
 
     def recruit(self):

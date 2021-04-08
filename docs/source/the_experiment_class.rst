@@ -62,6 +62,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: bonus_reason
 
+  .. automethod:: calculate_qualifications
+
   .. automethod:: collect
 
   .. automethod:: create_network
@@ -111,6 +113,8 @@ what to do with the database when the server receives requests from outside.
   .. automethod:: node_post_request
 
   .. automethod:: normalize_entry_information
+
+  .. automethod:: participant_task_completed
 
   .. automethod:: recruit
 

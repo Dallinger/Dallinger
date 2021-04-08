@@ -180,7 +180,7 @@ class WorkerEvent(object):
     def log(self, message):
         self.experiment.log(message, self.key)
 
-    def update_particant_end_time(self):
+    def update_participant_end_time(self):
         self.participant.end_time = self.now
 
 
@@ -192,7 +192,7 @@ class AssignmentAccepted(WorkerEvent):
 class AssignmentAbandoned(WorkerEvent):
     def __call__(self):
         if self.participant.status == "working":
-            self.update_particant_end_time()
+            self.update_participant_end_time()
             self.participant.status = "abandoned"
             self.experiment.assignment_abandoned(participant=self.participant)
 
@@ -200,7 +200,7 @@ class AssignmentAbandoned(WorkerEvent):
 class AssignmentReturned(WorkerEvent):
     def __call__(self):
         if self.participant.status == "working":
-            self.update_particant_end_time()
+            self.update_participant_end_time()
             self.participant.status = "returned"
             self.experiment.assignment_returned(participant=self.participant)
 
@@ -213,7 +213,7 @@ class AssignmentSubmitted(WorkerEvent):
         if not self.is_eligible(self.participant):
             return
 
-        self.update_particant_end_time()
+        self.update_participant_end_time()
         self.participant.status = "submitted"
         self.commit()
 
@@ -283,7 +283,7 @@ class AssignmentSubmitted(WorkerEvent):
 class BotAssignmentSubmitted(WorkerEvent):
     def __call__(self):
         self.log("Received bot submission.")
-        self.update_particant_end_time()
+        self.update_participant_end_time()
 
         # No checks for bot submission
         self.participant.recruiter.approve_hit(self.assignment_id)
@@ -296,7 +296,7 @@ class BotAssignmentSubmitted(WorkerEvent):
 class BotAssignmentRejected(WorkerEvent):
     def __call__(self):
         self.log("Received rejected bot submission.")
-        self.update_particant_end_time()
+        self.update_participant_end_time()
         self.participant.status = "rejected"
         self.commit()
 
@@ -307,12 +307,12 @@ class BotAssignmentRejected(WorkerEvent):
 class NotificationMissing(WorkerEvent):
     def __call__(self):
         if self.participant.status == "working":
-            self.update_particant_end_time()
+            self.update_participant_end_time()
             self.participant.status = "missing_notification"
 
 
 class AssignmentReassigned(WorkerEvent):
     def __call__(self):
-        self.update_particant_end_time()
+        self.update_participant_end_time()
         self.participant.status = "replaced"
         self.experiment.assignment_reassigned(participant=self.participant)

@@ -482,12 +482,12 @@ def mturkservice(active_config, fake_parsed_hit):
         is_sandbox=active_config.get("mode") != "live",
     )
 
+    def create_qual(name, description):
+        return {"id": "QualificationType id", "name": name, "description": description}
+
     mturk.check_credentials.return_value = True
-    mturk.create_qualification_type.return_value = {
-        "name": "QualificationType name",
-        "id": "QualificationType id",
-    }
     mturk.create_hit.return_value = fake_parsed_hit
+    mturk.create_qualification_type.side_effect = create_qual
     mturk.get_hits.return_value = iter([])
 
     return mturk
@@ -612,27 +612,6 @@ class TestMTurkRecruiter(object):
                 MTurkQualificationRequirements.min_approval(95),
                 MTurkQualificationRequirements.restrict_to_countries(["US"]),
             ],
-        )
-
-    def test_open_recruitment_creates_qualifications_for_experiment_app_id(
-        self, recruiter
-    ):
-        recruiter.open_recruitment(n=1)
-        recruiter.mturkservice.create_qualification_type.assert_called_once_with(
-            u"TEST_EXPERIMENT_UID", "Experiment-specific qualification"
-        )
-
-    def test_open_recruitment_creates_qualifications_for_exp_with_group_name(
-        self, recruiter
-    ):
-        recruiter.config.set("group_name", u"some group name")
-        recruiter.open_recruitment(n=1)
-        recruiter.mturkservice.create_qualification_type.assert_has_calls(
-            [
-                mock.call(u"TEST_EXPERIMENT_UID", "Experiment-specific qualification"),
-                mock.call(u"some group name", "Experiment group qualification"),
-            ],
-            any_order=True,
         )
 
     def test_open_recruitment_creates_no_qualifications_if_so_configured(
@@ -822,8 +801,12 @@ class TestMTurkRecruiter(object):
         assert result == {
             "hit": fake_parsed_hit,
             "qualification": {
-                "name": "QualificationType name",
+                "description": (
+                    "You have received a qualification to allow you to complete "
+                    "a compensation HIT from Dallinger for $10."
+                ),
                 "id": "QualificationType id",
+                "name": mock.ANY,
             },
             "email": {
                 "subject": "Dallinger Compensation HIT",
@@ -833,56 +816,53 @@ class TestMTurkRecruiter(object):
             },
         }
 
-    def test_notify_completed_assigns_exp_qualification(self, recruiter):
-        participant = mock.Mock(spec=Participant, worker_id="some worker id")
-        recruiter.notify_completed(participant)
-
-        recruiter.mturkservice.increment_qualification_score.assert_called_once_with(
-            "TEST_EXPERIMENT_UID", "some worker id"
-        )
-
-    def test_notify_completed_adds_group_qualification_if_group(self, recruiter):
-        participant = mock.Mock(spec=Participant, worker_id="some worker id")
-        recruiter.config.set("group_name", u"some existing group_name")
-        recruiter.notify_completed(participant)
-
-        recruiter.mturkservice.increment_qualification_score.assert_has_calls(
+    def test_assign_experiment_qualifications_creates_nonexistent_qualifications(
+        self, recruiter
+    ):
+        recruiter.assign_experiment_qualifications(
+            "some worker id",
             [
-                mock.call("TEST_EXPERIMENT_UID", "some worker id"),
-                mock.call("some existing group_name", "some worker id"),
+                {"name": "One", "description": "Description of One"},
+                {"name": "Two", "description": "Description of Two"},
             ],
-            any_order=True,
         )
 
-    def test_notify_completed_catches_nonexistent_qualification(self, recruiter):
-        from dallinger.mturk import QualificationNotFoundException
+        assert recruiter.mturkservice.create_qualification_type.call_args_list == [
+            mock.call("One", "Description of One"),
+            mock.call("Two", "Description of Two"),
+        ]
+        assert recruiter.mturkservice.increment_qualification_score.call_args_list == [
+            mock.call(
+                "QualificationType id",
+                "some worker id",
+            ),
+            mock.call(
+                "QualificationType id",
+                "some worker id",
+            ),
+        ]
 
-        participant = mock.Mock(spec=Participant, worker_id="some worker id")
-        error = QualificationNotFoundException("Ouch!")
-        recruiter.mturkservice.increment_qualification_score.side_effect = error
-
-        # logs, but does not raise:
-        recruiter.notify_completed(participant)
-
-    def test_notify_completed_skips_assigning_qualification_if_so_configured(
+    def test_assign_experiment_qualifications_assigns_existing_qualifications(
         self, recruiter
     ):
-        participant = mock.Mock(spec=Participant, worker_id="some worker id")
-        recruiter.config.set("group_name", u"some existing group_name")
-        recruiter.config.set("assign_qualifications", False)
-        recruiter.notify_completed(participant)
+        from dallinger.mturk import DuplicateQualificationNameError
 
-        recruiter.mturkservice.increment_qualification_score.assert_not_called()
-
-    def test_notify_completed_skips_assigning_qualification_if_overrecruited(
-        self, recruiter
-    ):
-        participant = mock.Mock(
-            spec=Participant, worker_id="some worker id", status="overrecruited"
+        recruiter.mturkservice.create_qualification_type.side_effect = (
+            DuplicateQualificationNameError
         )
-        recruiter.notify_completed(participant)
 
-        recruiter.mturkservice.increment_qualification_score.assert_not_called()
+        recruiter.assign_experiment_qualifications(
+            "some worker id",
+            [
+                {"name": "One", "description": "Description of One"},
+                {"name": "Two", "description": "Description of Two"},
+            ],
+        )
+
+        assert (
+            recruiter.mturkservice.increment_named_qualification_score.call_args_list
+            == [mock.call("One", "some worker id"), mock.call("Two", "some worker id")]
+        )
 
     def test_rejects_questionnaire_from_returns_none_if_working(self, recruiter):
         participant = mock.Mock(spec=Participant, status="working")

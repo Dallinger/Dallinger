@@ -1,12 +1,12 @@
 {% extends "layout.html" %}
 
 {% block body %}
-    <div class="container">
+    <div class="main_div">
         <div>
             <h1>Error!</h1>
             <hr>
             <div>
-                <p id="error-text">{{ error_text }}</p>
+                <p id="error-text"><em>{{ error_text }}</em></p>
                 <p>Please let us know how you encountered this error using the form below.</p>
                 <form id="error-response" action="/handle-error" method="POST">
                     <input type="hidden" name="error_type" value="{{ error_type }}" />
@@ -19,10 +19,13 @@
                     {% if request_data %}
                     <input type="hidden" name="request_data" value="{{ request_data }}" />
                     {% endif %}
-                    <textarea name="error_feedback"></textarea>
-                    <input type="submit" value="SUBMIT" />
+                    <div class="form-group">
+                        <textarea class="form-control" name="error_feedback"></textarea>
+                    </div>
+                    <input type="submit" class="btn btn-primary" value="SUBMIT" />
                 </form>
                 {% if compensate == True %}
+                <br>
                 <p>This HIT will be marked as completed and you should be compensated automatically once the above form is submitted.</p>
                 <p>To enquire about compensation, please contact the researcher at <a href="mailto:{{contact_address}}">{{contact_address}}</a> and quote the following information.</p>
                 <p>

@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import requests
+import time
 
 from rq import Queue
 from sqlalchemy import func
@@ -113,6 +114,10 @@ class Recruiter(object):
         """Throw an error."""
         raise NotImplementedError
 
+    def assign_experiment_qualifications(self, worker_id, qualifications):
+        """Assigns recruiter-specific qualifications to a worker, if supported."""
+        pass
+
     def compensate_worker(self, *args, **kwargs):
         """A recruiter may provide a means to directly compensate a worker."""
         raise NotImplementedError
@@ -126,12 +131,6 @@ class Recruiter(object):
     def reward_bonus(self, assignment_id, amount, reason):
         """Throw an error."""
         raise NotImplementedError
-
-    def notify_completed(self, participant):
-        """Allow the Recruiter to be notified when a recruited Participant
-        has completed an experiment they joined.
-        """
-        pass
 
     def notify_duration_exceeded(self, participants, reference_time):
         """Some participants have been working beyond the defined duration of
@@ -225,6 +224,14 @@ class CLIRecruiter(Recruiter):
         """Approve the HIT."""
         logger.info("Assignment {} has been marked for approval".format(assignment_id))
         return True
+
+    def assign_experiment_qualifications(self, worker_id, qualifications):
+        """Assigns recruiter-specific qualifications to a worker."""
+        logger.info(
+            "Worker ID {} earned these qualifications: {}".format(
+                worker_id, qualifications
+            )
+        )
 
     def reward_bonus(self, assignment_id, amount, reason):
         """Print out bonus info for the assignment"""
@@ -517,9 +524,6 @@ class MTurkRecruiter(Recruiter):
     nickname = "mturk"
     extra_routes = mturk_routes
 
-    experiment_qualification_desc = "Experiment-specific qualification"
-    group_qualification_desc = "Experiment group qualification"
-
     def __init__(self, *args, **kwargs):
         super(MTurkRecruiter, self).__init__()
         self.config = get_config()
@@ -565,15 +569,6 @@ class MTurkRecruiter(Recruiter):
             return "https://workersandbox.mturk.com/mturk/externalSubmit"
         return "https://www.mturk.com/mturk/externalSubmit"
 
-    @property
-    def qualifications(self):
-        quals = {self.config.get("id"): self.experiment_qualification_desc}
-        group_name = self.config.get("group_name", None)
-        if group_name:
-            quals[group_name] = self.group_qualification_desc
-
-        return quals
-
     def open_recruitment(self, n=1):
         """Open a connection to AWS MTurk and create a HIT."""
         logger.info("Opening MTurk recruitment for {} participants".format(n))
@@ -586,9 +581,6 @@ class MTurkRecruiter(Recruiter):
             raise MTurkRecruiterException("Can't run a HIT from localhost")
 
         self.mturkservice.check_credentials()
-
-        if self.config.get("assign_qualifications"):
-            self._create_mturk_qualifications()
 
         hit_request = {
             "experiment_id": self.config.get("id"),
@@ -604,7 +596,7 @@ class MTurkRecruiter(Recruiter):
             "question": MTurkQuestions.external(self.ad_url),
             "notification_url": self.notification_url,
             "annotation": self.config.get("id"),
-            "qualifications": self._build_hit_qualifications(),
+            "qualifications": self._build_required_hit_qualifications(),
         }
         hit_info = self.mturkservice.create_hit(**hit_request)
         self._record_current_hit_id(hit_info["id"])
@@ -614,6 +606,30 @@ class MTurkRecruiter(Recruiter):
             "items": [url],
             "message": "HIT now published to Amazon Mechanical Turk",
         }
+
+    def assign_experiment_qualifications(self, worker_id, qualifications):
+        """Assigns MTurk Qualifications to a worker.
+
+        @param worker_id       string  the MTurk worker ID
+        @param qualifications  list of dict w/   `name`, `description` and
+                               (optional) `score` keys
+        """
+        by_name = {qual["name"]: qual for qual in qualifications}
+        result = self._ensure_mturk_qualifications(qualifications)
+        for qual in result["new_qualifications"]:
+            score = by_name[qual["name"]].get("score")
+            if score is not None:
+                self.mturkservice.assign_qualification(
+                    qual["id"], worker_id, qual["score"]
+                )
+            else:
+                self.mturkservice.increment_qualification_score(qual["id"], worker_id)
+        for name in result["existing_qualifications"]:
+            score = by_name[name].get("score")
+            if score is not None:
+                self.mturkservice.assign_named_qualification(name, worker_id, score)
+            else:
+                self.mturkservice.increment_named_qualification_score(name, worker_id)
 
     def compensate_worker(self, worker_id, email, dollars, notify=True):
         """Pay a worker by means of a special HIT that only they can see."""
@@ -679,25 +695,6 @@ class MTurkRecruiter(Recruiter):
             )
         except MTurkServiceException as ex:
             logger.exception(str(ex))
-
-    def notify_completed(self, participant):
-        """Assign a Qualification to the Participant for the experiment ID,
-        and for the configured group_name, if it's been set.
-
-        Overrecruited participants don't receive qualifications, since they
-        haven't actually completed the experiment. This allows them to remain
-        eligible for future runs.
-        """
-        if participant.status == "overrecruited" or not self.qualification_active:
-            return
-
-        worker_id = participant.worker_id
-
-        for name in self.qualifications:
-            try:
-                self.mturkservice.increment_qualification_score(name, worker_id)
-            except QualificationNotFoundException as ex:
-                logger.exception(ex)
 
     def notify_duration_exceeded(self, participants, reference_time):
         """The participant has exceed the maximum time for the activity,
@@ -773,10 +770,6 @@ class MTurkRecruiter(Recruiter):
         """Does an MTurk HIT for the current experiment ID already exist?"""
         return self.current_hit_id() is not None
 
-    @property
-    def qualification_active(self):
-        return bool(self.config.get("assign_qualifications"))
-
     def current_hit_id(self):
         """Return the ID of the HIT associated with the active experiment ID
         if any such HIT exists.
@@ -815,7 +808,9 @@ class MTurkRecruiter(Recruiter):
         experiment_id = self.config.get("id")
         return "{}:{}".format(self.__class__.__name__, experiment_id)
 
-    def _build_hit_qualifications(self):
+    def _build_required_hit_qualifications(self):
+        # The Qualications an MTurk worker must have, or in the case of the
+        # blocklist, not have, in order for them to see and accept the HIT.
         quals = []
         reqs = MTurkQualificationRequirements
         if self.config.get("approve_requirement") is not None:
@@ -882,16 +877,59 @@ class MTurkRecruiter(Recruiter):
             return []
         return [item.strip() for item in as_string.split(",") if item.strip()]
 
-    def _create_mturk_qualifications(self):
-        """Create MTurk Qualification for experiment ID, and for group_name
-        if it's been set. Qualifications with these names already exist, but
-        it's faster to try and fail than to check, then try.
+    def _ensure_mturk_qualifications(self, qualifications):
+        """Create MTurk Qualifications for names that don't already exist,
+        but also return names that already do.
         """
-        for name, desc in self.qualifications.items():
+        result = {"new_qualifications": [], "existing_qualifications": []}
+        for qual in qualifications:
+            name = qual["name"]
+            desc = qual["description"]
             try:
-                self.mturkservice.create_qualification_type(name, desc)
+                result["new_qualifications"].append(
+                    {
+                        "name": name,
+                        "id": self.mturkservice.create_qualification_type(name, desc)[
+                            "id"
+                        ],
+                        "available": False,
+                    }
+                )
             except DuplicateQualificationNameError:
-                pass
+                result["existing_qualifications"].append(name)
+
+        # We need to make sure the new qualifications are actually ready
+        # for assignment, as there's a small delay.
+        for tries in range(5):
+            for new in result["new_qualifications"]:
+                if new["available"]:
+                    continue
+                try:
+                    self.mturkservice.get_qualification_type_by_name(new["name"])
+                except QualificationNotFoundException:
+                    logger.warn(
+                        "Did not find qualification {}. Trying again...".format(
+                            new["name"]
+                        )
+                    )
+                    time.sleep(1)
+                else:
+                    new["available"] = True
+            if all([n["available"] for n in result["new_qualifications"]]):
+                break
+
+        unavailable = [q for q in result["new_qualifications"] if not q["available"]]
+        if unavailable:
+            logger.warn(
+                "After several attempts, some qualifications are still not ready "
+                "for assignment: {}".format(", ".join(unavailable))
+            )
+        # Return just the available among the new ones
+        result["new_qualifications"] = [
+            q for q in result["new_qualifications"] if q["available"]
+        ]
+
+        return result
 
     def _resubmitted_msg(self, summary):
         templates = MTurkHITMessages.by_flavor(summary, self.config.get("whimsical"))
