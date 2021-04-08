@@ -239,15 +239,6 @@ class Experiment(object):
             for name in qualification_names
         ]
 
-    @property
-    def qualification_active(self):
-        """A boolean controlling whether any worker qualifications will be
-        assigned. By default this uses the `assign_qualifications` value from
-        config.txt.
-        """
-        config = get_config()
-        return bool(config.get("assign_qualifications"))
-
     def is_overrecruited(self, waiting_count):
         """Returns True if the number of people waiting is in excess of the
         total number expected, indicating that this and subsequent users should
@@ -538,7 +529,8 @@ class Experiment(object):
 
         :param participant: the ``Participant`` instance
         """
-        if not self.qualification_active:
+        config = get_config()
+        if not bool(config.get("assign_qualifications")):
             logger.info("Qualification assignment is globally disabled; ignoring.")
             return
 
