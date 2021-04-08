@@ -30,12 +30,6 @@ what to do with the database when the server receives requests from outside.
   .. autoattribute:: recruiter
     :annotation:
 
-  .. autoattribute:: qualifications
-    :annotation:
-
-  .. autoattribute:: group_qualifications
-    :annotation:
-
   .. autoattribute:: initial_recruitment_size
     :annotation:
 
@@ -67,6 +61,8 @@ what to do with the database when the server receives requests from outside.
   .. automethod:: bonus
 
   .. automethod:: bonus_reason
+
+  .. automethod:: calculate_qualifications
 
   .. automethod:: collect
 

@@ -187,57 +187,43 @@ class Experiment(object):
         """
         return recruiters.from_config(get_config())
 
-    @property
-    def qualifications(self):
+    def calculate_qualifications(self, participant):
         """All the qualifications we want to assign to a worker.
 
-        By default, workers will always be assigned one qualification specific
-        to the experiment run. The property `group_qualifications` defines
-        additional qualifications to assign.
+        This default implementation produces qualifications compatible with
+        Dallinger's standard recruiters, and the MTurkRecruiter in particular.
 
-        Type should be a list of dictionaries with "name", "description", and
+        Workers will always be assigned one qualification specific to the
+        experiment run. If a "group_name" config value is set, this will be
+        parsed for additional qualifications to grant.
+
+        Return type is a list of dictionaries with "name", "description", and
         optionally "score" (an integer), or an empty list.
 
-        If no "score" is provided, the recruiter will increment the worker's
-        current score for the qualification, setting it to 1 if it doesn't
-        previously exist.
         """
         experiment_qualification_desc = "Experiment-specific qualification"
+        group_qualification_desc = "Experiment group qualification"
         config = get_config()
+        group_names = [
+            n.strip() for n in config.get("group_name", "").split(",") if n.strip()
+        ]
+
+        # Experiment-run specific:
         quals = [
             {
                 "name": config.get("id"),
                 "description": experiment_qualification_desc,
             }
         ]
+        # From group_name:
+        quals.extend(
+            [
+                {"name": name, "description": group_qualification_desc}
+                for name in group_names
+            ]
+        )
 
-        return quals + self.group_qualifications
-
-    @property
-    def group_qualifications(self):
-        """Qualifications that likely span more than one experiment run.
-
-        By default, the config.txt variable `group_name` is treated
-        as a comma-delimited list of additional qualifications to assign,
-        but this property can be overridden to provide different behavior.
-
-        Type should be a list of dictionaries with "name", "description", and
-        optionally "score" (an integer), or an empty list.
-
-        If no "score" is provided, the recruiter will increment the worker's
-        current score for the qualification, setting it to 1 if it doesn't
-        previously exist.
-        """
-        group_qualification_desc = "Experiment group qualification"
-        config = get_config()
-        qualification_names = [
-            n.strip() for n in config.get("group_name", "").split(",") if n.strip()
-        ]
-
-        return [
-            {"name": name, "description": group_qualification_desc}
-            for name in qualification_names
-        ]
+        return quals
 
     def is_overrecruited(self, waiting_count):
         """Returns True if the number of people waiting is in excess of the
@@ -537,8 +523,9 @@ class Experiment(object):
         if participant.status == "overrecruited":
             return
 
+        quals = self.calculate_qualifications(participant)
         participant.recruiter.assign_experiment_qualifications(
-            worker_id=participant.worker_id, qualifications=self.qualifications
+            worker_id=participant.worker_id, qualifications=quals
         )
 
     def submission_successful(self, participant):
