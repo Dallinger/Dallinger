@@ -17,8 +17,7 @@ class TestExperimentBaseClass(object):
         return Experiment
 
     @pytest.fixture
-    def exp(self, active_config, klass):
-        # active_config.set("recruiter", "spy")
+    def exp(self, klass):
         return klass()
 
     @pytest.fixture
