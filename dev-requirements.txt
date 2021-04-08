@@ -302,7 +302,7 @@ pluggy==0.13.1
     #   tox
 pre-commit==2.11.1
     # via dallinger
-prometheus-client==0.10.0
+prometheus-client==0.10.1
     # via notebook
 prompt-toolkit==3.0.18
     # via
