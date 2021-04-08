@@ -17,7 +17,6 @@ from dallinger.command_line.utils import log
 from dallinger.command_line.utils import require_exp_directory
 from dallinger.command_line.utils import verify_id
 from dallinger.deployment import _handle_launch_data
-from dallinger.docker.tools import build_image
 from dallinger.utils import setup_experiment
 from dallinger.redis_utils import connect_to_redis
 
@@ -108,6 +107,8 @@ def _deploy_in_mode(mode, verbose, log, app=None):
 def deploy_heroku_docker(
     log, verbose=True, app=None, exp_config=None, prelaunch_actions=None
 ):
+    from dallinger.docker.tools import build_image
+
     if verbose:
         out = None
     else:
