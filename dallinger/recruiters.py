@@ -918,7 +918,14 @@ class MTurkRecruiter(Recruiter):
             if all([n["available"] for n in result["new_qualifications"]]):
                 break
 
-        return result
+        unavailable = [q for q in result if not q["available"]]
+        if unavailable:
+            logger.warn(
+                "After several attempts, some qualifications are still not ready "
+                "for assignment: {}".format(", ".join(unavailable))
+            )
+
+        return [q for q in result if q["available"]]
 
     def _resubmitted_msg(self, summary):
         templates = MTurkHITMessages.by_flavor(summary, self.config.get("whimsical"))
