@@ -1,6 +1,46 @@
 # Change Log
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v7.2.0](https://github.com/dallinger/dallinger/tree/v7.2.0) (2021-04-08)
+- Enhancement: Default python version for Heroku bumped to 3.9.2
+- Enhancement: a new ``debug_recruiter`` config variable and support for
+  registering a recruiter class at runtime provides the infrastructure to define
+  custom recruiters
+- Enhancement: a new config parameter ``disable_when_duration_exceeded``
+  (enabled by default to preserve default experiment behavior). When this
+  parameter is set to ``False`` the duration exceeded event triggered by the clock
+  server will not disable the MTurk auto-recruit or expire an MTurk HIT.
+- Enhancement: To provide more insight into your MTurk HIT inventory (similar
+  to feature of https://manage-hits-individually.s3.amazonaws.com), you can
+  now view all your HITs with ``dallinger hits`` instead of forcing you to
+  specify a Dallinger app ID
+- Enhancement: ``dallinger expire`` command now supports specifying a specific
+  HIT ID to expire, via the ``hit_id`` parameter, in addition to the classic
+  ``app`` parameter for expiring a HIT based on its relationship to an
+  experiment ID.
+- Enhancement: Allow greater experimental control over when and how qualifications
+  are assigned to workers for recruiters supporting qualifications. A new
+  Experiment method ``participant_task_completed()`` will be called with a
+  ``Participant`` instance when that participant completes the assignment. The
+  default implementation replicates the current behavior by assigning
+  a qualification based on the experiment ID, plus one or more additional
+  qualifications based on the ``group_name`` config value. A second new method,
+  ``calculate_qualifications()``, can be overridden to change which qualifications
+  are granted. Because the experiment is now responsible for triggering
+  qualification assignment, this no longer needs to be done at experiment end;
+  any time the experiment is called with a ``Participant`` as an argument can
+  be viewed as an opportunity to assign qualifications, by calling the
+  ``assign_experiment_qualifications()`` method on the ``Participant``'s
+  ``recruiter`` instance.
+- Bugfix: Improved error handling of local Postgres connection
+- Bugfix: dashboard link to configuration docs is fixed
+- Bugfix: prioritize the Experiment's calculation from is_overrecruited() over
+  anything else when deciding whether to let a Participant into the experiment
+- Bugfix: correctly identify when we are performing a remote deployment, so we
+  can perform the right set of pre-deployment checks
+- Bugfix: If a ``--proxy`` port is specified when running ``dallinger debug``,
+  the dashboard now also uses it
+
 ## [v7.1.0](https://github.com/dallinger/dallinger/tree/v7.1.0) (2021-03-19)
 - Initial docker support: `dallinger docker debug` command to run dallinger in a local container
 - Feature: For experiments not using the MTurk Recruiter, it is now
