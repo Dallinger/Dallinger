@@ -5,6 +5,8 @@ jobs:
 
   check_mturk_changes:
     runs-on: ubuntu-latest
+    outputs:
+      needs_mturk_tests: ${{ steps.check_files.outputs.mturk_changed }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -110,7 +112,7 @@ jobs:
           aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
-          tox ${{ needs.check_mturk_changes.outputs.mturk_changed == 'true' && '-- --mturkfull' || ''}}
+          tox ${{ needs.check_mturk_changes.outputs.needs_mturk_tests == 'true' && '-- --mturkfull' || ''}}
           npm run test --coverage
         if: matrix.python-version == 3.9
       - name: Run Fast Tests Only
