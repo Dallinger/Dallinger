@@ -234,7 +234,7 @@ def get_experiment_image_tag(experiment_tmp_path: str) -> str:
     The experiment directory can then be mounted to have the latest changes.
     This saves the need to rebuild the image too often.
     """
-    files = "requirements.txt", "prepare_container.sh"
+    files = "requirements.txt", "prepare_docker_image.sh"
     hash = sha256()
     for filename in files:
         filepath = Path(experiment_tmp_path) / filename
@@ -255,11 +255,11 @@ def build_image(tmp_dir, experiment_name, out) -> str:
         out.blather(f"Image {image_name} not found - building\n")
 
     dockerfile_text = fr"""FROM {base_image_name}
-    COPY prepare_container.sh /experiment/
+    COPY prepare_docker_image.sh /experiment/
     WORKDIR /experiment
-    RUN echo 'Running script prepare_container.sh' && \
-        chmod 755 ./prepare_container.sh && \
-        ./prepare_container.sh
+    RUN echo 'Running script prepare_docker_image.sh' && \
+        chmod 755 ./prepare_docker_image.sh && \
+        ./prepare_docker_image.sh
     COPY requirements.txt /experiment/
     RUN python3 -m pip install -r requirements.txt
     """
@@ -271,8 +271,8 @@ def build_image(tmp_dir, experiment_name, out) -> str:
     context_tar.addfile(info, fileobj=dockerfile)
     context_tar.add(str(Path(tmp_dir) / "requirements.txt"), arcname="requirements.txt")
     context_tar.add(
-        str(Path(tmp_dir) / "prepare_container.sh"),
-        arcname="prepare_container.sh",
+        str(Path(tmp_dir) / "prepare_docker_image.sh"),
+        arcname="prepare_docker_image.sh",
     )
     context_tar.close()
     context.seek(0)

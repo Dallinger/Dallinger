@@ -491,7 +491,7 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
       in the experiment (Dallinger should have generated one with pip-compile
       if needed by the time we reach this code)
     - A dallinger zip (only if dallinger is installed in editable mode)
-    - A prepare_container.sh script (possibly empty)
+    - A prepare_docker_image.sh.sh script (possibly empty)
 
     Assumes the experiment root directory is the current working directory.
 
@@ -574,11 +574,11 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
         src = os.path.join(dallinger_root, "heroku", "Procfile_no_clock")
         shutil.copy(src, os.path.join(dst, "Procfile"))
 
-    dst_prepare_container = Path(dst) / "prepare_container.sh"
-    if not dst_prepare_container.exists():
+    dst_prepare_docker_image = Path(dst) / "prepare_docker_image.sh"
+    if not dst_prepare_docker_image.exists():
         shutil.copyfile(
-            Path(dallinger_root) / "docker" / "prepare_container.sh",
-            dst_prepare_container,
+            Path(dallinger_root) / "docker" / "prepare_docker_image.sh",
+            dst_prepare_docker_image,
         )
 
     ExplicitFileSource(os.getcwd()).selective_copy_to(dst)
