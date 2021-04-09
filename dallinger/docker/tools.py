@@ -20,7 +20,6 @@ from dallinger.utils import get_editable_dallinger_path
 docker_compose_template = Template(
     abspath_from_egg("dallinger", "dallinger/docker/docker-compose.yml.j2").read_text()
 )
-client = docker.client.from_env()
 
 
 class DockerComposeWrapper(object):
@@ -126,6 +125,7 @@ class DockerComposeWrapper(object):
         self.wait_redis_ready()
         # Make sure the containers are all started
         errors = []
+        client = docker.client.from_env()
         for container_id in self.run_compose(["ps", "-q"]).decode("utf-8").split():
             container = client.containers.get(container_id)
             try:
@@ -162,6 +162,7 @@ class DockerComposeWrapper(object):
         # How can we get a stream for two containers?
         # Or, as an alternative, how do we combine two of these (blocking?) iterators?
         # logs = client.api.events(filters={"ancestor": [f"{self.experiment_name}-web", f"{self.experiment_name}-worker"]})
+        client = docker.client.from_env()
         logs = client.api.attach(self.get_container_name("web"), stream=True, logs=True)
         for raw_line in logs:
             line = raw_line.decode("utf-8", errors="ignore")
@@ -247,6 +248,7 @@ def build_image(tmp_dir, experiment_name, out) -> str:
     tag = get_experiment_image_tag(tmp_dir)
     image_name = f"{experiment_name}:{tag}"
     base_image_name = get_base_image(tmp_dir)
+    client = docker.client.from_env()
     try:
         client.api.inspect_image(image_name)
         out.blather(f"Image {image_name} found\n")

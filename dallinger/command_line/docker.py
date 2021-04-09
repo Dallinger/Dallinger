@@ -24,6 +24,13 @@ from dallinger.redis_utils import connect_to_redis
 @click.group()
 def docker():
     """Use docker for local debug and deployment."""
+    import docker
+
+    try:
+        docker.client.from_env()
+    except docker.errors.DockerException:
+        print("Can't reach the docker damon. Is it running?")
+        raise click.Abort
 
 
 @docker.command()
