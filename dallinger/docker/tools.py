@@ -2,7 +2,6 @@ import docker
 import io
 import json
 import os
-import pkg_resources
 import re
 import tarfile
 import time
@@ -12,6 +11,8 @@ from jinja2 import Template
 from pathlib import Path
 from subprocess import check_output
 from subprocess import CalledProcessError
+from pip._internal.network.session import PipSession
+from pip._internal.req import parse_requirements
 
 from dallinger.utils import abspath_from_egg
 from dallinger.utils import get_editable_dallinger_path
@@ -211,10 +212,15 @@ def get_required_dallinger_version(experiment_tmp_path: str) -> str:
     """Examine the requirements.txt in an experiment tmp directory
     and return the dallinger version required by the experiment.
     """
-    requirements_text = (Path(experiment_tmp_path) / "requirements.txt").read_text()
-    requirements = pkg_resources.parse_requirements(requirements_text)
-    # The should be a single spec in the form `("==", "7.1.0")`
-    return [el.specs[0][1] for el in requirements if el.name == "dallinger"][0]
+    requirements_path = str(Path(experiment_tmp_path) / "requirements.txt")
+    all_requirements = parse_requirements(requirements_path, session=PipSession())
+    dallinger_requirements = [
+        el.requirement
+        for el in all_requirements
+        if el.requirement.startswith("dallinger")
+    ]
+    # pip-compile should have created a single spec in the form "dallinger==7.2.0"
+    return dallinger_requirements[0].split("==")[1]
 
 
 def get_experiment_image_tag(experiment_tmp_path: str) -> str:
@@ -249,13 +255,13 @@ def build_image(tmp_dir, experiment_name, out) -> str:
         out.blather(f"Image {image_name} not found - building\n")
 
     dockerfile_text = fr"""FROM {base_image_name}
-    COPY requirements.txt /experiment/
-    WORKDIR /experiment
-    RUN python3 -m pip install -r requirements.txt
     COPY prepare_container.sh /experiment/
+    WORKDIR /experiment
     RUN echo 'Running script prepare_container.sh' && \
         chmod 755 ./prepare_container.sh && \
         ./prepare_container.sh
+    COPY requirements.txt /experiment/
+    RUN python3 -m pip install -r requirements.txt
     """
     dockerfile = io.BytesIO(dockerfile_text.encode())
     context = io.BytesIO()

@@ -53,6 +53,7 @@ setup_args = dict(
         "gunicorn",
         "localconfig",
         "pexpect",
+        "pip>=20",
         "pip-tools",
         "psycopg2",
         "psutil",

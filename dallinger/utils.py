@@ -457,7 +457,7 @@ def ensure_constraints_file_presence(directory: str):
     prev_cwd = os.getcwd()
     try:
         os.chdir(directory)
-        compile_info = f"dallinger generate-constraints\n#\n# Compiled from a requirement.txt file with sha: {requirements_path_hash}"
+        compile_info = f"dallinger generate-constraints\n#\n# Compiled from a requirement.txt file with md5sum: {requirements_path_hash}"
         check_output(
             ["pip-compile", "requirements.txt", "-o", "constraints.txt"],
             env=dict(
