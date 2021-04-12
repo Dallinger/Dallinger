@@ -14,6 +14,7 @@ from subprocess import CalledProcessError
 from pip._internal.network.session import PipSession
 from pip._internal.req import parse_requirements
 
+from dallinger.docker.wheel_filename import parse_wheel_filename
 from dallinger.utils import abspath_from_egg
 from dallinger.utils import get_editable_dallinger_path
 
@@ -223,14 +224,19 @@ def get_required_dallinger_version(experiment_tmp_path: str) -> str:
     dallinger_requirements = [
         el.requirement
         for el in all_requirements
-        if el.requirement.startswith("dallinger")
+        if el.requirement.startswith("dallinger==")
+        or el.requirement.startswith(
+            "file:dallinger-"
+        )  # In case dallinger is installed in editable mode
     ]
-    # pip-compile should have created a single spec in the form "dallinger==7.2.0"
-    try:
-        return dallinger_requirements[0].split("==")[1]
-    except IndexError:
+    if not dallinger_requirements:
         print("Could not determine Dallinger version. Using latest")
         return ""
+    # pip-compile should have created a single spec in the form "dallinger==7.2.0"
+    if "==" in dallinger_requirements[0]:
+        return dallinger_requirements[0].split("==")[1]
+    # Or we might have a requirement like `file:dallinger-7.2.0-py3-none-any.whl`
+    return parse_wheel_filename(dallinger_requirements[0][len("file:") :]).version
 
 
 def get_experiment_image_tag(experiment_tmp_path: str) -> str:
