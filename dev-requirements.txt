@@ -330,7 +330,7 @@ pycparser==2.20
     # via cffi
 pyenchant==3.2.0
     # via sphinxcontrib-spelling
-pyflakes==2.2.0
+pyflakes==2.3.1
     # via flake8
 pygments==2.8.1
     # via
