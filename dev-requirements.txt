@@ -199,7 +199,7 @@ jsonschema==3.2.0
     # via
     #   docker-compose
     #   nbformat
-jupyter-client==6.1.13
+jupyter-client==6.2.0
     # via
     #   ipykernel
     #   jupyter-console
