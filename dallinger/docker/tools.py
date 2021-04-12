@@ -260,14 +260,12 @@ def build_image(tmp_dir, experiment_name, out) -> str:
         return image_name
     except docker.errors.ImageNotFound:
         out.blather(f"Image {image_name} not found - building\n")
-
     dockerfile_text = fr"""FROM {base_image_name}
-    COPY prepare_docker_image.sh /experiment/
+    COPY . /experiment
     WORKDIR /experiment
     RUN echo 'Running script prepare_docker_image.sh' && \
         chmod 755 ./prepare_docker_image.sh && \
         ./prepare_docker_image.sh
-    COPY requirements.txt /experiment/
     RUN python3 -m pip install -r requirements.txt
     """
     dockerfile = io.BytesIO(dockerfile_text.encode())
@@ -276,11 +274,7 @@ def build_image(tmp_dir, experiment_name, out) -> str:
     info = tarfile.TarInfo(name="Dockerfile")
     info.size = len(dockerfile_text)
     context_tar.addfile(info, fileobj=dockerfile)
-    context_tar.add(str(Path(tmp_dir) / "requirements.txt"), arcname="requirements.txt")
-    context_tar.add(
-        str(Path(tmp_dir) / "prepare_docker_image.sh"),
-        arcname="prepare_docker_image.sh",
-    )
+    context_tar.add(str(Path(tmp_dir)), arcname=".")
     context_tar.close()
     context.seek(0)
     output = client.api.build(
