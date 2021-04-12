@@ -226,7 +226,11 @@ def get_required_dallinger_version(experiment_tmp_path: str) -> str:
         if el.requirement.startswith("dallinger")
     ]
     # pip-compile should have created a single spec in the form "dallinger==7.2.0"
-    return dallinger_requirements[0].split("==")[1]
+    try:
+        return dallinger_requirements[0].split("==")[1]
+    except IndexError:
+        print("Could not determine Dallinger version. Using latest")
+        return ""
 
 
 def get_experiment_image_tag(experiment_tmp_path: str) -> str:
