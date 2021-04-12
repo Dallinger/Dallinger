@@ -135,13 +135,18 @@ class DockerComposeWrapper(object):
                     "healthy"  # Containers with no health check just need to be running
                 )
             if container.status != "running" or health != "healthy":
-                errors.append(f"{container.name}: {container.status} - {health}")
+                errors.append(
+                    {
+                        "name": container.name,
+                        "message": f"{container.status} - {health}",
+                    }
+                )
         if errors:
             self.out.error("Some services did not start properly:")
             for error in errors:
-                self.out.error(error)
+                self.out.error(f'{error["name"]}: {error["message"]}')
                 self.out.error(
-                    client.api.attach(error.split(" ")[0], logs=True).decode("utf-8")
+                    client.api.attach(error["name"], logs=True).decode("utf-8")
                 )
             raise DockerStartupError
         return self
