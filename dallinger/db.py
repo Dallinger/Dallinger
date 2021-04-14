@@ -122,7 +122,10 @@ def init_db(drop_all=False, bind=engine):
     # we need to import the experiment code, so that sqlalchemy has a chance
     # to update its metadata
     initialize_experiment_package(os.getcwd())
-    from dallinger_experiment import experiment  # noqa: F401
+    try:
+        from dallinger_experiment import experiment  # noqa: F401
+    except ImportError:
+        pass
 
     try:
         if drop_all:
