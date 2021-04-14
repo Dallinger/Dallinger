@@ -1,9 +1,10 @@
 import click
 import codecs
-import redis
 import os
+import subprocess
 import time
 
+from datetime import datetime
 from pathlib import Path
 from shlex import quote
 
@@ -18,7 +19,6 @@ from dallinger.command_line.utils import require_exp_directory
 from dallinger.command_line.utils import verify_id
 from dallinger.deployment import _handle_launch_data
 from dallinger.utils import setup_experiment
-from dallinger.redis_utils import connect_to_redis
 
 
 @click.group()
@@ -167,6 +167,7 @@ def deploy_heroku_docker(
 
     for name in addons:
         heroku_app.addon(name)
+    addons_t0 = datetime.now().astimezone().replace(microsecond=0)
 
     heroku_config = {
         "aws_access_key_id": config["aws_access_key_id"],
@@ -191,20 +192,31 @@ def deploy_heroku_docker(
 
     # While the addons start up we push the containers
     heroku_app.push_containers()
-
-    # Wait for Redis database to be ready.
-    log("Waiting for Redis (this can take a couple minutes)...", nl=False)
-    ready = False
-    while not ready:
-        try:
-            connect_to_redis(url=heroku_app.redis_url)
-            ready = True
-            log("\n✓ connected at {}".format(heroku_app.redis_url), chevrons=False)
-        except (ValueError, redis.exceptions.ConnectionError):
-            time.sleep(2)
-            log(".", chevrons=False, nl=False)
-
     heroku_app.release_containers()
+
+    log("Scaling up the dynos...")
+    default_size = config.get("dyno_type")
+    for process in ["web", "worker"]:
+        size = config.get("dyno_type_" + process, default_size)
+        qty = config.get("num_dynos_" + process)
+        heroku_app.scale_up_dyno(process, qty, size)
+
+    log("Waiting for addons to be ready...")
+    ready = False
+    addons_text = previous_addons_text = ""
+    while not ready:
+        addons_text = heroku_app._result(heroku_addons_cmd(heroku_app.name)).strip()
+        log("\033[F" * (len(previous_addons_text.split("\n")) + 2), chevrons=False)
+        log(addons_text, chevrons=False)
+        log(
+            f"Total time waiting for addons to be ready: {datetime.now().astimezone().replace(microsecond=0) - addons_t0}",
+            chevrons=False,
+        )
+        previous_addons_text = addons_text
+        if "creating" not in addons_text:
+            ready = True
+        else:
+            time.sleep(2)
 
     # Launch the experiment.
     log("Launching the experiment on the remote server and starting recruitment...")
@@ -246,3 +258,23 @@ def deploy_heroku_docker(
         # "recruitment_msg": launch_data.get("recruitment_msg", None),
     }
     return result
+
+
+def heroku_addons_cmd(app_name):
+    """Return a list suitable for invoking `heroku addons` that (if possible)
+    has colorful output.
+
+    If the `script` binary is available, use it to run the heroku CLI, so that
+    it detects a terminal and emits colorful output.
+    """
+    if HAS_SCRIPT:
+        return ["script", "-q", "--command", f"heroku addons -a {app_name}"]
+    return ["heroku", "addons", "-a", app_name]
+
+
+HAS_SCRIPT = (
+    subprocess.call(
+        "type script", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    == 0
+)
