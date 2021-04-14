@@ -98,6 +98,15 @@ def sandbox(verbose, app):
     _deploy_in_mode(mode="sandbox", verbose=verbose, log=log, app=app)
 
 
+@docker.command()
+@click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
+@click.option("--app", default=None, help="Experiment id")
+@require_exp_directory
+def deploy(verbose, app):
+    """Deploy app using Heroku to MTurk."""
+    _deploy_in_mode(mode="live", verbose=verbose, log=log, app=app)
+
+
 def _deploy_in_mode(mode, verbose, log, app=None):
     if app:
         verify_id(None, None, app)
