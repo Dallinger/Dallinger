@@ -276,7 +276,11 @@ def build_image(tmp_dir, experiment_name, out) -> str:
     RUN echo 'Running script prepare_docker_image.sh' && \
         chmod 755 ./prepare_docker_image.sh && \
         ./prepare_docker_image.sh
-    RUN python3 -m pip install -r requirements.txt
+    # We rely on the already installed dallinger: the docker image tag has been chosen
+    # based on the contents of this file. This makes sure dallinger stays installed from
+    # /dallinger, and that it doesn't waste space with two copies in two different layers.
+    RUN grep -v dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
+        python3 -m pip install -r /tmp/requirements_no_dallinger.txt
     """
     dockerfile = io.BytesIO(dockerfile_text.encode())
     context = io.BytesIO()
