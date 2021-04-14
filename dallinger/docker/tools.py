@@ -212,7 +212,7 @@ def get_base_image(experiment_tmp_path: str, needs_chrome: bool = False) -> str:
     base_image_name = "ghcr.io/dallinger/dallinger"
     if needs_chrome:
         base_image_name += "-bot"
-    return f"{base_image_name}:{dallinger_version}"
+    return f"{base_image_name}:{dallinger_version or 'latest'}"
 
 
 def get_required_dallinger_version(experiment_tmp_path: str) -> str:
