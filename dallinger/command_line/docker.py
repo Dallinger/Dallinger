@@ -146,6 +146,8 @@ def deploy_heroku_docker(
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
     heroku.log_in()
+    log("Making sure that you are logged in to Heroku container registry.")
+    heroku.container_log_in()
     config.set("heroku_auth_token", heroku.auth_token())
     log("", chevrons=False)
     for service in ["web", "worker"]:

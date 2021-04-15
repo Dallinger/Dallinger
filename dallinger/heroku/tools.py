@@ -36,6 +36,11 @@ def log_in():
         raise Exception("You are not logged into Heroku.")
 
 
+def container_log_in():
+    """Ensure that the user is logged in to Heroku container registry."""
+    check_output(["heroku", "container:login"])
+
+
 def request_headers(auth_token):
     """Return request headers using the provided authorization token."""
     headers = {
