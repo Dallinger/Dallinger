@@ -281,9 +281,12 @@ def heroku_addons_cmd(app_name):
     return ["heroku", "addons", "-a", app_name]
 
 
-HAS_SCRIPT = (
-    subprocess.call(
-        "type script", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    == 0
-)
+HAS_SCRIPT = False
+try:
+    if (
+        subprocess.check_output(["script", "-q", "--command", "echo success"]).strip()
+        == b"success"
+    ):
+        HAS_SCRIPT = True
+except subprocess.CalledProcessError:
+    pass
