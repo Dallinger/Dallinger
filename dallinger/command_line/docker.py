@@ -276,17 +276,33 @@ def heroku_addons_cmd(app_name):
     If the `script` binary is available, use it to run the heroku CLI, so that
     it detects a terminal and emits colorful output.
     """
-    if HAS_SCRIPT:
-        return ["script", "-q", "--command", f"heroku addons -a {app_name}"]
-    return ["heroku", "addons", "-a", app_name]
+    return script_command(["heroku", "addons", "-a", app_name])
 
 
-HAS_SCRIPT = False
-try:
-    if (
-        subprocess.check_output(["script", "-q", "--command", "echo success"]).strip()
-        == b"success"
-    ):
-        HAS_SCRIPT = True
-except subprocess.CalledProcessError:
-    pass
+def script_command(cmd):
+    return cmd
+
+
+def script_command_linux(cmd):
+    return ["script", "-q", "--command", " ".join(cmd)]
+
+
+def script_command_mac(cmd):
+    return ["script", "-q", "/dev/null"] + cmd
+
+
+for alternative in (script_command_linux, script_command_mac):
+    try:
+        if (
+            subprocess.check_output(
+                alternative(["echo", "success"]),
+                stderr=subprocess.PIPE,
+                stdin=None,
+                timeout=0.1,
+            ).strip()
+            == b"success"
+        ):
+            script_command = alternative  # noqa
+            break
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        pass
