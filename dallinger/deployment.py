@@ -37,7 +37,13 @@ MAX_ATTEMPTS = 6
 def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
     for remaining_attempt in sorted(range(attempts), reverse=True):  # [3, 2, 1, 0]
         time.sleep(delay)
-        launch_request = requests.post(url)
+        try:
+            launch_request = requests.post(url)
+            request_happened = True
+        except (requests.exceptions.RequestException):
+            request_happened = False
+            error(f"Error accessing {url}")
+
         try:
             launch_data = launch_request.json()
         except ValueError:
@@ -48,14 +54,15 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
             raise
 
         # Early return if successful
-        if launch_request.ok:
+        if request_happened and launch_request.ok:
             return launch_data
 
-        error(
-            "Error accessing {} ({}):\n{}".format(
-                url, launch_request.status_code, launch_request.text
+        if request_happened:
+            error(
+                "Error accessing {} ({}):\n{}".format(
+                    url, launch_request.status_code, launch_request.text
+                )
             )
-        )
 
         if remaining_attempt:
             delay = delay * BACKOFF_FACTOR
