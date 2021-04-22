@@ -24,9 +24,6 @@ logger = logging.getLogger("dallinger.db")
 
 db_url_default = "postgresql://dallinger:dallinger@localhost/dallinger"
 db_url = os.environ.get("DATABASE_URL", db_url_default)
-if db_url.startswith("postgres://"):
-    # The sqlalchemy dialect name needs to be `postgresql`, not `postgres`
-    db_url = f"postgresql://{db_url[11:]}"
 logger.debug(f"Using database URL {db_url}")
 engine = create_engine(db_url, pool_size=1000)
 session_factory = sessionmaker(autocommit=False, autoflush=True, bind=engine)

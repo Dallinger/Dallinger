@@ -176,7 +176,7 @@ def copy_heroku_to_local(id):
 
 def copy_db_to_csv(dsn, path, scrub_pii=False):
     """Copy a local database to a set of CSV files."""
-    if "postgresql://" in dsn or "postgres://" in dsn:
+    if "postgresql://" in dsn:
         conn = psycopg2.connect(dsn=dsn)
     else:
         conn = psycopg2.connect(database=dsn, user="dallinger")

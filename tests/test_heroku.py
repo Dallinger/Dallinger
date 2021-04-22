@@ -295,8 +295,8 @@ class TestHerokuApp(object):
         assert app.clock_is_on is False
 
     def test_db_uri(self, app, check_output):
-        check_output.return_value = b"blahblahpostgres://foobar"
-        assert app.db_uri == u"postgres://foobar"
+        check_output.return_value = b"blahblahpostgresql://foobar"
+        assert app.db_uri == u"postgresql://foobar"
 
     def test_db_uri_raises_if_no_match(self, app, check_output):
         check_output.return_value = u"└─ as DATABASE on ⬢ dlgr-da089b8f app".encode(
