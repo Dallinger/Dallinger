@@ -24,6 +24,11 @@ logger = logging.getLogger("dallinger.db")
 
 db_url_default = "postgresql://dallinger:dallinger@localhost/dallinger"
 db_url = os.environ.get("DATABASE_URL", db_url_default)
+
+import re
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
 logger.debug(f"Using database URL {db_url}")
 engine = create_engine(db_url, pool_size=1000)
 session_factory = sessionmaker(autocommit=False, autoflush=True, bind=engine)
