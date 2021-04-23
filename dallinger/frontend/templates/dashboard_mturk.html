@@ -146,7 +146,7 @@
         const durationOption = hoursDiff > 0 ? " --duration_hours " + hoursDiff : ""
         const sandboxOption = globals.isSandbox ? " --sandbox" : "";
 
-        const command = "dallinger extend_mturk_hit --hit_id " + globals.HITId + assignmentOption + durationOption + sandboxOption;
+        const command = "dallinger extend-mturk-hit --hit_id " + globals.HITId + assignmentOption + durationOption + sandboxOption;
 
         return command;
     }
