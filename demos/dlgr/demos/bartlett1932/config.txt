@@ -30,3 +30,6 @@ redis_size = hobby-dev
 host = 0.0.0.0
 clock_on = false
 logfile = -
+
+[Docker]
+image_base_name = ghcr.io/dallinger/dallinger/bartlett1932

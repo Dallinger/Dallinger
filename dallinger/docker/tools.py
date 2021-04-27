@@ -258,10 +258,10 @@ def get_experiment_image_tag(experiment_tmp_path: str) -> str:
     return hash.hexdigest()[:8]
 
 
-def build_image(tmp_dir, experiment_name, out, needs_chrome=False) -> str:
+def build_image(tmp_dir, base_image_name, out, needs_chrome=False) -> str:
     """Build the docker image for the experiment and return its name."""
     tag = get_experiment_image_tag(tmp_dir)
-    image_name = f"{experiment_name}:{tag}"
+    image_name = f"{base_image_name}:{tag}"
     base_image_name = get_base_image(tmp_dir, needs_chrome)
     client = docker.client.from_env()
     try:

@@ -107,6 +107,31 @@ def deploy(verbose, app):
     _deploy_in_mode(mode="live", verbose=verbose, log=log, app=app)
 
 
+@docker.command()
+@require_exp_directory
+def push():
+    """Build a docker image for this experiment and push it."""
+    from dallinger.docker.tools import build_image
+    from docker import client
+
+    config = get_config()
+    config.load()
+    _, tmp = setup_experiment(log=log, debug=True, local_checks=False)
+    docker_client = client.from_env()
+    image_base_name = config.get("image_base_name")
+    image_name_with_tag = build_image(tmp, image_base_name, Output())
+    for line in docker_client.images.push(image_base_name, stream=True, decode=True):
+        if "status" in line:
+            print(line.get("status", ""), end="")
+            print(line.get("progress", ""))
+        if "error" in line:
+            print(line.get("error", "") + "\n")
+        if "aux" in line:
+            print(f'Pushed image: {line["aux"]["Digest"]}\n')
+    pushed_image = docker_client.images.get(image_name_with_tag).attrs["RepoDigests"][0]
+    print(f"Image {pushed_image} built and pushed.\n")
+
+
 def _deploy_in_mode(mode, verbose, log, app=None):
     if app:
         verify_id(None, None, app)
@@ -125,10 +150,6 @@ def deploy_heroku_docker(
 ):
     from dallinger.docker.tools import build_image
 
-    if verbose:
-        out = None
-    else:
-        out = open(os.devnull, "w")
     config = get_config()
     if not config.ready:
         config.load()
@@ -161,6 +182,7 @@ def deploy_heroku_docker(
     cwd = os.getcwd()
     os.chdir(tmp)
 
+    out = None if verbose else open(os.devnull, "w")
     team = config.get("heroku_team", None)
     heroku_app = HerokuApp(dallinger_uid=heroku_app_id, output=out, team=team)
     heroku_app.bootstrap(buildpack=None)
