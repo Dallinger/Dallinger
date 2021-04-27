@@ -113,7 +113,7 @@ class DockerComposeWrapper(object):
 
     def start(self):
         self.copy_docker_compse_files()
-        build_image(self.tmp_dir, self.experiment_name, self.out)
+        build_image(self.tmp_dir, self.experiment_name, self.out, self.needs_chrome)
         check_output("docker-compose up -d".split())
         # Wait for postgres to complete initialization
         self.wait_postgres_ready()
@@ -258,11 +258,11 @@ def get_experiment_image_tag(experiment_tmp_path: str) -> str:
     return hash.hexdigest()[:8]
 
 
-def build_image(tmp_dir, experiment_name, out) -> str:
+def build_image(tmp_dir, experiment_name, out, needs_chrome=False) -> str:
     """Build the docker image for the experiment and return its name."""
     tag = get_experiment_image_tag(tmp_dir)
     image_name = f"{experiment_name}:{tag}"
-    base_image_name = get_base_image(tmp_dir)
+    base_image_name = get_base_image(tmp_dir, needs_chrome)
     client = docker.client.from_env()
     try:
         client.api.inspect_image(image_name)
