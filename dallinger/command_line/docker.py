@@ -109,6 +109,18 @@ def deploy(verbose, app):
 
 @docker.command()
 @require_exp_directory
+def build():
+    """Build a docker image for this experiment and push it."""
+    from dallinger.docker.tools import build_image
+
+    config = get_config()
+    config.load()
+    _, tmp = setup_experiment(log=log, debug=True, local_checks=False)
+    build_image(tmp, config.get("image_base_name"), Output())
+
+
+@docker.command()
+@require_exp_directory
 def push():
     """Build a docker image for this experiment and push it."""
     from dallinger.docker.tools import build_image
@@ -117,17 +129,18 @@ def push():
     config = get_config()
     config.load()
     _, tmp = setup_experiment(log=log, debug=True, local_checks=False)
+    image_name_with_tag = build_image(tmp, config.get("image_base_name"), Output())
     docker_client = client.from_env()
-    image_base_name = config.get("image_base_name")
-    image_name_with_tag = build_image(tmp, image_base_name, Output())
-    for line in docker_client.images.push(image_base_name, stream=True, decode=True):
+    for line in docker_client.images.push(
+        image_name_with_tag, stream=True, decode=True
+    ):
         if "status" in line:
             print(line["status"], end="")
             print(line.get("progress", ""))
         if "error" in line:
             print(line.get("error", "") + "\n")
             if "unauthenticated" in line["error"]:
-                registry_name = image_base_name.split("/")[0]
+                registry_name = image_name_with_tag.split("/")[0]
                 for help_line in REGISTRY_UNAUTHORIZED_HELP_TEXTS.get(
                     registry_name, REGISTRY_UNAUTHORIZED_HELP_TEXT
                 ):
