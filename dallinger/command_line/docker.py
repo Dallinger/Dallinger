@@ -122,14 +122,40 @@ def push():
     image_name_with_tag = build_image(tmp, image_base_name, Output())
     for line in docker_client.images.push(image_base_name, stream=True, decode=True):
         if "status" in line:
-            print(line.get("status", ""), end="")
+            print(line["status"], end="")
             print(line.get("progress", ""))
         if "error" in line:
             print(line.get("error", "") + "\n")
+            if "unauthenticated" in line["error"]:
+                registry_name = image_base_name.split("/")[0]
+                for help_line in REGISTRY_UNAUTHORIZED_HELP_TEXTS.get(
+                    registry_name, REGISTRY_UNAUTHORIZED_HELP_TEXT
+                ):
+                    print(help_line.format(**locals()))
+            if "denied" in line["error"]:
+                print(
+                    f"Your current account does not have permission to push to {image_name_with_tag}"
+                )
+            raise click.Abort
         if "aux" in line:
             print(f'Pushed image: {line["aux"]["Digest"]}\n')
     pushed_image = docker_client.images.get(image_name_with_tag).attrs["RepoDigests"][0]
     print(f"Image {pushed_image} built and pushed.\n")
+
+
+REGISTRY_UNAUTHORIZED_HELP_TEXTS = {
+    "ghcr.io": [
+        "You need to login to the github docker registry {registry_name}.",
+        "You need to create a PAT (Personal Access Token) here:",
+        "https://github.com/settings/tokens/new?scopes=write:packages",
+        "and use it to log in with the command",
+        "docker login {registry_name}",
+    ]
+}
+REGISTRY_UNAUTHORIZED_HELP_TEXT = [
+    "You need to login to the {registry_name} registry with the command:",
+    "docker login {registry_name}",
+]
 
 
 def _deploy_in_mode(mode, verbose, log, app=None):
