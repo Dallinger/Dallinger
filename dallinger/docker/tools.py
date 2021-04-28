@@ -273,6 +273,9 @@ def build_image(tmp_dir, base_image_name, out, needs_chrome=False) -> str:
     dockerfile_text = fr"""FROM {base_image_name}
     COPY . /experiment
     WORKDIR /experiment
+    # If a dallinger wheel is present, install it.
+    # This will be true if Dallinger was installed with the editable `-e` flag
+    RUN ls -ltr dallinger-*.whl && pip install dallinger-*.whl
     RUN echo 'Running script prepare_docker_image.sh' && \
         chmod 755 ./prepare_docker_image.sh && \
         ./prepare_docker_image.sh
@@ -281,6 +284,8 @@ def build_image(tmp_dir, base_image_name, out, needs_chrome=False) -> str:
     # /dallinger, and that it doesn't waste space with two copies in two different layers.
     RUN grep -v dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
         python3 -m pip install -r /tmp/requirements_no_dallinger.txt
+    ENV PORT=5000
+    CMD dallinger_heroku_web
     """
     dockerfile = io.BytesIO(dockerfile_text.encode())
     context = io.BytesIO()
