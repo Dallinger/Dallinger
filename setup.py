@@ -51,6 +51,7 @@ setup_args = dict(
         "gevent",
         "greenlet",
         "gunicorn",
+        "heroku3",
         "localconfig",
         "pexpect",
         "pip>=20",

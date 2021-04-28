@@ -148,6 +148,8 @@ greenlet==1.0.0
     #   sqlalchemy
 gunicorn==20.1.0
     # via dallinger
+heroku3==4.2.3
+    # via dallinger
 identify==2.2.2
     # via pre-commit
 idna==2.10
@@ -358,6 +360,7 @@ python-dateutil==2.8.1
     # via
     #   botocore
     #   faker
+    #   heroku3
     #   jupyter-client
     #   pandas
 python-dotenv==0.17.0
@@ -396,6 +399,7 @@ requests==2.25.1
     #   dallinger
     #   docker
     #   docker-compose
+    #   heroku3
     #   sphinx
 rq==1.8.0
     # via dallinger

@@ -61,6 +61,8 @@ greenlet==1.0.0
     #   sqlalchemy
 gunicorn==20.1.0
     # via dallinger
+heroku3==4.2.3
+    # via dallinger
 idna==2.10
     # via requests
 itsdangerous==1.1.0
@@ -103,6 +105,7 @@ python-dateutil==2.8.1
     # via
     #   botocore
     #   faker
+    #   heroku3
 pytz==2021.1
     # via
     #   apscheduler
@@ -112,7 +115,9 @@ redis==3.5.3
     #   dallinger
     #   rq
 requests==2.25.1
-    # via dallinger
+    # via
+    #   dallinger
+    #   heroku3
 rq==1.8.0
     # via dallinger
 s3transfer==0.3.6

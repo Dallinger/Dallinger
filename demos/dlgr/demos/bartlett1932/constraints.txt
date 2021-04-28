@@ -8,9 +8,9 @@
 #
 apscheduler==3.7.0
     # via dallinger
-boto3==1.17.51
+boto3==1.17.59
     # via dallinger
-botocore==1.20.51
+botocore==1.20.59
     # via
     #   boto3
     #   s3transfer
@@ -30,7 +30,7 @@ click==7.1.2
     #   rq
 dallinger==7.2.0
     # via -r requirements.txt
-faker==8.1.0
+faker==8.1.1
     # via dallinger
 flask-crossdomain==0.1
     # via dallinger
@@ -117,7 +117,7 @@ requests==2.25.1
     # via dallinger
 rq==1.8.0
     # via dallinger
-s3transfer==0.3.7
+s3transfer==0.4.2
     # via boto3
 selenium==3.141.0
     # via dallinger
@@ -129,7 +129,7 @@ six==1.15.0
     #   sqlalchemy-postgres-copy
 sqlalchemy-postgres-copy==0.5.0
     # via dallinger
-sqlalchemy==1.4.7
+sqlalchemy==1.4.11
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
@@ -164,7 +164,7 @@ wtforms==2.3.3
     # via flask-wtf
 zope.event==4.5.0
     # via gevent
-zope.interface==5.3.0
+zope.interface==5.4.0
     # via gevent
 
 # The following packages are considered to be unsafe in a requirements file:
