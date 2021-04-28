@@ -1,12 +1,15 @@
 import click
 import codecs
 import os
+import secrets
 import subprocess
 import time
 
 from datetime import datetime
 from pathlib import Path
 from shlex import quote
+from heroku3.core import Heroku as Heroku3Client
+import requests
 
 from dallinger import heroku
 from dallinger import registration
@@ -169,6 +172,72 @@ REGISTRY_UNAUTHORIZED_HELP_TEXT = [
     "You need to login to the {registry_name} registry with the command:",
     "docker login {registry_name}",
 ]
+
+
+@docker.command()
+@click.option("--app", help="Name to use for the Heroku app")
+@click.option("--image", required=True, help="Name of the docker image to deploy")
+def deploy_image(image, app):
+    """Deploy Heroku app using a docker image and MTurk."""
+    from docker import client
+
+    docker_client = client.from_env()
+
+    heroku_conn = Heroku3Client(session=requests.session())
+    print("Creating Heroku app")
+    app = heroku_conn.create_app()
+    print(f"Heroku app {app.name} created. Installing add-ons")
+    app.install_addon("heroku-postgresql:hobby-dev")
+    app.install_addon("heroku-redis:hobby-dev")
+    app.install_addon("papertrail")
+    print("Add-ons installed")
+
+    print(f"Pulling docker image {image}")
+    image_obj = docker_client.images.pull(image)
+    print(f"Finished pullng {image}")
+    heroku_image = f"registry.heroku.com/{app.id}"
+    image_obj.tag(heroku_image)
+    print(f"Pushing to {heroku_image}")
+    res = docker_client.images.push(heroku_image, stream=True, decode=True)
+
+    # TODO: create an image for worker (only CMD needs to change) and push it
+    # I could not find a way to specify a custom CMD
+
+    print("Waiting for image push and addons install")
+    expected_vars = {"DATABASE_URL", "REDIS_URL", "PAPERTRAIL_API_TOKEN"}
+    ready = False
+    while not ready:
+        time.sleep(2)
+        if expected_vars - set(app.config().to_dict()) == set():
+            ready = True
+    for line in res:
+        print(line)
+
+    config = get_config()
+    app.update_config(
+        {
+            "aws_access_key_id": config["aws_access_key_id"],
+            "aws_secret_access_key": config["aws_secret_access_key"],
+            "aws_region": config["aws_region"],
+            "auto_recruit": config["auto_recruit"],
+            "smtp_username": config["smtp_username"],
+            "smtp_password": config["smtp_password"],
+            "whimsical": config["whimsical"],
+            "FLASK_SECRET_KEY": secrets.token_urlsafe(16),
+        }
+    )
+
+    print("Deploying docker images")
+    payload = {
+        "updates": [
+            dict(type=type, docker_image=image_obj.id) for type in ("web", "worker")
+        ]
+    }
+    app._h._http_resource(
+        method="PATCH",
+        resource=("apps", app.id, "formation"),
+        data=app._h._resource_serialize(payload),
+    )
 
 
 def _deploy_in_mode(mode, verbose, log, app=None):
