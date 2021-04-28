@@ -45,13 +45,19 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
             error(f"Error accessing {url}")
 
         try:
-            launch_data = launch_request.json()
+            if request_happened:
+                launch_data = launch_request.json()
         except ValueError:
             error(
                 "Error parsing response from {}, "
                 "check web dyno logs for details: {}".format(url, launch_request.text)
             )
             raise
+        except json.decoder.JSONDecodeError:
+            # The Heroku backend did not return JSON. It means our dallinger instance
+            # was not (yet) running at the time of the request.
+            # We treat this similarly to a RequestException: we'll try again after waiting.
+            request_happened = False
 
         # Early return if successful
         if request_happened and launch_request.ok:
