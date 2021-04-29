@@ -1,10 +1,12 @@
 import click
 import codecs
+import netrc
 import os
 import secrets
 import subprocess
 import tempfile
 import time
+import uuid
 
 from datetime import datetime
 from pathlib import Path
@@ -195,6 +197,7 @@ def deploy_image(image, app, mode):
     config = get_config()
     config.load()
     dashboard_password = secrets.token_urlsafe(8)
+    dallinger_uid = str(uuid.uuid4())
     config_dict = {
         "aws_access_key_id": config.get("aws_access_key_id"),
         "aws_secret_access_key": config.get("aws_secret_access_key"),
@@ -206,6 +209,8 @@ def deploy_image(image, app, mode):
         "FLASK_SECRET_KEY": secrets.token_urlsafe(16),
         "dashboard_password": dashboard_password,
         "mode": "sandbox",
+        "CREATOR": netrc.netrc().hosts["api.heroku.com"][0],
+        "DALLINGER_UID": dallinger_uid,
     }
 
     heroku_conn = Heroku3Client(session=requests.session())
