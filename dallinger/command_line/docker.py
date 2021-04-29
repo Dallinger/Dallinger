@@ -186,11 +186,13 @@ REGISTRY_UNAUTHORIZED_HELP_TEXT = [
 
 @docker.command()
 @click.option(
-    "--mode",
-    default="sandbox",
-    help="Mode to use for MTurk (sandbox or live)",
-    show_default=True,
+    "--sandbox",
+    "mode",
+    flag_value="sandbox",
+    help="Deploy to MTurk sandbox",
+    default=True,
 )
+@click.option("--live", "mode", flag_value="live", help="Deploy to the real MTurk")
 @click.option("--image", required=True, help="Name of the docker image to deploy")
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 def deploy_image(image, mode, config_options):
@@ -209,7 +211,7 @@ def deploy_image(image, mode, config_options):
         "whimsical": config.get("whimsical"),
         "FLASK_SECRET_KEY": secrets.token_urlsafe(16),
         "dashboard_password": dashboard_password,
-        "mode": "sandbox",
+        "mode": mode,
         "CREATOR": netrc.netrc().hosts["api.heroku.com"][0],
         "DALLINGER_UID": dallinger_uid,
     }
