@@ -3,6 +3,7 @@ import codecs
 import os
 import secrets
 import subprocess
+import tempfile
 import time
 
 from datetime import datetime
@@ -21,7 +22,14 @@ from dallinger.command_line.utils import log
 from dallinger.command_line.utils import require_exp_directory
 from dallinger.command_line.utils import verify_id
 from dallinger.deployment import _handle_launch_data
+from dallinger.utils import abspath_from_egg
+from dallinger.utils import GitClient
 from dallinger.utils import setup_experiment
+
+
+HEROKU_YML = docker_compose_template = abspath_from_egg(
+    "dallinger", "dallinger/docker/heroku.yml"
+).read_text()
 
 
 @click.group()
@@ -176,67 +184,75 @@ REGISTRY_UNAUTHORIZED_HELP_TEXT = [
 
 @docker.command()
 @click.option("--app", help="Name to use for the Heroku app")
+@click.option(
+    "--mode", default="sandbox", help="Mode to use for MTurk (sandbox or live)"
+)
 @click.option("--image", required=True, help="Name of the docker image to deploy")
-def deploy_image(image, app):
+def deploy_image(image, app, mode):
     """Deploy Heroku app using a docker image and MTurk."""
-    from docker import client
-
-    docker_client = client.from_env()
+    if not app:
+        app = "dlgr-"
+    config = get_config()
+    config.load()
+    dashboard_password = secrets.token_urlsafe(8)
+    config_dict = {
+        "aws_access_key_id": config.get("aws_access_key_id"),
+        "aws_secret_access_key": config.get("aws_secret_access_key"),
+        "aws_region": config.get("aws_region"),
+        "auto_recruit": config.get("auto_recruit"),
+        "smtp_username": config.get("smtp_username"),
+        "smtp_password": config.get("smtp_password"),
+        "whimsical": config.get("whimsical"),
+        "FLASK_SECRET_KEY": secrets.token_urlsafe(16),
+        "dashboard_password": dashboard_password,
+        "mode": "sandbox",
+    }
 
     heroku_conn = Heroku3Client(session=requests.session())
-    print("Creating Heroku app")
-    app = heroku_conn.create_app()
+    print(f"Creating Heroku app in {mode} mode")
+    app = heroku_conn.create_app(stack_id_or_name="container")
+    app_hostname = app.domains()[0].hostname
+    config_dict["HOST"] = app_hostname
     print(f"Heroku app {app.name} created. Installing add-ons")
     app.install_addon("heroku-postgresql:hobby-dev")
-    app.install_addon("heroku-redis:hobby-dev")
+    # redistogo is significantly faster to start than heroku-redis
+    app.install_addon("redistogo:nano")
     app.install_addon("papertrail")
     print("Add-ons installed")
+    tmp = tempfile.mkdtemp()
+    os.chdir(tmp)
+    Path("Dockerfile").write_text(f"FROM {image}")
+    Path("heroku.yml").write_text(HEROKU_YML)
+    git = GitClient()
+    git.init()
+    git.add("--all")
+    git.commit(f"Deploying image {image}")
 
-    print(f"Pulling docker image {image}")
-    image_obj = docker_client.images.pull(image)
-    print(f"Finished pullng {image}")
-    heroku_image = f"registry.heroku.com/{app.id}"
-    image_obj.tag(heroku_image)
-    print(f"Pushing to {heroku_image}")
-    res = docker_client.images.push(heroku_image, stream=True, decode=True)
+    # Launch the Heroku app.
+    print("Pushing code to Heroku...")
+    git.push(remote=app.git_url, branch="master:master")
 
-    # TODO: create an image for worker (only CMD needs to change) and push it
-    # I could not find a way to specify a custom CMD
-
-    print("Waiting for image push and addons install")
-    expected_vars = {"DATABASE_URL", "REDIS_URL", "PAPERTRAIL_API_TOKEN"}
+    print("Waiting for all addons to be ready")
+    expected_vars = {"DATABASE_URL", "REDISTOGO_URL", "PAPERTRAIL_API_TOKEN"}
     ready = False
     while not ready:
         time.sleep(2)
         if expected_vars - set(app.config().to_dict()) == set():
             ready = True
-    for line in res:
-        print(line)
 
-    config = get_config()
-    app.update_config(
-        {
-            "aws_access_key_id": config["aws_access_key_id"],
-            "aws_secret_access_key": config["aws_secret_access_key"],
-            "aws_region": config["aws_region"],
-            "auto_recruit": config["auto_recruit"],
-            "smtp_username": config["smtp_username"],
-            "smtp_password": config["smtp_password"],
-            "whimsical": config["whimsical"],
-            "FLASK_SECRET_KEY": secrets.token_urlsafe(16),
-        }
-    )
+    config_dict["REDIS_URL"] = app.config()["REDISTOGO_URL"]
+    app.update_config(config_dict)
 
-    print("Deploying docker images")
-    payload = {
-        "updates": [
-            dict(type=type, docker_image=image_obj.id) for type in ("web", "worker")
-        ]
-    }
-    app._h._http_resource(
-        method="PATCH",
-        resource=("apps", app.id, "formation"),
-        data=app._h._resource_serialize(payload),
+    print("Initializing database")
+    app.run_command("dallinger-housekeeper initdb")
+
+    print("Launching experiment")
+    app_url = f"https://{app_hostname}"
+    launch_data = _handle_launch_data(f"{app_url}/launch", print)
+    print(launch_data.get("recruitment_msg"))
+
+    print(
+        f"You can login to {app_url}/dashboard using this password {dashboard_password} and the username 'admin'"
     )
 
 
