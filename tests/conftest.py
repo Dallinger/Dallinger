@@ -1,3 +1,4 @@
+import json
 import mock
 import os
 import pytest
@@ -173,12 +174,13 @@ def custom_app_output():
         def my_check_output(cmd):
             if "auth:whoami" in cmd:
                 return b"test@example.com"
-            elif "config:get" in cmd:
-                if "CREATOR" in cmd and "dlgr-my-uid" in cmd:
-                    return b"test@example.com"
-                elif "DALLINGER_UID" in cmd:
-                    return cmd[-1].replace("dlgr-", "")
-                return b""
+            elif "config" in cmd:
+                return json.dumps(
+                    {
+                        "CREATOR": "test@example.com" if "dlgr-my-uid" in cmd else "",
+                        "DALLINGER_UID": cmd[-1].replace("dlgr-", ""),
+                    }
+                )
             elif "apps" in cmd:
                 return b"""[
 {"name": "dlgr-my-uid",
@@ -197,7 +199,7 @@ def custom_app_output():
 def patch_netrc():
     with mock.patch("dallinger.heroku.tools.netrc.netrc") as netrc:
         netrc.return_value.hosts = {"api.heroku.com": ["test@example.com"]}
-        yield
+        yield netrc
 
 
 def pytest_addoption(parser):

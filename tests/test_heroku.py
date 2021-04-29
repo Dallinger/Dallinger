@@ -609,9 +609,9 @@ class TestHerokuInfo(object):
 
         yield HerokuInfo(team="fake team")
 
-    def test_login_name(self, info, custom_app_output):
+    def test_login_name(self, info, patch_netrc):
         login_name = info.login_name()
-        custom_app_output.assert_has_calls([mock.call(["heroku", "auth:whoami"])])
+        patch_netrc.assert_has_calls([mock.call()])
         assert login_name == "test@example.com"
 
     def test_all_apps(self, info, custom_app_output):
@@ -636,15 +636,9 @@ class TestHerokuInfo(object):
         app_info = info.my_apps()
         custom_app_output.assert_has_calls(
             [
-                mock.call(["heroku", "auth:whoami"]),
                 mock.call(["heroku", "apps", "--json", "--team", "fake team"]),
-                mock.call(["heroku", "config:get", "CREATOR", "--app", "dlgr-my-uid"]),
-                mock.call(
-                    ["heroku", "config:get", "DALLINGER_UID", "--app", "dlgr-my-uid"]
-                ),
-                mock.call(
-                    ["heroku", "config:get", "CREATOR", "--app", "dlgr-another-uid"]
-                ),
+                mock.call(["heroku", "config", "--json", "--app", "dlgr-my-uid"]),
+                mock.call(["heroku", "config", "--json", "--app", "dlgr-another-uid"]),
             ]
         )
         assert app_info == [
