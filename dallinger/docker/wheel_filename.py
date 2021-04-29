@@ -109,7 +109,7 @@ def parse_wheel_filename(
 
 
 class InvalidFilenameError(ValueError):
-    """ Raised when an invalid wheel filename is encountered """
+    """Raised when an invalid wheel filename is encountered"""
 
     filename: str
 
