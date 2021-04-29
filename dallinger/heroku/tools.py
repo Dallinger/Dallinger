@@ -5,6 +5,7 @@ from __future__ import unicode_literals
 import json
 from six.moves import shlex_quote as quote
 import signal
+import netrc
 import os
 import psutil
 import re
@@ -70,7 +71,8 @@ class HerokuCommandRunner(object):
 
     def login_name(self):
         """Returns the current logged-in heroku user"""
-        return self._result(["heroku", "auth:whoami"]).strip()
+        # The Heroku CLI client stores credentials in the user's netrc file
+        return netrc.netrc().hosts["api.heroku.com"][0]
 
     def _run(self, cmd, pass_stderr=False):
         if pass_stderr:
@@ -104,14 +106,11 @@ class HerokuInfo(HerokuCommandRunner):
         my_apps = []
         for app in self.all_apps():
             name = app.get("name")
-            creator = self._result(
-                ["heroku", "config:get", "CREATOR", "--app", name]
-            ).strip()
-            if creator == my_login:
-                uid = self._result(
-                    ["heroku", "config:get", "DALLINGER_UID", "--app", name]
-                ).strip()
-                app["dallinger_uid"] = uid
+            config = json.loads(
+                self._result(["heroku", "config", "--json", "--app", name])
+            )
+            if config.get("CREATOR", "").strip() == my_login:
+                app["dallinger_uid"] = config.get("DALLINGER_UID").strip()
                 my_apps.append(app)
         return my_apps
 
