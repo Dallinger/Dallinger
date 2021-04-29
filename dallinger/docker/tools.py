@@ -275,7 +275,7 @@ def build_image(tmp_dir, base_image_name, out, needs_chrome=False) -> str:
     WORKDIR /experiment
     # If a dallinger wheel is present, install it.
     # This will be true if Dallinger was installed with the editable `-e` flag
-    RUN ls -ltr dallinger-*.whl && pip install dallinger-*.whl
+    RUN if [ -f dallinger-*.whl ]; then pip install dallinger-*.whl; fi
     RUN echo 'Running script prepare_docker_image.sh' && \
         chmod 755 ./prepare_docker_image.sh && \
         ./prepare_docker_image.sh
