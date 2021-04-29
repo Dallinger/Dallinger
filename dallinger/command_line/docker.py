@@ -185,15 +185,16 @@ REGISTRY_UNAUTHORIZED_HELP_TEXT = [
 
 
 @docker.command()
-@click.option("--app", help="Name to use for the Heroku app")
 @click.option(
-    "--mode", default="sandbox", help="Mode to use for MTurk (sandbox or live)"
+    "--mode",
+    default="sandbox",
+    help="Mode to use for MTurk (sandbox or live)",
+    show_default=True,
 )
 @click.option("--image", required=True, help="Name of the docker image to deploy")
-def deploy_image(image, app, mode):
+@click.option("--config", "-c", "config_options", nargs=2, multiple=True)
+def deploy_image(image, mode, config_options):
     """Deploy Heroku app using a docker image and MTurk."""
-    if not app:
-        app = "dlgr-"
     config = get_config()
     config.load()
     dashboard_password = secrets.token_urlsafe(8)
@@ -212,10 +213,11 @@ def deploy_image(image, app, mode):
         "CREATOR": netrc.netrc().hosts["api.heroku.com"][0],
         "DALLINGER_UID": dallinger_uid,
     }
-
+    config_dict.update(config_options)
     heroku_conn = Heroku3Client(session=requests.session())
     print(f"Creating Heroku app in {mode} mode")
-    app = heroku_conn.create_app(stack_id_or_name="container")
+    app_name = "dlgr-" + dallinger_uid.split("-")[0]
+    app = heroku_conn.create_app(stack_id_or_name="container", name=app_name)
     app_hostname = app.domains()[0].hostname
     config_dict["HOST"] = app_hostname
     print(f"Heroku app {app.name} created. Installing add-ons")
