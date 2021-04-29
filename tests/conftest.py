@@ -193,6 +193,13 @@ def custom_app_output():
         yield check_output
 
 
+@pytest.fixture(scope="session", autouse=True)
+def patch_netrc():
+    with mock.patch("dallinger.heroku.tools.netrc.netrc") as netrc:
+        netrc.return_value.hosts = {"api.heroku.com": ["test@example.com"]}
+        yield
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--webdriver",

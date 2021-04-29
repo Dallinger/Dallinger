@@ -212,7 +212,6 @@ class TestHerokuApp(object):
         )
 
     def test_bootstrap_creates_app_with_team(self, app, check_call, check_output):
-        check_output.return_value = "test@example.com"
         app.team = "some-team"
         app.bootstrap()
         check_call.assert_has_calls(
@@ -233,7 +232,6 @@ class TestHerokuApp(object):
         )
 
     def test_bootstrap_sets_variables(self, app, check_call, check_output):
-        check_output.return_value = "test@example.com"
         app.team = "some-team"
         app.bootstrap()
         check_call.assert_called_with(
