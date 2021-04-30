@@ -123,26 +123,29 @@ def deploy(verbose, app):
 @docker.command()
 @require_exp_directory
 def build():
-    """Build a docker image for this experiment and push it."""
+    """Build a docker image for this experiment."""
     from dallinger.docker.tools import build_image
 
     config = get_config()
     config.load()
     _, tmp = setup_experiment(log=log, debug=True, local_checks=False)
-    build_image(tmp, config.get("image_base_name"), Output())
+    build_image(tmp, config.get("image_base_name"), Output(), force_build=True)
 
 
 @docker.command()
+@click.option("--use-existing", is_flag=True, default=False)
 @require_exp_directory
-def push():
-    """Build a docker image for this experiment and push it."""
+def push(use_existing):
+    """Build and push the docker image for this experiment."""
     from dallinger.docker.tools import build_image
     from docker import client
 
     config = get_config()
     config.load()
     _, tmp = setup_experiment(log=log, debug=True, local_checks=False)
-    image_name_with_tag = build_image(tmp, config.get("image_base_name"), Output())
+    image_name_with_tag = build_image(
+        tmp, config.get("image_base_name"), Output(), force_build=not use_existing
+    )
     docker_client = client.from_env()
     for line in docker_client.images.push(
         image_name_with_tag, stream=True, decode=True

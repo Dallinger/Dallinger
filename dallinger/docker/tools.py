@@ -258,7 +258,9 @@ def get_experiment_image_tag(experiment_tmp_path: str) -> str:
     return hash.hexdigest()[:8]
 
 
-def build_image(tmp_dir, base_image_name, out, needs_chrome=False) -> str:
+def build_image(
+    tmp_dir, base_image_name, out, needs_chrome=False, force_build=False
+) -> str:
     """Build the docker image for the experiment and return its name."""
     tag = get_experiment_image_tag(tmp_dir)
     image_name = f"{base_image_name}:{tag}"
@@ -267,7 +269,9 @@ def build_image(tmp_dir, base_image_name, out, needs_chrome=False) -> str:
     try:
         client.api.inspect_image(image_name)
         out.blather(f"Image {image_name} found\n")
-        return image_name
+        if not force_build:
+            return image_name
+        out.blather("Rebuilding\n")
     except docker.errors.ImageNotFound:
         out.blather(f"Image {image_name} not found - building\n")
     dockerfile_text = fr"""FROM {base_image_name}
