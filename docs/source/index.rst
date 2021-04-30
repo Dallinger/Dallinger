@@ -72,7 +72,7 @@ designing new experiments for others to use.
     developing_dallinger_setup_guide
     creating_an_experiment
     networks
-    docker_setup
+    docker_support
     the_experiment_class
     classes
     web_api
