@@ -29,9 +29,7 @@ from dallinger.utils import GitClient
 from dallinger.utils import setup_experiment
 
 
-HEROKU_YML = docker_compose_template = abspath_from_egg(
-    "dallinger", "dallinger/docker/heroku.yml"
-).read_text()
+HEROKU_YML = abspath_from_egg("dallinger", "dallinger/docker/heroku.yml").read_text()
 
 
 @click.group()
@@ -225,12 +223,16 @@ def deploy_image(image, mode, config_options):
     app = heroku_conn.create_app(stack_id_or_name="container", name=app_name)
     app_hostname = app.domains()[0].hostname
     config_dict["HOST"] = app_hostname
+
     print(f"Heroku app {app.name} created. Installing add-ons")
-    app.install_addon("heroku-postgresql:hobby-dev")
+
+    app.install_addon(f"heroku-postgresql:{config.get('database_size', 'hobby-dev')}")
     # redistogo is significantly faster to start than heroku-redis
     app.install_addon("redistogo:nano")
     app.install_addon("papertrail")
     print("Add-ons installed")
+
+    # Prepare the git repo to push to Heroku
     tmp = tempfile.mkdtemp()
     os.chdir(tmp)
     Path("Dockerfile").write_text(f"FROM {image}")
