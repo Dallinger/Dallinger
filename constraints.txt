@@ -169,7 +169,7 @@ ipython-genutils==0.2.0
     #   notebook
     #   qtconsole
     #   traitlets
-ipython==7.22.0
+ipython==7.23.0
     # via
     #   ipykernel
     #   ipywidgets
