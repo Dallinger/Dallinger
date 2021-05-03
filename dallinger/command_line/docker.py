@@ -260,6 +260,23 @@ def deploy_image(image, mode, config_options):
     print("Initializing database")
     app.run_command("dallinger-housekeeper initdb")
 
+    print("Scaling dynos")
+    payload = {
+        "updates": [
+            dict(
+                type=type,
+                quantity=config.get(f"num_dynos_{type}", 1),
+                size=config.get("dyno_type", "hobby"),
+            )
+            for type in ("web", "worker")
+        ]
+    }
+    app._h._http_resource(
+        method="PATCH",
+        resource=("apps", app.id, "formation"),
+        data=app._h._resource_serialize(payload),
+    )
+
     print("Launching experiment")
     app_url = f"https://{app_hostname}"
     launch_data = _handle_launch_data(f"{app_url}/launch", print)

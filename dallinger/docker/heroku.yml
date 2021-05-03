@@ -1,12 +1,12 @@
 build:
   docker:
-    dallinger: Dockerfile
+    web: Dockerfile
 run:
   web:
     command:
       - dallinger_heroku_web
-    image: dallinger
+    image: web
   worker:
     command:
       - dallinger_heroku_worker
-    image: dallinger
+    image: web
