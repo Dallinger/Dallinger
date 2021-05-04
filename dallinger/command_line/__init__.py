@@ -32,6 +32,7 @@ from dallinger.deployment import DebugDeployment
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
 from dallinger.command_line.docker import docker
+from dallinger.command_line.docker_ssh import docker_ssh
 from dallinger.notifications import admin_notifier
 from dallinger.notifications import SMTPMailer
 from dallinger.notifications import EmailConfig
@@ -120,6 +121,7 @@ def dallinger():
 
 
 dallinger.add_command(docker)
+dallinger.add_command(docker_ssh)
 
 
 @dallinger.command()
