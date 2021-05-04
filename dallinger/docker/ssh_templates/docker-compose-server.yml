@@ -24,6 +24,7 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./caddy.d:/etc/caddy/caddy.d
       - caddy_config:/config
     networks:
       - dallinger

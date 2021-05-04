@@ -34,7 +34,9 @@ services:
       <<: *commonenv
       PORT: 5000
     networks:
-      - dallinger
+      dallinger:
+        aliases:
+          - {{ experiment_id }}_web
 
 volumes:
   dallinger_{{ experiment_id }}_redis_data:
