@@ -73,7 +73,8 @@ def prepare_server(ssh_host):
 )
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 def deploy(mode, image, ssh_host, dns_host, config_options):
-    tls = "tls internal" if ssh_host == "localhost" else ""
+    HAS_TLS = ssh_host != "localhost"
+    tls = "tls internal" if not HAS_TLS else ""
     if not dns_host:
         dns_host = get_dns_host(ssh_host)
     executor = Executor(ssh_host)
@@ -133,7 +134,7 @@ def deploy(mode, image, ssh_host, dns_host, config_options):
 
     print("Launching experiment")
     response = get_retrying_http_client().post(
-        f"https://{experiment_id}.{dns_host}/launch", verify=False
+        f"https://{experiment_id}.{dns_host}/launch", verify=HAS_TLS
     )
     print(response.json()["recruitment_msg"])
 
