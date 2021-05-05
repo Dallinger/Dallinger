@@ -60,27 +60,22 @@ class TestClockScheduler(object):
         assert patched_scheduler.start.called_once()
         assert get_config().ready
 
-    def test_launch_registers_additional_tasks(self, patched_scheduler):
-        from dallinger import experiment
-
-        jobs = self.clock.scheduler.get_jobs()
+    def test_launch_registers_additional_tasks(self, patched_scheduler, cleared_tasks):
+        jobs = patched_scheduler.get_jobs()
         assert len(jobs) == 1
 
-        experiment.EXPERIMENT_TASK_REGISTRATIONS["test_task"] = {
+        cleared_tasks["test_task"] = {
             "trigger": "interval",
             "kwargs": (("minutes", 5),),
         }
 
-        try:
-            self.clock.launch()
-            jobs = self.clock.scheduler.get_jobs()
-            assert len(jobs) == 2
-            assert (
-                jobs[1].func_ref
-                == "dallinger_experiment.dallinger_experiment:TestExperiment.test_task"
-            )
-        finally:
-            experiment.EXPERIMENT_TASK_REGISTRATIONS.clear()
+        self.clock.launch()
+        jobs = patched_scheduler.get_jobs()
+        assert len(jobs) == 2
+        assert (
+            jobs[1].func_ref
+            == "dallinger_experiment.dallinger_experiment:TestExperiment.test_task"
+        )
 
 
 @pytest.mark.usefixtures("experiment_dir", "active_config")
