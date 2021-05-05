@@ -114,7 +114,7 @@ s3transfer==0.4.2
     # via boto3
 selenium==3.141.0
     # via dallinger
-six==1.15.0
+six==1.16.0
     # via
     #   apscheduler
     #   dallinger
