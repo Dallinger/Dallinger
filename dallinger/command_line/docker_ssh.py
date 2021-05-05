@@ -1,12 +1,20 @@
 from io import BytesIO
+from getpass import getuser
 from uuid import uuid4
+from secrets import token_urlsafe
+from socket import gethostname
+from typing import Dict
 
 from jinja2 import Template
 import click
-import paramiko
+import requests
 
+from dallinger.config import get_config
 from dallinger.utils import abspath_from_egg
 
+
+HOSTNAME = gethostname()
+USER = getuser()
 
 DOCKER_COMPOSE_SERVER = abspath_from_egg(
     "dallinger", "dallinger/docker/ssh_templates/docker-compose-server.yml"
@@ -54,27 +62,40 @@ def deploy(mode, image, host, config_options):
     sftp = get_sftp(host)
     sftp.putfo(BytesIO(DOCKER_COMPOSE_SERVER), "dallinger/docker-compose.yml")
     sftp.putfo(BytesIO(CADDYFILE.format(host=host).encode()), "dallinger/Caddyfile")
-    executor.run("docker-compose -f dallinger/docker-compose.yml up -d")
+    executor.run("docker-compose -f ~/dallinger/docker-compose.yml up -d")
     print("Launched http and postgresql servers. Starting experiment")
 
-    experiment_id = uuid4().hex[:8]
+    experiment_uuid = str(uuid4())
+    experiment_id = f"dlgr-{experiment_uuid[:8]}"
+    dashboard_password = token_urlsafe(8)
+    config = get_config()
+    config.load()
+    cfg = config.as_dict()
+    cfg.update(
+        {
+            "FLASK_SECRET_KEY": token_urlsafe(16),
+            "dashboard_password": dashboard_password,
+            "mode": mode,
+            "CREATOR": f"{USER}@{HOSTNAME}",
+            "DALLINGER_UID": experiment_uuid,
+            "ADMIN_USER": "admin",
+        }
+    )
+    cfg.update(config_options)
+    del cfg["host"]  # The uppercase variable will be used instead
     executor.run(f"mkdir -p dallinger/{experiment_id}")
     sftp.putfo(
-        BytesIO(
-            DOCKER_COMPOSE_EXP_TPL.render(
-                experiment_id=experiment_id, experiment_image=image
-            ).encode()
-        ),
+        BytesIO(get_docker_compose_yml(cfg, experiment_id, image).encode()),
         f"dallinger/{experiment_id}/docker-compose.yml",
     )
     executor.run(
-        f"docker-compose -f dallinger/{experiment_id}/docker-compose.yml up -d"
+        f"docker-compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
     )
-    print(f"Experiment {experiment_id} started")
-
+    print(f"Experiment {experiment_id} started. Initializing database")
     executor.run(
-        f"docker-compose -f dallinger/{experiment_id}/docker-compose.yml up -d"
+        f"docker-compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
     )
+    print("Database initialized")
 
     caddy_conf = f"{experiment_id}.{host} {{\n    tls internal\n    reverse_proxy {experiment_id}_web:5000\n}}"
     sftp.putfo(
@@ -84,12 +105,28 @@ def deploy(mode, image, host, config_options):
 
     # Tell caddy we changed something in the configuration
     executor.run(
-        "docker-compose -f dallinger/docker-compose.yml exec -T httpserver caddy reload -config /etc/caddy/Caddyfile"
+        "docker-compose -f ~/dallinger/docker-compose.yml exec -T httpserver caddy reload -config /etc/caddy/Caddyfile"
     )
+
+    print("Launching experiment")
+    response = requests.post(f"https://{experiment_id}.{host}/launch", verify=False)
+    print(response.json()["recruitment_msg"])
 
     print("To display the logs for this experiment you can run:")
     print(
-        f"ssh {host} docker-compose -f dallinger/{experiment_id}/docker-compose.yml logs -f"
+        f"ssh {host} docker-compose -f ~/dallinger/{experiment_id}/docker-compose.yml logs -f"
+    )
+    print(
+        f"You can now log in to the console at https://{experiment_id}.{host}/dashboard as user {cfg['ADMIN_USER']} using password {cfg['dashboard_password']}"
+    )
+
+
+def get_docker_compose_yml(
+    config: Dict[str, str], experiment_id: str, experiment_image: str
+) -> str:
+    """Generate a docker-compose.yml file based on the given"""
+    return DOCKER_COMPOSE_EXP_TPL.render(
+        experiment_id=experiment_id, experiment_image=experiment_image, config=config
     )
 
 
@@ -97,6 +134,8 @@ class Executor:
     """Execute remote commands using paramiko"""
 
     def __init__(self, host):
+        import paramiko
+
         self.client = paramiko.SSHClient()
         self.client.load_system_host_keys()
         print(f"Connecting to {host}")
@@ -124,6 +163,8 @@ class ExecuteException(Exception):
 
 
 def get_sftp(host):
+    import paramiko
+
     client = paramiko.SSHClient()
     client.load_system_host_keys()
     client.connect(host)

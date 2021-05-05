@@ -22,6 +22,10 @@ services:
       REDIS_URL: redis://redis_{{ experiment_id }}:6379
       DATABASE_URL: postgresql://dallinger:dallinger@postgresql/dallinger
       HOME: /tmp
+      HOST: 0.0.0.0
+    {%- for key, value in config.items() %}
+      {{ key }}: {{ value | string() | tojson }}
+    {%- endfor %}
     networks:
       - dallinger
   web:

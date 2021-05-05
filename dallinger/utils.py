@@ -14,6 +14,7 @@ import tempfile
 import webbrowser
 
 from faker import Faker
+from flask import request
 from hashlib import md5
 from pathlib import Path
 from pkg_resources import get_distribution
@@ -38,6 +39,10 @@ def get_base_url():
     experiment config.
     If the URL is on Heroku makes sure the protocol is https.
     """
+    try:
+        return f"{request.scheme}://{request.host}"
+    except RuntimeError:
+        pass
     config = get_config()
     host = os.getenv("HOST", config.get("host"))
     if host == "0.0.0.0":
