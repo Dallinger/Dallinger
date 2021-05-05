@@ -40,6 +40,10 @@ class TestExperiment(Experiment):
         config = get_config()
         return config.get("_is_completed", None)
 
+    @classmethod
+    def test_task(cls):
+        return True
+
 
 class ZSubclassThatSortsLower(TestExperiment):
     @classmethod

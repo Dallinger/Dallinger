@@ -1429,3 +1429,38 @@ def load():
     except ImportError:
         logger.error("Could not import experiment.")
         raise
+
+
+EXPERIMENT_TASK_REGISTRATIONS = {}
+
+
+def scheduled_task(trigger, **kwargs):
+    """Creates a decorator to register experiment functions or classmethods as
+    tasks for the clock process. Accepts all
+    arguments for `apscheduler.schedulers.base.BaseSchedule.scheduled_job`
+    The task registration is deferred until clock server setup to allow tasks to be
+    overridden by subclasses.
+
+    :param trigger: an ``appscheduler`` trigger type. One of "interval", "cron",
+                    or "date"
+    :param \**kwargs: other arguments for `apscheduler.schedulers.base.BaseSchedule.scheduled_job`
+                      generally used for trigger arguments to determine
+                      the run interval.
+
+    :returns: A decorator to register methods from a class as scheduled tasks.
+    """  # noqa
+    registered_tasks = EXPERIMENT_TASK_REGISTRATIONS
+    scheduler_args = {
+        "trigger": trigger,
+        "kwargs": tuple(kwargs.items()),
+    }
+
+    def decorate(func):
+        # Check `__func__` in case we have a classmethod or staticmethod
+        base_func = getattr(func, "__func__", func)
+        name = getattr(base_func, "__name__", None)
+        if name is not None:
+            registered_tasks[name] = scheduler_args.copy()
+        return func
+
+    return decorate
