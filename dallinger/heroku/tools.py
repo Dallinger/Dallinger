@@ -20,7 +20,7 @@ from dallinger.utils import check_call, check_output
 
 def app_name(experiment_uuid):
     """Convert a UUID to a valid Heroku app name."""
-    return "dlgr-" + experiment_uuid[:8]
+    return "dlgr-" + experiment_uuid[:18]
 
 
 def auth_token():

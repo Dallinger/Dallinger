@@ -112,7 +112,7 @@ class TestHerokuUtilFunctions(object):
 
     def test_app_name(self, heroku):
         dallinger_uid = "8fbe62f5-2e33-4274-8aeb-40fc3dd621a0"
-        assert heroku.app_name(dallinger_uid) == "dlgr-8fbe62f5"
+        assert heroku.app_name(dallinger_uid) == "dlgr-8fbe62f5-2e33-4274"
 
     def test_auth_token(self, heroku, check_output):
         check_output.return_value = b"some response "
