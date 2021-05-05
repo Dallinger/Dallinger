@@ -8,11 +8,9 @@
     # via -r requirements.in
 apscheduler==3.7.0
     # via dallinger
-bcrypt==3.2.0
-    # via paramiko
-boto3==1.17.60
+boto3==1.17.66
     # via dallinger
-botocore==1.20.60
+botocore==1.20.66
     # via
     #   boto3
     #   s3transfer
@@ -22,11 +20,6 @@ cached-property==1.5.2
     # via dallinger
 certifi==2020.12.5
     # via requests
-cffi==1.14.5
-    # via
-    #   bcrypt
-    #   cryptography
-    #   pynacl
 chardet==4.0.0
     # via requests
 click==7.1.2
@@ -35,8 +28,6 @@ click==7.1.2
     #   flask
     #   pip-tools
     #   rq
-cryptography==3.4.7
-    # via paramiko
 faker==8.1.2
     # via dallinger
 flask-crossdomain==0.1
@@ -92,15 +83,13 @@ markupsafe==1.1.1
     #   wtforms
 packaging==20.9
     # via build
-paramiko==2.7.2
-    # via dallinger
 pep517==0.10.0
     # via
     #   build
     #   pip-tools
 pexpect==4.8.0
     # via dallinger
-pip-tools==6.0.1
+pip-tools==6.1.0
     # via dallinger
 psutil==5.8.0
     # via dallinger
@@ -110,10 +99,6 @@ psycopg2==2.8.6
     #   sqlalchemy-postgres-copy
 ptyprocess==0.7.0
     # via pexpect
-pycparser==2.20
-    # via cffi
-pynacl==1.4.0
-    # via paramiko
 pyparsing==2.4.7
     # via packaging
 python-dateutil==2.8.1
@@ -139,17 +124,15 @@ s3transfer==0.4.2
     # via boto3
 selenium==3.141.0
     # via dallinger
-six==1.15.0
+six==1.16.0
     # via
     #   apscheduler
-    #   bcrypt
     #   dallinger
-    #   pynacl
     #   python-dateutil
     #   sqlalchemy-postgres-copy
 sqlalchemy-postgres-copy==0.5.0
     # via dallinger
-sqlalchemy==1.4.11
+sqlalchemy==1.4.13
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
@@ -171,7 +154,7 @@ ua-parser==0.10.0
     # via
     #   dallinger
     #   user-agents
-urllib3==1.26.3
+urllib3==1.26.4
     # via
     #   botocore
     #   requests
