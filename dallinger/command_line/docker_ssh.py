@@ -3,10 +3,13 @@ from getpass import getuser
 from uuid import uuid4
 from secrets import token_urlsafe
 from socket import gethostname
+from socket import gethostbyname_ex
 from typing import Dict
 
 from jinja2 import Template
 import click
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import requests
 
 from dallinger.config import get_config
@@ -31,7 +34,8 @@ CADDYFILE = """
 # This is a configuration file for the Caddy http Server
 # Documentation can be found at https://caddyserver.com/docs
 {host} {{
-    tls internal
+    respond /health-check 200
+    {tls}
 }}
 
 import caddy.d/*
@@ -44,6 +48,15 @@ def docker_ssh():
 
 
 @docker_ssh.command()
+@click.option("--ssh-host", required=True, help="Server name to prepare for deployment")
+def prepare_server(ssh_host):
+    executor = Executor(ssh_host)
+    print("Installing docker-compose")
+    executor.run("python3 -m pip install --user docker-compose")
+    print("docker-compose installed")
+
+
+@docker_ssh.command()
 @click.option(
     "--sandbox",
     "mode",
@@ -53,15 +66,25 @@ def docker_ssh():
 )
 @click.option("--live", "mode", flag_value="live", help="Deploy to the real MTurk")
 @click.option("--image", required=True, help="Name of the docker image to deploy")
-@click.option("--host", required=True, help="Server name to deploy to")
+@click.option("--ssh-host", required=True, help="Server name to deploy to")
+@click.option(
+    "--dns-host",
+    help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
+)
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
-def deploy(mode, image, host, config_options):
-    executor = Executor(host)
+def deploy(mode, image, ssh_host, dns_host, config_options):
+    tls = "tls internal" if ssh_host == "localhost" else ""
+    if not dns_host:
+        dns_host = get_dns_host(ssh_host)
+    executor = Executor(ssh_host)
     executor.run("mkdir -p dallinger/caddy.d")
 
-    sftp = get_sftp(host)
+    sftp = get_sftp(ssh_host)
     sftp.putfo(BytesIO(DOCKER_COMPOSE_SERVER), "dallinger/docker-compose.yml")
-    sftp.putfo(BytesIO(CADDYFILE.format(host=host).encode()), "dallinger/Caddyfile")
+    sftp.putfo(
+        BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
+        "dallinger/Caddyfile",
+    )
     executor.run("docker-compose -f ~/dallinger/docker-compose.yml up -d")
     print("Launched http and postgresql servers. Starting experiment")
 
@@ -97,7 +120,7 @@ def deploy(mode, image, host, config_options):
     )
     print("Database initialized")
 
-    caddy_conf = f"{experiment_id}.{host} {{\n    tls internal\n    reverse_proxy {experiment_id}_web:5000\n}}"
+    caddy_conf = f"{experiment_id}.{dns_host} {{\n    {tls}\n    reverse_proxy {experiment_id}_web:5000\n}}"
     sftp.putfo(
         BytesIO(caddy_conf.encode()),
         f"dallinger/caddy.d/{experiment_id}",
@@ -109,15 +132,17 @@ def deploy(mode, image, host, config_options):
     )
 
     print("Launching experiment")
-    response = requests.post(f"https://{experiment_id}.{host}/launch", verify=False)
+    response = get_retrying_http_client().post(
+        f"https://{experiment_id}.{dns_host}/launch", verify=False
+    )
     print(response.json()["recruitment_msg"])
 
     print("To display the logs for this experiment you can run:")
     print(
-        f"ssh {host} docker-compose -f ~/dallinger/{experiment_id}/docker-compose.yml logs -f"
+        f"ssh {ssh_host} docker-compose -f ~/dallinger/{experiment_id}/docker-compose.yml logs -f"
     )
     print(
-        f"You can now log in to the console at https://{experiment_id}.{host}/dashboard as user {cfg['ADMIN_USER']} using password {cfg['dashboard_password']}"
+        f"You can now log in to the console at https://{experiment_id}.{dns_host}/dashboard as user {cfg['ADMIN_USER']} using password {cfg['dashboard_password']}"
     )
 
 
@@ -128,6 +153,25 @@ def get_docker_compose_yml(
     return DOCKER_COMPOSE_EXP_TPL.render(
         experiment_id=experiment_id, experiment_image=experiment_image, config=config
     )
+
+
+def get_retrying_http_client():
+    retry_strategy = Retry(
+        total=10,
+        backoff_factor=0.2,
+        status_forcelist=[429, 500, 502, 503, 504],
+        method_whitelist=["POST"],
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    http = requests.Session()
+    http.mount("https://", adapter)
+    http.mount("http://", adapter)
+    return http
+
+
+def get_dns_host(ssh_host):
+    ip_addr = gethostbyname_ex(ssh_host)[2][0]
+    return f"{ip_addr}.nip.io"
 
 
 class Executor:
