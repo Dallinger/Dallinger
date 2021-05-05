@@ -30,7 +30,7 @@ backcall==0.2.0
     # via ipython
 bcrypt==3.2.0
     # via paramiko
-black==21.4b2
+black==21.5b0
     # via dallinger
 bleach==3.3.0
     # via nbconvert
