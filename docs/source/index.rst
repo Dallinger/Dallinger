@@ -83,6 +83,7 @@ designing new experiments for others to use.
     writing_bots
     extra_configuration
     recruitment
+    scheduled_tasks
     private_repo
 
 Core Contribution Documentation

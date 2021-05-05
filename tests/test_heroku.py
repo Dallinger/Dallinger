@@ -37,6 +37,13 @@ class TestClockScheduler(object):
 
         self.clock = clock
 
+    @pytest.fixture
+    def patched_scheduler(self):
+        from dallinger import heroku
+
+        with mock.patch("apscheduler.schedulers.blocking.BlockingScheduler.start"):
+            yield heroku.clock.scheduler
+
     def teardown(self):
         os.chdir("../..")
 
@@ -48,20 +55,32 @@ class TestClockScheduler(object):
             == "dallinger.heroku.clock:check_db_for_missing_notifications"
         )
 
-    def test_launch_loads_config(self):
-        original_start = self.clock.scheduler.start
-        data = {"launched": False}
+    def test_launch_loads_config(self, patched_scheduler):
+        self.clock.launch()
+        assert patched_scheduler.start.called_once()
+        assert get_config().ready
 
-        def start():
-            data["launched"] = True
+    def test_launch_registers_additional_tasks(self, patched_scheduler):
+        from dallinger import experiment
+
+        jobs = self.clock.scheduler.get_jobs()
+        assert len(jobs) == 1
+
+        experiment.EXPERIMENT_TASK_REGISTRATIONS["test_task"] = {
+            "trigger": "interval",
+            "kwargs": (("minutes", 5),),
+        }
 
         try:
-            self.clock.scheduler.start = start
             self.clock.launch()
-            assert data["launched"]
-            assert get_config().ready
+            jobs = self.clock.scheduler.get_jobs()
+            assert len(jobs) == 2
+            assert (
+                jobs[1].func_ref
+                == "dallinger_experiment.dallinger_experiment:TestExperiment.test_task"
+            )
         finally:
-            self.clock.scheduler.start = original_start
+            experiment.EXPERIMENT_TASK_REGISTRATIONS.clear()
 
 
 @pytest.mark.usefixtures("experiment_dir", "active_config")

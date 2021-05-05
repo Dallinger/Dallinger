@@ -148,7 +148,7 @@ Amazon Mechanical Turk Recruitment
 
 ``disable_when_duration_exceeded`` *boolean*
     Whether to disable recruiting and expire the HIT when the duration has been
-    exceeded.
+    exceeded. This only has an effect when ``clock_on`` is enabled.
 
 ``us_only`` *boolean*
     Controls whether this HIT is available only to MTurk workers in the U.S.
@@ -228,8 +228,10 @@ Deployment Configuration
     Port of the host.
 
 ``clock_on`` *boolean*
-    If the clock process is on, it will perform a series of checks that ensure
-    the integrity of the database.
+    If the clock process is on, it will enable a task scheduler to run automated
+    background tasks. By default, a single task is registered which performs a
+    series of checks that ensure the integrity of the database. The configuration
+    option ``disable_when_duration_exceeded`` configures the behavior of that task.
 
 ``heroku_python_version`` *unicode*
     The python version to be used on Heroku deployments. The version specification will
