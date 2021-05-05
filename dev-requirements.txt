@@ -526,7 +526,7 @@ wcwidth==0.2.5
     # via prompt-toolkit
 webencodings==0.5.1
     # via bleach
-websocket-client==0.58.0
+websocket-client==0.59.0
     # via
     #   docker
     #   docker-compose
