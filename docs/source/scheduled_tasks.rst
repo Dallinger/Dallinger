@@ -12,7 +12,7 @@ decorator::
     class MyCustomExperiment(experiment.Experiment):
         ...
 
-        @scheduled_task("interval", minutes=15)
+        @experiment.scheduled_task("interval", minutes=15)
         @classmethod
         def my_background_task(cls):
             ...

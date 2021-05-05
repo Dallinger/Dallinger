@@ -529,7 +529,7 @@ def bot_recruits(request, active_config, recruitment_loop):
 
 
 @pytest.fixture
-def cleared_tasks():
+def tasks_with_cleanup():
     from dallinger import experiment
 
     tasks = experiment.EXPERIMENT_TASK_REGISTRATIONS

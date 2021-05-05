@@ -60,11 +60,13 @@ class TestClockScheduler(object):
         assert patched_scheduler.start.called_once()
         assert get_config().ready
 
-    def test_launch_registers_additional_tasks(self, patched_scheduler, cleared_tasks):
+    def test_launch_registers_additional_tasks(
+        self, patched_scheduler, tasks_with_cleanup
+    ):
         jobs = patched_scheduler.get_jobs()
         assert len(jobs) == 1
 
-        cleared_tasks["test_task"] = {
+        tasks_with_cleanup["test_task"] = {
             "trigger": "interval",
             "kwargs": (("minutes", 5),),
         }
