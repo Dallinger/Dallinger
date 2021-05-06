@@ -51,9 +51,9 @@ def launch():
     # Import the experiment.
     experiment_class = dallinger.experiment.load()
 
-    for meth_name in EXPERIMENT_TASK_REGISTRATIONS:
+    for args in EXPERIMENT_TASK_REGISTRATIONS:
+        meth_name = args.pop("func_name")
         task = getattr(experiment_class, meth_name, None)
-        args = EXPERIMENT_TASK_REGISTRATIONS[meth_name]
         if task is not None:
             scheduler.add_job(
                 task,

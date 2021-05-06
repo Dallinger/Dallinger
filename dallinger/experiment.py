@@ -1445,7 +1445,7 @@ def load():
         raise
 
 
-EXPERIMENT_TASK_REGISTRATIONS = {}
+EXPERIMENT_TASK_REGISTRATIONS = []
 
 
 def scheduled_task(trigger, **kwargs):
@@ -1469,21 +1469,13 @@ def scheduled_task(trigger, **kwargs):
         "kwargs": tuple(kwargs.items()),
     }
 
-    def decorate(func):
-        # Check `__func__` in case we have a classmethod or staticmethod
-        base_func = getattr(func, "__func__", func)
-        name = getattr(base_func, "__name__", None)
-        if name is not None:
-            registered_tasks[name] = scheduler_args.copy()
-        return func
-
-    return decorate
+    return deferred_route_decorator(scheduler_args, registered_tasks)
 
 
 EXPERIMENT_ROUTE_REGISTRATIONS = []
 
 
-def experiment_route(rule, *args, **kwargs):
+def experiment_route(rule, **kwargs):
     """Creates a decorator to register experiment functions or classmethods as
     routes on the ``Experiment.experiment_routes`` blueprint. Accepts all
     standard flask ``route`` arguments. The registration is deferred until
@@ -1494,7 +1486,6 @@ def experiment_route(rule, *args, **kwargs):
     registered_routes = EXPERIMENT_ROUTE_REGISTRATIONS
     route = {
         "rule": rule,
-        "args": args,
         "kwargs": tuple(kwargs.items()),
     }
 

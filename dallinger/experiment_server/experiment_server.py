@@ -100,7 +100,12 @@ if exp_klass is not None:  # pragma: no cover
     for route in routes:
         route_func = getattr(exp_klass, route["func_name"], None)
         if route_func is not None:
-            bp.route(route["rule"], *route["args"], **dict(route["kwargs"]))(route_func)
+            bp.add_url_rule(
+                route["rule"],
+                endpoint=route["func_name"],
+                view_func=route_func,
+                **dict(route["kwargs"])
+            )
     if routes:
         app.register_blueprint(bp)
 
@@ -110,10 +115,13 @@ if exp_klass is not None:  # pragma: no cover
         if route_func is not None:
             # All dashboard routes require login
             route_func = login_required(route_func)
-            dashboard.dashboard.route(
-                route["rule"], *route["args"], **dict(route["kwargs"])
-            )(route_func)
-            route_name = route["rule"].strip("/")
+            route_name = route["func_name"]
+            dashboard.dashboard.add_url_rule(
+                "/" + route_name,
+                end_point=route_name,
+                view_func=route_func,
+                **dict(route["kwargs"])
+            )
             tabs = dashboard.dashboard_tabs
             full_tab = route.get("tab")
             if route.get("before_route") and full_tab:

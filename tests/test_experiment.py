@@ -209,7 +209,8 @@ class TestTaskRegistration(object):
         # Decorator does not modify or wrap the function
         assert decorator(fake_task) is fake_task
         assert len(tasks_with_cleanup) == 1
-        assert tasks_with_cleanup["fake_task"] == {
+        assert tasks_with_cleanup[0] == {
+            "func_name": "fake_task",
             "trigger": "interval",
             "kwargs": (("minutes", 15),),
         }
@@ -229,7 +230,7 @@ class TestRouteRegistration(object):
     def test_deferred_route_decorator(self, cleared_routes):
         from dallinger.experiment import experiment_route
 
-        decorator = experiment_route("/route", method=["POST", "GET"])
+        decorator = experiment_route("/route", methods=["POST", "GET"])
         assert len(cleared_routes) == 0
 
         def fake_route():
@@ -240,7 +241,6 @@ class TestRouteRegistration(object):
         assert len(cleared_routes) == 1
         assert cleared_routes[0] == {
             "rule": "/route",
-            "kwargs": (("method", ["POST", "GET"]),),
+            "kwargs": (("methods", ["POST", "GET"]),),
             "func_name": "fake_route",
-            "args": (),
         }

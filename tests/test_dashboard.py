@@ -104,9 +104,8 @@ class TestDashboardTabs(object):
 
         decorator = dashboard_tab(
             "My Dashboard",
-            "/route",
             before_route="network",
-            method=["POST", "GET"],
+            methods=["POST", "GET"],
         )
         assert len(cleared_tab_routes) == 0
 
@@ -118,13 +117,11 @@ class TestDashboardTabs(object):
         assert len(cleared_tab_routes) == 1
         assert cleared_tab_routes[0] == {
             "title": "My Dashboard",
-            "rule": "/route",
             "before_route": "network",
             "after_route": None,
             "tab": None,
-            "kwargs": (("method", ["POST", "GET"]),),
+            "kwargs": (("methods", ["POST", "GET"]),),
             "func_name": "fake_route",
-            "args": (),
         }
 
 

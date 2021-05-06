@@ -62,7 +62,7 @@ a "My Experiment" tab to the dashboard:
 
     class MyExperimentClass(Experiment
 
-        @dashboard_tab("My Experiment", "my_experiment")
+        @dashboard_tab("My Experiment")
         def my_experiment():
             return "Hello, World. This is some information about My Experiment"
 

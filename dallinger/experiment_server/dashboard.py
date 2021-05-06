@@ -771,11 +771,11 @@ def database_action(route_name):
 DASHBOARD_ROUTE_REGISTRATIONS = []
 
 
-def dashboard_tab(title, rule, *args, **kwargs):
+def dashboard_tab(title, **kwargs):
     """Creates a decorator to register experiment functions or classmethods as
-    dashboard tabs. Adds a tab with a ``title`` at a route location determined
-    by the ``rule`` parameter along with any other flask ``route`` arguments.
-    Registers the decorated method as a route on the
+    dashboard tabs. Adds a tab with a ``title`` at the path
+    ``/dashboard/function_name`` and accepts any other flask ``route`` keyword
+    arguments. Registers the decorated method as a route on the
     :attr:`dallinger.experiment_server.dashboard.dashboard` Blueprint. The
     registration is deferred until experiment server setup to allow routes to be
     overridden. Optionally accepts ``after_route`` and ``before_route``
@@ -783,8 +783,6 @@ def dashboard_tab(title, rule, *args, **kwargs):
 
     :param title: The dashboard tab title
     :type title: str
-    :param rule: The flask rule path
-    :type rule: str
     :param after_route: Optional name of a tab after which to insert
                         this tab
     :type after_route: str
@@ -805,8 +803,6 @@ def dashboard_tab(title, rule, *args, **kwargs):
     before_route = kwargs.pop("before_route", None)
     full_tab = kwargs.pop("tab", None)
     route = {
-        "rule": rule,
-        "args": args,
         "kwargs": tuple(kwargs.items()),
         "title": title,
         "after_route": after_route,
