@@ -12,6 +12,8 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import requests
 
+from dallinger.command_line.config import get_configured_hosts
+from dallinger.command_line.config import store_host
 from dallinger.config import get_config
 from dallinger.utils import abspath_from_egg
 
@@ -47,17 +49,80 @@ import caddy.d/*
 
 
 @click.group()
-def docker_ssh():
+@click.pass_context
+def docker_ssh(ctx):
     """Deploy to a remote server using docker through ssh."""
 
 
-@docker_ssh.command()
-@click.option("--ssh-host", required=True, help="Server name to prepare for deployment")
-def prepare_server(ssh_host):
-    executor = Executor(ssh_host)
-    print("Installing docker-compose")
+@docker_ssh.group()
+def servers():
+    """Manage remote servers where experiments can be deployed"""
+
+
+@servers.command()
+def list():
+    hosts = get_configured_hosts()
+    if not hosts:
+        print("No server configured. Use `dallinger docker-ssh servers add` to add one")
+    for host in hosts.values():
+        print(", ".join(f"{key}: {value}" for key, value in host.items()))
+
+
+@servers.command()
+@click.option(
+    "--host", required=True, help="IP address or dns name of the remote server"
+)
+@click.option("--user", help="User to use when connecting to remote host")
+def add(host, user):
+    """Add a server to deploy experiments through ssh using docker"""
+    prepare_server(host, user)
+    store_host(dict(host=host, user=user))
+
+
+def prepare_server(host, user):
+    executor = Executor(host, user)
+    print("Checking docker presence")
+    try:
+        executor.run("docker ps")
+    except ExecuteException:
+        print("Installing docker")
+        executor.run("wget -O - https://get.docker.com | bash")
+        executor.run(f"sudo adduser {user} docker")
+        print("Docker installed")
+        # Log in again in case we need to be part of the `docker` group
+        executor = Executor(host, user)
+    else:
+        print("Docker daemon already installed")
+
+    try:
+        executor.run("docker-compose --version")
+    except ExecuteException:
+        try:
+            install_docker_compose_via_pip(executor)
+        except ExecuteException:
+            executor.run(
+                "sudo wget https://github.com/docker/compose/releases/download/1.29.1/docker-compose-Linux-x86_64 -O /usr/local/bin/docker-compose"
+            )
+            executor.run("sudo chmod 755 /usr/local/bin/docker-compose")
+    else:
+        print("Docker compose already installed")
+
+
+def install_docker_compose_via_pip(executor):
+    try:
+        executor.run("python3 --version")
+    except ExecuteException:
+        # No python: better give up
+        return
+
+    try:
+        executor.run("python3 -m pip --version")
+    except ExecuteException:
+        # No pip. Let's try to install it
+        executor.run("python3 <(wget -O - https://bootstrap.pypa.io/get-pip.py)")
     executor.run("python3 -m pip install --user docker-compose")
-    print("docker-compose installed")
+    executor.run("sudo ln -s ~/.local/bin/docker-compose /usr/local/bin/docker-compose")
+    print("docker-compose installed using pip")
 
 
 @docker_ssh.command()
@@ -182,13 +247,13 @@ def get_dns_host(ssh_host):
 class Executor:
     """Execute remote commands using paramiko"""
 
-    def __init__(self, host):
+    def __init__(self, host, user=None):
         import paramiko
 
         self.client = paramiko.SSHClient()
         self.client.load_system_host_keys()
         print(f"Connecting to {host}")
-        self.client.connect(host)
+        self.client.connect(host, username=user)
         print("Connected.")
 
     def run(self, cmd):

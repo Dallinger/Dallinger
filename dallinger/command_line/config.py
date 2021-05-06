@@ -28,5 +28,5 @@ def store_host(host: Dict[str, str]):
     """Store the given ssh host info in the local user config."""
     hosts_dir = Path(APPDIRS.user_data_dir) / "hosts"
     if not hosts_dir.is_dir():
-        hosts_dir.mkdir()
+        hosts_dir.mkdir(parents=True)
     (hosts_dir / host["host"]).write_text(json.dumps(host))
