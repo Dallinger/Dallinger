@@ -1,10 +1,10 @@
 from io import BytesIO
 from getpass import getuser
-from uuid import uuid4
 from secrets import token_urlsafe
 from socket import gethostname
 from socket import gethostbyname_ex
 from typing import Dict
+from uuid import uuid4
 
 from jinja2 import Template
 import click
@@ -16,8 +16,12 @@ from dallinger.config import get_config
 from dallinger.utils import abspath_from_egg
 
 
+# Find an identifier for the current user to use as CREATOR of the experiment
 HOSTNAME = gethostname()
-USER = getuser()
+try:
+    USER = getuser()
+except KeyError:
+    USER = "user"
 
 DOCKER_COMPOSE_SERVER = abspath_from_egg(
     "dallinger", "dallinger/docker/ssh_templates/docker-compose-server.yml"
