@@ -5,6 +5,7 @@ from socket import gethostname
 from socket import gethostbyname_ex
 from typing import Dict
 from uuid import uuid4
+import logging
 
 from jinja2 import Template
 import click
@@ -74,7 +75,12 @@ def list_servers():
 )
 @click.option("--user", help="User to use when connecting to remote host")
 def add(host, user):
-    """Add a server to deploy experiments through ssh using docker"""
+    """Add a server to deploy experiments through ssh using docker.
+    The server needs docker and docker-compose usable by the current user.
+    Port 80 and 443 must be free for dallinger to use.
+    In case docker and/or docker-compose are missing, dallnger will try to
+    install them using `sudo`. The given user must have passwordless sudo rights.
+    """
     prepare_server(host, user)
     store_host(dict(host=host, user=user))
 
@@ -125,6 +131,15 @@ def install_docker_compose_via_pip(executor):
     print("docker-compose installed using pip")
 
 
+server_option = click.option(
+    "--server",
+    required=True,
+    help="Server to deploy to",
+    prompt=True,
+    type=click.Choice(tuple(get_configured_hosts().keys())),
+)
+
+
 @docker_ssh.command()
 @click.option(
     "--sandbox",
@@ -135,13 +150,7 @@ def install_docker_compose_via_pip(executor):
 )
 @click.option("--live", "mode", flag_value="live", help="Deploy to the real MTurk")
 @click.option("--image", required=True, help="Name of the docker image to deploy")
-@click.option(
-    "--server",
-    required=True,
-    help="Server to deploy to",
-    prompt=True,
-    type=click.Choice(tuple(get_configured_hosts().keys())),
-)
+@server_option
 @click.option(
     "--dns-host",
     help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
@@ -225,6 +234,21 @@ def deploy(mode, image, server, dns_host, config_options):
     )
 
 
+@docker_ssh.command()
+@server_option
+def apps(server):
+    """List dallinger apps running on the remote server."""
+    server_info = get_configured_hosts()[server]
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
+    executor = Executor(ssh_host, user=ssh_user)
+    # The caddy configuration files are used as source of truth
+    # to get the list of installed apps
+    apps = executor.run("ls dallinger/caddy.d")
+    for app in apps.split():
+        print(app)
+
+
 def get_docker_compose_yml(
     config: Dict[str, str], experiment_id: str, experiment_image: str
 ) -> str:
@@ -274,7 +298,6 @@ class Executor:
         channel = self.client.get_transport().open_session()
         channel.exec_command(cmd)
         status = channel.recv_exit_status()
-        print(f"Executing {cmd}")
         if status != 0:
             print(f"Error: exit code was not 0 ({status})")
             print(channel.recv(10 ** 10).decode())
@@ -296,3 +319,7 @@ def get_sftp(host, user=None):
     client.load_system_host_keys()
     client.connect(host, username=user)
     return client.open_sftp()
+
+
+logger = logging.getLogger("paramiko.transport")
+logger.setLevel(logging.ERROR)
