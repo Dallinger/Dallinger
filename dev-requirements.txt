@@ -20,7 +20,7 @@ argon2-cffi==20.1.0
     # via notebook
 async-generator==1.10
     # via nbclient
-attrs==20.3.0
+attrs==21.1.0
     # via
     #   jsonschema
     #   pytest
