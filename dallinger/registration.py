@@ -34,7 +34,7 @@ def _create_osf_project(dlgr_id, description=None):
         data={
             "type": "nodes",
             "category": "project",
-            "title": "Experiment dlgr-{}".format(dlgr_id[0:8]),
+            "title": "Experiment dlgr-{}".format(dlgr_id[:18]),
             "description": description,
         },
         headers={"Authorization": "Bearer {}".format(config.get("osf_access_token"))},

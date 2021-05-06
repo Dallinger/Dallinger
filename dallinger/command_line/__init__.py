@@ -113,7 +113,7 @@ def verify_id(ctx, param, app):
     elif app[0:5] == "dlgr-":
         raise click.BadParameter(
             "The --app parameter requires the full "
-            "UUID beginning with {}-...".format(app[5:13])
+            "UUID beginning with {}-...".format(app[5:23])
         )
     return app
 
