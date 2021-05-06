@@ -59,6 +59,8 @@ Consult the developer guide for more information.
 
 
 def create_db_engine(db_url, pool_size=1000):
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
     return create_engine(db_url, pool_size=pool_size)
 
 
