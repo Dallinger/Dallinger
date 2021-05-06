@@ -118,7 +118,7 @@ if exp_klass is not None:  # pragma: no cover
             route_name = route["func_name"]
             dashboard.dashboard.add_url_rule(
                 "/" + route_name,
-                end_point=route_name,
+                endpoint=route_name,
                 view_func=route_func,
                 **dict(route["kwargs"])
             )
