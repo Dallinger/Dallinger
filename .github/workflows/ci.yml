@@ -127,10 +127,6 @@ jobs:
           tox -e fast
           npm run test --coverage
         if: matrix.python-version != 3.9
-      - name: Codecov.io check
-        run: |
-          bash <(curl -s https://codecov.io/bash)
-        if: matrix.python-version == 3.9
 
   docker:
     runs-on: ubuntu-latest
