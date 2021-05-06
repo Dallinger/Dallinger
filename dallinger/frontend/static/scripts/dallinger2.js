@@ -377,17 +377,23 @@ var dallinger = (function () {
    */
   dlgr.submitAssignment = function() {
     var deferred = $.Deferred(),
-        participantId = dlgr.identity.participantId;
+        participantId = dlgr.identity.participantId,
+        exitRoute = "/recruiter-exit?participant_id=" + participantId;
 
     dlgr.post('/worker_complete', {
         'participant_id': participantId
     }).done(function () {
       deferred.resolve();
       dlgr.allowExit();
-      // Redirect parent window to recruiter exit route
-      window.opener.location = "/recruiter-exit?participant_id=" + participantId;
-      // Close separate window (this one) that held the main experiment.
-      window.close();
+      if (window.opener) {
+        // If the parent window is still around, redirect it to the exit route
+        // and close the secondary window (this one) that held the main experiment:
+        window.opener.location = exitRoute;
+        window.close();
+      } else {
+        // We're the only window, so show the exit route here:
+        window.location = exitRoute;
+      }
     }).fail(function (err) {
       deferred.reject(err);
     });

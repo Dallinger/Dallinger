@@ -528,6 +528,17 @@ def bot_recruits(request, active_config, recruitment_loop):
     yield recruit_bots()
 
 
+@pytest.fixture
+def tasks_with_cleanup():
+    from dallinger import experiment
+
+    tasks = experiment.EXPERIMENT_TASK_REGISTRATIONS
+    orig_tasks = tasks.copy()
+    tasks.clear()
+    yield tasks
+    tasks.update(orig_tasks)
+
+
 def pytest_addoption(parser):
     parser.addoption("--chrome", action="store_true", help="Run chrome tests")
     parser.addoption(

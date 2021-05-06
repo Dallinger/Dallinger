@@ -173,7 +173,7 @@ class RogersEnvironment(Source):
             return 1 - self.proportion
 
     def _what(self):
-        """By default transmit the most recent state """
+        """By default transmit the most recent state"""
         return max(self.infos(type=State), key=attrgetter("id"))
 
     def step(self):

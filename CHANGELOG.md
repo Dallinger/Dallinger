@@ -1,6 +1,12 @@
 # Change Log
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v7.2.1](https://github.com/dallinger/dallinger/tree/v7.2.1) (2021-05-04)
+- Bugfix: command helper for ``extend-mturk-hit`` was misspelled on the MTurk
+  Dashboard
+- Bugfix: if the participant has already closed the parent experiment window,
+  show the recruiter exit window in the second/child window instead
+
 ## [v7.2.0](https://github.com/dallinger/dallinger/tree/v7.2.0) (2021-04-08)
 - Enhancement: Default python version for Heroku bumped to 3.9.2
 - Enhancement: a new ``debug_recruiter`` config variable and support for

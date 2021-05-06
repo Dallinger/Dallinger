@@ -194,3 +194,22 @@ class TestExperimentBaseClass(object):
         exp.participant_task_completed(participant)
 
         participant.recruiter.assign_experiment_qualifications.assert_not_called()
+
+
+class TestTaskRegistration(object):
+    def test_deferred_task_decorator(self, tasks_with_cleanup):
+        from dallinger.experiment import scheduled_task
+
+        decorator = scheduled_task("interval", minutes=15)
+        assert len(tasks_with_cleanup) == 0
+
+        def fake_task():
+            pass
+
+        # Decorator does not modify or wrap the function
+        assert decorator(fake_task) is fake_task
+        assert len(tasks_with_cleanup) == 1
+        assert tasks_with_cleanup["fake_task"] == {
+            "trigger": "interval",
+            "kwargs": (("minutes", 15),),
+        }
