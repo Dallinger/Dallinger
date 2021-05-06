@@ -59,8 +59,8 @@ def servers():
     """Manage remote servers where experiments can be deployed"""
 
 
-@servers.command()
-def list():
+@servers.command(name="list")
+def list_servers():
     hosts = get_configured_hosts()
     if not hosts:
         print("No server configured. Use `dallinger docker-ssh servers add` to add one")
@@ -135,21 +135,30 @@ def install_docker_compose_via_pip(executor):
 )
 @click.option("--live", "mode", flag_value="live", help="Deploy to the real MTurk")
 @click.option("--image", required=True, help="Name of the docker image to deploy")
-@click.option("--ssh-host", required=True, help="Server name to deploy to")
+@click.option(
+    "--server",
+    required=True,
+    help="Server to deploy to",
+    prompt=True,
+    type=click.Choice(tuple(get_configured_hosts().keys())),
+)
 @click.option(
     "--dns-host",
     help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
 )
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
-def deploy(mode, image, ssh_host, dns_host, config_options):
+def deploy(mode, image, server, dns_host, config_options):
+    server_info = get_configured_hosts()[server]
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
     HAS_TLS = ssh_host != "localhost"
     tls = "tls internal" if not HAS_TLS else ""
     if not dns_host:
         dns_host = get_dns_host(ssh_host)
-    executor = Executor(ssh_host)
+    executor = Executor(ssh_host, user=ssh_user)
     executor.run("mkdir -p dallinger/caddy.d")
 
-    sftp = get_sftp(ssh_host)
+    sftp = get_sftp(ssh_host, user=ssh_user)
     sftp.putfo(BytesIO(DOCKER_COMPOSE_SERVER), "dallinger/docker-compose.yml")
     sftp.putfo(
         BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
@@ -251,6 +260,8 @@ class Executor:
         import paramiko
 
         self.client = paramiko.SSHClient()
+        # For convenience we always trust the remote host
+        self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.client.load_system_host_keys()
         print(f"Connecting to {host}")
         self.client.connect(host, username=user)
@@ -276,10 +287,12 @@ class ExecuteException(Exception):
     pass
 
 
-def get_sftp(host):
+def get_sftp(host, user=None):
     import paramiko
 
     client = paramiko.SSHClient()
+    # For convenience we always trust the remote host
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.load_system_host_keys()
-    client.connect(host)
+    client.connect(host, username=user)
     return client.open_sftp()
