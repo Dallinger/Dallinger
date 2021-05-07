@@ -147,7 +147,7 @@ server_option = click.option(
     "--server",
     required=True,
     help="Server to deploy to",
-    prompt=True,
+    prompt="Choose one of the configured servers (add one with `dallinger docker-ssh servers add`)\n",
     type=click.Choice(tuple(get_configured_hosts().keys())),
 )
 
@@ -177,13 +177,13 @@ def deploy(mode, image, server, dns_host, config_options):
     if not dns_host:
         dns_host = get_dns_host(ssh_host)
     executor = Executor(ssh_host, user=ssh_user)
-    executor.run("mkdir -p dallinger/caddy.d")
+    executor.run("mkdir -p ~/dallinger/caddy.d")
 
     sftp = get_sftp(ssh_host, user=ssh_user)
     sftp.putfo(BytesIO(DOCKER_COMPOSE_SERVER), "dallinger/docker-compose.yml")
     sftp.putfo(
         BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
-        "dallinger/Caddyfile",
+        "~/dallinger/Caddyfile",
     )
     executor.run("docker-compose -f ~/dallinger/docker-compose.yml up -d")
     print("Launched http and postgresql servers. Starting experiment")
@@ -223,13 +223,10 @@ def deploy(mode, image, server, dns_host, config_options):
     caddy_conf = f"{experiment_id}.{dns_host} {{\n    {tls}\n    reverse_proxy {experiment_id}_web:5000\n}}"
     sftp.putfo(
         BytesIO(caddy_conf.encode()),
-        f"dallinger/caddy.d/{experiment_id}",
+        f"~/dallinger/caddy.d/{experiment_id}",
     )
-
     # Tell caddy we changed something in the configuration
-    executor.run(
-        "docker-compose -f ~/dallinger/docker-compose.yml exec -T httpserver caddy reload -config /etc/caddy/Caddyfile"
-    )
+    executor.reload_caddy()
 
     print("Launching experiment")
     response = get_retrying_http_client().post(
@@ -239,7 +236,7 @@ def deploy(mode, image, server, dns_host, config_options):
 
     print("To display the logs for this experiment you can run:")
     print(
-        f"ssh {ssh_host} docker-compose -f ~/dallinger/{experiment_id}/docker-compose.yml logs -f"
+        f"ssh {ssh_user}@{ssh_host} docker-compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
     )
     print(
         f"You can now log in to the console at https://{experiment_id}.{dns_host}/dashboard as user {cfg['ADMIN_USER']} using password {cfg['dashboard_password']}"
@@ -256,9 +253,33 @@ def apps(server):
     executor = Executor(ssh_host, user=ssh_user)
     # The caddy configuration files are used as source of truth
     # to get the list of installed apps
-    apps = executor.run("ls dallinger/caddy.d")
+    apps = executor.run("ls ~/dallinger/caddy.d")
     for app in apps.split():
         print(app)
+
+
+@docker_ssh.command()
+@click.option("--app", required=True, help="Name of the experiment app to destroy")
+@server_option
+def destroy(server, app):
+    """Tear down an experiment run on a server you control via ssh."""
+    server_info = get_configured_hosts()[server]
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
+    executor = Executor(ssh_host, user=ssh_user)
+    # Remove the caddy configuration file and reload caddy config
+    try:
+        executor.run(f"ls ~/dallinger/caddy.d/{app}")
+    except ExecuteException:
+        print(f"App {app} not found on server {server}")
+        raise click.Abort
+    executor.run(f"rm ~/dallinger/caddy.d/{app}")
+    executor.reload_caddy()
+    executor.run(
+        f"docker-compose -f ~/dallinger/{app}/docker-compose.yml down", raise_=False
+    )
+    executor.run(f"rm -rf ~/dallinger/{app}/")
+    print(f"App {app} removed")
 
 
 def get_docker_compose_yml(
@@ -303,19 +324,25 @@ class Executor:
         self.client.connect(host, username=user)
         print("Connected.")
 
-    def run(self, cmd):
+    def run(self, cmd, raise_=True):
         """Run the given command and block until it completes.
-        If the command fails, print the reason and raise an exception
+        If `raise` is True and the command fails, print the reason and raise an exception.
         """
         channel = self.client.get_transport().open_session()
         channel.exec_command(cmd)
         status = channel.recv_exit_status()
-        if status != 0:
+        if raise_ and status != 0:
             print(f"Error: exit code was not 0 ({status})")
             print(channel.recv(10 ** 10).decode())
             print(channel.recv_stderr(10 ** 10).decode())
             raise ExecuteException
         return channel.recv(10 ** 10).decode()
+
+    def reload_caddy(self):
+        self.run(
+            "docker-compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
+            "caddy reload -config /etc/caddy/Caddyfile"
+        )
 
 
 class ExecuteException(Exception):
