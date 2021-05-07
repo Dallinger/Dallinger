@@ -9,6 +9,13 @@
 - Enhancement: a new ``@dallinger.experiment.scheduled_task`` decorator allows
   methods on the experiment class to be used as background tasks to be run by the
   Heroku clock server
+- Enhancement: Added experiment_routes Flask Blueprint to the Experiment class
+  along with an experiment route registration decorator
+  ``dallinger.experiment.experiment_route`` to register classmethods on
+  experiment classes as flask routes.
+- Enhancement: Added ``dallinger.experiment_server.dashboard.dashboard_tab``
+  decorator to register classmethods on experiment classes as new dashboard tabs.
+
 
 ## [v7.2.1](https://github.com/dallinger/dallinger/tree/v7.2.1) (2021-05-04)
 - Bugfix: command helper for ``extend-mturk-hit`` was misspelled on the MTurk
