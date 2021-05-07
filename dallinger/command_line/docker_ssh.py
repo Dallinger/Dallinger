@@ -106,7 +106,7 @@ def prepare_server(host, user):
         executor.run("docker ps")
     except ExecuteException:
         print("Installing docker")
-        executor.run("wget -O - https://get.docker.com | bash")
+        executor.run("wget -O - https://get.docker.com | sudo bash")
         executor.run(f"sudo adduser {user} docker")
         print("Docker installed")
         # Log in again in case we need to be part of the `docker` group
@@ -227,6 +227,12 @@ def deploy(mode, image, server, dns_host, config_options):
             ).encode()
         ),
         f"dallinger/{experiment_id}/docker-compose.yml",
+    )
+    # We invoke the "ls" command in the context of the `web` container.
+    # docker-compose will honour `web`'s dependencies and block
+    # until postgresql is ready. This way we can be sure we can start creating the database.
+    executor.run(
+        f"docker-compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
     )
     print(f"Creating database {experiment_id}")
     executor.run(
