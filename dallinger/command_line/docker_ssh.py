@@ -1,6 +1,7 @@
 from io import BytesIO
 from getpass import getuser
 from secrets import token_urlsafe
+from shlex import quote
 from socket import gethostname
 from socket import gethostbyname_ex
 from typing import Dict
@@ -8,14 +9,16 @@ from uuid import uuid4
 import logging
 
 from jinja2 import Template
-import click
 from requests.adapters import HTTPAdapter
+from sshtunnel import SSHTunnelForwarder
 from urllib3.util.retry import Retry
+import click
 import requests
 
 from dallinger.command_line.config import get_configured_hosts
 from dallinger.command_line.config import remove_host
 from dallinger.command_line.config import store_host
+from dallinger.data import export_db_uri
 from dallinger.config import get_config
 from dallinger.utils import abspath_from_egg
 
@@ -155,7 +158,7 @@ server_option = click.option(
     "--server",
     required=True,
     default=default_server,
-    help="Server to deploy to",
+    help="Name of the remote server",
     prompt=server_prompt,
     type=click.Choice(tuple(CONFIGURED_HOSTS.keys())),
 )
@@ -216,10 +219,30 @@ def deploy(mode, image, server, dns_host, config_options):
     cfg.update(config_options)
     del cfg["host"]  # The uppercase variable will be used instead
     executor.run(f"mkdir -p dallinger/{experiment_id}")
+    postgresql_password = token_urlsafe(16)
     sftp.putfo(
-        BytesIO(get_docker_compose_yml(cfg, experiment_id, image).encode()),
+        BytesIO(
+            get_docker_compose_yml(
+                cfg, experiment_id, image, postgresql_password
+            ).encode()
+        ),
         f"dallinger/{experiment_id}/docker-compose.yml",
     )
+    print(f"Creating database {experiment_id}")
+    executor.run(
+        f"docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'create database \"{experiment_id}\"'"
+    )
+    create_user_script = f"create user \"{experiment_id}\" with encrypted password '{postgresql_password}'"
+    executor.run(
+        f"docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
+    )
+    grant_roles_script = (
+        f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
+    )
+    executor.run(
+        f"docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
+    )
+
     executor.run(
         f"docker-compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
     )
@@ -229,6 +252,8 @@ def deploy(mode, image, server, dns_host, config_options):
     )
     print("Database initialized")
 
+    # We give caddy the alias for the service. If we scale up the service container caddy will
+    # send requests to all of them in a round robin fashion.
     caddy_conf = f"{experiment_id}.{dns_host} {{\n    {tls}\n    reverse_proxy {experiment_id}_web:5000\n}}"
     sftp.putfo(
         BytesIO(caddy_conf.encode()),
@@ -268,6 +293,49 @@ def apps(server):
 
 
 @docker_ssh.command()
+@click.option("--app", required=True, help="Name of the experiment app to export")
+@click.option(
+    "--local",
+    is_flag=True,
+    flag_value=True,
+    help="Only export data locally, skipping the Amazon S3 copy",
+)
+@click.option(
+    "--no-scrub",
+    is_flag=True,
+    flag_value=True,
+    help="Don't scrub PII (Personally Identifiable Information) - if not specified PII will be scrubbed",
+)
+@server_option
+def export(server, app, local, no_scrub):
+    """List dallinger apps running on the remote server."""
+    server_info = CONFIGURED_HOSTS[server]
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
+    executor = Executor(ssh_host, user=ssh_user)
+    # Prepare a tunnel to be able to pass a postgresql URL to the databse
+    # on the remote docker container. First we need to find the IP of the
+    # container running docker
+    postgresql_remote_ip = executor.run(
+        "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' dallinger_postgresql_1"
+    ).strip()
+    # Now we start the tunnel
+    tunnel = SSHTunnelForwarder(
+        ssh_host,
+        ssh_username=ssh_user,
+        remote_bind_address=(postgresql_remote_ip, 5432),
+    )
+    tunnel.start()
+    export_db_uri(
+        app,
+        db_uri=f"postgresql://dallinger:dallinger@localhost:{tunnel.local_bind_port}/{app}",
+        local=local,
+        scrub_pii=not no_scrub,
+    )
+    tunnel.stop()
+
+
+@docker_ssh.command()
 @click.option("--app", required=True, help="Name of the experiment app to destroy")
 @server_option
 def destroy(server, app):
@@ -292,11 +360,17 @@ def destroy(server, app):
 
 
 def get_docker_compose_yml(
-    config: Dict[str, str], experiment_id: str, experiment_image: str
+    config: Dict[str, str],
+    experiment_id: str,
+    experiment_image: str,
+    postgresql_password: str,
 ) -> str:
     """Generate a docker-compose.yml file based on the given"""
     return DOCKER_COMPOSE_EXP_TPL.render(
-        experiment_id=experiment_id, experiment_image=experiment_image, config=config
+        experiment_id=experiment_id,
+        experiment_image=experiment_image,
+        config=config,
+        postgresql_password=postgresql_password,
     )
 
 

@@ -20,7 +20,7 @@ services:
     user: "${UID}:${GID}"
     environment: &commonenv
       REDIS_URL: redis://redis_{{ experiment_id }}:6379
-      DATABASE_URL: postgresql://dallinger:dallinger@postgresql/dallinger
+      DATABASE_URL: postgresql://{{ experiment_id }}:{{ postgresql_password }}@postgresql/{{ experiment_id }}
       HOME: /tmp
       HOST: 0.0.0.0
     {%- for key, value in config.items() %}

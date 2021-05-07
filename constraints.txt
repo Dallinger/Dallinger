@@ -284,6 +284,7 @@ paramiko==2.7.2
     # via
     #   dallinger
     #   docker
+    #   sshtunnel
 parsimonious==0.7.0
     # via sphinx-js
 parso==0.8.2
@@ -462,6 +463,8 @@ sqlalchemy==1.4.13
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
+sshtunnel==0.4.0
+    # via dallinger
 tablib==3.0.0
     # via dallinger
 tabulate==0.8.9
