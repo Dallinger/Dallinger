@@ -183,7 +183,7 @@ def deploy(mode, image, server, dns_host, config_options):
     sftp.putfo(BytesIO(DOCKER_COMPOSE_SERVER), "dallinger/docker-compose.yml")
     sftp.putfo(
         BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
-        "~/dallinger/Caddyfile",
+        "dallinger/Caddyfile",
     )
     executor.run("docker-compose -f ~/dallinger/docker-compose.yml up -d")
     print("Launched http and postgresql servers. Starting experiment")
@@ -223,7 +223,7 @@ def deploy(mode, image, server, dns_host, config_options):
     caddy_conf = f"{experiment_id}.{dns_host} {{\n    {tls}\n    reverse_proxy {experiment_id}_web:5000\n}}"
     sftp.putfo(
         BytesIO(caddy_conf.encode()),
-        f"~/dallinger/caddy.d/{experiment_id}",
+        f"dallinger/caddy.d/{experiment_id}",
     )
     # Tell caddy we changed something in the configuration
     executor.reload_caddy()
