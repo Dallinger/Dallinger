@@ -109,8 +109,8 @@ When the push is complete Dallinger will print the repository hash for the image
 The last line includes an image name with a sha256 based on the image contents: referencing the image that
 way guarantees that it will always resolve to the same image, byte for byte.
 
-Deploying an experiment
-***********************
+Deploying an experiment on Heroku
+*********************************
 
 Given a docker image from a public repository Dallinger can deploy the same code in a repeatable fashion.
 To deploy the image generated in the previous step using MTurk in sandbox mode run:
@@ -138,3 +138,87 @@ To override experiment parameters you can use the ``-c`` option:
     dallinger docker deploy-image --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:eaf27845dde7dc74e361dde1a9e90f61e82fa78de57228927672058244a534a3 -c recruiter hotair
 
 The above will use the ``hotair`` recruiter instead of the MTurk one.
+
+
+Deploying an experiment on a server
+***********************************
+
+Dallinger can use ssh and docker to deploy to a server you control. The commands to manage
+experiments deployed this way can be found under the `dallinger docker-ssh` command:
+
+.. code-block:: shell
+
+    $ dallinger docker-ssh --help
+    Usage: dallinger docker-ssh [OPTIONS] COMMAND [ARGS]...
+    
+      Deploy to a remote server using docker through ssh.
+    
+    Options:
+      -h, --help  Show this message and exit.
+    
+    Commands:
+      apps     List dallinger apps running on the remote server.
+      deploy
+      destroy  Tear down an experiment run on a server you control via ssh.
+      export   List dallinger apps running on the remote server.
+      servers  Manage remote servers where experiments can be deployed
+
+.. note::
+
+      The intended use case is a server that you provisioned exclusively for use with Dallnger.
+  
+First you need to tell dallinger a server you can use. There are some prerequisites:
+
+    * Ports 80 and 443 should be free (Dallinger will install a web server and take care of getting SSL certificates for you)
+    * ssh should be configured to enable passwordless login
+    * The user on the server needs passwordless sudo
+
+Given an IP address or a DNS name of te server and a username, add the host to the list of known dallinger servers:
+
+.. code-block:: shell
+
+    dallinger docker-ssh servers add --user $SERVER_USER --host $SERVER_HOSTNAME_OR_IP
+
+Dallinger verifies that ``docker`` and ``docker-compose`` are installed, and installs them if they are not.
+The installation should take a couple of minutes.
+
+Now you can deploy an experiment image to the server:
+
+.. code-block:: shell
+
+    dallinger docker-ssh deploy --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5 -c recruiter hotair -c dashboard_password foobar
+
+In this example we use the ``hotair`` recriuter and set the dashboard password to ``foobar``.
+The above command will output:
+
+.. code-block:: shell
+
+    Connecting to 0.0.0.0
+    Connected.
+    Launched http and postgresql servers. Starting experiment
+    Creating database dlgr-d5543ddd
+    Experiment dlgr-d5543ddd started. Initializing database
+    Database initialized
+    Launching experiment
+    Initial recruitment list:
+    https://dlgr-d5543ddd.0.0.0.0.nip.io/ad?recruiter=hotair&assignmentId=F2Q19C&hitId=BE9BWB&workerId=YC30TJ&mode=debug
+    Additional details:
+    Recruitment requests will open browser windows automatically.
+    To display the logs for this experiment you can run:
+    ssh debian@0.0.0.0 docker-compose -f '~/dallinger/dlgr-d5543ddd/docker-compose.yml' logs -f
+    You can now log in to the console at https://dlgr-d5543ddd.0.0.0.0.nip.io/dashboard as user admin using password foobar
+
+Dallinger uses the free service [nip.io](https://nip.io/) to provide a URL for the experiment to get an SSL certificate from Let's Encrypt.
+The experiment URL is a combination of the app id and the server IP. In this case the id of the deployed experiment is ``dlgr-d5543ddd``.
+
+To export the data from an experiment running on a server, run:
+
+.. code-block:: shell
+
+    dallinger docker-ssh export --app $APP_ID
+
+To stop an experiment and remove its containers from the server, run:
+
+.. code-block:: shell
+
+    dallinger docker-ssh export --app $APP_ID
