@@ -63,10 +63,9 @@ def servers():
 
 @servers.command(name="list")
 def list_servers():
-    hosts = get_configured_hosts()
-    if not hosts:
+    if not CONFIGURED_HOSTS:
         print("No server configured. Use `dallinger docker-ssh servers add` to add one")
-    for host in hosts.values():
+    for host in CONFIGURED_HOSTS.values():
         print(", ".join(f"{key}: {value}" for key, value in host.items()))
 
 
@@ -143,12 +142,22 @@ def install_docker_compose_via_pip(executor):
     print("docker-compose installed using pip")
 
 
+CONFIGURED_HOSTS = get_configured_hosts()
+if len(CONFIGURED_HOSTS) == 1:
+    default_server = tuple(CONFIGURED_HOSTS.keys())[0]
+    server_prompt = False
+else:
+    default_server = None
+    server_prompt = (
+        "Choose one of the configured servers (add one with `dallinger docker-ssh servers add`)\n",
+    )
 server_option = click.option(
     "--server",
     required=True,
+    default=default_server,
     help="Server to deploy to",
-    prompt="Choose one of the configured servers (add one with `dallinger docker-ssh servers add`)\n",
-    type=click.Choice(tuple(get_configured_hosts().keys())),
+    prompt=server_prompt,
+    type=click.Choice(tuple(CONFIGURED_HOSTS.keys())),
 )
 
 
@@ -169,7 +178,7 @@ server_option = click.option(
 )
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 def deploy(mode, image, server, dns_host, config_options):
-    server_info = get_configured_hosts()[server]
+    server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
     HAS_TLS = ssh_host != "localhost"
@@ -247,7 +256,7 @@ def deploy(mode, image, server, dns_host, config_options):
 @server_option
 def apps(server):
     """List dallinger apps running on the remote server."""
-    server_info = get_configured_hosts()[server]
+    server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
     executor = Executor(ssh_host, user=ssh_user)
@@ -263,7 +272,7 @@ def apps(server):
 @server_option
 def destroy(server, app):
     """Tear down an experiment run on a server you control via ssh."""
-    server_info = get_configured_hosts()[server]
+    server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
     executor = Executor(ssh_host, user=ssh_user)
