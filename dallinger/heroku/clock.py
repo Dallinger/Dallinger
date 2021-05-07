@@ -6,6 +6,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 
 import dallinger
 from dallinger import recruiters
+from dallinger.experiment import EXPERIMENT_TASK_REGISTRATIONS
 from dallinger.models import Participant
 from dallinger.utils import ParticipationTime
 
@@ -48,6 +49,17 @@ def launch():
         config.load()
 
     # Import the experiment.
-    dallinger.experiment.load()
+    experiment_class = dallinger.experiment.load()
+
+    for meth_name in EXPERIMENT_TASK_REGISTRATIONS:
+        task = getattr(experiment_class, meth_name, None)
+        args = EXPERIMENT_TASK_REGISTRATIONS[meth_name]
+        if task is not None:
+            scheduler.add_job(
+                task,
+                trigger=args["trigger"],
+                replace_existing=True,
+                **dict(args["kwargs"])
+            )
 
     scheduler.start()
