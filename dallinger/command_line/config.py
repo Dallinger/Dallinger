@@ -30,3 +30,11 @@ def store_host(host: Dict[str, str]):
     if not hosts_dir.is_dir():
         hosts_dir.mkdir(parents=True)
     (hosts_dir / host["host"]).write_text(json.dumps(host))
+
+
+def remove_host(hostname: str):
+    host_path = Path(APPDIRS.user_data_dir) / "hosts" / hostname
+    if host_path.exists():
+        host_path.unlink()
+    else:
+        print(f"Host {hostname} not found")

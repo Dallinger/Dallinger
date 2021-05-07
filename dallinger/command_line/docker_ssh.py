@@ -14,6 +14,7 @@ from urllib3.util.retry import Retry
 import requests
 
 from dallinger.command_line.config import get_configured_hosts
+from dallinger.command_line.config import remove_host
 from dallinger.command_line.config import store_host
 from dallinger.config import get_config
 from dallinger.utils import abspath_from_egg
@@ -83,6 +84,17 @@ def add(host, user):
     """
     prepare_server(host, user)
     store_host(dict(host=host, user=user))
+
+
+@servers.command()
+@click.option(
+    "--host", required=True, help="IP address or dns name of the remote server"
+)
+def remove(host):
+    """Remove server from list of known remote servers.
+    No action is performed remotely.
+    """
+    remove_host(host)
 
 
 def prepare_server(host, user):
