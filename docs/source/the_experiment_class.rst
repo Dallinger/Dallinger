@@ -27,6 +27,9 @@ what to do with the database when the server receives requests from outside.
   .. autoattribute:: experiment_repeats
     :annotation:
 
+  .. autoattribute:: experiment_routes
+    :annotation:
+
   .. autoattribute:: recruiter
     :annotation:
 
@@ -145,3 +148,5 @@ what to do with the database when the server receives requests from outside.
   .. automethod:: vector_get_request
 
   .. automethod:: vector_post_request
+
+.. autofunction:: experiment_route

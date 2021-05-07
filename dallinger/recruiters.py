@@ -72,7 +72,7 @@ class Recruiter(object):
         {
             items: [
                 'https://experiment-url-1',
-                'https://experiemnt-url-2'
+                'https://experiment-url-2'
             ],
             message: 'More info about this particular recruiter's process'
         }
@@ -184,7 +184,7 @@ class CLIRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Return initial experiment URL list, plus instructions
-        for finding subsequent recruitment events in experiemnt logs.
+        for finding subsequent recruitment events in experiment logs.
         """
         logger.info("Opening CLI recruitment for {} participants".format(n))
         recruitments = self.recruit(n)
@@ -198,7 +198,7 @@ class CLIRecruiter(Recruiter):
         return {"items": recruitments, "message": message}
 
     def recruit(self, n=1):
-        """Generate experiemnt URLs and print them to the console."""
+        """Generate experiment URLs and print them to the console."""
         logger.info("Recruiting {} CLI participants".format(n))
         urls = []
         template = "{}/ad?recruiter={}&assignmentId={}&hitId={}&workerId={}&mode={}"
@@ -256,7 +256,7 @@ class HotAirRecruiter(CLIRecruiter):
 
     def open_recruitment(self, n=1):
         """Return initial experiment URL list, plus instructions
-        for finding subsequent recruitment events in experiemnt logs.
+        for finding subsequent recruitment events in experiment logs.
         """
         logger.info("Opening HotAir recruitment for {} participants".format(n))
         recruitments = self.recruit(n)

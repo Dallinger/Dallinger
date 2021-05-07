@@ -707,7 +707,9 @@ class ExplicitFileSource(object):
                 if os.path.isdir(src):
                     for dirpath, dirnames, filenames in os.walk(src, topdown=True):
                         for fn in filenames:
-                            dst_fileparts = [dst, filename] + dirnames + [fn]
+                            dst_fileparts = (
+                                [dst, filename] + [os.path.relpath(dirpath, src)] + [fn]
+                            )
                             dst_filepath = os.path.join(*dst_fileparts)
                             yield (
                                 os.path.join(dirpath, fn),
@@ -780,3 +782,17 @@ def build_and_place(source: str, destination: str) -> str:
     finally:
         os.chdir(old_dir)
     return package_path.name
+
+
+def deferred_route_decorator(route, registered_routes):
+    def new_func(func):
+        # Check `__func__` in case we have a classmethod or staticmethod
+        base_func = getattr(func, "__func__", func)
+        name = getattr(base_func, "__name__", None)
+        if name is not None:
+            route["func_name"] = name
+            if route not in registered_routes:
+                registered_routes.append(route)
+        return func
+
+    return new_func

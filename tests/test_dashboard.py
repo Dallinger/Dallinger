@@ -9,6 +9,16 @@ from dallinger.experiment_server.dashboard import DashboardTab
 
 class TestDashboardTabs(object):
     @pytest.fixture
+    def cleared_tab_routes(self):
+        from dallinger.experiment_server import dashboard
+
+        routes = dashboard.DASHBOARD_ROUTE_REGISTRATIONS
+        orig_routes = routes[:]
+        routes.clear()
+        yield routes
+        routes[:] = orig_routes
+
+    @pytest.fixture
     def dashboard_tabs(self):
         from dallinger.experiment_server.dashboard import DashboardTabs
 
@@ -88,6 +98,31 @@ class TestDashboardTabs(object):
 
         dashboard_tabs.remove("index")
         assert len(list(dashboard_tabs)) == 0
+
+    def test_deferred_tab_decorator(self, cleared_tab_routes):
+        from dallinger.experiment_server.dashboard import dashboard_tab
+
+        decorator = dashboard_tab(
+            "My Dashboard",
+            before_route="network",
+            methods=["POST", "GET"],
+        )
+        assert len(cleared_tab_routes) == 0
+
+        def fake_route():
+            pass
+
+        # Decorator does not modify or wrap the function
+        assert decorator(fake_route) is fake_route
+        assert len(cleared_tab_routes) == 1
+        assert cleared_tab_routes[0] == {
+            "title": "My Dashboard",
+            "before_route": "network",
+            "after_route": None,
+            "tab": None,
+            "kwargs": (("methods", ["POST", "GET"]),),
+            "func_name": "fake_route",
+        }
 
 
 class TestDashboard(object):
@@ -228,8 +263,9 @@ class TestDashboard(object):
 
 
 @pytest.fixture
-def csrf_token(webapp, dashboard_config):
-    # active_config.set("mode", "sandbox")
+def csrf_token(dashboard_config, webapp):
+    # Initialize app to get user info in config
+    webapp.get("/")
     # Make a writeable session and copy the csrf token into it
     from flask_wtf.csrf import generate_csrf
 
@@ -241,7 +277,7 @@ def csrf_token(webapp, dashboard_config):
 
 
 @pytest.fixture
-def logged_in(webapp, csrf_token):
+def logged_in(csrf_token, webapp):
     admin_user = webapp.application.config["ADMIN_USER"]
     webapp.post(
         "/dashboard/login",
@@ -277,7 +313,7 @@ class TestDashboardCoreRoutes(object):
         assert resp.status_code == 302
         assert resp.location.endswith("/login?next=%2Fdashboard%2F")
 
-    def test_login_bad_password(self, webapp, csrf_token):
+    def test_login_bad_password(self, csrf_token, webapp):
 
         resp = webapp.post(
             "/dashboard/login",
@@ -295,7 +331,7 @@ class TestDashboardCoreRoutes(object):
         login_resp = webapp.get("/dashboard/login")
         assert "Invalid username or password" in login_resp.data.decode("utf8")
 
-    def test_login_redirects_to_next(self, webapp, csrf_token):
+    def test_login_redirects_to_next(self, csrf_token, webapp):
         admin_user = webapp.application.config["ADMIN_USER"]
         login_resp = webapp.get("/dashboard/login?next=%2Fdashboard%2F")
         assert login_resp.status_code == 200
@@ -313,7 +349,7 @@ class TestDashboardCoreRoutes(object):
         assert resp.status_code == 302
         assert resp.location.endswith("/dashboard/something")
 
-    def test_login_rejects_malicious_urls(self, webapp, csrf_token):
+    def test_login_rejects_malicious_urls(self, csrf_token, webapp):
         admin_user = webapp.application.config["ADMIN_USER"]
 
         resp = webapp.post(
@@ -346,6 +382,29 @@ class TestDashboardCoreRoutes(object):
         loggedout_resp = logged_in.get("/dashboard/")
         assert loggedout_resp.status_code == 302
         assert loggedout_resp.location.endswith("/dashboard/login?next=%2Fdashboard%2F")
+
+    # Cannot be isolated because route registration happens at import time
+    @pytest.mark.xfail
+    def test_custom_route(self, logged_in):
+        resp = logged_in.get("/dashboard/custom_dashboard")
+        assert resp.status_code == 200
+        assert "A custom dashboard for TestExperiment." in resp.data.decode("utf8")
+
+    # Cannot be isolated because route registration happens at import time
+    @pytest.mark.xfail
+    def test_custom_route_requires_login(self, webapp):
+        resp = webapp.get("/dashboard/custom_dashboard")
+        assert resp.status_code == 401
+
+    # Cannot be isolated because route registration happens at import time
+    @pytest.mark.xfail
+    def test_custom_route_tabs(self, logged_in):
+        tabs = logged_in.application.config["dashboard_tabs"]
+        tab_titles = [t.title for t in tabs]
+        # Inserted after "monitoring"
+        assert "Custom Tab" in tab_titles
+        index = tab_titles.index("Custom Tab")
+        assert tab_titles[index - 1] == "Monitoring"
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")

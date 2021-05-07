@@ -66,10 +66,13 @@ class TestClockScheduler(object):
         jobs = patched_scheduler.get_jobs()
         assert len(jobs) == 1
 
-        tasks_with_cleanup["test_task"] = {
-            "trigger": "interval",
-            "kwargs": (("minutes", 5),),
-        }
+        tasks_with_cleanup.append(
+            {
+                "func_name": "test_task",
+                "trigger": "interval",
+                "kwargs": (("minutes", 5),),
+            }
+        )
 
         self.clock.launch()
         jobs = patched_scheduler.get_jobs()

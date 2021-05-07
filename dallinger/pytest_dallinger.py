@@ -536,7 +536,7 @@ def tasks_with_cleanup():
     orig_tasks = tasks.copy()
     tasks.clear()
     yield tasks
-    tasks.update(orig_tasks)
+    tasks[:] = orig_tasks
 
 
 def pytest_addoption(parser):

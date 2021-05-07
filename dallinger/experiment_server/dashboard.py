@@ -21,6 +21,7 @@ from flask_login.utils import login_url as make_login_url
 from dallinger import recruiters
 from dallinger.heroku.tools import HerokuApp
 from dallinger.config import get_config
+from dallinger.utils import deferred_route_decorator
 from .utils import date_handler, error_response, success_response
 
 
@@ -765,3 +766,48 @@ def database_action(route_name):
     if result.get("message"):
         flash(result["message"], "success")
     return success_response(**result)
+
+
+DASHBOARD_ROUTE_REGISTRATIONS = []
+
+
+def dashboard_tab(title, **kwargs):
+    """Creates a decorator to register experiment functions or classmethods as
+    dashboard tabs. Adds a tab with a ``title`` at the path
+    ``/dashboard/function_name`` and accepts any other flask ``route`` keyword
+    arguments. Registers the decorated method as a route on the
+    :attr:`dallinger.experiment_server.dashboard.dashboard` Blueprint. The
+    registration is deferred until experiment server setup to allow routes to be
+    overridden. Optionally accepts ``after_route`` and ``before_route``
+    arguments to specify tab ordering relative to other named routes.
+
+    :param title: The dashboard tab title
+    :type title: str
+    :param after_route: Optional name of a tab after which to insert
+                        this tab
+    :type after_route: str
+    :param before_route: Optional name of a tab before which to insert
+                         this tab
+    :type before_route: str
+    :param tab: Optional
+                :attr:`~dallinger.experiment_server.dashboard.DashboardTab`
+                instance if you need to provide nested dashboard menus,
+                or other tab features.
+    :type tab: :attr:`~dallinger.experiment_server.dashboard.DashboardTab`
+
+    :returns: Returns a decorator to register methods from a class as dashboard
+              routes.
+    """
+    registered_routes = DASHBOARD_ROUTE_REGISTRATIONS
+    after_route = kwargs.pop("after_route", None)
+    before_route = kwargs.pop("before_route", None)
+    full_tab = kwargs.pop("tab", None)
+    route = {
+        "kwargs": tuple(kwargs.items()),
+        "title": title,
+        "after_route": after_route,
+        "before_route": before_route,
+        "tab": full_tab,
+    }
+
+    return deferred_route_decorator(route, registered_routes)

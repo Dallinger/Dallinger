@@ -527,7 +527,7 @@ class TestSetupExperimentAdditional(object):
         with mock.patch("warnings.warn") as warn:
             _, _ = setup_experiment(log=mock.Mock())
 
-        assert len(warn.mock_calls) == 1
+        assert len(warn.mock_calls) >= 1
         e = warn.mock_calls[0][1][0]
         assert "EXPERIMENT_CLASS_NAME" in str(e)
         assert (

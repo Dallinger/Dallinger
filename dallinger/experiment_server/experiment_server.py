@@ -16,7 +16,7 @@ from flask import (
     send_from_directory,
     url_for,
 )
-from flask_login import LoginManager
+from flask_login import LoginManager, login_required
 from jinja2 import TemplateNotFound
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
@@ -85,6 +85,62 @@ except ImportError:
     pass
 else:
     app.register_blueprint(extra_routes)
+
+
+# Skipping coverage testing on this for now because it only runs at import time
+# and cannot be exercised within tests
+try:
+    exp_klass = experiment.load()
+except ImportError:
+    exp_klass = None  # pragma: no cover
+
+if exp_klass is not None:  # pragma: no cover
+    bp = exp_klass.experiment_routes
+    routes = experiment.EXPERIMENT_ROUTE_REGISTRATIONS
+    for route in routes:
+        route_func = getattr(exp_klass, route["func_name"], None)
+        if route_func is not None:
+            bp.add_url_rule(
+                route["rule"],
+                endpoint=route["func_name"],
+                view_func=route_func,
+                **dict(route["kwargs"])
+            )
+    if routes:
+        app.register_blueprint(bp)
+
+    dash_routes = dashboard.DASHBOARD_ROUTE_REGISTRATIONS
+    for route in dash_routes:
+        route_func = getattr(exp_klass, route["func_name"], None)
+        if route_func is not None:
+            # All dashboard routes require login
+            route_func = login_required(route_func)
+            route_name = route["func_name"]
+            dashboard.dashboard.add_url_rule(
+                "/" + route_name,
+                endpoint=route_name,
+                view_func=route_func,
+                **dict(route["kwargs"])
+            )
+            tabs = dashboard.dashboard_tabs
+            full_tab = route.get("tab")
+            if route.get("before_route") and full_tab:
+                tabs.insert_tab_before_route(full_tab, route["before_route"])
+            elif route.get("before_route"):
+                tabs.insert_before_route(
+                    route["title"], route_name, route["before_route"]
+                )
+            elif route.get("after_route") and full_tab:
+                tabs.insert_tab_after_route(full_tab, route["after_route"])
+            elif route.get("after_route"):
+                tabs.insert_after_route(
+                    route["title"], route_name, route["after_route"]
+                )
+            elif full_tab:
+                tabs.insert(full_tab)
+            else:
+                tabs.insert(route["title"], route_name)
+
 
 # Ideally, we'd only load recruiter routes if the recruiter is active, but
 # it turns out this is complicated, so for now we always register our
