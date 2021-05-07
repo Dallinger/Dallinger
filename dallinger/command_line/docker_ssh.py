@@ -10,7 +10,6 @@ import logging
 
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
-from sshtunnel import SSHTunnelForwarder
 from urllib3.util.retry import Retry
 import click
 import requests
@@ -315,6 +314,8 @@ def apps(server):
 @server_option
 def export(server, app, local, no_scrub):
     """List dallinger apps running on the remote server."""
+    from sshtunnel import SSHTunnelForwarder
+
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
