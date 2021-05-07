@@ -21,6 +21,7 @@ import time
 import uuid
 import warnings
 
+from flask import Blueprint
 from sqlalchemy import and_
 from sqlalchemy import create_engine
 from sqlalchemy import distinct
@@ -45,8 +46,7 @@ from dallinger.information import Gene, Meme, State
 from dallinger.nodes import Agent, Source, Environment
 from dallinger.transformations import Compression, Response
 from dallinger.transformations import Mutation, Replication
-from dallinger.utils import struct_to_html
-
+from dallinger.utils import deferred_route_decorator, struct_to_html
 
 from dallinger.networks import Empty
 
@@ -87,6 +87,20 @@ class Experiment(object):
     #: :attr:`~dallinger.models.Participant` or a sub-class. Used by
     #: :func:`~dallinger.experiment.Experiment.create_participant`.
     participant_constructor = Participant
+
+    #: Flask Blueprint for experiment. Functions and methods on the class
+    #: should be registered as Flask routes using the
+    #: :func:`~dallinger.experiment.experiment_route` decorator. Route
+    #: functions can not be instance methods and should either be
+    #: plain functions or classmethods. You can also register route functions
+    #: at the module level using the standard `route` decorator on this
+    #: Blueprint.
+    experiment_routes = Blueprint(
+        "experiment_routes",
+        __name__,
+        template_folder="templates",
+        static_folder="static",
+    )
 
     def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
@@ -1431,7 +1445,7 @@ def load():
         raise
 
 
-EXPERIMENT_TASK_REGISTRATIONS = {}
+EXPERIMENT_TASK_REGISTRATIONS = []
 
 
 def scheduled_task(trigger, **kwargs):
@@ -1455,12 +1469,24 @@ def scheduled_task(trigger, **kwargs):
         "kwargs": tuple(kwargs.items()),
     }
 
-    def decorate(func):
-        # Check `__func__` in case we have a classmethod or staticmethod
-        base_func = getattr(func, "__func__", func)
-        name = getattr(base_func, "__name__", None)
-        if name is not None:
-            registered_tasks[name] = scheduler_args.copy()
-        return func
+    return deferred_route_decorator(scheduler_args, registered_tasks)
 
-    return decorate
+
+EXPERIMENT_ROUTE_REGISTRATIONS = []
+
+
+def experiment_route(rule, **kwargs):
+    """Creates a decorator to register experiment functions or classmethods as
+    routes on the ``Experiment.experiment_routes`` blueprint. Accepts all
+    standard flask ``route`` arguments. The registration is deferred until
+    experiment server setup to allow routes to be overridden.
+
+    :returns: A decorator to register methods from a class as experiment routes.
+    """
+    registered_routes = EXPERIMENT_ROUTE_REGISTRATIONS
+    route = {
+        "rule": rule,
+        "kwargs": tuple(kwargs.items()),
+    }
+
+    return deferred_route_decorator(route, registered_routes)

@@ -364,3 +364,17 @@ def get_editable_dallinger_path():
         if os.path.isfile(egg_link):
             return open(egg_link).read().split()[0]
     return None
+
+
+def deferred_route_decorator(route, registered_routes):
+    def new_func(func):
+        # Check `__func__` in case we have a classmethod or staticmethod
+        base_func = getattr(func, "__func__", func)
+        name = getattr(base_func, "__name__", None)
+        if name is not None:
+            route["func_name"] = name
+            if route not in registered_routes:
+                registered_routes.append(route)
+        return func
+
+    return new_func
