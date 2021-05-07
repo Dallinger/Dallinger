@@ -450,5 +450,5 @@ def get_sftp(host, user=None):
     return client.open_sftp()
 
 
-logger = logging.getLogger("paramiko.transport")
-logger.setLevel(logging.ERROR)
+logging.getLogger("paramiko.transport").setLevel(logging.ERROR)
+logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
