@@ -1,6 +1,15 @@
 # Change Log
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v7.3.0](https://github.com/dallinger/dallinger/tree/v7.3.0) (2021-05-04)
+- Enhancement: Increase the length limit on app names from 8 to 18 characters
+  NOTE: we do not recommend attempting to upgrade your local Dallinger
+  installation while managing an ongoing experiment, as the change in naming
+  conventions will break some ``dallinger`` commands
+- Enhancement: a new ``@dallinger.experiment.scheduled_task`` decorator allows
+  methods on the experiment class to be used as background tasks to be run by the
+  Heroku clock server
+
 ## [v7.2.1](https://github.com/dallinger/dallinger/tree/v7.2.1) (2021-05-04)
 - Bugfix: command helper for ``extend-mturk-hit`` was misspelled on the MTurk
   Dashboard
