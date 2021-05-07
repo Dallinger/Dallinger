@@ -8,9 +8,9 @@
 #
 apscheduler==3.7.0
     # via dallinger
-boto3==1.17.64
+boto3==1.17.68
     # via dallinger
-botocore==1.20.64
+botocore==1.20.68
     # via
     #   boto3
     #   s3transfer
@@ -28,7 +28,7 @@ click==7.1.2
     #   flask
     #   pip-tools
     #   rq
-dallinger==7.2.0
+dallinger==7.2.1
     # via -r requirements.txt
 faker==8.1.2
     # via dallinger
@@ -56,7 +56,7 @@ gevent==21.1.2
     #   dallinger
     #   flask-sockets
     #   gevent-websocket
-greenlet==1.0.0
+greenlet==1.1.0
     # via
     #   dallinger
     #   gevent
@@ -121,7 +121,7 @@ s3transfer==0.4.2
     # via boto3
 selenium==3.141.0
     # via dallinger
-six==1.15.0
+six==1.16.0
     # via
     #   apscheduler
     #   dallinger
@@ -129,7 +129,7 @@ six==1.15.0
     #   sqlalchemy-postgres-copy
 sqlalchemy-postgres-copy==0.5.0
     # via dallinger
-sqlalchemy==1.4.13
+sqlalchemy==1.4.14
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
