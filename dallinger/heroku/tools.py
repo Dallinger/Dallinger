@@ -500,12 +500,16 @@ class HerokuLocalWrapper(object):
         port = self.config.get("base_port")
         web_dynos = self.config.get("num_dynos_web")
         worker_dynos = self.config.get("num_dynos_worker")
+        clock_dyno = self.config.get("clock_on")
+        dyno_options = "web={},worker={}{}".format(
+            web_dynos, worker_dynos, ",clock" if clock_dyno else ""
+        )
         commands = [
             self.shell_command,
             "local",
             "-p",
             str(port),
-            "web={},worker={},clock".format(web_dynos, worker_dynos),
+            dyno_options,
         ]
         try:
             options = {
