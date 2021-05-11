@@ -37,7 +37,7 @@ flask-sockets==0.2.1
     # via dallinger
 flask-wtf==0.14.3
     # via dallinger
-flask==1.1.2
+flask==2.0.0
     # via
     #   dallinger
     #   flask-crossdomain
