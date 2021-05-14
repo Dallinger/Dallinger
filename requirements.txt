@@ -62,7 +62,7 @@ gunicorn==20.1.0
     # via dallinger
 idna==2.10
     # via requests
-itsdangerous==1.1.0
+itsdangerous==2.0.0
     # via
     #   flask
     #   flask-wtf
