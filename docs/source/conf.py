@@ -429,4 +429,4 @@ html_static_path.extend(static)
 
 
 def setup(app):
-    app.add_stylesheet('custom.css') # html_static_path is automatically prepended
+    app.add_css_file('custom.css') # html_static_path is automatically prepended
