@@ -184,7 +184,7 @@ itsdangerous==2.0.0
     #   flask-wtf
 jedi==0.18.0
     # via ipython
-jinja2==2.11.3
+jinja2==3.0.1
     # via
     #   flask
     #   nbconvert
