@@ -27,8 +27,8 @@ Images can be rebuilt in the project root with:
 
 .. code-block:: shell
 
-    docker build . --target dallinger -t dallingerimages/dallinger
-    docker build . --target dallinger-bot -t dallingerimages/dallinger-bot
+    DOCKER_BUILDKIT=1 docker build . --target dallinger -t ghcr.io/dallinger/dallinger
+    DOCKER_BUILDKIT=1 docker build . --target dallinger-bot -t ghcr.io/dallinger/dallinger-bot
 
 How it works
 ~~~~~~~~~~~~
