@@ -10,6 +10,7 @@ EXPOSE 5000
 # Install build dependencies
 RUN apt-get update && \
     apt-get install -y libpq-dev python3-pip python3-dev enchant tzdata pandoc && \
+    python3 -m pip install -U pip && \
     rm -rf /var/lib/apt/lists/*
 
 COPY constraints.txt requirements.txt /dallinger/
@@ -28,6 +29,7 @@ LABEL org.opencontainers.image.source https://github.com/Dallinger/Dallinger
 # Install runtime dependencies
 RUN apt-get update && \
     apt-get install -y libpq5 python3-pip enchant tzdata --no-install-recommends && \
+    python3 -m pip install -U pip && \
     rm -rf /var/lib/apt/lists/*
 
 COPY constraints.txt requirements.txt /dallinger/

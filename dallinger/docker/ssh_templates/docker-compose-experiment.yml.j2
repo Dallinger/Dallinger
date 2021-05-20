@@ -1,0 +1,50 @@
+version: '3.7'
+services:
+  redis_{{ experiment_id }}:
+    image: redis
+    command: redis-server --appendonly yes
+    volumes:
+      - dallinger_{{ experiment_id }}_redis_data:/data
+    healthcheck:
+        test: "[ $$(redis-cli ping) = 'PONG' ]"
+        interval: 2s
+        timeout: 1s
+    networks:
+      - dallinger
+  worker:
+    image: {{ experiment_image }}
+    command: dallinger_heroku_worker
+    depends_on: &commondepends
+      redis_{{ experiment_id }}:
+        condition: service_healthy
+    user: "${UID}:${GID}"
+    environment: &commonenv
+      REDIS_URL: redis://redis_{{ experiment_id }}:6379
+      DATABASE_URL: postgresql://{{ experiment_id }}:{{ postgresql_password }}@postgresql/{{ experiment_id }}
+      HOME: /tmp
+      HOST: 0.0.0.0
+    {%- for key, value in config.items() %}
+      {{ key }}: {{ value | string() | tojson }}
+    {%- endfor %}
+    networks:
+      - dallinger
+  web:
+    image: {{ experiment_image }}
+    user: "${UID}:${GID}"
+    command: dallinger_heroku_web
+    depends_on:
+      <<: *commondepends
+    environment:
+      <<: *commonenv
+      PORT: 5000
+    networks:
+      dallinger:
+        aliases:
+          - {{ experiment_id }}_web
+
+volumes:
+  dallinger_{{ experiment_id }}_redis_data:
+
+networks:
+  dallinger:
+    name: dallinger

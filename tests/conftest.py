@@ -1,3 +1,4 @@
+import json
 import mock
 import os
 import pytest
@@ -103,13 +104,13 @@ def experiment_dir_merged(experiment_dir, active_config):
     """A temp directory with files from the standard test experiment, merged
     with standard Dallinger files by the same process that occurs in production.
     """
-    from dallinger.deployment import assemble_experiment_temp_dir
-    from dallinger.deployment import ensure_constraints_file_presence
+    from dallinger.utils import assemble_experiment_temp_dir
+    from dallinger.utils import ensure_constraints_file_presence
 
     current_dir = os.getcwd()
     ensure_constraints_file_presence(current_dir)
     with mock.patch(
-        "dallinger.deployment.get_editable_dallinger_path"
+        "dallinger.utils.get_editable_dallinger_path"
     ) as get_editable_dallinger_path:
         # When dallinger is not installed as editable egg the requirements
         # file sent to heroku will include a version pin
@@ -173,12 +174,13 @@ def custom_app_output():
         def my_check_output(cmd):
             if "auth:whoami" in cmd:
                 return b"test@example.com"
-            elif "config:get" in cmd:
-                if "CREATOR" in cmd and "dlgr-my-uid" in cmd:
-                    return b"test@example.com"
-                elif "DALLINGER_UID" in cmd:
-                    return cmd[-1].replace("dlgr-", "")
-                return b""
+            elif "config" in cmd:
+                return json.dumps(
+                    {
+                        "CREATOR": "test@example.com" if "dlgr-my-uid" in cmd else "",
+                        "DALLINGER_UID": cmd[-1].replace("dlgr-", ""),
+                    }
+                )
             elif "apps" in cmd:
                 return b"""[
 {"name": "dlgr-my-uid",
@@ -191,6 +193,13 @@ def custom_app_output():
 
         check_output.side_effect = my_check_output
         yield check_output
+
+
+@pytest.fixture(scope="session", autouse=True)
+def patch_netrc():
+    with mock.patch("dallinger.heroku.tools.netrc.netrc") as netrc:
+        netrc.return_value.hosts = {"api.heroku.com": ["test@example.com"]}
+        yield netrc
 
 
 def pytest_addoption(parser):

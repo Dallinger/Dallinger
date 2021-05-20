@@ -5,6 +5,7 @@ from __future__ import unicode_literals
 import json
 from six.moves import shlex_quote as quote
 import signal
+import netrc
 import os
 import psutil
 import re
@@ -36,6 +37,11 @@ def log_in():
         raise Exception("You are not logged into Heroku.")
 
 
+def container_log_in():
+    """Ensure that the user is logged in to Heroku container registry."""
+    check_output(["heroku", "container:login"])
+
+
 def request_headers(auth_token):
     """Return request headers using the provided authorization token."""
     headers = {
@@ -65,7 +71,8 @@ class HerokuCommandRunner(object):
 
     def login_name(self):
         """Returns the current logged-in heroku user"""
-        return self._result(["heroku", "auth:whoami"]).strip()
+        # The Heroku CLI client stores credentials in the user's netrc file
+        return netrc.netrc().hosts["api.heroku.com"][0]
 
     def _run(self, cmd, pass_stderr=False):
         if pass_stderr:
@@ -99,14 +106,11 @@ class HerokuInfo(HerokuCommandRunner):
         my_apps = []
         for app in self.all_apps():
             name = app.get("name")
-            creator = self._result(
-                ["heroku", "config:get", "CREATOR", "--app", name]
-            ).strip()
-            if creator == my_login:
-                uid = self._result(
-                    ["heroku", "config:get", "DALLINGER_UID", "--app", name]
-                ).strip()
-                app["dallinger_uid"] = uid
+            config = json.loads(
+                self._result(["heroku", "config", "--json", "--app", name])
+            )
+            if config.get("CREATOR", "").strip() == my_login:
+                app["dallinger_uid"] = config.get("DALLINGER_UID").strip()
                 my_apps.append(app)
         return my_apps
 
@@ -118,11 +122,13 @@ class HerokuApp(HerokuCommandRunner):
         self.dallinger_uid = dallinger_uid
         super(HerokuApp, self).__init__(output, team)
 
-    def bootstrap(self):
+    def bootstrap(self, buildpack="heroku/python"):
         """Creates the heroku app and local git remote. Call this once you're
         in the local repo you're going to use.
         """
-        cmd = ["heroku", "apps:create", self.name, "--buildpack", "heroku/python"]
+        cmd = ["heroku", "apps:create", self.name]
+        if buildpack:
+            cmd += ["--buildpack", buildpack]
 
         # If a team is specified, assign the app to the team.
         if self.team:
@@ -133,6 +139,21 @@ class HerokuApp(HerokuCommandRunner):
         self.set_multiple(
             HOST=self.url, CREATOR=self.login_name(), DALLINGER_UID=self.dallinger_uid
         )
+
+    def push_containers(self):
+        """Push docker containers to Heroku.
+        Reuqires Dockerfile.web and Dockerfile.worker to be present.
+        """
+        try:
+            # We optimistically assume the user is already logged in
+            self._run(["heroku", "container:push", "--recursive", "-a", self.name])
+        except subprocess.CalledProcessError:
+            self._run(["heroku", "container:login"])
+            self._run(["heroku", "container:push", "--recursive", "-a", self.name])
+
+    def release_containers(self):
+        """Start the dynos for web and worker"""
+        self._run(["heroku", "container:release", "web", "worker", "-a", self.name])
 
     @property
     def name(self):

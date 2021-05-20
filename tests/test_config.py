@@ -202,6 +202,11 @@ worldwide = false
         config.ready = True
         assert config.get("num_participants") == 1
 
+    def test_docker_image_default(self, experiment_dir):
+        config = get_config()
+        config.load()
+        assert config.get("image_base_name") == "experiment"
+
 
 @pytest.mark.usefixtures("experiment_dir_merged")
 class TestConfigurationIntegrationTests(object):

@@ -1,0 +1,40 @@
+version: '3.7'
+services:
+  postgresql:
+    image: postgres:12
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dallinger
+      POSTGRES_PASSWORD: dallinger
+      POSTGRES_DB: dallinger
+    volumes:
+      - dallinger_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 2s
+      timeout: 5s
+    networks:
+      - dallinger
+
+  httpserver:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./caddy.d:/etc/caddy/caddy.d
+      - caddy_config:/config
+    networks:
+      - dallinger
+
+
+volumes:
+  dallinger_pg_data:
+  caddy_config:
+
+networks:
+  dallinger:
+    name: dallinger
+    

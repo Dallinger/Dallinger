@@ -224,6 +224,12 @@ class TestBaseURL(object):
         yield instance
         config.config = None
 
+    def test_base_url_uses_flask_if_available(self, subject):
+        from dallinger.experiment_server.experiment_server import app
+
+        with app.test_request_context(base_url="https://example.com", path="/launch"):
+            assert subject() == u"https://example.com"
+
     def test_base_url_uses_environment(self, subject, config):
         config.set("host", u"127.0.0.1")
         config.set("base_port", 5000)
