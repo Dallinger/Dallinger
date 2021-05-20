@@ -148,17 +148,16 @@ experiments deployed this way can be found under the `dallinger docker-ssh` comm
 
 .. code-block:: shell
 
-    $ dallinger docker-ssh --help
     Usage: dallinger docker-ssh [OPTIONS] COMMAND [ARGS]...
-    
+
       Deploy to a remote server using docker through ssh.
-    
+
     Options:
       -h, --help  Show this message and exit.
-    
+
     Commands:
       apps     List dallinger apps running on the remote server.
-      deploy
+      deploy   Deploy a dallnger experiment docker image to a server using ssh.
       destroy  Tear down an experiment run on a server you control via ssh.
       export   List dallinger apps running on the remote server.
       servers  Manage remote servers where experiments can be deployed
@@ -166,7 +165,7 @@ experiments deployed this way can be found under the `dallinger docker-ssh` comm
 .. note::
 
       The intended use case is a server that you provisioned exclusively for use with Dallnger.
-  
+
 First you need to tell dallinger a server you can use. There are some prerequisites:
 
     * Ports 80 and 443 should be free (Dallinger will install a web server and take care of getting SSL certificates for you)
@@ -211,6 +210,13 @@ The above command will output:
 Dallinger uses the free service [nip.io](https://nip.io/) to provide a URL for the experiment to get an SSL certificate from Let's Encrypt.
 The experiment URL is a combination of the app id and the server IP. In this case the id of the deployed experiment is ``dlgr-d5543ddd``.
 
+If you need to run an experiment on Amazon Mechanical Turk in sandbox mode you can set the mode to ``sandbox`` using the `-c` option like this:
+
+.. code-block:: shell
+
+    dallinger docker-ssh deploy --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5 -c mode sandbox
+
+
 To export the data from an experiment running on a server, run:
 
 .. code-block:: shell
@@ -221,4 +227,4 @@ To stop an experiment and remove its containers from the server, run:
 
 .. code-block:: shell
 
-    dallinger docker-ssh export --app $APP_ID
+    dallinger docker-ssh destroy --app $APP_ID
