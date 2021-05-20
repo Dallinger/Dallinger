@@ -1,8 +1,9 @@
 # Change Log
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
-## [7.4.0](https://github.com/dallinger/dallinger/tree/7.4.0) (2021-05-20)
-- Experimental: Support for deploying to Heroku using Docker containers:
+## [v7.4.0](https://github.com/dallinger/dallinger/tree/v7.4.0) (2021-05-20)
+- Experimental: Support for deploying to using Docker containers:
+    - Deployment to Heroku using a Docker container
     - Docker image creation from an experiment
     - Deployment of the created image to a self-hosted server via ssh
       Related commands:
