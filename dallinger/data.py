@@ -222,7 +222,10 @@ def export(id, local=False, scrub_pii=False):
         db_uri = db.db_url
     else:
         db_uri = HerokuApp(id).db_uri
+    return export_db_uri(id, db_uri=db_uri, local=local, scrub_pii=scrub_pii)
 
+
+def export_db_uri(id, db_uri, local, scrub_pii):
     # Create the data package if it doesn't already exist.
     subdata_path = os.path.join("data", id, "data")
     try:

@@ -1,7 +1,0 @@
-ARG DALLINGER_DOCKER_IMAGE=ghcr.io/dallinger/dallinger:latest
-FROM $DALLINGER_DOCKER_IMAGE
-# Use a dallinger base image to build an experiment image
-COPY . /experiment
-WORKDIR /experiment
-RUN bash -c "python3 -m pip install -r <(grep -v ^dallinger requirements.txt)"
-CMD dallinger_heroku_worker

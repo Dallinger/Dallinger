@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 from collections import deque
 from contextlib import contextmanager
 from six.moves import configparser
+from pathlib import Path
 import distutils.util
 import io
 import json
@@ -24,6 +25,8 @@ def is_valid_json(value):
 
 
 default_keys = (
+    # These are the keys allowed in a dallinger experiment
+    # config.txt file.
     ("ad_group", six.text_type, []),
     ("approve_requirement", int, []),
     ("assign_qualifications", bool, []),
@@ -86,6 +89,7 @@ default_keys = (
     ("webdriver_url", six.text_type, []),
     ("whimsical", bool, []),
     ("worker_multiplier", float, []),
+    ("image_base_name", six.text_type, [], ""),
 )
 
 
@@ -271,6 +275,9 @@ class Configuration(object):
 
         self.load_from_environment()
         self.ready = True
+
+        if self.get("image_base_name", None) is None:
+            self.set("image_base_name", Path(os.getcwd()).name)
 
     def register_extra_parameters(self):
         initialize_experiment_package(os.getcwd())

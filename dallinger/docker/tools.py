@@ -1,13 +1,20 @@
 import docker
+import io
+import json
 import os
-import shutil
+import re
+import tarfile
 import time
 
+from hashlib import sha256
 from jinja2 import Template
 from pathlib import Path
 from subprocess import check_output
 from subprocess import CalledProcessError
+from pip._internal.network.session import PipSession
+from pip._internal.req import parse_requirements
 
+from dallinger.docker.wheel_filename import parse_wheel_filename
 from dallinger.utils import abspath_from_egg
 from dallinger.utils import get_editable_dallinger_path
 
@@ -53,21 +60,29 @@ class DockerComposeWrapper(object):
         self.experiment_name = Path(self.original_dir).name
         self._record = []
         self.needs_chrome = needs_chrome
-        self.client = docker.APIClient(base_url="unix://var/run/docker.sock")
 
     def copy_docker_compse_files(self):
-        for filename in ["Dockerfile.web", "Dockerfile.worker"]:
-            path = abspath_from_egg("dallinger", f"dallinger/docker/{filename}")
-            shutil.copy2(path, self.tmp_dir)
-        volumes = [f"{self.original_dir}:{self.original_dir}"]
+        """Prepare a docker-compose.yml file and place it in the experiment tmp dir"""
+        volumes = [
+            f"{self.original_dir}:{self.original_dir}",
+            f"{self.tmp_dir}:/experiment",
+        ]
         editable_dallinger_path = get_editable_dallinger_path()
         if editable_dallinger_path:
             volumes.append(f"{editable_dallinger_path}/dallinger:/dallinger/dallinger")
+            volumes.append(
+                f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.8/dist-packages/dallinger/"
+            )
+            volumes.append(
+                f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.9/dist-packages/dallinger/"
+            )
+        tag = get_experiment_image_tag(self.tmp_dir)
         with open(os.path.join(self.tmp_dir, "docker-compose.yml"), "w") as fh:
             fh.write(
                 docker_compose_template.render(
                     volumes=volumes,
                     experiment_name=self.experiment_name,
+                    experiment_image=f"{self.experiment_name}:{tag}",
                     needs_chrome=self.needs_chrome,
                 )
             )
@@ -104,18 +119,8 @@ class DockerComposeWrapper(object):
 
     def start(self):
         self.copy_docker_compse_files()
-        env = {"DOCKER_BUILDKIT": "1"}
-        build_args = ["--progress=plain"]
-        if self.needs_chrome:
-            build_args += [
-                "--build-arg",
-                "DALLINGER_DOCKER_IMAGE=ghcr.io/dallinger/dallinger-bot",
-            ]
-        check_output(
-            ["docker-compose", "build"] + build_args,
-            env={**os.environ.copy(), **env},
-        )
-        check_output("docker-compose up -d".split(), env={**os.environ.copy(), **env})
+        build_image(self.tmp_dir, self.experiment_name, self.out, self.needs_chrome)
+        check_output("docker-compose up -d".split())
         # Wait for postgres to complete initialization
         self.wait_postgres_ready()
         try:
@@ -127,8 +132,9 @@ class DockerComposeWrapper(object):
         self.wait_redis_ready()
         # Make sure the containers are all started
         errors = []
+        client = docker.client.from_env()
         for container_id in self.run_compose(["ps", "-q"]).decode("utf-8").split():
-            container = docker.client.from_env().containers.get(container_id)
+            container = client.containers.get(container_id)
             try:
                 health = container.attrs["State"]["Health"]["Status"]
             except KeyError:
@@ -136,13 +142,18 @@ class DockerComposeWrapper(object):
                     "healthy"  # Containers with no health check just need to be running
                 )
             if container.status != "running" or health != "healthy":
-                errors.append(f"{container.name}: {container.status} - {health}")
+                errors.append(
+                    {
+                        "name": container.name,
+                        "message": f"{container.status} - {health}",
+                    }
+                )
         if errors:
             self.out.error("Some services did not start properly:")
             for error in errors:
-                self.out.error(error)
+                self.out.error(f'{error["name"]}: {error["message"]}')
                 self.out.error(
-                    self.client.attach(error.split(" ")[0], logs=True).decode("utf-8")
+                    client.api.attach(error["name"], logs=True).decode("utf-8")
                 )
             raise DockerStartupError
         return self
@@ -162,10 +173,9 @@ class DockerComposeWrapper(object):
     def monitor(self, listener):
         # How can we get a stream for two containers?
         # Or, as an alternative, how do we combine two of these (blocking?) iterators?
-        # logs = self.client.events(filters={"ancestor": [f"{self.experiment_name}-web", f"{self.experiment_name}-worker"]})
-        logs = self.client.attach(
-            self.get_container_name("web"), stream=True, logs=True
-        )
+        # logs = client.api.events(filters={"ancestor": [f"{self.experiment_name}-web", f"{self.experiment_name}-worker"]})
+        client = docker.client.from_env()
+        logs = client.api.attach(self.get_container_name("web"), stream=True, logs=True)
         for raw_line in logs:
             line = raw_line.decode("utf-8", errors="ignore")
             self._record.append(line)
@@ -189,17 +199,137 @@ class DockerComposeWrapper(object):
             + compose_commands,
         )
 
-    # To build the docker images and upload them to heroku run the following
-    # command in self.tmp_dir:
-    # heroku container:push --recursive -a ${HEROKU_APP_NAME}
-    # To make sure the app has the necessary addons:
-    # heroku addons:create -a ${HEROKU_APP_NAME} heroku-postgresql:hobby-dev
-    # heroku addons:create -a ${HEROKU_APP_NAME} heroku-redis:hobby-dev
-    # To release containers:
-    # heroku container:release web worker -a ${HEROKU_APP_NAME}
-    # To initialize the database:
-    # heroku run dallinger-housekeeper initdb -a $HEROKU_APP_NAME
-
 
 class DockerStartupError(RuntimeError):
     """Some docker containers had problems starting"""
+
+
+class BuildError(RuntimeError):
+    """There was a problem building the docker image"""
+
+
+def get_base_image(experiment_tmp_path: str, needs_chrome: bool = False) -> str:
+    """Inspects an experiment tmp directory and determines the version
+    of dallinger required by the experiment.
+    Returns a docker image name and tag. For example:
+    `ghcr.io/dallinger/dallinger-bot:7.1.0`
+    """
+    dallinger_version = get_required_dallinger_version(experiment_tmp_path)
+    base_image_name = "ghcr.io/dallinger/dallinger"
+    if needs_chrome:
+        base_image_name += "-bot"
+    return f"{base_image_name}:{dallinger_version or 'latest'}"
+
+
+def get_required_dallinger_version(experiment_tmp_path: str) -> str:
+    """Examine the requirements.txt in an experiment tmp directory
+    and return the dallinger version required by the experiment.
+    """
+    requirements_path = str(Path(experiment_tmp_path) / "requirements.txt")
+    all_requirements = parse_requirements(requirements_path, session=PipSession())
+    dallinger_requirements = [
+        el.requirement
+        for el in all_requirements
+        if el.requirement.startswith("dallinger==")
+        or el.requirement.startswith(
+            "file:dallinger-"
+        )  # In case dallinger is installed in editable mode
+    ]
+    if not dallinger_requirements:
+        print("Could not determine Dallinger version. Using latest")
+        return ""
+    # pip-compile should have created a single spec in the form "dallinger==7.2.0"
+    if "==" in dallinger_requirements[0]:
+        return dallinger_requirements[0].split("==")[1]
+    # Or we might have a requirement like `file:dallinger-7.2.0-py3-none-any.whl`
+    return parse_wheel_filename(dallinger_requirements[0][len("file:") :]).version
+
+
+def get_experiment_image_tag(experiment_tmp_path: str) -> str:
+    """Return a docker image tag to be used for the experiment.
+
+    The tag needs to be a hash of all the files that, when changed,
+    require the image to be rebuilt.
+
+    When an experiment is changed an older image can still be used,
+    as long as no dependencies or build script changed.
+    The experiment directory can then be mounted to have the latest changes.
+    This saves the need to rebuild the image too often.
+    """
+    files = "requirements.txt", "prepare_docker_image.sh"
+    hash = sha256()
+    for filename in files:
+        filepath = Path(experiment_tmp_path) / filename
+        hash.update(filepath.read_bytes())
+    return hash.hexdigest()[:8]
+
+
+def build_image(
+    tmp_dir, base_image_name, out, needs_chrome=False, force_build=False
+) -> str:
+    """Build the docker image for the experiment and return its name."""
+    tag = get_experiment_image_tag(tmp_dir)
+    image_name = f"{base_image_name}:{tag}"
+    base_image_name = get_base_image(tmp_dir, needs_chrome)
+    client = docker.client.from_env()
+    try:
+        client.api.inspect_image(image_name)
+        out.blather(f"Image {image_name} found\n")
+        if not force_build:
+            return image_name
+        out.blather("Rebuilding\n")
+    except docker.errors.ImageNotFound:
+        out.blather(f"Image {image_name} not found - building\n")
+    dockerfile_text = fr"""FROM {base_image_name}
+    COPY . /experiment
+    WORKDIR /experiment
+    # If a dallinger wheel is present, install it.
+    # This will be true if Dallinger was installed with the editable `-e` flag
+    RUN if [ -f dallinger-*.whl ]; then pip install dallinger-*.whl; fi
+    RUN echo 'Running script prepare_docker_image.sh' && \
+        chmod 755 ./prepare_docker_image.sh && \
+        ./prepare_docker_image.sh
+    # We rely on the already installed dallinger: the docker image tag has been chosen
+    # based on the contents of this file. This makes sure dallinger stays installed from
+    # /dallinger, and that it doesn't waste space with two copies in two different layers.
+    RUN grep -v dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
+        python3 -m pip install -r /tmp/requirements_no_dallinger.txt
+    ENV PORT=5000
+    CMD dallinger_heroku_web
+    """
+    dockerfile = io.BytesIO(dockerfile_text.encode())
+    context = io.BytesIO()
+    context_tar = tarfile.open(fileobj=context, mode="w:gz", dereference=True)
+    info = tarfile.TarInfo(name="Dockerfile")
+    info.size = len(dockerfile_text)
+    context_tar.addfile(info, fileobj=dockerfile)
+    context_tar.add(str(Path(tmp_dir)), arcname=".")
+    context_tar.close()
+    context.seek(0)
+    output = client.api.build(
+        fileobj=context, custom_context=True, tag=image_name, encoding="gzip"
+    )
+
+    for lines in output:
+        for line in re.split(br"\r\n|\n", lines):
+            if not line:  # Split empty lines
+                continue
+            line_decoded = json.loads(line)
+            if "error" in line_decoded:
+                if line_decoded["error"] == "name unknown":
+                    out.blather(
+                        f"The base image for this dallinger version ({base_image_name}) was not found\n"
+                    )
+                    out.blather(
+                        "Try to update the dallinger version in requirements.txt and re-run\n"
+                    )
+                    out.blather("    dallinger generate-constraints\n")
+                    line_decoded["error"] == "name unknown"
+                    raise BuildError(f"Image {base_image_name} not found")
+                raise BuildError(line_decoded["error"])
+            out.blather(line_decoded.get("stream", ""))
+            if "error" in line_decoded:
+                out.blather(line_decoded.get("error", "") + "\n")
+            if "aux" in line_decoded:
+                out.blather(f'Built image: {line_decoded["aux"]["ID"]}' + "\n")
+    return image_name

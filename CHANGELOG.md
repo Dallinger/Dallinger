@@ -1,6 +1,20 @@
 # Change Log
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v7.4.0](https://github.com/dallinger/dallinger/tree/v7.4.0) (2021-05-20)
+- Experimental: Support for deploying to using Docker containers:
+    - Deployment to Heroku using a Docker container
+    - Docker image creation from an experiment
+    - Deployment of the created image to a self-hosted server via ssh
+      Related commands:
+        - ``dallinger docker-ssh apps``
+        - ``dallinger docker-ssh deploy``
+        - ``dallinger docker-ssh export``
+        - ``dallinger docker-ssh destroy``
+
+  Note that these features should be regarded as **experimental** and are included
+  in a release primarily to facilitate beta testing.
+
 ## [v7.3.0](https://github.com/dallinger/dallinger/tree/v7.3.0) (2021-05-04)
 - Enhancement: Increase the length limit on app names from 8 to 18 characters
   NOTE: we do not recommend attempting to upgrade your local Dallinger

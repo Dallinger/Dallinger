@@ -17,7 +17,8 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.exc import OperationalError
 
-from dallinger.utils import connect_to_redis
+from dallinger.config import initialize_experiment_package
+from dallinger.redis_utils import connect_to_redis
 
 
 logger = logging.getLogger("dallinger.db")
@@ -117,6 +118,15 @@ def scoped_session_decorator(func):
 
 def init_db(drop_all=False, bind=engine):
     """Initialize the database, optionally dropping existing tables."""
+    # To create the db structure according to the experiment configuration
+    # we need to import the experiment code, so that sqlalchemy has a chance
+    # to update its metadata
+    initialize_experiment_package(os.getcwd())
+    try:
+        from dallinger_experiment import experiment  # noqa: F401
+    except ImportError:
+        pass
+
     try:
         if drop_all:
             Base.metadata.drop_all(bind=bind)
