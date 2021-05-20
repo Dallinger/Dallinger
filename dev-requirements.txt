@@ -60,7 +60,7 @@ cfgv==3.3.0
     # via pre-commit
 chardet==4.0.0
     # via requests
-click==8.0.0
+click==8.0.1
     # via
     #   black
     #   dallinger
