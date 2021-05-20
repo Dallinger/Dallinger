@@ -182,6 +182,7 @@ server_option = click.option(
 )
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 def deploy(mode, image, server, dns_host, config_options):
+    """Deploy a dallnger experiment docker image to a server using ssh."""
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
@@ -207,6 +208,11 @@ def deploy(mode, image, server, dns_host, config_options):
     config = get_config()
     config.load()
     cfg = config.as_dict()
+    for key in "aws_access_key_id", "aws_secret_access_key", "aws_region":
+        # AWS credentials are not included by default in to_dict() result
+        # but can be extracted explicitly from a config object
+        cfg[key] = config[key]
+
     cfg.update(
         {
             "FLASK_SECRET_KEY": token_urlsafe(16),
