@@ -537,7 +537,7 @@ websocket-client==0.59.0
     # via
     #   docker
     #   docker-compose
-werkzeug==1.0.1
+werkzeug==2.0.1
     # via flask
 wheel==0.36.2
     # via pypandoc
