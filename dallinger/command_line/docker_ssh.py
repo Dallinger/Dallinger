@@ -105,8 +105,9 @@ def prepare_server(host, user):
         executor.run("docker ps")
     except ExecuteException:
         print("Installing docker")
-        executor.run("wget -O - https://get.docker.com | sudo bash")
-        executor.run(f"sudo adduser {user} docker")
+        executor.check_sudo()
+        executor.run("wget -O - https://get.docker.com | sudo -n bash")
+        executor.run("sudo -n adduser $(id --user --name) docker")
         print("Docker installed")
         # Log in again in case we need to be part of the `docker` group
         executor = Executor(host, user)
@@ -119,10 +120,11 @@ def prepare_server(host, user):
         try:
             install_docker_compose_via_pip(executor)
         except ExecuteException:
+            executor.check_sudo()
             executor.run(
-                "sudo wget https://github.com/docker/compose/releases/download/1.29.1/docker-compose-Linux-x86_64 -O /usr/local/bin/docker-compose"
+                "sudo -n wget https://github.com/docker/compose/releases/download/1.29.1/docker-compose-Linux-x86_64 -O /usr/local/bin/docker-compose"
             )
-            executor.run("sudo chmod 755 /usr/local/bin/docker-compose")
+            executor.run("sudo -n chmod 755 /usr/local/bin/docker-compose")
     else:
         print("Docker compose already installed")
 
@@ -410,6 +412,7 @@ class Executor:
         # For convenience we always trust the remote host
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.client.load_system_host_keys()
+        self.host = host
         print(f"Connecting to {host}")
         self.client.connect(host, username=user)
         print("Connected.")
@@ -427,6 +430,18 @@ class Executor:
             print(channel.recv_stderr(10 ** 10).decode())
             raise ExecuteException
         return channel.recv(10 ** 10).decode()
+
+    def check_sudo(self):
+        """Make sure the current user is authorized to invoke sudo without providing a password.
+        If that is not the case print a message and raise click.Abort
+        """
+        if not self.run("sudo -n ls -l /", raise_=False):
+            print(
+                f"No passwordless sudo rights on {self.host}. Make sure your user can run sudo without a password.\n"
+                "Run `sudo visudo` on the server and add this to the end of the file (replacing with the server username):\n"
+                "<username> ALL=NOPASSWD: ALL"
+            )
+            raise click.Abort
 
     def reload_caddy(self):
         self.run(
