@@ -34,13 +34,6 @@ jobs:
             ${{ runner.os }}-
       - name: Python Installers
         run: pip install --upgrade pip wheel tox
-      - name: Wait on tests
-        uses: lewagon/wait-on-check-action@v0.2
-        with:
-          ref: ${{ github.ref }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 10
-          running-workflow-name: 'release'
       - name: Set up deployment
         env:
           CHANDLER_GITHUB_API_TOKEN: ${{ secrets.CHANDLER_GITHUB_API_TOKEN }}
