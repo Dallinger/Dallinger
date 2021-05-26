@@ -355,7 +355,7 @@ pyparsing==2.4.7
     # via packaging
 pyrsistent==0.17.3
     # via jsonschema
-pytest-rerunfailures==9.1.1
+pytest-rerunfailures==10.0
     # via dallinger
 pytest==6.2.4
     # via
