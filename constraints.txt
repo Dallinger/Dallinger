@@ -152,7 +152,7 @@ heroku3==4.2.3
     # via dallinger
 identify==2.2.6
     # via pre-commit
-idna==2.10
+idna==3.2
     # via requests
 imagesize==1.2.0
     # via sphinx
