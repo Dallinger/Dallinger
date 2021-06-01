@@ -469,7 +469,7 @@ class Executor:
             "caddy reload -config /etc/caddy/Caddyfile"
         )
 
-    def run_and_echo(self, cmd):
+    def run_and_echo(self, cmd):  # pragma: no cover
         """Execute the given command on the remote host and prints its output
         while it runs. Allows quitting by pressing the letter "q".
         Buffers lines to prevent flickering.
