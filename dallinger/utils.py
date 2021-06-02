@@ -508,7 +508,6 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
 
     # Copy local experiment files, minus some
     ExperimentFileSource(os.getcwd()).selective_copy_to(dst)
-
     # Export the loaded configuration
     config.write(filter_sensitive=True, directory=dst)
 
@@ -518,51 +517,18 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
 
     # Copy Dallinger files
     dallinger_root = dallinger_package_path()
-    ensure_directory(os.path.join(dst, "static", "scripts"))
-    ensure_directory(os.path.join(dst, "static", "css"))
-    frontend_files = [
-        os.path.join("static", "css", "bootstrap.min.css"),
-        os.path.join("static", "css", "dallinger.css"),
-        os.path.join("static", "css", "dashboard.css"),
-        os.path.join("static", "scripts", "jquery-3.5.1.min.js"),
-        os.path.join("static", "scripts", "popper.min.js"),
-        os.path.join("static", "scripts", "bootstrap.min.js"),
-        os.path.join("static", "scripts", "clipboard.min.js"),
-        os.path.join("static", "scripts", "dallinger2.js"),
-        os.path.join("static", "scripts", "network-monitor.js"),
-        os.path.join("static", "scripts", "reqwest.min.js"),
-        os.path.join("static", "scripts", "require.js"),
-        os.path.join("static", "scripts", "reconnecting-websocket.js"),
-        os.path.join("static", "scripts", "spin.min.js"),
-        os.path.join("static", "scripts", "tracker.js"),
-        os.path.join("static", "scripts", "store+json2.min.js"),
-        os.path.join("templates", "error.html"),
-        os.path.join("templates", "error-complete.html"),
-        os.path.join("templates", "launch.html"),
-        os.path.join("templates", "questionnaire.html"),
-        os.path.join("templates", "exit_recruiter.html"),
-        os.path.join("templates", "exit_recruiter_mturk.html"),
-        os.path.join("templates", "waiting.html"),
-        os.path.join("templates", "login.html"),
-        os.path.join("templates", "dashboard_lifecycle.html"),
-        os.path.join("templates", "dashboard_database.html"),
-        os.path.join("templates", "dashboard_heroku.html"),
-        os.path.join("templates", "dashboard_home.html"),
-        os.path.join("templates", "dashboard_monitor.html"),
-        os.path.join("templates", "dashboard_mturk.html"),
-        os.path.join("static", "robots.txt"),
-    ]
-    frontend_dirs = [os.path.join("templates", "base")]
-    for filename in frontend_files:
-        src = os.path.join(dallinger_root, "frontend", filename)
-        dst_filepath = os.path.join(dst, filename)
-        if not os.path.exists(dst_filepath):
-            shutil.copy(src, dst_filepath)
-    for filename in frontend_dirs:
-        src = os.path.join(dallinger_root, "frontend", filename)
-        dst_filepath = os.path.join(dst, filename)
-        if not os.path.exists(dst_filepath):
-            shutil.copytree(src, dst_filepath)
+
+    src = os.path.join(dallinger_root, "frontend")
+    for src_dir, dirs, files in os.walk(src):
+        dst_dir = src_dir.replace(src, dst, 1)
+        if not os.path.exists(dst_dir):
+            os.makedirs(dst_dir)
+        for file_ in files:
+            src_file = os.path.join(src_dir, file_)
+            dst_file = os.path.join(dst_dir, file_)
+            if os.path.exists(dst_file):
+                continue
+            shutil.copy(src_file, dst_dir)
 
     # Copy Heroku files
     heroku_files = ["Procfile"]
@@ -614,6 +580,38 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
             )
             requirements_path.write_text(new_constraints_text)
     return dst
+
+
+class DallingerFileSource(object):
+    """The core Dallinger framework is a source for files to be used in an
+    experiment run.
+    """
+
+    def __init__(self, root_dir="."):
+        self.root = root_dir
+
+    @property
+    def files(self):
+        """A Set of all files copyable in the source directory, accounting for
+        exclusions.
+        """
+        return set(self._walk())
+
+    @property
+    def size(self):
+        """Combined size of all files, accounting for exclusions."""
+        return sum([os.path.getsize(path) for path in self._walk()])
+
+    def selective_copy_to(self, destination):
+        """Write files from the source directory to another directory, skipping
+        files excluded by the general exclusion_policy, plus any files
+        ignored by git configuration.
+        """
+        for path in self.files:
+            subpath = os.path.relpath(path, start=self.root)
+            target_folder = os.path.join(destination, os.path.dirname(subpath))
+            ensure_directory(target_folder)
+            shutil.copy2(path, target_folder)
 
 
 class ExperimentFileSource(object):

@@ -336,6 +336,19 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("templates", "exit_recruiter_mturk.html"), dst)
         assert found_in(os.path.join("templates", "launch.html"), dst)
 
+        assert found_in(os.path.join("templates", "dashboard_lifecycle.html"), dst)
+        assert found_in(os.path.join("templates", "dashboard_database.html"), dst)
+        assert found_in(os.path.join("templates", "dashboard_heroku.html"), dst)
+        assert found_in(os.path.join("templates", "dashboard_home.html"), dst)
+        assert found_in(os.path.join("templates", "dashboard_monitor.html"), dst)
+        assert found_in(os.path.join("templates", "dashboard_mturk.html"), dst)
+
+        assert found_in(os.path.join("templates", "base", "ad.html"), dst)
+        assert found_in(os.path.join("templates", "base", "consent.html"), dst)
+        assert found_in(os.path.join("templates", "base", "dashboard.html"), dst)
+        assert found_in(os.path.join("templates", "base", "layout.html"), dst)
+        assert found_in(os.path.join("templates", "base", "questionnaire.html"), dst)
+
     def test_setup_uses_specified_python_version(self, active_config, setup_experiment):
         active_config.extend({"heroku_python_version": "3.8.7"})
 
