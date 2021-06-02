@@ -66,6 +66,9 @@ General
     check this registry to see if an experiment has already been run and reject
     re-running an experiment if it has been.
 
+``language`` *unicode*
+    A ``gettext`` language code to be used for the experiment.
+
 
 Recruitment (General)
 ~~~~~~~~~~~~~~~~~~~~~

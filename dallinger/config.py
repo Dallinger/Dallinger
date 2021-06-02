@@ -63,6 +63,7 @@ default_keys = (
     ("id", six.text_type, []),
     ("infrastructure_debug_details", six.text_type, [], False),
     ("keywords", six.text_type, []),
+    ("language", six.text_type, []),
     ("lifetime", int, []),
     ("logfile", six.text_type, []),
     ("loglevel", int, []),
