@@ -8,13 +8,13 @@
     # via -r requirements.in
 apscheduler==3.7.0
     # via dallinger
-boto3==1.17.105
+boto3==1.17.92
     # via dallinger
-botocore==1.20.105
+botocore==1.20.92
     # via
     #   boto3
     #   s3transfer
-build==0.5.1
+build==0.4.0
     # via dallinger
 cached-property==1.5.2
     # via dallinger
@@ -28,7 +28,7 @@ click==7.1.2
     #   flask
     #   pip-tools
     #   rq
-faker==8.9.1
+faker==8.6.0
     # via dallinger
 flask-crossdomain==0.1
     # via dallinger
@@ -81,7 +81,7 @@ markupsafe==2.0.1
     # via
     #   jinja2
     #   wtforms
-packaging==21.0
+packaging==20.9
     # via build
 pep517==0.10.0
     # via
@@ -89,7 +89,7 @@ pep517==0.10.0
     #   pip-tools
 pexpect==4.8.0
     # via dallinger
-pip-tools==6.2.0
+pip-tools==6.1.0
     # via dallinger
 psutil==5.8.0
     # via dallinger
@@ -118,7 +118,7 @@ requests==2.25.1
     # via
     #   dallinger
     #   heroku3
-rq==1.9.0
+rq==1.8.1
     # via dallinger
 s3transfer==0.4.2
     # via boto3
@@ -132,7 +132,7 @@ six==1.16.0
     #   sqlalchemy-postgres-copy
 sqlalchemy-postgres-copy==0.5.0
     # via dallinger
-sqlalchemy==1.4.20
+sqlalchemy==1.4.18
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
@@ -154,7 +154,7 @@ ua-parser==0.10.0
     # via
     #   dallinger
     #   user-agents
-urllib3==1.26.6
+urllib3==1.26.5
     # via
     #   botocore
     #   requests
