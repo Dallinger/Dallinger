@@ -305,7 +305,7 @@ def build_image(
     """
     (Path(tmp_dir) / "Dockerfile").write_text(dockerfile_text)
     env = {
-        "SSH_AUTH_SOCK": os.environ["SSH_AUTH_SOCK"],
+        "SSH_AUTH_SOCK": os.environ.get("SSH_AUTH_SOCK", ""),
         "DOCKER_BUILDKIT": "1",
     }
     process = Popen(
