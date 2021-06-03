@@ -48,3 +48,12 @@ an ad-blocker. Try disabling your ad-blocker and refresh the page.
 It is worth noting here that occasionally if an experiment does not exit gracefully,
 one maybe required to manually cleanup some left over python processes, before running the same or another experiment with dallinger.
 See :doc:`Troubleshooting <troubleshooting>` for details.
+
+If you'd like to share a demo url with multiple participants you can use the
+``generate_tokens`` argument to the `/ad` url. For example:
+
+http://0.0.0.0:5000/ad?generate_tokens=1&mode=debug
+
+Passing ``generate_tokens`` instead of entry information (e.g. ``hitId``,
+``assignmentId``, ``workerId``) will automatically generate random entry
+information for the participant.
