@@ -309,7 +309,7 @@ def build_image(
         "DOCKER_BUILDKIT": "1",
     }
     process = Popen(
-        ["docker", "build", "--ssh", "default", tmp_dir], stdout=PIPE, env=env
+        ["docker", "build", "--ssh", "default", str(tmp_dir)], stdout=PIPE, env=env
     )
     for c in iter(lambda: process.stdout.read(1), b""):
         sys.stdout.buffer.write(c)
