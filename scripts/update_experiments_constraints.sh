@@ -5,9 +5,9 @@ cd $dir/..
 # Update demos constraints
 for demo_name in $(ls demos/dlgr/demos/); do
     if [ -f "demos/dlgr/demos/${demo_name}/config.txt" ]; then
-        pushd "demos/dlgr/demos/${demo_name}/"
+        cd "demos/dlgr/demos/${demo_name}/"
         echo Compiling ${demo_name}
         dallinger generate-constraints
-        popd
+        cd -
     fi
 done
