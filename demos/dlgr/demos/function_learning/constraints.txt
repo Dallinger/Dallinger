@@ -8,17 +8,17 @@
 #
 apscheduler==3.7.0
     # via dallinger
-boto3==1.17.68
+boto3==1.17.86
     # via dallinger
-botocore==1.20.68
+botocore==1.20.86
     # via
     #   boto3
     #   s3transfer
-build==0.3.1.post1
+build==0.4.0
     # via dallinger
 cached-property==1.5.2
     # via dallinger
-certifi==2020.12.5
+certifi==2021.5.30
     # via requests
 chardet==4.0.0
     # via requests
@@ -28,9 +28,9 @@ click==7.1.2
     #   flask
     #   pip-tools
     #   rq
-dallinger==7.2.1
+dallinger==7.4.0
     # via -r requirements.txt
-faker==8.1.2
+faker==8.5.0
     # via dallinger
 flask-crossdomain==0.1
     # via dallinger
@@ -38,9 +38,9 @@ flask-login==0.5.0
     # via dallinger
 flask-sockets==0.2.1
     # via dallinger
-flask-wtf==0.14.3
+flask-wtf==0.15.1
     # via dallinger
-flask==1.1.2
+flask==1.1.4
     # via
     #   dallinger
     #   flask-crossdomain
@@ -63,6 +63,8 @@ greenlet==1.1.0
     #   sqlalchemy
 gunicorn==20.1.0
     # via dallinger
+heroku3==4.2.3
+    # via dallinger
 idna==2.10
     # via requests
 itsdangerous==1.1.0
@@ -77,7 +79,7 @@ jmespath==0.10.0
     #   botocore
 localconfig==1.1.3
     # via dallinger
-markupsafe==1.1.1
+markupsafe==2.0.1
     # via
     #   jinja2
     #   wtforms
@@ -105,6 +107,7 @@ python-dateutil==2.8.1
     # via
     #   botocore
     #   faker
+    #   heroku3
 pytz==2021.1
     # via
     #   apscheduler
@@ -114,8 +117,10 @@ redis==3.5.3
     #   dallinger
     #   rq
 requests==2.25.1
-    # via dallinger
-rq==1.8.0
+    # via
+    #   dallinger
+    #   heroku3
+rq==1.8.1
     # via dallinger
 s3transfer==0.4.2
     # via boto3
@@ -129,7 +134,7 @@ six==1.16.0
     #   sqlalchemy-postgres-copy
 sqlalchemy-postgres-copy==0.5.0
     # via dallinger
-sqlalchemy==1.4.14
+sqlalchemy==1.4.17
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
@@ -151,7 +156,7 @@ ua-parser==0.10.0
     # via
     #   dallinger
     #   user-agents
-urllib3==1.26.4
+urllib3==1.26.5
     # via
     #   botocore
     #   requests
