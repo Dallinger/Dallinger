@@ -508,52 +508,23 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
 
     # Copy local experiment files, minus some
     ExperimentFileSource(os.getcwd()).selective_copy_to(dst)
-    # Export the loaded configuration
-    config.write(filter_sensitive=True, directory=dst)
-
-    # Save the experiment id
-    with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
-        file.write(exp_id)
 
     # Copy Dallinger files
-    dallinger_root = dallinger_package_path()
+    DallingerFileSource(config, dallinger_package_path()).selective_copy_to(dst)
 
-    src = os.path.join(dallinger_root, "frontend")
-    for src_dir, dirs, files in os.walk(src):
-        dst_dir = src_dir.replace(src, dst, 1)
-        if not os.path.exists(dst_dir):
-            os.makedirs(dst_dir)
-        for file_ in files:
-            src_file = os.path.join(src_dir, file_)
-            dst_file = os.path.join(dst_dir, file_)
-            if os.path.exists(dst_file):
-                continue
-            shutil.copy(src_file, dst_dir)
+    ExplicitFileSource(os.getcwd()).selective_copy_to(dst)
 
-    # Copy Heroku files
-    heroku_files = ["Procfile"]
-    for filename in heroku_files:
-        src = os.path.join(dallinger_root, "heroku", filename)
-        shutil.copy(src, os.path.join(dst, filename))
+    # Write out the loaded configuration
+    config.write(filter_sensitive=True, directory=dst)
+
+    # Write out the experiment id
+    with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
+        file.write(exp_id)
 
     # Write out a runtime.txt file based on configuration
     pyversion = config.get("heroku_python_version")
     with open(os.path.join(dst, "runtime.txt"), "w") as file:
         file.write("python-{}".format(pyversion))
-
-    if not config.get("clock_on"):
-        # If the clock process has been disabled, overwrite the Procfile:
-        src = os.path.join(dallinger_root, "heroku", "Procfile_no_clock")
-        shutil.copy(src, os.path.join(dst, "Procfile"))
-
-    dst_prepare_docker_image = Path(dst) / "prepare_docker_image.sh"
-    if not dst_prepare_docker_image.exists():
-        shutil.copyfile(
-            Path(dallinger_root) / "docker" / "prepare_docker_image.sh",
-            dst_prepare_docker_image,
-        )
-
-    ExplicitFileSource(os.getcwd()).selective_copy_to(dst)
 
     requirements_path = Path(dst) / "requirements.txt"
     # Overwrite the requirements.txt file with the contents of the constraints.txt file
@@ -587,7 +558,8 @@ class DallingerFileSource(object):
     experiment run.
     """
 
-    def __init__(self, root_dir="."):
+    def __init__(self, config, root_dir="."):
+        self.config = config
         self.root = root_dir
 
     @property
@@ -595,23 +567,58 @@ class DallingerFileSource(object):
         """A Set of all files copyable in the source directory, accounting for
         exclusions.
         """
-        return set(self._walk())
+        return {src for (src, dst) in self.make_copy_order("")}
 
     @property
     def size(self):
         """Combined size of all files, accounting for exclusions."""
-        return sum([os.path.getsize(path) for path in self._walk()])
+        return sum([os.path.getsize(path) for path in self.files])
 
     def selective_copy_to(self, destination):
-        """Write files from the source directory to another directory, skipping
-        files excluded by the general exclusion_policy, plus any files
-        ignored by git configuration.
-        """
-        for path in self.files:
-            subpath = os.path.relpath(path, start=self.root)
-            target_folder = os.path.join(destination, os.path.dirname(subpath))
+        """Actually copy files to the destination."""
+        for from_path, to_path in self.make_copy_order(destination):
+            target_folder = os.path.dirname(to_path)
             ensure_directory(target_folder)
-            shutil.copy2(path, target_folder)
+            if os.path.exists(to_path):
+                continue
+            shutil.copyfile(from_path, to_path)
+
+    def make_copy_order(self, dst):
+        """Return a generator of two-tuples, where the first element is
+        the source file path, and the second is the corresponding path in the
+        target location under @dst.
+        """
+        src = os.path.join(self.root, "frontend")
+        for dirpath, dirnames, filenames in os.walk(src, topdown=True):
+            for fn in filenames:
+                dst_fileparts = (
+                    [
+                        dst,
+                    ]
+                    + [os.path.relpath(dirpath, src)]
+                    + [fn]
+                )
+                dst_filepath = os.path.join(*dst_fileparts)
+                yield (
+                    os.path.join(dirpath, fn),
+                    dst_filepath,
+                )
+
+        # Heroku Procfile
+        if self.config.get("clock_on"):
+            clock_src = os.path.join(self.root, "heroku", "Procfile")
+            yield (clock_src, os.path.join(dst, "Procfile"))
+        else:
+            # If the clock process has been disabled, overwrite the Procfile:
+            clock_src = os.path.join(self.root, "heroku", "Procfile_no_clock")
+            yield (clock_src, os.path.join(dst, "Procfile"))
+
+        # Docker image file
+        scriptname = "prepare_docker_image.sh"
+        docker_src = os.path.join(self.root, "docker", scriptname)
+        dst_prepare_docker_image = os.path.join(dst, scriptname)
+
+        yield (docker_src, dst_prepare_docker_image)
 
 
 class ExperimentFileSource(object):
@@ -628,25 +635,23 @@ class ExperimentFileSource(object):
         """A Set of all files copyable in the source directory, accounting for
         exclusions.
         """
-        return set(self._walk())
+        return {src for (src, dst) in self.make_copy_order("")}
 
     @property
     def size(self):
         """Combined size of all files, accounting for exclusions."""
-        return sum([os.path.getsize(path) for path in self._walk()])
+        return sum([os.path.getsize(path) for path in self.files])
 
     def selective_copy_to(self, destination):
-        """Write files from the source directory to another directory, skipping
-        files excluded by the general exclusion_policy, plus any files
-        ignored by git configuration.
-        """
-        for path in self.files:
-            subpath = os.path.relpath(path, start=self.root)
-            target_folder = os.path.join(destination, os.path.dirname(subpath))
+        """Actually copy files to the destination."""
+        for from_path, to_path in self.make_copy_order(destination):
+            target_folder = os.path.dirname(to_path)
             ensure_directory(target_folder)
-            shutil.copy2(path, target_folder)
+            if os.path.exists(to_path):
+                continue
+            shutil.copyfile(from_path, to_path)
 
-    def _walk(self):
+    def make_copy_order(self, dst):
         # The GitClient and os.walk may return different representations of the
         # same unicode characters, so we use unicodedata.normalize() for
         # comparisons:
@@ -660,6 +665,7 @@ class ExperimentFileSource(object):
         }
         for dirpath, dirnames, filenames in os.walk(self.root, topdown=True):
             current_exclusions = exclusions(dirpath, os.listdir(dirpath))
+
             # Modifying dirnames in-place will prune the subsequent files and
             # directories visited by os.walk. This is only possible when
             # topdown = True
@@ -673,7 +679,15 @@ class ExperimentFileSource(object):
                 normalized = {normalize("NFC", str(f)): f for f in legit_files}
                 legit_files = {v for k, v in normalized.items() if k in git_files}
             for legit in legit_files:
-                yield legit
+                fn = os.path.basename(legit)
+                dst_fileparts = [
+                    dst,
+                ] + [os.path.relpath(legit, self.root)]
+                dst_filepath = os.path.join(*dst_fileparts)
+                yield (
+                    os.path.join(dirpath, fn),
+                    dst_filepath,
+                )
 
 
 class ExplicitFileSource(object):
@@ -682,7 +696,11 @@ class ExplicitFileSource(object):
     def __init__(self, root_dir="."):
         self.root = root_dir
 
-    def _get_mapping(self, dst):
+    def make_copy_order(self, dst):
+        """Return a generator of two-tuples, where the first element is
+        the source file path, and the second is the corresponding path in the
+        target location under @dst.
+        """
         from dallinger.config import initialize_experiment_package
 
         initialize_experiment_package(dst)
@@ -722,7 +740,7 @@ class ExplicitFileSource(object):
         """A Set of all files copyable in the source directory, accounting for
         exclusions.
         """
-        return {src for (src, dst) in self._get_mapping("")}
+        return {src for (src, dst) in self.make_copy_order("")}
 
     @property
     def size(self):
@@ -730,12 +748,12 @@ class ExplicitFileSource(object):
         return sum([os.path.getsize(path) for path in self.files])
 
     def selective_copy_to(self, destination):
-        """Write files declared in extra_files from the source directory
-        to another directory.
-        """
-        for from_path, to_path in self._get_mapping(destination):
+        """Actually copy files to the destination."""
+        for from_path, to_path in self.make_copy_order(destination):
             target_folder = os.path.dirname(to_path)
             ensure_directory(target_folder)
+            if os.path.exists(to_path):
+                continue
             shutil.copyfile(from_path, to_path)
 
 

@@ -301,7 +301,9 @@ class TestSetupExperiment(object):
         assert active_config.get("dashboard_user") == six.text_type("admin")
         assert active_config.get("dashboard_password") == mock.ANY
 
-    def test_setup_creates_new_experiment(self, setup_experiment):
+    def test_setup_merges_frontend_files_from_core_and_experiment(
+        self, setup_experiment
+    ):
         # Baseline
         exp_dir = os.getcwd()
         assert found_in("experiment.py", exp_dir)
@@ -349,6 +351,13 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("templates", "base", "layout.html"), dst)
         assert found_in(os.path.join("templates", "base", "questionnaire.html"), dst)
 
+        with open(os.path.join(dst, "templates/layout.html"), "r") as copy_f:
+            with open(os.path.join(exp_dir, "templates/layout.html"), "r") as orig_f:
+                orig = orig_f.read()
+                copy = copy_f.read()
+
+        assert copy == orig
+
     def test_setup_uses_specified_python_version(self, active_config, setup_experiment):
         active_config.extend({"heroku_python_version": "3.8.7"})
 
@@ -358,6 +367,11 @@ class TestSetupExperiment(object):
             version = file.read()
 
         assert version == "python-3.8.7"
+
+    def test_setup_copies_docker_script(self, setup_experiment):
+        exp_id, dst = setup_experiment(log=mock.Mock())
+
+        assert found_in(os.path.join("prepare_docker_image.sh"), dst)
 
     def test_setup_procfile_no_clock(self, setup_experiment):
         config = get_config()
