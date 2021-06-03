@@ -119,7 +119,7 @@ class TestExperimentFilesSource(object):
 
         return ExperimentFileSource
 
-    def test_lists_files_valid_for_copying(self, subject):
+    def test_lists_files_valid_for_copying_as_absolute_paths(self, subject):
         legit_file = "./some/subdir/John Doe's file.txt"
         os.makedirs(os.path.dirname(legit_file))
         with open(legit_file, "w") as f:
@@ -127,7 +127,7 @@ class TestExperimentFilesSource(object):
 
         source = subject()
 
-        assert legit_file in source.files
+        assert os.path.abspath(legit_file) in source.files
 
     def test_excludes_files_that_should_not_be_copied(self, subject):
         with open("illegit.db", "w") as f:
@@ -148,7 +148,7 @@ class TestExperimentFilesSource(object):
 
         source = subject()
 
-        assert source.files == {"./.gitignore"}
+        assert source.files == {os.path.abspath(".gitignore")}
 
     def test_excludes_otherwise_valid_files_if_in_gitignore_complex(self, subject, git):
         legit_file = "./some/subdir/legit.txt"
@@ -161,7 +161,7 @@ class TestExperimentFilesSource(object):
 
         source = subject()
 
-        assert source.files == {"./.gitignore"}
+        assert source.files == {os.path.abspath(".gitignore")}
 
     def test_normalizes_unicode_for_merging_git_inclusions(self, subject, git):
         legit_file = "".join(
@@ -173,7 +173,7 @@ class TestExperimentFilesSource(object):
 
         source = subject()
 
-        assert source.files == {legit_file}
+        assert source.files == {os.path.abspath(legit_file)}
 
     def test_size_includes_files_that_would_be_copied(self, subject):
         with open("legit.txt", "w") as f:
@@ -209,7 +209,7 @@ class TestExperimentFilesSource(object):
 
         assert source.size == 0
 
-    def test_copy_to_copies_to_same_subdirectories(self, subject):
+    def test_recipe_for_copy_defaults_to_cwd(self, subject):
         legit_file = "./some/subdir/John Doe's file.txt"
         os.makedirs(os.path.dirname(legit_file))
         with open(legit_file, "w") as f:
@@ -217,13 +217,14 @@ class TestExperimentFilesSource(object):
         destination = tempfile.mkdtemp()
         source = subject()
 
-        source.selective_copy_to(destination)
+        result = next(source.recipe_for_copy(destination))
 
-        assert os.path.isfile(
-            os.path.join(destination, "some/subdir/John Doe's file.txt")
+        assert result == (
+            os.path.abspath(legit_file),
+            os.path.join(destination, "some/subdir/John Doe's file.txt"),
         )
 
-    def test_copy_to_copies_with_explicit_root(self, subject):
+    def test_recipe_for_copy_accepts_explicit_root(self, subject):
         legit_file = "./some/subdir/legit.txt"
         os.makedirs(os.path.dirname(legit_file))
         with open(legit_file, "w") as f:
@@ -231,31 +232,40 @@ class TestExperimentFilesSource(object):
         destination = tempfile.mkdtemp()
         source = subject(os.getcwd())
 
-        source.selective_copy_to(destination)
+        result = next(source.recipe_for_copy(destination))
 
-        assert os.path.isfile(os.path.join(destination, "some/subdir/legit.txt"))
+        assert result == (
+            os.path.join(os.getcwd(), "some/subdir/legit.txt"),
+            os.path.join(destination, "some/subdir/legit.txt"),
+        )
 
-    def test_copy_to_copies_nonascii_filenames(self, subject):
+    def test_recipe_for_copy_resolves_nonascii_filenames_with_git(self, subject):
         legit_file = "".join(["a", "̊", " ", "f", "i", "l", "e"])
         with open(legit_file, "w") as f:
             f.write("12345")
         destination = tempfile.mkdtemp()
         source = subject()
 
-        source.selective_copy_to(destination)
+        result = next(source.recipe_for_copy(destination))
 
-        assert os.path.isfile(os.path.join(destination, legit_file))
+        assert result == (
+            os.path.join(os.getcwd(), legit_file),
+            os.path.join(destination, legit_file),
+        )
 
-    def test_copy_to_copies_nonascii_filenames2(self, subject):
+    def test_recipe_for_copy_resolves_nonascii_filenames_with_git2(self, subject):
         legit_file = "".join(["å", " ", "f", "i", "l", "e"])
         with open(legit_file, "w") as f:
             f.write("12345")
         destination = tempfile.mkdtemp()
         source = subject()
 
-        source.selective_copy_to(destination)
+        result = next(source.recipe_for_copy(destination))
 
-        assert os.path.isfile(os.path.join(destination, legit_file))
+        assert result == (
+            os.path.join(os.getcwd(), legit_file),
+            os.path.join(destination, legit_file),
+        )
 
 
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")

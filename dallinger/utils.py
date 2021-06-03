@@ -363,6 +363,18 @@ def get_editable_dallinger_path():
     return None
 
 
+def copy_files_by_recipe(recipe):
+    """Copy files based iterable of source and destination tuples.
+    Files are not overwritten if they already exist.
+    """
+    for from_path, to_path in recipe:
+        target_folder = os.path.dirname(to_path)
+        ensure_directory(target_folder)
+        if os.path.exists(to_path):
+            continue
+        shutil.copyfile(from_path, to_path)
+
+
 def setup_experiment(
     log, debug=True, verbose=False, app=None, exp_config=None, local_checks=True
 ):
@@ -506,13 +518,15 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
     exp_id = config.get("id")
     dst = os.path.join(tempfile.mkdtemp(), exp_id)
 
-    # Copy local experiment files, minus some
-    ExperimentFileSource(os.getcwd()).selective_copy_to(dst)
-
-    # Copy Dallinger files
-    DallingerFileSource(config, dallinger_package_path()).selective_copy_to(dst)
-
-    ExplicitFileSource(os.getcwd()).selective_copy_to(dst)
+    # Order matters here, since the first files copied "win" if there's a
+    # collision:
+    ordered_recipes = [
+        ExperimentFileSource(os.getcwd()).recipe_for_copy(dst),
+        DallingerFileSource(config, dallinger_package_path()).recipe_for_copy(dst),
+        ExplicitFileSource(os.getcwd()).recipe_for_copy(dst),
+    ]
+    for recipe in ordered_recipes:
+        copy_files_by_recipe(recipe)
 
     # Write out the loaded configuration
     config.write(filter_sensitive=True, directory=dst)
@@ -560,30 +574,21 @@ class DallingerFileSource(object):
 
     def __init__(self, config, root_dir="."):
         self.config = config
-        self.root = root_dir
+        self.root = os.path.abspath(root_dir)
 
     @property
     def files(self):
         """A Set of all files copyable in the source directory, accounting for
         exclusions.
         """
-        return {src for (src, dst) in self.make_copy_order("")}
+        return {src for (src, dst) in self.recipe_for_copy("")}
 
     @property
     def size(self):
         """Combined size of all files, accounting for exclusions."""
         return sum([os.path.getsize(path) for path in self.files])
 
-    def selective_copy_to(self, destination):
-        """Actually copy files to the destination."""
-        for from_path, to_path in self.make_copy_order(destination):
-            target_folder = os.path.dirname(to_path)
-            ensure_directory(target_folder)
-            if os.path.exists(to_path):
-                continue
-            shutil.copyfile(from_path, to_path)
-
-    def make_copy_order(self, dst):
+    def recipe_for_copy(self, dst):
         """Return a generator of two-tuples, where the first element is
         the source file path, and the second is the corresponding path in the
         target location under @dst.
@@ -591,13 +596,7 @@ class DallingerFileSource(object):
         src = os.path.join(self.root, "frontend")
         for dirpath, dirnames, filenames in os.walk(src, topdown=True):
             for fn in filenames:
-                dst_fileparts = (
-                    [
-                        dst,
-                    ]
-                    + [os.path.relpath(dirpath, src)]
-                    + [fn]
-                )
+                dst_fileparts = (dst, os.path.relpath(dirpath, src), fn)
                 dst_filepath = os.path.join(*dst_fileparts)
                 yield (
                     os.path.join(dirpath, fn),
@@ -627,7 +626,7 @@ class ExperimentFileSource(object):
     """
 
     def __init__(self, root_dir="."):
-        self.root = root_dir
+        self.root = os.path.abspath(root_dir)
         self.git = GitClient()
 
     @property
@@ -635,23 +634,14 @@ class ExperimentFileSource(object):
         """A Set of all files copyable in the source directory, accounting for
         exclusions.
         """
-        return {src for (src, dst) in self.make_copy_order("")}
+        return {src for (src, dst) in self.recipe_for_copy("")}
 
     @property
     def size(self):
         """Combined size of all files, accounting for exclusions."""
         return sum([os.path.getsize(path) for path in self.files])
 
-    def selective_copy_to(self, destination):
-        """Actually copy files to the destination."""
-        for from_path, to_path in self.make_copy_order(destination):
-            target_folder = os.path.dirname(to_path)
-            ensure_directory(target_folder)
-            if os.path.exists(to_path):
-                continue
-            shutil.copyfile(from_path, to_path)
-
-    def make_copy_order(self, dst):
+    def recipe_for_copy(self, dst):
         # The GitClient and os.walk may return different representations of the
         # same unicode characters, so we use unicodedata.normalize() for
         # comparisons:
@@ -680,9 +670,7 @@ class ExperimentFileSource(object):
                 legit_files = {v for k, v in normalized.items() if k in git_files}
             for legit in legit_files:
                 fn = os.path.basename(legit)
-                dst_fileparts = [
-                    dst,
-                ] + [os.path.relpath(legit, self.root)]
+                dst_fileparts = [dst, os.path.relpath(legit, self.root)]
                 dst_filepath = os.path.join(*dst_fileparts)
                 yield (
                     os.path.join(dirpath, fn),
@@ -696,7 +684,7 @@ class ExplicitFileSource(object):
     def __init__(self, root_dir="."):
         self.root = root_dir
 
-    def make_copy_order(self, dst):
+    def recipe_for_copy(self, dst):
         """Return a generator of two-tuples, where the first element is
         the source file path, and the second is the corresponding path in the
         target location under @dst.
@@ -728,33 +716,24 @@ class ExplicitFileSource(object):
                             )
                             dst_filepath = os.path.join(*dst_fileparts)
                             yield (
-                                os.path.join(dirpath, fn),
-                                dst_filepath,
+                                os.path.abspath(os.path.join(dirpath, fn)),
+                                os.path.abspath(dst_filepath),
                             )
                 else:
                     dst_filepath = os.path.join(dst, filename)
-                    yield (src, dst_filepath)
+                    yield (os.path.abspath(src), os.path.abspath(dst_filepath))
 
     @property
     def files(self):
         """A Set of all files copyable in the source directory, accounting for
         exclusions.
         """
-        return {src for (src, dst) in self.make_copy_order("")}
+        return {src for (src, dst) in self.recipe_for_copy("")}
 
     @property
     def size(self):
         """Combined size of all files, accounting for exclusions."""
         return sum([os.path.getsize(path) for path in self.files])
-
-    def selective_copy_to(self, destination):
-        """Actually copy files to the destination."""
-        for from_path, to_path in self.make_copy_order(destination):
-            target_folder = os.path.dirname(to_path)
-            ensure_directory(target_folder)
-            if os.path.exists(to_path):
-                continue
-            shutil.copyfile(from_path, to_path)
 
 
 def exclusion_policy():
