@@ -10,6 +10,7 @@ import re
 from flask import (
     abort,
     Flask,
+    redirect,
     render_template,
     request,
     Response,
@@ -32,6 +33,7 @@ from dallinger.config import get_config
 from dallinger import recruiters
 from dallinger.notifications import admin_notifier
 from dallinger.notifications import MessengerError
+from dallinger.utils import generate_random_id
 
 from . import dashboard
 from .replay import ReplayBackend
@@ -442,6 +444,9 @@ def advertisement():
     If the worker has accepted the hit:
         These arguments will have appropriate values and we should enter the
         person in the database and provide a link to the experiment popup.
+    If the url includes an argument ``generate_tokens``:
+        The user will be redirected to this view with random recruiter
+        arguments set.
     """
     config = _config()
 
@@ -451,6 +456,15 @@ def advertisement():
         raise ExperimentError("browser_type_not_allowed")
 
     entry_information = request.args.to_dict()
+
+    if entry_information.get("generate_tokens", None) in ("1", "true", "yes"):
+        redirect_params = entry_information.copy()
+        del redirect_params["generate_tokens"]
+        for entry_param in ("hitId", "assignmentId", "workerId"):
+            if not redirect_params.get(entry_param):
+                redirect_params[entry_param] = generate_random_id()
+        return redirect(url_for("advertisement", **redirect_params))
+
     app_id = config.get("id", "unknown")
     exp = Experiment(session)
     entry_data = exp.normalize_entry_information(entry_information)

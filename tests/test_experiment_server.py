@@ -141,6 +141,25 @@ class TestAdvertisement(object):
         assert resp.status_code == 500
         assert b"already_did_exp_hit" in resp.data
 
+    def test_generate_tokens_redirects(self, webapp):
+        resp = webapp.get("/ad?generate_tokens=1")
+        assert resp.status_code == 302
+        assert "/ad?" in resp.location
+        assert "hitId=" in resp.location
+        assert "assignmentId=" in resp.location
+        assert "workerId=" in resp.location
+        assert "generate_tokens" not in resp.location
+
+    def test_generate_tokens_preserves_args(self, webapp):
+        resp = webapp.get(
+            "/ad?generate_tokens=1&mode=debug&recruiter=hotair&workerId=BLAH"
+        )
+        assert resp.status_code == 302
+        assert "hitId=" in resp.location
+        assert "mode=debug" in resp.location
+        assert "recruiter=hotair" in resp.location
+        assert "workerId=BLAH" in resp.location
+
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
