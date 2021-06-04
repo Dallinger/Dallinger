@@ -300,7 +300,7 @@ def build_image(
     RUN grep git+ssh requirements.txt && \
         apt-get update && \
         apt-get install -y openssh-client git && \
-        rm -rf /var/lib/apt/lists
+        rm -rf /var/lib/apt/lists || true
     RUN {ssh_mount} echo 'Running script prepare_docker_image.sh' && \
         chmod 755 ./prepare_docker_image.sh && \
         ./prepare_docker_image.sh
