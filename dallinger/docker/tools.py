@@ -279,6 +279,16 @@ def build_image(
         out.blather("Rebuilding\n")
     except docker.errors.ImageNotFound:
         out.blather(f"Image {image_name} not found - building\n")
+    env = {
+        "DOCKER_BUILDKIT": "1",
+    }
+    ssh_mount = ""
+    docker_build_invocation = ["docker", "build", str(tmp_dir)]
+    if os.environ.get("SSH_AUTH_SOCK"):
+        env["SSH_AUTH_SOCK"] = os.environ.get("SSH_AUTH_SOCK")
+        ssh_mount = "--mount=type=ssh"
+        docker_build_invocation = ["docker", "build", "--ssh", "default", str(tmp_dir)]
+
     dockerfile_text = fr"""# syntax=docker/dockerfile:1
     FROM {base_image_name}
     COPY . /experiment
@@ -291,26 +301,21 @@ def build_image(
         apt-get update && \
         apt-get install -y openssh-client git && \
         rm -rf /var/lib/apt/lists
-    RUN --mount=type=ssh echo 'Running script prepare_docker_image.sh' && \
+    RUN {ssh_mount} echo 'Running script prepare_docker_image.sh' && \
         chmod 755 ./prepare_docker_image.sh && \
         ./prepare_docker_image.sh
     # We rely on the already installed dallinger: the docker image tag has been chosen
     # based on the contents of this file. This makes sure dallinger stays installed from
     # /dallinger, and that it doesn't waste space with two copies in two different layers.
     RUN mkdir ~/.ssh && echo "Host *\n    StrictHostKeyChecking no" >> ~/.ssh/config
-    RUN --mount=type=ssh grep -v dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
+    RUN {ssh_mount} grep -v dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
         python3 -m pip install -r /tmp/requirements_no_dallinger.txt
     ENV PORT=5000
     CMD dallinger_heroku_web
     """
     (Path(tmp_dir) / "Dockerfile").write_text(dockerfile_text)
-    env = {
-        "SSH_AUTH_SOCK": os.environ.get("SSH_AUTH_SOCK", ""),
-        "DOCKER_BUILDKIT": "1",
-    }
-    process = Popen(
-        ["docker", "build", "--ssh", "default", str(tmp_dir)], stdout=PIPE, env=env
-    )
+
+    process = Popen(docker_build_invocation, stdout=PIPE, env=env)
     for c in iter(lambda: process.stdout.read(1), b""):
         sys.stdout.buffer.write(c)
     out.blather(f"Built image: {image_name}" + "\n")
