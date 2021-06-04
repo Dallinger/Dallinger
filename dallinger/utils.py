@@ -363,18 +363,6 @@ def get_editable_dallinger_path():
     return None
 
 
-def copy_files_by_recipe(recipe):
-    """Copy files based iterable of source and destination tuples.
-    Files are not overwritten if they already exist.
-    """
-    for from_path, to_path in recipe:
-        target_folder = os.path.dirname(to_path)
-        ensure_directory(target_folder)
-        if os.path.exists(to_path):
-            continue
-        shutil.copyfile(from_path, to_path)
-
-
 def setup_experiment(
     log, debug=True, verbose=False, app=None, exp_config=None, local_checks=True
 ):
@@ -520,13 +508,9 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
 
     # Order matters here, since the first files copied "win" if there's a
     # collision:
-    ordered_recipes = [
-        ExperimentFileSource(os.getcwd()).recipe_for_copy(dst),
-        DallingerFileSource(config, dallinger_package_path()).recipe_for_copy(dst),
-        ExplicitFileSource(os.getcwd()).recipe_for_copy(dst),
-    ]
-    for recipe in ordered_recipes:
-        copy_files_by_recipe(recipe)
+    ExperimentFileSource(os.getcwd()).apply_to(dst)
+    DallingerFileSource(config, dallinger_package_path()).apply_to(dst)
+    ExplicitFileSource(os.getcwd()).apply_to(dst)
 
     # Write out the loaded configuration
     config.write(filter_sensitive=True, directory=dst)
@@ -575,14 +559,25 @@ class FileSource(object):
         """A Set of all files copyable in the source directory, accounting for
         exclusions.
         """
-        return {src for (src, dst) in self.recipe_for_copy("")}
+        return {src for (src, dst) in self.map_locations_to("")}
 
     @property
     def size(self):
         """Combined size of all files, accounting for exclusions."""
         return sum([os.path.getsize(path) for path in self.files])
 
-    def recipe_for_copy(self, destination):
+    def apply_to(self, destination):
+        """Copy files based iterable of source and destination tuples.
+        Files are not overwritten if they already exist.
+        """
+        for from_path, to_path in self.map_locations_to(destination):
+            target_folder = os.path.dirname(to_path)
+            ensure_directory(target_folder)
+            if os.path.exists(to_path):
+                continue
+            shutil.copyfile(from_path, to_path)
+
+    def map_locations_to(self, destination):
         """Return a generator of two-tuples, where the first element is
         the source file path, and the second is the corresponding path in the
         target location under @dst.
@@ -590,20 +585,17 @@ class FileSource(object):
         raise NotImplementedError()
 
 
-class DallingerFileSource(object):
+class DallingerFileSource(FileSource):
     """The core Dallinger framework is a source for files to be used in an
-    experiment run.
+    experiment run. These include the /frontend directory contents,
+    a Heroku Procfile, and a Docker script.
     """
 
     def __init__(self, config, root_dir="."):
         self.config = config
         self.root = os.path.abspath(root_dir)
 
-    def recipe_for_copy(self, dst):
-        """Return a generator of two-tuples, where the first element is
-        the source file path, and the second is the corresponding path in the
-        target location under @dst.
-        """
+    def map_locations_to(self, dst):
         src = os.path.join(self.root, "frontend")
         for dirpath, dirnames, filenames in os.walk(src, topdown=True):
             for fn in filenames:
@@ -640,7 +632,7 @@ class ExperimentFileSource(FileSource):
         self.root = os.path.abspath(root_dir)
         self.git = GitClient()
 
-    def recipe_for_copy(self, dst):
+    def map_locations_to(self, dst):
         # The GitClient and os.walk may return different representations of the
         # same unicode characters, so we use unicodedata.normalize() for
         # comparisons:
@@ -683,11 +675,7 @@ class ExplicitFileSource(FileSource):
     def __init__(self, root_dir="."):
         self.root = root_dir
 
-    def recipe_for_copy(self, dst):
-        """Return a generator of two-tuples, where the first element is
-        the source file path, and the second is the corresponding path in the
-        target location under @dst.
-        """
+    def map_locations_to(self, dst):
         from dallinger.config import initialize_experiment_package
 
         initialize_experiment_package(dst)

@@ -1,6 +1,5 @@
 from dallinger.config import get_config
 from dallinger.config import initialize_experiment_package
-from dallinger.utils import copy_files_by_recipe
 from dallinger.utils import ExperimentFileSource
 from dallinger.version import __version__
 from functools import wraps
@@ -142,7 +141,7 @@ def verify_experiment_module(verbose):
     temp_package_name = "TEMP_VERIFICATION_PACKAGE"
     tmp = tempfile.mkdtemp()
     clone_dir = os.path.join(tmp, temp_package_name)
-    copy_files_by_recipe(ExperimentFileSource(os.getcwd()).recipe_for_copy(clone_dir))
+    ExperimentFileSource(os.getcwd()).apply_to(clone_dir)
     initialize_experiment_package(clone_dir)
     from dallinger_experiment import experiment
 
