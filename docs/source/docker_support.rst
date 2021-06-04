@@ -228,3 +228,19 @@ To stop an experiment and remove its containers from the server, run:
 .. code-block:: shell
 
     dallinger docker-ssh destroy --app $APP_ID
+
+
+Support for python dependencies in private repositories
+*******************************************************
+
+An experiment can depend on a package that is in a private repository.
+Dallinger will use the ssh agent to authenticate against the remote repository.
+In this case the dependency needs to be specified with the `git+ssh` protocol:
+
+.. code-block::
+
+    git+ssh://git@github.com/<orgname>/<reponame>#egg=<eggname>
+
+Dallinger make docker will checkout the private repository using the ssh agent.
+The package will be included in the experiment image, but the credentials used
+to download it will not.
