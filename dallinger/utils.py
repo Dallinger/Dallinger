@@ -567,14 +567,8 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
     return dst
 
 
-class DallingerFileSource(object):
-    """The core Dallinger framework is a source for files to be used in an
-    experiment run.
-    """
-
-    def __init__(self, config, root_dir="."):
-        self.config = config
-        self.root = os.path.abspath(root_dir)
+class FileSource(object):
+    """Include files from some source in an experiment run."""
 
     @property
     def files(self):
@@ -587,6 +581,23 @@ class DallingerFileSource(object):
     def size(self):
         """Combined size of all files, accounting for exclusions."""
         return sum([os.path.getsize(path) for path in self.files])
+
+    def recipe_for_copy(self, destination):
+        """Return a generator of two-tuples, where the first element is
+        the source file path, and the second is the corresponding path in the
+        target location under @dst.
+        """
+        raise NotImplementedError()
+
+
+class DallingerFileSource(object):
+    """The core Dallinger framework is a source for files to be used in an
+    experiment run.
+    """
+
+    def __init__(self, config, root_dir="."):
+        self.config = config
+        self.root = os.path.abspath(root_dir)
 
     def recipe_for_copy(self, dst):
         """Return a generator of two-tuples, where the first element is
@@ -620,7 +631,7 @@ class DallingerFileSource(object):
         yield (docker_src, dst_prepare_docker_image)
 
 
-class ExperimentFileSource(object):
+class ExperimentFileSource(FileSource):
     """Treat an experiment directory as a potential source of files for
     copying to a temp directory as part of a deployment (debug or otherwise).
     """
@@ -628,18 +639,6 @@ class ExperimentFileSource(object):
     def __init__(self, root_dir="."):
         self.root = os.path.abspath(root_dir)
         self.git = GitClient()
-
-    @property
-    def files(self):
-        """A Set of all files copyable in the source directory, accounting for
-        exclusions.
-        """
-        return {src for (src, dst) in self.recipe_for_copy("")}
-
-    @property
-    def size(self):
-        """Combined size of all files, accounting for exclusions."""
-        return sum([os.path.getsize(path) for path in self.files])
 
     def recipe_for_copy(self, dst):
         # The GitClient and os.walk may return different representations of the
@@ -678,7 +677,7 @@ class ExperimentFileSource(object):
                 )
 
 
-class ExplicitFileSource(object):
+class ExplicitFileSource(FileSource):
     """Add files that are explicitly requested by the experimenter with a hook function."""
 
     def __init__(self, root_dir="."):
@@ -722,18 +721,6 @@ class ExplicitFileSource(object):
                 else:
                     dst_filepath = os.path.join(dst, filename)
                     yield (os.path.abspath(src), os.path.abspath(dst_filepath))
-
-    @property
-    def files(self):
-        """A Set of all files copyable in the source directory, accounting for
-        exclusions.
-        """
-        return {src for (src, dst) in self.recipe_for_copy("")}
-
-    @property
-    def size(self):
-        """Combined size of all files, accounting for exclusions."""
-        return sum([os.path.getsize(path) for path in self.files])
 
 
 def exclusion_policy():
