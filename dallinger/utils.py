@@ -506,88 +506,23 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
     exp_id = config.get("id")
     dst = os.path.join(tempfile.mkdtemp(), exp_id)
 
-    # Copy local experiment files, minus some
-    ExperimentFileSource(os.getcwd()).selective_copy_to(dst)
+    # Order matters here, since the first files copied "win" if there's a
+    # collision:
+    ExperimentFileSource(os.getcwd()).apply_to(dst)
+    DallingerFileSource(config, dallinger_package_path()).apply_to(dst)
+    ExplicitFileSource(os.getcwd()).apply_to(dst)
 
-    # Export the loaded configuration
+    # Write out the loaded configuration
     config.write(filter_sensitive=True, directory=dst)
 
-    # Save the experiment id
+    # Write out the experiment id
     with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
         file.write(exp_id)
-
-    # Copy Dallinger files
-    dallinger_root = dallinger_package_path()
-    ensure_directory(os.path.join(dst, "static", "scripts"))
-    ensure_directory(os.path.join(dst, "static", "css"))
-    frontend_files = [
-        os.path.join("static", "css", "bootstrap.min.css"),
-        os.path.join("static", "css", "dallinger.css"),
-        os.path.join("static", "css", "dashboard.css"),
-        os.path.join("static", "scripts", "jquery-3.5.1.min.js"),
-        os.path.join("static", "scripts", "popper.min.js"),
-        os.path.join("static", "scripts", "bootstrap.min.js"),
-        os.path.join("static", "scripts", "clipboard.min.js"),
-        os.path.join("static", "scripts", "dallinger2.js"),
-        os.path.join("static", "scripts", "network-monitor.js"),
-        os.path.join("static", "scripts", "reqwest.min.js"),
-        os.path.join("static", "scripts", "require.js"),
-        os.path.join("static", "scripts", "reconnecting-websocket.js"),
-        os.path.join("static", "scripts", "spin.min.js"),
-        os.path.join("static", "scripts", "tracker.js"),
-        os.path.join("static", "scripts", "store+json2.min.js"),
-        os.path.join("templates", "error.html"),
-        os.path.join("templates", "error-complete.html"),
-        os.path.join("templates", "launch.html"),
-        os.path.join("templates", "questionnaire.html"),
-        os.path.join("templates", "exit_recruiter.html"),
-        os.path.join("templates", "exit_recruiter_mturk.html"),
-        os.path.join("templates", "waiting.html"),
-        os.path.join("templates", "login.html"),
-        os.path.join("templates", "dashboard_lifecycle.html"),
-        os.path.join("templates", "dashboard_database.html"),
-        os.path.join("templates", "dashboard_heroku.html"),
-        os.path.join("templates", "dashboard_home.html"),
-        os.path.join("templates", "dashboard_monitor.html"),
-        os.path.join("templates", "dashboard_mturk.html"),
-        os.path.join("static", "robots.txt"),
-    ]
-    frontend_dirs = [os.path.join("templates", "base")]
-    for filename in frontend_files:
-        src = os.path.join(dallinger_root, "frontend", filename)
-        dst_filepath = os.path.join(dst, filename)
-        if not os.path.exists(dst_filepath):
-            shutil.copy(src, dst_filepath)
-    for filename in frontend_dirs:
-        src = os.path.join(dallinger_root, "frontend", filename)
-        dst_filepath = os.path.join(dst, filename)
-        if not os.path.exists(dst_filepath):
-            shutil.copytree(src, dst_filepath)
-
-    # Copy Heroku files
-    heroku_files = ["Procfile"]
-    for filename in heroku_files:
-        src = os.path.join(dallinger_root, "heroku", filename)
-        shutil.copy(src, os.path.join(dst, filename))
 
     # Write out a runtime.txt file based on configuration
     pyversion = config.get("heroku_python_version")
     with open(os.path.join(dst, "runtime.txt"), "w") as file:
         file.write("python-{}".format(pyversion))
-
-    if not config.get("clock_on"):
-        # If the clock process has been disabled, overwrite the Procfile:
-        src = os.path.join(dallinger_root, "heroku", "Procfile_no_clock")
-        shutil.copy(src, os.path.join(dst, "Procfile"))
-
-    dst_prepare_docker_image = Path(dst) / "prepare_docker_image.sh"
-    if not dst_prepare_docker_image.exists():
-        shutil.copyfile(
-            Path(dallinger_root) / "docker" / "prepare_docker_image.sh",
-            dst_prepare_docker_image,
-        )
-
-    ExplicitFileSource(os.getcwd()).selective_copy_to(dst)
 
     requirements_path = Path(dst) / "requirements.txt"
     # Overwrite the requirements.txt file with the contents of the constraints.txt file
@@ -616,39 +551,88 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
     return dst
 
 
-class ExperimentFileSource(object):
-    """Treat an experiment directory as a potential source of files for
-    copying to a temp directory as part of a deployment (debug or otherwise).
-    """
-
-    def __init__(self, root_dir="."):
-        self.root = root_dir
-        self.git = GitClient()
+class FileSource(object):
+    """Include files from some source in an experiment run."""
 
     @property
     def files(self):
         """A Set of all files copyable in the source directory, accounting for
         exclusions.
         """
-        return set(self._walk())
+        return {src for (src, dst) in self.map_locations_to("")}
 
     @property
     def size(self):
         """Combined size of all files, accounting for exclusions."""
-        return sum([os.path.getsize(path) for path in self._walk()])
+        return sum([os.path.getsize(path) for path in self.files])
 
-    def selective_copy_to(self, destination):
-        """Write files from the source directory to another directory, skipping
-        files excluded by the general exclusion_policy, plus any files
-        ignored by git configuration.
+    def apply_to(self, destination):
+        """Copy files based iterable of source and destination tuples.
+        Files are not overwritten if they already exist.
         """
-        for path in self.files:
-            subpath = os.path.relpath(path, start=self.root)
-            target_folder = os.path.join(destination, os.path.dirname(subpath))
+        for from_path, to_path in self.map_locations_to(destination):
+            target_folder = os.path.dirname(to_path)
             ensure_directory(target_folder)
-            shutil.copy2(path, target_folder)
+            if os.path.exists(to_path):
+                continue
+            shutil.copyfile(from_path, to_path)
 
-    def _walk(self):
+    def map_locations_to(self, destination):
+        """Return a generator of two-tuples, where the first element is
+        the source file path, and the second is the corresponding path in the
+        target location under @dst.
+        """
+        raise NotImplementedError()
+
+
+class DallingerFileSource(FileSource):
+    """The core Dallinger framework is a source for files to be used in an
+    experiment run. These include the /frontend directory contents,
+    a Heroku Procfile, and a Docker script.
+    """
+
+    def __init__(self, config, root_dir="."):
+        self.config = config
+        self.root = os.path.abspath(root_dir)
+
+    def map_locations_to(self, dst):
+        src = os.path.join(self.root, "frontend")
+        for dirpath, dirnames, filenames in os.walk(src, topdown=True):
+            for fn in filenames:
+                dst_fileparts = (dst, os.path.relpath(dirpath, src), fn)
+                dst_filepath = os.path.join(*dst_fileparts)
+                yield (
+                    os.path.join(dirpath, fn),
+                    dst_filepath,
+                )
+
+        # Heroku Procfile
+        if self.config.get("clock_on"):
+            clock_src = os.path.join(self.root, "heroku", "Procfile")
+            yield (clock_src, os.path.join(dst, "Procfile"))
+        else:
+            # If the clock process has been disabled, overwrite the Procfile:
+            clock_src = os.path.join(self.root, "heroku", "Procfile_no_clock")
+            yield (clock_src, os.path.join(dst, "Procfile"))
+
+        # Docker image file
+        scriptname = "prepare_docker_image.sh"
+        docker_src = os.path.join(self.root, "docker", scriptname)
+        dst_prepare_docker_image = os.path.join(dst, scriptname)
+
+        yield (docker_src, dst_prepare_docker_image)
+
+
+class ExperimentFileSource(FileSource):
+    """Treat an experiment directory as a potential source of files for
+    copying to a temp directory as part of a deployment (debug or otherwise).
+    """
+
+    def __init__(self, root_dir="."):
+        self.root = os.path.abspath(root_dir)
+        self.git = GitClient()
+
+    def map_locations_to(self, dst):
         # The GitClient and os.walk may return different representations of the
         # same unicode characters, so we use unicodedata.normalize() for
         # comparisons:
@@ -662,6 +646,7 @@ class ExperimentFileSource(object):
         }
         for dirpath, dirnames, filenames in os.walk(self.root, topdown=True):
             current_exclusions = exclusions(dirpath, os.listdir(dirpath))
+
             # Modifying dirnames in-place will prune the subsequent files and
             # directories visited by os.walk. This is only possible when
             # topdown = True
@@ -675,16 +660,22 @@ class ExperimentFileSource(object):
                 normalized = {normalize("NFC", str(f)): f for f in legit_files}
                 legit_files = {v for k, v in normalized.items() if k in git_files}
             for legit in legit_files:
-                yield legit
+                fn = os.path.basename(legit)
+                dst_fileparts = [dst, os.path.relpath(legit, self.root)]
+                dst_filepath = os.path.join(*dst_fileparts)
+                yield (
+                    os.path.join(dirpath, fn),
+                    dst_filepath,
+                )
 
 
-class ExplicitFileSource(object):
+class ExplicitFileSource(FileSource):
     """Add files that are explicitly requested by the experimenter with a hook function."""
 
     def __init__(self, root_dir="."):
         self.root = root_dir
 
-    def _get_mapping(self, dst):
+    def map_locations_to(self, dst):
         from dallinger.config import initialize_experiment_package
 
         initialize_experiment_package(dst)
@@ -712,33 +703,12 @@ class ExplicitFileSource(object):
                             )
                             dst_filepath = os.path.join(*dst_fileparts)
                             yield (
-                                os.path.join(dirpath, fn),
-                                dst_filepath,
+                                os.path.abspath(os.path.join(dirpath, fn)),
+                                os.path.abspath(dst_filepath),
                             )
                 else:
                     dst_filepath = os.path.join(dst, filename)
-                    yield (src, dst_filepath)
-
-    @property
-    def files(self):
-        """A Set of all files copyable in the source directory, accounting for
-        exclusions.
-        """
-        return {src for (src, dst) in self._get_mapping("")}
-
-    @property
-    def size(self):
-        """Combined size of all files, accounting for exclusions."""
-        return sum([os.path.getsize(path) for path in self.files])
-
-    def selective_copy_to(self, destination):
-        """Write files declared in extra_files from the source directory
-        to another directory.
-        """
-        for from_path, to_path in self._get_mapping(destination):
-            target_folder = os.path.dirname(to_path)
-            ensure_directory(target_folder)
-            shutil.copyfile(from_path, to_path)
+                    yield (os.path.abspath(src), os.path.abspath(dst_filepath))
 
 
 def exclusion_policy():
