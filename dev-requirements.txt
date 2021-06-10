@@ -471,7 +471,7 @@ tabulate==0.8.9
     # via
     #   dallinger
     #   tablib
-terminado==0.10.0
+terminado==0.10.1
     # via notebook
 testpath==0.5.0
     # via nbconvert
