@@ -289,6 +289,7 @@ def build_image(
         ssh_mount = "--mount=type=ssh"
         docker_build_invocation = ["docker", "build", "--ssh", "default", str(tmp_dir)]
 
+    docker_build_invocation += ["-t", image_name]
     dockerfile_text = fr"""# syntax=docker/dockerfile:1
     FROM {base_image_name}
     COPY . /experiment
