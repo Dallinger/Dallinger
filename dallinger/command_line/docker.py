@@ -328,7 +328,6 @@ def deploy_heroku_docker(
     log("", chevrons=False)
     for service in ["web", "worker"]:
         text = f"""FROM {base_image_name}
-        COPY . /experiment/
         CMD dallinger_heroku_{service}
         """
         (Path(tmp) / f"Dockerfile.{service}").write_text(text)
