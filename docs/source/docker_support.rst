@@ -241,6 +241,13 @@ In this case the dependency needs to be specified with the `git+ssh` protocol:
 
     git+ssh://git@github.com/<orgname>/<reponame>#egg=<eggname>
 
-Dallinger make docker will checkout the private repository using the ssh agent.
+Dallinger will make docker checkout the private repository using the ssh agent.
 The package will be included in the experiment image, but the credentials used
 to download it will not.
+
+
+.. note::
+
+    The ssh agent needs to be running, the ``SSH_AUTH_SOCK`` environment variable should point
+    to its socket path and the ssh key needed for the server needs to be loaded.
+    You chan check the latter with `ssh-add -l`.
