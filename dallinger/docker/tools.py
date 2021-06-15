@@ -6,6 +6,7 @@ import time
 from hashlib import sha256
 from jinja2 import Template
 from pathlib import Path
+from shutil import which
 from subprocess import check_output
 from subprocess import CalledProcessError
 from subprocess import Popen
@@ -283,11 +284,17 @@ def build_image(
         "DOCKER_BUILDKIT": "1",
     }
     ssh_mount = ""
-    docker_build_invocation = ["docker", "build", str(tmp_dir)]
+    docker_build_invocation = [which("docker"), "build", str(tmp_dir)]
     if os.environ.get("SSH_AUTH_SOCK"):
         env["SSH_AUTH_SOCK"] = os.environ.get("SSH_AUTH_SOCK")
         ssh_mount = "--mount=type=ssh"
-        docker_build_invocation = ["docker", "build", "--ssh", "default", str(tmp_dir)]
+        docker_build_invocation = [
+            which("docker"),
+            "build",
+            "--ssh",
+            "default",
+            str(tmp_dir),
+        ]
 
     docker_build_invocation += ["-t", image_name]
     dockerfile_text = fr"""# syntax=docker/dockerfile:1
