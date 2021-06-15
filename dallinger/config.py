@@ -91,6 +91,7 @@ default_keys = (
     ("whimsical", bool, []),
     ("worker_multiplier", float, []),
     ("image_base_name", six.text_type, [], ""),
+    ("image_name", six.text_type, [], ""),
 )
 
 
@@ -253,14 +254,13 @@ class Configuration(object):
     def load_from_environment(self):
         self.extend(os.environ, cast_types=True)
 
-    def load(self):
+    def load_defaults(self):
+        """Load default configuration values"""
         # Apply extra parameters before loading the configs
         self.register_extra_parameters()
 
         globalConfigName = ".dallingerconfig"
         globalConfig = os.path.expanduser(os.path.join("~/", globalConfigName))
-        localConfig = os.path.join(os.getcwd(), LOCAL_CONFIG)
-
         defaults_folder = os.path.join(os.path.dirname(__file__), "default_configs")
         local_defaults_file = os.path.join(defaults_folder, "local_config_defaults.txt")
         global_defaults_file = os.path.join(
@@ -271,6 +271,10 @@ class Configuration(object):
         for config_file in [global_defaults_file, local_defaults_file, globalConfig]:
             self.load_from_file(config_file)
 
+    def load(self):
+        self.load_defaults()
+
+        localConfig = os.path.join(os.getcwd(), LOCAL_CONFIG)
         if os.path.exists(localConfig):
             self.load_from_file(localConfig)
 

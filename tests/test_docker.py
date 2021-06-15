@@ -39,6 +39,28 @@ def test_get_docker_compose_yml_env_vars_escaping():
     )
 
 
+def test_add_image_name(tmp_path):
+    from dallinger.command_line.docker import add_image_name
+
+    file = tmp_path / "test.txt"
+
+    file.write_text("")
+    add_image_name(str(file), "foobar")
+    assert "image_name = foobar" in file.read_text()
+
+    file.write_text("\nimage_name = old_image_name\n")
+    add_image_name(str(file), "new_image_name")
+    assert "old_image_name" not in file.read_text()
+    assert "image_name = new_image_name" in file.read_text()
+
+    file.write_text("foo = bar\nimage_base_name = the_base_image_name\nbar = foo")
+    add_image_name(str(file), "foobar_image")
+    assert (
+        file.read_text()
+        == "foo = bar\nimage_base_name = the_base_image_name\nimage_name = foobar_image\nbar = foo"
+    )
+
+
 def get_yaml(config):
     from dallinger.command_line.docker_ssh import get_docker_compose_yml
 

@@ -63,13 +63,13 @@ def require_exp_directory(f):
     error_two = "There are problems with the current experiment. Please check with dallinger verify."
 
     @wraps(f)
-    def wrapper(**kwargs):
+    def wrapper(*args, **kwargs):
         try:
             if not verify_package(kwargs.get("verbose")):
                 raise click.UsageError(error_one)
         except ValueError:
             raise click.UsageError(error_two)
-        return f(**kwargs)
+        return f(*args, **kwargs)
 
     return wrapper
 

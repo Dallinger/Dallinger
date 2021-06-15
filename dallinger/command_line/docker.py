@@ -2,6 +2,7 @@ import click
 import codecs
 import netrc
 import os
+import re
 import secrets
 import subprocess
 import tempfile
@@ -17,6 +18,7 @@ import requests
 from dallinger import heroku
 from dallinger import registration
 from dallinger.config import get_config
+from dallinger.config import LOCAL_CONFIG
 from dallinger.heroku.tools import HerokuApp
 from dallinger.command_line.utils import Output
 from dallinger.command_line.utils import header
@@ -132,8 +134,7 @@ def build():
 
 @docker.command()
 @click.option("--use-existing", is_flag=True, default=False)
-@require_exp_directory
-def push(use_existing):
+def push(use_existing: bool, **kwargs) -> str:
     """Build and push the docker image for this experiment."""
     from dallinger.docker.tools import build_image
     from docker import client
@@ -168,6 +169,7 @@ def push(use_existing):
             print(f'Pushed image: {line["aux"]["Digest"]}\n')
     pushed_image = docker_client.images.get(image_name_with_tag).attrs["RepoDigests"][0]
     print(f"Image {pushed_image} built and pushed.\n")
+    return pushed_image
 
 
 REGISTRY_UNAUTHORIZED_HELP_TEXTS = {
@@ -292,20 +294,18 @@ def _deploy_in_mode(mode, verbose, log, app=None):
         verify_id(None, None, app)
 
     log(header, chevrons=False)
-    prelaunch = []
     config = get_config()
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
-    deploy_heroku_docker(log=log, verbose=verbose, app=app, prelaunch_actions=prelaunch)
+    deploy_heroku_docker(log=log, verbose=verbose, app=app)
 
 
-def deploy_heroku_docker(
-    log, verbose=True, app=None, exp_config=None, prelaunch_actions=None
-):
+def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     from dallinger.docker.tools import build_image
 
     config = get_config()
+    config.load()
     if not config.ready:
         config.load()
     (heroku_app_id, tmp) = setup_experiment(
@@ -317,7 +317,13 @@ def deploy_heroku_docker(
         registration.register(heroku_app_id, snapshot=None)
 
     # Build experiment image
-    base_image_name = build_image(tmp, Path(os.getcwd()).name, Output())
+    build_image(tmp, Path(os.getcwd()).name, Output(), force_build=True)
+
+    # Push the built image to get the registry sha256
+    pushed_image = push.callback(use_existing=True)
+
+    # Persist the built image sha256 into the experiment
+    add_image_name(LOCAL_CONFIG, pushed_image)
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
@@ -327,7 +333,7 @@ def deploy_heroku_docker(
     config.set("heroku_auth_token", heroku.auth_token())
     log("", chevrons=False)
     for service in ["web", "worker"]:
-        text = f"""FROM {base_image_name}
+        text = f"""FROM {pushed_image}
         CMD dallinger_heroku_{service}
         """
         (Path(tmp) / f"Dockerfile.{service}").write_text(text)
@@ -445,6 +451,25 @@ def deploy_heroku_docker(
         # "recruitment_msg": launch_data.get("recruitment_msg", None),
     }
     return result
+
+
+def add_image_name(config_path: str, image_name: str):
+    """Alters the text file at `config_path` to set the contents
+    of the variable `image_name` to the passed `image_name`.
+    If a line is already present it will be replaced.
+    If it's not it will be added next to the line with the `image_base_name` variable.
+    """
+    config = Path(config_path)
+    new_line = f"image_name = {image_name}"
+    old_text = config.read_text()
+    if re.search("^image_name =", old_text, re.M):
+        text = re.sub("image_name = .*", new_line, old_text)
+    elif re.search("^image_base_name =", old_text, re.M):
+        text = re.sub("(image_base_name = .*)", r"\g<1>\n" + new_line, old_text)
+    else:
+        text = "".join((old_text, "\n" + new_line))
+
+    config.write_text(text)
 
 
 def heroku_addons_cmd(app_name):
