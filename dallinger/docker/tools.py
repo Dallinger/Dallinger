@@ -305,7 +305,7 @@ def build_image(
     # This will be true if Dallinger was installed with the editable `-e` flag
     RUN if [ -f dallinger-*.whl ]; then pip install dallinger-*.whl; fi
     # If a dependency needs the ssh client and git, install them
-    RUN grep git+ssh requirements.txt && \
+    RUN grep git+ requirements.txt && \
         apt-get update && \
         apt-get install -y openssh-client git && \
         rm -rf /var/lib/apt/lists || true
