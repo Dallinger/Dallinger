@@ -451,6 +451,7 @@ class HerokuLocalWrapper(object):
             signal.alarm(0)
 
         if not success:
+            self._log_failure()
             self.stop(signal.SIGKILL)
             raise HerokuStartupError(
                 "Failed to start for unknown reason: {}".format("".join(self._record))
@@ -512,6 +513,28 @@ class HerokuLocalWrapper(object):
                 return False
 
         return False
+
+    def _log_failure(self):
+        def _handle_final_log_timeout(signum, frame):
+            raise TimeoutError()
+
+        # Read remaining log data for up to 1 second
+        signal.signal(signal.SIGALRM, _handle_final_log_timeout)
+        signal.alarm(1)
+        try:
+            for line in self._stream():
+                # Stop if the process has exited
+                if self._process.poll() is not None:
+                    return
+                clean_line = line.strip()
+                # Stop if we hit a new error indicator
+                if self._worker_error(clean_line) or self._startup_error(clean_line):
+                    return
+                self._record.append(line)
+        except TimeoutError:
+            pass
+        finally:
+            signal.alarm(0)
 
     def _boot(self):
         # Child processes don't start without a HOME dir
