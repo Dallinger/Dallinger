@@ -453,7 +453,7 @@ class HerokuLocalWrapper(object):
         if not success:
             self.stop(signal.SIGKILL)
             raise HerokuStartupError(
-                "Failed to start for unknown reason: {}".format(self._record)
+                "Failed to start for unknown reason: {}".format("".join(self._record))
             )
         return True
 
