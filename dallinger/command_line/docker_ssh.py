@@ -1,4 +1,5 @@
 from io import BytesIO
+from functools import wraps
 from getpass import getuser
 from secrets import token_urlsafe
 from shlex import quote
@@ -20,7 +21,11 @@ import requests
 from dallinger.command_line.config import get_configured_hosts
 from dallinger.command_line.config import remove_host
 from dallinger.command_line.config import store_host
+from dallinger.command_line.docker import add_image_name
+from dallinger.command_line.utils import Output
+from dallinger.config import LOCAL_CONFIG
 from dallinger.data import export_db_uri
+from dallinger.deployment import setup_experiment
 from dallinger.config import get_config
 from dallinger.utils import abspath_from_egg
 
@@ -168,6 +173,27 @@ server_option = click.option(
 )
 
 
+def build_and_push_image(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        from dallinger.docker.tools import build_image
+        from dallinger.command_line.docker import push
+
+        config = get_config()
+        config.load()
+        if config.get("image_name", None):
+            # TODO: check that the image has been pushed
+            return f(*args, **kwargs)
+        _, tmp_dir = setup_experiment(Output().log, exp_config=config.as_dict())
+        build_image(tmp_dir, config.get("image_base_name"), out=Output())
+
+        pushed_image = push.callback(use_existing=True)
+        add_image_name(LOCAL_CONFIG, pushed_image)
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
 @docker_ssh.command()
 @click.option(
     "--sandbox",
@@ -177,14 +203,14 @@ server_option = click.option(
     default=True,
 )
 @click.option("--live", "mode", flag_value="live", help="Deploy to the real MTurk")
-@click.option("--image", required=True, help="Name of the docker image to deploy")
 @server_option
 @click.option(
     "--dns-host",
     help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
 )
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
-def deploy(mode, image, server, dns_host, config_options):
+@build_and_push_image
+def deploy(mode, server, dns_host, config_options):
     """Deploy a dallnger experiment docker image to a server using ssh."""
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
@@ -210,6 +236,7 @@ def deploy(mode, image, server, dns_host, config_options):
     dashboard_password = token_urlsafe(8)
     config = get_config()
     config.load()
+    image = config.get("image_name", None)
     cfg = config.as_dict()
     for key in "aws_access_key_id", "aws_secret_access_key", "aws_region":
         # AWS credentials are not included by default in to_dict() result
