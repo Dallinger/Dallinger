@@ -368,7 +368,7 @@ python-dateutil==2.8.1
     #   heroku3
     #   jupyter-client
     #   pandas
-python-dotenv==0.17.1
+python-dotenv==0.18.0
     # via docker-compose
 pytz==2021.1
     # via
