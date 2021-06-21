@@ -464,12 +464,12 @@ def ensure_constraints_file_presence(directory: str):
     prev_cwd = os.getcwd()
     try:
         os.chdir(directory)
-        url = f"https://raw.githubusercontent.com/Dallinger/Dallinger/v{__version__}/requirements.txt"
+        url = f"https://raw.githubusercontent.com/Dallinger/Dallinger/v{__version__}/dev-requirements.txt"
         print(f"Compiling constraints.txt file from requirements.txt and {url}")
         compile_info = f"dallinger generate-constraints\n#\n# Compiled from a requirement.txt file with md5sum: {requirements_path_hash}"
         with TemporaryDirectory() as tmpdirname:
             tmpfile = Path(tmpdirname) / "requirements.txt"
-            tmpfile.write_text(Path("requirements.txt").read_text() + "\n-r " + url)
+            tmpfile.write_text(Path("requirements.txt").read_text() + "\n-c " + url)
             check_output(
                 ["pip-compile", str(tmpfile), "-o", "constraints.txt"],
                 env=dict(
