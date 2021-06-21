@@ -5,6 +5,7 @@ import mock
 import pytest
 import datetime
 import signal
+import time
 from dallinger.config import get_config
 
 
@@ -529,7 +530,7 @@ class TestHerokuLocalWrapper(object):
             print("Calling stop() on {}".format(wrapper))
             print(wrapper._record[-1])
             wrapper.stop(signal.SIGKILL)
-        except IndexError:
+        except (IndexError, TypeError):
             pass
 
     def test_start(self, heroku):
@@ -570,6 +571,61 @@ class TestHerokuLocalWrapper(object):
         with pytest.raises(HerokuStartupError):
             heroku.start()
         assert not heroku.is_running
+
+    def test_error_flushes_logs(self, heroku):
+        from dallinger.heroku.tools import HerokuStartupError
+
+        heroku._stream = mock.Mock(
+            return_value=["apple", "orange", heroku.STREAM_SENTINEL]
+        )
+        heroku.success_regex = "not going to match anything"
+        heroku._log_failure = mock.Mock()
+        with pytest.raises(HerokuStartupError):
+            heroku.start()
+        heroku._log_failure.assert_called_once()
+
+    def test_failure_logs_until_process_end(self, heroku):
+
+        heroku._stream = mock.Mock(
+            return_value=["real", "stopped", heroku.STREAM_SENTINEL]
+        )
+        heroku._process = mock.Mock()
+        heroku._process.poll = mock.Mock(return_value=1)
+        heroku._log_failure()
+        heroku._process.poll.assert_called_once()
+        assert len(heroku._record) == 0
+
+    def test_failure_logs_until_new_error(self, heroku):
+
+        heroku._stream = mock.Mock(
+            return_value=[
+                "real",
+                "more",
+                "[] web.1  |  [ERROR] Random",
+                "remainder",
+                heroku.STREAM_SENTINEL,
+            ]
+        )
+        heroku._process = mock.Mock()
+        heroku._process.poll = mock.Mock(return_value=None)
+        heroku._log_failure()
+        assert heroku._record == ["real", "more"]
+
+    def test_failure_ends_after_timeout(self, heroku):
+        def timeout_stream():
+            yield "first"
+            yield "second"
+            time.sleep(10)
+            yield "after"
+            yield heroku.STREAM_SENTINEL
+
+        heroku._stream = mock.Mock(return_value=timeout_stream())
+        heroku._process = mock.Mock()
+        heroku._process.poll = mock.Mock(return_value=None)
+        start_time = time.time()
+        heroku._log_failure()
+        assert heroku._record == ["first", "second"]
+        assert (time.time() - start_time) < 5
 
     def test_stop(self, heroku):
         heroku.start()
