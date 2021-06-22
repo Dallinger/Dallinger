@@ -412,7 +412,7 @@ s3transfer==0.4.2
     # via boto3
 selenium==3.141.0
     # via dallinger
-send2trash==1.5.0
+send2trash==1.7.1
     # via notebook
 six==1.16.0
     # via
