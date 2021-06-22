@@ -89,7 +89,7 @@ pep517==0.10.0
     #   pip-tools
 pexpect==4.8.0
     # via dallinger
-pip-tools==6.1.0
+pip-tools==6.2.0
     # via dallinger
 psutil==5.8.0
     # via dallinger
