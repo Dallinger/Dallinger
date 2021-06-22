@@ -1,6 +1,5 @@
 import docker
 import os
-import sys
 import time
 
 from hashlib import sha256
@@ -9,8 +8,6 @@ from pathlib import Path
 from shutil import which
 from subprocess import check_output
 from subprocess import CalledProcessError
-from subprocess import Popen
-from subprocess import PIPE
 from pip._internal.network.session import PipSession
 from pip._internal.req import parse_requirements
 
@@ -323,8 +320,6 @@ def build_image(
     """
     (Path(tmp_dir) / "Dockerfile").write_text(dockerfile_text)
 
-    process = Popen(docker_build_invocation, stdout=PIPE, env=env)
-    for c in iter(lambda: process.stdout.read(1), b""):
-        sys.stdout.buffer.write(c)
+    check_output(docker_build_invocation, env=env)
     out.blather(f"Built image: {image_name}" + "\n")
     return image_name
