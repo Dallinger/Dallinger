@@ -1,3 +1,4 @@
+import click
 import docker
 import os
 import time
@@ -197,11 +198,11 @@ class DockerComposeWrapper(object):
         )
 
 
-class DockerStartupError(RuntimeError):
+class DockerStartupError(click.Abort):
     """Some docker containers had problems starting"""
 
 
-class BuildError(RuntimeError):
+class BuildError(click.Abort):
     """There was a problem building the docker image"""
 
 
@@ -319,7 +320,9 @@ def build_image(
     CMD dallinger_heroku_web
     """
     (Path(tmp_dir) / "Dockerfile").write_text(dockerfile_text)
-
-    check_output(docker_build_invocation, env=env)
+    try:
+        check_output(docker_build_invocation, env=env)
+    except CalledProcessError:
+        raise BuildError
     out.blather(f"Built image: {image_name}" + "\n")
     return image_name
