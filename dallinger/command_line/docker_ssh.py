@@ -7,6 +7,9 @@ from socket import gethostbyname_ex
 from typing import Dict
 from uuid import uuid4
 import logging
+import select
+import sys
+import socket
 
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
@@ -306,6 +309,17 @@ def apps(server):
 
 
 @docker_ssh.command()
+@server_option
+def stats(server):
+    """List dallinger apps running on the remote server."""
+    server_info = CONFIGURED_HOSTS[server]
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
+    executor = Executor(ssh_host, user=ssh_user)
+    executor.run_and_echo("docker stats")
+
+
+@docker_ssh.command()
 @click.option("--app", required=True, help="Name of the experiment app to export")
 @click.option(
     "--local",
@@ -454,6 +468,42 @@ class Executor:
             "docker-compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
             "caddy reload -config /etc/caddy/Caddyfile"
         )
+
+    def run_and_echo(self, cmd):  # pragma: no cover
+        """Execute the given command on the remote host and prints its output
+        while it runs. Allows quitting by pressing the letter "q".
+        Buffers lines to prevent flickering.
+
+        Adapted from paramiko "interactive.py" demo.
+        """
+        from paramiko.py3compat import u
+
+        chan = self.client.get_transport().open_session()
+        chan.exec_command(cmd)
+        chan.settimeout(0.0)
+
+        buffer = []
+        while True:
+            r, _, _ = select.select([chan, sys.stdin], [], [])
+            if chan in r:
+                try:
+                    x = u(chan.recv(1024))
+                    if len(x) == 0:
+                        sys.stdout.write("\r\n*** EOF\r\n")
+                        break
+                    if "\n" in x:
+                        sys.stdout.write("".join(buffer))
+                        sys.stdout.write(x)
+                        sys.stdout.flush()
+                        buffer = []
+                    else:
+                        buffer.append(x)
+                except socket.timeout:
+                    pass
+            if sys.stdin in r:
+                x = sys.stdin.read(1)
+                if len(x) == 0 or x in "qQ":
+                    break
 
 
 class ExecuteException(Exception):
