@@ -23,6 +23,7 @@ from dallinger.config import get_config
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.redis_utils import connect_to_redis
+from dallinger.utils import bootstrap_development_session
 from dallinger.utils import get_base_url
 from dallinger.utils import open_browser
 from dallinger.utils import setup_experiment
@@ -244,6 +245,27 @@ def deploy_sandbox_shared_setup(
         )
     )
     return result
+
+
+class DevelopmentDeployment(object):
+    """Merges and symlinks files into a target directory and then stops,
+    so Flask development server can be run manually in that directory.
+    """
+
+    def __init__(self, output, exp_config):
+        self.out = output
+        self.exp_config = exp_config or {}
+        self.exp_config.update({"mode": "debug", "loglevel": 0})
+
+    def run(self):
+        """TODO"""
+        self.out.log("Preparing your pristine development environment...")
+        experiment_uid, dst = bootstrap_development_session(
+            self.exp_config, os.getcwd(), self.out.log
+        )
+        self.out.log("Re-initializing database...")
+        db.init_db(drop_all=True)
+        self.out.log(f"Files symlinked in {dst}")
 
 
 class HerokuLocalDeployment(object):

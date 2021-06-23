@@ -29,6 +29,7 @@ from dallinger import data
 from dallinger import db
 from dallinger.deployment import deploy_sandbox_shared_setup
 from dallinger.deployment import DebugDeployment
+from dallinger.deployment import DevelopmentDeployment
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
 from dallinger.command_line.docker import docker
@@ -198,6 +199,15 @@ def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
     debugger = DebugDeployment(Output(), verbose, bot, proxy, exp_config, no_browsers)
     log(header, chevrons=False)
     debugger.run()
+
+
+@dallinger.command()
+@require_exp_directory
+def develop(exp_config=None):
+    """Run the experiment locally."""
+    bootstrapper = DevelopmentDeployment(Output(), exp_config)
+    log(header, chevrons=False)
+    bootstrapper.run()
 
 
 def _mturk_service_from_config(sandbox):

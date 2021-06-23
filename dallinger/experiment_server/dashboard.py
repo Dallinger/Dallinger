@@ -220,6 +220,7 @@ dashboard_tabs = DashboardTabs(
         DashboardTab("Monitoring", "dashboard.monitoring"),
         DashboardTab("Lifecycle", "dashboard.lifecycle"),
         DashboardTab("Database", "dashboard.database", database_children),
+        DashboardTab("Development", "dashboard.develop"),
     ]
 )
 
@@ -744,6 +745,14 @@ def database():
             datatables_options, default=date_handler, indent=True
         ),
     )
+
+
+@dashboard.route("/develop", methods=["GET", "POST"])
+@login_required
+def develop():
+    """Dashboard for working with ``dallinger develop`` Flask server."""
+
+    return render_template("dashboard_develop.html")
 
 
 @dashboard.route("/database/action/<route_name>", methods=["POST"])
