@@ -1650,6 +1650,8 @@ def _worker_complete(participant_id):
     if event_type is None:
         return
 
+    # Currently we execute this function synchronously, regardless of the
+    # event type:
     worker_function(
         event_type=event_type,
         assignment_id=participant.assignment_id,

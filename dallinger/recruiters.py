@@ -518,6 +518,12 @@ class RedisStore(object):
         return "{}:{}".format(self._prefix, key)
 
 
+def run_assign_experiment_mturk_qualifications(worker_id, qualifications):
+    """Provides a way to run qualification assignment asynchronously."""
+    recruiter = MTurkRecruiter()
+    recruiter._assign_experiment_qualifications(worker_id, qualifications)
+
+
 class MTurkRecruiter(Recruiter):
     """Recruit participants from Amazon Mechanical Turk"""
 
@@ -610,10 +616,20 @@ class MTurkRecruiter(Recruiter):
     def assign_experiment_qualifications(self, worker_id, qualifications):
         """Assigns MTurk Qualifications to a worker.
 
+        This can be slow, and the call originates with a web request to the
+        /worker_complete route, which we don't want to time out.
+        Since we don't need to return a value, we can offload the work to
+        an async worker.
+
         @param worker_id       string  the MTurk worker ID
         @param qualifications  list of dict w/   `name`, `description` and
                                (optional) `score` keys
         """
+        q = _get_queue()
+        q.enqueue(run_assign_experiment_mturk_qualifications, worker_id, qualifications)
+
+    def _assign_experiment_qualifications(self, worker_id, qualifications):
+        # Called from an async worker.
         by_name = {qual["name"]: qual for qual in qualifications}
         result = self._ensure_mturk_qualifications(qualifications)
         for qual in result["new_qualifications"]:
