@@ -359,7 +359,7 @@ def get_editable_dallinger_path():
     for path_item in sys.path:
         egg_link = os.path.join(path_item, "dallinger.egg-link")
         if os.path.isfile(egg_link):
-            return open(egg_link).read().split()[0]
+            return open(egg_link).readlines()[0].strip()
     return None
 
 

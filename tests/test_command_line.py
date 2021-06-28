@@ -1173,3 +1173,16 @@ class TestApps(object):
             ["UID", "Started", "URL"],
             tablefmt=u"psql",
         )
+
+
+def test_get_editable_dallinger_path():
+    from dallinger.utils import get_editable_dallinger_path
+
+    with mock.patch("dallinger.utils.os.path.isfile") as isfile:
+        isfile.return_value = True
+        with mock.patch("dallinger.utils.open") as open:
+            open.return_value.readlines.return_value = [
+                "/a path/where many/directories/have/a/space/in them\n"
+            ]
+            result = get_editable_dallinger_path()
+            assert result == "/a path/where many/directories/have/a/space/in them"
