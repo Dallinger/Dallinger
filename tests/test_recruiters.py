@@ -869,7 +869,7 @@ class TestMTurkRecruiter(object):
         )
 
     def test_assign_experiment_qualifications_enques_work(self, recruiter, queue):
-        from dallinger.recruiters import run_assign_experiment_mturk_qualifications
+        from dallinger.recruiters import _run_mturk_qualification_assignment
 
         qualification_params = [
             "some worker id",
@@ -880,7 +880,7 @@ class TestMTurkRecruiter(object):
         recruiter.assign_experiment_qualifications(*qualification_params)
 
         queue.enqueue.assert_called_once_with(
-            run_assign_experiment_mturk_qualifications, *qualification_params
+            _run_mturk_qualification_assignment, *qualification_params
         )
 
     def test_rejects_questionnaire_from_returns_none_if_working(self, recruiter):

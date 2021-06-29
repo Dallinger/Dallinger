@@ -518,7 +518,7 @@ class RedisStore(object):
         return "{}:{}".format(self._prefix, key)
 
 
-def run_assign_experiment_mturk_qualifications(worker_id, qualifications):
+def _run_mturk_qualification_assignment(worker_id, qualifications):
     """Provides a way to run qualification assignment asynchronously."""
     recruiter = MTurkRecruiter()
     recruiter._assign_experiment_qualifications(worker_id, qualifications)
@@ -626,7 +626,7 @@ class MTurkRecruiter(Recruiter):
                                (optional) `score` keys
         """
         q = _get_queue()
-        q.enqueue(run_assign_experiment_mturk_qualifications, worker_id, qualifications)
+        q.enqueue(_run_mturk_qualification_assignment, worker_id, qualifications)
 
     def _assign_experiment_qualifications(self, worker_id, qualifications):
         # Called from an async worker.
