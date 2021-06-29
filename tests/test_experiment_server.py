@@ -1000,8 +1000,14 @@ class TestParticipantNodeCreationRoute(object):
         participant = a.participant()
         participant.status = "submitted"
         db_session.commit()
+
         resp = webapp.post("/node/{}".format(participant.id))
-        assert b"Error type: /node POST, status = submitted" in resp.data
+
+        error_report = resp.data.decode("utf8")
+        assert "Error type: /node POST, status = submitted" in error_report
+        assert "HIT id: {}".format(participant.hit_id) in error_report
+        assert "Assignment id: {}".format(participant.assignment_id) in error_report
+        assert "Worker id: {}".format(participant.worker_id) in error_report
 
     def test_no_network_for_participant_returns_error(self, a, db_session, webapp):
         participant = a.participant()

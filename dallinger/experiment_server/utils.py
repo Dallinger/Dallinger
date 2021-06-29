@@ -216,8 +216,8 @@ def error_page(
         error_text = "There has been an error and so you are unable to continue, sorry!"
 
     if participant is not None:
-        hit_id = (participant.hit_id,)
-        assignment_id = (participant.assignment_id,)
+        hit_id = participant.hit_id
+        assignment_id = participant.assignment_id
         worker_id = participant.worker_id
         participant_id = participant.id
     else:

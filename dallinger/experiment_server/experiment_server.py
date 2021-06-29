@@ -1637,10 +1637,10 @@ def _worker_complete(participant_id):
     session.commit()
 
     # Notify experiment that participant has been marked complete. Doing
-    # this here, rather than in the async worker function, means that
+    # this here, rather than in the worker function, means that
     # the experiment can request qualification assignment before the
     # worker completes the HIT when using a recruiter like MTurk, where
-    # execution of the worker_events.AssignmentSubmitted command is
+    # execution of the `worker_events.AssignmentSubmitted` command is
     # deferred until they've submitted the HIT on the MTurk platform.
     exp = Experiment(session)
     exp.participant_task_completed(participant)
@@ -1650,6 +1650,8 @@ def _worker_complete(participant_id):
     if event_type is None:
         return
 
+    # Currently we execute this function synchronously, regardless of the
+    # event type:
     worker_function(
         event_type=event_type,
         assignment_id=participant.assignment_id,
