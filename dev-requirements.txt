@@ -353,7 +353,7 @@ pypandoc==1.5
     # via dallinger
 pyparsing==2.4.7
     # via packaging
-pyrsistent==0.17.3
+pyrsistent==0.18.0
     # via jsonschema
 pytest-rerunfailures==10.0
     # via dallinger
