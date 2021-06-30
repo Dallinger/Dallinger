@@ -1,6 +1,34 @@
 # Change Log
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v7.5.0](https://github.com/dallinger/dallinger/tree/v7.5.0) (2021-06-30)
+- Experimental: new dallinger docker-ssh stats command to show per container CPU
+  and memory usage info as displayed by docker stats on the remote host
+- Feature: A new ``language`` configuration parameter for setting a ``gettext
+  ()`` language. Default value is ``en``.
+- Feature: A new optional url parameter to the ``/ad`` route which allows for
+  automatic generation of the recruiter entry information parameters
+  (hitId, assignmentId, workerId). When an ad url is sent with
+  ``?generate_tokens=1`` the ad route will redirect to the ad route with all
+  request arguments (except generate_tokens) preserved, and random values for
+  any of the standard entry information parameters that weren't provided.
+- Enhancement: Better exception logging/handling in
+  ``dallinger.experiment.load()``. When no class is found in the imported
+  experiment, it will log the first ``ImportError`` exception that was
+  triggered in addition to a message about the class not being available.
+- Enhancement: sometimes an error occurs and ``dallinger debug`` immediately
+  shuts down the process before logging the traceback has been output. We now
+  continue to read the process output until it hits a new error, the process
+  has exited, or one second has elapsed (it's a very short time because this
+  is generally just a buffering issue, and the output should be available
+  immediately).
+- Enhancement: support installing Dallinger in a directory with spaces in the name
+- Enhancement: MTurk qualification creation and assigment is slow, so we now
+  do is asynchronously in a worker dyno.
+- Bugfix: fix bug in error handling which resulted in storing invalid values
+  for a participant's HIT ID and assignment ID
+
+
 ## [v7.4.0](https://github.com/dallinger/dallinger/tree/v7.4.0) (2021-05-20)
 - Experimental: Support for deploying to using Docker containers:
     - Deployment to Heroku using a Docker container
