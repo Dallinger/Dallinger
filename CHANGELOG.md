@@ -28,7 +28,6 @@
 - Bugfix: fix bug in error handling which resulted in storing invalid values
   for a participant's HIT ID and assignment ID
 
-
 ## [v7.4.0](https://github.com/dallinger/dallinger/tree/v7.4.0) (2021-05-20)
 - Experimental: Support for deploying to using Docker containers:
     - Deployment to Heroku using a Docker container
