@@ -29,7 +29,7 @@ click==7.1.2
     #   nltk
     #   pip-tools
     #   rq
-dallinger==7.4.0
+dallinger==7.5.0
     # via -r requirements.txt
 faker==8.5.0
     # via dallinger
