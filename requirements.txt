@@ -28,7 +28,7 @@ click==7.1.2
     #   flask
     #   pip-tools
     #   rq
-faker==8.9.0
+faker==8.9.1
     # via dallinger
 flask-crossdomain==0.1
     # via dallinger
