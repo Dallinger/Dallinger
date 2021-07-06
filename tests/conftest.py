@@ -122,7 +122,7 @@ def experiment_dir_merged(experiment_dir, active_config):
     os.chdir(current_dir)
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture
 def bartlett_dir(root):
     os.chdir("demos/dlgr/demos/bartlett1932")
     yield
