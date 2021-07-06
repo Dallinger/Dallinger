@@ -11,3 +11,5 @@ for demo_name in $(ls demos/dlgr/demos/); do
         cd -
     fi
 done
+
+sed -i -e "s/dallinger==.*/dallinger==$(dallinger --version)/" demos/dlgr/demos/*/constraints.txt
