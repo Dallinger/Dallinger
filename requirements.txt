@@ -8,9 +8,9 @@
     # via -r requirements.in
 apscheduler==3.7.0
     # via dallinger
-boto3==1.17.96
+boto3==1.17.93
     # via dallinger
-botocore==1.20.96
+botocore==1.20.93
     # via
     #   boto3
     #   s3transfer
@@ -28,7 +28,7 @@ click==7.1.2
     #   flask
     #   pip-tools
     #   rq
-faker==8.8.1
+faker==8.7.0
     # via dallinger
 flask-crossdomain==0.1
     # via dallinger
@@ -93,7 +93,7 @@ pip-tools==6.1.0
     # via dallinger
 psutil==5.8.0
     # via dallinger
-psycopg2==2.9.1
+psycopg2==2.8.6
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy

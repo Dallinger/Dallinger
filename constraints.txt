@@ -34,9 +34,9 @@ black==21.6b0
     # via dallinger
 bleach==3.3.0
     # via nbconvert
-boto3==1.17.96
+boto3==1.17.93
     # via dallinger
-botocore==1.20.96
+botocore==1.20.93
     # via
     #   boto3
     #   s3transfer
@@ -109,7 +109,7 @@ entrypoints==0.3
     # via nbconvert
 et-xmlfile==1.1.0
     # via openpyxl
-faker==8.8.1
+faker==8.7.0
     # via dallinger
 filelock==3.0.12
     # via
@@ -201,7 +201,7 @@ jsonschema==3.2.0
     # via
     #   docker-compose
     #   nbformat
-jupyter-client==6.1.12
+jupyter-client==6.2.0
     # via
     #   ipykernel
     #   jupyter-console
@@ -311,13 +311,13 @@ pre-commit==2.13.0
     # via dallinger
 prometheus-client==0.11.0
     # via notebook
-prompt-toolkit==3.0.18
+prompt-toolkit==3.0.19
     # via
     #   ipython
     #   jupyter-console
 psutil==5.8.0
     # via dallinger
-psycopg2==2.9.1
+psycopg2==2.8.6
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
