@@ -201,6 +201,7 @@ BROWSEABLE_MODELS = [
     "Question",
     "Transformation",
     "Transmission",
+    "Notification",
 ]
 
 
