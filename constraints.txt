@@ -361,7 +361,7 @@ pytest==6.2.4
     # via
     #   dallinger
     #   pytest-rerunfailures
-python-dateutil==2.8.1
+python-dateutil==2.8.2
     # via
     #   botocore
     #   faker
