@@ -314,7 +314,7 @@ def build_image(
     # based on the contents of this file. This makes sure dallinger stays installed from
     # /dallinger, and that it doesn't waste space with two copies in two different layers.
     RUN mkdir ~/.ssh && echo "Host *\n    StrictHostKeyChecking no" >> ~/.ssh/config
-    RUN {ssh_mount} grep -v dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
+    RUN {ssh_mount} grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
         python3 -m pip install -r /tmp/requirements_no_dallinger.txt
     ENV PORT=5000
     CMD dallinger_heroku_web
