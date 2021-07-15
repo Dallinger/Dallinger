@@ -1,5 +1,8 @@
 import click
 
+from six.moves.urllib.parse import urlparse
+from six.moves.urllib.parse import urlunparse
+
 from dallinger.command_line.utils import header
 from dallinger.command_line.utils import log
 from dallinger.command_line.utils import Output
@@ -12,9 +15,23 @@ from dallinger.utils import open_browser
 BASE_URL = "http://127.0.0.1:7000/"
 
 
+def ad_url(config):
+    return BASE_URL + "ad?generate_tokens=true&recruiter=hotair"
+
+
+def dashboard_url(config):
+    parsed = list(urlparse(BASE_URL + "dashboard/develop"))
+    parsed[1] = "{}:{}@{}".format(
+        config.get("dashboard_user"),
+        config.get("dashboard_password"),
+        parsed[1],
+    )
+    return urlunparse(parsed)
+
+
 valid_routes = {
-    "ad": "ad?generate_tokens=true&recruiter=hotair",
-    "dashboard": "dashboard/develop",
+    "ad": ad_url,
+    "dashboard": dashboard_url,
 }
 
 
@@ -38,10 +55,9 @@ def browser(route=None):
     """Open one of the supported routes with appropriate path and URL parameters"""
     config = get_config()
     config.load()
-    url_tail = valid_routes.get(route)
-    if url_tail is not None:
-        url = BASE_URL + valid_routes.get(route)
-        open_browser(url)
+    url_factory = valid_routes.get(route)
+    if url_factory is not None:
+        open_browser(url_factory(config))
     else:
         click.echo(
             "Supported routes are:\n\t{}".format("\n\t".join(valid_routes.keys()))
