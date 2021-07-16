@@ -3,5 +3,7 @@ build:
 
 python:
   version: 3.8
-
-requirements_file: dev-requirements.txt
+  install:
+      - requirements: dev-requirements.txt
+      - method: pip
+        path: .
