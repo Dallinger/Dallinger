@@ -1,7 +1,10 @@
+version: 2
 build:
   image: latest
 
 python:
   version: 3.8
-
-requirements_file: dev-requirements.txt
+  install:
+      - requirements: dev-requirements.txt
+      - method: pip
+        path: .
