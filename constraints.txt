@@ -398,7 +398,7 @@ redis==3.5.3
     #   rq
 regex==2021.7.6
     # via black
-requests==2.25.1
+requests==2.26.0
     # via
     #   codecov
     #   dallinger
