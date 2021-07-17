@@ -132,7 +132,7 @@ six==1.16.0
     #   sqlalchemy-postgres-copy
 sqlalchemy-postgres-copy==0.5.0
     # via dallinger
-sqlalchemy==1.4.20
+sqlalchemy==1.4.21
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
