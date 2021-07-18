@@ -291,7 +291,7 @@ parso==0.8.2
     # via jedi
 pathspec==0.8.1
     # via black
-pep517==0.10.0
+pep517==0.11.0
     # via
     #   build
     #   pip-tools
