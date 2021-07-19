@@ -83,7 +83,7 @@ markupsafe==2.0.1
     #   wtforms
 packaging==21.0
     # via build
-pep517==0.10.0
+pep517==0.11.0
     # via
     #   build
     #   pip-tools
