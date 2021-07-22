@@ -36,6 +36,7 @@ class FunctionLearning(Experiment):
             super(FunctionLearning, self).setup()
             for net in self.networks():
                 self.models.SinusoidalFunctionSource(network=net)
+            self.session.commit()
 
     def create_network(self):
         """Create a new network."""

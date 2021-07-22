@@ -30,13 +30,13 @@ backcall==0.2.0
     # via ipython
 bcrypt==3.2.0
     # via paramiko
-black==21.6b0
+black==21.7b0
     # via dallinger
-bleach==3.3.0
+bleach==3.3.1
     # via nbconvert
-boto3==1.17.105
+boto3==1.18.1
     # via dallinger
-botocore==1.20.105
+botocore==1.21.1
     # via
     #   boto3
     #   s3transfer
@@ -50,7 +50,7 @@ cached-property==1.5.2
     # via dallinger
 certifi==2021.5.30
     # via requests
-cffi==1.14.5
+cffi==1.14.6
     # via
     #   argon2-cffi
     #   bcrypt
@@ -109,7 +109,7 @@ entrypoints==0.3
     # via nbconvert
 et-xmlfile==1.1.0
     # via openpyxl
-faker==8.9.1
+faker==8.10.1
     # via dallinger
 filelock==3.0.12
     # via
@@ -150,7 +150,7 @@ gunicorn==20.1.0
     # via dallinger
 heroku3==4.2.3
     # via dallinger
-identify==2.2.10
+identify==2.2.11
     # via pre-commit
 idna==2.10
     # via requests
@@ -158,7 +158,7 @@ imagesize==1.2.0
     # via sphinx
 iniconfig==1.1.1
     # via pytest
-ipykernel==6.0.1
+ipykernel==6.0.3
     # via
     #   ipywidgets
     #   jupyter
@@ -261,7 +261,7 @@ notebook==6.4.0
     # via
     #   jupyter
     #   widgetsnbextension
-numpy==1.21.0
+numpy==1.21.1
     # via pandas
 odfpy==1.4.1
     # via tablib
@@ -274,7 +274,7 @@ packaging==21.0
     #   pytest
     #   sphinx
     #   tox
-pandas==1.2.5
+pandas==1.3.0
     # via
     #   dallinger
     #   tablib
@@ -289,9 +289,9 @@ parsimonious==0.7.0
     # via sphinx-js
 parso==0.8.2
     # via jedi
-pathspec==0.8.1
+pathspec==0.9.0
     # via black
-pep517==0.10.0
+pep517==0.11.0
     # via
     #   build
     #   pip-tools
@@ -317,7 +317,7 @@ prompt-toolkit==3.0.19
     #   jupyter-console
 psutil==5.8.0
     # via dallinger
-psycopg2==2.8.6
+psycopg2==2.9.1
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
@@ -349,7 +349,7 @@ pygments==2.9.0
     #   sphinx
 pynacl==1.4.0
     # via paramiko
-pypandoc==1.5
+pypandoc==1.6.3
     # via dallinger
 pyparsing==2.4.7
     # via packaging
@@ -361,7 +361,7 @@ pytest==6.2.4
     # via
     #   dallinger
     #   pytest-rerunfailures
-python-dateutil==2.8.1
+python-dateutil==2.8.2
     # via
     #   botocore
     #   faker
@@ -396,9 +396,9 @@ redis==3.5.3
     # via
     #   dallinger
     #   rq
-regex==2021.7.5
+regex==2021.7.6
     # via black
-requests==2.25.1
+requests==2.26.0
     # via
     #   codecov
     #   dallinger
@@ -408,7 +408,7 @@ requests==2.25.1
     #   sphinx
 rq==1.9.0
     # via dallinger
-s3transfer==0.4.2
+s3transfer==0.5.0
     # via boto3
 selenium==3.141.0
     # via dallinger
@@ -436,7 +436,7 @@ sphinx-js==3.1.2
     # via dallinger
 sphinx-rtd-theme==0.5.2
     # via dallinger
-sphinx==4.0.2
+sphinx==4.1.1
     # via
     #   dallinger
     #   recommonmark
@@ -459,7 +459,7 @@ sphinxcontrib-spelling==7.2.1
     # via dallinger
 sqlalchemy-postgres-copy==0.5.0
     # via dallinger
-sqlalchemy==1.4.20
+sqlalchemy==1.4.22
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
@@ -477,7 +477,7 @@ testpath==0.5.0
     # via nbconvert
 text-unidecode==1.3
     # via faker
-texttable==1.6.3
+texttable==1.6.4
     # via docker-compose
 timeago==1.0.15
     # via dallinger
@@ -495,7 +495,7 @@ tornado==6.1
     #   jupyter-client
     #   notebook
     #   terminado
-tox==3.23.1
+tox==3.24.0
     # via dallinger
 traitlets==5.0.5
     # via
@@ -525,7 +525,7 @@ urllib3==1.26.6
     #   selenium
 user-agents==2.2.0
     # via dallinger
-virtualenv==20.4.7
+virtualenv==20.6.0
     # via
     #   pre-commit
     #   tox

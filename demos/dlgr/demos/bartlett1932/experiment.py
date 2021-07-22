@@ -56,6 +56,7 @@ class Bartlett1932(Experiment):
             super(Bartlett1932, self).setup()
             for net in self.networks():
                 self.models.WarOfTheGhostsSource(network=net)
+            self.session.commit()
 
     def create_network(self):
         """Return a new network."""

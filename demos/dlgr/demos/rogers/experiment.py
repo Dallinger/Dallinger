@@ -93,6 +93,7 @@ class RogersExperiment(Experiment):
             env = self.models.RogersEnvironment(network=net)
             env.proportion = self.color_proportion_for_network(net)
             env.create_information()
+        self.session.commit()
 
     def color_proportion_for_network(self, net):
         if net.role == "practice":
