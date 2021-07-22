@@ -713,10 +713,16 @@ class TestParticipantCreateRoute(object):
         with mock.patch(
             "dallinger.experiment.Experiment.create_participant"
         ) as create_participant:
-            create_participant.side_effect = lambda *args: p
+            create_participant.side_effect = lambda **args: p
             webapp.post("/participant/1/1/1/debug")
             create_participant.assert_called_once_with(
-                "1", "1", "1", "debug", None, None, None
+                worker_id="1",
+                hit_id="1",
+                assignment_id="1",
+                mode="debug",
+                recruiter_name=None,
+                fingerprint_hash=None,
+                entry_information=None,
             )
 
     def test_creates_participant_if_worker_id_unique(self, webapp):
@@ -773,6 +779,24 @@ class TestParticipantCreateRoute(object):
         )
 
         assert resp.status_code == 200
+
+    def test_logs_submitted_values_on_error(self, a, db_session, webapp):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.db.logger.exception"
+        ) as logger:
+            resp = webapp.post(
+                "/participant",
+                data={
+                    # assignmentId is excluded, making the request invalid
+                    "hitId": "H",
+                    "workerId": "W",
+                    "mode": "debug",
+                    "additional_stuff": "1",
+                },
+            )
+
+        assert resp.status_code == 400
+        assert "'assignment_id': None" in logger.call_args.args[0]
 
     def test_post_participant_calls_normalize_entry_information(
         self, a, db_session, webapp
