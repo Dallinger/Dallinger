@@ -826,7 +826,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         db.logger.exception(
             "Error creating particant using these values: {}".format(participant_vals)
         )
-        msg = "/participant POST: required values were missing or invalid."
+        msg = "/participant POST: an error occurred while registering the participant."
         return error_response(error_type=msg, status=400)
 
     session.flush()
