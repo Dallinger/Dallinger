@@ -811,15 +811,23 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
 
     # Create the new participant.
     exp = Experiment(session)
-    participant = exp.create_participant(
-        worker_id,
-        hit_id,
-        assignment_id,
-        mode,
-        recruiter_name,
-        fingerprint_hash,
-        entry_information,
-    )
+    participant_vals = {
+        "worker_id": worker_id,
+        "hit_id": hit_id,
+        "assignment_id": assignment_id,
+        "mode": mode,
+        "recruiter_name": recruiter_name,
+        "fingerprint_hash": fingerprint_hash,
+        "entry_information": entry_information,
+    }
+    try:
+        participant = exp.create_participant(**participant_vals)
+    except Exception:
+        db.logger.exception(
+            "Error creating particant using these values: {}".format(participant_vals)
+        )
+        msg = "/participant POST: an error occurred while registering the participant."
+        return error_response(error_type=msg, status=400)
 
     session.flush()
     overrecruited = exp.is_overrecruited(nonfailed_count)
