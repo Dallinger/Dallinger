@@ -419,6 +419,7 @@ def bootstrap_development_session(exp_config, experiment_path, log):
         }
     )
 
+    develop_source_path = Path(dallinger_package_path()) / "dev_server"
     dst = Path(experiment_path) / "develop"
     log("Wiping develop directory and re-writing it...")
     ensure_directory(dst)
@@ -426,13 +427,16 @@ def bootstrap_development_session(exp_config, experiment_path, log):
     collate_experiment_files(
         config, experiment_path=experiment_path, destination=dst, copy_func=symlink_file
     )
-    copy_file(
-        Path(dallinger_package_path()) / "dev_server" / "app.py", Path(dst) / "app.py"
-    )
-    copy_file(
-        Path(dallinger_package_path()) / "dev_server" / "run.sh", Path(dst) / "run.sh"
-    )
-    (Path(dst) / "run.sh").chmod(0o744)  # Make run script executable
+
+    # Overwrite the heroku Procfile with one that excludes the web dyno,
+    # since we will run Flask in the foreground:
+    if config.get("clock_on"):
+        copy_file(develop_source_path / "Procfile", dst / "Procfile")
+    else:
+        copy_file(develop_source_path / "Procfile_no_clock", dst / "Procfile")
+    copy_file(develop_source_path / "app.py", dst / "app.py")
+    copy_file(develop_source_path / "run.sh", dst / "run.sh")
+    (dst / "run.sh").chmod(0o744)  # Make run script executable
 
     config.write(filter_sensitive=True, directory=dst)
 
