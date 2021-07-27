@@ -248,8 +248,9 @@ def deploy_sandbox_shared_setup(
 
 
 class DevelopmentDeployment(object):
-    """Merges and symlinks files into a target directory and then stops,
-    so Flask development server can be run manually in that directory.
+    """Collates files from Dallinger and the custom experment, then symlinks
+    them into a target sub-directory, so Flask development server can be run
+    manually in that directory.
     """
 
     def __init__(self, output, exp_config):
@@ -258,14 +259,18 @@ class DevelopmentDeployment(object):
         self.exp_config.update({"mode": "debug", "loglevel": 0})
 
     def run(self):
-        """TODO"""
+        """Bootstrap the environment and reset the database."""
         self.out.log("Preparing your pristine development environment...")
         experiment_uid, dst = bootstrap_development_session(
             self.exp_config, os.getcwd(), self.out.log
         )
         self.out.log("Re-initializing database...")
         db.init_db(drop_all=True)
-        self.out.log(f"Files symlinked in {dst}")
+        self.out.log(
+            f"Files symlinked in {dst}.\n"
+            "Run './run.sh' in that directory to start Flask, "
+            "plus the worker and clock processes."
+        )
 
 
 class HerokuLocalDeployment(object):

@@ -808,6 +808,7 @@ def exclusion_policy():
             "node_modules",
             "snapshots",
             "data",
+            "develop",
             "server.log",
             "__pycache__",
         ]
