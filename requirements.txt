@@ -8,7 +8,7 @@
     # via -r requirements.in
 apscheduler==3.7.0
     # via dallinger
-boto3==1.18.1
+boto3==1.18.8
     # via dallinger
 botocore==1.21.1
     # via
