@@ -43,9 +43,10 @@ def develop():
     pass
 
 
-@develop.command(help="Send a POST to the /launch route")
+@develop.command()
 @click.option("--port", default=5000, help="The port Flask is running on")
 def launch(port):
+    """Send a POST to the /launch route"""
     url = BASE_URL.format(port) + "launch"
     result = _handle_launch_data(url, error=log, attempts=1)
     if result and "status" in result:
