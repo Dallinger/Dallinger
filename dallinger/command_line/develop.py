@@ -1,4 +1,5 @@
 import click
+import logging
 
 from six.moves.urllib.parse import urlparse
 from six.moves.urllib.parse import urlunparse
@@ -9,9 +10,11 @@ from dallinger.command_line.utils import Output
 from dallinger.command_line.utils import require_exp_directory
 from dallinger.config import get_config
 from dallinger.deployment import DevelopmentDeployment
+from dallinger.deployment import _handle_launch_data
 from dallinger.utils import open_browser
 
 
+logger = logging.getLogger(__name__)
 BASE_URL = "http://127.0.0.1:{}/"
 
 
@@ -38,6 +41,15 @@ valid_routes = {
 @click.group()
 def develop():
     pass
+
+
+@develop.command(help="Send a POST to the /launch route")
+@click.option("--port", default=5000, help="The port Flask is running on")
+def launch(port):
+    url = BASE_URL.format(port) + "launch"
+    result = _handle_launch_data(url, error=log, attempts=1)
+    if result and "status" in result:
+        log(result["status"])
 
 
 @develop.command()

@@ -36,6 +36,8 @@ MAX_ATTEMPTS = 6
 
 
 def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
+    launch_data = None
+    launch_request = None
     for remaining_attempt in sorted(range(attempts), reverse=True):  # [3, 2, 1, 0]
         time.sleep(delay)
         try:
@@ -82,9 +84,10 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
             )
 
     error("Experiment launch failed, check web dyno logs for details.")
-    if launch_data.get("message"):
+    if launch_data and launch_data.get("message"):
         error(launch_data["message"])
-    launch_request.raise_for_status()
+    if launch_request is not None:
+        launch_request.raise_for_status()
 
 
 def deploy_sandbox_shared_setup(
