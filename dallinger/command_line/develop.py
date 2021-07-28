@@ -12,15 +12,15 @@ from dallinger.deployment import DevelopmentDeployment
 from dallinger.utils import open_browser
 
 
-BASE_URL = "http://127.0.0.1:7000/"
+BASE_URL = "http://127.0.0.1:{}/"
 
 
-def ad_url(config):
-    return BASE_URL + "ad?generate_tokens=true&recruiter=hotair"
+def ad_url(config, port):
+    return BASE_URL.format(port) + "ad?generate_tokens=true&recruiter=hotair"
 
 
-def dashboard_url(config):
-    parsed = list(urlparse(BASE_URL + "dashboard/develop"))
+def dashboard_url(config, port):
+    parsed = list(urlparse(BASE_URL.format(port) + "dashboard/develop"))
     parsed[1] = "{}:{}@{}".format(
         config.get("dashboard_user"),
         config.get("dashboard_password"),
@@ -50,14 +50,19 @@ def bootstrap(exp_config=None):
 
 
 @develop.command()
-@click.option("--route", default=None, help="Route name")
-def browser(route=None):
+@click.option(
+    "--route",
+    default=None,
+    help="Route name (valid routes are: {})".format(", ".join(valid_routes.keys())),
+)
+@click.option("--port", default=5000, help="The port Flask is running on")
+def browser(route=None, port=5000):
     """Open one of the supported routes with appropriate path and URL parameters"""
     config = get_config()
     config.load()
     url_factory = valid_routes.get(route)
     if url_factory is not None:
-        open_browser(url_factory(config))
+        open_browser(url_factory(config, port))
     else:
         click.echo(
             "Supported routes are:\n\t{}".format("\n\t".join(valid_routes.keys()))
