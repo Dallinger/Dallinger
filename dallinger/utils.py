@@ -19,6 +19,7 @@ from hashlib import md5
 from pathlib import Path
 from pkg_resources import get_distribution
 from unicodedata import normalize
+from tempfile import TemporaryDirectory
 
 try:
     from importlib.metadata import files as files_metadata
@@ -26,6 +27,7 @@ except ImportError:
     from importlib_metadata import files as files_metadata
 
 from dallinger import db
+from dallinger.version import __version__
 from dallinger.config import get_config
 from dallinger.compat import is_command
 
@@ -462,15 +464,19 @@ def ensure_constraints_file_presence(directory: str):
     prev_cwd = os.getcwd()
     try:
         os.chdir(directory)
-        print("Compiling constraints.txt file from requirements.txt")
+        url = f"https://raw.githubusercontent.com/Dallinger/Dallinger/v{__version__}/dev-requirements.txt"
+        print(f"Compiling constraints.txt file from requirements.txt and {url}")
         compile_info = f"dallinger generate-constraints\n#\n# Compiled from a requirement.txt file with md5sum: {requirements_path_hash}"
-        check_output(
-            ["pip-compile", "requirements.txt", "-o", "constraints.txt"],
-            env=dict(
-                os.environ,
-                CUSTOM_COMPILE_COMMAND=compile_info,
-            ),
-        )
+        with TemporaryDirectory() as tmpdirname:
+            tmpfile = Path(tmpdirname) / "requirements.txt"
+            tmpfile.write_text(Path("requirements.txt").read_text() + "\n-c " + url)
+            check_output(
+                ["pip-compile", str(tmpfile), "-o", "constraints.txt"],
+                env=dict(
+                    os.environ,
+                    CUSTOM_COMPILE_COMMAND=compile_info,
+                ),
+            )
     finally:
         os.chdir(prev_cwd)
     # Make the path the experiment requirements.txt file relative
