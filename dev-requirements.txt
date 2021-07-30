@@ -88,7 +88,7 @@ defusedxml==0.7.1
     #   odfpy
 distlib==0.3.2
     # via virtualenv
-distro==1.5.0
+distro==1.6.0
     # via docker-compose
 docker-compose==1.29.2
     # via dallinger
