@@ -495,7 +495,7 @@ tornado==6.1
     #   jupyter-client
     #   notebook
     #   terminado
-tox==3.24.0
+tox==3.24.1
     # via dallinger
 traitlets==5.0.5
     # via
