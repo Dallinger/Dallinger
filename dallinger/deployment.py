@@ -23,6 +23,7 @@ from dallinger.config import get_config
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.redis_utils import connect_to_redis
+from dallinger.utils import bootstrap_development_session
 from dallinger.utils import get_base_url
 from dallinger.utils import open_browser
 from dallinger.utils import setup_experiment
@@ -35,6 +36,8 @@ MAX_ATTEMPTS = 6
 
 
 def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
+    launch_data = None
+    launch_request = None
     for remaining_attempt in sorted(range(attempts), reverse=True):  # [3, 2, 1, 0]
         time.sleep(delay)
         try:
@@ -81,9 +84,10 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
             )
 
     error("Experiment launch failed, check web dyno logs for details.")
-    if launch_data.get("message"):
+    if launch_data and launch_data.get("message"):
         error(launch_data["message"])
-    launch_request.raise_for_status()
+    if launch_request is not None:
+        launch_request.raise_for_status()
 
 
 def deploy_sandbox_shared_setup(
@@ -244,6 +248,32 @@ def deploy_sandbox_shared_setup(
         )
     )
     return result
+
+
+class DevelopmentDeployment(object):
+    """Collates files from Dallinger and the custom experment, then symlinks
+    them into a target sub-directory, so Flask development server can be run
+    manually in that directory.
+    """
+
+    def __init__(self, output, exp_config):
+        self.out = output
+        self.exp_config = exp_config or {}
+        self.exp_config.update({"mode": "debug", "loglevel": 0})
+
+    def run(self):
+        """Bootstrap the environment and reset the database."""
+        self.out.log("Preparing your pristine development environment...")
+        experiment_uid, dst = bootstrap_development_session(
+            self.exp_config, os.getcwd(), self.out.log
+        )
+        self.out.log("Re-initializing database...")
+        db.init_db(drop_all=True)
+        self.out.log(
+            f"Files symlinked in {dst}.\n"
+            "Run './run.sh' in that directory to start Flask, "
+            "plus the worker and clock processes."
+        )
 
 
 class HerokuLocalDeployment(object):

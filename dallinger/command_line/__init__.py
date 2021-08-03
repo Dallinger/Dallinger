@@ -31,6 +31,7 @@ from dallinger.deployment import deploy_sandbox_shared_setup
 from dallinger.deployment import DebugDeployment
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
+from dallinger.command_line.develop import develop
 from dallinger.command_line.docker import docker
 from dallinger.command_line.docker_ssh import docker_ssh
 from dallinger.notifications import admin_notifier
@@ -120,6 +121,7 @@ def dallinger():
     )
 
 
+dallinger.add_command(develop)
 dallinger.add_command(docker)
 dallinger.add_command(docker_ssh)
 

@@ -90,6 +90,18 @@ def ensure_directory(path):
         os.makedirs(path)
 
 
+def expunge_directory(path_string):
+    """Remove all content from a directory."""
+    for filepath in Path(path_string).iterdir():
+        try:
+            if filepath.is_file() or filepath.is_symlink():
+                filepath.unlink()
+            elif filepath.is_dir():
+                shutil.rmtree(filepath)
+        except Exception as e:
+            print("Failed to delete %s. Reason: %s" % (filepath, e))
+
+
 def run_command(cmd, out, ignore_errors=False):
     """We want to both send subprocess output to stdout or another file
     descriptor as the subprocess runs, *and* capture the actual exception
@@ -365,6 +377,70 @@ def get_editable_dallinger_path():
     return None
 
 
+def check_local_db_connection(log):
+    """Verify that the local Postgres server is running."""
+    try:
+        log("Checking your local Postgres database connection...")
+        db.check_connection()
+    except Exception:
+        log("There was a problem connecting!")
+        raise
+
+
+def check_experiment_dependencies(requirement_file):
+    """Verify that the dependencies defined in a requirements file are
+    in fact installed.
+    """
+    try:
+        with open(requirement_file, "r") as f:
+            dependencies = [r for r in f.readlines() if r[:3] != "-e "]
+    except (OSError, IOError):
+        dependencies = []
+    pkg_resources.require(dependencies)
+
+
+def bootstrap_development_session(exp_config, experiment_path, log):
+    check_local_db_connection(log)
+    check_experiment_dependencies(Path(experiment_path) / "requirements.txt")
+
+    # Generate a unique id for this experiment.
+    from dallinger.experiment import Experiment
+
+    experiment_uid = Experiment.make_uuid()
+    log("Experiment UID: {}".format(experiment_uid))
+
+    # Load and update the config
+    config = get_config()
+    if not config.ready:
+        config.load()  #
+    config.extend(exp_config)
+    config.extend(
+        {
+            "id": str(experiment_uid),
+            "heroku_app_id_root": str(experiment_uid),
+        }
+    )
+    if not config.get("dashboard_password", None):
+        config.set("dashboard_password", fake.password(length=20, special_chars=False))
+
+    develop_source_path = Path(dallinger_package_path()) / "dev_server"
+    dst = Path(experiment_path) / "develop"
+    log("Wiping develop directory and re-writing it...")
+    ensure_directory(dst)
+    expunge_directory(dst)
+    collate_experiment_files(
+        config, experiment_path=experiment_path, destination=dst, copy_func=symlink_file
+    )
+
+    copy_file(develop_source_path / "app.py", dst / "app.py")
+    copy_file(develop_source_path / "run.sh", dst / "run.sh")
+    (dst / "run.sh").chmod(0o744)  # Make run script executable
+
+    config.write(directory=dst)
+
+    return (experiment_uid, dst)
+
+
 def setup_experiment(
     log, debug=True, verbose=False, app=None, exp_config=None, local_checks=True
 ):
@@ -374,23 +450,10 @@ def setup_experiment(
     The resulting directory includes all the files necessary to deploy to
     Heroku.
     """
-
-    # Verify that the Postgres server is running.
     if local_checks:
-        try:
-            log("Checking your local Postgres database connection...")
-            db.check_connection()
-        except Exception:
-            log("There was a problem connecting!")
-            raise
+        check_local_db_connection(log)
+        check_experiment_dependencies(Path(os.getcwd()) / "requirements.txt")
 
-        # Check that the demo-specific requirements are satisfied.
-        try:
-            with open("requirements.txt", "r") as f:
-                dependencies = [r for r in f.readlines() if r[:3] != "-e "]
-        except (OSError, IOError):
-            dependencies = []
-        pkg_resources.require(dependencies)
     ensure_constraints_file_presence(os.getcwd())
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
@@ -511,12 +574,9 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
     """
     exp_id = config.get("id")
     dst = os.path.join(tempfile.mkdtemp(), exp_id)
-
-    # Order matters here, since the first files copied "win" if there's a
-    # collision:
-    ExperimentFileSource(os.getcwd()).apply_to(dst)
-    DallingerFileSource(config, dallinger_package_path()).apply_to(dst)
-    ExplicitFileSource(os.getcwd()).apply_to(dst)
+    collate_experiment_files(
+        config, experiment_path=os.getcwd(), destination=dst, copy_func=copy_file
+    )
 
     # Write out the loaded configuration
     config.write(filter_sensitive=True, directory=dst)
@@ -557,6 +617,29 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
     return dst
 
 
+def copy_file(from_path, to_path):
+    """Actually copy a file from one location to another."""
+    shutil.copyfile(from_path, to_path)
+
+
+def symlink_file(from_path, to_path):
+    """Symbolically link a file from one location to another."""
+    os.symlink(from_path, to_path)
+
+
+def collate_experiment_files(config, experiment_path, destination, copy_func):
+    """Coordinates getting required files from various sources into a
+    target directory.
+    """
+    # Order matters here, since the first files copied "win" if there's a
+    # collision:
+    ExperimentFileSource(experiment_path).apply_to(destination, copy_func=copy_func)
+    DallingerFileSource(config, dallinger_package_path()).apply_to(
+        destination, copy_func=copy_func
+    )
+    ExplicitFileSource(experiment_path).apply_to(destination, copy_func=copy_func)
+
+
 class FileSource(object):
     """Include files from some source in an experiment run."""
 
@@ -572,7 +655,7 @@ class FileSource(object):
         """Combined size of all files, accounting for exclusions."""
         return sum([os.path.getsize(path) for path in self.files])
 
-    def apply_to(self, destination):
+    def apply_to(self, destination, copy_func=copy_file):
         """Copy files based iterable of source and destination tuples.
         Files are not overwritten if they already exist.
         """
@@ -581,7 +664,7 @@ class FileSource(object):
             ensure_directory(target_folder)
             if os.path.exists(to_path):
                 continue
-            shutil.copyfile(from_path, to_path)
+            copy_func(from_path, to_path)
 
     def map_locations_to(self, destination):
         """Return a generator of two-tuples, where the first element is
@@ -733,6 +816,7 @@ def exclusion_policy():
             "node_modules",
             "snapshots",
             "data",
+            "develop",
             "server.log",
             "__pycache__",
         ]
