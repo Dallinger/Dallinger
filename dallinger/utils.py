@@ -418,6 +418,8 @@ def bootstrap_development_session(exp_config, experiment_path, log):
             "heroku_app_id_root": str(experiment_uid),
         }
     )
+    if not config.get("dashboard_password", None):
+        config.set("dashboard_password", fake.password(length=20, special_chars=False))
 
     develop_source_path = Path(dallinger_package_path()) / "dev_server"
     dst = Path(experiment_path) / "develop"
@@ -432,7 +434,7 @@ def bootstrap_development_session(exp_config, experiment_path, log):
     copy_file(develop_source_path / "run.sh", dst / "run.sh")
     (dst / "run.sh").chmod(0o744)  # Make run script executable
 
-    config.write(filter_sensitive=True, directory=dst)
+    config.write(directory=dst)
 
     return (experiment_uid, dst)
 
