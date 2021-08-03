@@ -1,6 +1,18 @@
 # Change Log
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v7.6.0](https://github.com/dallinger/dallinger/tree/v7.6.0) (2021-08-03)
+- Experimental: alpha version of as yet undocumented ``dallinger develop``
+  features
+- Enhancement: error handling and logging for the create_participant() function
+  (and Flask route) to provide more information when participant creation fails
+- Bugfix: Read the Docs integration fix, so documentation will again be generated
+  on [https://readthedocs.org/projects/dallinger/](https://readthedocs.org/projects/dallinger/)
+- Bugfix: some demos did not write Nodes created during initial network setup to
+  the database
+- Bugfix: fix bug which caused Chrome browser profile to be written to a folder
+  named ``""`` in the experiment temp directory instead of a transient temp folder
+
 ## [v7.5.0](https://github.com/dallinger/dallinger/tree/v7.5.0) (2021-06-30)
 - Experimental: new dallinger docker-ssh stats command to show per container CPU
   and memory usage info as displayed by docker stats on the remote host

@@ -10,7 +10,7 @@ for demo_name in $(ls demos/dlgr/demos/); do
             # The bartlett1932 experiment is used in docker tests.
             # Its constraints should always be aligned with the ones specified for dallinger
             # in its `requirements.txt`. Hence the special treatment here.
-            echo bartlett1932 experiment: copy versions from current `requirements.txt`
+            echo bartlett1932 experiment: copy versions from current "requirements.txt"
             cp $dir/../requirements.txt "$dir/../demos/dlgr/demos/${demo_name}/constraints.txt"
             # Let everyone know this file is up to date.
             # `dallinger.utils.ensure_constraints_file_presence` will check this
@@ -23,4 +23,4 @@ for demo_name in $(ls demos/dlgr/demos/); do
     fi
 done
 
-sed -i -e "s/dallinger==.*/dallinger==$(dallinger --version)/" demos/dlgr/demos/*/constraints.txt
+sed -i ".orig" -e "s/dallinger==.*/dallinger==$(dallinger --version)/" demos/dlgr/demos/*/constraints.txt
