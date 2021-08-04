@@ -28,7 +28,9 @@ click==7.1.2
     #   flask
     #   pip-tools
     #   rq
-dallinger==7.5.0
+# dallinger==7.5.0
+# Use the available version of dallinger
+dallinger
     # via -r requirements.txt
 faker==8.10.1
     # via dallinger
