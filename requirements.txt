@@ -14,7 +14,7 @@ botocore==1.21.12
     # via
     #   boto3
     #   s3transfer
-build==0.5.1
+build==0.6.1
     # via dallinger
 cached-property==1.5.2
     # via dallinger
