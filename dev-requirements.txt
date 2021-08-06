@@ -136,7 +136,7 @@ future==0.18.2
     # via dallinger
 gevent-websocket==0.10.1
     # via flask-sockets
-gevent==21.1.2
+gevent==21.8.0
     # via
     #   dallinger
     #   flask-sockets
