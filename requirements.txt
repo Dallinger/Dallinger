@@ -146,7 +146,7 @@ toml==0.10.2
     # via
     #   build
     #   pep517
-tzlocal==2.1
+tzlocal==3.0
     # via
     #   apscheduler
     #   dallinger
