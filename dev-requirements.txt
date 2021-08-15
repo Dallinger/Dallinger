@@ -339,7 +339,7 @@ pyenchant==3.2.1
     # via sphinxcontrib-spelling
 pyflakes==2.3.1
     # via flake8
-pygments==2.9.0
+pygments==2.10.0
     # via
     #   ipython
     #   jupyter-console
