@@ -388,7 +388,7 @@ pyzmq==22.2.1
     #   qtconsole
 qtconsole==5.1.1
     # via jupyter
-qtpy==1.9.0
+qtpy==1.10.0
     # via qtconsole
 recommonmark==0.7.1
     # via dallinger
