@@ -10,7 +10,7 @@ apscheduler==3.7.0
     # via dallinger
 boto3==1.18.21
     # via dallinger
-botocore==1.21.21
+botocore==1.21.28
     # via
     #   boto3
     #   s3transfer
