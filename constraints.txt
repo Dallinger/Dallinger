@@ -16,7 +16,7 @@ appdirs==1.4.4
     #   virtualenv
 apscheduler==3.7.0
     # via dallinger
-argon2-cffi==20.1.0
+argon2-cffi==21.1.0
     # via notebook
 async-generator==1.10
     # via nbclient
