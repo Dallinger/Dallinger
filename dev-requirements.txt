@@ -357,7 +357,7 @@ pyrsistent==0.18.0
     # via jsonschema
 pytest-rerunfailures==10.1
     # via dallinger
-pytest==6.2.4
+pytest==6.2.5
     # via
     #   dallinger
     #   pytest-rerunfailures
