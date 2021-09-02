@@ -92,7 +92,7 @@ distro==1.6.0
     # via docker-compose
 docker-compose==1.29.2
     # via dallinger
-docker[ssh]==5.0.0
+docker[ssh]==5.0.2
     # via
     #   dallinger
     #   docker-compose
