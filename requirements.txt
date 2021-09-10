@@ -118,7 +118,7 @@ requests==2.26.0
     # via
     #   dallinger
     #   heroku3
-rq==1.9.0
+rq==1.10.0
     # via dallinger
 s3transfer==0.5.0
     # via boto3
