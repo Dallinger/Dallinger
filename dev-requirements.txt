@@ -265,7 +265,7 @@ numpy==1.21.2
     # via pandas
 odfpy==1.4.1
     # via tablib
-openpyxl==3.0.7
+openpyxl==3.0.8
     # via tablib
 packaging==21.0
     # via
