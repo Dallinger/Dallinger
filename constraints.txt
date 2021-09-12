@@ -349,7 +349,7 @@ pygments==2.10.0
     #   sphinx
 pynacl==1.4.0
     # via paramiko
-pypandoc==1.6.3
+pypandoc==1.6.4
     # via dallinger
 pyparsing==2.4.7
     # via packaging
