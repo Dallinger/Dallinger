@@ -4,7 +4,6 @@
 #
 #    ./scripts/update_dependencies.sh
 #
-# delete this line
 
     # via -r dev-requirements.in
 alabaster==0.7.12
