@@ -176,7 +176,7 @@ ipython==7.27.0
     #   ipykernel
     #   ipywidgets
     #   jupyter-console
-ipywidgets==7.6.4
+ipywidgets==7.6.5
     # via
     #   dallinger
     #   jupyter
