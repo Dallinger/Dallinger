@@ -274,7 +274,7 @@ packaging==21.0
     #   pytest
     #   sphinx
     #   tox
-pandas==1.3.2
+pandas==1.3.3
     # via
     #   dallinger
     #   tablib
