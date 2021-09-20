@@ -72,3 +72,12 @@ def test_after_commit_hook(db_session):
         db_session.commit()
 
         assert redis.called_once_with("test", "test")
+
+
+def test_create_db_engine_updates_postgresql_scheme():
+    old_scheme_uri = "postgres://foo:bar@somehost:5432/blah"
+    from dallinger.db import create_db_engine
+
+    engine = create_db_engine(old_scheme_uri)
+
+    assert engine.url.render_as_string().startswith("postgresql://")
