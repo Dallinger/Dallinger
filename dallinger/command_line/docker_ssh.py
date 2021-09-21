@@ -311,7 +311,7 @@ def apps(server):
 @docker_ssh.command()
 @server_option
 def stats(server):
-    """List dallinger apps running on the remote server."""
+    """Get resource usage stats from remote server."""
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
@@ -335,7 +335,7 @@ def stats(server):
 )
 @server_option
 def export(server, app, local, no_scrub):
-    """List dallinger apps running on the remote server."""
+    """Export database to a local file."""
     from sshtunnel import SSHTunnelForwarder
 
     server_info = CONFIGURED_HOSTS[server]
