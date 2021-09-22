@@ -175,7 +175,7 @@ server_option = click.option(
 
 def build_and_push_image(f):
     @wraps(f)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args, **kwargs):  # pragma: no cover
         from dallinger.docker.tools import build_image
         from dallinger.command_line.docker import push
 
