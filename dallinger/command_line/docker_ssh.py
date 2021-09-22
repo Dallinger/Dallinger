@@ -214,11 +214,18 @@ def build_and_push_image(f):
 @build_and_push_image
 def deploy(mode, server, dns_host, config_options):
     """Deploy a dallnger experiment docker image to a server using ssh."""
+    config = get_config()
+    config.load()
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
     HAS_TLS = ssh_host != "localhost"
-    tls = "tls internal" if not HAS_TLS else ""
+    # We abuse the mturk contact_email_on_error to provide an email for let's encrypt certificate
+    tls = (
+        "tls internal"
+        if not HAS_TLS
+        else f"tls {config.get('contact_email_on_error', 'dallinger@mailnator.com')}"
+    )
     if not dns_host:
         dns_host = get_dns_host(ssh_host)
     executor = Executor(ssh_host, user=ssh_user)
@@ -236,8 +243,6 @@ def deploy(mode, server, dns_host, config_options):
     experiment_uuid = str(uuid4())
     experiment_id = f"dlgr-{experiment_uuid[:8]}"
     dashboard_password = token_urlsafe(8)
-    config = get_config()
-    config.load()
     image = config.get("image_name", None)
     cfg = config.as_dict()
     for key in "aws_access_key_id", "aws_secret_access_key", "aws_region":
@@ -434,7 +439,7 @@ def get_docker_compose_yml(
 
 def get_retrying_http_client():
     retry_strategy = Retry(
-        total=10,
+        total=30,
         backoff_factor=0.2,
         status_forcelist=[429, 500, 502, 503, 504],
         method_whitelist=["POST"],
