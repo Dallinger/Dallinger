@@ -86,7 +86,7 @@ defusedxml==0.7.1
     # via
     #   nbconvert
     #   odfpy
-distlib==0.3.2
+distlib==0.3.3
     # via virtualenv
 distro==1.6.0
     # via docker-compose
