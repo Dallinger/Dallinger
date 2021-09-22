@@ -184,7 +184,9 @@ def build_and_push_image(f):
         if config.get("image_name", None):
             # TODO: check that the image has been pushed
             return f(*args, **kwargs)
-        _, tmp_dir = setup_experiment(Output().log, exp_config=config.as_dict())
+        _, tmp_dir = setup_experiment(
+            Output().log, exp_config=config.as_dict(), local_checks=False
+        )
         build_image(tmp_dir, config.get("image_base_name"), out=Output())
 
         pushed_image = push.callback(use_existing=True)
