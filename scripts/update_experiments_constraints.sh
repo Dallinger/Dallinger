@@ -1,8 +1,9 @@
-#!/bin/sh
+#!/bin/bash
 dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd $dir/..
 
 # Update demos constraints
+export CUSTOM_COMPILE_COMMAND=$'./scripts/update_experiments_constraints.sh\n#\n# from the root of the dallinger repository'
 for demo_name in $(ls demos/dlgr/demos/); do
     if [ -f "demos/dlgr/demos/${demo_name}/config.txt" ]; then
         cd "demos/dlgr/demos/${demo_name}/"
@@ -16,4 +17,4 @@ for demo_name in $(ls demos/dlgr/demos/); do
     fi
 done
 
-sed -i ".orig" -e "s/dallinger==.*/dallinger==$(dallinger --version)/" demos/dlgr/demos/*/constraints.txt
+sed -i.orig -e "s/dallinger==.*/dallinger==$(dallinger --version)/" demos/dlgr/demos/*/constraints.txt
