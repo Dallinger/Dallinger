@@ -11,6 +11,7 @@ for demo_name in $(ls demos/dlgr/demos/); do
 -r requirements.txt" > temp-requirements.txt
         pip-compile temp-requirements.txt -o constraints.txt
         rm temp-requirements.txt
+        echo '# generate from file with hash ' $(md5sum requirements.txt) >> constraints.txt
         cd -
     fi
 done
