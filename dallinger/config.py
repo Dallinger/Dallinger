@@ -259,8 +259,8 @@ class Configuration(object):
         # Apply extra parameters before loading the configs
         self.register_extra_parameters()
 
-        globalConfigName = ".dallingerconfig"
-        globalConfig = os.path.expanduser(os.path.join("~/", globalConfigName))
+        global_config_name = ".dallingerconfig"
+        global_config = os.path.expanduser(os.path.join("~/", global_config_name))
         defaults_folder = os.path.join(os.path.dirname(__file__), "default_configs")
         local_defaults_file = os.path.join(defaults_folder, "local_config_defaults.txt")
         global_defaults_file = os.path.join(
@@ -268,7 +268,7 @@ class Configuration(object):
         )
 
         # Load the configuration, with local parameters overriding global ones.
-        for config_file in [global_defaults_file, local_defaults_file, globalConfig]:
+        for config_file in [global_defaults_file, local_defaults_file, global_config]:
             self.load_from_file(config_file)
 
     def load(self):
