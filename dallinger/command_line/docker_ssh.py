@@ -5,8 +5,10 @@ from secrets import token_urlsafe
 from shlex import quote
 from socket import gethostname
 from socket import gethostbyname_ex
+from subprocess import CalledProcessError
 from typing import Dict
 from uuid import uuid4
+import json
 import logging
 import select
 import sys
@@ -28,6 +30,7 @@ from dallinger.data import export_db_uri
 from dallinger.deployment import setup_experiment
 from dallinger.config import get_config
 from dallinger.utils import abspath_from_egg
+from dallinger.utils import check_output
 
 
 # Find an identifier for the current user to use as CREATOR of the experiment
@@ -174,16 +177,46 @@ server_option = click.option(
 
 
 def build_and_push_image(f):
+    """Decorator for click commands that depend on a pushed docker image.
+
+    Commands using this decorator can rely on the image being present in
+    the remote registry, and thus can use it to deploy to a remote server.
+
+    Checks if the image is already present on the remote repository.
+    If it's not builds the image and pushes it.
+    """
+
     @wraps(f)
     def wrapper(*args, **kwargs):  # pragma: no cover
         from dallinger.docker.tools import build_image
         from dallinger.command_line.docker import push
+        import docker
 
         config = get_config()
         config.load()
-        if config.get("image_name", None):
-            # TODO: check that the image has been pushed
-            return f(*args, **kwargs)
+        image_name = config.get("image_name", None)
+        if image_name:
+            client = docker.from_env()
+            try:
+                check_output(["docker", "manifest", "inspect", image_name])
+                print(f"Image {image_name} found on remote registry")
+                return f(*args, **kwargs)
+            except CalledProcessError:
+                # The image is not on the registry. Check if it's available locally
+                # and push it if it is. If images.get succeeds it means the image is available locally
+                print(
+                    f"Image {image_name} not found on remote registry. Trying to push"
+                )
+                raw_result = client.images.push(image_name)
+                # This is brittle, but it's an edge case not worth more effort
+                if not json.loads(raw_result.split("\r\n")[-2]).get("error"):
+                    print(f"Image {image_name} pushed to remote registry")
+                    return f(*args, **kwargs)
+                # The image is not available, neither locally nor on the remote registry
+                print(
+                    f"Could not find image {image_name} specified in experiment config as `docker_image_name`"
+                )
+                raise click.Abort
         _, tmp_dir = setup_experiment(
             Output().log, exp_config=config.as_dict(), local_checks=False
         )
