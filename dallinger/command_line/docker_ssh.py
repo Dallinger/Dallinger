@@ -1,4 +1,5 @@
 from io import BytesIO
+from email.utils import parseaddr
 from functools import wraps
 from getpass import getuser
 from secrets import token_urlsafe
@@ -254,11 +255,13 @@ def deploy(mode, server, dns_host, config_options):
     ssh_user = server_info.get("user")
     HAS_TLS = ssh_host != "localhost"
     # We abuse the mturk contact_email_on_error to provide an email for let's encrypt certificate
-    tls = (
-        "tls internal"
-        if not HAS_TLS
-        else f"tls {config.get('contact_email_on_error', 'dallinger@mailnator.com')}"
-    )
+    email_addr = config.get("contact_email_on_error")
+    if HAS_TLS:
+        if "@" not in parseaddr(email_addr)[1]:
+            print(f"Email address absent or invalid. Value {email_addr} found")
+            print("Run `dallinger email-test` to verify your configuration")
+            raise click.Abort
+    tls = "tls internal" if not HAS_TLS else f"tls {email_addr}"
     if not dns_host:
         dns_host = get_dns_host(ssh_host)
     executor = Executor(ssh_host, user=ssh_user)
