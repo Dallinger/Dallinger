@@ -1,3 +1,4 @@
+from pathlib import Path
 import yaml
 
 
@@ -39,10 +40,10 @@ def test_get_docker_compose_yml_env_vars_escaping():
     )
 
 
-def test_add_image_name(tmp_path):
+def test_add_image_name(tempdir):
     from dallinger.command_line.docker import add_image_name
 
-    file = tmp_path / "test.txt"
+    file = Path(tempdir) / "test.txt"
 
     file.write_text("")
     add_image_name(str(file), "foobar")
