@@ -246,7 +246,7 @@ def build_and_push_image(f):
 )
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 @build_and_push_image
-def deploy(mode, server, dns_host, config_options):
+def deploy(mode, server, dns_host, config_options):  # pragma: no cover
     """Deploy a dallnger experiment docker image to a server using ssh."""
     config = get_config()
     config.load()
