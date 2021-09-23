@@ -1,11 +1,15 @@
 from io import BytesIO
+from email.utils import parseaddr
+from functools import wraps
 from getpass import getuser
 from secrets import token_urlsafe
 from shlex import quote
 from socket import gethostname
 from socket import gethostbyname_ex
+from subprocess import CalledProcessError
 from typing import Dict
 from uuid import uuid4
+import json
 import logging
 import select
 import sys
@@ -20,9 +24,14 @@ import requests
 from dallinger.command_line.config import get_configured_hosts
 from dallinger.command_line.config import remove_host
 from dallinger.command_line.config import store_host
+from dallinger.command_line.docker import add_image_name
+from dallinger.command_line.utils import Output
+from dallinger.config import LOCAL_CONFIG
 from dallinger.data import export_db_uri
+from dallinger.deployment import setup_experiment
 from dallinger.config import get_config
 from dallinger.utils import abspath_from_egg
+from dallinger.utils import check_output
 
 
 # Find an identifier for the current user to use as CREATOR of the experiment
@@ -168,6 +177,59 @@ server_option = click.option(
 )
 
 
+def build_and_push_image(f):
+    """Decorator for click commands that depend on a pushed docker image.
+
+    Commands using this decorator can rely on the image being present in
+    the remote registry, and thus can use it to deploy to a remote server.
+
+    Checks if the image is already present on the remote repository.
+    If it's not builds the image and pushes it.
+    """
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):  # pragma: no cover
+        from dallinger.docker.tools import build_image
+        from dallinger.command_line.docker import push
+        import docker
+
+        config = get_config()
+        config.load()
+        image_name = config.get("docker_image_name", None)
+        if image_name:
+            client = docker.from_env()
+            try:
+                check_output(["docker", "manifest", "inspect", image_name])
+                print(f"Image {image_name} found on remote registry")
+                return f(*args, **kwargs)
+            except CalledProcessError:
+                # The image is not on the registry. Check if it's available locally
+                # and push it if it is. If images.get succeeds it means the image is available locally
+                print(
+                    f"Image {image_name} not found on remote registry. Trying to push"
+                )
+                raw_result = client.images.push(image_name)
+                # This is brittle, but it's an edge case not worth more effort
+                if not json.loads(raw_result.split("\r\n")[-2]).get("error"):
+                    print(f"Image {image_name} pushed to remote registry")
+                    return f(*args, **kwargs)
+                # The image is not available, neither locally nor on the remote registry
+                print(
+                    f"Could not find image {image_name} specified in experiment config as `docker_image_name`"
+                )
+                raise click.Abort
+        _, tmp_dir = setup_experiment(
+            Output().log, exp_config=config.as_dict(), local_checks=False
+        )
+        build_image(tmp_dir, config.get("docker_image_base_name"), out=Output())
+
+        pushed_image = push.callback(use_existing=True)
+        add_image_name(LOCAL_CONFIG, pushed_image)
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
 @docker_ssh.command()
 @click.option(
     "--sandbox",
@@ -177,20 +239,29 @@ server_option = click.option(
     default=True,
 )
 @click.option("--live", "mode", flag_value="live", help="Deploy to the real MTurk")
-@click.option("--image", required=True, help="Name of the docker image to deploy")
 @server_option
 @click.option(
     "--dns-host",
     help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
 )
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
-def deploy(mode, image, server, dns_host, config_options):
+@build_and_push_image
+def deploy(mode, server, dns_host, config_options):  # pragma: no cover
     """Deploy a dallnger experiment docker image to a server using ssh."""
+    config = get_config()
+    config.load()
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
     HAS_TLS = ssh_host != "localhost"
-    tls = "tls internal" if not HAS_TLS else ""
+    # We abuse the mturk contact_email_on_error to provide an email for let's encrypt certificate
+    email_addr = config.get("contact_email_on_error")
+    if HAS_TLS:
+        if "@" not in parseaddr(email_addr)[1]:
+            print(f"Email address absent or invalid. Value {email_addr} found")
+            print("Run `dallinger email-test` to verify your configuration")
+            raise click.Abort
+    tls = "tls internal" if not HAS_TLS else f"tls {email_addr}"
     if not dns_host:
         dns_host = get_dns_host(ssh_host)
     executor = Executor(ssh_host, user=ssh_user)
@@ -208,8 +279,7 @@ def deploy(mode, image, server, dns_host, config_options):
     experiment_uuid = str(uuid4())
     experiment_id = f"dlgr-{experiment_uuid[:8]}"
     dashboard_password = token_urlsafe(8)
-    config = get_config()
-    config.load()
+    image = config.get("docker_image_name", None)
     cfg = config.as_dict()
     for key in "aws_access_key_id", "aws_secret_access_key", "aws_region":
         # AWS credentials are not included by default in to_dict() result
@@ -405,7 +475,7 @@ def get_docker_compose_yml(
 
 def get_retrying_http_client():
     retry_strategy = Retry(
-        total=10,
+        total=30,
         backoff_factor=0.2,
         status_forcelist=[429, 500, 502, 503, 504],
         method_whitelist=["POST"],

@@ -90,7 +90,8 @@ default_keys = (
     ("webdriver_url", six.text_type, []),
     ("whimsical", bool, []),
     ("worker_multiplier", float, []),
-    ("image_base_name", six.text_type, [], ""),
+    ("docker_image_base_name", six.text_type, [], ""),
+    ("docker_image_name", six.text_type, [], ""),
 )
 
 
@@ -253,14 +254,13 @@ class Configuration(object):
     def load_from_environment(self):
         self.extend(os.environ, cast_types=True)
 
-    def load(self):
+    def load_defaults(self):
+        """Load default configuration values"""
         # Apply extra parameters before loading the configs
         self.register_extra_parameters()
 
-        globalConfigName = ".dallingerconfig"
-        globalConfig = os.path.expanduser(os.path.join("~/", globalConfigName))
-        localConfig = os.path.join(os.getcwd(), LOCAL_CONFIG)
-
+        global_config_name = ".dallingerconfig"
+        global_config = os.path.expanduser(os.path.join("~/", global_config_name))
         defaults_folder = os.path.join(os.path.dirname(__file__), "default_configs")
         local_defaults_file = os.path.join(defaults_folder, "local_config_defaults.txt")
         global_defaults_file = os.path.join(
@@ -268,17 +268,21 @@ class Configuration(object):
         )
 
         # Load the configuration, with local parameters overriding global ones.
-        for config_file in [global_defaults_file, local_defaults_file, globalConfig]:
+        for config_file in [global_defaults_file, local_defaults_file, global_config]:
             self.load_from_file(config_file)
 
+    def load(self):
+        self.load_defaults()
+
+        localConfig = os.path.join(os.getcwd(), LOCAL_CONFIG)
         if os.path.exists(localConfig):
             self.load_from_file(localConfig)
 
         self.load_from_environment()
         self.ready = True
 
-        if self.get("image_base_name", None) is None:
-            self.set("image_base_name", Path(os.getcwd()).name)
+        if self.get("docker_image_base_name", None) is None:
+            self.set("docker_image_base_name", Path(os.getcwd()).name)
 
     def register_extra_parameters(self):
         initialize_experiment_package(os.getcwd())
