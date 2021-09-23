@@ -205,7 +205,7 @@ worldwide = false
     def test_docker_image_default(self, experiment_dir):
         config = get_config()
         config.load()
-        assert config.get("image_base_name") == "experiment"
+        assert config.get("docker_image_base_name") == "experiment"
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")

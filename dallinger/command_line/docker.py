@@ -129,7 +129,7 @@ def build():
     config = get_config()
     config.load()
     _, tmp = setup_experiment(log=log, debug=True, local_checks=False)
-    build_image(tmp, config.get("image_base_name"), Output(), force_build=True)
+    build_image(tmp, config.get("docker_image_base_name"), Output(), force_build=True)
 
 
 @docker.command()
@@ -143,7 +143,10 @@ def push(use_existing: bool, **kwargs) -> str:
     config.load()
     _, tmp = setup_experiment(log=log, debug=True, local_checks=False)
     image_name_with_tag = build_image(
-        tmp, config.get("image_base_name"), Output(), force_build=not use_existing
+        tmp,
+        config.get("docker_image_base_name"),
+        Output(),
+        force_build=not use_existing,
     )
     docker_client = client.from_env()
     for line in docker_client.images.push(
@@ -455,17 +458,17 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
 
 def add_image_name(config_path: str, image_name: str):
     """Alters the text file at `config_path` to set the contents
-    of the variable `image_name` to the passed `image_name`.
+    of the variable `docker_image_name` to the passed `image_name`.
     If a line is already present it will be replaced.
-    If it's not it will be added next to the line with the `image_base_name` variable.
+    If it's not it will be added next to the line with the `docker_image_base_name` variable.
     """
     config = Path(config_path)
-    new_line = f"image_name = {image_name}"
+    new_line = f"docker_image_name = {image_name}"
     old_text = config.read_text()
-    if re.search("^image_name =", old_text, re.M):
-        text = re.sub("image_name = .*", new_line, old_text)
-    elif re.search("^image_base_name =", old_text, re.M):
-        text = re.sub("(image_base_name = .*)", r"\g<1>\n" + new_line, old_text)
+    if re.search("^docker_image_name =", old_text, re.M):
+        text = re.sub("docker_image_name = .*", new_line, old_text)
+    elif re.search("^docker_image_base_name =", old_text, re.M):
+        text = re.sub("(docker_image_base_name = .*)", r"\g<1>\n" + new_line, old_text)
     else:
         text = "".join((old_text, "\n" + new_line))
 

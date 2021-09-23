@@ -195,7 +195,7 @@ def build_and_push_image(f):
 
         config = get_config()
         config.load()
-        image_name = config.get("image_name", None)
+        image_name = config.get("docker_image_name", None)
         if image_name:
             client = docker.from_env()
             try:
@@ -221,7 +221,7 @@ def build_and_push_image(f):
         _, tmp_dir = setup_experiment(
             Output().log, exp_config=config.as_dict(), local_checks=False
         )
-        build_image(tmp_dir, config.get("image_base_name"), out=Output())
+        build_image(tmp_dir, config.get("docker_image_base_name"), out=Output())
 
         pushed_image = push.callback(use_existing=True)
         add_image_name(LOCAL_CONFIG, pushed_image)
@@ -279,7 +279,7 @@ def deploy(mode, server, dns_host, config_options):
     experiment_uuid = str(uuid4())
     experiment_id = f"dlgr-{experiment_uuid[:8]}"
     dashboard_password = token_urlsafe(8)
-    image = config.get("image_name", None)
+    image = config.get("docker_image_name", None)
     cfg = config.as_dict()
     for key in "aws_access_key_id", "aws_secret_access_key", "aws_region":
         # AWS credentials are not included by default in to_dict() result

@@ -90,8 +90,8 @@ default_keys = (
     ("webdriver_url", six.text_type, []),
     ("whimsical", bool, []),
     ("worker_multiplier", float, []),
-    ("image_base_name", six.text_type, [], ""),
-    ("image_name", six.text_type, [], ""),
+    ("docker_image_base_name", six.text_type, [], ""),
+    ("docker_image_name", six.text_type, [], ""),
 )
 
 
@@ -281,8 +281,8 @@ class Configuration(object):
         self.load_from_environment()
         self.ready = True
 
-        if self.get("image_base_name", None) is None:
-            self.set("image_base_name", Path(os.getcwd()).name)
+        if self.get("docker_image_base_name", None) is None:
+            self.set("docker_image_base_name", Path(os.getcwd()).name)
 
     def register_extra_parameters(self):
         initialize_experiment_package(os.getcwd())
