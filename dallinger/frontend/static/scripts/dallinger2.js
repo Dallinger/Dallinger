@@ -500,7 +500,7 @@ var dallinger = (function () {
           dlgr.identity.recruiter = resp.participant.recruiter_id;
           dlgr.identity.hitId = resp.participant.hit_id;
           dlgr.identity.workerId = resp.participant.worker_id;
-          dlgr.identity.assignmentId = assignment_id;
+          dlgr.identity.assignmentId = resp.participant.assignment_id || data.assignment_id;
           dlgr.identity.mode = resp.participant.mode;
           dlgr.identity.fingerprintHash = resp.participant.fingerprint_hash;
           deferred.resolve();

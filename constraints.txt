@@ -34,9 +34,9 @@ black==21.9b0
     # via dallinger
 bleach==4.1.0
     # via nbconvert
-boto3==1.18.40
+boto3==1.18.46
     # via dallinger
-botocore==1.21.40
+botocore==1.21.46
     # via
     #   boto3
     #   s3transfer
@@ -86,7 +86,7 @@ defusedxml==0.7.1
     # via
     #   nbconvert
     #   odfpy
-distlib==0.3.2
+distlib==0.3.3
     # via virtualenv
 distro==1.6.0
     # via docker-compose
@@ -265,8 +265,8 @@ numpy==1.21.2
     # via pandas
 odfpy==1.4.1
     # via tablib
-openpyxl==3.0.7
-    # via tablib
+openpyxl==3.0.9
+   # via tablib
 packaging==21.0
     # via
     #   bleach
@@ -301,7 +301,7 @@ pexpect==4.8.0
     #   ipython
 pickleshare==0.7.5
     # via ipython
-pip-tools==6.2.0
+pip-tools==6.3.0
     # via dallinger
 pluggy==1.0.0
     # via
@@ -388,7 +388,7 @@ pyzmq==22.3.0
     #   qtconsole
 qtconsole==5.1.1
     # via jupyter
-qtpy==1.11.1
+qtpy==1.11.2
     # via qtconsole
 recommonmark==0.7.1
     # via dallinger
@@ -459,7 +459,7 @@ sphinxcontrib-spelling==7.2.1
     # via dallinger
 sqlalchemy-postgres-copy==0.5.0
     # via dallinger
-sqlalchemy==1.4.23
+sqlalchemy==1.4.25
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
@@ -518,7 +518,7 @@ ua-parser==0.10.0
     # via
     #   dallinger
     #   user-agents
-urllib3==1.26.6
+urllib3==1.26.7
     # via
     #   botocore
     #   requests

@@ -258,7 +258,7 @@ def fail_on_unsupported_urls(f):
                 "This experment has a git+ssh dependency.\n"
                 "Dallinger does not support this for Heroku deployment using non-docker dynos.\n"
                 "Try using the docker deployment by configuring a docker registry, adding the\n"
-                "`image_base_name` variable to config.txt and running\n"
+                "`docker_image_base_name` variable to config.txt and running\n"
                 f"dallinger docker {f.__name__}"
             )
         return f(**kwargs)

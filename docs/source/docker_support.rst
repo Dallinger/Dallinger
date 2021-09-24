@@ -56,11 +56,14 @@ Examples:
 Image creation
 **************
 
-Make sure your experiment specifies an ``image_base_name`` for your image.
-The specified ``image_base_name`` should include the docker registry you want to use and
+Make sure your experiment specifies an ``docker_image_base_name`` for your image in its ``config.txt``.
+The specified ``docker_image_base_name`` should include the docker registry you want to use and
 the destination where the docker image should be pushed.
 The ``bartlett1932`` experiment, for instance, has it set to ``ghcr.io/dallinger/dallinger/bartlett1932``
 to push to the Github container registry.
+
+After a succesful deployment dallinger will add the ``docker_image_name`` parameter to the experiment
+``config.txt`` file. It will be used in subsequent experiment deployments to guarantee repeatability.
 
 In the experiment directory, run
 
