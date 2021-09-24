@@ -162,8 +162,9 @@ experiments deployed this way can be found under the `dallinger docker-ssh` comm
       apps     List dallinger apps running on the remote server.
       deploy   Deploy a dallnger experiment docker image to a server using ssh.
       destroy  Tear down an experiment run on a server you control via ssh.
-      export   List dallinger apps running on the remote server.
+      export   Export database to a local file.
       servers  Manage remote servers where experiments can be deployed
+      stats    Get resource usage stats from remote server.
 
 .. note::
 
