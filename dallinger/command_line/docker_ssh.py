@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from io import BytesIO
 from email.utils import parseaddr
 from functools import wraps
@@ -21,6 +22,8 @@ from urllib3.util.retry import Retry
 import click
 import requests
 
+from dallinger.data import bootstrap_db_from_zip
+from dallinger.db import create_db_engine
 from dallinger.command_line.config import get_configured_hosts
 from dallinger.command_line.config import remove_host
 from dallinger.command_line.config import store_host
@@ -244,9 +247,16 @@ def build_and_push_image(f):
     "--dns-host",
     help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
 )
+@click.option(
+    "--archive",
+    "-a",
+    "archive_path",
+    type=click.Path(exists=True),
+    help="Path to a zip archive created with the `export` command to use as initial database state",
+)
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 @build_and_push_image
-def deploy(mode, server, dns_host, config_options):  # pragma: no cover
+def deploy(mode, server, dns_host, config_options, archive_path):  # pragma: no cover
     """Deploy a dallnger experiment docker image to a server using ssh."""
     config = get_config()
     config.load()
@@ -325,6 +335,19 @@ def deploy(mode, server, dns_host, config_options):  # pragma: no cover
     grant_roles_script = (
         f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
     )
+
+    if archive_path is not None:
+        print(f"Loading database data from {archive_path}")
+        with remote_postgres(server_info, experiment_id) as db_uri:
+            engine = create_db_engine(db_uri)
+            bootstrap_db_from_zip(archive_path, engine)
+            with engine.connect() as conn:
+                conn.execute(grant_roles_script)
+                conn.execute(f'GRANT USAGE ON SCHEMA public TO "{experiment_id}"')
+                conn.execute(
+                    f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA PUBLIC TO "{experiment_id}"'
+                )
+
     executor.run(
         f"docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
     )
@@ -332,11 +355,12 @@ def deploy(mode, server, dns_host, config_options):  # pragma: no cover
     executor.run(
         f"docker-compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
     )
-    print(f"Experiment {experiment_id} started. Initializing database")
-    executor.run(
-        f"docker-compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
-    )
-    print("Database initialized")
+    if archive_path is None:
+        print(f"Experiment {experiment_id} started. Initializing database")
+        executor.run(
+            f"docker-compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
+        )
+        print("Database initialized")
 
     # We give caddy the alias for the service. If we scale up the service container caddy will
     # send requests to all of them in a round robin fashion.
@@ -406,32 +430,43 @@ def stats(server):
 @server_option
 def export(server, app, local, no_scrub):
     """Export database to a local file."""
+    server_info = CONFIGURED_HOSTS[server]
+    with remote_postgres(server_info, app) as db_uri:
+        export_db_uri(
+            app,
+            db_uri=db_uri,
+            local=local,
+            scrub_pii=not no_scrub,
+        )
+
+
+@contextmanager
+def remote_postgres(server_info, app):
+    """A context manager that opens an ssh tunnel to the remote host and
+    returns a database URI to connect to it.
+    """
     from sshtunnel import SSHTunnelForwarder
 
-    server_info = CONFIGURED_HOSTS[server]
-    ssh_host = server_info["host"]
-    ssh_user = server_info.get("user")
-    executor = Executor(ssh_host, user=ssh_user)
-    # Prepare a tunnel to be able to pass a postgresql URL to the databse
-    # on the remote docker container. First we need to find the IP of the
-    # container running docker
-    postgresql_remote_ip = executor.run(
-        "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' dallinger_postgresql_1"
-    ).strip()
-    # Now we start the tunnel
-    tunnel = SSHTunnelForwarder(
-        ssh_host,
-        ssh_username=ssh_user,
-        remote_bind_address=(postgresql_remote_ip, 5432),
-    )
-    tunnel.start()
-    export_db_uri(
-        app,
-        db_uri=f"postgresql://dallinger:dallinger@localhost:{tunnel.local_bind_port}/{app}",
-        local=local,
-        scrub_pii=not no_scrub,
-    )
-    tunnel.stop()
+    try:
+        ssh_host = server_info["host"]
+        ssh_user = server_info.get("user")
+        executor = Executor(ssh_host, user=ssh_user)
+        # Prepare a tunnel to be able to pass a postgresql URL to the databse
+        # on the remote docker container. First we need to find the IP of the
+        # container running docker
+        postgresql_remote_ip = executor.run(
+            "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' dallinger_postgresql_1"
+        ).strip()
+        # Now we start the tunnel
+        tunnel = SSHTunnelForwarder(
+            ssh_host,
+            ssh_username=ssh_user,
+            remote_bind_address=(postgresql_remote_ip, 5432),
+        )
+        tunnel.start()
+        yield f"postgresql://dallinger:dallinger@localhost:{tunnel.local_bind_port}/{app}"
+    finally:
+        tunnel.stop()
 
 
 @docker_ssh.command()
