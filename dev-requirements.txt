@@ -14,7 +14,7 @@ appdirs==1.4.4
     # via
     #   black
     #   virtualenv
-apscheduler==3.7.0
+apscheduler==3.8.0
     # via dallinger
 argon2-cffi==20.1.0
     # via notebook
