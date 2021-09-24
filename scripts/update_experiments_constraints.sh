@@ -2,6 +2,12 @@
 dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd $dir/..
 
+# Command to calculate md5sum of a file. Since BSD (Mac OS) has an `md5` binary and Linux has `md5sum`
+# we salomonically decide to ditch both and implement them as a python one liner.
+function md5_cmd () {
+    python3 -c "import hashlib as h;from sys import argv; print(h.md5(open( argv[1], 'rb').read()).hexdigest())" $1
+}
+
 # Update demos constraints
 export CUSTOM_COMPILE_COMMAND=$'./scripts/update_experiments_constraints.sh\n#\n# from the root of the dallinger repository'
 for demo_name in $(ls demos/dlgr/demos/); do
@@ -12,7 +18,7 @@ for demo_name in $(ls demos/dlgr/demos/); do
 -r requirements.txt" > temp-requirements.txt
         pip-compile temp-requirements.txt -o constraints.txt
         rm temp-requirements.txt
-        echo '# generate from file with hash ' $(md5 requirements.txt) >> constraints.txt
+        echo '# generate from file with hash ' $(md5_cmd requirements.txt) >> constraints.txt
         cd -
     fi
 done
