@@ -54,7 +54,7 @@ gevent==21.8.0
     #   dallinger
     #   flask-sockets
     #   gevent-websocket
-greenlet==1.1.1
+greenlet==1.1.2
     # via
     #   dallinger
     #   gevent
