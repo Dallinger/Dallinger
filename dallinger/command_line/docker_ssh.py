@@ -478,7 +478,7 @@ def get_retrying_http_client():
         total=30,
         backoff_factor=0.2,
         status_forcelist=[429, 500, 502, 503, 504],
-        method_whitelist=["POST"],
+        allowed_methods=["POST"],
     )
     adapter = HTTPAdapter(max_retries=retry_strategy)
     http = requests.Session()
