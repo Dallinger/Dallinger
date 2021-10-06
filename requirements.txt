@@ -161,7 +161,7 @@ urllib3==1.26.7
     #   selenium
 user-agents==2.2.0
     # via dallinger
-werkzeug==1.0.1
+werkzeug==2.0.2
     # via flask
 wtforms==2.3.3
     # via flask-wtf
