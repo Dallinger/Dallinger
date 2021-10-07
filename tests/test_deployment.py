@@ -1121,16 +1121,23 @@ class TestConstraints(object):
         from dallinger.utils import ensure_constraints_file_presence
 
         tmp_path = tempfile.mkdtemp()
+        # We will be looking for
+        # https://raw.githubusercontent.com/Dallinger/Dallinger/v[__version__]
+        # so use an older version we know will exist, rather than the current
+        # version, which may not be tagged/released yet:
+        extant_github_tag = "7.6.0"
         (Path(tmp_path) / "requirements.txt").write_text("black")
-        ensure_constraints_file_presence(tmp_path)
-        constraints_file = Path(tmp_path) / "constraints.txt"
-        # If not present a `constraints.txt` file will be generated
-        assert constraints_file.exists()
-        assert "toml" in constraints_file.read_text()
-
-        # An existing file will be left untouched
-        constraints_file.write_text("foobar")
-        with pytest.raises(ValueError):
+        with mock.patch("dallinger.utils.__version__", extant_github_tag):
             ensure_constraints_file_presence(tmp_path)
-        assert constraints_file.read_text() == "foobar"
+            constraints_file = Path(tmp_path) / "constraints.txt"
+            # If not present a `constraints.txt` file will be generated
+            assert constraints_file.exists()
+            assert "toml" in constraints_file.read_text()
+
+            # An existing file will be left untouched
+            constraints_file.write_text("foobar")
+            with pytest.raises(ValueError):
+                ensure_constraints_file_presence(tmp_path)
+            assert constraints_file.read_text() == "foobar"
+
         shutil.rmtree(tmp_path)
