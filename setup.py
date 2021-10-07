@@ -1,12 +1,20 @@
 """Install Dallinger as a command line utility."""
-
+import pathlib
 from setuptools import setup
+
+# The directory containing this file
+HERE = pathlib.Path(__file__).parent
+
+README = (HERE / "README.md").read_text(encoding="utf-8")
+
 
 setup_args = dict(
     name="dallinger",
     packages=["dallinger", "dallinger_scripts"],
     version="7.7.0",
     description="Laboratory automation for the behavioral and social sciences",
+    long_description=README,
+    long_description_content_type="text/markdown",
     url="http://github.com/Dallinger/Dallinger",
     maintainer="Jordan Suchow",
     maintainer_email="suchow@berkeley.edu",
