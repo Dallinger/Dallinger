@@ -6,15 +6,15 @@
 #
 # from the root of the dallinger repository
 #
-apscheduler==3.7.0
+apscheduler==3.8.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-boto3==1.18.46
+boto3==1.18.55
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-botocore==1.21.46
+botocore==1.21.55
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
@@ -40,9 +40,9 @@ click==7.1.2
     #   flask
     #   pip-tools
     #   rq
-dallinger==7.6.0
+dallinger==7.7.0
     # via -r requirements.txt
-faker==8.13.2
+faker==9.0.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -84,7 +84,7 @@ gevent-websocket==0.10.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask-sockets
-greenlet==1.1.1
+greenlet==1.1.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -165,7 +165,7 @@ python-dateutil==2.8.2
     #   botocore
     #   faker
     #   heroku3
-pytz==2021.1
+pytz==2021.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   apscheduler
