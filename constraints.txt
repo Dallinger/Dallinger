@@ -376,7 +376,7 @@ pytz==2021.3
     #   babel
     #   pandas
     #   tzlocal
-pyyaml==5.4.1
+pyyaml==6.0
     # via
     #   docker-compose
     #   pre-commit
