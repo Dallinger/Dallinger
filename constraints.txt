@@ -510,7 +510,7 @@ traitlets==5.1.0
     #   nbformat
     #   notebook
     #   qtconsole
-tzlocal==2.1
+tzlocal==4.0
     # via
     #   apscheduler
     #   dallinger
