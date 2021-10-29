@@ -267,7 +267,7 @@ odfpy==1.4.1
     # via tablib
 openpyxl==3.0.9
     # via tablib
-packaging==21.0
+packaging==21.2
     # via
     #   bleach
     #   build
