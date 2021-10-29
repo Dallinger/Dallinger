@@ -99,7 +99,7 @@ psycopg2==2.9.1
     #   sqlalchemy-postgres-copy
 ptyprocess==0.7.0
     # via pexpect
-pyparsing==3.0.1
+pyparsing==3.0.3
     # via packaging
 python-dateutil==2.8.2
     # via
