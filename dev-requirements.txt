@@ -351,7 +351,7 @@ pynacl==1.4.0
     # via paramiko
 pypandoc==1.6.4
     # via dallinger
-pyparsing==3.0.3
+pyparsing==3.0.4
     # via packaging
 pyrsistent==0.18.0
     # via jsonschema
