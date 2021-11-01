@@ -150,7 +150,7 @@ gunicorn==20.1.0
     # via dallinger
 heroku3==4.2.3
     # via dallinger
-identify==2.3.0
+identify==2.3.3
     # via pre-commit
 idna==3.3
     # via requests
