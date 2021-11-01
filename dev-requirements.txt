@@ -148,7 +148,7 @@ greenlet==1.1.2
     #   sqlalchemy
 gunicorn==20.1.0
     # via dallinger
-heroku3==4.2.3
+heroku3==5.1.4
     # via dallinger
 identify==2.3.3
     # via pre-commit
