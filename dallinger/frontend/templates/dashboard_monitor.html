@@ -1,7 +1,7 @@
 {% extends "base/dashboard.html" %}
 {% block stylesheets %}
   <script src="https://use.fontawesome.com/ffb1fe552d.js"></script>
-  <link href="https://unpkg.com/vis@4.17.0/dist/vis-network.min.css" rel="stylesheet" type="text/css"/>
+  <link href="/static/vis@4.17.0/dist/vis-network.min.css" rel="stylesheet" type="text/css"/>
 {% endblock %}
 {% block body %}
 <h1>{{ title }}</h1>
@@ -81,7 +81,7 @@
       };
     };
   </script>
-  <script src="https://unpkg.com/vis@4.17.0/dist/vis.min.js"></script>
+  <script src="/static/vis@4.17.0/dist/vis.min.js"></script>
   <script src="/static/scripts/network-monitor.js"></script>
 
 {% endblock %}
