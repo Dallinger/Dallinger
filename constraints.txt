@@ -109,7 +109,7 @@ entrypoints==0.3
     # via nbconvert
 et-xmlfile==1.1.0
     # via openpyxl
-faker==9.7.1
+faker==9.8.0
     # via dallinger
 filelock==3.3.2
     # via
