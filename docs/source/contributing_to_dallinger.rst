@@ -22,7 +22,7 @@ command::
     $ bumpverion release
     $ git commit -a -m "Update versions for release"
 
-In instead you need to switch to a `patch` release, you will instead need to
+If you need to switch to a `patch` release, you will instead need to
 specify the version explicitly with the ``new-version`` option::
 
     $ bumpversion --new-version 7.7.1
