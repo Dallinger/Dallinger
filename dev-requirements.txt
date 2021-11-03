@@ -396,7 +396,7 @@ redis==3.5.3
     # via
     #   dallinger
     #   rq
-regex==2021.11.1
+regex==2021.11.2
     # via black
 requests==2.26.0
     # via
