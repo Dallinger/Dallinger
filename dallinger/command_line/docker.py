@@ -208,9 +208,9 @@ def deploy_image(image, mode, config_options):
     dashboard_password = secrets.token_urlsafe(8)
     dallinger_uid = str(uuid.uuid4())
     config_dict = {
-        "aws_access_key_id": config.get("aws_access_key_id"),
-        "aws_secret_access_key": config.get("aws_secret_access_key"),
-        "aws_region": config.get("aws_region"),
+        "AWS_ACCESS_KEY_ID": config.get("aws_access_key_id"),
+        "AWS_SECRET_ACCESS_KEY": config.get("aws_secret_access_key"),
+        "AWS_REGION": config.get("aws_region"),
         "auto_recruit": config.get("auto_recruit"),
         "smtp_username": config.get("smtp_username"),
         "smtp_password": config.get("smtp_password"),
@@ -366,9 +366,9 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     addons_t0 = datetime.now().astimezone().replace(microsecond=0)
 
     heroku_config = {
-        "aws_access_key_id": config["aws_access_key_id"],
-        "aws_secret_access_key": config["aws_secret_access_key"],
-        "aws_region": config["aws_region"],
+        "AWS_ACCESS_KEY_ID": config["aws_access_key_id"],
+        "AWS_SECRET_ACCESS_KEY": config["aws_secret_access_key"],
+        "AWS_REGION": config["aws_region"],
         "auto_recruit": config["auto_recruit"],
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],

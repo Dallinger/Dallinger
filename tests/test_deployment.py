@@ -652,9 +652,9 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         dsss(log=mock.Mock())
         heroku_mock.set_multiple.assert_called_once_with(
             auto_recruit=True,
-            aws_access_key_id="fake aws key",
-            aws_region="us-east-1",
-            aws_secret_access_key="fake aws secret",
+            AWS_ACCESS_KEY_ID="fake aws key",
+            AWS_REGION="us-east-1",
+            AWS_SECRET_ACCESS_KEY="fake aws secret",
             FLASK_SECRET_KEY=mock.ANY,  # password is random
             smtp_password="fake email password",
             smtp_username="fake email username",
