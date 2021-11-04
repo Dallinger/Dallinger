@@ -631,12 +631,6 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         dsss(log=mock.Mock())
         heroku_mock.bootstrap.assert_called_once()
 
-    def test_installs_phantomjs(self, dsss, heroku_mock):
-        dsss(log=mock.Mock())
-        heroku_mock.buildpack.assert_called_once_with(
-            "https://github.com/stomita/heroku-buildpack-phantomjs"
-        )
-
     def test_installs_addons(self, dsss, heroku_mock):
         dsss(log=mock.Mock())
         heroku_mock.addon.assert_has_calls(

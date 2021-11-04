@@ -488,7 +488,6 @@ class TestHerokuApp(object):
         assert app.url == u"https://dlgr-fake-uid.herokuapp.com"
         assert app.dashboard_url == u"https://dashboard.heroku.com/apps/dlgr-fake-uid"
         app.bootstrap()
-        app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")
         app.set("auto_recruit", True)
 
 

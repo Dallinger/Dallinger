@@ -33,12 +33,6 @@ def check_webdriver(request):
 
 
 @pytest.fixture(scope="module")
-def check_phantomjs(request):
-    if not request.config.getvalue("phantomjs"):
-        pytest.skip("--phantomjs was not specified")
-
-
-@pytest.fixture(scope="module")
 def check_heroku(request):
     if not request.config.getvalue("heroku"):
         pytest.skip("--heroku was not specified")
