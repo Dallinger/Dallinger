@@ -409,6 +409,11 @@ class DebugDeployment(HerokuLocalDeployment):
                     self.open_dashboard(dashboard_url)
                 self.heroku = heroku
                 self.out.log(
+                    "Single recruiter link: {}/ad?recruiter=hotair&generate_tokens=1&mode=debug".format(
+                        base_url
+                    )
+                )
+                self.out.log(
                     "Monitoring the Heroku Local server for recruitment or completion..."
                 )
                 heroku.monitor(listener=self.notify)
