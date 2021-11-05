@@ -15,6 +15,7 @@ import logging
 import select
 import sys
 import socket
+import zipfile
 
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
@@ -287,7 +288,10 @@ def deploy(mode, server, dns_host, config_options, archive_path):  # pragma: no 
     print("Launched http and postgresql servers. Starting experiment")
 
     experiment_uuid = str(uuid4())
-    experiment_id = f"dlgr-{experiment_uuid[:8]}"
+    if archive_path:
+        experiment_id = get_experiment_id_from_archive(archive_path)
+    else:
+        experiment_id = f"dlgr-{experiment_uuid[:8]}"
     dashboard_password = token_urlsafe(8)
     image = config.get("docker_image_name", None)
     cfg = config.as_dict()
@@ -324,11 +328,18 @@ def deploy(mode, server, dns_host, config_options, archive_path):  # pragma: no 
     executor.run(
         f"docker-compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
     )
+    print("Cleaning up db/user")
+    executor.run(
+        fr"""docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
+    )
+    executor.run(
+        fr"""docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
+    )
     print(f"Creating database {experiment_id}")
     executor.run(
-        f"docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'create database \"{experiment_id}\"'"
+        fr"""docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
     )
-    create_user_script = f"create user \"{experiment_id}\" with encrypted password '{postgresql_password}'"
+    create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
     executor.run(
         f"docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
     )
@@ -385,6 +396,12 @@ def deploy(mode, server, dns_host, config_options, archive_path):  # pragma: no 
     print(
         f"You can now log in to the console at https://{experiment_id}.{dns_host}/dashboard as user {cfg['ADMIN_USER']} using password {cfg['dashboard_password']}"
     )
+
+
+def get_experiment_id_from_archive(archive_path):
+    with zipfile.ZipFile(archive_path) as archive:
+        with archive.open("experiment_id.md") as fh:
+            return fh.read().decode("utf-8")
 
 
 @docker_ssh.command()
