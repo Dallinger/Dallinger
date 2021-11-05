@@ -25,6 +25,8 @@ To install Docker on Linux, run this command:
 
 On Mac OS X you can download Docker Desktop from the official Docker website: https://docs.docker.com/desktop/mac/install/
 
+.. _docker-for-postgres-and-redis:
+
 Using docker to run postgres and redis
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -77,7 +79,7 @@ Should that not work for whatever reason, you can search `here <https://docs.pyt
 Install Postgresql
 ~~~~~~~~~~~~~~~~~~
 
-The easiest way to install Postgresql :ref:`is to use docker<Using docker to run postgres and redis>`.
+The easiest way to install Postgresql :ref:`is to use docker <docker-for-postgres-and-redis>`.
 
 On Mac OS X, we recommend installing using Homebrew:
 ::
@@ -159,7 +161,7 @@ More information on the Heroku CLI is available at `heroku.com <https://devcente
 Install Redis
 ~~~~~~~~~~~~~
 
-The easiest way to install Redis :ref:`is to use docker<Using docker to run postgres and redis>`.
+The easiest way to install Redis :ref:`is to use docker <docker-for-postgres-and-redis>`.
 
 Debugging experiments requires you to have Redis installed and the Redis
 server running.
