@@ -294,7 +294,7 @@ def deploy(mode, server, dns_host, config_options, archive_path):  # pragma: no 
     for key in "aws_access_key_id", "aws_secret_access_key", "aws_region":
         # AWS credentials are not included by default in to_dict() result
         # but can be extracted explicitly from a config object
-        cfg[key] = config[key]
+        cfg[key.upper()] = config[key]
 
     cfg.update(
         {
