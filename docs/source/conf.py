@@ -406,16 +406,8 @@ texinfo_documents = [
 
 # -- Allow Markdown files -----------------------------------------
 
-from recommonmark.parser import CommonMarkParser
+extensions = ['recommonmark']
 
-source_parsers = {
-    '.md': CommonMarkParser
-}
-
-source_suffix = [
-    '.rst',
-    '.md'
-]
 
 # -- Install demo files -------------------------------------------
 
