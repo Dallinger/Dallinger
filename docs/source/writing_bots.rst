@@ -57,7 +57,7 @@ by each bot. This approach does not scale very well because there is a lot of
 overhead to running a browser, but it does allow for interacting with the
 experiment in a way similar to real participants.
 
-By default, Selenium will try to run PhantomJS, a headless browser meant for scripting.
+By default, Selenium will try to run Chrome in headless mode, a mode meant for scripting.
 However, it also supports using Firefox and Chrome through configuration variables.
 
 .. code-block:: ini
@@ -127,9 +127,9 @@ You will also need to set up the browser interfaces on each computer that's runn
 a node. This requires being able to run the browser and having the correct driver
 available in the system path, so the Selenium server can run it.
 
-We recommend using Chrome when running large numbers of bots, as it is more
-feature-complete than PhantomJS but with better performance at scale than Firefox. It
-is best to run at most three Firefox sessions on commodity hardware, so for best
+We recommend using Chrome when running large numbers of bots, as it has a better
+performance at scale than Firefox.
+It is best to run at most three Firefox sessions on commodity hardware, so for best
 results 16 bots should be run over 6 Selenium servers. This will depend on how
 processor intensive your experiment is. It may be possible to run more sessions
 without performance degradation.

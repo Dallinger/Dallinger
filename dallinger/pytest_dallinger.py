@@ -453,7 +453,6 @@ def recruitment_loop(request, debug_experiment):
 
 
 DRIVER_MAP = {
-    u"phantomjs": webdriver.PhantomJS,
     u"firefox": webdriver.Firefox,
     u"chrome": webdriver.Chrome,
     u"chrome_headless": webdriver.Chrome,
@@ -478,13 +477,7 @@ def selenium_recruits(request, recruitment_loop):
         for url in recruitment_loop:
             kwargs = {}
             driver_class = DRIVER_MAP.get(request.param, webdriver.Chrome)
-            if driver_class is webdriver.PhantomJS:
-                # PhantomJS needs a new local storage for every run
-                tmpdirname = tempfile.mkdtemp()
-                kwargs = {
-                    "service_args": ["--local-storage-path={}".format(tmpdirname)],
-                }
-            elif request.param == "chrome_headless":
+            if request.param == "chrome_headless":
                 from selenium.webdriver.chrome.options import Options
 
                 chrome_options = Options()
@@ -547,7 +540,6 @@ def pytest_addoption(parser):
         help="Run chrome tests with headless driver",
     )
     parser.addoption("--firefox", action="store_true", help="Run firefox tests")
-    parser.addoption("--phantomjs", action="store_true", help="Run phantomjs tests")
     parser.addoption(
         "--runslow", action="store_true", default=False, help="run slow tests"
     )
