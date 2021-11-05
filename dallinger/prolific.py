@@ -33,4 +33,14 @@ class ProlificService:
         logger.info(f"Would be sending bonus request: {payload}")
 
         # TODO Actually make request, etc.
+        # Set up bonus
+        # response = requests.post(blah)
+
+        # Process bonus previously set up
+        # bonus_id = study_id  # ? maybe?
+        # payment_endpoint = (
+        #     f"https://api.prolific.co/api/v1/bulk-bonus-payments/{bonus_id}/pay/"
+        # )
+        # response = requests.post(payment_endpoint)
+
         return False
