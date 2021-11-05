@@ -77,9 +77,8 @@ default_keys = (
     ("organization_name", six.text_type, []),
     ("port", int, ["PORT"]),
     ("prolific:api_token", six.text_type, [], True),
-    ("prolific:device_compatibility", six.text_type, [])(
-        "prolific:eligibility_requirements", six.text_type, []
-    ),
+    ("prolific:device_compatibility", six.text_type, []),
+    ("prolific:eligibility_requirements", six.text_type, []),
     ("prolific:peripheral_requirements", six.text_type, []),
     ("prolific:reward", float, []),
     ("mturk_qualification_blocklist", six.text_type, ["qualification_blacklist"]),
