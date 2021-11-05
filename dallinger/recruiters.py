@@ -5,8 +5,10 @@ import flask
 import json
 import logging
 import os
+import random
 import re
 import requests
+import string
 import time
 
 from rq import Queue
@@ -29,6 +31,8 @@ from dallinger.mturk import MTurkService
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkServiceException
 from dallinger.mturk import QualificationNotFoundException
+from dallinger.prolific import ProlificService
+from dallinger.prolific import ProlificServiceException
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
 from dallinger.utils import ParticipationTime
@@ -157,6 +161,199 @@ class Recruiter(object):
         return None.
         """
         return "AssignmentSubmitted"
+
+
+def alphanumeric_secret(seed: str, len: int = 0):
+    chooser = random.Random(seed)
+    alphabet = string.ascii_letters + string.digits
+    return "".join(chooser.choice(alphabet) for i in range(len))
+
+
+class ProlificRecruiterException(Exception):
+    """Custom exception for ProlificRecruiter"""
+
+
+class ProlificRecruiter(object):
+    """A recruiter for [Prolific](https://app.prolific.co/)"""
+
+    nickname = "prolific"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.config = get_config()
+        base_url = get_base_url()
+        self.ad_url = "{}/ad?recruiter={}".format(base_url, self.nickname)
+        self.completion_code = alphanumeric_secret(
+            self.config.get("id")
+        )  # ! Will this work OK?
+        self.hit_domain = os.getenv("HOST")  # ? Does this make any sense?
+        self.mturkservice = ProlificService(
+            prolific_api_token=self.config.get("prolific:api_token"),
+        )
+        self.notifies_admin = admin_notifier(self.config)
+        self.mailer = get_mailer(self.config)
+        self.store = kwargs.get("store") or RedisStore()
+        self._validate_config()
+
+    def open_recruitment(self, n: int = 1) -> dict:
+        """Create a Study on Prolific."""
+        logger.info("Opening Prolific recruitment for {} participants".format(n))
+        if self.is_in_progress:  # ! TODO
+            raise ProlificRecruiterException(
+                "Tried to open_recruitment on already open ProlificRecruiter."
+            )
+
+        if self.hit_domain is None:
+            raise ProlificRecruiterException(
+                "Can't run a Prolific Study from localhost"
+            )
+
+        self.prolificservice.check_credentials()  # ? Mturk does this. Is there any point here (or there)?
+        """
+        Example submission:
+        {
+            "completion_code": "7EF9FD0D",
+            "completion_option": "url",
+            "description": "This study aims to determine how to make a good public API",
+            "device_compatibility": ["desktop"],
+            "eligibility_requirements": "TODO",
+            "estimated_completion_time": 5,
+            "external_study_url": "https://my-awesome-ice-cream-study.com?participant={{%PROLIFIC_PID%}}",
+            "id": "60d9aadeb86739de712faee0",
+            "internal_name": "Study about API's version2",
+            "name": "Study about API's",
+            "peripheral_requirements": [],
+            "prolific_id_option": "url_parameters",
+            "reward": 13,
+            "status": "UNPUBLISHED"
+            "total_available_places": 30,
+        }
+        """
+        study_request = {
+            "completion_code": self.completion_code,
+            "completion_option": "url",
+            "description": self.config.get("description"),
+            "device_compatibility": self.config.get(
+                "prolific:device_compatibility",
+                ["desktop", "mobile", "tablet"],  # ! needs parsing
+            ),
+            "duration_hours": self.config.get("duration"),
+            "eligibility_requirements": self.config.get(
+                "prolific:eligibility_requirements", []
+            ),
+            "estimated_completion_time": self.config.get(
+                "duration"
+            ),  # TODO should this be self.config.get("prolific:estimated_completion_time")?
+            "external_study_url": self.ad_url,
+            "internal_name": "{} ({})".format(
+                self.config.get("title"), self.config.get("id")
+            ),
+            "name": "{} ({})".format(
+                self.config.get("title"), heroku_tools.app_name(self.config.get("id"))
+            ),
+            "peripheral_requirements": self.config.get(
+                "prolific:peripheral_requirements", []
+            ),
+            "prolific_id_option": "url_parameters",
+            "reward": self.config.get(
+                "prolific:reward"
+            ),  # This is the hourly rate, in cents. Prolific uses the currency of your account.
+            "status": "PUBLISHED",
+            "total_available_places": n,
+        }
+        study_info = self.prolificservice.create_study(**study_request)
+        url = study_info["worker_url"]
+
+        return {
+            "items": [url],
+            "message": "Study now published on Prolific",
+        }
+
+    def normalize_entry_information(self, entry_information: dict):
+        """Map Prolific Study URL params to our internal keys.
+
+        Ad routes will be called with these parameters from Prolific:
+
+            https://my-dallinger-app.com/?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}
+        """
+
+        participant_data = {
+            "hit_id": entry_information["STUDY_ID"],
+            "worker_id": entry_information.get("PROLIFIC_PID"),
+            "assignment_id": ":".join(
+                [
+                    entry_information["SESSION_ID"],
+                    entry_information.get("PROLIFIC_PID"),
+                ]
+            ),
+        }
+        if entry_information:
+            participant_data["entry_information"] = entry_information
+        return participant_data
+
+    def recruit(self, n=1):
+        """Dynamic recruitment is not currently supported."""
+        logger.warn(
+            f"The {self.__class__.__name__} does not support recruitment after the initial group."
+        )
+
+    def close_recruitment(self):
+        """We don't actually do anything here."""
+        logger.info("Closing recruitment...")
+
+    @property
+    def external_submission_url(self):
+        """On experiment completion, participants are returned to
+        the Prolific site with a HIT (Study) specific link, which will
+        trigger payment of their base pay.
+        """
+        return f"https://app.prolific.co/submissions/complete?cc={self.completion_code}"
+
+    def assign_experiment_qualifications(self, worker_id, qualifications):
+        """Assigns recruiter-specific qualifications to a worker, if supported."""
+        # TODO implement or delete
+        pass
+
+    def compensate_worker(self, *args, **kwargs):
+        """A recruiter may provide a means to directly compensate a worker."""
+        # TODO implement or delete
+        raise NotImplementedError
+
+    def exit_response(self, experiment, participant):
+        return flask.render_template(
+            "exit_recruiter_prolific.html",
+            hitid=participant.hit_id,
+            assignmentid=participant.assignment_id,
+            workerid=participant.worker_id,
+            external_submit_url=self.external_submission_url,
+        )
+
+    def reward_bonus(self, assignment_id, amount, reason):
+        """Reward the Prolific worker for a specified assignment with a bonus."""
+
+        # ! We'll need the participant ID here!
+        # Prolific bonus payment API uses this, unsurprisingly:
+        # {
+        #     "study_id": "60f6acb180a7b59ac0621f9e",
+        #     "csv_bonuses": "60ffe5c8371090c7041d43f8,0.20\n60ff44a1d00991f1dfe405d9,0.20"
+        # }
+
+        # * This should not be a problem, because the only call site is
+        # * the AssignmentSubmitted worker event
+        try:
+            return self.prolificservice.grant_bonus(assignment_id, amount, reason)
+        except ProlificServiceException as ex:
+            logger.exception(str(ex))
+
+    def notify_duration_exceeded(self, participants, reference_time):
+        """Some participants have been working beyond the defined duration of
+        the experiment.
+        """
+        # TODO implement or delete
+        logger.warning(
+            "Received notification that some participants "
+            "have been active for too long. No action taken."
+        )
 
 
 class CLIRecruiter(Recruiter):

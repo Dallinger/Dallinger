@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+
+{% block stylesheets %}
+    <style>
+      body {
+          padding:0px;
+          margin: 0px;
+          background-color: white;
+          color: black;
+          font-weight: 300;
+          font-size: 13pt;
+      }
+
+      #adlogo {
+          float: right;
+          width: 140px;
+          padding: 2px;
+          border: none;
+      }
+
+      #container {
+          position: absolute;
+          top: 0px; /* Header Height */
+          bottom: 0px; /* Footer Height */
+          left: 0px;
+          right: 0px;
+          padding: 100px;
+          padding-top: 5%;
+          border: 18px solid #f3f3f3;
+          background: white;
+      }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <div id="container">
+      <div class="well">
+        <h1>Prolific Study Submission</h1>
+        <hr>
+
+        <p>To complete your Prolific study, simply press the button below.</p>
+
+        <a class="btn btn-success btn-large" href="{{ external_submit_url }}">Submit Study</a>
+
+      </div>
+{% endblock %}

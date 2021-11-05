@@ -36,3 +36,10 @@ redis_size = premium-0
 worker_multiplier = 1.5
 num_dynos_web = 1
 num_dynos_worker = 1
+
+[Prolific]
+prolific:api_token = YourProlificToken
+prolific:device_compatibility = []
+prolific:eligibility_requirements = []
+prolific:peripheral_requirements = []
+prolific:reward = YourProlificHourlyRate
