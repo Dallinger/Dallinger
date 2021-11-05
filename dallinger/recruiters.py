@@ -258,7 +258,7 @@ class ProlificRecruiter(object):
             "reward": self.config.get(
                 "prolific:reward"
             ),  # This is the hourly rate, in cents. Prolific uses the currency of your account.
-            "status": "PUBLISHED",
+            "status": "ACTIVE",
             "total_available_places": n,
         }
         study_info = self.prolificservice.create_study(**study_request)
