@@ -40,6 +40,7 @@ os.environ['PATH'] = (
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.autosectionlabel',
     'sphinx.ext.intersphinx',
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
@@ -405,16 +406,8 @@ texinfo_documents = [
 
 # -- Allow Markdown files -----------------------------------------
 
-from recommonmark.parser import CommonMarkParser
+extensions = ['recommonmark']
 
-source_parsers = {
-    '.md': CommonMarkParser
-}
-
-source_suffix = [
-    '.rst',
-    '.md'
-]
 
 # -- Install demo files -------------------------------------------
 
