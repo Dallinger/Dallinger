@@ -210,7 +210,7 @@ def deploy_image(image, mode, config_options):
     config_dict = {
         "AWS_ACCESS_KEY_ID": config.get("aws_access_key_id"),
         "AWS_SECRET_ACCESS_KEY": config.get("aws_secret_access_key"),
-        "AWS_REGION": config.get("aws_region"),
+        "AWS_DEFAULT_REGION": config.get("aws_region"),
         "auto_recruit": config.get("auto_recruit"),
         "smtp_username": config.get("smtp_username"),
         "smtp_password": config.get("smtp_password"),
@@ -368,7 +368,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     heroku_config = {
         "AWS_ACCESS_KEY_ID": config["aws_access_key_id"],
         "AWS_SECRET_ACCESS_KEY": config["aws_secret_access_key"],
-        "AWS_REGION": config["aws_region"],
+        "AWS_DEFAULT_REGION": config["aws_region"],
         "auto_recruit": config["auto_recruit"],
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],

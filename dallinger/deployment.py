@@ -152,7 +152,7 @@ def deploy_sandbox_shared_setup(
     heroku_config = {
         "AWS_ACCESS_KEY_ID": config["aws_access_key_id"],
         "AWS_SECRET_ACCESS_KEY": config["aws_secret_access_key"],
-        "AWS_REGION": config["aws_region"],
+        "AWS_DEFAULT_REGION": config["aws_region"],
         "auto_recruit": config["auto_recruit"],
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],
