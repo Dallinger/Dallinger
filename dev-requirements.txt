@@ -325,7 +325,7 @@ ptyprocess==0.7.0
     # via
     #   pexpect
     #   terminado
-py==1.10.0
+py==1.11.0
     # via
     #   pytest
     #   tox
