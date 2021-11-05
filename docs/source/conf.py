@@ -40,6 +40,7 @@ os.environ['PATH'] = (
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.autosectionlabel',
     'sphinx.ext.intersphinx',
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',

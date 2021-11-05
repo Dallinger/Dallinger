@@ -15,6 +15,29 @@ Using Dallinger with Docker
 ---------------------------
 Docker is a containerization tool used for developing isolated software environments. Read more about using Dallinger with Docker :doc:`here<docker_support>`.
 
+Installing Docker
+~~~~~~~~~~~~~~~~~
+
+To install Docker on Linux, run this command:
+::
+
+    curl https://get.docker.com | sudo sh
+
+On Mac OS X you can download Docker Desktop from the official Docker website: https://docs.docker.com/desktop/mac/install/
+
+Using docker to run postgres and redis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Dallinger can start a postgres database and a redis server for you. To do this, run the following command:
+::
+
+    dallinger docker start-services
+
+To free up resources you can stop the services when they're not needed anymore:
+::
+
+    dallinger docker stop-services
+
 
 Mac OS X
 --------
@@ -53,6 +76,8 @@ Should that not work for whatever reason, you can search `here <https://docs.pyt
 
 Install Postgresql
 ~~~~~~~~~~~~~~~~~~
+
+The easiest way to install Postgresql :ref:`is to use docker<Using docker to run postgres and redis>`.
 
 On Mac OS X, we recommend installing using Homebrew:
 ::
@@ -133,6 +158,8 @@ More information on the Heroku CLI is available at `heroku.com <https://devcente
 
 Install Redis
 ~~~~~~~~~~~~~
+
+The easiest way to install Redis :ref:`is to use docker<Using docker to run postgres and redis>`.
 
 Debugging experiments requires you to have Redis installed and the Redis
 server running.
