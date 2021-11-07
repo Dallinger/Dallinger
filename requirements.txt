@@ -16,7 +16,7 @@ attrs==21.2.0
     # via
     #   outcome
     #   trio
-boto3==1.19.10
+boto3==1.19.11
     # via dallinger
 botocore==1.22.11
     # via
