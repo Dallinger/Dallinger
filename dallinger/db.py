@@ -23,13 +23,23 @@ from dallinger.redis_utils import connect_to_redis
 
 logger = logging.getLogger("dallinger.db")
 
-db_url_default = "postgresql://dallinger:dallinger@localhost/dallinger"
-db_url = os.environ.get("DATABASE_URL", db_url_default)
-if db_url.startswith("postgres://"):
+
+def corrected_db_url(db_url):
     # The sqlalchemy dialect name needs to be `postgresql`, not `postgres`
-    db_url = f"postgresql://{db_url[11:]}"
-logger.debug(f"Using database URL {db_url}")
-engine = create_engine(db_url, pool_size=1000)
+    if db_url.startswith("postgres://"):
+        return f"postgresql://{db_url[11:]}"
+
+    return db_url
+
+
+def create_db_engine(db_url, pool_size=1000):
+    return create_engine(corrected_db_url(db_url), pool_size=pool_size)
+
+
+db_url_default = "postgresql://dallinger:dallinger@localhost/dallinger"
+db_url = corrected_db_url(os.environ.get("DATABASE_URL", db_url_default))
+engine = create_db_engine(db_url)
+logger.debug(f"Using database URL {engine.url.render_as_string()}")
 session_factory = sessionmaker(autocommit=False, autoflush=True, bind=engine)
 session = scoped_session(session_factory)
 
@@ -55,10 +65,6 @@ Consult the developer guide for more information.
 *********************************************************
 
 """
-
-
-def create_db_engine(db_url, pool_size=1000):
-    return create_engine(db_url, pool_size=pool_size)
 
 
 def check_connection(timeout_secs=3):

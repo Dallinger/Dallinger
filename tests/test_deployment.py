@@ -119,7 +119,7 @@ class TestExperimentFilesSource(object):
 
         return ExperimentFileSource
 
-    def test_lists_files_valid_for_copying(self, subject):
+    def test_lists_files_valid_for_copying_as_absolute_paths(self, subject):
         legit_file = "./some/subdir/John Doe's file.txt"
         os.makedirs(os.path.dirname(legit_file))
         with open(legit_file, "w") as f:
@@ -127,7 +127,7 @@ class TestExperimentFilesSource(object):
 
         source = subject()
 
-        assert legit_file in source.files
+        assert os.path.abspath(legit_file) in source.files
 
     def test_excludes_files_that_should_not_be_copied(self, subject):
         with open("illegit.db", "w") as f:
@@ -148,7 +148,7 @@ class TestExperimentFilesSource(object):
 
         source = subject()
 
-        assert source.files == {"./.gitignore"}
+        assert source.files == {os.path.abspath(".gitignore")}
 
     def test_excludes_otherwise_valid_files_if_in_gitignore_complex(self, subject, git):
         legit_file = "./some/subdir/legit.txt"
@@ -161,7 +161,7 @@ class TestExperimentFilesSource(object):
 
         source = subject()
 
-        assert source.files == {"./.gitignore"}
+        assert source.files == {os.path.abspath(".gitignore")}
 
     def test_normalizes_unicode_for_merging_git_inclusions(self, subject, git):
         legit_file = "".join(
@@ -173,7 +173,7 @@ class TestExperimentFilesSource(object):
 
         source = subject()
 
-        assert source.files == {legit_file}
+        assert source.files == {os.path.abspath(legit_file)}
 
     def test_size_includes_files_that_would_be_copied(self, subject):
         with open("legit.txt", "w") as f:
@@ -209,7 +209,7 @@ class TestExperimentFilesSource(object):
 
         assert source.size == 0
 
-    def test_copy_to_copies_to_same_subdirectories(self, subject):
+    def test_recipe_for_copy_defaults_to_cwd(self, subject):
         legit_file = "./some/subdir/John Doe's file.txt"
         os.makedirs(os.path.dirname(legit_file))
         with open(legit_file, "w") as f:
@@ -217,13 +217,11 @@ class TestExperimentFilesSource(object):
         destination = tempfile.mkdtemp()
         source = subject()
 
-        source.selective_copy_to(destination)
+        source.apply_to(destination)
 
-        assert os.path.isfile(
-            os.path.join(destination, "some/subdir/John Doe's file.txt")
-        )
+        assert (Path(destination) / "some/subdir/John Doe's file.txt").is_file()
 
-    def test_copy_to_copies_with_explicit_root(self, subject):
+    def test_recipe_for_copy_accepts_explicit_root(self, subject):
         legit_file = "./some/subdir/legit.txt"
         os.makedirs(os.path.dirname(legit_file))
         with open(legit_file, "w") as f:
@@ -231,31 +229,42 @@ class TestExperimentFilesSource(object):
         destination = tempfile.mkdtemp()
         source = subject(os.getcwd())
 
-        source.selective_copy_to(destination)
+        source.apply_to(destination)
 
-        assert os.path.isfile(os.path.join(destination, "some/subdir/legit.txt"))
+        assert (Path(destination) / legit_file).is_file()
 
-    def test_copy_to_copies_nonascii_filenames(self, subject):
+    def test_recipe_for_copy_resolves_nonascii_filenames_with_git(self, subject):
         legit_file = "".join(["a", "̊", " ", "f", "i", "l", "e"])
         with open(legit_file, "w") as f:
             f.write("12345")
         destination = tempfile.mkdtemp()
         source = subject()
 
-        source.selective_copy_to(destination)
+        source.apply_to(destination)
 
-        assert os.path.isfile(os.path.join(destination, legit_file))
+        assert (Path(destination) / legit_file).is_file()
 
-    def test_copy_to_copies_nonascii_filenames2(self, subject):
+    def test_recipe_for_copy_resolves_nonascii_filenames_with_git2(self, subject):
         legit_file = "".join(["å", " ", "f", "i", "l", "e"])
         with open(legit_file, "w") as f:
             f.write("12345")
         destination = tempfile.mkdtemp()
         source = subject()
 
-        source.selective_copy_to(destination)
+        source.apply_to(destination)
 
-        assert os.path.isfile(os.path.join(destination, legit_file))
+        assert (Path(destination) / legit_file).is_file()
+
+    def test_apply_to_resolves_nonascii_filenames_with_git2(self, subject):
+        legit_file = "".join(["å", " ", "f", "i", "l", "e"])
+        with open(legit_file, "w") as f:
+            f.write("12345")
+        destination = tempfile.mkdtemp()
+        source = subject()
+
+        source.apply_to(destination)
+
+        assert (Path(destination) / legit_file).is_file()
 
 
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
@@ -301,7 +310,9 @@ class TestSetupExperiment(object):
         assert active_config.get("dashboard_user") == six.text_type("admin")
         assert active_config.get("dashboard_password") == mock.ANY
 
-    def test_setup_creates_new_experiment(self, setup_experiment):
+    def test_setup_merges_frontend_files_from_core_and_experiment(
+        self, setup_experiment
+    ):
         # Baseline
         exp_dir = os.getcwd()
         assert found_in("experiment.py", exp_dir)
@@ -336,6 +347,26 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("templates", "exit_recruiter_mturk.html"), dst)
         assert found_in(os.path.join("templates", "launch.html"), dst)
 
+        assert found_in(os.path.join("templates", "dashboard_lifecycle.html"), dst)
+        assert found_in(os.path.join("templates", "dashboard_database.html"), dst)
+        assert found_in(os.path.join("templates", "dashboard_heroku.html"), dst)
+        assert found_in(os.path.join("templates", "dashboard_home.html"), dst)
+        assert found_in(os.path.join("templates", "dashboard_monitor.html"), dst)
+        assert found_in(os.path.join("templates", "dashboard_mturk.html"), dst)
+
+        assert found_in(os.path.join("templates", "base", "ad.html"), dst)
+        assert found_in(os.path.join("templates", "base", "consent.html"), dst)
+        assert found_in(os.path.join("templates", "base", "dashboard.html"), dst)
+        assert found_in(os.path.join("templates", "base", "layout.html"), dst)
+        assert found_in(os.path.join("templates", "base", "questionnaire.html"), dst)
+
+        with open(os.path.join(dst, "templates/layout.html"), "r") as copy_f:
+            with open(os.path.join(exp_dir, "templates/layout.html"), "r") as orig_f:
+                orig = orig_f.read()
+                copy = copy_f.read()
+
+        assert copy == orig
+
     def test_setup_uses_specified_python_version(self, active_config, setup_experiment):
         active_config.extend({"heroku_python_version": "3.8.7"})
 
@@ -345,6 +376,11 @@ class TestSetupExperiment(object):
             version = file.read()
 
         assert version == "python-3.8.7"
+
+    def test_setup_copies_docker_script(self, setup_experiment):
+        exp_id, dst = setup_experiment(log=mock.Mock())
+
+        assert found_in(os.path.join("prepare_docker_image.sh"), dst)
 
     def test_setup_procfile_no_clock(self, setup_experiment):
         config = get_config()
@@ -616,9 +652,9 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         dsss(log=mock.Mock())
         heroku_mock.set_multiple.assert_called_once_with(
             auto_recruit=True,
-            aws_access_key_id="fake aws key",
-            aws_region="us-east-1",
-            aws_secret_access_key="fake aws secret",
+            AWS_ACCESS_KEY_ID="fake aws key",
+            AWS_DEFAULT_REGION="us-east-1",
+            AWS_SECRET_ACCESS_KEY="fake aws secret",
             FLASK_SECRET_KEY=mock.ANY,  # password is random
             smtp_password="fake email password",
             smtp_username="fake email username",
@@ -1085,16 +1121,23 @@ class TestConstraints(object):
         from dallinger.utils import ensure_constraints_file_presence
 
         tmp_path = tempfile.mkdtemp()
+        # We will be looking for
+        # https://raw.githubusercontent.com/Dallinger/Dallinger/v[__version__]
+        # so use an older version we know will exist, rather than the current
+        # version, which may not be tagged/released yet:
+        extant_github_tag = "7.6.0"
         (Path(tmp_path) / "requirements.txt").write_text("black")
-        ensure_constraints_file_presence(tmp_path)
-        constraints_file = Path(tmp_path) / "constraints.txt"
-        # If not present a `constraints.txt` file will be generated
-        assert constraints_file.exists()
-        assert "toml" in constraints_file.read_text()
-
-        # An existing file will be left untouched
-        constraints_file.write_text("foobar")
-        with pytest.raises(ValueError):
+        with mock.patch("dallinger.utils.__version__", extant_github_tag):
             ensure_constraints_file_presence(tmp_path)
-        assert constraints_file.read_text() == "foobar"
+            constraints_file = Path(tmp_path) / "constraints.txt"
+            # If not present a `constraints.txt` file will be generated
+            assert constraints_file.exists()
+            assert "toml" in constraints_file.read_text()
+
+            # An existing file will be left untouched
+            constraints_file.write_text("foobar")
+            with pytest.raises(ValueError):
+                ensure_constraints_file_presence(tmp_path)
+            assert constraints_file.read_text() == "foobar"
+
         shutil.rmtree(tmp_path)

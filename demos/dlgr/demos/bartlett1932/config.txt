@@ -32,4 +32,4 @@ clock_on = false
 logfile = -
 
 [Docker]
-image_base_name = ghcr.io/dallinger/dallinger/bartlett1932
+docker_image_base_name = ghcr.io/dallinger/dallinger/bartlett1932

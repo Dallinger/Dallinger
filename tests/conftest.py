@@ -33,12 +33,6 @@ def check_webdriver(request):
 
 
 @pytest.fixture(scope="module")
-def check_phantomjs(request):
-    if not request.config.getvalue("phantomjs"):
-        pytest.skip("--phantomjs was not specified")
-
-
-@pytest.fixture(scope="module")
 def check_heroku(request):
     if not request.config.getvalue("heroku"):
         pytest.skip("--heroku was not specified")
@@ -122,7 +116,7 @@ def experiment_dir_merged(experiment_dir, active_config):
     os.chdir(current_dir)
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture
 def bartlett_dir(root):
     os.chdir("demos/dlgr/demos/bartlett1932")
     yield

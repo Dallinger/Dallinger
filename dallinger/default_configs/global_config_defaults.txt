@@ -16,6 +16,7 @@ dallinger_email_address = dallinger@mailinator.com
 replay = False
 mode = debug
 enable_global_experiment_registry = False
+language = en
 
 [Recruiter]
 auto_recruit = False

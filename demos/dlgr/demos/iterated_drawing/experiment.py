@@ -37,6 +37,7 @@ class IteratedDrawing(Experiment):
             super(IteratedDrawing, self).setup()
             for net in self.networks():
                 self.models.DrawingSource(network=net)
+            self.session.commit()
 
     def create_network(self):
         """Return a new network."""

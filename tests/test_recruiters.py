@@ -816,10 +816,12 @@ class TestMTurkRecruiter(object):
             },
         }
 
-    def test_assign_experiment_qualifications_creates_nonexistent_qualifications(
+    def test__assign_experiment_qualifications_creates_nonexistent_qualifications(
         self, recruiter
     ):
-        recruiter.assign_experiment_qualifications(
+        # Rationale for testing a "private" method is that it does all the actual
+        # work behind an async call from the public method.
+        recruiter._assign_experiment_qualifications(
             "some worker id",
             [
                 {"name": "One", "description": "Description of One"},
@@ -842,16 +844,18 @@ class TestMTurkRecruiter(object):
             ),
         ]
 
-    def test_assign_experiment_qualifications_assigns_existing_qualifications(
+    def test__assign_experiment_qualifications_assigns_existing_qualifications(
         self, recruiter
     ):
+        # Rationale for testing a "private" method is that it does all the actual
+        # work behind an async call from the public method.
         from dallinger.mturk import DuplicateQualificationNameError
 
         recruiter.mturkservice.create_qualification_type.side_effect = (
             DuplicateQualificationNameError
         )
 
-        recruiter.assign_experiment_qualifications(
+        recruiter._assign_experiment_qualifications(
             "some worker id",
             [
                 {"name": "One", "description": "Description of One"},
@@ -862,6 +866,21 @@ class TestMTurkRecruiter(object):
         assert (
             recruiter.mturkservice.increment_named_qualification_score.call_args_list
             == [mock.call("One", "some worker id"), mock.call("Two", "some worker id")]
+        )
+
+    def test_assign_experiment_qualifications_enques_work(self, recruiter, queue):
+        from dallinger.recruiters import _run_mturk_qualification_assignment
+
+        qualification_params = [
+            "some worker id",
+            [
+                {"name": "One", "description": "Description of One"},
+            ],
+        ]
+        recruiter.assign_experiment_qualifications(*qualification_params)
+
+        queue.enqueue.assert_called_once_with(
+            _run_mturk_qualification_assignment, *qualification_params
         )
 
     def test_rejects_questionnaire_from_returns_none_if_working(self, recruiter):

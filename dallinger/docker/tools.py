@@ -1,14 +1,12 @@
+import click
 import docker
-import io
-import json
 import os
-import re
-import tarfile
 import time
 
 from hashlib import sha256
 from jinja2 import Template
 from pathlib import Path
+from shutil import which
 from subprocess import check_output
 from subprocess import CalledProcessError
 from pip._internal.network.session import PipSession
@@ -200,11 +198,11 @@ class DockerComposeWrapper(object):
         )
 
 
-class DockerStartupError(RuntimeError):
+class DockerStartupError(click.Abort):
     """Some docker containers had problems starting"""
 
 
-class BuildError(RuntimeError):
+class BuildError(click.Abort):
     """There was a problem building the docker image"""
 
 
@@ -280,56 +278,51 @@ def build_image(
         out.blather("Rebuilding\n")
     except docker.errors.ImageNotFound:
         out.blather(f"Image {image_name} not found - building\n")
-    dockerfile_text = fr"""FROM {base_image_name}
+    env = {
+        "DOCKER_BUILDKIT": "1",
+    }
+    ssh_mount = ""
+    docker_build_invocation = [which("docker"), "build", str(tmp_dir)]
+    if os.environ.get("SSH_AUTH_SOCK"):
+        env["SSH_AUTH_SOCK"] = os.environ.get("SSH_AUTH_SOCK")
+        ssh_mount = "--mount=type=ssh"
+        docker_build_invocation = [
+            which("docker"),
+            "build",
+            "--ssh",
+            "default",
+            str(tmp_dir),
+        ]
+
+    docker_build_invocation += ["-t", image_name]
+    dockerfile_text = fr"""# syntax=docker/dockerfile:1
+    FROM {base_image_name}
     COPY . /experiment
     WORKDIR /experiment
     # If a dallinger wheel is present, install it.
     # This will be true if Dallinger was installed with the editable `-e` flag
     RUN if [ -f dallinger-*.whl ]; then pip install dallinger-*.whl; fi
-    RUN echo 'Running script prepare_docker_image.sh' && \
+    # If a dependency needs the ssh client and git, install them
+    RUN grep git+ requirements.txt && \
+        apt-get update && \
+        apt-get install -y openssh-client git && \
+        rm -rf /var/lib/apt/lists || true
+    RUN {ssh_mount} echo 'Running script prepare_docker_image.sh' && \
         chmod 755 ./prepare_docker_image.sh && \
         ./prepare_docker_image.sh
     # We rely on the already installed dallinger: the docker image tag has been chosen
     # based on the contents of this file. This makes sure dallinger stays installed from
     # /dallinger, and that it doesn't waste space with two copies in two different layers.
-    RUN grep -v dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
+    RUN mkdir ~/.ssh && echo "Host *\n    StrictHostKeyChecking no" >> ~/.ssh/config
+    RUN {ssh_mount} grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
         python3 -m pip install -r /tmp/requirements_no_dallinger.txt
     ENV PORT=5000
     CMD dallinger_heroku_web
     """
-    dockerfile = io.BytesIO(dockerfile_text.encode())
-    context = io.BytesIO()
-    context_tar = tarfile.open(fileobj=context, mode="w:gz", dereference=True)
-    info = tarfile.TarInfo(name="Dockerfile")
-    info.size = len(dockerfile_text)
-    context_tar.addfile(info, fileobj=dockerfile)
-    context_tar.add(str(Path(tmp_dir)), arcname=".")
-    context_tar.close()
-    context.seek(0)
-    output = client.api.build(
-        fileobj=context, custom_context=True, tag=image_name, encoding="gzip"
-    )
-
-    for lines in output:
-        for line in re.split(br"\r\n|\n", lines):
-            if not line:  # Split empty lines
-                continue
-            line_decoded = json.loads(line)
-            if "error" in line_decoded:
-                if line_decoded["error"] == "name unknown":
-                    out.blather(
-                        f"The base image for this dallinger version ({base_image_name}) was not found\n"
-                    )
-                    out.blather(
-                        "Try to update the dallinger version in requirements.txt and re-run\n"
-                    )
-                    out.blather("    dallinger generate-constraints\n")
-                    line_decoded["error"] == "name unknown"
-                    raise BuildError(f"Image {base_image_name} not found")
-                raise BuildError(line_decoded["error"])
-            out.blather(line_decoded.get("stream", ""))
-            if "error" in line_decoded:
-                out.blather(line_decoded.get("error", "") + "\n")
-            if "aux" in line_decoded:
-                out.blather(f'Built image: {line_decoded["aux"]["ID"]}' + "\n")
+    (Path(tmp_dir) / "Dockerfile").write_text(dockerfile_text)
+    try:
+        check_output(docker_build_invocation, env=env)
+    except CalledProcessError:
+        raise BuildError
+    out.blather(f"Built image: {image_name}" + "\n")
     return image_name

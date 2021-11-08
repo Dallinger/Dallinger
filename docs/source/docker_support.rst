@@ -56,11 +56,14 @@ Examples:
 Image creation
 **************
 
-Make sure your experiment specifies an ``image_base_name`` for your image.
-The specified ``image_base_name`` should include the docker registry you want to use and
+Make sure your experiment specifies an ``docker_image_base_name`` for your image in its ``config.txt``.
+The specified ``docker_image_base_name`` should include the docker registry you want to use and
 the destination where the docker image should be pushed.
 The ``bartlett1932`` experiment, for instance, has it set to ``ghcr.io/dallinger/dallinger/bartlett1932``
 to push to the Github container registry.
+
+After a succesful deployment dallinger will add the ``docker_image_name`` parameter to the experiment
+``config.txt`` file. It will be used in subsequent experiment deployments to guarantee repeatability.
 
 In the experiment directory, run
 
@@ -159,8 +162,9 @@ experiments deployed this way can be found under the `dallinger docker-ssh` comm
       apps     List dallinger apps running on the remote server.
       deploy   Deploy a dallnger experiment docker image to a server using ssh.
       destroy  Tear down an experiment run on a server you control via ssh.
-      export   List dallinger apps running on the remote server.
+      export   Export database to a local file.
       servers  Manage remote servers where experiments can be deployed
+      stats    Get resource usage stats from remote server.
 
 .. note::
 
@@ -228,3 +232,26 @@ To stop an experiment and remove its containers from the server, run:
 .. code-block:: shell
 
     dallinger docker-ssh destroy --app $APP_ID
+
+
+Support for python dependencies in private repositories
+*******************************************************
+
+An experiment can depend on a package that is in a private repository.
+Dallinger will use the ssh agent to authenticate against the remote repository.
+In this case the dependency needs to be specified with the `git+ssh` protocol:
+
+.. code-block::
+
+    git+ssh://git@github.com/<orgname>/<reponame>#egg=<eggname>
+
+Dallinger will make docker checkout the private repository using the ssh agent.
+The package will be included in the experiment image, but the credentials used
+to download it will not.
+
+
+.. note::
+
+    The ssh agent needs to be running, the ``SSH_AUTH_SOCK`` environment variable should point
+    to its socket path and the ssh key needed for the server needs to be loaded.
+    You chan check the latter with `ssh-add -l`.

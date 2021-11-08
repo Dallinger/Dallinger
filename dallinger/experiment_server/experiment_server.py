@@ -10,6 +10,7 @@ import re
 from flask import (
     abort,
     Flask,
+    redirect,
     render_template,
     request,
     Response,
@@ -32,6 +33,7 @@ from dallinger.config import get_config
 from dallinger import recruiters
 from dallinger.notifications import admin_notifier
 from dallinger.notifications import MessengerError
+from dallinger.utils import generate_random_id
 
 from . import dashboard
 from .replay import ReplayBackend
@@ -442,6 +444,9 @@ def advertisement():
     If the worker has accepted the hit:
         These arguments will have appropriate values and we should enter the
         person in the database and provide a link to the experiment popup.
+    If the url includes an argument ``generate_tokens``:
+        The user will be redirected to this view with random recruiter
+        arguments set.
     """
     config = _config()
 
@@ -451,6 +456,15 @@ def advertisement():
         raise ExperimentError("browser_type_not_allowed")
 
     entry_information = request.args.to_dict()
+
+    if entry_information.get("generate_tokens", None) in ("1", "true", "yes"):
+        redirect_params = entry_information.copy()
+        del redirect_params["generate_tokens"]
+        for entry_param in ("hitId", "assignmentId", "workerId"):
+            if not redirect_params.get(entry_param):
+                redirect_params[entry_param] = generate_random_id()
+        return redirect(url_for("advertisement", **redirect_params))
+
     app_id = config.get("id", "unknown")
     exp = Experiment(session)
     entry_data = exp.normalize_entry_information(entry_information)
@@ -797,15 +811,23 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
 
     # Create the new participant.
     exp = Experiment(session)
-    participant = exp.create_participant(
-        worker_id,
-        hit_id,
-        assignment_id,
-        mode,
-        recruiter_name,
-        fingerprint_hash,
-        entry_information,
-    )
+    participant_vals = {
+        "worker_id": worker_id,
+        "hit_id": hit_id,
+        "assignment_id": assignment_id,
+        "mode": mode,
+        "recruiter_name": recruiter_name,
+        "fingerprint_hash": fingerprint_hash,
+        "entry_information": entry_information,
+    }
+    try:
+        participant = exp.create_participant(**participant_vals)
+    except Exception:
+        db.logger.exception(
+            "Error creating particant using these values: {}".format(participant_vals)
+        )
+        msg = "/participant POST: an error occurred while registering the participant."
+        return error_response(error_type=msg, status=400)
 
     session.flush()
     overrecruited = exp.is_overrecruited(nonfailed_count)
@@ -1623,10 +1645,10 @@ def _worker_complete(participant_id):
     session.commit()
 
     # Notify experiment that participant has been marked complete. Doing
-    # this here, rather than in the async worker function, means that
+    # this here, rather than in the worker function, means that
     # the experiment can request qualification assignment before the
     # worker completes the HIT when using a recruiter like MTurk, where
-    # execution of the worker_events.AssignmentSubmitted command is
+    # execution of the `worker_events.AssignmentSubmitted` command is
     # deferred until they've submitted the HIT on the MTurk platform.
     exp = Experiment(session)
     exp.participant_task_completed(participant)
@@ -1636,6 +1658,8 @@ def _worker_complete(participant_id):
     if event_type is None:
         return
 
+    # Currently we execute this function synchronously, regardless of the
+    # event type:
     worker_function(
         event_type=event_type,
         assignment_id=participant.assignment_id,

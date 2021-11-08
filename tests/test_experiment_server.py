@@ -141,6 +141,25 @@ class TestAdvertisement(object):
         assert resp.status_code == 500
         assert b"already_did_exp_hit" in resp.data
 
+    def test_generate_tokens_redirects(self, webapp):
+        resp = webapp.get("/ad?generate_tokens=1")
+        assert resp.status_code == 302
+        assert "/ad?" in resp.location
+        assert "hitId=" in resp.location
+        assert "assignmentId=" in resp.location
+        assert "workerId=" in resp.location
+        assert "generate_tokens" not in resp.location
+
+    def test_generate_tokens_preserves_args(self, webapp):
+        resp = webapp.get(
+            "/ad?generate_tokens=1&mode=debug&recruiter=hotair&workerId=BLAH"
+        )
+        assert resp.status_code == 302
+        assert "hitId=" in resp.location
+        assert "mode=debug" in resp.location
+        assert "recruiter=hotair" in resp.location
+        assert "workerId=BLAH" in resp.location
+
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
@@ -694,10 +713,16 @@ class TestParticipantCreateRoute(object):
         with mock.patch(
             "dallinger.experiment.Experiment.create_participant"
         ) as create_participant:
-            create_participant.side_effect = lambda *args: p
+            create_participant.side_effect = lambda **args: p
             webapp.post("/participant/1/1/1/debug")
             create_participant.assert_called_once_with(
-                "1", "1", "1", "debug", None, None, None
+                worker_id="1",
+                hit_id="1",
+                assignment_id="1",
+                mode="debug",
+                recruiter_name=None,
+                fingerprint_hash=None,
+                entry_information=None,
             )
 
     def test_creates_participant_if_worker_id_unique(self, webapp):
@@ -754,6 +779,24 @@ class TestParticipantCreateRoute(object):
         )
 
         assert resp.status_code == 200
+
+    def test_logs_submitted_values_on_error(self, a, db_session, webapp):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.db.logger.exception"
+        ) as logger:
+            resp = webapp.post(
+                "/participant",
+                data={
+                    # assignmentId is excluded, making the request invalid
+                    "hitId": "H",
+                    "workerId": "W",
+                    "mode": "debug",
+                    "additional_stuff": "1",
+                },
+            )
+
+        assert resp.status_code == 400
+        assert "'assignment_id': None" in logger.call_args.args[0]
 
     def test_post_participant_calls_normalize_entry_information(
         self, a, db_session, webapp
@@ -981,8 +1024,14 @@ class TestParticipantNodeCreationRoute(object):
         participant = a.participant()
         participant.status = "submitted"
         db_session.commit()
+
         resp = webapp.post("/node/{}".format(participant.id))
-        assert b"Error type: /node POST, status = submitted" in resp.data
+
+        error_report = resp.data.decode("utf8")
+        assert "Error type: /node POST, status = submitted" in error_report
+        assert "HIT id: {}".format(participant.hit_id) in error_report
+        assert "Assignment id: {}".format(participant.assignment_id) in error_report
+        assert "Worker id: {}".format(participant.worker_id) in error_report
 
     def test_no_network_for_participant_returns_error(self, a, db_session, webapp):
         participant = a.participant()

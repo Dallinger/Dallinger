@@ -4,6 +4,7 @@ import click
 import mock
 import os
 import re
+import shutil
 import six
 import subprocess
 from time import sleep
@@ -183,6 +184,33 @@ class TestHeader(object):
     def test_header_contains_version_number(self):
         # Make sure header contains the version number.
         assert dallinger.version.__version__ in dallinger.command_line.header
+
+
+@pytest.mark.slow
+@pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
+class TestDevelopCommand(object):
+    """One very high level test, at least for now, while functionality is
+    in draft state. [Jesse Snyder, 2021/7/27]
+    """
+
+    @pytest.fixture
+    def develop(self):
+        from dallinger.command_line.develop import develop
+
+        yield develop
+
+        shutil.rmtree("develop", ignore_errors=True)
+
+    def test_bootstrap(self, develop):
+        result = CliRunner().invoke(develop, ["bootstrap"])
+
+        assert result.exit_code == 0
+        assert "Preparing your pristine development environment" in result.output
+        assert found_in("develop", ".")
+        assert found_in("app.py", "develop")
+        assert found_in("run.sh", "develop")
+        assert found_in("experiment.py", "develop")
+        # etc...
 
 
 @pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")
@@ -1173,3 +1201,16 @@ class TestApps(object):
             ["UID", "Started", "URL"],
             tablefmt=u"psql",
         )
+
+
+def test_get_editable_dallinger_path():
+    from dallinger.utils import get_editable_dallinger_path
+
+    with mock.patch("dallinger.utils.os.path.isfile") as isfile:
+        isfile.return_value = True
+        with mock.patch("dallinger.utils.open") as open:
+            open.return_value.readlines.return_value = [
+                "/a path/where many/directories/have/a/space/in them\n"
+            ]
+            result = get_editable_dallinger_path()
+            assert result == "/a path/where many/directories/have/a/space/in them"

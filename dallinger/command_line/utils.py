@@ -63,13 +63,13 @@ def require_exp_directory(f):
     error_two = "There are problems with the current experiment. Please check with dallinger verify."
 
     @wraps(f)
-    def wrapper(**kwargs):
+    def wrapper(*args, **kwargs):
         try:
             if not verify_package(kwargs.get("verbose")):
                 raise click.UsageError(error_one)
         except ValueError:
             raise click.UsageError(error_two)
-        return f(**kwargs)
+        return f(*args, **kwargs)
 
     return wrapper
 
@@ -141,7 +141,7 @@ def verify_experiment_module(verbose):
     temp_package_name = "TEMP_VERIFICATION_PACKAGE"
     tmp = tempfile.mkdtemp()
     clone_dir = os.path.join(tmp, temp_package_name)
-    ExperimentFileSource(os.getcwd()).selective_copy_to(clone_dir)
+    ExperimentFileSource(os.getcwd()).apply_to(clone_dir)
     initialize_experiment_package(clone_dir)
     from dallinger_experiment import experiment
 

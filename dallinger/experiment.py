@@ -1398,14 +1398,17 @@ def is_experiment_class(cls):
 
 def load():
     """Load the active experiment."""
+    first_err = second_err = None
     initialize_experiment_package(os.getcwd())
     try:
         try:
             from dallinger_experiment import experiment
-        except ImportError:
+        except ImportError as e:
+            first_err = e
             try:
                 from dallinger_experiment import dallinger_experiment as experiment
-            except ImportError:
+            except ImportError as e:
+                second_err = e
                 import dallinger_experiment as experiment
 
         classes = inspect.getmembers(experiment, is_experiment_class)
@@ -1437,7 +1440,12 @@ def load():
                 )
             )
         elif len(classes) == 0:
-            raise ImportError("No experiment classes found")
+            logger.error("Error retrieving experiment class")
+            raise (
+                first_err
+                or second_err
+                or ImportError("No classes found in {}".format(experiment))
+            )
         else:
             return classes[0][1]
     except ImportError:

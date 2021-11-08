@@ -5,12 +5,23 @@ parallel = True
 concurrency = gevent
 omit =
     dallinger/heroku/rq_gevent_worker.py
+    dallinger/command_line/appdirs.py
 
 [report]
 fail_under = 61
 show_missing = True
 skip_covered = True
 precision = 1
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if self.debug:
+    if settings.DEBUG
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if __name__ == .__main__.:
+    class .*\bProtocol\):
 
 [paths]
 source =

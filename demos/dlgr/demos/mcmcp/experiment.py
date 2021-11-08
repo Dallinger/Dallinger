@@ -46,6 +46,7 @@ class MCMCP(Experiment):
             super(MCMCP, self).setup()
             for net in self.networks():
                 self.models.AnimalSource(network=net)
+            self.session.commit()
 
     def create_network(self):
         """Create a new network."""

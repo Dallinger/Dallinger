@@ -1,0 +1,49 @@
+{% extends "base/dashboard.html" %}
+
+{% block body %}
+<h1>Development Server Dashboard</h1>
+
+<button id="launch-route-post" class="btn btn-primary">Launch</button>
+
+<h2>Server Responses</h2>
+<pre id="console"></pre>
+
+
+{% endblock %}
+
+{% block scripts %}
+<script type="text/javascript">
+
+    function onLaunchSuccess(data) {
+        var $console = $("#console"),
+            response = JSON.stringify(data, null, 4);
+
+        $console.append("\n" + response);
+    };
+
+    function postToLaunchRoute(callback) {
+        var url = "/launch",
+        data = {};
+
+        $.ajax({
+            type: "POST",
+            url: url,
+            data: data,
+            success: callback,
+            dataType: "json"
+        });
+    };
+
+    function handleLaunchButton(event) {
+        var $button = $(event.currentTarget);
+
+        postToLaunchRoute(onLaunchSuccess);
+    };
+
+
+    $(function () {
+        $("#launch-route-post").click(handleLaunchButton);
+    })
+
+</script>
+{% endblock %}

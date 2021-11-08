@@ -11,6 +11,7 @@
 *.egg-info/
 *.db-journal
 demos/**/data/*
+demos/**/develop/*
 **/snapshots/*
 **/__pycache__/*
 docs/source/demos

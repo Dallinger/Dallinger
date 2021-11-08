@@ -31,6 +31,7 @@ from dallinger.deployment import deploy_sandbox_shared_setup
 from dallinger.deployment import DebugDeployment
 from dallinger.deployment import LoaderDeployment
 from dallinger.deployment import setup_experiment
+from dallinger.command_line.develop import develop
 from dallinger.command_line.docker import docker
 from dallinger.command_line.docker_ssh import docker_ssh
 from dallinger.notifications import admin_notifier
@@ -120,6 +121,7 @@ def dallinger():
     )
 
 
+dallinger.add_command(develop)
 dallinger.add_command(docker)
 dallinger.add_command(docker_ssh)
 
@@ -244,11 +246,32 @@ def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
     )
 
 
+def fail_on_unsupported_urls(f):
+    """raises click.UsageError if the current experiment has a dependecy using a git+ssh url,
+    since they're not supported on Heroku without docker
+    """
+
+    @wraps(f)
+    def wrapper(**kwargs):
+        if "\ngit+ssh" in Path("requirements.txt").read_text():
+            raise click.UsageError(
+                "This experment has a git+ssh dependency.\n"
+                "Dallinger does not support this for Heroku deployment using non-docker dynos.\n"
+                "Try using the docker deployment by configuring a docker registry, adding the\n"
+                "`docker_image_base_name` variable to config.txt and running\n"
+                f"dallinger docker {f.__name__}"
+            )
+        return f(**kwargs)
+
+    return wrapper
+
+
 @dallinger.command()
 @click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
 @click.option("--app", default=None, help="Experiment id")
 @click.option("--archive", default=None, help="Optional path to an experiment archive")
 @require_exp_directory
+@fail_on_unsupported_urls
 @report_idle_after(21600)
 def sandbox(verbose, app, archive):
     """Deploy app using Heroku to the MTurk Sandbox."""
@@ -260,6 +283,7 @@ def sandbox(verbose, app, archive):
 @click.option("--app", default=None, help="ID of the deployed experiment")
 @click.option("--archive", default=None, help="Optional path to an experiment archive")
 @require_exp_directory
+@fail_on_unsupported_urls
 @report_idle_after(21600)
 def deploy(verbose, app, archive):
     """Deploy app using Heroku to MTurk."""
