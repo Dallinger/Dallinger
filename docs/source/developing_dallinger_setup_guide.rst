@@ -4,7 +4,7 @@ Developer Installation
 Dallinger is tested with Ubuntu 18.04 LTS, 16.04 LTS, 14.04 LTS and Mac OS X locally.
 If you are attempting to use Dallinger on Microsoft Windows, running Ubuntu in a virtual machine is the recommend method.
 
-If you are interested in using Dallinger with Docker, read more :doc:`here <docker_setup>`.
+If you are interested in using Dallinger with Docker, read more :doc:`here <docker_support>`.
 
 
 Mac OS X

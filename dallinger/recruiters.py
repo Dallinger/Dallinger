@@ -189,10 +189,15 @@ class CLIRecruiter(Recruiter):
         logger.info("Opening CLI recruitment for {} participants".format(n))
         recruitments = self.recruit(n)
         message = (
+            "\nSingle recruitment link: {}/ad?recruiter={}&generate_tokens=1&mode={}\n\n"
             'Search for "{}" in the logs for subsequent recruitment URLs.\n'
             "Open the logs for this experiment with "
             '"dallinger logs --app {}"'.format(
-                NEW_RECRUIT_LOG_PREFIX, self.config.get("id")
+                get_base_url(),
+                self.nickname,
+                self._get_mode(),
+                NEW_RECRUIT_LOG_PREFIX,
+                self.config.get("id"),
             )
         )
         return {"items": recruitments, "message": message}
@@ -260,7 +265,12 @@ class HotAirRecruiter(CLIRecruiter):
         """
         logger.info("Opening HotAir recruitment for {} participants".format(n))
         recruitments = self.recruit(n)
-        message = "Recruitment requests will open browser windows automatically."
+        message = (
+            "\nSingle recruitment link: {}/ad?recruiter={}&generate_tokens=1&mode={}\n\n"
+            "Recruitment requests will open browser windows automatically.".format(
+                get_base_url(), self.nickname, self._get_mode()
+            )
+        )
 
         return {"items": recruitments, "message": message}
 

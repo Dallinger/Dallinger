@@ -291,14 +291,15 @@ def deploy(mode, server, dns_host, config_options, archive_path):  # pragma: no 
     dashboard_password = token_urlsafe(8)
     image = config.get("docker_image_name", None)
     cfg = config.as_dict()
-    for key in "aws_access_key_id", "aws_secret_access_key", "aws_region":
+    for key in "aws_access_key_id", "aws_secret_access_key":
         # AWS credentials are not included by default in to_dict() result
         # but can be extracted explicitly from a config object
-        cfg[key] = config[key]
+        cfg[key.upper()] = config[key]
 
     cfg.update(
         {
             "FLASK_SECRET_KEY": token_urlsafe(16),
+            "AWS_DEFAULT_REGION": config["aws_region"],
             "dashboard_password": dashboard_password,
             "mode": mode,
             "CREATOR": f"{USER}@{HOSTNAME}",
