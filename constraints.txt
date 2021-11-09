@@ -28,7 +28,7 @@ babel==2.9.1
     # via sphinx
 backcall==0.2.0
     # via ipython
-backports.entry-points-selectable==1.1.0
+backports.entry-points-selectable==1.1.1
     # via virtualenv
 bcrypt==3.2.0
     # via paramiko
