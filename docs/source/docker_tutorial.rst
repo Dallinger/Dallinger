@@ -1,7 +1,7 @@
 Docker tutorial
 ===============
 
-If you're new to docker, this tutorial will o through the basic concepts
+If you're new to docker, this tutorial will go through the basic concepts
 you need to get started.
 
 This tutorial assumes you already installed docker and dallinger with the
