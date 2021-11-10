@@ -13,7 +13,7 @@ We do not recommended running Dallinger with Microsoft Windows, however if you d
 
 Using Dallinger with Docker
 ---------------------------
-Docker is a containerization tool used for developing isolated software environments. Read more about using Dallinger with Docker :doc:`here<docker_setup>`.
+Docker is a containerization tool used for developing isolated software environments. Read more about using Dallinger with Docker :doc:`here<docker_support>`.
 
 
 Mac OS X
