@@ -44,7 +44,7 @@ cryptography==35.0.0
     # via
     #   pyopenssl
     #   urllib3
-faker==9.8.0
+faker==9.8.1
     # via dallinger
 flask==1.1.4
     # via
