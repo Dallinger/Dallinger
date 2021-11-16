@@ -461,7 +461,7 @@ six==1.16.0
     #   websocket-client
 sniffio==1.2.0
     # via trio
-snowballstemmer==2.1.0
+snowballstemmer==2.2.0
     # via sphinx
 sortedcontainers==2.4.0
     # via trio
