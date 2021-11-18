@@ -289,7 +289,7 @@ openpyxl==3.0.9
     # via tablib
 outcome==1.1.0
     # via trio
-packaging==21.2
+packaging==21.3
     # via
     #   bleach
     #   build
