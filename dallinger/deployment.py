@@ -134,6 +134,7 @@ def deploy_sandbox_shared_setup(
     heroku_app = HerokuApp(dallinger_uid=heroku_app_id, output=out, team=team)
     heroku_app.bootstrap()
     heroku_app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")
+    heroku_app.buildpack("https://github.com/heroku/heroku-buildpack-apt")
 
     # Set up add-ons and AWS environment variables.
     database_size = config.get("database_size")
