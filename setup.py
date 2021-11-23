@@ -60,6 +60,7 @@ setup_args = dict(
         "greenlet",
         "gunicorn",
         "heroku3",
+        "librosa",
         "localconfig",
         "pexpect",
         "pip>=20",
