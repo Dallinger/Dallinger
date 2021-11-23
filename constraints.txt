@@ -415,7 +415,7 @@ pyzmq==22.3.0
     #   jupyter-client
     #   notebook
     #   qtconsole
-qtconsole==5.2.0
+qtconsole==5.2.1
     # via jupyter
 qtpy==1.11.2
     # via qtconsole
