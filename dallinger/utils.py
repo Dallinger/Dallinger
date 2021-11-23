@@ -27,6 +27,7 @@ except ImportError:
     from importlib_metadata import files as files_metadata
 
 from dallinger import db
+
 # from dallinger.version import __version__
 from dallinger.config import get_config
 from dallinger.compat import is_command
