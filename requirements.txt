@@ -37,6 +37,7 @@ certifi==2021.10.8
 cffi==1.15.0
     # via
     #   cryptography
+    #   sndfile
     #   soundfile
 charset-normalizer==2.0.7
     # via requests
@@ -203,6 +204,8 @@ six==1.16.0
     #   python-dateutil
     #   resampy
     #   sqlalchemy-postgres-copy
+sndfile==0.2.0
+    # via dallinger
 sniffio==1.2.0
     # via trio
 sortedcontainers==2.4.0

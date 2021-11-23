@@ -64,6 +64,7 @@ cffi==1.15.0
     #   bcrypt
     #   cryptography
     #   pynacl
+    #   sndfile
     #   soundfile
 cfgv==3.3.1
     # via pre-commit
@@ -447,7 +448,7 @@ pyzmq==22.3.0
     #   jupyter-client
     #   notebook
     #   qtconsole
-qtconsole==5.2.0
+qtconsole==5.2.1
     # via jupyter
 qtpy==1.11.2
     # via qtconsole
@@ -502,6 +503,8 @@ six==1.16.0
     #   tox
     #   virtualenv
     #   websocket-client
+sndfile==0.2.0
+    # via dallinger
 sniffio==1.2.0
     # via trio
 snowballstemmer==2.2.0
