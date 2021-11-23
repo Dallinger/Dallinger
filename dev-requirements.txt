@@ -109,7 +109,7 @@ dockerpty==0.4.1
     # via docker-compose
 docopt==0.6.2
     # via docker-compose
-docutils==0.17.1
+docutils==0.18.1
     # via
     #   recommonmark
     #   sphinx
