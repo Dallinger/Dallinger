@@ -20,7 +20,7 @@ Vagrant.configure("2") do |config|
     sudo apt-get update
 
     # Python dependencies
-    sudo apt-get install -y python3.6 python-pip
+    sudo apt-get install -y python3.6 python-pip libsndfile1-dev
 
     # Postgres setup
     sudo apt-get install -y postgresql-9.5 postgresql-server-dev-9.5
@@ -40,7 +40,7 @@ Vagrant.configure("2") do |config|
     cd /vagrant
 
     # Documentation building dependencies
-    sudo apt-get install -y enchant pandoc zip
+    sudo apt-get install -y enchant pandoc zip libs libsndfile1-dev
     pip install pyenchant
     pip install -r dev-requirements.txt
 
