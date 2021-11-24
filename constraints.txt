@@ -40,9 +40,9 @@ black==21.11b1
     # via dallinger
 bleach==4.1.0
     # via nbconvert
-boto3==1.20.11
+boto3==1.20.12
     # via dallinger
-botocore==1.23.11
+botocore==1.23.12
     # via
     #   boto3
     #   s3transfer
@@ -64,7 +64,6 @@ cffi==1.15.0
     #   bcrypt
     #   cryptography
     #   pynacl
-    #   sndfile
     #   soundfile
 cfgv==3.3.1
     # via pre-commit
@@ -503,8 +502,6 @@ six==1.16.0
     #   tox
     #   virtualenv
     #   websocket-client
-sndfile==0.2.0
-    # via dallinger
 sniffio==1.2.0
     # via trio
 snowballstemmer==2.2.0
@@ -512,7 +509,9 @@ snowballstemmer==2.2.0
 sortedcontainers==2.4.0
     # via trio
 soundfile==0.10.3.post1
-    # via librosa
+    # via
+    #   dallinger
+    #   librosa
 sphinx==4.3.0
     # via
     #   dallinger

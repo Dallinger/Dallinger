@@ -61,7 +61,7 @@ setup_args = dict(
         "gunicorn",
         "heroku3",
         "librosa",
-        "sndfile",
+        "soundfile",
         "localconfig",
         "pexpect",
         "pip>=20",
