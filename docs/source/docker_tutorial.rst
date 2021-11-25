@@ -1,11 +1,11 @@
 Docker tutorial
 ===============
 
-If you're new to docker, this tutorial will go through the basic concepts
+If you're new to Docker, this tutorial will go through the basic concepts
 you need to get started.
 
-This tutorial assumes you already installed docker and dallinger with the
-docker extra (using a command like ``pip install --user dallinger[docker]``).
+This tutorial assumes you already installed Docker and dallinger with the
+Docker extra (using a command like ``pip install --user dallinger[docker,data]``).
 
 Images
 ------
@@ -27,7 +27,7 @@ To list the images in your system, run:
     REPOSITORY   TAG       IMAGE ID   CREATED   SIZE
 
 The above output shows that there are no images in your system.
-Now let's build a docker image for one of the demo experiments:
+Now let's build a Docker image for one of the demo experiments:
 
 .. code-block:: shell
 
@@ -39,10 +39,10 @@ Now let's build a docker image for one of the demo experiments:
     ...
     Built image: ghcr.io/dallinger/dallinger/bartlett1932:e3ca8804
 
-Dallinger invoked docker to build an image for the experiment. It used the dallinger
+Dallinger invoked ``docker`` to build an image for the experiment. It used the dallinger
 image corresponding to the version specified in the experiment's ``constraints.txt``
-file as a base, added the experiment to it, and packaged it up in a new docker image.
-The new image will now show up if you list docker images:
+file as a base, added the experiment to it, and packaged it up in a new Docker image.
+The new image will now show up if you list Docker images:
 
 .. code-block:: shell
 
@@ -96,7 +96,7 @@ you can see the four containers created:
 
 .. note::
 
-    The ``heroku`` part is there just for historical reasons, even if we're not using Heroku at all in this tutorial.
+    The ``heroku`` part in the ``COMMAND`` column is there just for historical reasons, even if we're not using Heroku at all in this tutorial.
 
 The ``PORTS`` column shows the ports that the containers are exposing. In particular the experiment will be reachable
 on port ``5000``.
