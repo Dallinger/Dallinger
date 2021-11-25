@@ -109,8 +109,8 @@ jobs:
           base_port: 5000
           threads: 1
           mturk_worker_id: ${{ secrets.MTURK_WORKER_ID }}
-          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           tox ${{ needs.check_mturk_changes.outputs.needs_mturk_tests == 'true' && '-- --mturkfull' || ''}}
           npm run test --coverage
@@ -121,8 +121,8 @@ jobs:
           PORT: 5000
           base_port: 5000
           threads: 1
-          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           tox -e fast
           npm run test --coverage

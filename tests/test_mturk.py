@@ -849,16 +849,6 @@ class TestMTurkServiceWithFakeConnection(object):
         with pytest.raises(MTurkServiceException):
             with_mock.check_credentials()
 
-    def test_check_credentials_no_creds_set_raises(self, with_mock):
-        creds = {
-            "aws_access_key_id": "",
-            "aws_secret_access_key": "",
-            "region_name": "us-east-1",
-        }
-        service = MTurkService(**creds)
-        with pytest.raises(MTurkServiceException):
-            service.check_credentials()
-
     def test_get_qualification_type_by_name_with_invalid_name_returns_none(
         self, with_mock
     ):

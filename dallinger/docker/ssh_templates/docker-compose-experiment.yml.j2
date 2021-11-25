@@ -28,6 +28,9 @@ services:
     {%- endfor %}
     networks:
       - dallinger
+    volumes:
+      - /var/lib/dallinger/{{ experiment_id }}:/var/lib/dallinger
+
   web:
     image: {{ experiment_image }}
     user: "${UID}:${GID}"
@@ -41,6 +44,8 @@ services:
       dallinger:
         aliases:
           - {{ experiment_id }}_web
+    volumes:
+      - /var/lib/dallinger/{{ experiment_id }}:/var/lib/dallinger
 
 volumes:
   dallinger_{{ experiment_id }}_redis_data:
