@@ -3,7 +3,8 @@ Releasing a new version of Dallinger
 
 1. After you've merged the changes you want into `master`, start a new branch on
 which to run the release version upgrade and update the CHANGELOG if that hasn't
-been done as part of feature branch work.
+been done as part of feature branch work. The entry should link to the new version's
+tree using: `https://github.com/dallinger/dallinger/tree/vX.X.X.`
 
 We’re using semantic versioning, so there are three parts to the version number. when making a release you need to decide which parts should get bumped, which determines what command you give to `bumpversion`. `major` is for breaking changes, `minor` for features, `patch` for bug fixes.
 
@@ -33,7 +34,7 @@ specify the version explicitly with the ``new-version`` option::
 2. Run `scripts/update_experiments_constraints.sh` to update the constraints.txt
 files in the demos.
 
-3. Link to the new version's tree using: `https://github.com/dallinger/dallinger/tree/vX.X.X.` Push your branch and create a PR with the `release` label.
+3.  Push your branch and create a PR with the `release` label.
 
 4. Merge this release with the commit "Release version X.X.X."
 
