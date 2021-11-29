@@ -1,6 +1,19 @@
 # Change Log
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v7.8.0](https://github.com/dallinger/dallinger/tree/v7.8.0) (2021-11-29)
+- Documentation: Docs for ``dallinger docker start-services``
+- Bugfix: Releases should now update dallinger.readthedocs.io correctly
+- Bugfix: Remove references to now-unsupported PhantonJS headless browser
+- Enhancement: ``dallinger debug`` now works without an internet connection
+- Bugfix: When setting environment variables on Heroku or in Docker containers, use an all
+  uppercase spelling of the AWS environment variables for better compatibility with recent
+  boto versions
+- Enhancement: when using the ``CLIRecruiter`` or ``HotAirRecruiter``, a message now
+  appears in the debug command output with the link to the recruiter ad URL with the
+  ``generate_tokens`` parameter enabled. (This link can be reused by any number of
+  participants.)
+
 ## [v7.7.0](https://github.com/dallinger/dallinger/tree/v7.7.0) (2021-10-07)
 - Experimental: new ``--archive`` option to ``dallinger docker-ssh deploy``
   command loads an existing database dump from a zipfile exported with the
