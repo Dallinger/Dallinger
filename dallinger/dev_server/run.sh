@@ -6,8 +6,10 @@ export FLASK_ENV="development"
 # but also have them terminate when control-c is sent to the
 # foreground Flask process:
 trap 'kill $WORKER_PID; kill $CLOCK_PID; exit' INT
+echo "Starting worker process..."
 dallinger_heroku_worker &
 WORKER_PID=$!
+echo "Starting clock process..."
 dallinger_heroku_clock &
 CLOCK_PID=$!
 
