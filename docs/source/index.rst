@@ -73,6 +73,7 @@ designing new experiments for others to use.
     creating_an_experiment
     networks
     docker_support
+    docker_tutorial
     the_experiment_class
     classes
     web_api
