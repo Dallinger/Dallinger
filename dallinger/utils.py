@@ -434,7 +434,10 @@ def bootstrap_development_session(exp_config, experiment_path, log):
 
     copy_file(develop_source_path / "app.py", dst / "app.py")
     copy_file(develop_source_path / "run.sh", dst / "run.sh")
-    (dst / "run.sh").chmod(0o744)  # Make run script executable
+    copy_file(develop_source_path / "run_flask.sh", dst / "run_flask.sh")
+    # Make run scripts executable
+    (dst / "run.sh").chmod(0o744)
+    (dst / "run_flask.sh").chmod(0o744)
 
     config.write(directory=dst)
 
