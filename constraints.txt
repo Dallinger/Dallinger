@@ -309,7 +309,7 @@ paramiko==2.8.1
     #   sshtunnel
 parsimonious==0.7.0
     # via sphinx-js
-parso==0.8.2
+parso==0.8.3
     # via jedi
 pathspec==0.9.0
     # via black
