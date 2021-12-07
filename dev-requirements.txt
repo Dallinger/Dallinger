@@ -435,7 +435,7 @@ requests==2.26.0
     #   docker-compose
     #   heroku3
     #   sphinx
-rq==1.10.0
+rq==1.10.1
     # via dallinger
 s3transfer==0.5.0
     # via boto3
