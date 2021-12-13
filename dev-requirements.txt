@@ -519,7 +519,7 @@ toml==0.10.2
     #   pre-commit
     #   pytest
     #   tox
-tomli==1.2.2
+tomli==2.0.0
     # via
     #   black
     #   build
