@@ -213,7 +213,7 @@ jmespath==0.10.0
     # via
     #   boto3
     #   botocore
-jsonschema==3.2.0
+jsonschema==4.3.2
     # via
     #   docker-compose
     #   nbformat
