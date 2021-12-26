@@ -122,7 +122,7 @@ et-xmlfile==1.1.0
     # via openpyxl
 faker==9.8.3
     # via dallinger
-filelock==3.4.0
+filelock==3.4.2
     # via
     #   tox
     #   virtualenv
