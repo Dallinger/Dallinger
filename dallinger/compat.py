@@ -13,6 +13,7 @@ if six.PY3:
         kw["newline"] = ""
         return open(*args, **kw)
 
+
 else:
     from webbrowser import _iscommand
 
