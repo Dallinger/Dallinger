@@ -12,7 +12,7 @@ async-generator==1.10
     # via
     #   trio
     #   trio-websocket
-attrs==21.2.0
+attrs==21.3.0
     # via
     #   outcome
     #   trio
