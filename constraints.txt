@@ -381,7 +381,7 @@ pypandoc==1.6.4
     # via dallinger
 pyparsing==3.0.6
     # via packaging
-pyrsistent==0.18.0
+pyrsistent==0.18.1
     # via jsonschema
 pytest==6.2.5
     # via
