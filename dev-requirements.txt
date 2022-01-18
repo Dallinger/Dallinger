@@ -343,7 +343,7 @@ prompt-toolkit==3.0.24
     #   jupyter-console
 psutil==5.8.0
     # via dallinger
-psycopg2==2.9.1
+psycopg2==2.9.3
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
