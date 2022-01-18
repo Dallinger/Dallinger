@@ -12,7 +12,7 @@ alabaster==0.7.12
     #   sphinx
 apscheduler==3.8.1
     # via dallinger
-argon2-cffi==21.1.0
+argon2-cffi==21.3.0
     # via notebook
 async-generator==1.10
     # via
