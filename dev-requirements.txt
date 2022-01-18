@@ -490,7 +490,7 @@ sphinxcontrib-serializinghtml==1.1.5
     # via sphinx
 sphinxcontrib-spelling==7.2.1
     # via dallinger
-sqlalchemy==1.4.27
+sqlalchemy==1.4.29
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy

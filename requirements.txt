@@ -162,7 +162,7 @@ sniffio==1.2.0
     # via trio
 sortedcontainers==2.4.0
     # via trio
-sqlalchemy==1.4.27
+sqlalchemy==1.4.29
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
