@@ -181,7 +181,7 @@ ipykernel==6.7.0
     #   jupyter-console
     #   notebook
     #   qtconsole
-ipython==7.30.0
+ipython==8.0.1
     # via
     #   ipykernel
     #   ipywidgets
