@@ -159,7 +159,7 @@ greenlet==1.1.2
     #   sqlalchemy
 gunicorn==20.1.0
     # via dallinger
-h11==0.12.0
+h11==0.13.0
     # via wsproto
 heroku3==5.1.4
     # via dallinger
