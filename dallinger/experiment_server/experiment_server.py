@@ -143,6 +143,12 @@ if exp_klass is not None:  # pragma: no cover
             else:
                 tabs.insert(route["title"], route_name)
 
+    # This hides dashboard tabs from view, but doesn't prevent the routes from
+    # being registered
+    hidden_dashboards = getattr(exp_klass, "hidden_dashboards", ())
+    for route_name in hidden_dashboards:
+        dashboard.dashboard_tabs.remove(route_name)
+
 
 # Ideally, we'd only load recruiter routes if the recruiter is active, but
 # it turns out this is complicated, so for now we always register our
