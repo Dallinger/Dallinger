@@ -187,8 +187,8 @@ class ProlificRecruiter(object):
             self.config.get("id")
         )  # ! Will this work OK?
         self.hit_domain = os.getenv("HOST")  # ? Does this make any sense?
-        self.mturkservice = ProlificService(
-            prolific_api_token=self.config.get("prolific:api_token"),
+        self.prolificservice = ProlificService(
+            prolific_api_token=self.config.get("prolific_api_token"),
         )
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
@@ -233,41 +233,33 @@ class ProlificRecruiter(object):
             "completion_code": self.completion_code,
             "completion_option": "url",
             "description": self.config.get("description"),
-            "device_compatibility": self.config.get(
-                "prolific:device_compatibility",
-                ["desktop", "mobile", "tablet"],  # ! needs parsing
+            # may be overriden in prolific_recruitment_config, but it's required
+            # so we provide a default of "allow anyone":
+            "eligibility_requirements": [],
+            "estimated_completion_time": self.config.get(
+                "prolific_estimated_completion_minutes"
             ),
-            "duration_hours": self.config.get("duration"),
-            "eligibility_requirements": self.config.get(
-                "prolific:eligibility_requirements", []
-            ),
-            # TODO should this be self.config.get("prolific:estimated_completion_time")?
-            # Sounds like this is really different than MTurk's `duration`
-            "estimated_completion_time": self.config.get("duration"),
             "external_study_url": self.ad_url,
             "internal_name": "{} ({})".format(
                 self.config.get("title"), self.config.get("id")
             ),
-            # TODO Max time in minutes for a participant to finish the submission.
-            # Submissions are timed out if it takes longer. Make sure it is not too low.
-            # At least two minutes plus two times the estimated time plus
-            # two times the square root of the estimated time.
-            # It was previously missing from the documentation.
-            # We plan to make it optional but for now is mandatory.
-            "maximum_allowed_time": 0,  # TODO
+            "maximum_allowed_time": self.config.get(
+                "prolific_maximum_allowed_minutes",
+                3 * self.config.get("prolific_estimated_completion_minutes") + 2,
+            ),
             "name": "{} ({})".format(
                 self.config.get("title"), heroku_tools.app_name(self.config.get("id"))
             ),
-            "peripheral_requirements": self.config.get(
-                "prolific:peripheral_requirements", []
-            ),
             "prolific_id_option": "url_parameters",
-            "reward": self.config.get(
-                "prolific:reward"
-            ),  # This is the hourly rate, in cents. Prolific uses the currency of your account.
+            "reward": self.config.get("prolific_reward"),
             "status": "ACTIVE",
             "total_available_places": n,
         }
+        # Merge in any explicit configuration untouched:
+        if self.config.get("prolific_recruitment_config", None) is not None:
+            explicit_config = json.loads(self.config.get("prolific_recruitment_config"))
+            study_request.extend(explicit_config)
+
         study_info = self.prolificservice.create_study(**study_request)
         url = study_info["worker_url"]
 
@@ -298,7 +290,7 @@ class ProlificRecruiter(object):
             participant_data["entry_information"] = entry_information
         return participant_data
 
-    def recruit(self, n=1):
+    def recruit(self, n: int = 1):
         """Recruit `n` new participants to an existing Prolific Study"""
         # TODO implement me
         # new_total = get_existing_total_somehow() + n

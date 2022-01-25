@@ -38,8 +38,8 @@ num_dynos_web = 1
 num_dynos_worker = 1
 
 [Prolific]
-prolific:api_token = YourProlificToken
-prolific:device_compatibility = []
-prolific:eligibility_requirements = []
-prolific:peripheral_requirements = []
-prolific:reward = YourProlificHourlyRate
+prolific_api_token = YourProlificToken
+prolific_estimated_completion_minutes = 0
+prolific_maximum_allowed_minutes = 0
+prolific_recruitment_config = {}
+prolific_reward = YourProlificHourlyRate

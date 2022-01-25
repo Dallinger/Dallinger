@@ -168,6 +168,36 @@ Amazon Mechanical Turk Recruitment
     Obsolete.
 
 
+Prolific Recruitment
+~~~~~~~~~~~~~~~~~~~~
+
+``prolific_api_token`` *unicode*
+    Your Prolific API token. These are requested from Prolific via email or some
+    other non-programmatic channel, and should be stored in your ``~/.dallingerconfig``
+    file.
+
+``prolific_estimated_completion_minutes`` *int*
+    Estimated duration in minutes of the experiment or survey
+
+``prolific_maximum_allowed_minutes`` *int*
+    Max time in minutes for a participant to finish the submission.
+    Submissions are timed out if it takes longer. Make sure it is not too low.
+    The default is 3 x the ``prolific_estimated_completion_minutes`` plus two
+    minutes.
+
+``prolific_recruitment_config`` *unicode - JSON formatted*
+    JSON data to add additional recruitment parameters. This would typically include:
+    - ``device_compatibility``
+    - ``peripheral_requirements``
+    - ``eligibility_requirements``
+
+    See the `Prolific API Documentation <https://docs.prolific.co/docs/api-docs/public/#tag/Studies/paths/~1api~1v1~1studies~1/post>__`
+    for details.
+
+``prolific_reward`` *int*
+    Base pay you going to give the participants, in cents.
+    Prolific will use the currency of your account.
+
 Preventing Repeat Participants
 """"""""""""""""""""""""""""""
 
