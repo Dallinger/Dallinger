@@ -44,7 +44,8 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
-    'sphinx_js'
+    'sphinx_js',
+    'recommonmark',
 ]
 
 try:
@@ -403,11 +404,6 @@ texinfo_documents = [
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #
 # texinfo_no_detailmenu = False
-
-# -- Allow Markdown files -----------------------------------------
-
-extensions = ['recommonmark']
-
 
 # -- Install demo files -------------------------------------------
 
