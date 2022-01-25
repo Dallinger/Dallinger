@@ -27,7 +27,7 @@ class ProlificService:
 
         payload = {
             "study_id": study_id,
-            "csv_bonuses": f"{worker_id},{amount_str}\n",  # ? trailing newline?
+            "csv_bonuses": f"{worker_id},{amount_str}",
         }
 
         logger.info(f"Would be sending bonus request: {payload}")

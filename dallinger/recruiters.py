@@ -241,13 +241,20 @@ class ProlificRecruiter(object):
             "eligibility_requirements": self.config.get(
                 "prolific:eligibility_requirements", []
             ),
-            "estimated_completion_time": self.config.get(
-                "duration"
-            ),  # TODO should this be self.config.get("prolific:estimated_completion_time")?
+            # TODO should this be self.config.get("prolific:estimated_completion_time")?
+            # Sounds like this is really different than MTurk's `duration`
+            "estimated_completion_time": self.config.get("duration"),
             "external_study_url": self.ad_url,
             "internal_name": "{} ({})".format(
                 self.config.get("title"), self.config.get("id")
             ),
+            # TODO Max time in minutes for a participant to finish the submission.
+            # Submissions are timed out if it takes longer. Make sure it is not too low.
+            # At least two minutes plus two times the estimated time plus
+            # two times the square root of the estimated time.
+            # It was previously missing from the documentation.
+            # We plan to make it optional but for now is mandatory.
+            "maximum_allowed_time": 0,  # TODO
             "name": "{} ({})".format(
                 self.config.get("title"), heroku_tools.app_name(self.config.get("id"))
             ),
@@ -292,10 +299,11 @@ class ProlificRecruiter(object):
         return participant_data
 
     def recruit(self, n=1):
-        """Dynamic recruitment is not currently supported."""
-        logger.warn(
-            f"The {self.__class__.__name__} does not support recruitment after the initial group."
-        )
+        """Recruit `n` new participants to an existing Prolific Study"""
+        # TODO implement me
+        # new_total = get_existing_total_somehow() + n
+        # self.prolificservice.update_study_participant_total(new_total)
+        raise NotImplementedError
 
     def close_recruitment(self):
         """We don't actually do anything here."""
@@ -328,7 +336,7 @@ class ProlificRecruiter(object):
             external_submit_url=self.external_submission_url,
         )
 
-    def reward_bonus(self, assignment_id, amount, reason):
+    def reward_bonus(self, participant_id, worker_id, assignment_id, amount, reason):
         """Reward the Prolific worker for a specified assignment with a bonus."""
 
         # ! We'll need the participant ID here!
@@ -341,7 +349,7 @@ class ProlificRecruiter(object):
         # * This should not be a problem, because the only call site is
         # * the AssignmentSubmitted worker event
         try:
-            return self.prolificservice.grant_bonus(assignment_id, amount, reason)
+            return self.prolificservice.grant_bonus("some study ID", worker_id, amount)
         except ProlificServiceException as ex:
             logger.exception(str(ex))
 
