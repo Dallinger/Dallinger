@@ -138,6 +138,20 @@ def aws_creds():
 
 
 @pytest.fixture
+def prolific_creds():
+    from dallinger.config import get_config
+
+    config = get_config()
+    if not config.ready:
+        config.load()
+    creds = {
+        "prolific_api_token": config.get("prolific_api_token"),
+        "prolific_api_version": config.get("prolific_api_version"),
+    }
+    return creds
+
+
+@pytest.fixture
 def fake_parsed_hit():
     """Format returned by dallinger.mturk.MTurkService"""
     return {
@@ -158,6 +172,28 @@ def fake_parsed_hit():
         "title": "Fake HIT Title",
         "type_id": "fake type id",
         "worker_url": "http://the-hit-url",
+    }
+
+
+@pytest.fixture
+def fake_parsed_prolific_study():
+    """Format returned by dallinger.prolific.ProlificService"""
+    return {
+        "id": "60d9aadeb86739de712faee0",
+        "name": "Study about API's",
+        "internal_name": "WIT-2021 Study about API's version 2",
+        "description": "This study aims to determine how to make a good public API",
+        "external_study_url": "https://my-dallinger-app.com/?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}",
+        "prolific_id_option": "url_parameters",
+        "completion_code": "7EF9FD0D",
+        "completion_option": "url",
+        "total_available_places": 30,
+        "estimated_completion_time": 5,
+        "reward": 13,
+        "device_compatibility": ["desktop"],
+        "peripheral_requirements": [],
+        "eligibility_requirements": [],
+        "status": "UNPUBLISHED",
     }
 
 

@@ -318,6 +318,80 @@ class TestBotRecruiter(object):
         assert bot.status == "rejected"
 
 
+@pytest.fixture
+def notifies_admin():
+    from dallinger.notifications import NotifiesAdmin
+
+    mock_notifies_admin = mock.create_autospec(NotifiesAdmin)
+    yield mock_notifies_admin
+
+
+@pytest.fixture
+def mailer():
+    from dallinger.notifications import SMTPMailer
+
+    mock_mailer = mock.create_autospec(SMTPMailer)
+    yield mock_mailer
+
+
+@pytest.fixture
+def prolific_config(active_config):
+    prolific_extensions = {
+        "prolific_api_token": "fake Prolific API token",
+        "prolific_api_version": "v1",
+        "prolific_estimated_completion_minutes": 5,
+        "prolific_reward_cents": 10,
+    }
+    active_config.extend(prolific_extensions)
+
+    return active_config
+
+
+@pytest.fixture
+def prolificservice(prolific_config, fake_parsed_prolific_study):
+    from dallinger.prolific import ProlificService
+
+    service = mock.create_autospec(
+        ProlificService,
+        api_token=prolific_config.get("prolific_api_token"),
+        api_version=prolific_config.get("prolific_api_version"),
+    )
+
+    service.create_study.return_value = fake_parsed_prolific_study
+
+    return service
+
+
+@pytest.mark.usefixtures("prolific_config")
+class TestProlificRecruiter(object):
+    @pytest.fixture
+    def recruiter(self, mailer, notifies_admin, prolificservice, hit_id_store):
+        from dallinger.recruiters import ProlificRecruiter
+
+        with mock.patch.multiple(
+            "dallinger.recruiters", os=mock.DEFAULT, get_base_url=mock.DEFAULT
+        ) as mocks:
+            mocks["get_base_url"].return_value = "http://fake-domain"
+            mocks["os"].getenv.return_value = "fake-host-domain"
+            r = ProlificRecruiter(store=hit_id_store)
+            r.notifies_admin = notifies_admin
+            r.mailer = mailer
+            r.prolificservice = prolificservice
+
+            return r
+
+    def test_open_recruitment_with_valid_request(self, recruiter):
+        result = recruiter.open_recruitment(n=5)
+        assert result["message"] == "Study now published on Prolific"
+
+    def test_open_recruitment_raises_if_study_already_in_progress(self, recruiter):
+        from dallinger.recruiters import ProlificRecruiterException
+
+        recruiter.open_recruitment()
+        with pytest.raises(ProlificRecruiterException):
+            recruiter.open_recruitment()
+
+
 class TestMTurkRecruiterMessages(object):
     @pytest.fixture
     def summary(self, a, stub_config):
@@ -515,20 +589,6 @@ def hit_id_store():
 
 @pytest.mark.usefixtures("active_config", "requests", "queue")
 class TestMTurkRecruiter(object):
-    @pytest.fixture
-    def notifies_admin(self):
-        from dallinger.notifications import NotifiesAdmin
-
-        mock_notifies_admin = mock.create_autospec(NotifiesAdmin)
-        yield mock_notifies_admin
-
-    @pytest.fixture
-    def mailer(self):
-        from dallinger.notifications import SMTPMailer
-
-        mock_mailer = mock.create_autospec(SMTPMailer)
-        yield mock_mailer
-
     @pytest.fixture
     def recruiter(
         self, active_config, notifies_admin, mailer, mturkservice, hit_id_store

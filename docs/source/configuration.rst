@@ -176,6 +176,10 @@ Prolific Recruitment
     other non-programmatic channel, and should be stored in your ``~/.dallingerconfig``
     file.
 
+``prolific_api_version`` *unicode*
+    The version of the Prolific API you'd like to use. The default ("v1") is
+    defined in global_config_defaults.txt
+
 ``prolific_estimated_completion_minutes`` *int*
     Estimated duration in minutes of the experiment or survey
 
@@ -194,7 +198,7 @@ Prolific Recruitment
     See the `Prolific API Documentation <https://docs.prolific.co/docs/api-docs/public/#tag/Studies/paths/~1api~1v1~1studies~1/post>__`
     for details.
 
-``prolific_reward`` *int*
+``prolific_reward_cents`` *int*
     Base pay you going to give the participants, in cents.
     Prolific will use the currency of your account.
 

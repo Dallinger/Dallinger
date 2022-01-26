@@ -163,52 +163,106 @@ class Recruiter(object):
         return "AssignmentSubmitted"
 
 
-def alphanumeric_secret(seed: str, len: int = 0):
+def alphanumeric_secret(seed: str, length: int = 8):
+    """Return and alphanumeric string of specified length based on a
+    seed value, so the same result will always be returned for a given
+    seed.
+    """
     chooser = random.Random(seed)
-    alphabet = string.ascii_letters + string.digits
-    return "".join(chooser.choice(alphabet) for i in range(len))
+    alphabet = string.ascii_uppercase + string.digits
+    return "".join(chooser.choice(alphabet) for i in range(length))
+
+
+def _build_study_request_from_config(ad_url, num_participants, config):
+    """
+    Example submission:
+    {
+        "completion_code": "7EF9FD0D",
+        "completion_option": "url",
+        "description": "This study aims to determine how to make a good public API",
+        "device_compatibility": ["desktop"],
+        "eligibility_requirements": "TODO",
+        "estimated_completion_time": 5,
+        "external_study_url": "https://my-awesome-ice-cream-study.com?participant={{%PROLIFIC_PID%}}",
+        "id": "60d9aadeb86739de712faee0",
+        "internal_name": "Study about API's version2",
+        "name": "Study about API's",
+        "peripheral_requirements": [],
+        "prolific_id_option": "url_parameters",
+        "reward": 13,
+        "status": "UNPUBLISHED"
+        "total_available_places": 30,
+    }
+    """
+    study_request = {
+        "completion_code": alphanumeric_secret(config.get("id")),
+        "completion_option": "url",
+        "description": config.get("description"),
+        # may be overriden in prolific_recruitment_config, but it's required
+        # so we provide a default of "allow anyone":
+        "eligibility_requirements": [],
+        "estimated_completion_time": config.get(
+            "prolific_estimated_completion_minutes"
+        ),
+        "external_study_url": ad_url,
+        "internal_name": "{} ({})".format(config.get("title"), config.get("id")),
+        "maximum_allowed_time": config.get(
+            "prolific_maximum_allowed_minutes",
+            3 * config.get("prolific_estimated_completion_minutes") + 2,
+        ),
+        "name": "{} ({})".format(
+            config.get("title"), heroku_tools.app_name(config.get("id"))
+        ),
+        "prolific_id_option": "url_parameters",
+        "reward": config.get("prolific_reward_cents"),
+        "status": "ACTIVE",
+        "total_available_places": num_participants,
+    }
+    # Merge in any explicit configuration untouched:
+    if config.get("prolific_recruitment_config", None) is not None:
+        explicit_config = json.loads(config.get("prolific_recruitment_config"))
+        study_request.extend(explicit_config)
+
+    return study_request
 
 
 class ProlificRecruiterException(Exception):
     """Custom exception for ProlificRecruiter"""
 
 
-class ProlificRecruiter(object):
+class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.co/)"""
 
     nickname = "prolific"
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__()
         self.config = get_config()
         base_url = get_base_url()
         self.ad_url = "{}/ad?recruiter={}".format(base_url, self.nickname)
-        self.completion_code = alphanumeric_secret(
-            self.config.get("id")
-        )  # ! Will this work OK?
-        self.hit_domain = os.getenv("HOST")  # ? Does this make any sense?
+        self.completion_code = alphanumeric_secret(self.config.get("id"))
+        self.study_domain = os.getenv("HOST")
         self.prolificservice = ProlificService(
-            prolific_api_token=self.config.get("prolific_api_token"),
+            api_token=self.config.get("prolific_api_token"),
+            api_version=self.config.get("prolific_api_version"),
         )
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
-        self._validate_config()
 
     def open_recruitment(self, n: int = 1) -> dict:
         """Create a Study on Prolific."""
         logger.info("Opening Prolific recruitment for {} participants".format(n))
-        if self.is_in_progress:  # ! TODO
+        if self.is_in_progress:
             raise ProlificRecruiterException(
                 "Tried to open_recruitment on already open ProlificRecruiter."
             )
 
-        if self.hit_domain is None:
+        if self.study_domain is None:
             raise ProlificRecruiterException(
                 "Can't run a Prolific Study from localhost"
             )
 
-        self.prolificservice.check_credentials()  # ? Mturk does this. Is there any point here (or there)?
         """
         Example submission:
         {
@@ -251,7 +305,7 @@ class ProlificRecruiter(object):
                 self.config.get("title"), heroku_tools.app_name(self.config.get("id"))
             ),
             "prolific_id_option": "url_parameters",
-            "reward": self.config.get("prolific_reward"),
+            "reward": self.config.get("prolific_reward_cents"),
             "status": "ACTIVE",
             "total_available_places": n,
         }
@@ -261,7 +315,8 @@ class ProlificRecruiter(object):
             study_request.extend(explicit_config)
 
         study_info = self.prolificservice.create_study(**study_request)
-        url = study_info["worker_url"]
+        self._record_current_study_id(study_info["id"])
+        url = study_info["external_study_url"]
 
         return {
             "items": [url],
@@ -354,6 +409,26 @@ class ProlificRecruiter(object):
             "Received notification that some participants "
             "have been active for too long. No action taken."
         )
+
+    @property
+    def current_study_id(self):
+        """Return the ID of the Study associated with the active experiment ID
+        if any such Study exists.
+        """
+        return self.store.get(self.study_id_storage_key)
+
+    @property
+    def is_in_progress(self):
+        """Does an Study for the current experiment ID already exist?"""
+        return self.current_study_id is not None
+
+    @property
+    def study_id_storage_key(self):
+        experiment_id = self.config.get("id")
+        return "{}:{}".format(self.__class__.__name__, experiment_id)
+
+    def _record_current_study_id(self, study):
+        self.store.set(self.study_id_storage_key, study)
 
 
 class CLIRecruiter(Recruiter):
@@ -738,7 +813,7 @@ class MTurkRecruiter(Recruiter):
     extra_routes = mturk_routes
 
     def __init__(self, *args, **kwargs):
-        super(MTurkRecruiter, self).__init__()
+        super().__init__()
         self.config = get_config()
         base_url = get_base_url()
         self.ad_url = "{}/ad?recruiter={}".format(base_url, self.nickname)
