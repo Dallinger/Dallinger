@@ -312,7 +312,7 @@ class ProlificRecruiter(Recruiter):
         # Merge in any explicit configuration untouched:
         if self.config.get("prolific_recruitment_config", None) is not None:
             explicit_config = json.loads(self.config.get("prolific_recruitment_config"))
-            study_request.extend(explicit_config)
+            study_request.update(explicit_config)
 
         study_info = self.prolificservice.create_study(**study_request)
         self._record_current_study_id(study_info["id"])
