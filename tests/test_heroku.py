@@ -183,6 +183,7 @@ class TestHerokuUtilFunctions(object):
         assert headers["Authorization"] == "Bearer fake-token"
 
 
+@pytest.mark.usefixtures("patch_netrc")
 class TestHerokuApp(object):
     @pytest.fixture
     def temp_repo(self, in_tempdir, stub_config):

@@ -189,7 +189,7 @@ def custom_app_output():
         yield check_output
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture
 def patch_netrc():
     with mock.patch("dallinger.heroku.tools.netrc.netrc") as netrc:
         netrc.return_value.hosts = {"api.heroku.com": ["test@example.com"]}
