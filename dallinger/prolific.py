@@ -17,6 +17,8 @@ class ProlificService:
 
     def __init__(self, api_token: str, api_version: str):
         self.api_token = api_token
+        # For error logging:
+        self.api_token_fragment = f"{api_token[:3]}...{api_token[-3:]}"
         self.api_version = api_version
 
     @property
@@ -75,6 +77,11 @@ class ProlificService:
 
         return self._req(method="POST", endpoint="/studies/", json=payload)
 
+    def delete_study(self, study_id: str) -> bool:
+        """Delete a Study entirely"""
+        response = self._req(method="DELETE", endpoint=f"/studies/{study_id}")
+        return response == {"status_code": 204}
+
     def grant_bonus(study_id: str, worker_id: str, amount: float) -> bool:
         """Pay a worker a bonus"""
         amount_str = "{:.2f}".format(amount)
@@ -106,15 +113,19 @@ class ProlificService:
     def _req(self, method: str, endpoint: str, **kw) -> dict:
         headers = {"Authorization": f"Token {self.api_token}"}
         url = f"{self.api_root}{endpoint}"
-        response = requests.request(method, url, headers=headers, **kw).json()
+        response = requests.request(method, url, headers=headers, **kw)
 
-        if "error" in response:
+        if method == "DELETE" and response.ok:
+            return {"status_code": response.status_code}
+
+        parsed = response.json()
+        if "error" in parsed:
             error = {
-                "token": f"{self.api_token[:3]}...{self.api_token[-3:]}",
+                "token": self.api_token_fragment,
                 "URL": url,
                 "args": kw,
-                "response": response,
+                "response": parsed,
             }
             raise ProlificServiceException(json.dumps(error))
 
-        return response
+        return parsed

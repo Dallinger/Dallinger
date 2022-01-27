@@ -112,3 +112,5 @@ def test_create_study(subject):
     result = subject.create_study(**study_request)
 
     assert "id" in result
+
+    assert subject.delete_study(study_id=result["id"])
