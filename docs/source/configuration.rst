@@ -198,9 +198,17 @@ Prolific Recruitment
     See the `Prolific API Documentation <https://docs.prolific.co/docs/api-docs/public/#tag/Studies/paths/~1api~1v1~1studies~1/post>__`
     for details.
 
+    Configuration can also be stored in a separate JSON file, and included by using the
+    filename, prefixed with ``file:``, as the configuration value. For example, to use a
+    JSON file called ``prolific_config.json``, you would add the following to your
+    config.txt file:
+
+        prolific_recruitment_config = file:prolific_config.json
+
 ``prolific_reward_cents`` *int*
     Base pay you going to give the participants, in cents.
     Prolific will use the currency of your account.
+
 
 Preventing Repeat Participants
 """"""""""""""""""""""""""""""
