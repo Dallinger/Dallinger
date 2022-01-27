@@ -7,7 +7,7 @@ study_request = {
     "description": "fake HIT description",
     "eligibility_requirements": [],
     "estimated_completion_time": 5,
-    "external_study_url": "https://www.example.com/ad?recruiter=prolific",
+    "external_study_url": "https://www.example.com/ad?recruiter=prolific&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}",
     "internal_name": "fake experiment title (TEST_EXPERIMENT_UID)",
     "maximum_allowed_time": 17,
     "name": "fake experiment title (dlgr-TEST_EXPERIMENT_UI)",

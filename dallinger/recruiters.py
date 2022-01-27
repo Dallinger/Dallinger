@@ -240,7 +240,8 @@ class ProlificRecruiter(Recruiter):
             "estimated_completion_time": self.config.get(
                 "prolific_estimated_completion_minutes"
             ),
-            "external_study_url": self.ad_url,
+            "external_study_url": self.ad_url
+            + "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}",
             "internal_name": "{} ({})".format(
                 self.config.get("title"), self.config.get("id")
             ),
@@ -297,7 +298,9 @@ class ProlificRecruiter(Recruiter):
     def approve_hit(self, assignment_id: str):
         """Approve a participant's assignment/submission on Prolific"""
         try:
-            return self.prolificservice.approve_assignment(session_id=assignment_id)
+            return self.prolificservice.approve_participant_session(
+                session_id=assignment_id
+            )
         except ProlificServiceException as ex:
             logger.exception(str(ex))
 

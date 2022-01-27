@@ -26,7 +26,7 @@ class ProlificService:
         """The root URL for API calls."""
         return f"https://api.prolific.co/api/{self.api_version}"
 
-    def approve_assignment(self, session_id: str) -> dict:
+    def approve_participant_session(self, session_id: str) -> dict:
         """Mark an assignment as approved."""
         return self._req(
             method="POST",
