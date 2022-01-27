@@ -422,12 +422,12 @@ var dallinger = (function () {
     var url = "/participant";
     var data = {};
     var deferred = $.Deferred();
-    if (dlgr.identity.assignmentId) {
+    if (dlgr.identity.entryInformation) {
+      data = dlgr.identity.entryInformation;
+    } else {
       url += "/" + dlgr.identity.workerId + "/" + dlgr.identity.hitId +
             "/" + dlgr.identity.assignmentId + "/" + dlgr.identity.mode + "?fingerprint_hash=" +
             (dlgr.identity.fingerprintHash) + '&recruiter=' + dlgr.identity.recruiter;
-    } else {
-      data = dlgr.identity.entryInformation;
     }
 
     if (dlgr.identity.participantId !== undefined && dlgr.identity.participantId !== 'undefined') {
