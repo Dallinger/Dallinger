@@ -1,6 +1,6 @@
 import logging
 import requests
-from typing import Optional
+from typing import List, Optional
 
 logger = logging.getLogger(__file__)
 
@@ -33,7 +33,7 @@ class ProlificService:
         completion_code: str,
         completion_option: str,  # TODO REMOVE ME
         description: str,
-        eligibility_requirements: list[dict],
+        eligibility_requirements: List[dict],
         estimated_completion_time: int,
         external_study_url: str,
         internal_name: str,
@@ -43,8 +43,8 @@ class ProlificService:
         reward: int,
         status: str,  # TODO REMOVE ME
         total_available_places: int,
-        device_compatibility: Optional[list[str]] = None,
-        peripheral_requirements: Optional[list[str]] = None,
+        device_compatibility: Optional[List[str]] = None,
+        peripheral_requirements: Optional[List[str]] = None,
     ) -> dict:
         """Create a Study on Prolific, and return info about it."""
 
