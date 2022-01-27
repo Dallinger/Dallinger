@@ -173,59 +173,6 @@ def alphanumeric_secret(seed: str, length: int = 8):
     return "".join(chooser.choice(alphabet) for i in range(length))
 
 
-def _build_study_request_from_config(ad_url, num_participants, config):
-    """
-    Example submission:
-    {
-        "completion_code": "7EF9FD0D",
-        "completion_option": "url",
-        "description": "This study aims to determine how to make a good public API",
-        "device_compatibility": ["desktop"],
-        "eligibility_requirements": "TODO",
-        "estimated_completion_time": 5,
-        "external_study_url": "https://my-awesome-ice-cream-study.com?participant={{%PROLIFIC_PID%}}",
-        "id": "60d9aadeb86739de712faee0",
-        "internal_name": "Study about API's version2",
-        "name": "Study about API's",
-        "peripheral_requirements": [],
-        "prolific_id_option": "url_parameters",
-        "reward": 13,
-        "status": "UNPUBLISHED"
-        "total_available_places": 30,
-    }
-    """
-    study_request = {
-        "completion_code": alphanumeric_secret(config.get("id")),
-        "completion_option": "url",
-        "description": config.get("description"),
-        # may be overriden in prolific_recruitment_config, but it's required
-        # so we provide a default of "allow anyone":
-        "eligibility_requirements": [],
-        "estimated_completion_time": config.get(
-            "prolific_estimated_completion_minutes"
-        ),
-        "external_study_url": ad_url,
-        "internal_name": "{} ({})".format(config.get("title"), config.get("id")),
-        "maximum_allowed_time": config.get(
-            "prolific_maximum_allowed_minutes",
-            3 * config.get("prolific_estimated_completion_minutes") + 2,
-        ),
-        "name": "{} ({})".format(
-            config.get("title"), heroku_tools.app_name(config.get("id"))
-        ),
-        "prolific_id_option": "url_parameters",
-        "reward": config.get("prolific_reward_cents"),
-        "status": "ACTIVE",
-        "total_available_places": num_participants,
-    }
-    # Merge in any explicit configuration untouched:
-    if config.get("prolific_recruitment_config", None) is not None:
-        explicit_config = json.loads(config.get("prolific_recruitment_config"))
-        study_request.extend(explicit_config)
-
-    return study_request
-
-
 class ProlificRecruiterException(Exception):
     """Custom exception for ProlificRecruiter"""
 
@@ -239,7 +186,7 @@ class ProlificRecruiter(Recruiter):
         super().__init__()
         self.config = get_config()
         base_url = get_base_url()
-        self.ad_url = "{}/ad?recruiter={}".format(base_url, self.nickname)
+        self.ad_url = f"{base_url}/ad?recruiter={self.nickname}"
         self.completion_code = alphanumeric_secret(self.config.get("id"))
         self.study_domain = os.getenv("HOST")
         self.prolificservice = ProlificService(
@@ -252,7 +199,7 @@ class ProlificRecruiter(Recruiter):
 
     def open_recruitment(self, n: int = 1) -> dict:
         """Create a Study on Prolific."""
-        logger.info("Opening Prolific recruitment for {} participants".format(n))
+        logger.info(f"Opening Prolific recruitment for {n} participants")
         if self.is_in_progress:
             raise ProlificRecruiterException(
                 "Tried to open_recruitment on already open ProlificRecruiter."
@@ -355,7 +302,8 @@ class ProlificRecruiter(Recruiter):
             logger.exception(str(ex))
 
     def close_recruitment(self):
-        """TODO ?"""
+        """Move the Study status to COMPLETED?"""
+        # TODO implement me if necessary
         logger.info("Closing recruitment...")
 
     @property
