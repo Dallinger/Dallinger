@@ -708,6 +708,7 @@ class TestHerokuInfo(object):
             },
         ]
 
+    @pytest.mark.usefixtures("patch_netrc")
     def test_my_apps(self, info, custom_app_output):
         app_info = info.my_apps()
         custom_app_output.assert_has_calls(

@@ -333,13 +333,8 @@ class ProlificRecruiter(Recruiter):
 
         participant_data = {
             "hit_id": entry_information["STUDY_ID"],
-            "worker_id": entry_information.get("PROLIFIC_PID"),
-            "assignment_id": ":".join(
-                [
-                    entry_information["SESSION_ID"],
-                    entry_information.get("PROLIFIC_PID"),
-                ]
-            ),
+            "worker_id": entry_information["PROLIFIC_PID"],
+            "assignment_id": entry_information["SESSION_ID"],
         }
         if entry_information:
             participant_data["entry_information"] = entry_information
@@ -352,8 +347,15 @@ class ProlificRecruiter(Recruiter):
         # self.prolificservice.update_study_participant_total(new_total)
         raise NotImplementedError
 
+    def approve_hit(self, assignment_id: str):
+        """Approve a participant's assignment/submission on Prolific"""
+        try:
+            return self.prolificservice.approve_assignment(session_id=assignment_id)
+        except ProlificServiceException as ex:
+            logger.exception(str(ex))
+
     def close_recruitment(self):
-        """We don't actually do anything here."""
+        """TODO ?"""
         logger.info("Closing recruitment...")
 
     @property

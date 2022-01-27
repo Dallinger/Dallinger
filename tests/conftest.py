@@ -63,6 +63,18 @@ def check_manual(request):
 
 
 @pytest.fixture(scope="module")
+def check_prolific(request):
+    if not request.config.getvalue("prolific"):
+        pytest.skip("--prolific was not specified")
+
+
+@pytest.fixture(scope="module")
+def check_prolific_writes(request):
+    if not request.config.getvalue("prolific_writes"):
+        pytest.skip("--prolific_writes was not specified")
+
+
+@pytest.fixture(scope="module")
 def check_s3buckets(request):
     if not request.config.getvalue("s3buckets"):
         pytest.skip("--s3buckets was not specified")
@@ -255,6 +267,18 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help="Run comprehensive MTurk integration tests during test run",
+    )
+    parser.addoption(
+        "--prolific",
+        action="store_true",
+        default=False,
+        help="Run comprehensive Prolific integration tests during test run",
+    )
+    parser.addoption(
+        "--prolific_writes",
+        action="store_true",
+        default=False,
+        help="Run Prolific integration tests which write to Proflific during test run",
     )
     parser.addoption(
         "--heroku", action="store_true", help="Run tests requiring heroku login"

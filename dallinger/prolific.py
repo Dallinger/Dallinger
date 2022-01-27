@@ -1,3 +1,4 @@
+import json
 import logging
 import requests
 from typing import List, Optional
@@ -23,10 +24,13 @@ class ProlificService:
         """The root URL for API calls."""
         return f"https://api.prolific.co/api/{self.api_version}"
 
-    def who_am_i(self):
-        """For testing authorization."""
-        headers = {"Authorization": f"Token {self.api_token}"}
-        return requests.get(f"{self.api_root}/users/me/", headers=headers)
+    def approve_assignment(self, session_id: str) -> dict:
+        """Mark an assignment as approved."""
+        return self._req(
+            method="POST",
+            endpoint=f"/submissions/{session_id}/transition/",
+            json={"action": "APPROVE"},
+        )
 
     def create_study(
         self,
@@ -69,12 +73,7 @@ class ProlificService:
         if peripheral_requirements is not None:
             payload["peripheral_requirements"] = peripheral_requirements
 
-        headers = {"Authorization": f"Token {self.api_token}"}
-        response = requests.post(
-            f"{self.api_root}/studies/", headers=headers, json=payload
-        )
-
-        return response.json()
+        return self._req(method="POST", endpoint="/studies/", json=payload)
 
     def grant_bonus(study_id: str, worker_id: str, amount: float) -> bool:
         """Pay a worker a bonus"""
@@ -99,3 +98,23 @@ class ProlificService:
         # response = requests.post(payment_endpoint)
 
         return False
+
+    def who_am_i(self) -> dict:
+        """For testing authorization."""
+        return self._req(method="GET", endpoint="/users/me/")
+
+    def _req(self, method: str, endpoint: str, **kw) -> dict:
+        headers = {"Authorization": f"Token {self.api_token}"}
+        url = f"{self.api_root}{endpoint}"
+        response = requests.request(method, url, headers=headers, **kw).json()
+
+        if "error" in response:
+            error = {
+                "token": f"{self.api_token[:3]}...{self.api_token[-3:]}",
+                "URL": url,
+                "args": kw,
+                "response": response,
+            }
+            raise ProlificServiceException(json.dumps(error))
+
+        return response

@@ -28,13 +28,29 @@ def subject(prolific_creds):
     )
 
 
+@pytest.mark.usefixtures("check_prolific")
+@pytest.mark.slow
+def test_all_methods_give_informative_error_messages(subject):
+    from dallinger.prolific import ProlificServiceException
+
+    subject.api_version = "junk"
+
+    with pytest.raises(ProlificServiceException) as ex_info:
+        subject.who_am_i()
+
+    assert ex_info.match('"URL": "https://api.prolific.co/api/junk/users/me/"')
+
+
+@pytest.mark.usefixtures("check_prolific")
+@pytest.mark.slow
 def test_who_am_i_returns_user_info(subject):
     result = subject.who_am_i()
 
-    assert result.status_code == 200
-    assert "id" in result.json()
+    assert "id" in result
 
 
+@pytest.mark.usefixtures("check_prolific_writes")
+@pytest.mark.slow
 def test_create_study(subject):
     """Result keys:
     [
