@@ -12,9 +12,9 @@ study_request = {
     "maximum_allowed_time": 17,
     "name": "fake experiment title (dlgr-TEST_EXPERIMENT_UI)",
     "prolific_id_option": "url_parameters",
-    "reward": 10,
+    "reward": 5,
     "status": "UNPUBLISHED",
-    "total_available_places": 5,
+    "total_available_places": 2,
 }
 
 

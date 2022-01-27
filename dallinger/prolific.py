@@ -82,7 +82,7 @@ class ProlificService:
         response = self._req(method="DELETE", endpoint=f"/studies/{study_id}")
         return response == {"status_code": 204}
 
-    def grant_bonus(study_id: str, worker_id: str, amount: float) -> bool:
+    def pay_session_bonus(self, study_id: str, worker_id: str, amount: float) -> bool:
         """Pay a worker a bonus"""
         amount_str = "{:.2f}".format(amount)
 
@@ -91,20 +91,17 @@ class ProlificService:
             "csv_bonuses": f"{worker_id},{amount_str}",
         }
 
-        logger.info(f"Would be sending bonus request: {payload}")
+        logger.info(f"Sending bonus request: {payload}")
 
-        # TODO Actually make request, etc.
-        # Set up bonus
-        # response = requests.post(blah)
+        payment_setup = self._req(
+            method="POST", endpoint="/submissions/bonus-payments/", json=payload
+        )
 
-        # Process bonus previously set up
-        # bonus_id = study_id  # ? maybe?
-        # payment_endpoint = (
-        #     f"https://api.prolific.co/api/v1/bulk-bonus-payments/{bonus_id}/pay/"
-        # )
-        # response = requests.post(payment_endpoint)
+        response = self._req(
+            "POST", endpoint=f"/bulk-bonus-payments/{payment_setup['id']}/pay/"
+        )
 
-        return False
+        return response
 
     def who_am_i(self) -> dict:
         """For testing authorization."""
