@@ -283,9 +283,9 @@ class ProlificRecruiter(Recruiter):
             "hit_id": entry_information["STUDY_ID"],
             "worker_id": entry_information["PROLIFIC_PID"],
             "assignment_id": entry_information["SESSION_ID"],
+            "entry_information": entry_information,
         }
-        if entry_information:
-            participant_data["entry_information"] = entry_information
+
         return participant_data
 
     def recruit(self, n: int = 1):
