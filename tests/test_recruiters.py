@@ -96,7 +96,9 @@ class TestRecruiter(object):
 
     def test_reward_bonus(self, recruiter):
         with pytest.raises(NotImplementedError):
-            recruiter.reward_bonus("any assignment id", 0.01, "You're great!")
+            recruiter.reward_bonus(
+                "any worker id", "any assignment id", 0.01, "You're great!"
+            )
 
     def test_external_submission_url(self, recruiter):
         assert recruiter.external_submission_url is None
@@ -176,7 +178,9 @@ class TestCLIRecruiter(object):
         assert recruiter.approve_hit("any assignment id")
 
     def test_reward_bonus(self, recruiter):
-        recruiter.reward_bonus("any assignment id", 0.01, "You're great!")
+        recruiter.reward_bonus(
+            "any worker id", "any assignment id", 0.01, "You're great!"
+        )
 
     def test_open_recruitment_uses_configured_mode(self, recruiter, active_config):
         active_config.extend({"mode": u"new_mode"})
@@ -228,7 +232,9 @@ class TestHotAirRecruiter(object):
         assert recruiter.approve_hit("any assignment id")
 
     def test_reward_bonus(self, recruiter):
-        recruiter.reward_bonus("any assignment id", 0.01, "You're great!")
+        recruiter.reward_bonus(
+            "any worker id", "any assignment id", 0.01, "You're great!"
+        )
 
     def test_open_recruitment_ignores_configured_mode(self, recruiter, active_config):
         active_config.extend({"mode": u"new_mode"})
@@ -305,7 +311,9 @@ class TestBotRecruiter(object):
         assert recruiter.approve_hit("any assignment id")
 
     def test_reward_bonus(self, recruiter):
-        recruiter.reward_bonus("any assignment id", 0.01, "You're great!")
+        recruiter.reward_bonus(
+            "any worker id", "any assignment id", 0.01, "You're great!"
+        )
 
     def test_returns_specific_submission_event_type(self, recruiter):
         assert recruiter.submitted_event() == "BotAssignmentSubmitted"
@@ -815,9 +823,12 @@ class TestMTurkRecruiter(object):
 
         mock_logger.exception.assert_called_once_with("Boom!")
 
-    def test_reward_bonus_is_simple_passthrough(self, recruiter):
+    def test_reward_bonus_passes_only_whats_needed(self, recruiter):
         recruiter.reward_bonus(
-            assignment_id="fake assignment id", amount=2.99, reason="well done!"
+            worker_id="some worker",
+            assignment_id="fake assignment id",
+            amount=2.99,
+            reason="well done!",
         )
 
         recruiter.mturkservice.grant_bonus.assert_called_once_with(
@@ -829,7 +840,9 @@ class TestMTurkRecruiter(object):
 
         recruiter.mturkservice.grant_bonus.side_effect = MTurkServiceException("Boom!")
         with mock.patch("dallinger.recruiters.logger") as mock_logger:
-            recruiter.reward_bonus("fake-assignment", 2.99, "fake reason")
+            recruiter.reward_bonus(
+                "fake worker", "fake-assignment", 2.99, "fake reason"
+            )
 
         mock_logger.exception.assert_called_once_with("Boom!")
 

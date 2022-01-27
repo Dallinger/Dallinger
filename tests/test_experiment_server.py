@@ -1669,7 +1669,9 @@ def standard_args(experiment):
     from sqlalchemy.orm.scoping import scoped_session
 
     return {
-        "participant": mock.Mock(spec_set=Participant, status="working"),
+        "participant": mock.Mock(
+            spec_set=Participant, status="working", worker_id="123"
+        ),
         "assignment_id": "some assignment id",
         "experiment": experiment,
         "session": mock.Mock(spec_set=scoped_session),
@@ -1698,7 +1700,7 @@ class TestAssignmentSubmitted(object):
         runner.experiment.bonus.return_value = 0.02
         runner()
         runner.participant.recruiter.reward_bonus.assert_called_once_with(
-            "some assignment id", 0.02, "You rock."
+            "123", "some assignment id", 0.02, "You rock."
         )
 
     def test_no_reward_bonus_if_experiment_returns_bonus_less_than_one_cent(
