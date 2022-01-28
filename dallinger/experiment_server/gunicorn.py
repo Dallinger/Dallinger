@@ -7,6 +7,8 @@ import os
 from dallinger.config import get_config
 import logging
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
+from werkzeug.wrappers import Response
 
 logger = logging.getLogger(__file__)
 
@@ -58,6 +60,14 @@ class StandaloneServer(Application):
             app.debug = True
         else:
             app = ProxyFix(app)
+        if os.environ.get("DALLINGER_PATH_PREFIX"):
+            script_name = os.environ.get("DALLINGER_PATH_PREFIX")
+            app = DispatcherMiddleware(
+                Response("Not Found", status=404), {script_name: app}
+            )
+            logging.getLogger("gunicorn.error").warn(
+                f"DispatcherMiddleware set up with prefix {script_name}"
+            )
         return app
 
     def load_user_config(self):
