@@ -40,32 +40,40 @@
 
         <p>To complete your Prolific study, simply press the button below.</p>
 
-        <a id="exit-button" class="btn btn-success btn-large" href="{{ external_submit_url }}">Submit Study</a>
-        <a id="test-button" class="btn btn-success btn-large" href="https://www.google.com">TEST Button</a>
+        <button id="exit-button" class="btn btn-success btn-large" data-href="{{ external_submit_url }}">Submit Study</button>
+        <button id="test-button" class="btn btn-success btn-large" data-href="https://www.google.com">TEST Button</button>
 
       </div>
 {% endblock %}
 
 {% block scripts %}
 <script type="text/javascript">
-    function notifySubmitted(forwardAddress) {
-      xhr = dallinger.post(
-        "prolific-submission-listener",
-        {"data": "blah"}
-      );
-      xhr.done(function () {
-        location = forwardAddress;
-      }).fail(function (rejection) {
-        dlgr.error({"problems": "Boom!"});
-      });
-    }
-    var exit_button = document.getElementById("test-button");
+    function notifyProlificExitSubmitted(
+      $button, participantData, prolificSubmissionPage
+    ) {
+      var spinner = dallinger.BusyForm();
 
-    exit_button.addEventListener("click", function (e) {
+      xhr = dallinger.post("prolific-submission-listener", participantData);
+      spinner.freeze([$button]);
+      xhr.done(function () {
+        location = prolificSubmissionPage;
+        spinner.unfreeze();
+      }).fail(function (rejection) {
+        dallinger.error(rejection);
+      }).always(() => spinner.unfreeze());
+    }
+
+    var $exitButton = $("#test-button");
+
+    $exitButton.on("click", function (e) {
       console.log("this is an initial message");
-      notifySubmitted(e.currentTarget.href);
+      notifyProlificExitSubmitted(
+        $exitButton,
+        dallinger.identity,
+        e.currentTarget.dataset.href
+      );
       e.preventDefault();
-    })
+    });
 
 </script>
 {% endblock %}

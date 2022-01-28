@@ -180,13 +180,23 @@ class ProlificRecruiterException(Exception):
 prolific_routes = flask.Blueprint("prolific_recruiter", __name__)
 
 
-@prolific_routes.route("/prolific-submission-listener", methods=["POST", "GET"])
+@prolific_routes.route("/prolific-submission-listener", methods=["POST"])
 @crossdomain(origin="*")
 def prolific_submission_listener():
-    logger.warning("We were called!")
-    import time
+    """Called from an event handler on the Prolific exit page.
 
-    time.sleep(2)
+    The participant is in the process of submitting their assignment/study
+    on Prolific, so now is the time to handle experiment completion
+    paperwork.
+    """
+    identity_info = flask.request.form.to_dict()
+    logger.warning("We were called: {}".format(json.dumps(identity_info)))
+    assignment_id = identity_info.get("assignmentId")
+    participant_id = identity_info.get("participantId")
+
+    q = _get_queue()
+    q.enqueue(worker_function, "AssignmentSubmitted", assignment_id, participant_id)
+
     return success_response()
 
 
