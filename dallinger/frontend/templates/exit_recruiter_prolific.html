@@ -40,7 +40,32 @@
 
         <p>To complete your Prolific study, simply press the button below.</p>
 
-        <a class="btn btn-success btn-large" href="{{ external_submit_url }}">Submit Study</a>
+        <a id="exit-button" class="btn btn-success btn-large" href="{{ external_submit_url }}">Submit Study</a>
+        <a id="test-button" class="btn btn-success btn-large" href="https://www.google.com">TEST Button</a>
 
       </div>
+{% endblock %}
+
+{% block scripts %}
+<script type="text/javascript">
+    function notifySubmitted(forwardAddress) {
+      xhr = dallinger.post(
+        "prolific-submission-listener",
+        {"data": "blah"}
+      );
+      xhr.done(function () {
+        location = forwardAddress;
+      }).fail(function (rejection) {
+        dlgr.error({"problems": "Boom!"});
+      });
+    }
+    var exit_button = document.getElementById("test-button");
+
+    exit_button.addEventListener("click", function (e) {
+      console.log("this is an initial message");
+      notifySubmitted(e.currentTarget.href);
+      e.preventDefault();
+    })
+
+</script>
 {% endblock %}

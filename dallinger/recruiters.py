@@ -177,6 +177,19 @@ class ProlificRecruiterException(Exception):
     """Custom exception for ProlificRecruiter"""
 
 
+prolific_routes = flask.Blueprint("prolific_recruiter", __name__)
+
+
+@prolific_routes.route("/prolific-submission-listener", methods=["POST", "GET"])
+@crossdomain(origin="*")
+def prolific_submission_listener():
+    logger.warning("We were called!")
+    import time
+
+    time.sleep(2)
+    return success_response()
+
+
 class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.co/)"""
 
@@ -345,6 +358,15 @@ class ProlificRecruiter(Recruiter):
             )
         except ProlificServiceException as ex:
             logger.exception(str(ex))
+
+    def submitted_event(self):
+        """We cannot perform post-submission actions (approval, bonus payment)
+        until after the participant has submitted their study via the Prolific
+        UI, which we redirect them to from the exit page. This means that we
+        can't do anything when the questionnaire is submitted, so we return None
+        to signal this.
+        """
+        return None
 
     def notify_duration_exceeded(self, participants, reference_time):
         """Some participants have been working beyond the defined duration of

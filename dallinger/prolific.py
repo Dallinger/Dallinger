@@ -34,10 +34,10 @@ class ProlificService:
             json={"action": "APPROVE"},
         )
 
-    def create_study(
+    def create_published_study(
         self,
         completion_code: str,
-        completion_option: str,  # TODO REMOVE ME
+        completion_option: str,
         description: str,
         eligibility_requirements: List[dict],
         estimated_completion_time: int,
@@ -45,14 +45,40 @@ class ProlificService:
         internal_name: str,
         maximum_allowed_time: int,
         name: str,
-        prolific_id_option: str,  # TODO REMOVE ME
+        prolific_id_option: str,
         reward: int,
-        status: str,  # TODO REMOVE ME
         total_available_places: int,
         device_compatibility: Optional[List[str]] = None,
         peripheral_requirements: Optional[List[str]] = None,
     ) -> dict:
-        """Create a Study on Prolific, and return info about it."""
+        """Create a Study on Prolific, and return its properties as a dictionary.
+
+        This method wraps both creating a draft study, and then publishing it, which
+        is the required workflow for generating a working, published study on Prolific.
+        """
+        args = locals()
+        del args["self"]
+        draft = self.draft_study(**args)
+        return self.publish_study(draft["id"])
+
+    def draft_study(
+        self,
+        completion_code: str,
+        completion_option: str,
+        description: str,
+        eligibility_requirements: List[dict],
+        estimated_completion_time: int,
+        external_study_url: str,
+        internal_name: str,
+        maximum_allowed_time: int,
+        name: str,
+        prolific_id_option: str,
+        reward: int,
+        total_available_places: int,
+        device_compatibility: Optional[List[str]] = None,
+        peripheral_requirements: Optional[List[str]] = None,
+    ) -> dict:
+        """Create a draft Study on Prolific, and return info about it."""
 
         payload = {
             "completion_code": completion_code,
@@ -66,7 +92,7 @@ class ProlificService:
             "name": name,
             "prolific_id_option": prolific_id_option,
             "reward": reward,
-            "status": status,
+            "status": "UNPUBLISHED",
             "total_available_places": total_available_places,
         }
 
@@ -76,6 +102,14 @@ class ProlificService:
             payload["peripheral_requirements"] = peripheral_requirements
 
         return self._req(method="POST", endpoint="/studies/", json=payload)
+
+    def publish_study(self, study_id: str) -> dict:
+        """Publish a previously created UNPUBLISHED study."""
+        return self._req(
+            method="POST",
+            endpoint=f"/studies/{study_id}/transition/",
+            json={"action": "PUBLISH"},
+        )
 
     def delete_study(self, study_id: str) -> bool:
         """Delete a Study entirely"""

@@ -13,8 +13,27 @@ study_request = {
     "name": "fake experiment title (dlgr-TEST_EXPERIMENT_UI)",
     "prolific_id_option": "url_parameters",
     "reward": 5,
-    "status": "UNPUBLISHED",
     "total_available_places": 2,
+}
+
+private_study_request = {
+    "completion_code": "A1B2C3D4",
+    "completion_option": "url",
+    "description": "(Uses allow_list with one ID)",
+    "eligibility_requirements": [
+        {
+            "attributes": [{"name": "white_list", "value": []}],
+            "_cls": "web.eligibility.models.CustomWhitelistEligibilityRequirement",
+        }
+    ],
+    "estimated_completion_time": 2,
+    "external_study_url": "https://dlgr-d25ea4ab-7400-437a.herokuapp.com/ad?recruiter=prolific&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}",
+    "internal_name": "Test Private Study for One",
+    "maximum_allowed_time": 10,
+    "name": "Test Private Study for One",
+    "prolific_id_option": "url_parameters",
+    "reward": 25,
+    "total_available_places": 1,
 }
 
 
@@ -26,6 +45,11 @@ def subject(prolific_creds):
         prolific_creds["prolific_api_token"],
         prolific_creds["prolific_api_version"],
     )
+
+
+@pytest.mark.skip(reason="Cannot clean up after itself")
+def test_make_quick_study(subject):
+    subject.create_published_study(**private_study_request)
 
 
 @pytest.mark.usefixtures("check_prolific")
@@ -51,7 +75,7 @@ def test_who_am_i_returns_user_info(subject):
 
 @pytest.mark.usefixtures("check_prolific_writes")
 @pytest.mark.slow
-def test_create_study(subject):
+def test_can_create_a_draft_study_and_delete_it(subject):
     """Result keys:
     [
     '_links',
@@ -109,7 +133,7 @@ def test_create_study(subject):
     'workspace']
     """
 
-    result = subject.create_study(**study_request)
+    result = subject.draft_study(**study_request)
 
     assert "id" in result
 
