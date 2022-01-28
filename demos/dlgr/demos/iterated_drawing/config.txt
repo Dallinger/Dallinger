@@ -4,7 +4,9 @@ auto_recruit = true
 recruiter = hotair
 
 # Without a base_payment HITs can't complete
-base_payment = 0
+# If it's 0 dallinger.command_line.verify_config will complain
+# and won't let dallinger generate-constraints run
+base_payment = 1
 
 [Database]
 database_url = postgresql://postgres@localhost/dallinger
@@ -21,4 +23,4 @@ logfile = -
 
 [Docker]
 docker_image_base_name = ghcr.io/dallinger/dallinger/iterated_drawing
-docker_image_name = ghcr.io/dallinger/dallinger/iterated_drawing@sha256:8c2e1ebc64a1be4c5d6ea3500109c91a6eabf764d872aaece877c6996ab084a6
+docker_image_name = ghcr.io/dallinger/dallinger/iterated_drawing@sha256:55403ccf8c9ee84e29163e36c3f0c41e0d6991afc08b5ee048e206b40e681064
