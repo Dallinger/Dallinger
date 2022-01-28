@@ -529,7 +529,15 @@ def ensure_constraints_file_presence(directory: str):
     try:
         os.chdir(directory)
         url = f"https://raw.githubusercontent.com/Dallinger/Dallinger/v{__version__}/dev-requirements.txt"
-        if requests.get(url).status_code == 404:
+        try:
+            response = requests.get(url)
+        except requests.exceptions.ConnectionError:
+            raise RuntimeError(
+                """It looks like you're offline. Dallinger can't generate constraints
+To get a valid constraints.txt file you can copy the requirements.txt file:
+cp requirements.txt constraints.txt"""
+            )
+        if response.status_code != 200:
             print(f"{url} not found. Using local dev-requirements.txt")
             url_path = abspath_from_egg("dallinger", "dev-requirements.txt")
             if not url_path.exists():
