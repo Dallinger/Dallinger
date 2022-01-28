@@ -764,13 +764,17 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         msg = "/participant POST: required values were 'undefined'"
         return error_response(error_type=msg, status=403)
 
-    fingerprint_hash = request.args.get("fingerprint_hash")
-    try:
-        fingerprint_found = models.Participant.query.filter_by(
-            fingerprint_hash=fingerprint_hash
-        ).one_or_none()
-    except MultipleResultsFound:
-        fingerprint_found = True
+    fingerprint_hash = request.args.get("fingerprint_hash") or request.form.get(
+        "fingerprint_hash"
+    )
+    fingerprint_found = False
+    if fingerprint_hash:
+        try:
+            fingerprint_found = models.Participant.query.filter_by(
+                fingerprint_hash=fingerprint_hash
+            ).one_or_none()
+        except MultipleResultsFound:
+            fingerprint_found = True
 
     if fingerprint_hash and fingerprint_found:
         db.logger.warning("Same browser fingerprint detected.")
@@ -860,6 +864,8 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
 def post_participant():
     config = _config()
     entry_information = request.form.to_dict()
+    if "fingerprint_hash" in entry_information:
+        del entry_information["fingerprint_hash"]
     # Remove the mode from entry_information if provided
     mode = entry_information.pop("mode", config.get("mode"))
     exp = Experiment(session)

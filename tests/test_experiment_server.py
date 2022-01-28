@@ -836,6 +836,30 @@ class TestParticipantCreateRoute(object):
                 entry_information={"additional_stuff": "1"},
             )
 
+    def test_post_participant_removes_fingerprint(self, a, db_session, webapp):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.create_participant"
+        ) as create_participant:
+            create_participant.side_effect = lambda *args, **kw: "Result"
+            webapp.post(
+                "/participant",
+                data={
+                    "hitId": "H",
+                    "workerId": "W",
+                    "assignmentId": "A",
+                    "mode": "debug",
+                    "additional_stuff": "1",
+                    "fingerprint_hash": "fffff",
+                },
+            )
+            create_participant.assert_called_once_with(
+                hit_id="H",
+                worker_id="W",
+                assignment_id="A",
+                mode="debug",
+                entry_information={"additional_stuff": "1"},
+            )
+
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
