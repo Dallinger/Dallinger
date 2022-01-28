@@ -274,15 +274,17 @@ def deploy(mode, config_options, archive_path):  # pragma: no cover
 
     # We give caddy the alias for the service. If we scale up the service container caddy will
     # send requests to all of them in a round robin fashion.
-    caddy_conf = f"{experiment_id}.localhost {{\n    tls internal\n    reverse_proxy {experiment_id}_web:5000\n}}"
+    caddy_conf = f"{experiment_id}.localhost {{\n    tls internal\n    reverse_proxy /{experiment_id}* {experiment_id}_web:5000\n}}"
     open(expanduser(f"~/dallinger/caddy.d/{experiment_id}"), "w").write(caddy_conf)
     # Tell caddy we changed something in the configuration
     executor.reload_caddy()
 
-    print(f"Launching experiment at https://{experiment_id}.localhost/launch")
+    print(
+        f"Launching experiment at https://{experiment_id}.localhost/{experiment_id}/launch"
+    )
     urllib3.disable_warnings()
     response = get_retrying_http_client().post(
-        f"https://{experiment_id}.localhost/launch", verify=False
+        f"https://{experiment_id}.localhost/{experiment_id}/launch", verify=False
     )
     print(response.json()["recruitment_msg"])
 
@@ -380,11 +382,11 @@ def get_docker_compose_yml(
     experiment_image: str,
     postgresql_password: str,
 ) -> str:
-    """Generate a docker-compose.yml file based on the given"""
+    """Generate a docker-compose.yml file based on the given parameters"""
     return DOCKER_COMPOSE_EXP_TPL.render(
         experiment_id=experiment_id,
         experiment_image=experiment_image,
-        config=config,
+        config=dict(config, DALLINGER_PATH_PREFIX=f"/{experiment_id}"),
         postgresql_password=postgresql_password,
     )
 
