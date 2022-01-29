@@ -205,7 +205,7 @@ def fake_parsed_prolific_study():
         "device_compatibility": ["desktop"],
         "peripheral_requirements": [],
         "eligibility_requirements": [],
-        "status": "UNPUBLISHED",
+        "status": "ACTIVE",
     }
 
 

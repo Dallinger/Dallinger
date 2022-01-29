@@ -277,7 +277,6 @@ class ProlificRecruiter(Recruiter):
             ),
             "prolific_id_option": "url_parameters",
             "reward": self.config.get("prolific_reward_cents"),
-            "status": "ACTIVE",
             "total_available_places": n,
         }
         # Merge in any explicit configuration untouched:
@@ -285,7 +284,7 @@ class ProlificRecruiter(Recruiter):
             explicit_config = json.loads(self.config.get("prolific_recruitment_config"))
             study_request.update(explicit_config)
 
-        study_info = self.prolificservice.create_study(**study_request)
+        study_info = self.prolificservice.create_published_study(**study_request)
         self._record_current_study_id(study_info["id"])
         url = study_info["external_study_url"]
 

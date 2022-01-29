@@ -368,7 +368,7 @@ def prolificservice(prolific_config, fake_parsed_prolific_study):
         api_version=prolific_config.get("prolific_api_version"),
     )
 
-    service.create_study.return_value = fake_parsed_prolific_study
+    service.create_published_study.return_value = fake_parsed_prolific_study
 
     return service
 
