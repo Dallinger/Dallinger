@@ -183,11 +183,12 @@ prolific_routes = flask.Blueprint("prolific_recruiter", __name__)
 @prolific_routes.route("/prolific-submission-listener", methods=["POST"])
 @crossdomain(origin="*")
 def prolific_submission_listener():
-    """Called from an event handler on the Prolific exit page.
+    """Called from a JavaScript event handler on the Prolific exit page
+    (exit_recruiter_prolific.html).
 
-    The participant is in the process of submitting their assignment/study
-    on Prolific, so now is the time to handle experiment completion
-    paperwork.
+    When the participant submits their assignment/study to Prolific,
+    we are then ready to handle experiment completion task (approval, bonus)
+    via the `AssignmentSubmitted` async worker function.
     """
     identity_info = flask.request.form.to_dict()
     logger.warning("We were called: {}".format(json.dumps(identity_info)))
@@ -222,6 +223,7 @@ class ProlificRecruiter(Recruiter):
 
     def open_recruitment(self, n: int = 1) -> dict:
         """Create a Study on Prolific."""
+
         logger.info(f"Opening Prolific recruitment for {n} participants")
         if self.is_in_progress:
             raise ProlificRecruiterException(
@@ -233,26 +235,6 @@ class ProlificRecruiter(Recruiter):
                 "Can't run a Prolific Study from localhost"
             )
 
-        """
-        Example submission:
-        {
-            "completion_code": "7EF9FD0D",
-            "completion_option": "url",
-            "description": "This study aims to determine how to make a good public API",
-            "device_compatibility": ["desktop"],
-            "eligibility_requirements": "TODO",
-            "estimated_completion_time": 5,
-            "external_study_url": "https://my-awesome-ice-cream-study.com?participant={{%PROLIFIC_PID%}}",
-            "id": "60d9aadeb86739de712faee0",
-            "internal_name": "Study about API's version2",
-            "name": "Study about API's",
-            "peripheral_requirements": [],
-            "prolific_id_option": "url_parameters",
-            "reward": 13,
-            "status": "UNPUBLISHED"
-            "total_available_places": 30,
-        }
-        """
         study_request = {
             "completion_code": self.completion_code,
             "completion_option": "url",
@@ -294,12 +276,7 @@ class ProlificRecruiter(Recruiter):
         }
 
     def normalize_entry_information(self, entry_information: dict):
-        """Map Prolific Study URL params to our internal keys.
-
-        Ad routes will be called with these parameters from Prolific:
-
-            https://my-dallinger-app.com/?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}
-        """
+        """Map Prolific Study URL params to our internal keys."""
 
         participant_data = {
             "hit_id": entry_information["STUDY_ID"],
@@ -338,16 +315,6 @@ class ProlificRecruiter(Recruiter):
         trigger payment of their base pay.
         """
         return f"https://app.prolific.co/submissions/complete?cc={self.completion_code}"
-
-    def assign_experiment_qualifications(self, worker_id, qualifications):
-        """Assigns recruiter-specific qualifications to a worker, if supported."""
-        # TODO implement or delete
-        pass
-
-    def compensate_worker(self, *args, **kwargs):
-        """A recruiter may provide a means to directly compensate a worker."""
-        # TODO implement or delete
-        raise NotImplementedError
 
     def exit_response(self, experiment, participant):
         return flask.render_template(
