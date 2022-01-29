@@ -6,6 +6,7 @@ import os
 import pkg_resources
 import random
 import re
+import requests
 import shutil
 import string
 import subprocess
@@ -528,6 +529,25 @@ def ensure_constraints_file_presence(directory: str):
     try:
         os.chdir(directory)
         url = f"https://raw.githubusercontent.com/Dallinger/Dallinger/v{__version__}/dev-requirements.txt"
+        try:
+            response = requests.get(url)
+        except requests.exceptions.ConnectionError:
+            raise RuntimeError(
+                """It looks like you're offline. Dallinger can't generate constraints
+To get a valid constraints.txt file you can copy the requirements.txt file:
+cp requirements.txt constraints.txt"""
+            )
+        if response.status_code != 200:
+            print(f"{url} not found. Using local dev-requirements.txt")
+            url_path = abspath_from_egg("dallinger", "dev-requirements.txt")
+            if not url_path.exists():
+                print(
+                    f"{url_path} is not a valid file. Either use a released dallinger version for this experiment or install dallinger in editable mode"
+                )
+                raise ValueError(
+                    "Can't find constraints for dallinger version {__version__}"
+                )
+            url = str(url_path)
         print(f"Compiling constraints.txt file from requirements.txt and {url}")
         compile_info = f"dallinger generate-constraints\n#\n# Compiled from a requirement.txt file with md5sum: {requirements_path_hash}"
         with TemporaryDirectory() as tmpdirname:
