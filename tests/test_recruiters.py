@@ -485,7 +485,7 @@ class TestProlificRecruiter(object):
 
         mock_logger.exception.assert_called_once_with("Boom!")
 
-    def test_submission_listener_enques_assignment_submitted_notification(
+    def test_submission_listener_enqueues_assignment_submitted_notification(
         self, queue, webapp
     ):
         exit_form_submission = {
