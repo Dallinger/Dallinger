@@ -375,7 +375,7 @@ pygments==2.11.2
     #   sphinx
 pynacl==1.4.0
     # via paramiko
-pyopenssl==21.0.0
+pyopenssl==22.0.0
     # via urllib3
 pypandoc==1.7.2
     # via dallinger
