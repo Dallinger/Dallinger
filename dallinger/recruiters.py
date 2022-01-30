@@ -344,16 +344,6 @@ class ProlificRecruiter(Recruiter):
         """
         return None
 
-    def notify_duration_exceeded(self, participants, reference_time):
-        """Some participants have been working beyond the defined duration of
-        the experiment.
-        """
-        # TODO implement or delete
-        logger.warning(
-            "Received notification that some participants "
-            "have been active for too long. No action taken."
-        )
-
     @property
     def current_study_id(self):
         """Return the ID of the Study associated with the active experiment ID
