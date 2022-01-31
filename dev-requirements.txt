@@ -432,8 +432,6 @@ six==1.16.0
     #   websocket-client
 snowballstemmer==2.1.0
     # via sphinx
-sphinx-js==3.1.2
-    # via dallinger
 sphinx-rtd-theme==1.0.0
     # via dallinger
 sphinx==4.4.0
