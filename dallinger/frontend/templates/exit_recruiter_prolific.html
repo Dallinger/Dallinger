@@ -38,10 +38,13 @@
         <h1>Prolific Study Submission</h1>
         <hr>
 
-        <p>To complete your Prolific study, simply press the button below.</p>
+        <p>To complete your Prolific study, simply press the button below.
+          You'll be redirected to Prolific and your submission will be recorded.
+        </p>
 
-        <button id="exit-button" class="btn btn-success btn-large" data-href="{{ external_submit_url }}">Submit Study</button>
-        <button id="test-button" class="btn btn-success btn-large" data-href="https://www.google.com">TEST Button</button>
+        <button id="js-exit-button" class="btn btn-success btn-large" data-href="{{ external_submit_url }}">
+          Submit Study
+        </button>
 
       </div>
 {% endblock %}
@@ -51,18 +54,18 @@
     function notifyProlificExitSubmitted(
       $button, participantData, prolificSubmissionPage
     ) {
-      var spinner = dallinger.BusyForm();
+      const spinner = dallinger.BusyForm();
+      const xhr = dallinger.post("prolific-submission-listener", participantData);
 
-      xhr = dallinger.post("prolific-submission-listener", participantData);
       spinner.freeze([$button]);
       xhr.done(function () {
-        location = prolificSubmissionPage;
+        window.location = prolificSubmissionPage;
       }).fail(function (rejection) {
         dallinger.error(rejection);
       }).always(() => spinner.unfreeze());
     }
 
-    var $exitButton = $("#test-button");
+    const $exitButton = $("#js-exit-button");
 
     $exitButton.on("click", function (e) {
       console.log("this is an initial message");
