@@ -192,12 +192,16 @@ def prolific_submission_listener():
     via the `AssignmentSubmitted` async worker function.
     """
     identity_info = flask.request.form.to_dict()
-    logger.warning("We were called: {}".format(json.dumps(identity_info)))
+    logger.warning(
+        "prolific_submission_listener called: {}".format(json.dumps(identity_info))
+    )
     assignment_id = identity_info.get("assignmentId")
     participant_id = identity_info.get("participantId")
 
-    q = _get_queue()
-    q.enqueue(worker_function, "AssignmentSubmitted", assignment_id, participant_id)
+    recruiter = ProlificRecruiter()
+    recruiter._handle_exit_form_submission(
+        assignment_id=assignment_id, participant_id=participant_id
+    )
 
     return success_response()
 
@@ -321,9 +325,8 @@ class ProlificRecruiter(Recruiter):
     def exit_response(self, experiment, participant):
         return flask.render_template(
             "exit_recruiter_prolific.html",
-            hitid=participant.hit_id,
-            assignmentid=participant.assignment_id,
-            workerid=participant.worker_id,
+            assignment_id=participant.assignment_id,
+            participant_id=participant.id,
             external_submit_url=self.external_submission_url,
         )
 
@@ -363,8 +366,12 @@ class ProlificRecruiter(Recruiter):
         experiment_id = self.config.get("id")
         return "{}:{}".format(self.__class__.__name__, experiment_id)
 
-    def _record_current_study_id(self, study):
-        self.store.set(self.study_id_storage_key, study)
+    def _record_current_study_id(self, study_id):
+        self.store.set(self.study_id_storage_key, study_id)
+
+    def _handle_exit_form_submission(self, assignment_id: str, participant_id: str):
+        q = _get_queue()
+        q.enqueue(worker_function, "AssignmentSubmitted", assignment_id, participant_id)
 
 
 class CLIRecruiter(Recruiter):

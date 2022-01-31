@@ -1,5 +1,4 @@
 {% extends "layout.html" %}
-
 {% block stylesheets %}
     <style>
       body {
@@ -51,27 +50,33 @@
 
 {% block scripts %}
 <script type="text/javascript">
-    function notifyProlificExitSubmitted(
-      $button, participantData, prolificSubmissionPage
+    // The values our custom exit handler needs to to create an AssignmentSubmitted
+    // notification:
+    const participantInfo = {
+      assignmentId: "{{ assignment_id}}",
+      participantId: "{{ participant_id }}",
+    };
+    const $exitButton = $("#js-exit-button");
+
+    function onExitFormSubmission(
+      $button, submission, prolificStudySubmissionURL
     ) {
       const spinner = dallinger.BusyForm();
-      const xhr = dallinger.post("prolific-submission-listener", participantData);
+      const xhr = dallinger.post("prolific-submission-listener", submission);
 
       spinner.freeze([$button]);
       xhr.done(function () {
-        window.location = prolificSubmissionPage;
+        window.location = prolificStudySubmissionURL;
       }).fail(function (rejection) {
         dallinger.error(rejection);
       }).always(() => spinner.unfreeze());
     }
 
-    const $exitButton = $("#js-exit-button");
 
     $exitButton.on("click", function (e) {
-      console.log("this is an initial message");
-      notifyProlificExitSubmitted(
+      onExitFormSubmission(
         $exitButton,
-        dallinger.identity,
+        participantInfo,
         e.currentTarget.dataset.href
       );
       e.preventDefault();
