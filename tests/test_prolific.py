@@ -1,3 +1,4 @@
+import mock
 import pytest
 
 
@@ -22,6 +23,7 @@ private_study_request = {
     "description": "(Uses allow_list with one ID)",
     "eligibility_requirements": [
         {
+            # Add your worker ID here
             "attributes": [{"name": "white_list", "value": []}],
             "_cls": "web.eligibility.models.CustomWhitelistEligibilityRequirement",
         }
@@ -75,6 +77,17 @@ def test_who_am_i_returns_user_info(subject):
     result = subject.who_am_i()
 
     assert "id" in result
+
+
+@pytest.mark.usefixtures("check_prolific")
+@pytest.mark.slow
+def test_requests_are_logged(subject):
+    with mock.patch("dallinger.prolific.logger") as logger:
+        subject.who_am_i()
+
+    logger.warning.assert_called_once_with(
+        'Prolific API request: {"URL": "https://api.prolific.co/api/v1/users/me/", "method": "GET", "args": {}}'
+    )
 
 
 @pytest.mark.usefixtures("check_prolific_writes")

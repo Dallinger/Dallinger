@@ -130,7 +130,12 @@ class ProlificService:
         return response == {"status_code": 204}
 
     def pay_session_bonus(self, study_id: str, worker_id: str, amount: float) -> bool:
-        """Pay a worker a bonus"""
+        """Pay a worker a bonus.
+
+        This needs to happen in two steps:
+            1. Define the payments as a record on Prolific
+            2. Trigger the execution of the payments, using the ID from step 1.
+        """
         amount_str = "{:.2f}".format(amount)
 
         payload = {
@@ -138,17 +143,17 @@ class ProlificService:
             "csv_bonuses": f"{worker_id},{amount_str}",
         }
 
-        logger.info(f"Sending bonus request: {payload}")
-
-        payment_setup = self._req(
+        # Step 1
+        setup_response = self._req(
             method="POST", endpoint="/submissions/bonus-payments/", json=payload
         )
 
-        response = self._req(
-            "POST", endpoint=f"/bulk-bonus-payments/{payment_setup['id']}/pay/"
+        # Step 2
+        payment_response = self._req(
+            "POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
         )
 
-        return response
+        return payment_response
 
     def who_am_i(self) -> dict:
         """For testing authorization."""
@@ -160,6 +165,12 @@ class ProlificService:
             "Referer": f"v{self.referer_header}",
         }
         url = f"{self.api_root}{endpoint}"
+        summary = {
+            "URL": url,
+            "method": method,
+            "args": kw,
+        }
+        logger.warning(f"Prolific API request: {json.dumps(summary)}")
         response = requests.request(method, url, headers=headers, **kw)
 
         if method == "DELETE" and response.ok:
@@ -168,6 +179,7 @@ class ProlificService:
         parsed = response.json()
         if "error" in parsed:
             error = {
+                "method": method,
                 "token": self.api_token_fragment,
                 "URL": url,
                 "args": kw,
