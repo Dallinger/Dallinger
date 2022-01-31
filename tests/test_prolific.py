@@ -40,10 +40,14 @@ private_study_request = {
 @pytest.fixture
 def subject(prolific_creds):
     from dallinger.prolific import ProlificService
+    from dallinger.version import __version__
+
+    referer = f"https://github.com/Dallinger/Dallinger/tests/v{__version__}"
 
     return ProlificService(
-        prolific_creds["prolific_api_token"],
-        prolific_creds["prolific_api_version"],
+        api_token=prolific_creds["prolific_api_token"],
+        api_version=prolific_creds["prolific_api_version"],
+        referer_header=referer,
     )
 
 

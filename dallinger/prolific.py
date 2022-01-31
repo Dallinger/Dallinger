@@ -15,11 +15,12 @@ class ProlificServiceException(Exception):
 class ProlificService:
     """Wrapper for Prolific REST API"""
 
-    def __init__(self, api_token: str, api_version: str):
+    def __init__(self, api_token: str, api_version: str, referer_header: str):
         self.api_token = api_token
         # For error logging:
         self.api_token_fragment = f"{api_token[:3]}...{api_token[-3:]}"
         self.api_version = api_version
+        self.referer_header = referer_header
 
     @property
     def api_root(self):
@@ -142,7 +143,10 @@ class ProlificService:
         return self._req(method="GET", endpoint="/users/me/")
 
     def _req(self, method: str, endpoint: str, **kw) -> dict:
-        headers = {"Authorization": f"Token {self.api_token}"}
+        headers = {
+            "Authorization": f"Token {self.api_token}",
+            "Referer": f"v{self.referer_header}",
+        }
         url = f"{self.api_root}{endpoint}"
         response = requests.request(method, url, headers=headers, **kw)
 

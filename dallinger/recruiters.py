@@ -36,6 +36,7 @@ from dallinger.prolific import ProlificServiceException
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
 from dallinger.utils import ParticipationTime
+from dallinger.version import __version__
 
 
 logger = logging.getLogger(__file__)
@@ -216,6 +217,7 @@ class ProlificRecruiter(Recruiter):
         self.prolificservice = ProlificService(
             api_token=self.config.get("prolific_api_token"),
             api_version=self.config.get("prolific_api_version"),
+            referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
         )
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
