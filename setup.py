@@ -43,7 +43,7 @@ setup_args = dict(
         "click",
         "faker",
         "Flask-Sockets",
-        "Flask<2.0",
+        "Flask",
         "flask-crossdomain",
         "flask-login",
         "Flask-WTF",
