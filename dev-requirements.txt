@@ -128,7 +128,7 @@ filelock==3.4.2
     #   virtualenv
 flake8==4.0.1
     # via dallinger
-flask==1.1.4
+flask==2.0.2
     # via
     #   dallinger
     #   flask-crossdomain
@@ -196,13 +196,13 @@ ipywidgets==7.6.5
     # via
     #   dallinger
     #   jupyter
-itsdangerous==1.1.0
+itsdangerous==2.0.1
     # via
     #   flask
     #   flask-wtf
 jedi==0.18.1
     # via ipython
-jinja2==2.11.3
+jinja2==3.0.2
     # via
     #   flask
     #   nbconvert
@@ -582,7 +582,7 @@ websocket-client==0.59.0
     # via
     #   docker
     #   docker-compose
-werkzeug==1.0.1
+werkzeug==2.0.2
     # via flask
 wheel==0.37.1
     # via
