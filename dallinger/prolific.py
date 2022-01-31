@@ -1,6 +1,7 @@
 import json
 import logging
 import requests
+import tenacity
 from typing import List, Optional
 
 logger = logging.getLogger(__file__)
@@ -27,8 +28,19 @@ class ProlificService:
         """The root URL for API calls."""
         return f"https://api.prolific.co/api/{self.api_version}"
 
+    @tenacity.retry(
+        wait=tenacity.wait_exponential(multiplier=1, min=2, max=8),
+        stop=tenacity.stop_after_attempt(4),
+        reraise=True,
+    )
     def approve_participant_session(self, session_id: str) -> dict:
-        """Mark an assignment as approved."""
+        """Mark an assignment as approved.
+
+        We do some retrying here, because our first attempt to approve will
+        happen more or less simultaneously with the worker submitting
+        the study on Prolific. If we get there first, there will be an error
+        because the submission hasn't happened yet.
+        """
         return self._req(
             method="POST",
             endpoint=f"/submissions/{session_id}/transition/",
