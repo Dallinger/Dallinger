@@ -69,7 +69,7 @@ itsdangerous==2.0.1
     # via
     #   flask
     #   flask-wtf
-jinja2==3.0.2
+jinja2==3.0.3
     # via flask
 jmespath==0.10.0
     # via
