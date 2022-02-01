@@ -259,8 +259,7 @@ class AssignmentSubmitted(WorkerEvent):
     def award_bonus(self, bonus):
         self.log("Bonus = {}: paying bonus".format(bonus))
         self.participant.recruiter.reward_bonus(
-            self.participant.worker_id,
-            self.assignment_id,
+            self.participant,
             bonus,
             self.experiment.bonus_reason(),
         )

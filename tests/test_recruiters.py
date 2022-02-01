@@ -96,9 +96,7 @@ class TestRecruiter(object):
 
     def test_reward_bonus(self, recruiter):
         with pytest.raises(NotImplementedError):
-            recruiter.reward_bonus(
-                "any worker id", "any assignment id", 0.01, "You're great!"
-            )
+            recruiter.reward_bonus(None, 0.01, "You're great!")
 
     def test_external_submission_url(self, recruiter):
         assert recruiter.external_submission_url is None
@@ -177,10 +175,10 @@ class TestCLIRecruiter(object):
     def test_approve_hit(self, recruiter):
         assert recruiter.approve_hit("any assignment id")
 
-    def test_reward_bonus(self, recruiter):
-        recruiter.reward_bonus(
-            "any worker id", "any assignment id", 0.01, "You're great!"
-        )
+    def test_reward_bonus(self, a, recruiter):
+        p = a.participant()
+
+        recruiter.reward_bonus(p, 0.01, "You're great!")
 
     def test_open_recruitment_uses_configured_mode(self, recruiter, active_config):
         active_config.extend({"mode": "new_mode"})
@@ -231,10 +229,8 @@ class TestHotAirRecruiter(object):
     def test_approve_hit(self, recruiter):
         assert recruiter.approve_hit("any assignment id")
 
-    def test_reward_bonus(self, recruiter):
-        recruiter.reward_bonus(
-            "any worker id", "any assignment id", 0.01, "You're great!"
-        )
+    def test_reward_bonus(self, a, recruiter):
+        recruiter.reward_bonus(a.participant(), 0.01, "You're great!")
 
     def test_open_recruitment_ignores_configured_mode(self, recruiter, active_config):
         active_config.extend({"mode": "new_mode"})
@@ -310,10 +306,8 @@ class TestBotRecruiter(object):
     def test_approve_hit(self, recruiter):
         assert recruiter.approve_hit("any assignment id")
 
-    def test_reward_bonus(self, recruiter):
-        recruiter.reward_bonus(
-            "any worker id", "any assignment id", 0.01, "You're great!"
-        )
+    def test_reward_bonus(self, a, recruiter):
+        recruiter.reward_bonus(a.participant(), 0.01, "You're great!")
 
     def test_returns_specific_submission_event_type(self, recruiter):
         assert recruiter.submitted_event() == "BotAssignmentSubmitted"
@@ -439,19 +433,21 @@ class TestProlificRecruiter(object):
 
         assert recruiter.external_submission_url in response.data.decode("utf-8")
 
-    def test_reward_bonus_passes_only_whats_needed(self, recruiter):
+    def test_reward_bonus_passes_only_whats_needed(self, a, recruiter):
+        participant = a.participant(assignment_id="some assignement")
         recruiter.reward_bonus(
-            worker_id="some worker",
-            assignment_id="fake assignment id",
+            participant=participant,
             amount=2.99,
             reason="well done!",
         )
 
         recruiter.prolificservice.pay_session_bonus.assert_called_once_with(
-            study_id=recruiter.current_study_id, worker_id="some worker", amount=2.99
+            study_id=recruiter.current_study_id,
+            worker_id=participant.worker_id,
+            amount=2.99,
         )
 
-    def test_reward_bonus_logs_exception(self, recruiter):
+    def test_reward_bonus_logs_exception(self, a, recruiter):
         from dallinger.prolific import ProlificServiceException
 
         recruiter.prolificservice.pay_session_bonus.side_effect = (
@@ -459,8 +455,7 @@ class TestProlificRecruiter(object):
         )
         with mock.patch("dallinger.recruiters.logger") as mock_logger:
             recruiter.reward_bonus(
-                worker_id="some worker",
-                assignment_id="fake assignment id",
+                participant=a.participant(),
                 amount=2.99,
                 reason="well done!",
             )
@@ -933,26 +928,25 @@ class TestMTurkRecruiter(object):
 
         mock_logger.exception.assert_called_once_with("Boom!")
 
-    def test_reward_bonus_passes_only_whats_needed(self, recruiter):
+    def test_reward_bonus_passes_only_whats_needed(self, a, recruiter):
+        participant = a.participant()
         recruiter.reward_bonus(
-            worker_id="some worker",
-            assignment_id="fake assignment id",
+            participant=participant,
             amount=2.99,
             reason="well done!",
         )
 
         recruiter.mturkservice.grant_bonus.assert_called_once_with(
-            assignment_id="fake assignment id", amount=2.99, reason="well done!"
+            assignment_id=participant.assignment_id, amount=2.99, reason="well done!"
         )
 
-    def test_reward_bonus_logs_exception(self, recruiter):
+    def test_reward_bonus_logs_exception(self, a, recruiter):
         from dallinger.mturk import MTurkServiceException
 
+        participant = a.participant()
         recruiter.mturkservice.grant_bonus.side_effect = MTurkServiceException("Boom!")
         with mock.patch("dallinger.recruiters.logger") as mock_logger:
-            recruiter.reward_bonus(
-                "fake worker", "fake-assignment", 2.99, "fake reason"
-            )
+            recruiter.reward_bonus(participant, 2.99, "fake reason")
 
         mock_logger.exception.assert_called_once_with("Boom!")
 

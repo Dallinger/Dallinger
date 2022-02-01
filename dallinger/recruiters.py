@@ -133,7 +133,7 @@ class Recruiter(object):
         """
         raise NotImplementedError
 
-    def reward_bonus(self, worker_id, assignment_id, amount, reason):
+    def reward_bonus(self, participant, amount, reason):
         """Throw an error."""
         raise NotImplementedError
 
@@ -334,12 +334,13 @@ class ProlificRecruiter(Recruiter):
             external_submit_url=self.external_submission_url,
         )
 
-    def reward_bonus(self, worker_id, assignment_id, amount, reason):
+    def reward_bonus(self, participant, amount, reason):
         """Reward the Prolific worker for a specified assignment with a bonus."""
-
         try:
             return self.prolificservice.pay_session_bonus(
-                study_id=self.current_study_id, worker_id=worker_id, amount=amount
+                study_id=self.current_study_id,
+                worker_id=participant.worker_id,
+                amount=amount,
             )
         except ProlificServiceException as ex:
             logger.exception(str(ex))
@@ -457,11 +458,11 @@ class CLIRecruiter(Recruiter):
             )
         )
 
-    def reward_bonus(self, worker_id, assignment_id, amount, reason):
+    def reward_bonus(self, participant, amount, reason):
         """Print out bonus info for the assignment"""
         logger.info(
             'Award ${} for assignment {}, with reason "{}"'.format(
-                amount, assignment_id, reason
+                amount, participant.assignment_id, reason
             )
         )
 
@@ -493,11 +494,11 @@ class HotAirRecruiter(CLIRecruiter):
 
         return {"items": recruitments, "message": message}
 
-    def reward_bonus(self, worker_id, assignment_id, amount, reason):
+    def reward_bonus(self, participant, amount, reason):
         """Logging-only, Hot Air implementation"""
         logger.info(
             "Were this a real Recruiter, we'd be awarding ${} for assignment {}, "
-            'with reason "{}"'.format(amount, assignment_id, reason)
+            'with reason "{}"'.format(amount, participant.assignment_id, reason)
         )
 
     def _get_mode(self):
@@ -1003,10 +1004,12 @@ class MTurkRecruiter(Recruiter):
         """
         return None
 
-    def reward_bonus(self, worker_id, assignment_id, amount, reason):
+    def reward_bonus(self, participant, amount, reason):
         """Reward the Turker for a specified assignment with a bonus."""
         try:
-            return self.mturkservice.grant_bonus(assignment_id, amount, reason)
+            return self.mturkservice.grant_bonus(
+                participant.assignment_id, amount, reason
+            )
         except MTurkServiceException as ex:
             logger.exception(str(ex))
 
@@ -1299,7 +1302,7 @@ class BotRecruiter(Recruiter):
             participant.status = "rejected"
             session.commit()
 
-    def reward_bonus(self, worker_id, assignment_id, amount, reason):
+    def reward_bonus(self, participant, amount, reason):
         """Logging only. These are bots."""
         logger.info("Bots don't get bonuses. Sorry, bots.")
 
