@@ -311,7 +311,7 @@ class ProlificRecruiter(Recruiter):
     def close_recruitment(self):
         """Move the Study status to COMPLETED?"""
         # TODO implement me if necessary
-        logger.info("Closing recruitment...")
+        logger.info("ProlificRecruiter's close_recruitment is a no-op currently...")
 
     @property
     def external_submission_url(self):
