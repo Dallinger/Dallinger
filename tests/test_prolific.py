@@ -19,6 +19,9 @@ study_request = {
     "total_available_places": 2,
 }
 
+# If you need to created a study for testing which targets just your
+# own worker, you can add the worker ID to the eligibility_requirements,
+# then run test_make_quick_study() (after removing the @pytest.mark.skip)
 private_study_request = {
     "completion_code": "A1B2C3D4",
     "completion_option": "url",
@@ -95,67 +98,9 @@ def test_requests_are_logged(subject):
 @pytest.mark.usefixtures("check_prolific_writes")
 @pytest.mark.slow
 def test_can_create_a_draft_study_and_delete_it(subject):
-    """Result keys:
-    [
-    '_links',
-    'average_reward_per_hour',
-    'average_reward_per_hour_without_adjustment',
-    'average_time_taken',
-    'completion_code',
-    'completion_option',
-    'currency_code',
-    'date_created',
-    'description',
-    'device_compatibility',
-    'discount_from_coupons',
-    'eligibility_requirements',
-    'eligible_participant_count',
-    'estimated_completion_time',
-    'estimated_reward_per_hour',
-    'external_study_url',
-    'fees_per_submission',
-    'fees_percentage',
-    'has_had_adjustment',
-    'id',
-    'internal_name',
-    'is_pilot',
-    'is_underpaying',
-    'last_email_update_sent_datetime',
-    'maximum_allowed_time',
-    'meta',
-    'minimum_reward_per_hour',
-    'name',
-    'number_of_submissions',
-    'peripheral_requirements',
-    'pilot_test_steps_state',
-    'places_taken',
-    'project',
-    'prolific_id_option',
-    'publish_at',
-    'published_at',
-    'publisher',
-    'quota_requirements',
-    'receipt',
-    'representative_sample',
-    'representative_sample_fee',
-    'researcher',
-    'reward',
-    'reward_level',
-    'share_id',
-    'stars_remaining',
-    'status',
-    'study_type',
-    'total_available_places',
-    'total_cost',
-    'total_participant_pool',
-    'vat_percentage',
-    'workspace']
-    """
-
     result = subject.draft_study(**study_request)
 
     assert "id" in result
-
     assert subject.delete_study(study_id=result["id"])
 
 
