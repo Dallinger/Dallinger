@@ -78,7 +78,7 @@ default_keys = (
     ("num_dynos_worker", int, []),
     ("organization_name", six.text_type, []),
     ("port", int, ["PORT"]),
-    ("prolific_api_token", six.text_type, [], True),
+    ("prolific_api_token", six.text_type, ["PROLIFIC_RESEARCHER_API_TOKEN"], True),
     ("prolific_api_version", six.text_type, []),
     ("prolific_estimated_completion_minutes", int, []),
     ("prolific_maximum_allowed_minutes", int, []),
