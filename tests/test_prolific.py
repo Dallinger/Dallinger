@@ -6,12 +6,14 @@ study_request = {
     "completion_code": "A1B2C3D4",
     "completion_option": "url",
     "description": "fake HIT description",
+    "device_compatibility": ["desktop"],
     "eligibility_requirements": [],
     "estimated_completion_time": 5,
     "external_study_url": "https://www.example.com/ad?recruiter=prolific&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}",
     "internal_name": "fake experiment title (TEST_EXPERIMENT_UID)",
     "maximum_allowed_time": 17,
     "name": "fake experiment title (dlgr-TEST_EXPERIMENT_UI)",
+    "peripheral_requirements": ["audio"],
     "prolific_id_option": "url_parameters",
     "reward": 5,
     "total_available_places": 2,
@@ -154,4 +156,17 @@ def test_can_create_a_draft_study_and_delete_it(subject):
 
     assert "id" in result
 
+    assert subject.delete_study(study_id=result["id"])
+
+
+@pytest.mark.usefixtures("check_prolific_writes")
+@pytest.mark.slow
+def test_can_add_to_available_place_count(subject):
+    result = subject.draft_study(**study_request)
+    initial_spaces = result["total_available_places"]
+
+    # So far, I haven't had to sleep here before trying to fetch the study
+    updated = subject.add_participants_to_study(study_id=result["id"], number_to_add=1)
+
+    assert updated["total_available_places"] == initial_spaces + 1
     assert subject.delete_study(study_id=result["id"])

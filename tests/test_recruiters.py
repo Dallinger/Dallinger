@@ -369,6 +369,7 @@ def prolificservice(prolific_config, fake_parsed_prolific_study):
     )
 
     service.create_published_study.return_value = fake_parsed_prolific_study
+    service.add_participants_to_study.return_value = fake_parsed_prolific_study
 
     return service
 
@@ -484,6 +485,14 @@ class TestProlificRecruiter(object):
             recruiter.approve_hit("fake-hit-id")
 
         mock_logger.exception.assert_called_once_with("Boom!")
+
+    def test_recruit_calls_add_participants_to_study(self, recruiter):
+        recruiter.open_recruitment()
+        recruiter.recruit(n=1)
+
+        recruiter.prolificservice.add_participants_to_study.assert_called_once_with(
+            study_id="abcdefghijklmnopqrstuvwx", number_to_add=1
+        )
 
     def test_submission_listener_enqueues_assignment_submitted_notification(
         self, queue, webapp

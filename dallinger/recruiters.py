@@ -295,10 +295,9 @@ class ProlificRecruiter(Recruiter):
 
     def recruit(self, n: int = 1):
         """Recruit `n` new participants to an existing Prolific Study"""
-        # TODO implement me
-        # new_total = get_existing_total_somehow() + n
-        # self.prolificservice.update_study_participant_total(new_total)
-        return True
+        return self.prolificservice.add_participants_to_study(
+            study_id=self.current_study_id, number_to_add=n
+        )
 
     def approve_hit(self, assignment_id: str):
         """Approve a participant's assignment/submission on Prolific"""

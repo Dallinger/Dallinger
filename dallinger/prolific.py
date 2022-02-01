@@ -28,6 +28,18 @@ class ProlificService:
         """The root URL for API calls."""
         return f"https://api.prolific.co/api/{self.api_version}"
 
+    def add_participants_to_study(self, study_id: int, number_to_add: int) -> dict:
+        """Add additional slots to a running Study."""
+        study_info = self.get_study(study_id=study_id)
+        current_total_slots = study_info["total_available_places"]
+        new_total = current_total_slots + number_to_add
+
+        return self._req(
+            method="PATCH",
+            endpoint=f"/studies/{study_id}/",
+            json={"total_available_places": new_total},
+        )
+
     @tenacity.retry(
         wait=tenacity.wait_exponential(multiplier=1, min=2, max=8),
         stop=tenacity.stop_after_attempt(4),
@@ -116,6 +128,10 @@ class ProlificService:
 
         return self._req(method="POST", endpoint="/studies/", json=payload)
 
+    def get_study(self, study_id: str) -> dict:
+        """Fetch details of an existing Study"""
+        return self._req(method="GET", endpoint=f"/studies/{study_id}/")
+
     def publish_study(self, study_id: str) -> dict:
         """Publish a previously created UNPUBLISHED study."""
         return self._req(
@@ -137,7 +153,6 @@ class ProlificService:
             2. Trigger the execution of the payments, using the ID from step 1.
         """
         amount_str = "{:.2f}".format(amount)
-
         payload = {
             "study_id": study_id,
             "csv_bonuses": f"{worker_id},{amount_str}",
@@ -147,7 +162,6 @@ class ProlificService:
         setup_response = self._req(
             method="POST", endpoint="/submissions/bonus-payments/", json=payload
         )
-
         # Step 2
         payment_response = self._req(
             "POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"

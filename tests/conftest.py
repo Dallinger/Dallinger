@@ -191,7 +191,7 @@ def fake_parsed_hit():
 def fake_parsed_prolific_study():
     """Format returned by dallinger.prolific.ProlificService"""
     return {
-        "id": "60d9aadeb86739de712faee0",
+        "id": "abcdefghijklmnopqrstuvwx",
         "name": "Study about API's",
         "internal_name": "WIT-2021 Study about API's version 2",
         "description": "This study aims to determine how to make a good public API",
