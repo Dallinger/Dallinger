@@ -309,9 +309,14 @@ class ProlificRecruiter(Recruiter):
             logger.exception(str(ex))
 
     def close_recruitment(self):
-        """Move the Study status to COMPLETED?"""
-        # TODO implement me if necessary
-        logger.info("ProlificRecruiter's close_recruitment is a no-op currently...")
+        """Do nothing.
+
+        In part to be consistent with the MTurkRecruiter, which cannot expire
+        HITs for technical reasons (see that class's docstring for more details),
+        we do not automatically end a Prolific Study. This must be done by the
+        researcher through the Prolific UI.
+        """
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + self.nickname)
 
     @property
     def external_submission_url(self):
@@ -1023,21 +1028,18 @@ class MTurkRecruiter(Recruiter):
             logger.exception(str(ex))
 
     def close_recruitment(self):
-        """Clean up once the experiment is complete.
+        """Do nothing.
 
-        This may be called before all users have finished so uses the
-        expire_hit rather than the disable_hit API call. This allows people
-        who have already picked up the hit to complete it as normal.
+        Notifications of worker HIT submissions on MTurk seem to be
+        discontinued once a HIT has been expired. This means that we never
+        recieve notifications about HIT submissions from workers who, for
+        whatever reason, delay submitting their HIT. Since there are no
+        pressing issues caused by simply not automating HIT expiration,
+        this is the solution we've settled on for the past several years.
+
+        - `Jesse Snyder <https://github.com/jessesnyder/>__` Feb 1 2022
         """
         logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " mturk")
-        # We are not expiring the hit currently as notifications are failing
-        # TODO: Reinstate this
-        # try:
-        #     return self.mturkservice.expire_hit(
-        #         self.current_hit_id(),
-        #     )
-        # except MTurkServiceException as ex:
-        #     logger.exception(str(ex))
 
     @property
     def is_sandbox(self):
