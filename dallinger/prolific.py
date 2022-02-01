@@ -53,11 +53,33 @@ class ProlificService:
         the study on Prolific. If we get there first, there will be an error
         because the submission hasn't happened yet.
         """
+        status = self.get_participant_session(session_id)["status"]
+        if status != "AWAITING REVIEW":
+            # This will trigger a retry from the decorator
+            raise ProlificServiceException("Prolific session not yet submitted.")
+
         return self._req(
             method="POST",
             endpoint=f"/submissions/{session_id}/transition/",
             json={"action": "APPROVE"},
         )
+
+    def get_participant_session(self, session_id: str) -> dict:
+        """Retrieve details of a participant Session
+
+        This is roughly equivalent to an Assignment on MTurk.
+
+        Example return value:
+
+        {
+            "id": "60d9aadeb86739de712faee0",
+            "study_id": "60aca280709ee40ec37d4885",
+            "participant": "60bf9310e8dec401be6e9615",
+            "started_at": "2021-05-20T11:03:00.457Z",
+            "status": "ACTIVE"
+        }
+        """
+        return self._req(method="GET", endpoint=f"/submissions/{session_id}/")
 
     def create_published_study(
         self,
@@ -151,6 +173,12 @@ class ProlificService:
         This needs to happen in two steps:
             1. Define the payments as a record on Prolific
             2. Trigger the execution of the payments, using the ID from step 1.
+
+
+        Note: We currently rely on Dallinger's execution order to ensure that the
+        study has already been submitted and approved by the time we are called. If
+        this were not the case, it's possible that payment would fail, but I have
+        not verified this. - `Jesse Snyder <https://github.com/jessesnyder/>__` Feb 1 2022
         """
         amount_str = "{:.2f}".format(amount)
         payload = {
