@@ -111,6 +111,7 @@ jobs:
           mturk_worker_id: ${{ secrets.MTURK_WORKER_ID }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          PROLIFIC_RESEARCHER_API_TOKEN: ${{ secrets.PROLIFIC_RESEARCHER_API_TOKEN }}
         run: |
           tox ${{ needs.check_mturk_changes.outputs.needs_mturk_tests == 'true' && '-- --mturkfull' || ''}}
           npm run test --coverage

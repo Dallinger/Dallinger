@@ -152,8 +152,9 @@ if exp_klass is not None:  # pragma: no cover
 
 # Ideally, we'd only load recruiter routes if the recruiter is active, but
 # it turns out this is complicated, so for now we always register our
-# primary recruiter's route:
+# primary recruiters' routes:
 app.register_blueprint(recruiters.mturk_routes)
+app.register_blueprint(recruiters.prolific_routes)
 
 # Load dashboard routes and login setup
 app.register_blueprint(dashboard.dashboard)

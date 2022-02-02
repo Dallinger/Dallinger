@@ -74,6 +74,7 @@ setup_args = dict(
         "SQLAlchemy",
         "sqlalchemy-postgres-copy",
         "tabulate",
+        "tenacity",
         "timeago",
         "tzlocal",
         "ua-parser",
