@@ -164,7 +164,7 @@ class Recruiter(object):
         return "AssignmentSubmitted"
 
 
-def alphanumeric_secret(seed: str, length: int = 8):
+def alphanumeric_code(seed: str, length: int = 8):
     """Return and alphanumeric string of specified length based on a
     seed value, so the same result will always be returned for a given
     seed.
@@ -206,6 +206,11 @@ def prolific_submission_listener():
     return success_response()
 
 
+# We provide these values in our /ad URL, and Prolific will replace the tokens
+# with the right values when the redirect participants to us
+PROLIFIC_AD_QUERYSTRING = "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
+
+
 class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.co/)"""
 
@@ -216,7 +221,7 @@ class ProlificRecruiter(Recruiter):
         self.config = get_config()
         base_url = get_base_url()
         self.ad_url = f"{base_url}/ad?recruiter={self.nickname}"
-        self.completion_code = alphanumeric_secret(self.config.get("id"))
+        self.completion_code = alphanumeric_code(self.config.get("id"))
         self.study_domain = os.getenv("HOST")
         self.prolificservice = ProlificService(
             api_token=self.config.get("prolific_api_token"),
@@ -233,7 +238,8 @@ class ProlificRecruiter(Recruiter):
         logger.info(f"Opening Prolific recruitment for {n} participants")
         if self.is_in_progress:
             raise ProlificRecruiterException(
-                "Tried to open_recruitment on already open ProlificRecruiter."
+                "Tried to open_recruitment(), but a Prolific Study "
+                f"(ID {self.current_study_id}) is already running for this experiment"
             )
 
         if self.study_domain is None:
@@ -251,8 +257,7 @@ class ProlificRecruiter(Recruiter):
             "estimated_completion_time": self.config.get(
                 "prolific_estimated_completion_minutes"
             ),
-            "external_study_url": self.ad_url
-            + "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}",
+            "external_study_url": self.ad_url + PROLIFIC_AD_QUERYSTRING,
             "internal_name": "{} ({})".format(
                 self.config.get("title"), self.config.get("id")
             ),
@@ -272,12 +277,11 @@ class ProlificRecruiter(Recruiter):
             explicit_config = json.loads(self.config.get("prolific_recruitment_config"))
             study_request.update(explicit_config)
 
-        study_info = self.prolificservice.create_published_study(**study_request)
+        study_info = self.prolificservice.published_study(**study_request)
         self._record_current_study_id(study_info["id"])
-        url = study_info["external_study_url"]
 
         return {
-            "items": [url],
+            "items": [study_info["external_study_url"]],
             "message": "Study now published on Prolific",
         }
 
@@ -327,6 +331,12 @@ class ProlificRecruiter(Recruiter):
         return f"https://app.prolific.co/submissions/complete?cc={self.completion_code}"
 
     def exit_response(self, experiment, participant):
+        """Return our custom particpant exit template.
+
+        This includes the button which will:
+            1. call our custom exit handler (/prolific-submission-listener)
+            2. return the participant to Prolific to submit their assignment
+        """
         return flask.render_template(
             "exit_recruiter_prolific.html",
             assignment_id=participant.assignment_id,

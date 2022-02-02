@@ -60,7 +60,7 @@ def subject(prolific_creds):
 
 @pytest.mark.skip(reason="Cannot clean up after itself")
 def test_make_quick_study(subject):
-    subject.create_published_study(**private_study_request)
+    subject.published_study(**private_study_request)
 
 
 @pytest.mark.usefixtures("check_prolific")

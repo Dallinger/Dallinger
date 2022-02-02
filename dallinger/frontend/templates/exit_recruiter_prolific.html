@@ -37,7 +37,7 @@
         <h1>Prolific Study Submission</h1>
         <hr>
 
-        <p>To complete your Prolific study, simply press the button below.
+        <p>To complete your Prolific study, click the button below.
           You'll be redirected to Prolific and your submission will be recorded.
         </p>
 
@@ -50,14 +50,18 @@
 
 {% block scripts %}
 <script type="text/javascript">
-    // The values our custom exit handler needs to to create an AssignmentSubmitted
-    // notification:
+    // The values our custom exit handler needs in order
+    // to to create an AssignmentSubmitted notification:
     const participantInfo = {
       assignmentId: "{{ assignment_id}}",
       participantId: "{{ participant_id }}",
     };
     const $exitButton = $("#js-exit-button");
 
+    /**
+     * Freezes the form, calls our custom route, then redirects the
+     * participant to the Prolific study submission page
+     */
     function onExitFormSubmission(
       $button, submission, prolificStudySubmissionURL
     ) {

@@ -81,7 +81,7 @@ class ProlificService:
         """
         return self._req(method="GET", endpoint=f"/submissions/{session_id}/")
 
-    def create_published_study(
+    def published_study(
         self,
         completion_code: str,
         completion_option: str,
@@ -98,10 +98,10 @@ class ProlificService:
         device_compatibility: Optional[List[str]] = None,
         peripheral_requirements: Optional[List[str]] = None,
     ) -> dict:
-        """Create a Study on Prolific, and return its properties as a dictionary.
+        """Create an active Study on Prolific, and return its properties.
 
-        This method wraps both creating a draft study, and then publishing it, which
-        is the required workflow for generating a working, published study on Prolific.
+        This method wraps both creating a draft study and publishing it, which
+        is the required workflow for generating a working study on Prolific.
         """
         args = locals()
         del args["self"]
@@ -125,7 +125,7 @@ class ProlificService:
         device_compatibility: Optional[List[str]] = None,
         peripheral_requirements: Optional[List[str]] = None,
     ) -> dict:
-        """Create a draft Study on Prolific, and return info about it."""
+        """Create a draft Study on Prolific, and return its properties."""
 
         payload = {
             "completion_code": completion_code,
@@ -163,7 +163,7 @@ class ProlificService:
         )
 
     def delete_study(self, study_id: str) -> bool:
-        """Delete a Study entirely"""
+        """Delete a Study entirely. This is only possible on UNPUBLISHED studies."""
         response = self._req(method="DELETE", endpoint=f"/studies/{study_id}")
         return response == {"status_code": 204}
 
@@ -186,11 +186,11 @@ class ProlificService:
             "csv_bonuses": f"{worker_id},{amount_str}",
         }
 
-        # Step 1
+        # Step 1: configure payment
         setup_response = self._req(
             method="POST", endpoint="/submissions/bonus-payments/", json=payload
         )
-        # Step 2
+        # Step 2: pull the trigger
         payment_response = self._req(
             "POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
         )
@@ -198,10 +198,20 @@ class ProlificService:
         return payment_response
 
     def who_am_i(self) -> dict:
-        """For testing authorization."""
+        """For testing authorization, primarily, but does return all the
+        details for your user.
+        """
         return self._req(method="GET", endpoint="/users/me/")
 
     def _req(self, method: str, endpoint: str, **kw) -> dict:
+        """Runs the actual request/response cycle:
+        * Adds auth header
+        * Adds Referer header to help Prolific identify our requests
+          when troubleshooting
+        * Logs all requests (we might want to stop doing this when we're
+          out of our "beta" period with Prolific)
+        * Parses response and does error handling
+        """
         headers = {
             "Authorization": f"Token {self.api_token}",
             "Referer": f"v{self.referer_header}",
