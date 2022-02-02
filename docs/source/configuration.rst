@@ -78,12 +78,19 @@ Recruitment (General)
 
 ``browser_exclude_rule`` *unicode - comma separated*
     A set of rules you can apply to prevent participants with unsupported web
-    browsers from participating in your experiment.
+    browsers from participating in your experiment. Valid exclustion values are:
+        * mobile
+        * tablet
+        * touchcapable
+        * pc
+        * bot
 
 ``recruiter`` *unicode*
     The recruiter class to use during the experiment run. While this can be a
     full class name, it is more common to use the class's ``nickname`` property
-    for this value; for example ``mturk``, ``cli``, ``bots``, or ``multi``.
+    for this value; for example ``mturk``, ``prolific``, ``cli``, ``bots``,
+    or ``multi``.
+
     NOTE: when running in debug mode, the HotAir (``hotair``) recruiter will
     always be used. The exception is if the ``--bots`` option is passed to
     ``dallinger debug``, in which case the BotRecruiter will be used instead.
@@ -167,9 +174,28 @@ Amazon Mechanical Turk Recruitment
 ``organization_name`` *unicode*
     Obsolete.
 
+Preventing Repeat Participants on MTurk
+"""""""""""""""""""""""""""""""""""""""
+
+If you set a ``group_name`` and ``assign_qualifications`` is also set to
+``true``, workers who complete your HIT will be given an MTurk qualification for
+your ``group_name``. In the future, you can prevent these workers from
+participating in a HIT with the same ``group_name`` by including that name in
+the ``qualification_blacklist`` configuration. These four configuration keys
+work together to create a system to prevent recuiting workers who have already
+completed a prior run of the same experiment.
+
+
+.. _prolific-recruitment:
 
 Prolific Recruitment
 ~~~~~~~~~~~~~~~~~~~~
+
+``title`` *unicode*
+    The title of the Study on Prolific.
+
+``description`` *unicode*
+    The description of the Study on Prolific.
 
 ``prolific_api_token`` *unicode*
     Your Prolific API token. These are requested from Prolific via email or some
@@ -195,31 +221,41 @@ Prolific Recruitment
     - ``peripheral_requirements``
     - ``eligibility_requirements``
 
-    See the `Prolific API Documentation <https://docs.prolific.co/docs/api-docs/public/#tag/Studies/paths/~1api~1v1~1studies~1/post>__`
+    See the `Prolific API Documentation <https://docs.prolific.co/docs/api-docs/public/#tag/Studies/paths/~1api~1v1~1studies~1/post>`__
     for details.
 
     Configuration can also be stored in a separate JSON file, and included by using the
     filename, prefixed with ``file:``, as the configuration value. For example, to use a
-    JSON file called ``prolific_config.json``, you would add the following to your
-    config.txt file:
+    JSON file called ``prolific_config.json``, you would first create this file, with
+    valid JSON as contents::
+
+        {
+            "eligibility_requirements": [
+                {
+                    "attributes": [
+                        {
+                            "name": "white_list",
+                            "value": [
+                                # worker ID one,
+                                # worker ID two,
+                                # etc.
+                            ]
+                        }
+                    ],
+                    "_cls": "web.eligibility.models.CustomWhitelistEligibilityRequirement"
+                }
+            ]
+        }
+
+    You would then include this file in your overall configuration by adding the following
+    to your config.txt file::
 
         prolific_recruitment_config = file:prolific_config.json
 
 ``prolific_reward_cents`` *int*
     Base pay you going to give the participants, in cents.
-    Prolific will use the currency of your account.
-
-
-Preventing Repeat Participants
-""""""""""""""""""""""""""""""
-
-If you set a ``group_name`` and ``assign_qualifications`` is also set to
-``true``, workers who complete your HIT will be given an MTurk qualification for
-your ``group_name``. In the future, you can prevent these workers from
-participating in a HIT with the same ``group_name`` by including that name in
-the ``qualification_blacklist`` configuration. These four configuration keys
-work together to create a system to prevent recuiting workers who have already
-completed a prior run of the same experiment.
+    Prolific will use the currency of your researcher account, and convert automatically
+    to the participant's currency when calculating base pay and bonuses.
 
 
 Email Notifications

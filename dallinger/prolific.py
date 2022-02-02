@@ -42,7 +42,7 @@ class ProlificService:
 
     @tenacity.retry(
         wait=tenacity.wait_exponential(multiplier=1, min=2, max=8),
-        stop=tenacity.stop_after_attempt(4),
+        stop=tenacity.stop_after_attempt(5),
         reraise=True,
     )
     def approve_participant_session(self, session_id: str) -> dict:
@@ -86,7 +86,7 @@ class ProlificService:
         completion_code: str,
         completion_option: str,
         description: str,
-        eligibility_requirements: List[dict],
+        eligibility_requirements: List[dict],  # can be empty, but not None
         estimated_completion_time: int,
         external_study_url: str,
         internal_name: str,
