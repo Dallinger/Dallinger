@@ -207,7 +207,7 @@ def prolific_submission_listener():
 
 
 # We provide these values in our /ad URL, and Prolific will replace the tokens
-# with the right values when the redirect participants to us
+# with the right values when they redirect participants to us
 PROLIFIC_AD_QUERYSTRING = "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
 
 
