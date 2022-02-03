@@ -192,34 +192,42 @@ Prolific Recruitment
 ~~~~~~~~~~~~~~~~~~~~
 
 ``title`` *unicode*
-    The title of the Study on Prolific.
+    The title of the Study on Prolific
 
 ``description`` *unicode*
-    The description of the Study on Prolific.
+    The description of the Study on Prolific
 
 ``prolific_api_token`` *unicode*
-    Your Prolific API token. These are requested from Prolific via email or some
-    other non-programmatic channel, and should be stored in your ``~/.dallingerconfig``
-    file.
+    Your Prolific API token
+
+    These are requested from Prolific via email or some other non-programmatic
+    channel, and should be stored in your ``~/.dallingerconfig`` file.
 
 ``prolific_api_version`` *unicode*
-    The version of the Prolific API you'd like to use. The default ("v1") is
-    defined in global_config_defaults.txt
+    The version of the Prolific API you'd like to use
+
+    The default ("v1") is defined in global_config_defaults.txt
 
 ``prolific_estimated_completion_minutes`` *int*
     Estimated duration in minutes of the experiment or survey
 
 ``prolific_maximum_allowed_minutes`` *int*
-    Max time in minutes for a participant to finish the submission.
-    Submissions are timed out if it takes longer. Make sure it is not too low.
-    The default is 3 x the ``prolific_estimated_completion_minutes`` plus two
+    Max time in minutes for a participant to finish the submission
+
+    Submissions are timed out if it takes longer, so make sure it is not too low.
+    The default is 3 times the ``prolific_estimated_completion_minutes``, plus two
     minutes.
 
 ``prolific_recruitment_config`` *unicode - JSON formatted*
-    JSON data to add additional recruitment parameters. This would typically include:
-    - ``device_compatibility``
-    - ``peripheral_requirements``
-    - ``eligibility_requirements``
+    JSON data to add additional recruitment parameters
+
+    Since some recruitment parameters are complex and are defined with relatively complex
+    syntax, Dallinger allows you to define this configuration in raw JSON. The parameters
+    you would typically specify this way :ref:`include <json-config-disclaimer>`:
+
+        - ``device_compatibility``
+        - ``peripheral_requirements``
+        - ``eligibility_requirements``
 
     See the `Prolific API Documentation <https://docs.prolific.co/docs/api-docs/public/#tag/Studies/paths/~1api~1v1~1studies~1/post>`__
     for details.
@@ -252,10 +260,18 @@ Prolific Recruitment
 
         prolific_recruitment_config = file:prolific_config.json
 
+    .. _json-config-disclaimer:
+
+    A word of caution: while it is technically possible to specify other recruitment values this way
+    (for example, ``{"title": "My Experiment Title"}``), we recommend that you stick to the standard
+    key = value format of ``config.txt`` whenever possible, and leave ``prolific_recruitment_config``
+    for complex requirements which can't be configured in this simpler way.
+
 ``prolific_reward_cents`` *int*
-    Base pay you going to give the participants, in cents.
+    Base compensation to pay your participants, in cents
+
     Prolific will use the currency of your researcher account, and convert automatically
-    to the participant's currency when calculating base pay and bonuses.
+    to the participant's currency.
 
 
 Email Notifications
