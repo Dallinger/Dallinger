@@ -9,10 +9,12 @@ from typing import Dict
 from uuid import uuid4
 import logging
 import shlex
+import socket
 import subprocess
 import os
 import zipfile
 
+import dns.resolver
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
 import urllib3
@@ -50,15 +52,27 @@ DOCKER_COMPOSE_EXP_TPL = Template(
 
 
 CADDYFILE = """
+{
+  debug
+  default_sni 172.18.0.250
+}
 # This is a configuration file for the Caddy http Server
 # Documentation can be found at https://caddyserver.com/docs
 localhost {
-    respond /health-check 200
-    tls internal
+  respond /health-check 200
+  tls internal
 }
 
 import caddy.d/*
 """
+
+EXPERIMENT_CADDY_CONF_TEMPLATE = Template(
+    """
+{{ experiment_id }}.localhost 172.18.0.250/{{ experiment_id }}* {{ local_ip_name }}/{{ experiment_id }}* {
+  reverse_proxy /{{ experiment_id }}* {{ experiment_id }}_web:5000
+}
+"""
+)
 
 
 @click.group()
@@ -157,6 +171,32 @@ def build_image(f):
         return f(*args, **kwargs)
 
     return wrapper
+
+
+def get_local_ip():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect(("8.8.8.8", 80))
+    result = sock.getsockname()[0]
+    sock.close()
+    return result
+
+
+def get_local_ip_name():
+    """Returns a DNS name that can be used on the local network to reach this host.
+    Uses the 224.0.0.251 multicast address to get the name registered on mDNS.
+    """
+    local_ip = get_local_ip()
+    ip_to_query = ".".join(local_ip.split(".")[::-1]) + ".in-addr.arpa"
+    resolver = dns.resolver.Resolver()
+    resolver.nameservers = ["224.0.0.251"]  # mdns multicast address
+    resolver.port = 5353  # mdns port
+    try:
+        answers = resolver.query(ip_to_query, "PTR")
+    except dns.resolver.NXDOMAIN:
+        return local_ip
+    else:
+        # Make sure to remove the trailing dot, or it will confuse Caddy
+        return answers[0].target.to_text().rstrip(".")
 
 
 @docker_local.command()
@@ -272,21 +312,30 @@ def deploy(mode, config_options, archive_path):  # pragma: no cover
         )
         print("Database initialized")
 
+    local_ip_name = get_local_ip_name()
     # We give caddy the alias for the service. If we scale up the service container caddy will
     # send requests to all of them in a round robin fashion.
-    caddy_conf = f"{experiment_id}.localhost {{\n    tls internal\n    reverse_proxy /{experiment_id}* {experiment_id}_web:5000\n}}"
+    caddy_conf = EXPERIMENT_CADDY_CONF_TEMPLATE.render(
+        experiment_id=experiment_id,
+        local_ip_name=local_ip_name,
+    )
     open(expanduser(f"~/dallinger/caddy.d/{experiment_id}"), "w").write(caddy_conf)
     # Tell caddy we changed something in the configuration
     executor.reload_caddy()
 
-    print(
-        f"Launching experiment at https://{experiment_id}.localhost/{experiment_id}/launch"
-    )
+    print(f"Launching experiment at https://{local_ip_name}/{experiment_id}/launch")
     urllib3.disable_warnings()
     response = get_retrying_http_client().post(
-        f"https://{experiment_id}.localhost/{experiment_id}/launch", verify=False
+        f"https://{local_ip_name}/{experiment_id}/launch", verify=False
     )
-    print(response.json()["recruitment_msg"])
+    recruitment_msg = response.json()["recruitment_msg"]
+    # Add experiment id to URLs in recruitment message
+    # This should be better done in dallinger.utils:get_base_url
+    # by using flask routes.
+    recruitment_msg = recruitment_msg.replace(
+        f"https://{local_ip_name}/", f"https://{local_ip_name}/{experiment_id}/"
+    )
+    print(recruitment_msg)
 
     print("To display the logs for this experiment you can run:")
     print(
@@ -295,7 +344,7 @@ def deploy(mode, config_options, archive_path):  # pragma: no cover
         )
     )
     print(
-        f"You can now log in to the console at https://{experiment_id}.localhost/dashboard as user {cfg['ADMIN_USER']} using password {cfg['dashboard_password']}"
+        f"You can now log in to the console at https://{local_ip_name}/{experiment_id}/dashboard as user {cfg['ADMIN_USER']} using password {cfg['dashboard_password']}"
     )
 
 
