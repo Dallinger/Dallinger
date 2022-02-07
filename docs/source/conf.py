@@ -48,6 +48,12 @@ extensions = [
     'recommonmark',
 ]
 
+# Hack to make sphinx_js work with python 3.10
+import collections
+import collections.abc
+if not hasattr(collections, 'Mapping'):
+    collections.Mapping = collections.abc.Mapping
+
 try:
     import sphinxcontrib.spelling
 except ImportError:
