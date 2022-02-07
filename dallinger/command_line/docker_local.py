@@ -13,6 +13,7 @@ import socket
 import subprocess
 import os
 import zipfile
+from dallinger import recruiters
 
 import dns.resolver
 from jinja2 import Template
@@ -221,6 +222,12 @@ def deploy(mode, config_options, archive_path):  # pragma: no cover
     """Deploy a dallnger experiment docker image to the local machine."""
     config = get_config()
     config.load()
+    recruiter = recruiters.from_config(config)
+    if recruiter.needs_public_ip:
+        print(
+            "The local deployment will only work with recruiters that don't need a public IP address"
+        )
+        raise click.Abort
     executor = Executor()
     executor.run("mkdir -p ~/dallinger/caddy.d")
 

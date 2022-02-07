@@ -59,6 +59,9 @@ class Recruiter(object):
     nickname = None
     external_submission_url = None  # MTurkRecruiter, for one, overides this
 
+    # Subclasses that can work on a private network should override this
+    needs_public_ip = True
+
     def __init__(self):
         """For now, the contract of a Recruiter is that it takes no
         arguments.
@@ -395,6 +398,7 @@ class CLIRecruiter(Recruiter):
     """
 
     nickname = "cli"
+    needs_public_ip = False
 
     def __init__(self):
         super(CLIRecruiter, self).__init__()
@@ -488,6 +492,7 @@ class HotAirRecruiter(CLIRecruiter):
     """
 
     nickname = "hotair"
+    needs_public_ip = False
 
     def open_recruitment(self, n=1):
         """Return initial experiment URL list, plus instructions
@@ -520,6 +525,7 @@ class SimulatedRecruiter(Recruiter):
     """A recruiter that recruits simulated participants."""
 
     nickname = "sim"
+    needs_public_ip = False
 
     def open_recruitment(self, n=1):
         """Open recruitment."""
@@ -1256,6 +1262,7 @@ class BotRecruiter(Recruiter):
 
     nickname = "bots"
     _timeout = "1h"
+    needs_public_ip = False
 
     def __init__(self):
         super(BotRecruiter, self).__init__()
