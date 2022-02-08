@@ -52,25 +52,31 @@ DOCKER_COMPOSE_EXP_TPL = Template(
 )
 
 
-CADDYFILE = """
+CADDYFILE = Template(
+    """
 {
   debug
   default_sni 172.18.0.250
 }
 # This is a configuration file for the Caddy http Server
 # Documentation can be found at https://caddyserver.com/docs
-localhost {
-  respond /health-check 200
-  tls internal
-}
 
-import caddy.d/*
+{{ local_ip_name }} 172.18.0.250 localhost {
+  tls internal
+  route /health-check {
+      respond /health-check 200
+  }
+  import experiments.d/*
+  respond 404
+}
 """
+)
 
 EXPERIMENT_CADDY_CONF_TEMPLATE = Template(
     """
-{{ experiment_id }}.localhost 172.18.0.250/{{ experiment_id }}* {{ local_ip_name }}/{{ experiment_id }}* {
+route /{{ experiment_id }}* {
   reverse_proxy /{{ experiment_id }}* {{ experiment_id }}_web:5000
+  respond 404
 }
 """
 )
@@ -229,10 +235,16 @@ def deploy(mode, config_options, archive_path):  # pragma: no cover
         )
         raise click.Abort
     executor = Executor()
-    executor.run("mkdir -p ~/dallinger/caddy.d")
+    executor.run("mkdir -p ~/dallinger/experiments.d")
 
     open(expanduser("~/dallinger/docker-compose.yml"), "w").write(DOCKER_COMPOSE_SERVER)
-    open(expanduser("~/dallinger/Caddyfile"), "w").write(CADDYFILE)
+    local_ip_name = get_local_ip_name()
+
+    global_caddy_conf = CADDYFILE.render(
+        local_ip_name=local_ip_name,
+    )
+
+    open(expanduser("~/dallinger/Caddyfile"), "w").write(global_caddy_conf)
     executor.run("docker-compose -f ~/dallinger/docker-compose.yml up -d")
     print("Launched http and postgresql servers. Starting experiment")
 
@@ -319,14 +331,14 @@ def deploy(mode, config_options, archive_path):  # pragma: no cover
         )
         print("Database initialized")
 
-    local_ip_name = get_local_ip_name()
     # We give caddy the alias for the service. If we scale up the service container caddy will
     # send requests to all of them in a round robin fashion.
     caddy_conf = EXPERIMENT_CADDY_CONF_TEMPLATE.render(
         experiment_id=experiment_id,
-        local_ip_name=local_ip_name,
     )
-    open(expanduser(f"~/dallinger/caddy.d/{experiment_id}"), "w").write(caddy_conf)
+    open(expanduser(f"~/dallinger/experiments.d/{experiment_id}"), "w").write(
+        caddy_conf
+    )
     # Tell caddy we changed something in the configuration
     executor.reload_caddy()
 
@@ -367,7 +379,7 @@ def apps():
     executor = Executor()
     # The caddy configuration files are used as source of truth
     # to get the list of installed apps
-    apps = executor.run("ls ~/dallinger/caddy.d")
+    apps = executor.run("ls ~/dallinger/experiments.d")
     for app in apps.split():
         print(app)
 
@@ -419,11 +431,11 @@ def destroy(app):
     executor = Executor()
     # Remove the caddy configuration file and reload caddy config
     try:
-        executor.run(f"ls ~/dallinger/caddy.d/{app}")
+        executor.run(f"ls ~/dallinger/experiments.d/{app}")
     except ExecuteException:
         print(f"App {app} not found")
         raise click.Abort
-    executor.run(f"rm ~/dallinger/caddy.d/{app}")
+    executor.run(f"rm ~/dallinger/experiments.d/{app}")
     executor.reload_caddy()
     executor.run(
         f"docker-compose -f ~/dallinger/{app}/docker-compose.yml down", raise_=False
