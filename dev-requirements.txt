@@ -325,7 +325,7 @@ pickleshare==0.7.5
     # via ipython
 pip-tools==6.4.0
     # via dallinger
-platformdirs==2.4.1
+platformdirs==2.5.0
     # via
     #   black
     #   virtualenv
