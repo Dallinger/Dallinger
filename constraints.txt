@@ -120,7 +120,7 @@ entrypoints==0.3
     #   nbconvert
 et-xmlfile==1.1.0
     # via openpyxl
-faker==12.0.0
+faker==12.2.0
     # via dallinger
 filelock==3.4.2
     # via
@@ -261,7 +261,7 @@ mypy-extensions==0.4.3
     # via black
 nbclient==0.5.10
     # via nbconvert
-nbconvert==6.4.0
+nbconvert==6.4.2
     # via
     #   jupyter
     #   notebook
@@ -323,7 +323,7 @@ pexpect==4.8.0
     #   ipython
 pickleshare==0.7.5
     # via ipython
-pip-tools==6.4.0
+pip-tools==6.5.0
     # via dallinger
 platformdirs==2.4.1
     # via
