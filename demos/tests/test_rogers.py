@@ -273,7 +273,7 @@ class TestRogers(object):
                                 origin_id=source.id, destination_id=agent.id
                             ).all()
                         )
-                        == 1
+                        == 1  # noqa
                     )
                 else:
                     assert (
@@ -282,7 +282,7 @@ class TestRogers(object):
                                 origin_id=source.id, destination_id=agent.id
                             ).all()
                         )
-                        == 0
+                        == 0  # noqa
                     )
 
             for agent in agents:
@@ -292,10 +292,10 @@ class TestRogers(object):
                             v
                             for v in vectors
                             if v.origin_id == environment.id
-                            and v.destination_id == agent.id
+                            and v.destination_id == agent.id  # noqa
                         ]
                     )
-                    == 1
+                    == 1  # noqa
                 )
 
             for v in [v for v in vectors if v.origin_id == source.id]:
@@ -329,7 +329,7 @@ class TestRogers(object):
                             if i.origin_id == agent.id and isinstance(i, Gene)
                         ]
                     )
-                    == 1
+                    == 1  # noqa
                 )
                 assert (
                     len(
@@ -339,7 +339,7 @@ class TestRogers(object):
                             if i.origin_id == agent.id and isinstance(i, LearningGene)
                         ]
                     )
-                    == 1
+                    == 1  # noqa
                 )
                 assert (
                     len(
@@ -349,7 +349,7 @@ class TestRogers(object):
                             if i.origin_id == agent.id and isinstance(i, Meme)
                         ]
                     )
-                    == 1
+                    == 1  # noqa
                 )
 
         print("Testing infos...                     done!")
@@ -384,7 +384,7 @@ class TestRogers(object):
                             if t.destination_id == agent.id and t.status == "pending"
                         ]
                     )
-                    == 0
+                    == 0  # noqa
                 )
 
                 lg = [
@@ -448,7 +448,7 @@ class TestRogers(object):
 
         assert (
             exp.bonus(participant=Participant.query.filter_by(id=p_ids[0]).all()[0])
-            == exp.bonus_payment
+            == exp.bonus_payment  # noqa
         )
 
         print("Testing bonus payments...            done!")
@@ -531,10 +531,12 @@ class TestRogersSandbox(object):
                     )
                     information2 = session.get(
                         url
-                        + "/info/"
-                        + str(agent_id)
-                        + "/"
-                        + str(transmission.json()["transmissions"][0]["info_id"]),
+                        + "/info/"  # noqa
+                        + str(agent_id)  # noqa
+                        + "/"  # noqa
+                        + str(  # noqa
+                            transmission.json()["transmissions"][0]["info_id"]
+                        ),
                         headers=headers,
                     )
                     args = {"contents": "blue", "info_type": "Meme"}
