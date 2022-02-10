@@ -5,8 +5,10 @@ import flask
 import json
 import logging
 import os
+import random
 import re
 import requests
+import string
 import time
 
 from rq import Queue
@@ -29,9 +31,12 @@ from dallinger.mturk import MTurkService
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkServiceException
 from dallinger.mturk import QualificationNotFoundException
+from dallinger.prolific import ProlificService
+from dallinger.prolific import ProlificServiceException
 from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
 from dallinger.utils import ParticipationTime
+from dallinger.version import __version__
 
 
 logger = logging.getLogger(__file__)
@@ -128,7 +133,7 @@ class Recruiter(object):
         """
         raise NotImplementedError
 
-    def reward_bonus(self, assignment_id, amount, reason):
+    def reward_bonus(self, participant, amount, reason):
         """Throw an error."""
         raise NotImplementedError
 
@@ -157,6 +162,231 @@ class Recruiter(object):
         return None.
         """
         return "AssignmentSubmitted"
+
+
+def alphanumeric_code(seed: str, length: int = 8):
+    """Return and alphanumeric string of specified length based on a
+    seed value, so the same result will always be returned for a given
+    seed.
+    """
+    chooser = random.Random(seed)
+    alphabet = string.ascii_uppercase + string.digits
+    return "".join(chooser.choice(alphabet) for i in range(length))
+
+
+class ProlificRecruiterException(Exception):
+    """Custom exception for ProlificRecruiter"""
+
+
+prolific_routes = flask.Blueprint("prolific_recruiter", __name__)
+
+
+@prolific_routes.route("/prolific-submission-listener", methods=["POST"])
+@crossdomain(origin="*")
+def prolific_submission_listener():
+    """Called from a JavaScript event handler on the Prolific exit page
+    (exit_recruiter_prolific.html).
+
+    When the participant submits their assignment/study to Prolific,
+    we are then ready to handle experiment completion task (approval, bonus)
+    via the `AssignmentSubmitted` async worker function.
+    """
+    identity_info = flask.request.form.to_dict()
+    logger.warning(
+        "prolific_submission_listener called: {}".format(json.dumps(identity_info))
+    )
+    assignment_id = identity_info.get("assignmentId")
+    participant_id = identity_info.get("participantId")
+
+    recruiter = ProlificRecruiter()
+    recruiter._handle_exit_form_submission(
+        assignment_id=assignment_id, participant_id=participant_id
+    )
+
+    return success_response()
+
+
+# We provide these values in our /ad URL, and Prolific will replace the tokens
+# with the right values when they redirect participants to us
+PROLIFIC_AD_QUERYSTRING = "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
+
+
+class ProlificRecruiter(Recruiter):
+    """A recruiter for [Prolific](https://app.prolific.co/)"""
+
+    nickname = "prolific"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.config = get_config()
+        base_url = get_base_url()
+        self.ad_url = f"{base_url}/ad?recruiter={self.nickname}"
+        self.completion_code = alphanumeric_code(self.config.get("id"))
+        self.study_domain = os.getenv("HOST")
+        self.prolificservice = ProlificService(
+            api_token=self.config.get("prolific_api_token"),
+            api_version=self.config.get("prolific_api_version"),
+            referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
+        )
+        self.notifies_admin = admin_notifier(self.config)
+        self.mailer = get_mailer(self.config)
+        self.store = kwargs.get("store") or RedisStore()
+
+    def open_recruitment(self, n: int = 1) -> dict:
+        """Create a Study on Prolific."""
+
+        logger.info(f"Opening Prolific recruitment for {n} participants")
+        if self.is_in_progress:
+            raise ProlificRecruiterException(
+                "Tried to open_recruitment(), but a Prolific Study "
+                f"(ID {self.current_study_id}) is already running for this experiment"
+            )
+
+        if self.study_domain is None:
+            raise ProlificRecruiterException(
+                "Can't run a Prolific Study from localhost"
+            )
+
+        study_request = {
+            "completion_code": self.completion_code,
+            "completion_option": "url",
+            "description": self.config.get("description"),
+            # may be overriden in prolific_recruitment_config, but it's required
+            # so we provide a default of "allow anyone":
+            "eligibility_requirements": [],
+            "estimated_completion_time": self.config.get(
+                "prolific_estimated_completion_minutes"
+            ),
+            "external_study_url": self.ad_url + PROLIFIC_AD_QUERYSTRING,
+            "internal_name": "{} ({})".format(
+                self.config.get("title"), self.config.get("id")
+            ),
+            "maximum_allowed_time": self.config.get(
+                "prolific_maximum_allowed_minutes",
+                3 * self.config.get("prolific_estimated_completion_minutes") + 2,
+            ),
+            "name": "{} ({})".format(
+                self.config.get("title"), heroku_tools.app_name(self.config.get("id"))
+            ),
+            "prolific_id_option": "url_parameters",
+            "reward": self.config.get("prolific_reward_cents"),
+            "total_available_places": n,
+        }
+        # Merge in any explicit configuration untouched:
+        if self.config.get("prolific_recruitment_config", None) is not None:
+            explicit_config = json.loads(self.config.get("prolific_recruitment_config"))
+            study_request.update(explicit_config)
+
+        study_info = self.prolificservice.published_study(**study_request)
+        self._record_current_study_id(study_info["id"])
+
+        return {
+            "items": [study_info["external_study_url"]],
+            "message": "Study now published on Prolific",
+        }
+
+    def normalize_entry_information(self, entry_information: dict):
+        """Map Prolific Study URL params to our internal keys."""
+
+        participant_data = {
+            "hit_id": entry_information["STUDY_ID"],
+            "worker_id": entry_information["PROLIFIC_PID"],
+            "assignment_id": entry_information["SESSION_ID"],
+            "entry_information": entry_information,
+        }
+
+        return participant_data
+
+    def recruit(self, n: int = 1):
+        """Recruit `n` new participants to an existing Prolific Study"""
+        return self.prolificservice.add_participants_to_study(
+            study_id=self.current_study_id, number_to_add=n
+        )
+
+    def approve_hit(self, assignment_id: str):
+        """Approve a participant's assignment/submission on Prolific"""
+        try:
+            return self.prolificservice.approve_participant_session(
+                session_id=assignment_id
+            )
+        except ProlificServiceException as ex:
+            logger.exception(str(ex))
+
+    def close_recruitment(self):
+        """Do nothing.
+
+        In part to be consistent with the MTurkRecruiter, which cannot expire
+        HITs for technical reasons (see that class's docstring for more details),
+        we do not automatically end a Prolific Study. This must be done by the
+        researcher through the Prolific UI.
+        """
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + self.nickname)
+
+    @property
+    def external_submission_url(self):
+        """On experiment completion, participants are returned to
+        the Prolific site with a HIT (Study) specific link, which will
+        trigger payment of their base pay.
+        """
+        return f"https://app.prolific.co/submissions/complete?cc={self.completion_code}"
+
+    def exit_response(self, experiment, participant):
+        """Return our custom particpant exit template.
+
+        This includes the button which will:
+            1. call our custom exit handler (/prolific-submission-listener)
+            2. return the participant to Prolific to submit their assignment
+        """
+        return flask.render_template(
+            "exit_recruiter_prolific.html",
+            assignment_id=participant.assignment_id,
+            participant_id=participant.id,
+            external_submit_url=self.external_submission_url,
+        )
+
+    def reward_bonus(self, participant, amount, reason):
+        """Reward the Prolific worker for a specified assignment with a bonus."""
+        try:
+            return self.prolificservice.pay_session_bonus(
+                study_id=self.current_study_id,
+                worker_id=participant.worker_id,
+                amount=amount,
+            )
+        except ProlificServiceException as ex:
+            logger.exception(str(ex))
+
+    def submitted_event(self):
+        """We cannot perform post-submission actions (approval, bonus payment)
+        until after the participant has submitted their study via the Prolific
+        UI, which we redirect them to from the exit page. This means that we
+        can't do anything when the questionnaire is submitted, so we return None
+        to signal this.
+        """
+        return None
+
+    @property
+    def current_study_id(self):
+        """Return the ID of the Study associated with the active experiment ID
+        if any such Study exists.
+        """
+        return self.store.get(self.study_id_storage_key)
+
+    @property
+    def is_in_progress(self):
+        """Does an Study for the current experiment ID already exist?"""
+        return self.current_study_id is not None
+
+    @property
+    def study_id_storage_key(self):
+        experiment_id = self.config.get("id")
+        return "{}:{}".format(self.__class__.__name__, experiment_id)
+
+    def _record_current_study_id(self, study_id):
+        self.store.set(self.study_id_storage_key, study_id)
+
+    def _handle_exit_form_submission(self, assignment_id: str, participant_id: str):
+        q = _get_queue()
+        q.enqueue(worker_function, "AssignmentSubmitted", assignment_id, participant_id)
 
 
 class CLIRecruiter(Recruiter):
@@ -238,11 +468,11 @@ class CLIRecruiter(Recruiter):
             )
         )
 
-    def reward_bonus(self, assignment_id, amount, reason):
+    def reward_bonus(self, participant, amount, reason):
         """Print out bonus info for the assignment"""
         logger.info(
             'Award ${} for assignment {}, with reason "{}"'.format(
-                amount, assignment_id, reason
+                amount, participant.assignment_id, reason
             )
         )
 
@@ -274,11 +504,11 @@ class HotAirRecruiter(CLIRecruiter):
 
         return {"items": recruitments, "message": message}
 
-    def reward_bonus(self, assignment_id, amount, reason):
+    def reward_bonus(self, participant, amount, reason):
         """Logging-only, Hot Air implementation"""
         logger.info(
             "Were this a real Recruiter, we'd be awarding ${} for assignment {}, "
-            'with reason "{}"'.format(amount, assignment_id, reason)
+            'with reason "{}"'.format(amount, participant.assignment_id, reason)
         )
 
     def _get_mode(self):
@@ -541,7 +771,7 @@ class MTurkRecruiter(Recruiter):
     extra_routes = mturk_routes
 
     def __init__(self, *args, **kwargs):
-        super(MTurkRecruiter, self).__init__()
+        super().__init__()
         self.config = get_config()
         base_url = get_base_url()
         self.ad_url = "{}/ad?recruiter={}".format(base_url, self.nickname)
@@ -784,10 +1014,12 @@ class MTurkRecruiter(Recruiter):
         """
         return None
 
-    def reward_bonus(self, assignment_id, amount, reason):
+    def reward_bonus(self, participant, amount, reason):
         """Reward the Turker for a specified assignment with a bonus."""
         try:
-            return self.mturkservice.grant_bonus(assignment_id, amount, reason)
+            return self.mturkservice.grant_bonus(
+                participant.assignment_id, amount, reason
+            )
         except MTurkServiceException as ex:
             logger.exception(str(ex))
 
@@ -809,21 +1041,18 @@ class MTurkRecruiter(Recruiter):
             logger.exception(str(ex))
 
     def close_recruitment(self):
-        """Clean up once the experiment is complete.
+        """Do nothing.
 
-        This may be called before all users have finished so uses the
-        expire_hit rather than the disable_hit API call. This allows people
-        who have already picked up the hit to complete it as normal.
+        Notifications of worker HIT submissions on MTurk seem to be
+        discontinued once a HIT has been expired. This means that we never
+        recieve notifications about HIT submissions from workers who, for
+        whatever reason, delay submitting their HIT. Since there are no
+        pressing issues caused by simply not automating HIT expiration,
+        this is the solution we've settled on for the past several years.
+
+        - `Jesse Snyder <https://github.com/jessesnyder/>__` Feb 1 2022
         """
         logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " mturk")
-        # We are not expiring the hit currently as notifications are failing
-        # TODO: Reinstate this
-        # try:
-        #     return self.mturkservice.expire_hit(
-        #         self.current_hit_id(),
-        #     )
-        # except MTurkServiceException as ex:
-        #     logger.exception(str(ex))
 
     @property
     def is_sandbox(self):
@@ -1083,7 +1312,7 @@ class BotRecruiter(Recruiter):
             participant.status = "rejected"
             session.commit()
 
-    def reward_bonus(self, assignment_id, amount, reason):
+    def reward_bonus(self, participant, amount, reason):
         """Logging only. These are bots."""
         logger.info("Bots don't get bonuses. Sorry, bots.")
 

@@ -30,9 +30,17 @@ chrome-path = /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 
 [Heroku]
 clock_on = False
-heroku_python_version = 3.9.2
+heroku_python_version = 3.10.2
 sentry = False
 redis_size = premium-0
 worker_multiplier = 1.5
 num_dynos_web = 1
 num_dynos_worker = 1
+
+[Prolific]
+prolific_api_token = Set your Prolific API token in ~/.dallingerconfig!
+prolific_api_version = v1
+prolific_estimated_completion_minutes = 0
+prolific_maximum_allowed_minutes = 0
+prolific_recruitment_config = {}
+prolific_reward_cents = 0

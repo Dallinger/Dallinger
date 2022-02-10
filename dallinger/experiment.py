@@ -102,6 +102,10 @@ class Experiment(object):
         static_folder="static",
     )
 
+    #: Sequence of dashboard route/function names that should be excluded from
+    #: rendering as tabs in the dashboard view.
+    hidden_dashboards = ()
+
     def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
 
