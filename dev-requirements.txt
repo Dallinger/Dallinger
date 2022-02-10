@@ -12,13 +12,13 @@ alabaster==0.7.12
     #   sphinx
 apscheduler==3.8.1
     # via dallinger
-argon2-cffi==21.1.0
+argon2-cffi==21.3.0
     # via notebook
 async-generator==1.10
     # via
     #   trio
     #   trio-websocket
-attrs==21.2.0
+attrs==21.4.0
     # via
     #   jsonschema
     #   outcome
@@ -36,9 +36,9 @@ black==21.11b1
     # via dallinger
 bleach==4.1.0
     # via nbconvert
-boto3==1.20.13
+boto3==1.20.46
     # via dallinger
-botocore==1.23.13
+botocore==1.23.46
     # via
     #   boto3
     #   s3transfer
@@ -62,7 +62,7 @@ cffi==1.15.0
     #   pynacl
 cfgv==3.3.1
     # via pre-commit
-charset-normalizer==2.0.8
+charset-normalizer==2.0.11
     # via requests
 click==7.1.2
     # via
@@ -75,27 +75,27 @@ codecov==2.1.12
     # via dallinger
 commonmark==0.9.1
     # via recommonmark
-coverage==6.2
+coverage==6.3.1
     # via
     #   codecov
     #   coverage-pth
     #   dallinger
 coverage-pth==0.0.2
     # via dallinger
-cryptography==36.0.0
+cryptography==36.0.1
     # via
     #   paramiko
     #   pyopenssl
     #   urllib3
 debugpy==1.5.1
     # via ipykernel
-decorator==5.1.0
+decorator==5.1.1
     # via ipython
 defusedxml==0.7.1
     # via
     #   nbconvert
     #   odfpy
-distlib==0.3.3
+distlib==0.3.4
     # via virtualenv
 distro==1.6.0
     # via docker-compose
@@ -120,9 +120,9 @@ entrypoints==0.3
     #   nbconvert
 et-xmlfile==1.1.0
     # via openpyxl
-faker==9.8.3
+faker==12.2.0
     # via dallinger
-filelock==3.4.0
+filelock==3.4.2
     # via
     #   tox
     #   virtualenv
@@ -145,7 +145,7 @@ flask-wtf==1.0.0
     # via dallinger
 future==0.18.2
     # via dallinger
-gevent==21.8.0
+gevent==21.12.0
     # via
     #   dallinger
     #   flask-sockets
@@ -159,11 +159,11 @@ greenlet==1.1.2
     #   sqlalchemy
 gunicorn==20.1.0
     # via dallinger
-h11==0.12.0
+h11==0.13.0
     # via wsproto
 heroku3==5.1.4
     # via dallinger
-identify==2.4.0
+identify==2.4.7
     # via pre-commit
 idna==3.3
     # via
@@ -174,14 +174,14 @@ imagesize==1.3.0
     # via sphinx
 iniconfig==1.1.1
     # via pytest
-ipykernel==6.6.0
+ipykernel==6.9.0
     # via
     #   ipywidgets
     #   jupyter
     #   jupyter-console
     #   notebook
     #   qtconsole
-ipython==7.30.0
+ipython==7.31.1
     # via
     #   ipykernel
     #   ipywidgets
@@ -219,7 +219,7 @@ jsonschema==3.2.0
     #   nbformat
 jupyter==1.0.0
     # via dallinger
-jupyter-client==7.1.0
+jupyter-client==7.1.2
     # via
     #   ipykernel
     #   jupyter-console
@@ -259,9 +259,9 @@ mock==4.0.3
     # via dallinger
 mypy-extensions==0.4.3
     # via black
-nbclient==0.5.9
+nbclient==0.5.10
     # via nbconvert
-nbconvert==6.3.0
+nbconvert==6.4.2
     # via
     #   jupyter
     #   notebook
@@ -271,13 +271,13 @@ nbformat==5.1.3
     #   nbclient
     #   nbconvert
     #   notebook
-nest-asyncio==1.5.1
+nest-asyncio==1.5.4
     # via
     #   jupyter-client
     #   nbclient
 nodeenv==1.6.0
     # via pre-commit
-notebook==6.4.6
+notebook==6.4.8
     # via
     #   jupyter
     #   widgetsnbextension
@@ -296,20 +296,20 @@ packaging==21.3
     #   pytest
     #   sphinx
     #   tox
-pandas==1.3.4
+pandas==1.3.5
     # via
     #   dallinger
     #   tablib
 pandocfilters==1.5.0
     # via nbconvert
-paramiko==2.8.1
+paramiko==2.9.2
     # via
     #   dallinger
     #   docker
     #   sshtunnel
 parsimonious==0.7.0
     # via sphinx-js
-parso==0.8.2
+parso==0.8.3
     # via jedi
 pathspec==0.9.0
     # via black
@@ -323,9 +323,9 @@ pexpect==4.8.0
     #   ipython
 pickleshare==0.7.5
     # via ipython
-pip-tools==6.4.0
+pip-tools==6.5.0
     # via dallinger
-platformdirs==2.4.0
+platformdirs==2.5.0
     # via
     #   black
     #   virtualenv
@@ -333,17 +333,17 @@ pluggy==1.0.0
     # via
     #   pytest
     #   tox
-pre-commit==2.15.0
+pre-commit==2.17.0
     # via dallinger
-prometheus-client==0.12.0
+prometheus-client==0.13.1
     # via notebook
-prompt-toolkit==3.0.23
+prompt-toolkit==3.0.27
     # via
     #   ipython
     #   jupyter-console
-psutil==5.8.0
+psutil==5.9.0
     # via dallinger
-psycopg2==2.9.1
+psycopg2==2.9.3
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
@@ -365,7 +365,7 @@ pyenchant==3.2.2
     # via sphinxcontrib-spelling
 pyflakes==2.4.0
     # via flake8
-pygments==2.10.0
+pygments==2.11.2
     # via
     #   ipython
     #   jupyter-console
@@ -375,15 +375,15 @@ pygments==2.10.0
     #   sphinx
 pynacl==1.4.0
     # via paramiko
-pyopenssl==21.0.0
+pyopenssl==22.0.0
     # via urllib3
-pypandoc==1.6.4
+pypandoc==1.7.2
     # via dallinger
-pyparsing==3.0.6
+pyparsing==3.0.7
     # via packaging
-pyrsistent==0.18.0
+pyrsistent==0.18.1
     # via jsonschema
-pytest==6.2.5
+pytest==7.0.0
     # via
     #   dallinger
     #   pytest-rerunfailures
@@ -415,19 +415,19 @@ pyzmq==22.3.0
     #   jupyter-client
     #   notebook
     #   qtconsole
-qtconsole==5.2.1
+qtconsole==5.2.2
     # via jupyter
-qtpy==1.11.2
+qtpy==2.0.1
     # via qtconsole
 recommonmark==0.7.1
     # via dallinger
-redis==4.0.2
+redis==4.1.3
     # via
     #   dallinger
     #   rq
-regex==2021.11.10
+regex==2022.1.18
     # via black
-requests==2.26.0
+requests==2.27.1
     # via
     #   codecov
     #   dallinger
@@ -435,7 +435,7 @@ requests==2.26.0
     #   docker-compose
     #   heroku3
     #   sphinx
-rq==1.10.0
+rq==1.10.1
     # via dallinger
 s3transfer==0.5.0
     # via boto3
@@ -488,9 +488,9 @@ sphinxcontrib-qthelp==1.0.3
     # via sphinx
 sphinxcontrib-serializinghtml==1.1.5
     # via sphinx
-sphinxcontrib-spelling==7.2.1
+sphinxcontrib-spelling==7.3.2
     # via dallinger
-sqlalchemy==1.4.27
+sqlalchemy==1.4.31
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
@@ -498,13 +498,13 @@ sqlalchemy-postgres-copy==0.5.0
     # via dallinger
 sshtunnel==0.4.0
     # via dallinger
-tablib[all]==3.1.0
+tablib[all]==3.2.0
     # via dallinger
 tabulate==0.8.9
     # via
     #   dallinger
     #   tablib
-terminado==0.12.1
+terminado==0.13.1
     # via notebook
 testpath==0.5.0
     # via nbconvert
@@ -530,7 +530,7 @@ tornado==6.1
     #   jupyter-client
     #   notebook
     #   terminado
-tox==3.24.4
+tox==3.24.5
     # via dallinger
 traitlets==5.1.1
     # via
@@ -563,14 +563,14 @@ ua-parser==0.10.0
     # via
     #   dallinger
     #   user-agents
-urllib3[secure]==1.26.7
+urllib3[secure]==1.26.8
     # via
     #   botocore
     #   requests
     #   selenium
 user-agents==2.2.0
     # via dallinger
-virtualenv==20.10.0
+virtualenv==20.13.1
     # via
     #   pre-commit
     #   tox
@@ -584,7 +584,7 @@ websocket-client==0.59.0
     #   docker-compose
 werkzeug==1.0.1
     # via flask
-wheel==0.37.0
+wheel==0.37.1
     # via
     #   pip-tools
     #   pypandoc
@@ -592,7 +592,7 @@ widgetsnbextension==3.5.2
     # via ipywidgets
 wsproto==1.0.0
     # via trio-websocket
-wtforms==3.0.0
+wtforms==3.0.1
     # via flask-wtf
 xlrd==2.0.1
     # via tablib

@@ -2,18 +2,14 @@ Recruitment
 ===========
 
 A ``recruiter`` is a program that takes charge of recruiting participants for
-an experiment. Dallinger's main recruiter for deployed experiments uses
-`Amazon Mechanical Turk <https://www.mturk.com>`__, a "crowdsourcing
-marketplace" for automating the process of signing up experiment
-participants, obtaining their consent, arranging them in groups to perform
-the experiment, communicating with them, and paying them for their
-participation.
+an experiment. Dallinger's design supports the option to run the same experiment
+with different recruitment systems, generally requiring only changes to configuration
+parameters in config.txt, but no changes to your experiment's code.
 
-A concept directly related to MTurk recruitment is ``qualifications``. A
-qualification is a participant attribute, like location or approval rate,
-that you can use to decide if a particular participant should be included or
-excluded from an experiment. As we will see below, Dallinger uses
-qualifications to configure an experiment for participant recruitment.
+General Considerations
+----------------------
+
+Some facets of recruiting are common across all recruitment systems.
 
 Recruitment Planning
 ^^^^^^^^^^^^^^^^^^^^
@@ -31,19 +27,14 @@ correct number of participants requires some of them to wait for a long
 time, for instance, they might not stay around to finish, or may do so one
 time, then opt out of any further experiments by the same experimenter.
 
-Configuration Parameters
-^^^^^^^^^^^^^^^^^^^^^^^^
+Configuration
+^^^^^^^^^^^^^
 
 For a specific experiment, the experimenter will want a given number of
 participants that can be trusted as much as possible to follow the
-instructions and complete the experiment. Dallinger's MTurk recruiter
-supports various configuration parameters to let the experimenter achieve
+instructions and complete the experiment. Dallinger's recruiters
+each support various configuration parameters to let the experimenter achieve
 this.
-
-One of the key configuration parameters related to recruitment is the
-``auto_recruit`` parameter. Recruitment will not start automatically
-unless this is set to ``true``. There are many other recruitment parameters,
-though.
 
 For example, the following configuration is defined by `GridUniverse
 <https://github.com/Dallinger/Griduniverse>`__, a
@@ -60,9 +51,13 @@ parameterized space of games for the study of human social behavior::
     approve_requirement = 95
     group_name = Griduniverse,Survival
 
-The ``title``, ``description``, and ``keywords`` are important, because this
-is what a potential participant will see when deciding whether to
-participate in an experiment or not.
+The ``title`` and ``description`` (and in the case of the MTurk recruiter, ``keywords``) are important, because these are what a potential participant will see when deciding whether to participate in an experiment or not.
+
+Amazon Mechanical Turk ("MTurk") Recruiting
+-------------------------------------------
+
+Configuration Parameters
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 ``base_payment`` is how much a participant will be paid for their
 participation. This depends more on the experimenter's organization and
@@ -113,6 +108,62 @@ sign-on page. It takes a comma-separated list of qualification names to
 avoid. In order to prevent participant from repeating an experiment or group,
 you can set this parameter to an experiment ID or group name, and set
 ``assign_qualifications`` to ``true``.
+
+
+Prolific Recruitment
+--------------------
+
+In many respects, recruiting with Prolific is very similar to recruiting with
+MTurk, however, there are some differences.
+
+
+Feature Differences
+^^^^^^^^^^^^^^^^^^^
+
+Unlike MTurk, Prolific does not provide a system for assigning custom
+qualifications to workers. When testing, it is possible to explicitly reveal
+your experiment to only a select group of workers by providing an "allow
+list" in your experiment configuration. This is most easily done by including
+a separate file in JSON format, to be read in as part of your config.txt by
+providing the file name of the JSON file.
+
+Example JSON file contents (say it's been named "prolific.json")::
+
+    {
+      "eligibility_requirements": [
+          {
+            "attributes": [
+              {
+                "name": "white_list",
+                "value": [
+                  # worker ID one,
+                  # worker ID two,
+                  # etc.
+                ]
+              }
+            ],
+            "_cls": "web.eligibility.models.CustomWhitelistEligibilityRequirement"
+          }
+        ]
+    }
+
+Inclusion in config.txt::
+
+    prolific_recruitment_config = file:prolific.json
+
+
+Configuration Differences
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Because some of the configuration options for Prolific do not perfectly match
+the options of MTurk, different configuration keys are used to avoid ambiguous
+meaning. Details of the keys used for Prolific recruitment are described in
+detail in the :ref:`prolific-recruitment` section of the
+:doc:`Configuration <configuration>` documentation.
+
+
+Advanced Features
+-----------------
 
 Waiting Rooms
 ^^^^^^^^^^^^^
@@ -200,7 +251,7 @@ A simpler experiment might use something like this instead:
 Over-recruitment
 ^^^^^^^^^^^^^^^^
 
-It’s common for recruited participants to join and leave an experiment
+It's common for recruited participants to join and leave an experiment
 before it starts. This is difficult in experiments where multiple
 participants are needed in order to start the experiment. To prevent this
 from disrupting an experiment, experimenters can over-recruit participants

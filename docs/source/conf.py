@@ -44,8 +44,15 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
-    'sphinx_js'
+    'sphinx_js',
+    'recommonmark',
 ]
+
+# Hack to make sphinx_js work with python 3.10
+import collections
+import collections.abc
+if not hasattr(collections, 'Mapping'):
+    collections.Mapping = collections.abc.Mapping
 
 try:
     import sphinxcontrib.spelling
@@ -403,11 +410,6 @@ texinfo_documents = [
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #
 # texinfo_no_detailmenu = False
-
-# -- Allow Markdown files -----------------------------------------
-
-extensions = ['recommonmark']
-
 
 # -- Install demo files -------------------------------------------
 

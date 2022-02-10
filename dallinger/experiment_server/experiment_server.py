@@ -143,11 +143,18 @@ if exp_klass is not None:  # pragma: no cover
             else:
                 tabs.insert(route["title"], route_name)
 
+    # This hides dashboard tabs from view, but doesn't prevent the routes from
+    # being registered
+    hidden_dashboards = getattr(exp_klass, "hidden_dashboards", ())
+    for route_name in hidden_dashboards:
+        dashboard.dashboard_tabs.remove(route_name)
+
 
 # Ideally, we'd only load recruiter routes if the recruiter is active, but
 # it turns out this is complicated, so for now we always register our
-# primary recruiter's route:
+# primary recruiters' routes:
 app.register_blueprint(recruiters.mturk_routes)
+app.register_blueprint(recruiters.prolific_routes)
 
 # Load dashboard routes and login setup
 app.register_blueprint(dashboard.dashboard)
@@ -758,13 +765,17 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         msg = "/participant POST: required values were 'undefined'"
         return error_response(error_type=msg, status=403)
 
-    fingerprint_hash = request.args.get("fingerprint_hash")
-    try:
-        fingerprint_found = models.Participant.query.filter_by(
-            fingerprint_hash=fingerprint_hash
-        ).one_or_none()
-    except MultipleResultsFound:
-        fingerprint_found = True
+    fingerprint_hash = request.args.get("fingerprint_hash") or request.form.get(
+        "fingerprint_hash"
+    )
+    fingerprint_found = False
+    if fingerprint_hash:
+        try:
+            fingerprint_found = models.Participant.query.filter_by(
+                fingerprint_hash=fingerprint_hash
+            ).one_or_none()
+        except MultipleResultsFound:
+            fingerprint_found = True
 
     if fingerprint_hash and fingerprint_found:
         db.logger.warning("Same browser fingerprint detected.")
@@ -854,6 +865,8 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
 def post_participant():
     config = _config()
     entry_information = request.form.to_dict()
+    if "fingerprint_hash" in entry_information:
+        del entry_information["fingerprint_hash"]
     # Remove the mode from entry_information if provided
     mode = entry_information.pop("mode", config.get("mode"))
     exp = Experiment(session)

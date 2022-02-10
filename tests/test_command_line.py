@@ -1164,6 +1164,7 @@ class TestHits(object):
         assert "Could not expire 1 hit[s]:" in str(output.log.call_args_list[0])
 
 
+@pytest.mark.usefixtures("patch_netrc")
 class TestApps(object):
     @pytest.fixture
     def console_output(self):
