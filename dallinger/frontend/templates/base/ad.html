@@ -33,7 +33,13 @@
 {% block scripts %}
 <script>
     function openwindow(event) {
-        popup = window.open("{{ url_for('consent', _external=True) }}?{{query_string | safe}}','Popup','toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=no,width='+1024+',height='+768+'");
+        const consentURL = "{{ url_for('consent', _external=True) }}?{{ query_string | safe }}";
+
+        popup = window.open(
+            consentURL,
+            'Popup',
+            'toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=no,width=1024,height=768'
+        );
         event.target.setAttribute("disabled", "");
     }
 
