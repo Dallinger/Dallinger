@@ -214,7 +214,7 @@ class ProlificService:
         """
         headers = {
             "Authorization": f"Token {self.api_token}",
-            "Referer": f"v{self.referer_header}",
+            "Referer": self.referer_header,
         }
         url = f"{self.api_root}{endpoint}"
         summary = {
