@@ -8,11 +8,11 @@
 
 {% block libs %}
     {{ super() }}
-    <script src="/static/scripts/raphael-min.js" type="text/javascript"> </script>
-    <script src="/static/scripts/mousetrap.min.js" type="text/javascript"> </script>
-    <script src="/static/scripts/mousetrapExtension-pause.min.js" type="text/javascript"> </script>
-    <script src="/static/scripts/helpers.js" type="text/javascript"> </script>
-	<script src="/static/scripts/experiment.js" type="text/javascript"> </script>
+    <script src="{{ url_for('static', filename='scripts/raphael-min.js') }}" type="text/javascript"> </script>
+    <script src="{{ url_for('static', filename='scripts/mousetrap.min.js') }}" type="text/javascript"> </script>
+    <script src="{{ url_for('static', filename='scripts/mousetrapExtension-pause.min.js') }}" type="text/javascript"> </script>
+    <script src="{{ url_for('static', filename='scripts/helpers.js') }}" type="text/javascript"> </script>
+	<script src="{{ url_for('static', filename='scripts/experiment.js') }}" type="text/javascript"> </script>
 {% endblock %}
 
 {% block scripts %}

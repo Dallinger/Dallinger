@@ -20,7 +20,7 @@
 <html>
     <head>
         <title>Psychology Experiment</title>
-        <link rel=stylesheet href="/static/css/bootstrap.min.css" type="text/css">
+        <link rel=stylesheet href="{{ url_for('static', filename='css/bootstrap.min.css') }}" type="text/css">
         <style>
             /* these tyles need to be defined locally */
             body {
@@ -60,7 +60,7 @@
                 <div class="row">
                     <div class="col-xs-2">
                         <!-- REPLACE THE LOGO HERE WITH YOUR  UNIVERSITY, LAB, or COMPANY -->
-                        <img id="adlogo" src="{{ server_location }}/static/images/logo.png" alt="Lab Logo" />
+                        <img id="adlogo" src="{{ url_for('static', filename='images/logo.png') }}" alt="Lab Logo" />
                     </div>
                     <div class="col-xs-10">
 
@@ -114,7 +114,13 @@
                                 </p>
                                 <script>
                                     function openwindow() {
-                                        popup = window.open('{{ server_location }}/consent?recruiter={{ recruiter }}&hit_id={{ hitid }}&assignment_id={{ assignmentid }}&worker_id={{ workerid }}&workerId={{ workerid }}&mode={{ mode }}','Popup','toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=no,width='+1024+',height='+768+'');
+                                        const consentURL = "{{ url_for('consent', _external=True) }}?recruiter={{ recruiter }}&hit_id={{ hitid }}&assignment_id={{ assignmentid }}&worker_id={{ workerid }}&workerId={{ workerid }}&mode={{ mode }}";
+
+                                        popup = window.open(
+                                            consentURL,
+                                            'Popup',
+                                            'toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=no,width=1024,height=768'
+                                        );
                                     }
                                 </script>
                                 <div class="alert alert-warning">
