@@ -46,7 +46,7 @@ cryptography==36.0.1
     #   urllib3
 faker==12.3.0
     # via dallinger
-flask==1.1.4
+flask==2.0.3
     # via
     #   dallinger
     #   flask-crossdomain
