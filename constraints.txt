@@ -551,7 +551,7 @@ trio==0.19.0
     #   trio-websocket
 trio-websocket==0.9.2
     # via selenium
-typing-extensions==4.1.0
+typing-extensions==4.1.1
     # via black
 tzdata==2021.5
     # via pytz-deprecation-shim
