@@ -2,7 +2,10 @@ import json
 import logging
 import six
 import timeago
-import zoneinfo
+try:
+    import zoneinfo
+except ImportError:
+    from backports import zoneinfo
 from copy import deepcopy
 from datetime import datetime
 from datetime import timedelta

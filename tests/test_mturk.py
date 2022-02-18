@@ -8,7 +8,10 @@ import socket
 import time
 from botocore.exceptions import ClientError
 from hashlib import sha1
-import zoneinfo
+try:
+    import zoneinfo
+except ImportError:
+    from backports import zoneinfo
 from tzlocal import get_localzone
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkService

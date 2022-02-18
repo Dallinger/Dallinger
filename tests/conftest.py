@@ -4,7 +4,10 @@ import os
 import pytest
 from datetime import datetime
 from tzlocal import get_localzone
-import zoneinfo
+try:
+    import zoneinfo
+except ImportError:
+    from backports import zoneinfo
 
 pytest_plugins = ["pytest_dallinger"]
 
