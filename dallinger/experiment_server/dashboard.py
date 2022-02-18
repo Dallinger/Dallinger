@@ -2,6 +2,7 @@ import json
 import logging
 import six
 import timeago
+import zoneinfo
 from copy import deepcopy
 from datetime import datetime
 from datetime import timedelta
@@ -23,7 +24,7 @@ from dallinger.heroku.tools import HerokuApp
 from dallinger.config import get_config
 from dallinger.utils import deferred_route_decorator
 from .utils import date_handler, error_response, success_response
-import zoneinfo
+
 
 logger = logging.getLogger(__name__)
 
