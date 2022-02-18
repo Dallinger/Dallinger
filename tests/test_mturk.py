@@ -111,9 +111,13 @@ def fake_hit_response(**kwargs):
         u"HIT": {
             u"AssignmentDurationInSeconds": 900,
             u"AutoApprovalDelayInSeconds": 0,
-            u"CreationTime": datetime.datetime(2018, 1, 1, 1, 26, 52, 54000).replace(tzinfo=tz),
+            u"CreationTime": datetime.datetime(2018, 1, 1, 1, 26, 52, 54000).replace(
+                tzinfo=tz
+            ),
             u"Description": u"***TEST SUITE HIT***43683",
-            u"Expiration": datetime.datetime(2018, 1, 1, 1, 27, 26, 54000).replace(tzinfo=tz),
+            u"Expiration": datetime.datetime(2018, 1, 1, 1, 27, 26, 54000).replace(
+                tzinfo=tz
+            ),
             u"HITGroupId": u"36IAL8HYPYM1MDNBSTAEZW89WH74RJ",
             u"HITId": u"3X7837UUADRXYCA1K7JAJLKC66DJ60",
             u"HITReviewStatus": u"NotReviewed",
@@ -930,9 +934,13 @@ class TestMTurkServiceWithFakeConnection(object):
             "assignments_available": 1,
             "assignments_completed": 0,
             "assignments_pending": 0,
-            "created": datetime.datetime(2018, 1, 1, 1, 26, 52, 54000).replace(tzinfo=tz),
+            "created": datetime.datetime(2018, 1, 1, 1, 26, 52, 54000).replace(
+                tzinfo=tz
+            ),
             "description": "***TEST SUITE HIT***43683",
-            "expiration": datetime.datetime(2018, 1, 1, 1, 27, 26, 54000).replace(tzinfo=tz),
+            "expiration": datetime.datetime(2018, 1, 1, 1, 27, 26, 54000).replace(
+                tzinfo=tz
+            ),
             "id": "3X7837UUADRXYCA1K7JAJLKC66DJ60",
             "keywords": ["testkw1", "testkw2"],
             "max_assignments": 1,
