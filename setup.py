@@ -47,6 +47,7 @@ setup_args = dict(
     install_requires=[
         "APScheduler",
         "cached-property",
+        "backports.zoneinfo;python_version<'3.9'",
         "boto3",
         "build",
         "click",
