@@ -8,6 +8,7 @@ import socket
 import time
 from botocore.exceptions import ClientError
 from hashlib import sha1
+import zoneinfo
 from tzlocal import get_localzone
 from dallinger.mturk import DuplicateQualificationNameError
 from dallinger.mturk import MTurkService
@@ -106,17 +107,17 @@ def fake_hit_type_response():
 
 
 def fake_hit_response(**kwargs):
-    tz = get_localzone()
+    zi = zoneinfo.ZoneInfo(get_localzone().zone)
     canned_response = {
         u"HIT": {
             u"AssignmentDurationInSeconds": 900,
             u"AutoApprovalDelayInSeconds": 0,
             u"CreationTime": datetime.datetime(2018, 1, 1, 1, 26, 52, 54000).replace(
-                tzinfo=tz
+                tzinfo=zi
             ),
             u"Description": u"***TEST SUITE HIT***43683",
             u"Expiration": datetime.datetime(2018, 1, 1, 1, 27, 26, 54000).replace(
-                tzinfo=tz
+                tzinfo=zi
             ),
             u"HITGroupId": u"36IAL8HYPYM1MDNBSTAEZW89WH74RJ",
             u"HITId": u"3X7837UUADRXYCA1K7JAJLKC66DJ60",
@@ -167,10 +168,10 @@ def fake_list_hits_responses(hits=None):
 
 
 def fake_worker_qualification_response():
-    tz = get_localzone()
+    zi = zoneinfo.ZoneInfo(get_localzone().zone)
     canned_response = {
         u"Qualification": {
-            u"GrantTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
+            u"GrantTime": datetime.datetime(2018, 1, 1).replace(tzinfo=zi),
             u"IntegerValue": 2,
             u"QualificationTypeId": six.text_type(generate_random_id(size=32)),
             u"Status": u"Granted",
@@ -192,11 +193,11 @@ def fake_list_worker_qualification_responses(quals=None):
 
 
 def fake_qualification_type_response():
-    tz = get_localzone()
+    zi = zoneinfo.ZoneInfo(get_localzone().zone)
     canned_response = {
         u"QualificationType": {
             u"AutoGranted": False,
-            u"CreationTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
+            u"CreationTime": datetime.datetime(2018, 1, 1).replace(tzinfo=zi),
             u"Description": u"***TEST SUITE QUALIFICATION***",
             u"IsRequestable": True,
             u"Name": u"Test Qualification",
@@ -217,7 +218,7 @@ def fake_list_qualification_types_responses(qtypes=None):
 
 
 def fake_get_assignment_response():
-    tz = get_localzone()
+    zi = zoneinfo.ZoneInfo(get_localzone().zone)
     hit = fake_hit_response()["HIT"]
     return {
         "Assignment": {
@@ -225,12 +226,12 @@ def fake_get_assignment_response():
             "WorkerId": "FAKE_WORKER_ID",
             "HITId": hit["HITId"],
             "AssignmentStatus": "Approved",
-            "AutoApprovalTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
-            "AcceptTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
-            "SubmitTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
-            "ApprovalTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
-            "RejectionTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
-            "Deadline": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
+            "AutoApprovalTime": datetime.datetime(2018, 1, 1).replace(tzinfo=zi),
+            "AcceptTime": datetime.datetime(2018, 1, 1).replace(tzinfo=zi),
+            "SubmitTime": datetime.datetime(2018, 1, 1).replace(tzinfo=zi),
+            "ApprovalTime": datetime.datetime(2018, 1, 1).replace(tzinfo=zi),
+            "RejectionTime": datetime.datetime(2018, 1, 1).replace(tzinfo=zi),
+            "Deadline": datetime.datetime(2018, 1, 1).replace(tzinfo=zi),
             "Answer": "",
             "RequesterFeedback": "",
         },
@@ -920,7 +921,7 @@ class TestMTurkServiceWithFakeConnection(object):
         with_mock.mturk.create_hit_with_hit_type.assert_called_once()
 
     def test_create_hit_translates_response_back_from_mturk(self, with_mock):
-        tz = get_localzone()
+        zi = zoneinfo.ZoneInfo(get_localzone().zone)
         with_mock.mturk.configure_mock(
             **{
                 "create_hit_type.return_value": fake_hit_type_response(),
@@ -936,11 +937,11 @@ class TestMTurkServiceWithFakeConnection(object):
             "assignments_completed": 0,
             "assignments_pending": 0,
             "created": datetime.datetime(2018, 1, 1, 1, 26, 52, 54000).replace(
-                tzinfo=tz
+                tzinfo=zi
             ),
             "description": "***TEST SUITE HIT***43683",
             "expiration": datetime.datetime(2018, 1, 1, 1, 27, 26, 54000).replace(
-                tzinfo=tz
+                tzinfo=zi
             ),
             "id": "3X7837UUADRXYCA1K7JAJLKC66DJ60",
             "keywords": ["testkw1", "testkw2"],

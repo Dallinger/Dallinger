@@ -23,7 +23,7 @@ from dallinger.heroku.tools import HerokuApp
 from dallinger.config import get_config
 from dallinger.utils import deferred_route_decorator
 from .utils import date_handler, error_response, success_response
-
+import zoneinfo
 
 logger = logging.getLogger(__name__)
 
@@ -358,11 +358,11 @@ def heroku():
     return render_template("dashboard_heroku.html", links=links)
 
 
-tz = get_localzone()
+zi = zoneinfo.ZoneInfo(get_localzone().zone)
 
 
 def when_with_relative_time(dt):
-    now = datetime.now().replace(tzinfo=tz)
+    now = datetime.now().replace(tzinfo=zi)
     formatted = dt.strftime("%a %b %-d")
     return "{} ({})".format(formatted, timeago.format(dt, now))
 
@@ -421,9 +421,9 @@ _fake_hit_data = {
     "assignments_available": 1,
     "assignments_completed": 0,
     "assignments_pending": 0,
-    "created": (datetime.now() - timedelta(minutes=10)).replace(tzinfo=tz),
+    "created": (datetime.now() - timedelta(minutes=10)).replace(tzinfo=zi),
     "description": "Fake HIT Description",
-    "expiration": (datetime.now() + timedelta(hours=6)).replace(tzinfo=tz),
+    "expiration": (datetime.now() + timedelta(hours=6)).replace(tzinfo=zi),
     "id": "3X7837UUADRXYCA1K7JAJLKC66DJ60",
     "keywords": ["testkw1", "testkw2"],
     "max_assignments": 1,

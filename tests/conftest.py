@@ -4,7 +4,7 @@ import os
 import pytest
 from datetime import datetime
 from tzlocal import get_localzone
-
+import zoneinfo
 pytest_plugins = ["pytest_dallinger"]
 
 
@@ -166,15 +166,15 @@ def prolific_creds():
 @pytest.fixture
 def fake_parsed_hit():
     """Format returned by dallinger.mturk.MTurkService"""
-    tz = get_localzone()
+    zi = zoneinfo.ZoneInfo(get_localzone().zone)
     return {
         "annotation": "test-experiment-id",
         "assignments_available": 2,
         "assignments_completed": 0,
         "assignments_pending": 0,
-        "created": datetime.now().replace(tzinfo=tz),
+        "created": datetime.now().replace(tzinfo=zi),
         "description": "Recall a list of words.",
-        "expiration": datetime.now().replace(tzinfo=tz),
+        "expiration": datetime.now().replace(tzinfo=zi),
         "id": "fake-hit-id",
         "keywords": ["Memory", "wordlist"],
         "max_assignments": 2,
