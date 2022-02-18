@@ -166,14 +166,15 @@ def prolific_creds():
 @pytest.fixture
 def fake_parsed_hit():
     """Format returned by dallinger.mturk.MTurkService"""
+    tz = get_localzone()
     return {
         "annotation": "test-experiment-id",
         "assignments_available": 2,
         "assignments_completed": 0,
         "assignments_pending": 0,
-        "created": get_localzone().localize(datetime.now()),
+        "created": datetime.now().replace(tzinfo=tz),
         "description": "Recall a list of words.",
-        "expiration": get_localzone().localize(datetime.now()),
+        "expiration": datetime.now().replace(tzinfo=tz),
         "id": "fake-hit-id",
         "keywords": ["Memory", "wordlist"],
         "max_assignments": 2,

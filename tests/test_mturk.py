@@ -111,11 +111,9 @@ def fake_hit_response(**kwargs):
         u"HIT": {
             u"AssignmentDurationInSeconds": 900,
             u"AutoApprovalDelayInSeconds": 0,
-            u"CreationTime": tz.localize(
-                datetime.datetime(2018, 1, 1, 1, 26, 52, 54000)
-            ),
+            u"CreationTime": datetime.datetime(2018, 1, 1, 1, 26, 52, 54000).replace(tzinfo=tz),
             u"Description": u"***TEST SUITE HIT***43683",
-            u"Expiration": tz.localize(datetime.datetime(2018, 1, 1, 1, 27, 26, 54000)),
+            u"Expiration": datetime.datetime(2018, 1, 1, 1, 27, 26, 54000).replace(tzinfo=tz),
             u"HITGroupId": u"36IAL8HYPYM1MDNBSTAEZW89WH74RJ",
             u"HITId": u"3X7837UUADRXYCA1K7JAJLKC66DJ60",
             u"HITReviewStatus": u"NotReviewed",
@@ -168,7 +166,7 @@ def fake_worker_qualification_response():
     tz = get_localzone()
     canned_response = {
         u"Qualification": {
-            u"GrantTime": tz.localize(datetime.datetime(2018, 1, 1)),
+            u"GrantTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
             u"IntegerValue": 2,
             u"QualificationTypeId": six.text_type(generate_random_id(size=32)),
             u"Status": u"Granted",
@@ -194,7 +192,7 @@ def fake_qualification_type_response():
     canned_response = {
         u"QualificationType": {
             u"AutoGranted": False,
-            u"CreationTime": tz.localize(datetime.datetime(2018, 1, 1)),
+            u"CreationTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
             u"Description": u"***TEST SUITE QUALIFICATION***",
             u"IsRequestable": True,
             u"Name": u"Test Qualification",
@@ -223,12 +221,12 @@ def fake_get_assignment_response():
             "WorkerId": "FAKE_WORKER_ID",
             "HITId": hit["HITId"],
             "AssignmentStatus": "Approved",
-            "AutoApprovalTime": tz.localize(datetime.datetime(2018, 1, 1)),
-            "AcceptTime": tz.localize(datetime.datetime(2018, 1, 1)),
-            "SubmitTime": tz.localize(datetime.datetime(2018, 1, 1)),
-            "ApprovalTime": tz.localize(datetime.datetime(2018, 1, 1)),
-            "RejectionTime": tz.localize(datetime.datetime(2018, 1, 1)),
-            "Deadline": tz.localize(datetime.datetime(2018, 1, 1)),
+            "AutoApprovalTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
+            "AcceptTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
+            "SubmitTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
+            "ApprovalTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
+            "RejectionTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
+            "Deadline": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
             "Answer": "",
             "RequesterFeedback": "",
         },
@@ -932,9 +930,9 @@ class TestMTurkServiceWithFakeConnection(object):
             "assignments_available": 1,
             "assignments_completed": 0,
             "assignments_pending": 0,
-            "created": tz.localize(datetime.datetime(2018, 1, 1, 1, 26, 52, 54000)),
+            "created": datetime.datetime(2018, 1, 1, 1, 26, 52, 54000).replace(tzinfo=tz),
             "description": "***TEST SUITE HIT***43683",
-            "expiration": tz.localize(datetime.datetime(2018, 1, 1, 1, 27, 26, 54000)),
+            "expiration": datetime.datetime(2018, 1, 1, 1, 27, 26, 54000).replace(tzinfo=tz),
             "id": "3X7837UUADRXYCA1K7JAJLKC66DJ60",
             "keywords": ["testkw1", "testkw2"],
             "max_assignments": 1,
