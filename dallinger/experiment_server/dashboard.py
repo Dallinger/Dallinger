@@ -362,7 +362,7 @@ tz = get_localzone()
 
 
 def when_with_relative_time(dt):
-    now = tz.localize(datetime.now())
+    now = datetime.now().replace(tzinfo=tz)
     formatted = dt.strftime("%a %b %-d")
     return "{} ({})".format(formatted, timeago.format(dt, now))
 
@@ -421,9 +421,9 @@ _fake_hit_data = {
     "assignments_available": 1,
     "assignments_completed": 0,
     "assignments_pending": 0,
-    "created": tz.localize(datetime.now() - timedelta(minutes=10)),
+    "created": (datetime.now() - timedelta(minutes=10)).replace(tzinfo=tz),
     "description": "Fake HIT Description",
-    "expiration": tz.localize(datetime.now() + timedelta(hours=6)),
+    "expiration": (datetime.now() + timedelta(hours=6)).replace(tzinfo=tz),
     "id": "3X7837UUADRXYCA1K7JAJLKC66DJ60",
     "keywords": ["testkw1", "testkw2"],
     "max_assignments": 1,
