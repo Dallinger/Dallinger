@@ -25,6 +25,9 @@ from six.moves import input
 TEST_HIT_DESCRIPTION = "***TEST SUITE HIT***"
 TEST_QUALIFICATION_DESCRIPTION = "***TEST SUITE QUALIFICATION***"
 STANDARD_WAIT_SECS = 15
+MAX_MTURK_RERUNS = 1
+if os.environ.get("CI"):
+    MAX_MTURK_RERUNS = 3
 
 
 class FixtureConfigurationError(Exception):
@@ -492,6 +495,7 @@ class TestMTurkService(object):
         with pytest.raises(MTurkServiceException):
             mturk.check_credentials()
 
+    @pytest.mark.flaky(reruns=MAX_MTURK_RERUNS)
     def test_check_credentials_no_creds_set_raises(self, mturk):
         mturk.aws_key = ""
         mturk.aws_secret = ""
