@@ -367,9 +367,9 @@ def sns_iso(sns):
 @pytest.mark.mturk
 @pytest.mark.usefixtures("check_mturkfull")
 class TestSNSService(object):
-    @pytest.mark.skip(reason="Requires a valid notification URL as of Feb. 2022")
     def test_creates_and_cancel_subscription(self, sns):
-        topic_arn = sns.create_subscription("some-exp", "https://some-url")
+        always_returns_200OK = "https://www.example.com/makebelieve-endpoint"
+        topic_arn = sns.create_subscription("some-exp", always_returns_200OK)
 
         assert topic_arn.endswith(":some-exp")
         assert sns.cancel_subscription("some-exp")
