@@ -36,12 +36,16 @@ class FixtureConfigurationError(Exception):
     """
 
 
-def system_marker():
-    # To prevent tests run on different systems trampling on each other,
-    # we mark data created in the MTurk sandbox with a value specific to
-    # each system.
-    identifier = u":".join(os.uname()).replace(u" ", u"").encode("utf8")
-    return hmac.new(identifier, digestmod=sha1).hexdigest()
+@pytest.fixture(scope="session")
+def test_session_desc():
+    # Create a string key at the beginning of a test session that can
+    # be used to mark all HITs created during the session. This allows
+    # test cleanup to remove just the HITs it created, in case CI (or
+    # another developer) is running another tests session at the same time
+    identifier = datetime.datetime.now().isoformat().encode("utf-8")
+    key = hmac.new(identifier, digestmod=sha1).hexdigest()
+
+    return ":".join([TEST_HIT_DESCRIPTION, key])
 
 
 def name_with_hostname_prefix():
@@ -148,7 +152,7 @@ def fake_hit_response(**kwargs):
             u"Question": (
                 u'<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/'
                 u'AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
-                u"<ExternalURL>https://url-of-ad-route</ExternalURL>"
+                u"<ExternalURL>https://www.example.com/ad</ExternalURL>"
                 u"<FrameHeight>600</FrameHeight>"
                 u"</ExternalQuestion>"
             ),
@@ -241,28 +245,32 @@ def fake_get_assignment_response():
     }
 
 
-def standard_hit_config(**kwargs):
-    defaults = {
-        "experiment_id": "some-experiment-id",
-        "lifetime_days": 0.0004,  # 34 seconds (30 is minimum)
-        "max_assignments": 1,
-        "notification_url": "https://url-of-notification-route",
-        "title": "Test Title",
-        "keywords": ["testkw1", "testkw2"],
-        "reward": 0.01,
-        "question": MTurkQuestions.external(ad_url="https://url-of-ad-route"),
-        "duration_hours": 0.25,
-        "qualifications": [
-            MTurkQualificationRequirements.min_approval(95),
-            MTurkQualificationRequirements.restrict_to_countries(["US"]),
-        ],
-        "do_subscribe": False,
-    }
-    defaults.update(**kwargs)
-    # Use fixed description, since this is how we clean up:
-    defaults["description"] = TEST_HIT_DESCRIPTION + system_marker()
+@pytest.fixture
+def hit_config(test_session_desc):
+    def configmaker(**kw):
+        defaults = {
+            "experiment_id": "some-experiment-id",
+            "lifetime_days": 0.0004,  # 34 seconds (30 is minimum)
+            "max_assignments": 1,
+            "notification_url": "https://www.example.com/notifications",
+            "title": "Test Title",
+            "keywords": ["testkw1", "testkw2"],
+            "reward": 0.01,
+            "question": MTurkQuestions.external(ad_url="https://www.example.com/ad"),
+            "duration_hours": 0.25,
+            "qualifications": [
+                MTurkQualificationRequirements.min_approval(95),
+                MTurkQualificationRequirements.restrict_to_countries(["US"]),
+            ],
+            "do_subscribe": False,
+        }
+        defaults.update(**kw)
+        # Use fixed description, since this is how we clean up:
+        defaults["description"] = test_session_desc
 
-    return defaults
+        return defaults
+
+    return configmaker
 
 
 @pytest.fixture
@@ -275,12 +283,11 @@ def mturk(aws_creds):
 
 
 @pytest.fixture
-def with_cleanup(aws_creds, request):
+def with_cleanup(aws_creds, request, test_session_desc):
 
     # tear-down: clean up all specially-marked HITs:
     def test_hits_only(hit):
-        return TEST_HIT_DESCRIPTION in hit["description"]
-        return hit["description"] == TEST_HIT_DESCRIPTION + system_marker()
+        return hit["description"] == test_session_desc
 
     # In tests we do a lot of querying of Qualifications we only just created,
     # so we need a long time-out
@@ -410,7 +417,7 @@ class TestMTurkServiceIntegrationSmokeTest(object):
     """
 
     @pytest.mark.flaky(reruns=MAX_MTURK_RERUNS)
-    def test_create_hit_lifecycle(self, with_cleanup, qtype, worker_id):
+    def test_create_hit_lifecycle(self, with_cleanup, qtype, hit_config, worker_id):
         result = with_cleanup.get_qualification_type_by_name(qtype["name"])
         assert qtype == result
 
@@ -428,7 +435,7 @@ class TestMTurkServiceIntegrationSmokeTest(object):
 
         qualifications = (MTurkQualificationRequirements.must_have(qtype["id"]),)
 
-        config = standard_hit_config(
+        config = hit_config(
             max_assignments=2,
             annotation="test-annotation",
             qualifications=qualifications,
@@ -502,33 +509,30 @@ class TestMTurkService(object):
         with pytest.raises(MTurkServiceException):
             mturk.check_credentials()
 
-    def test_create_hit(self, with_cleanup):
-        hit = with_cleanup.create_hit(**standard_hit_config())
-        assert hit["status"] == "Assignable"
-        assert hit["max_assignments"] == 1
-
-    def test_create_hit_two_assignments(self, with_cleanup):
-        hit = with_cleanup.create_hit(**standard_hit_config(max_assignments=2))
-        assert hit["status"] == "Assignable"
-        assert hit["max_assignments"] == 2
-
-    def test_create_hit_with_annotation(self, with_cleanup):
-        hit = with_cleanup.create_hit(**standard_hit_config(annotation="test-exp-id"))
-        assert hit["annotation"] == "test-exp-id"
-
-    def test_create_hit_with_qualification(self, with_cleanup, qtype):
+    def test_create_hit_with_annotation_and_qualification(
+        self, with_cleanup, qtype, hit_config
+    ):
         qual = MTurkQualificationRequirements.must_not_have(
             qualification_id=qtype["id"]
         )
-        hit = with_cleanup.create_hit(**standard_hit_config(qualifications=[qual]))
+        hit = with_cleanup.create_hit(
+            **hit_config(annotation="test-exp-id", qualifications=[qual])
+        )
         assert hit["status"] == "Assignable"
+        assert hit["max_assignments"] == 1
+        assert hit["annotation"] == "test-exp-id"
         assert hit["qualification_type_ids"] == [qtype["id"]]
 
-    def test_create_compensation_hit(self, with_cleanup):
+    def test_create_hit_two_assignments(self, with_cleanup, hit_config):
+        hit = with_cleanup.create_hit(**hit_config(max_assignments=2))
+        assert hit["status"] == "Assignable"
+        assert hit["max_assignments"] == 2
+
+    def test_create_compensation_hit(self, with_cleanup, hit_config):
         # In practice, this would include a qualification assigned to a
         # single worker.
         hit = with_cleanup.create_hit(
-            **standard_hit_config(
+            **hit_config(
                 title="Compensation Immediate",
                 question=MTurkQuestions.compensation(sandbox=True),
             )
@@ -536,8 +540,8 @@ class TestMTurkService(object):
         assert hit["status"] == "Assignable"
         assert hit["max_assignments"] == 1
 
-    def test_extend_hit_with_valid_hit_id(self, with_cleanup):
-        hit = with_cleanup.create_hit(**standard_hit_config())
+    def test_extend_hit_with_valid_hit_id(self, with_cleanup, hit_config):
+        hit = with_cleanup.create_hit(**hit_config())
         time.sleep(STANDARD_WAIT_SECS)  # Time lag before HIT is available for extension
         updated = with_cleanup.extend_hit(hit["id"], number=1, duration_hours=0.25)
 
@@ -550,8 +554,8 @@ class TestMTurkService(object):
         with pytest.raises(MTurkServiceException):
             mturk.extend_hit("dud", number=1, duration_hours=0.25)
 
-    def test_disable_hit_with_valid_hit_ids(self, with_cleanup):
-        hit = with_cleanup.create_hit(**standard_hit_config())
+    def test_disable_hit_with_valid_hit_ids(self, with_cleanup, hit_config):
+        hit = with_cleanup.create_hit(**hit_config())
         time.sleep(STANDARD_WAIT_SECS)
         assert with_cleanup.disable_hit(hit["id"], "some-experiment-id")
 
@@ -559,20 +563,20 @@ class TestMTurkService(object):
         with pytest.raises(MTurkServiceException):
             mturk.disable_hit("dud", "some-experiment-id")
 
-    def test_get_hit_with_valid_hit_id(self, with_cleanup):
-        hit = with_cleanup.create_hit(**standard_hit_config())
+    def test_get_hit_with_valid_hit_id(self, with_cleanup, hit_config):
+        hit = with_cleanup.create_hit(**hit_config())
         retrieved = with_cleanup.get_hit(hit["id"])
         assert hit == retrieved
 
-    def test_get_hits_returns_all_by_default(self, with_cleanup):
-        hit = with_cleanup.create_hit(**standard_hit_config())
+    def test_get_hits_returns_all_by_default(self, with_cleanup, hit_config):
+        hit = with_cleanup.create_hit(**hit_config())
         time.sleep(STANDARD_WAIT_SECS)  # Indexing required...
         hit_ids = [h["id"] for h in with_cleanup.get_hits()]
         assert hit["id"] in hit_ids
 
-    def test_get_hits_excludes_based_on_filter(self, with_cleanup):
-        hit1 = with_cleanup.create_hit(**standard_hit_config())
-        hit2 = with_cleanup.create_hit(**standard_hit_config(title="HIT Two"))
+    def test_get_hits_excludes_based_on_filter(self, with_cleanup, hit_config):
+        hit1 = with_cleanup.create_hit(**hit_config())
+        hit2 = with_cleanup.create_hit(**hit_config(title="HIT Two"))
         time.sleep(STANDARD_WAIT_SECS)  # Indexing required...
         hit_ids = [
             h["id"] for h in with_cleanup.get_hits(lambda h: "Two" in h["title"])
@@ -760,7 +764,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
 @pytest.mark.slow
 class TestInteractive(object):
     def test_worker_can_see_hit_when_blocklist_not_in_qualifications(
-        self, with_cleanup, worker_id, qtype
+        self, with_cleanup, worker_id, qtype, hit_config
     ):
         with_cleanup.assign_qualification(qtype["id"], worker_id, score=1)
         print(
@@ -771,7 +775,7 @@ class TestInteractive(object):
         input("Any key to continue...")
 
         hit = with_cleanup.create_hit(
-            **standard_hit_config(title="Dallinger: No Blocklist", lifetime_days=0.25)
+            **hit_config(title="Dallinger: No Blocklist", lifetime_days=0.25)
         )
 
         print(
@@ -782,7 +786,7 @@ class TestInteractive(object):
         input("Any key to continue...")
 
     def test_worker_cannot_see_hit_when_blocklist_in_qualifications(
-        self, with_cleanup, worker_id, qtype
+        self, with_cleanup, worker_id, qtype, hit_config
     ):
         with_cleanup.assign_qualification(qtype["id"], worker_id, score=1)
 
@@ -794,7 +798,7 @@ class TestInteractive(object):
         input("Any key to continue...")
 
         hit = with_cleanup.create_hit(
-            **standard_hit_config(
+            **hit_config(
                 title="Dallinger: Blocklist",
                 qualifications=[
                     MTurkQualificationRequirements.must_not_have(qtype["id"])
@@ -912,18 +916,20 @@ class TestMTurkServiceWithFakeConnection(object):
         )
         assert with_mock.get_assignment("some id") is None
 
-    def test_create_hit_calls_underlying_mturk_method(self, with_mock):
+    def test_create_hit_calls_underlying_mturk_method(self, with_mock, hit_config):
         with_mock.mturk.configure_mock(
             **{
                 "create_hit_type.return_value": fake_hit_type_response(),
                 "create_hit_with_hit_type.return_value": fake_hit_response(),
             }
         )
-        with_mock.create_hit(**standard_hit_config())
+        with_mock.create_hit(**hit_config())
 
         with_mock.mturk.create_hit_with_hit_type.assert_called_once()
 
-    def test_create_hit_translates_response_back_from_mturk(self, with_mock):
+    def test_create_hit_translates_response_back_from_mturk(
+        self, with_mock, hit_config
+    ):
         tz = get_localzone()
         with_mock.mturk.configure_mock(
             **{
@@ -932,7 +938,7 @@ class TestMTurkServiceWithFakeConnection(object):
             }
         )
 
-        hit = with_mock.create_hit(**standard_hit_config())
+        hit = with_mock.create_hit(**hit_config())
 
         assert hit == {
             "annotation": None,
@@ -958,7 +964,9 @@ class TestMTurkServiceWithFakeConnection(object):
             "worker_url": "https://workersandbox.mturk.com/projects/3V76OXST9SAE3THKN85FUPK7730050/tasks",
         }
 
-    def test_create_hit_creates_no_sns_subscription_when_asked_not_to(self, with_mock):
+    def test_create_hit_creates_no_sns_subscription_when_asked_not_to(
+        self, with_mock, hit_config
+    ):
         with_mock.mturk.configure_mock(
             **{
                 "create_hit_type.return_value": fake_hit_type_response(),
@@ -966,11 +974,13 @@ class TestMTurkServiceWithFakeConnection(object):
             }
         )
 
-        with_mock.create_hit(**standard_hit_config(do_subscribe=False))
+        with_mock.create_hit(**hit_config(do_subscribe=False))
 
         with_mock.sns.create_subscription.assert_not_called()
 
-    def test_create_hit_creates_sns_subscription_when_asked(self, with_mock):
+    def test_create_hit_creates_sns_subscription_when_asked(
+        self, with_mock, hit_config
+    ):
         with_mock.mturk.configure_mock(
             **{
                 "create_hit_type.return_value": fake_hit_type_response(),
@@ -978,10 +988,10 @@ class TestMTurkServiceWithFakeConnection(object):
             }
         )
 
-        with_mock.create_hit(**standard_hit_config(do_subscribe=True))
+        with_mock.create_hit(**hit_config(do_subscribe=True))
 
         with_mock.sns.create_subscription.assert_called_once_with(
-            "some-experiment-id", "https://url-of-notification-route"
+            "some-experiment-id", "https://www.example.com/notifications"
         )
         with_mock.mturk.update_notification_settings.assert_called_once_with(
             Active=True,
