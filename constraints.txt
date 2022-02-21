@@ -36,9 +36,9 @@ black==21.11b1
     # via dallinger
 bleach==4.1.0
     # via nbconvert
-boto3==1.21.2
+boto3==1.21.3
     # via dallinger
-botocore==1.24.2
+botocore==1.24.3
     # via
     #   boto3
     #   s3transfer
@@ -325,7 +325,7 @@ pickleshare==0.7.5
     # via ipython
 pip-tools==6.5.1
     # via dallinger
-platformdirs==2.5.0
+platformdirs==2.5.1
     # via
     #   black
     #   virtualenv
