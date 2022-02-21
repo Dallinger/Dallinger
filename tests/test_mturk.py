@@ -409,6 +409,7 @@ class TestMTurkServiceIntegrationSmokeTest(object):
     calls. For comprehensive system tests, run with the --mturkfull option.
     """
 
+    @pytest.mark.flaky(reruns=MAX_MTURK_RERUNS)
     def test_create_hit_lifecycle(self, with_cleanup, qtype, worker_id):
         result = with_cleanup.get_qualification_type_by_name(qtype["name"])
         assert qtype == result
@@ -495,7 +496,6 @@ class TestMTurkService(object):
         with pytest.raises(MTurkServiceException):
             mturk.check_credentials()
 
-    @pytest.mark.flaky(reruns=MAX_MTURK_RERUNS)
     def test_check_credentials_no_creds_set_raises(self, mturk):
         mturk.aws_key = ""
         mturk.aws_secret = ""
