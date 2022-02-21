@@ -503,12 +503,6 @@ class TestMTurkService(object):
         with pytest.raises(MTurkServiceException):
             mturk.check_credentials()
 
-    def test_check_credentials_no_creds_set_raises(self, mturk):
-        mturk.aws_key = ""
-        mturk.aws_secret = ""
-        with pytest.raises(MTurkServiceException):
-            mturk.check_credentials()
-
     def test_create_hit_with_annotation_and_qualification(
         self, with_cleanup, qtype, hit_config
     ):
