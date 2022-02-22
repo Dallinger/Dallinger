@@ -498,7 +498,8 @@ class TestMTurkService(object):
         assert is_authenticated
 
     @pytest.mark.xfail(
-        condition=os.environ.get("CI"), reason="Fails on CI for unknown reason"
+        condition=bool(os.environ.get("CI", False)),
+        reason="Fails on CI for unknown reason",
     )
     def test_check_credentials_no_creds_set_raises(self, mturk):
         mturk.aws_key = ""
