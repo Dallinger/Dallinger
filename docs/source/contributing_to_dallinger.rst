@@ -23,7 +23,7 @@ command::
 
     $ bumpversion major
     $ git commit -a -m "Switch to major release"
-    $ bumpverion release
+    $ bumpversion release
     $ git commit -a -m "Update versions for release"
 
 If you need to switch to a `patch` release, you will instead need to
