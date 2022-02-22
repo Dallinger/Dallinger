@@ -1,3 +1,3 @@
 """Dallinger version number."""
 
-__version__ = "7.9.0a1"
+__version__ = "8.0.0a1"
