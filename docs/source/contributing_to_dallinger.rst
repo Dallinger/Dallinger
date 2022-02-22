@@ -6,7 +6,10 @@ which to run the release version upgrade and update the CHANGELOG if that hasn't
 been done as part of feature branch work. The entry should link to the new version's
 tree using: `https://github.com/dallinger/dallinger/tree/vX.X.X.`
 
-We’re using semantic versioning, so there are three parts to the version number. when making a release you need to decide which parts should get bumped, which determines what command you give to `bumpversion`. `major` is for breaking changes, `minor` for features, `patch` for bug fixes.
+We're using semantic versioning, so there are three parts to the version number.
+when making a release you need to decide which parts should get bumped, which determines
+which command you give to `bumpversion`. `major` is for breaking changes, `minor` for features,
+`patch` for bug fixes.
 
 Under normal circumstances, the ``master`` branch will have a version number
 reflecting a `minor` increment over the previous release, plus a `a1` suffix
