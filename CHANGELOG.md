@@ -1,6 +1,24 @@
 # Change Log
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v8.0.0](https://github.com/dallinger/dallinger/tree/v8.0.0) (2021-02-22)
+- Potential breaking change: The function signature of the ``Recruiter.reward_bonus()``
+  method has changed, so if you've implemented your own recruiter, this will need to be
+  updated.
+- Feature: Support for recruitment via the [Prolific](https://www.prolific.co/)
+  platform
+- Feature: Dallinger dashboard tabs can be hidden by including their route names in a
+  ``hidden_dashboards`` attribute (a ``tuple``) on your custom ``Experiment`` subclass.
+- Enhancement: ``dallinger.createParticipant()`` method now always stores ``entry_information``
+  on the Participant record by default, falling back to the old mechanism if no
+  ``entry_information`` can be extracted from the URL/Request.
+- Enhancement: when running ``dallinger generate-constraints``, if the requirements-dev.txt
+  file for the current Dallinger version can't be found on github the local one is looked up
+  (and can be found if dallinger was installed in editable mode) and used.
+- Bugfix: Dallinger's templates now use Flask's ``url_for()`` function to generate absolute
+  URLs
+- Infrastructure: MTurk integration test stability improvements
+
 ## [v7.8.0](https://github.com/dallinger/dallinger/tree/v7.8.0) (2021-11-29)
 - Documentation: Docs for ``dallinger docker start-services``
 - Bugfix: Releases should now update dallinger.readthedocs.io correctly
