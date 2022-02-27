@@ -10,7 +10,7 @@ alabaster==0.7.12
     # via
     #   dallinger
     #   sphinx
-apscheduler==3.9.0.post1
+apscheduler==3.9.1
     # via dallinger
 argon2-cffi==21.3.0
     # via notebook
