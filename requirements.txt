@@ -205,7 +205,7 @@ werkzeug==1.0.1
     # via flask
 wheel==0.37.1
     # via pip-tools
-wsproto==1.0.0
+wsproto==1.1.0
     # via trio-websocket
 wtforms==3.0.1
     # via flask-wtf
