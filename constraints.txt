@@ -226,7 +226,7 @@ jupyter-client==7.1.2
     #   nbclient
     #   notebook
     #   qtconsole
-jupyter-console==6.4.0
+jupyter-console==6.4.2
     # via jupyter
 jupyter-core==4.9.2
     # via
