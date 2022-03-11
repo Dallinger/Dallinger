@@ -261,7 +261,7 @@ mypy-extensions==0.4.3
     # via black
 nbclient==0.5.11
     # via nbconvert
-nbconvert==6.4.2
+nbconvert==6.4.3
     # via
     #   jupyter
     #   notebook
