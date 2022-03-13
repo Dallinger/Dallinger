@@ -1,6 +1,5 @@
 import logging
 import sys
-import user_agents
 
 from datetime import timedelta
 from flask import make_response
@@ -138,6 +137,8 @@ class ValidatesBrowser(object):
 
     def is_supported(self, user_agent_string):
         """Check user agent against configured exclusions."""
+        import user_agents
+
         user_agent_obj = user_agents.parse(user_agent_string)
         browser_ok = True
         for rule in self.exclusions:

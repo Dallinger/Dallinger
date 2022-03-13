@@ -18,21 +18,14 @@ import socket
 import zipfile
 
 from jinja2 import Template
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 import click
-import requests
 
-from dallinger.data import bootstrap_db_from_zip
-from dallinger.db import create_db_engine
 from dallinger.command_line.config import get_configured_hosts
 from dallinger.command_line.config import remove_host
 from dallinger.command_line.config import store_host
 from dallinger.command_line.docker import add_image_name
 from dallinger.command_line.utils import Output
 from dallinger.config import LOCAL_CONFIG
-from dallinger.data import export_db_uri
-from dallinger.deployment import setup_experiment
 from dallinger.config import get_config
 from dallinger.utils import abspath_from_egg
 from dallinger.utils import check_output
@@ -222,6 +215,8 @@ def build_and_push_image(f):
                     f"Could not find image {image_name} specified in experiment config as `docker_image_name`"
                 )
                 raise click.Abort
+        from dallinger.deployment import setup_experiment
+
         _, tmp_dir = setup_experiment(
             Output().log, exp_config=config.as_dict(), local_checks=False
         )
@@ -351,8 +346,14 @@ def deploy(mode, server, dns_host, config_options, archive_path):  # pragma: no 
     if archive_path is not None:
         print(f"Loading database data from {archive_path}")
         with remote_postgres(server_info, experiment_id) as db_uri:
+            from dallinger.db import create_db_engine
+
             engine = create_db_engine(db_uri)
+
+            from dallinger.data import bootstrap_db_from_zip
+
             bootstrap_db_from_zip(archive_path, engine)
+
             with engine.connect() as conn:
                 conn.execute(grant_roles_script)
                 conn.execute(f'GRANT USAGE ON SCHEMA public TO "{experiment_id}"')
@@ -450,6 +451,8 @@ def export(server, app, local, no_scrub):
     """Export database to a local file."""
     server_info = CONFIGURED_HOSTS[server]
     with remote_postgres(server_info, app) as db_uri:
+        from dallinger.data import export_db_uri
+
         export_db_uri(
             app,
             db_uri=db_uri,
@@ -527,6 +530,10 @@ def get_docker_compose_yml(
 
 
 def get_retrying_http_client():
+    import requests
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+
     retry_strategy = Retry(
         total=30,
         backoff_factor=0.2,

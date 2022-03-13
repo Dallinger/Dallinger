@@ -12,11 +12,8 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from shlex import quote
-from heroku3.core import Heroku as Heroku3Client
-import requests
 
 from dallinger import heroku
-from dallinger import registration
 from dallinger.config import get_config
 from dallinger.config import LOCAL_CONFIG
 from dallinger.heroku.tools import HerokuApp
@@ -25,7 +22,6 @@ from dallinger.command_line.utils import header
 from dallinger.command_line.utils import log
 from dallinger.command_line.utils import require_exp_directory
 from dallinger.command_line.utils import verify_id
-from dallinger.deployment import _handle_launch_data
 from dallinger.utils import abspath_from_egg
 from dallinger.utils import GitClient
 from dallinger.utils import setup_experiment
@@ -203,6 +199,9 @@ REGISTRY_UNAUTHORIZED_HELP_TEXT = [
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 def deploy_image(image, mode, config_options):
     """Deploy Heroku app using a docker image and MTurk."""
+    import requests
+    from heroku3.core import Heroku as Heroku3Client
+
     config = get_config()
     config.load()
     dashboard_password = secrets.token_urlsafe(8)
@@ -284,7 +283,11 @@ def deploy_image(image, mode, config_options):
 
     print("Launching experiment")
     app_url = f"https://{app_hostname}"
+
+    from dallinger.deployment import _handle_launch_data
+
     launch_data = _handle_launch_data(f"{app_url}/launch", print)
+
     print(launch_data.get("recruitment_msg"))
 
     print(
@@ -316,6 +319,8 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     )
     # Register the experiment using all configured registration services.
     if config.get("mode") == "live":
+        from dallinger import registration
+
         log("Registering the experiment on configured services...")
         registration.register(heroku_app_id, snapshot=None)
 
@@ -418,7 +423,11 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     log("Launching the experiment on the remote server and starting recruitment...")
     launch_url = "{}/launch".format(heroku_app.url)
     log("Calling {}".format(launch_url), chevrons=False)
+
+    from dallinger.deployment import _handle_launch_data
+
     launch_data = _handle_launch_data(launch_url, error=log)
+
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,

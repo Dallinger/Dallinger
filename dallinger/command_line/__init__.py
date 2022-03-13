@@ -8,7 +8,6 @@ from __future__ import unicode_literals
 
 import click
 import os
-import requests
 import shutil
 import signal
 import sys
@@ -20,17 +19,9 @@ import webbrowser
 from collections import Counter
 from functools import wraps
 from pathlib import Path
-from rq import Worker, Connection
 from sqlalchemy import exc as sa_exc
 
-
 from dallinger.config import get_config
-from dallinger import data
-from dallinger import db
-from dallinger.deployment import deploy_sandbox_shared_setup
-from dallinger.deployment import DebugDeployment
-from dallinger.deployment import LoaderDeployment
-from dallinger.deployment import setup_experiment
 from dallinger.command_line.develop import develop
 from dallinger.command_line.docker import docker
 from dallinger.command_line.docker_ssh import docker_ssh
@@ -40,9 +31,6 @@ from dallinger.notifications import EmailConfig
 from dallinger.notifications import MessengerError
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuInfo
-from dallinger.mturk import MTurkService
-from dallinger.mturk import MTurkServiceException
-from dallinger.recruiters import by_name
 from dallinger.command_line.utils import Output
 from dallinger.command_line.utils import header
 from dallinger.command_line.utils import log
@@ -163,6 +151,8 @@ def uuid():
 
 
 def get_summary(app):
+    import requests
+
     heroku_app = HerokuApp(app)
     r = requests.get("{}/summary".format(heroku_app.url))
     summary = r.json()["summary"]
@@ -197,12 +187,16 @@ def get_summary(app):
 @require_exp_directory
 def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
     """Run the experiment locally."""
+    from dallinger.deployment import DebugDeployment
+
     debugger = DebugDeployment(Output(), verbose, bot, proxy, exp_config, no_browsers)
     log(header, chevrons=False)
     debugger.run()
 
 
 def _mturk_service_from_config(sandbox):
+    from dallinger.mturk import MTurkService
+
     config = get_config()
     config.load()
     return MTurkService(
@@ -217,6 +211,9 @@ def prelaunch_db_bootstrapper(zip_path, log):
     def bootstrap_db(heroku_app, config):
         # Pre-populate the database if an archive was given
         log("Ingesting dataset from {}...".format(os.path.basename(zip_path)))
+        from dallinger import data
+        from dallinger import db
+
         engine = db.create_db_engine(heroku_app.db_url)
         data.bootstrap_db_from_zip(zip_path, engine)
 
@@ -240,6 +237,8 @@ def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
     config = get_config()
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
+
+    from dallinger.deployment import deploy_sandbox_shared_setup
 
     deploy_sandbox_shared_setup(
         log=log, verbose=verbose, app=app, prelaunch_actions=prelaunch
@@ -395,6 +394,8 @@ def compensate(recruiter, worker_id, email, dollars, sandbox):
     no_email_str = "" if email else " NOT"
 
     with config.override({"mode": mode}):
+        from dallinger.recruiters import by_name
+
         rec = by_name(recruiter)
         if not click.confirm(
             '\n\nYou are about to pay worker "{}" ${:.2f} in "{}" mode using the "{}" recruiter.\n'
@@ -485,6 +486,8 @@ def revoke(workers, qualification, by_name, reason, sandbox):
 def hibernate(app):
     """Pause an experiment and remove costly resources."""
     log("The database backup URL is...")
+    from dallinger import data
+
     backup_url = data.backup(app)
     log(backup_url)
 
@@ -576,6 +579,8 @@ def expire(hit_id, app, sandbox, exit=True):
     specifying a Dallinger experiment ID, in which case HITs with the experiment
     ID in their ``annotation`` field will be expired.
     """
+    from dallinger.mturk import MTurkServiceException
+
     if (hit_id and app) or not (hit_id or app):
         raise click.BadParameter("Must specify --hit_id or --app, but not both.")
     if app is not None:
@@ -632,6 +637,8 @@ def expire(hit_id, app, sandbox, exit=True):
 )
 def extend_mturk_hit(hit_id, assignments, duration_hours, sandbox):
     """Add assignments, and optionally time, to an existing MTurk HIT."""
+    from dallinger.mturk import MTurkServiceException
+
     out = Output()
     config = get_config()
     config.load()
@@ -693,6 +700,8 @@ def destroy(ctx, app, expire_hit, sandbox):
 @click.option("--databaseurl", default=None, help="URL of the database")
 def awaken(app, databaseurl):
     """Restore the database from a given url."""
+    from dallinger import data
+
     id = app
     config = get_config()
     config.load()
@@ -739,6 +748,8 @@ def export(app, local, no_scrub):
     """Export the experiment data to a zip archive on your local computer, and
     by default, to Amazon S3."""
     log(header, chevrons=False)
+    from dallinger import data
+
     try:
         data.export(str(app), local=local, scrub_pii=(not no_scrub))
     except data.S3BucketUnavailable:
@@ -762,6 +773,8 @@ def load(app, verbose, replay, exp_config=None):
         exp_config = exp_config or {}
         exp_config["replay"] = True
     log(header, chevrons=False)
+    from dallinger.deployment import LoaderDeployment
+
     loader = LoaderDeployment(app, Output(), verbose, exp_config)
     loader.run()
 
@@ -816,6 +829,8 @@ def bot(app, debug):
     if debug is None:
         verify_id(None, None, app)
 
+    from dallinger.deployment import setup_experiment
+
     (id, tmp) = setup_experiment(log)
 
     if debug:
@@ -851,6 +866,10 @@ def verify():
 @dallinger.command()
 def rq_worker():
     """Start an rq worker in the context of dallinger."""
+    from dallinger.deployment import setup_experiment
+    from dallinger import db
+    from rq import Worker, Connection
+
     setup_experiment(log)
     with Connection(db.redis_conn):
         # right now we care about low queue for bots
