@@ -9,9 +9,6 @@ from dallinger.command_line.utils import log
 from dallinger.command_line.utils import Output
 from dallinger.command_line.utils import require_exp_directory
 from dallinger.config import get_config
-from dallinger.deployment import DevelopmentDeployment
-from dallinger.deployment import _handle_launch_data
-from dallinger.utils import open_browser
 
 
 logger = logging.getLogger(__name__)
@@ -47,6 +44,8 @@ def develop():
 @click.option("--port", default=5000, help="The port Flask is running on")
 def launch(port):
     """Send a POST to the /launch route"""
+    from dallinger.deployment import _handle_launch_data
+
     url = BASE_URL.format(port) + "launch"
     result = _handle_launch_data(url, error=log, attempts=1)
     if result and "status" in result:
@@ -57,6 +56,8 @@ def launch(port):
 @require_exp_directory
 def bootstrap(exp_config=None):
     """Run the experiment locally."""
+    from dallinger.deployment import DevelopmentDeployment
+
     bootstrapper = DevelopmentDeployment(Output(), exp_config)
     log(header, chevrons=False)
     bootstrapper.run()
@@ -75,6 +76,8 @@ def browser(route=None, port=5000):
     config.load()
     url_factory = valid_routes.get(route)
     if url_factory is not None:
+        from dallinger.utils import open_browser
+
         open_browser(url_factory(config, port))
     else:
         click.echo(
