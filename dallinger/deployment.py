@@ -444,7 +444,9 @@ class DebugDeployment(HerokuLocalDeployment):
         )
 
     def async_open_dashboard(self, url):
-        threading.Thread(target=self.open_dashboard, name="Open dashboard", kwargs={"url": url}).start()
+        threading.Thread(
+            target=self.open_dashboard, name="Open dashboard", kwargs={"url": url}
+        ).start()
 
     def open_dashboard(self, url):
         config = get_config()
