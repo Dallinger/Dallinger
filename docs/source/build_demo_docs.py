@@ -4,7 +4,7 @@ import shutil
 import subprocess as sp
 
 
-def make_demo(name, src, dst):
+def make_demo(name, src, dst, root):
     print("Making '{}' demo...".format(name))
 
     static_files = []
@@ -29,7 +29,10 @@ def make_demo(name, src, dst):
     with open(os.path.join(dst, "index.rst"), "a") as fh:
         fh.write("\n\n")
         fh.write(
-            "`Download the demo <../../_static/{}.zip>`__.\n".format(name))
+            "`Download the demos <{}/_static/{}.zip>`__.\n".format(
+                os.path.relpath(root, dst), name
+            )
+        )
 
     # create a temporary directory
     tempdir = tempfile.mkdtemp()
@@ -37,10 +40,16 @@ def make_demo(name, src, dst):
     os.chdir(tempdir)
 
     try:
+        # Remove some tmp dirs in advance of copying
+        unwanted = ['.tox', '__pycache__']
+        for filename in unwanted:
+            path = os.path.join(src, filename)
+            if os.path.exists(path):
+                shutil.rmtree(path)
         shutil.copytree(src, os.path.join(tempdir, name))
 
         # remove unnecessary files
-        extra = ["snapshots", "server.log"]
+        extra = ["snapshots", "server.log", '.vscode']
         for filename in extra:
             path = os.path.join(tempdir, name, filename)
             if os.path.exists(path):
@@ -69,16 +78,11 @@ def build(root):
     if not os.path.exists(os.path.join(root, "demos")):
         os.makedirs(os.path.join(root, "demos"))
 
-    demos_dir = os.path.abspath(os.path.join(root, "..", "..", "demos", "dlgr", "demos"))
+    src = os.path.abspath(os.path.join(root, "..", "..", "demos"))
     static_files = []
-    for demo in os.listdir(demos_dir):
-        src = os.path.join(demos_dir, demo)
-        if os.path.isdir(src):
-            dst = os.path.join(root, "demos", demo)
-            if not os.path.exists(dst):
-                os.makedirs(dst)
-            static = make_demo(demo, src, dst)
-            static_files.extend(
-                [os.path.join("demos", demo, x) for x in static])
-
+    if os.path.isdir(src):
+        dst = os.path.join(root, "demos")
+        static = make_demo("demos", src, dst, root)
+        static_files.extend(
+            [os.path.join("demos", x) for x in static])
     return static_files

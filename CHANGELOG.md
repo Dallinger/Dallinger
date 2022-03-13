@@ -295,6 +295,8 @@ automatically during ``debug`` and deployment, and by ``dallinger verify``.
 
 - Heroku has deprecated the use of the --org parameter which previous versions of Dallinger used. This release fixes Dallinger to use the newer --team parameter instead, which has been available in Heroku for quite some time. The change was introduced in Heroku CLI 7.21. The --team parameter was introduced in Heroku a significant time ago, thus this version of Dallinger will work with many older versions of the Heroku CLI. If using an older version of the Heroku CLI, we recommend updating to the latest version.
 
+- Add user vagrant setup for running demos
+
 - Improve launch retry messaging when running in debug mode
 - `dallinger verify` now fails if you have more than one Experiment class
 
