@@ -406,7 +406,7 @@ class DebugDeployment(HerokuLocalDeployment):
                 dashboard_url = self.with_proxy_port("{}/dashboard/".format(base_url))
                 self.display_dashboard_access_details(dashboard_url)
                 if not self.no_browsers:
-                    self.open_dashboard(dashboard_url)
+                    self.async_open_dashboard(dashboard_url)
                 self.heroku = heroku
                 self.out.log(
                     "Monitoring the Heroku Local server for recruitment or completion..."
@@ -442,6 +442,9 @@ class DebugDeployment(HerokuLocalDeployment):
                 config.get("dashboard_password"),
             )
         )
+
+    def async_open_dashboard(self, url):
+        threading.Thread(target=self.open_dashboard, name="Open dashboard", kwargs={"url": url}).start()
 
     def open_dashboard(self, url):
         config = get_config()
