@@ -223,7 +223,7 @@ class TestDebugCommand(object):
 
     @pytest.fixture
     def deployment(self):
-        with mock.patch("dallinger.command_line.DebugDeployment") as mock_dbgr:
+        with mock.patch("dallinger.deployment.DebugDeployment") as mock_dbgr:
             yield mock_dbgr
 
     def test_fails_if_run_outside_experiment_dir(self, debug, deployment):
@@ -270,7 +270,7 @@ class TestSandboxAndDeploy(object):
     @pytest.fixture
     def dsss(self):
         with mock.patch(
-            "dallinger.command_line.deploy_sandbox_shared_setup"
+            "dallinger.deployment.deploy_sandbox_shared_setup"
         ) as mock_dsss:
             yield mock_dsss
 
@@ -364,7 +364,7 @@ class TestSummary(object):
             u"summary": [["approved", 1], ["submitted", 1]],
             u"unfilled_networks": 0,
         }
-        with mock.patch("requests") as req:
+        with mock.patch("dallinger.experiment.requests") as req:
             req.get.return_value = response
             yield req
 
