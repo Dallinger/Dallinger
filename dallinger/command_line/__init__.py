@@ -8,6 +8,7 @@ from __future__ import unicode_literals
 
 import click
 import os
+import requests
 import shutil
 import signal
 import sys
@@ -151,8 +152,6 @@ def uuid():
 
 
 def get_summary(app):
-    import requests
-
     heroku_app = HerokuApp(app)
     r = requests.get("{}/summary".format(heroku_app.url))
     summary = r.json()["summary"]
