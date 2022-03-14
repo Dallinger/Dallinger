@@ -3,6 +3,7 @@ import functools
 import io
 import locale
 import os
+import pkg_resources
 import random
 import re
 import requests
@@ -395,8 +396,6 @@ def check_experiment_dependencies(requirement_file):
             dependencies = [r for r in f.readlines() if r[:3] != "-e "]
     except (OSError, IOError):
         dependencies = []
-
-    import pkg_resources
 
     pkg_resources.require(dependencies)
 
