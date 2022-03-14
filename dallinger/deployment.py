@@ -407,6 +407,11 @@ class DebugDeployment(HerokuLocalDeployment):
                 self.display_dashboard_access_details(dashboard_url)
                 if not self.no_browsers:
                     self.async_open_dashboard(dashboard_url)
+
+                # A little delay here ensures that the experiment window always opens
+                # after the dashboard window.
+                time.sleep(0.1)
+
                 self.heroku = heroku
                 self.out.log(
                     "Monitoring the Heroku Local server for recruitment or completion..."
