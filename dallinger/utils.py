@@ -3,8 +3,10 @@ import functools
 import io
 import locale
 import os
+import pkg_resources
 import random
 import re
+import requests
 import shutil
 import string
 import subprocess
@@ -395,8 +397,6 @@ def check_experiment_dependencies(requirement_file):
     except (OSError, IOError):
         dependencies = []
 
-    import pkg_resources
-
     pkg_resources.require(dependencies)
 
 
@@ -533,8 +533,6 @@ def ensure_constraints_file_presence(directory: str):
 
     prev_cwd = os.getcwd()
     try:
-        import requests
-
         os.chdir(directory)
         url = f"https://raw.githubusercontent.com/Dallinger/Dallinger/v{__version__}/dev-requirements.txt"
         try:

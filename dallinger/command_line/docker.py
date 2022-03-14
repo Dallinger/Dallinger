@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from shlex import quote
+import requests
 
 from dallinger import heroku
 from dallinger.config import get_config
@@ -199,7 +200,6 @@ REGISTRY_UNAUTHORIZED_HELP_TEXT = [
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 def deploy_image(image, mode, config_options):
     """Deploy Heroku app using a docker image and MTurk."""
-    import requests
     from heroku3.core import Heroku as Heroku3Client
 
     config = get_config()
