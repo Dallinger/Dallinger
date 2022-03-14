@@ -18,7 +18,9 @@ import socket
 import zipfile
 
 from jinja2 import Template
+from requests.adapters import HTTPAdapter
 import click
+import requests
 
 from dallinger.command_line.config import get_configured_hosts
 from dallinger.command_line.config import remove_host
@@ -530,8 +532,6 @@ def get_docker_compose_yml(
 
 
 def get_retrying_http_client():
-    import requests
-    from requests.adapters import HTTPAdapter
     from urllib3.util.retry import Retry
 
     retry_strategy = Retry(

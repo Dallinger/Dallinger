@@ -5,6 +5,7 @@ import locale
 import os
 import random
 import re
+import requests
 import shutil
 import string
 import subprocess
@@ -533,8 +534,6 @@ def ensure_constraints_file_presence(directory: str):
 
     prev_cwd = os.getcwd()
     try:
-        import requests
-
         os.chdir(directory)
         url = f"https://raw.githubusercontent.com/Dallinger/Dallinger/v{__version__}/dev-requirements.txt"
         try:

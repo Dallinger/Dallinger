@@ -364,7 +364,7 @@ class TestSummary(object):
             u"summary": [["approved", 1], ["submitted", 1]],
             u"unfilled_networks": 0,
         }
-        with mock.patch("dallinger.experiment.requests") as req:
+        with mock.patch("dallinger.command_line.requests") as req:
             req.get.return_value = response
             yield req
 
