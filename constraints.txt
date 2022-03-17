@@ -192,7 +192,7 @@ ipython-genutils==0.2.0
     #   nbformat
     #   notebook
     #   qtconsole
-ipywidgets==7.6.5
+ipywidgets==7.7.0
     # via
     #   dallinger
     #   jupyter
