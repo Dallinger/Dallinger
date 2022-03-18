@@ -553,7 +553,7 @@ trio-websocket==0.9.2
     # via selenium
 typing-extensions==4.1.1
     # via black
-tzdata==2021.5
+tzdata==2022.1
     # via pytz-deprecation-shim
 tzlocal==4.1
     # via
