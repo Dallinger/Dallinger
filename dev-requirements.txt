@@ -82,7 +82,7 @@ coverage==6.3.2
     #   dallinger
 coverage-pth==0.0.2
     # via dallinger
-cryptography==36.0.1
+cryptography==36.0.2
     # via
     #   paramiko
     #   pyopenssl
@@ -120,7 +120,7 @@ entrypoints==0.3
     #   nbconvert
 et-xmlfile==1.1.0
     # via openpyxl
-faker==13.0.0
+faker==13.3.2
     # via dallinger
 filelock==3.6.0
     # via
@@ -174,7 +174,7 @@ imagesize==1.3.0
     # via sphinx
 iniconfig==1.1.1
     # via pytest
-ipykernel==6.9.1
+ipykernel==6.9.2
     # via
     #   ipywidgets
     #   jupyter
@@ -192,7 +192,7 @@ ipython-genutils==0.2.0
     #   nbformat
     #   notebook
     #   qtconsole
-ipywidgets==7.6.5
+ipywidgets==7.7.0
     # via
     #   dallinger
     #   jupyter
@@ -226,7 +226,7 @@ jupyter-client==7.1.2
     #   nbclient
     #   notebook
     #   qtconsole
-jupyter-console==6.4.0
+jupyter-console==6.4.3
     # via jupyter
 jupyter-core==4.9.2
     # via
@@ -237,7 +237,7 @@ jupyter-core==4.9.2
     #   qtconsole
 jupyterlab-pygments==0.1.2
     # via nbconvert
-jupyterlab-widgets==1.0.2
+jupyterlab-widgets==1.1.0
     # via ipywidgets
 localconfig==1.1.3
     # via dallinger
@@ -259,9 +259,9 @@ mock==4.0.3
     # via dallinger
 mypy-extensions==0.4.3
     # via black
-nbclient==0.5.11
+nbclient==0.5.13
     # via nbconvert
-nbconvert==6.4.2
+nbconvert==6.4.4
     # via
     #   jupyter
     #   notebook
@@ -277,7 +277,7 @@ nest-asyncio==1.5.4
     #   nbclient
 nodeenv==1.6.0
     # via pre-commit
-notebook==6.4.8
+notebook==6.4.10
     # via
     #   jupyter
     #   widgetsnbextension
@@ -302,7 +302,7 @@ pandas==1.3.5
     #   tablib
 pandocfilters==1.5.0
     # via nbconvert
-paramiko==2.10.1
+paramiko==2.10.2
     # via
     #   dallinger
     #   docker
@@ -377,13 +377,13 @@ pynacl==1.4.0
     # via paramiko
 pyopenssl==22.0.0
     # via urllib3
-pypandoc==1.7.2
+pypandoc==1.7.4
     # via dallinger
 pyparsing==3.0.7
     # via packaging
 pyrsistent==0.18.1
     # via jsonschema
-pytest==7.1.0
+pytest==7.1.1
     # via
     #   dallinger
     #   pytest-rerunfailures
@@ -425,7 +425,7 @@ redis==4.1.4
     # via
     #   dallinger
     #   rq
-regex==2022.3.2
+regex==2022.3.15
     # via black
 requests==2.27.1
     # via
@@ -439,7 +439,7 @@ rq==1.10.1
     # via dallinger
 s3transfer==0.5.0
     # via boto3
-selenium==4.1.0
+selenium==4.1.3
     # via dallinger
 send2trash==1.8.0
     # via notebook
@@ -490,7 +490,7 @@ sphinxcontrib-serializinghtml==1.1.5
     # via sphinx
 sphinxcontrib-spelling==7.3.2
     # via dallinger
-sqlalchemy==1.4.31
+sqlalchemy==1.4.32
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
@@ -504,7 +504,7 @@ tabulate==0.8.9
     # via
     #   dallinger
     #   tablib
-terminado==0.13.1
+terminado==0.13.3
     # via notebook
 testpath==0.6.0
     # via nbconvert
@@ -553,7 +553,7 @@ trio-websocket==0.9.2
     # via selenium
 typing-extensions==4.1.1
     # via black
-tzdata==2021.5
+tzdata==2022.1
     # via pytz-deprecation-shim
 tzlocal==4.1
     # via
@@ -570,7 +570,7 @@ urllib3[secure]==1.26.8
     #   selenium
 user-agents==2.2.0
     # via dallinger
-virtualenv==20.13.1
+virtualenv==20.13.3
     # via
     #   pre-commit
     #   tox
@@ -588,7 +588,7 @@ wheel==0.37.1
     # via
     #   pip-tools
     #   pypandoc
-widgetsnbextension==3.5.2
+widgetsnbextension==3.6.0
     # via ipywidgets
 wsproto==1.1.0
     # via trio-websocket
