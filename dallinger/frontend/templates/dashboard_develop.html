@@ -5,18 +5,6 @@
 
 <button id="new-participant" class="btn btn-primary">New participant</button>
 
-{% set dashboard_launch_route = false %}
-
-{% if dashboard_launch_route %}
-    // The experimenter should not normally have to call the launch route manually;
-    // instead they should just restart the server.
-    // We leave this code here in case it becomes useful for future debugging.
-    <button id="launch-route-post" class="btn btn-primary">Launch</button>
-
-    <h2>Server Responses</h2>
-    <pre id="console"></pre>
-{% endif %}
-
 {% endblock %}
 
 {% block scripts %}
@@ -29,39 +17,5 @@
         $(function () {
             $("#new-participant").click(handleNewParticipant);
         })
-
-
-        {% if dashboard_launch_route %}
-            function onLaunchSuccess(data) {
-                var $console = $("#console"),
-                    response = JSON.stringify(data, null, 4);
-
-                $console.append("\n" + response);
-            }
-
-            function postToLaunchRoute(callback) {
-                var url = "/launch",
-                data = {};
-
-                $.ajax({
-                    type: "POST",
-                    url: url,
-                    data: data,
-                    success: callback,
-                    dataType: "json"
-                });
-            }
-
-            function handleLaunchButton(event) {
-                var $button = $(event.currentTarget);
-
-                postToLaunchRoute(onLaunchSuccess);
-            }
-
-            $(function () {
-                $("#launch-route-post").click(handleLaunchButton);
-            })
-
-        {% endif %}
     </script>
 {% endblock %}
