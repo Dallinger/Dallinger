@@ -53,34 +53,9 @@ def debug(port):
     _bootstrap()
 
     q = Queue("default", connection=redis_conn)
-    q.enqueue_call(initiate_launch, kwargs={"port": port})
+    q.enqueue_call(launch_app_and_open_dashboard, kwargs={"port": port})
 
     subprocess.call(["./run.sh"], cwd="develop")
-
-
-def initiate_launch(port):
-    url = BASE_URL.format(port) + "launch"
-    _handle_launch_data(url, error=log, delay=1.0)
-    open_dashboard(port)
-
-
-def open_dashboard(port):
-    _browser("dashboard", port)
-    # subprocess.call(["dallinger", "develop", "browser", "--route", "dashboard", "--port", str(port)])
-    # port = 5000
-    # config = get_config()
-    # config.load()
-    # open_browser(dashboard_url(config, port))
-
-
-@develop.command()
-@click.option("--port", default=5000, help="The port Flask is running on")
-def launch(port):
-    """Send a POST to the /launch route"""
-    url = BASE_URL.format(port) + "launch"
-    result = _handle_launch_data(url, error=log, attempts=1)
-    if result and "status" in result:
-        log(result["status"])
 
 
 @develop.command()
@@ -90,10 +65,24 @@ def bootstrap(exp_config=None):
 
 
 def _bootstrap(exp_config=None):
-    """Run the experiment locally."""
+    """Creates a directory called 'develop' which will be used to host the development version of the experiment."""
     bootstrapper = DevelopmentDeployment(Output(), exp_config)
     log(header, chevrons=False)
     bootstrapper.run()
+
+
+def launch_app_and_open_dashboard(port):
+    _launch_app(port)
+    _open_dashboard(port)
+
+
+def _launch_app(port):
+    url = BASE_URL.format(port) + "launch"
+    _handle_launch_data(url, error=log, delay=1.0)
+
+
+def _open_dashboard(port):
+    _browser("dashboard", port)
 
 
 @develop.command()
