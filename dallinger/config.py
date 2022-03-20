@@ -353,7 +353,7 @@ def initialize_experiment_package(path):
     basename = os.path.basename(path)
     sys.path.insert(0, dirname)
     package = __import__(basename)
-    if path not in package.__path__:
+    if str(path) not in str(package.__path__):
         raise Exception(
             "Package was not imported from the requested path! ({} not in {})".format(
                 path, package.__path__
