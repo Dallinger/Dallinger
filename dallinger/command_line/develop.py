@@ -1,14 +1,18 @@
 import click
 import logging
+import subprocess
 
 from six.moves.urllib.parse import urlparse
 from six.moves.urllib.parse import urlunparse
+
+from rq import Queue
 
 from dallinger.command_line.utils import header
 from dallinger.command_line.utils import log
 from dallinger.command_line.utils import Output
 from dallinger.command_line.utils import require_exp_directory
 from dallinger.config import get_config
+from dallinger.db import redis_conn
 from dallinger.deployment import DevelopmentDeployment
 from dallinger.deployment import _handle_launch_data
 from dallinger.utils import open_browser
@@ -45,6 +49,32 @@ def develop():
 
 @develop.command()
 @click.option("--port", default=5000, help="The port Flask is running on")
+def debug(port):
+    _bootstrap()
+
+    q = Queue("default", connection=redis_conn)
+    q.enqueue_call(initiate_launch, kwargs={"port": port})
+
+    subprocess.call(["./run.sh"], cwd="develop")
+
+
+def initiate_launch(port):
+    url = BASE_URL.format(port) + "launch"
+    _handle_launch_data(url, error=log, delay=1.0)
+    open_dashboard(port)
+
+
+def open_dashboard(port):
+    _browser("dashboard", port)
+    # subprocess.call(["dallinger", "develop", "browser", "--route", "dashboard", "--port", str(port)])
+    # port = 5000
+    # config = get_config()
+    # config.load()
+    # open_browser(dashboard_url(config, port))
+
+
+@develop.command()
+@click.option("--port", default=5000, help="The port Flask is running on")
 def launch(port):
     """Send a POST to the /launch route"""
     url = BASE_URL.format(port) + "launch"
@@ -56,6 +86,10 @@ def launch(port):
 @develop.command()
 @require_exp_directory
 def bootstrap(exp_config=None):
+    _bootstrap(exp_config)
+
+
+def _bootstrap(exp_config=None):
     """Run the experiment locally."""
     bootstrapper = DevelopmentDeployment(Output(), exp_config)
     log(header, chevrons=False)
@@ -70,6 +104,10 @@ def bootstrap(exp_config=None):
 )
 @click.option("--port", default=5000, help="The port Flask is running on")
 def browser(route=None, port=5000):
+    _browser(route=route, port=port)
+
+
+def _browser(route=None, port=5000):
     """Open one of the supported routes with appropriate path and URL parameters"""
     config = get_config()
     config.load()
