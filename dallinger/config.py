@@ -346,7 +346,6 @@ def initialize_experiment_package(path):
     init_py = os.path.join(path, "__init__.py")
     if not os.path.exists(init_py):
         open(init_py, "a").close()
-
     # Retain already set experiment module
     if sys.modules.get("dallinger_experiment") is not None:
         return
@@ -354,7 +353,7 @@ def initialize_experiment_package(path):
     basename = os.path.basename(path)
     sys.path.insert(0, dirname)
     package = __import__(basename)
-    if path not in package.__path__:
+    if Path(path) not in [Path(p) for p in package.__path__]:
         raise Exception(
             "Package was not imported from the requested path! ({} not in {})".format(
                 path, package.__path__
@@ -362,4 +361,5 @@ def initialize_experiment_package(path):
         )
     sys.modules["dallinger_experiment"] = package
     package.__package__ = "dallinger_experiment"
+    package.__name__ = "dallinger_experiment"
     sys.path.pop(0)
