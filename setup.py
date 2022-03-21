@@ -46,6 +46,7 @@ setup_args = dict(
     },
     install_requires=[
         "APScheduler",
+        "atexit",
         "cached-property",
         "boto3",
         "build",

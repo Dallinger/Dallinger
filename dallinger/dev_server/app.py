@@ -1,4 +1,7 @@
+import atexit
 import gevent.monkey
+import subprocess
+import werkzeug
 
 gevent.monkey.patch_all()  # Patch before importing app and all its dependencies
 
@@ -8,3 +11,13 @@ from dallinger.experiment_server.experiment_server import app  # noqa: E402, F40
 
 
 os.environ["FLASK_SECRET_KEY"] = codecs.encode(os.urandom(16), "hex").decode("ascii")
+
+if werkzeug.serving.is_running_from_reloader():
+    worker = subprocess.Popen(["dallinger_heroku_worker"])
+    clock = subprocess.Popen(["dallinger_heroku_clock"])
+
+    def cleanup():
+        worker.kill()
+        clock.kill()
+
+    atexit.register(cleanup)
