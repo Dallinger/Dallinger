@@ -46,7 +46,6 @@ setup_args = dict(
     },
     install_requires=[
         "APScheduler",
-        "atexit",
         "cached-property",
         "boto3",
         "build",
@@ -81,7 +80,6 @@ setup_args = dict(
         "tzlocal",
         "ua-parser",
         "user-agents",
-        "werkzeug",
     ],
     extras_require={
         "jupyter": [
