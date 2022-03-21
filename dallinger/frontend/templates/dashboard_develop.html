@@ -1,10 +1,21 @@
 {% extends "base/dashboard.html" %}
 
 {% block body %}
-<h1>Development Mode Tools</h1>
+    <h1>Development Mode Tools</h1>
 
-<button id="new-participant" class="btn btn-primary">New participant</button>
+    <p>
+        You can update your experiment code while the experiment is running;
+        if you refresh the browser, you should be able to see your changes.
+    </p>
+    <p>
+        <strong>Note:</strong>
+        Certain files (in particular, JS scripts) are cached by the browser,
+        and so might not be updated by an ordinary refresh.
+        In such cases you may need to force the browser to do a non-cached refresh.
+        The shortcut for this on Mac is Cmd-Shift-R.
+    </p>
 
+    <button id="new-participant" class="btn btn-primary">New participant</button>
 {% endblock %}
 
 {% block scripts %}
