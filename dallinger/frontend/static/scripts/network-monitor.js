@@ -309,11 +309,10 @@
         mgroup='good_infos';
         clr = participant.clr;
       }
-
       nodes.push({
         id: my_node_id,
-        label: "info:"+ String(info.id), dashes:true,
-        title: "info: " + info.type + ':' + String(info.id),
+        label: info.type + ": " + String(info.id), dashes:true,
+        title: info.type + ':' + String(info.id),
         group: mgroup,
         icon: {color: clr},
         font: {align: 'inside'},
