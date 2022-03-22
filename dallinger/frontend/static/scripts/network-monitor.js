@@ -309,11 +309,10 @@
         mgroup='good_infos';
         clr = participant.clr;
       }
-
       nodes.push({
         id: my_node_id,
-        label: "info:"+ String(info.id), dashes:true,
-        title: "info: " + info.type + ':' + String(info.id),
+        label: info.type + ": " + String(info.id), dashes:true,
+        title: info.type + ':' + String(info.id),
         group: mgroup,
         icon: {color: clr},
         font: {align: 'inside'},
@@ -434,11 +433,6 @@
         }
       }
 
-      if (!is_found) {
-        to=to_min; // use a default strategy that the source is the minimal id
-        //to=my_node_id
-      }
-
       if (net.property1=='True') { // assume that there is a feature in property1 that decide if a network is open or close
         mgroup='group_networks_open';
       } else {
@@ -461,11 +455,13 @@
         data: net
 
       });
-      edges.push({
-        from: from,
-        to: to,
-        color: 'black'
-      });
+      if (is_found) {
+        edges.push({
+          from: from,
+          to: to,
+          color: 'black'
+        });
+      }
       //connect network to father
       edges.push({
         from: father,
