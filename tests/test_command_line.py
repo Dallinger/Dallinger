@@ -47,7 +47,7 @@ def heroku():
 
 @pytest.fixture
 def data():
-    with mock.patch("dallinger.command_line.data") as mock_data:
+    with mock.patch("dallinger.data") as mock_data:
         mock_data.backup.return_value = "fake backup url"
         mock_bucket = mock.Mock()
         mock_key = mock.Mock()
@@ -59,7 +59,7 @@ def data():
 
 @pytest.fixture
 def mturk(fake_parsed_hit):
-    with mock.patch("dallinger.command_line.MTurkService") as mock_mturk:
+    with mock.patch("dallinger.mturk.MTurkService") as mock_mturk:
         mock_instance = mock.Mock()
         mock_instance.get_hits.return_value = [fake_parsed_hit]
         mock_mturk.return_value = mock_instance
@@ -223,7 +223,7 @@ class TestDebugCommand(object):
 
     @pytest.fixture
     def deployment(self):
-        with mock.patch("dallinger.command_line.DebugDeployment") as mock_dbgr:
+        with mock.patch("dallinger.deployment.DebugDeployment") as mock_dbgr:
             yield mock_dbgr
 
     def test_fails_if_run_outside_experiment_dir(self, debug, deployment):
@@ -270,7 +270,7 @@ class TestSandboxAndDeploy(object):
     @pytest.fixture
     def dsss(self):
         with mock.patch(
-            "dallinger.command_line.deploy_sandbox_shared_setup"
+            "dallinger.deployment.deploy_sandbox_shared_setup"
         ) as mock_dsss:
             yield mock_dsss
 
@@ -336,7 +336,7 @@ class TestLoad(object):
 
     @pytest.fixture
     def deployment(self):
-        with mock.patch("dallinger.command_line.LoaderDeployment") as dep:
+        with mock.patch("dallinger.deployment.LoaderDeployment") as dep:
             yield dep
 
     def test_load_with_app_id(self, load, deployment):
@@ -418,7 +418,7 @@ class TestQualify(object):
 
     @pytest.fixture
     def mturk(self):
-        with mock.patch("dallinger.command_line.MTurkService") as mock_mturk:
+        with mock.patch("dallinger.mturk.MTurkService") as mock_mturk:
             mock_results = [{"id": "some qid", "score": 1}]
             mock_instance = mock.Mock()
             mock_instance.get_workers_with_qualification.return_value = mock_results
@@ -446,7 +446,7 @@ class TestQualify(object):
 
     def test_uses_mturk_sandbox_if_specified(self, qualify):
         qual_value = 1
-        with mock.patch("dallinger.command_line.MTurkService") as mock_mturk:
+        with mock.patch("dallinger.mturk.MTurkService") as mock_mturk:
             mock_mturk.return_value = mock.Mock()
             CliRunner().invoke(
                 qualify,
@@ -612,7 +612,7 @@ class TestCompensate(object):
         return recruiter
 
     def test_compensate_with_notification(self, compensate, mturkrecruiter):
-        with mock.patch("dallinger.command_line.by_name") as by_name:
+        with mock.patch("dallinger.recruiters.by_name") as by_name:
             by_name.return_value = mturkrecruiter
             result = CliRunner().invoke(
                 compensate,
@@ -636,7 +636,7 @@ class TestCompensate(object):
         )
 
     def test_compensate_without_notification(self, compensate, mturkrecruiter):
-        with mock.patch("dallinger.command_line.by_name") as by_name:
+        with mock.patch("dallinger.recruiters.by_name") as by_name:
             by_name.return_value = mturkrecruiter
             result = CliRunner().invoke(
                 compensate,
@@ -661,7 +661,7 @@ class TestCompensate(object):
     def test_traps_errors_and_forwards_message_portion(
         self, compensate, mturkrecruiter
     ):
-        with mock.patch("dallinger.command_line.by_name") as by_name:
+        with mock.patch("dallinger.recruiters.by_name") as by_name:
             by_name.return_value = mturkrecruiter
             mturkrecruiter.compensate_worker.side_effect = Exception("Boom!")
             result = CliRunner().invoke(
@@ -685,7 +685,7 @@ class TestExtendMTurkHIT(object):
 
     @pytest.fixture
     def mturk(self):
-        with mock.patch("dallinger.command_line.MTurkService") as mock_mturk:
+        with mock.patch("dallinger.mturk.MTurkService") as mock_mturk:
             mock_instance = mock.Mock()
             mock_instance.extend_hit.return_value = {
                 "title": "HIT Title",
@@ -758,7 +758,7 @@ class TestRevoke(object):
 
     @pytest.fixture
     def mturk(self):
-        with mock.patch("dallinger.command_line.MTurkService") as mock_mturk:
+        with mock.patch("dallinger.mturk.MTurkService") as mock_mturk:
             mock_instance = mock.Mock()
             mock_instance.get_qualification_type_by_name.return_value = "some qid"
             mock_instance.get_workers_with_qualification.return_value = [
@@ -801,7 +801,7 @@ class TestRevoke(object):
         mturk.revoke_qualification.assert_not_called()
 
     def test_uses_mturk_sandbox_if_specified(self, revoke):
-        with mock.patch("dallinger.command_line.MTurkService") as mock_mturk:
+        with mock.patch("dallinger.mturk.MTurkService") as mock_mturk:
             mock_mturk.return_value = mock.Mock()
             CliRunner().invoke(
                 revoke,

@@ -14,11 +14,8 @@ import sys
 import tempfile
 import webbrowser
 
-from faker import Faker
-from flask import request
 from hashlib import md5
 from pathlib import Path
-from pkg_resources import get_distribution
 from unicodedata import normalize
 from tempfile import TemporaryDirectory
 
@@ -27,13 +24,9 @@ try:
 except ImportError:
     from importlib_metadata import files as files_metadata
 
-from dallinger import db
 from dallinger.version import __version__
 from dallinger.config import get_config
 from dallinger.compat import is_command
-
-
-fake = Faker()
 
 
 def get_base_url():
@@ -42,6 +35,8 @@ def get_base_url():
     experiment config.
     If the URL is on Heroku makes sure the protocol is https.
     """
+    from flask import request
+
     try:
         return f"{request.scheme}://{request.host}"
     except RuntimeError:
@@ -74,6 +69,8 @@ def dallinger_package_path():
     >>> utils.dallinger_package_location()
     '/Users/janedoe/projects/Dallinger3/dallinger'
     """
+    from pkg_resources import get_distribution
+
     dist = get_distribution("dallinger")
     src_base = os.path.join(dist.location, dist.project_name)
 
@@ -382,6 +379,8 @@ def check_local_db_connection(log):
     """Verify that the local Postgres server is running."""
     try:
         log("Checking your local Postgres database connection...")
+        from dallinger import db
+
         db.check_connection()
     except Exception:
         log("There was a problem connecting!")
@@ -397,6 +396,7 @@ def check_experiment_dependencies(requirement_file):
             dependencies = [r for r in f.readlines() if r[:3] != "-e "]
     except (OSError, IOError):
         dependencies = []
+
     pkg_resources.require(dependencies)
 
 
@@ -422,6 +422,9 @@ def bootstrap_development_session(exp_config, experiment_path, log):
         }
     )
     if not config.get("dashboard_password", None):
+        from faker import Faker
+
+        fake = Faker()
         config.set("dashboard_password", fake.password(length=20, special_chars=False))
 
     develop_source_path = Path(dallinger_package_path()) / "dev_server"
@@ -484,6 +487,9 @@ def setup_experiment(
     )
 
     if not config.get("dashboard_password", None):
+        from faker import Faker
+
+        fake = Faker()
         config.set("dashboard_password", fake.password(length=20, special_chars=False))
 
     temp_dir = assemble_experiment_temp_dir(log, config, for_remote=not local_checks)
