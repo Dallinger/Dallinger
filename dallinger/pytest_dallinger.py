@@ -419,11 +419,33 @@ def debug_experiment(request, env, clear_workers):
             p.expect_exact(u"Local Heroku process terminated", timeout=timeout)
     finally:
         try:
-            print(p.read(1e6))
+            flush_output(p, timeout=0.1)
             p.sendcontrol("c")
-            p.read()
+            flush_output(p, timeout=3)
+            # Why do we need to call flush_output twice? Good question.
+            # Something about calling p.sendcontrol("c") seems to disrupt the log.
+            # Better to call it both before and after.
         except IOError:
             pass
+
+
+def flush_output(p, timeout):
+    old_timeout = p.timeout
+    p.timeout = timeout
+    try:
+        # Calling read() causes the process's output to be written to stdout,
+        # which is then propagated to pytest.
+        # This still happens even when a TIMEOUT occurs.
+        p.read(
+            1000000
+        )  # The big number sets the maximum amount of output characters to read.
+    except pexpect.TIMEOUT:
+        pass
+    p.timeout = old_timeout
+
+
+def read_logs_until_exit(p):
+    p.read()
 
 
 @pytest.fixture
