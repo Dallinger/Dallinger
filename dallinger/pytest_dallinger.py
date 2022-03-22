@@ -404,9 +404,10 @@ def test_request(webapp):
 @pytest.fixture
 def debug_experiment(request, env, clear_workers):
     timeout = request.config.getvalue("recruiter_timeout", 120)
+
     # Make sure debug server runs to completion with bots
     p = pexpect.spawn(
-        "dallinger", ["debug", "--no-browsers"], env=env, encoding="utf-8"
+        "dallinger", ["debug", "--no-browsers", "--verbose"], env=env, encoding="utf-8"
     )
     p.logfile = sys.stdout
 
@@ -418,6 +419,7 @@ def debug_experiment(request, env, clear_workers):
             p.expect_exact(u"Local Heroku process terminated", timeout=timeout)
     finally:
         try:
+            print(p.read(1e6))
             p.sendcontrol("c")
             p.read()
         except IOError:
