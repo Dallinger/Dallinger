@@ -444,10 +444,6 @@ def flush_output(p, timeout):
     p.timeout = old_timeout
 
 
-def read_logs_until_exit(p):
-    p.read()
-
-
 @pytest.fixture
 def recruitment_loop(request, debug_experiment):
     def recruitment_looper():
