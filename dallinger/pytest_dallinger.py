@@ -2,6 +2,7 @@ import mock
 import os
 import pexpect
 import pytest
+import re
 import shutil
 import sys
 import tempfile
@@ -452,7 +453,7 @@ def recruitment_loop(request, debug_experiment):
         while True:
             index = debug_experiment.expect(
                 [
-                    u"{}: (.*)$".format(NEW_RECRUIT_LOG_PREFIX),
+                    u"{}: (.*&mode=debug)".format(NEW_RECRUIT_LOG_PREFIX),
                     u"{}".format(CLOSE_RECRUITMENT_LOG_PREFIX),
                 ],
                 timeout=timeout,
@@ -461,6 +462,7 @@ def recruitment_loop(request, debug_experiment):
                 return
             elif index == 0:
                 url = debug_experiment.match.group(1)
+                assert is_valid_recruitment_url(url)
                 # Don't repeat the same recruitment url if it appears
                 # multiple times
                 if url in urls:
@@ -470,6 +472,20 @@ def recruitment_loop(request, debug_experiment):
                 time.sleep(5)
 
     yield recruitment_looper()
+
+
+def is_valid_recruitment_url(url):
+    pattern = "^http://localhost:[0-9]+/ad\\?recruiter=[a-zA-Z0-9]+&assignmentId=[a-zA-Z0-9]+&hitId=[a-zA-Z0-9]+&workerId=[a-zA-Z0-9]+&mode=debug$"
+    return bool(re.match(pattern, url))
+
+
+def test_valid_recruitment_urls():
+    assert is_valid_recruitment_url(
+        "http://localhost:5000/ad?recruiter=hotair&assignmentId=TL6UWU&hitId=Y1A9I0&workerId=8VPUMO&mode=debug"
+    )
+    assert not is_valid_recruitment_url(
+        "http://localhost:5000/ad?recruiter=hotair&assignmentId=TL6UWU&hitId=Y1A9I0&workerId=8VPUMO&mode=debug extra text"
+    )
 
 
 DRIVER_MAP = {
