@@ -2,6 +2,7 @@ import mock
 import os
 import pexpect
 import pytest
+import re
 import shutil
 import sys
 import tempfile
@@ -404,9 +405,10 @@ def test_request(webapp):
 @pytest.fixture
 def debug_experiment(request, env, clear_workers):
     timeout = request.config.getvalue("recruiter_timeout", 120)
+
     # Make sure debug server runs to completion with bots
     p = pexpect.spawn(
-        "dallinger", ["debug", "--no-browsers"], env=env, encoding="utf-8"
+        "dallinger", ["debug", "--no-browsers", "--verbose"], env=env, encoding="utf-8"
     )
     p.logfile = sys.stdout
 
@@ -418,10 +420,29 @@ def debug_experiment(request, env, clear_workers):
             p.expect_exact(u"Local Heroku process terminated", timeout=timeout)
     finally:
         try:
+            flush_output(p, timeout=0.1)
             p.sendcontrol("c")
-            p.read()
+            flush_output(p, timeout=3)
+            # Why do we need to call flush_output twice? Good question.
+            # Something about calling p.sendcontrol("c") seems to disrupt the log.
+            # Better to call it both before and after.
         except IOError:
             pass
+
+
+def flush_output(p, timeout):
+    old_timeout = p.timeout
+    p.timeout = timeout
+    try:
+        # Calling read() causes the process's output to be written to stdout,
+        # which is then propagated to pytest.
+        # This still happens even when a TIMEOUT occurs.
+        p.read(
+            1000000
+        )  # The big number sets the maximum amount of output characters to read.
+    except pexpect.TIMEOUT:
+        pass
+    p.timeout = old_timeout
 
 
 @pytest.fixture
@@ -432,7 +453,7 @@ def recruitment_loop(request, debug_experiment):
         while True:
             index = debug_experiment.expect(
                 [
-                    u"{}: (.*)$".format(NEW_RECRUIT_LOG_PREFIX),
+                    u"{}: (.*&mode=debug)".format(NEW_RECRUIT_LOG_PREFIX),
                     u"{}".format(CLOSE_RECRUITMENT_LOG_PREFIX),
                 ],
                 timeout=timeout,
@@ -441,6 +462,7 @@ def recruitment_loop(request, debug_experiment):
                 return
             elif index == 0:
                 url = debug_experiment.match.group(1)
+                assert is_valid_recruitment_url(url)
                 # Don't repeat the same recruitment url if it appears
                 # multiple times
                 if url in urls:
@@ -450,6 +472,20 @@ def recruitment_loop(request, debug_experiment):
                 time.sleep(5)
 
     yield recruitment_looper()
+
+
+def is_valid_recruitment_url(url):
+    pattern = "^http://localhost:[0-9]+/ad\\?recruiter=[a-zA-Z0-9]+&assignmentId=[a-zA-Z0-9]+&hitId=[a-zA-Z0-9]+&workerId=[a-zA-Z0-9]+&mode=debug$"
+    return bool(re.match(pattern, url))
+
+
+def test_valid_recruitment_urls():
+    assert is_valid_recruitment_url(
+        "http://localhost:5000/ad?recruiter=hotair&assignmentId=TL6UWU&hitId=Y1A9I0&workerId=8VPUMO&mode=debug"
+    )
+    assert not is_valid_recruitment_url(
+        "http://localhost:5000/ad?recruiter=hotair&assignmentId=TL6UWU&hitId=Y1A9I0&workerId=8VPUMO&mode=debug extra text"
+    )
 
 
 DRIVER_MAP = {
