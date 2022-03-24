@@ -196,7 +196,7 @@ ipywidgets==7.7.0
     # via
     #   dallinger
     #   jupyter
-itsdangerous==1.1.0
+itsdangerous==2.1.2
     # via
     #   flask
     #   flask-wtf
