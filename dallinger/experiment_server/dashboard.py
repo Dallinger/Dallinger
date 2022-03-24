@@ -18,6 +18,8 @@ from wtforms.validators import DataRequired, ValidationError
 from flask_login import current_user, login_required, login_user, logout_user
 from flask_login import UserMixin
 from flask_login.utils import login_url as make_login_url
+
+import dallinger.db
 from dallinger import recruiters
 from dallinger.heroku.tools import HerokuApp
 from dallinger.config import get_config
@@ -595,6 +597,13 @@ def node_details(object_type, obj_id):
     exp = Experiment(session)
     html_data = exp.node_visualization_html(object_type, obj_id)
     return Response(html_data, status=200, mimetype="text/html")
+
+
+@dashboard.route("/init_db", methods=["POST"])
+@login_required
+def init_db():
+    dallinger.db.init_db(drop_all=True)
+    return success_response()
 
 
 @dashboard.route("/lifecycle")
