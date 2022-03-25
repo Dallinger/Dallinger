@@ -1,6 +1,23 @@
 # Change Log
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v8.1.0](https://github.com/dallinger/dallinger/tree/v8.1.0) (2021-03-25)
+- Enhancement: numerous usability improvements and enhancements to tools which provide
+  hot reloading of dallinger and experiment code while developing: run
+  ``dallinger developer debug`` from the experiment directory, wait a few moments,
+  then the dashboard appears, presenting a button which the user can press to open a
+  new participant window
+- Enhancement: ``dallinger debug`` startup time reduced by 5 seconds by opening the
+  dashboard browser window asyncronously
+- Enhancement: improvements to the experiment network visualization in the Dallinger
+  dashboard:
+  - the text by Infos so that it says the class name rather than just 'info'
+  - fixed an issue for the display of networks that have no nodes; previously the
+    visualization would draw a line between these networks and an unrelated node
+    from a different network, but now the network is just diplayed without any connections
+- Enhancement: ensure ``dallinger debug`` executes in ``--verbose`` mode in automated tests,
+  and correctly propagates logging output to pytest so all errors are visible
+
 ## [v8.0.0](https://github.com/dallinger/dallinger/tree/v8.0.0) (2021-02-22)
 - Potential breaking change: The function signature of the ``Recruiter.reward_bonus()``
   method has changed, so if you've implemented your own recruiter, this will need to be
