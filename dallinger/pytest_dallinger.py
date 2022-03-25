@@ -9,6 +9,7 @@ import tempfile
 import time
 from jinja2 import FileSystemLoader
 from selenium import webdriver
+from dallinger import db
 from dallinger import information
 from dallinger import models
 from dallinger import networks
@@ -404,6 +405,7 @@ def test_request(webapp):
 
 @pytest.fixture
 def debug_experiment(request, env, clear_workers):
+    db.init_db(drop_all=True)
     timeout = request.config.getvalue("recruiter_timeout", 120)
 
     # Make sure debug server runs to completion with bots
