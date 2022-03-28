@@ -34,7 +34,7 @@ cffi==1.15.0
     # via cryptography
 charset-normalizer==2.0.12
     # via requests
-click==7.1.2
+click==8.1.0
     # via
     #   dallinger
     #   flask
