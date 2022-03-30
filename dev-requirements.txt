@@ -87,7 +87,7 @@ cryptography==36.0.2
     #   paramiko
     #   pyopenssl
     #   urllib3
-debugpy==1.5.1
+debugpy==1.6.0
     # via ipykernel
 decorator==5.1.1
     # via ipython
