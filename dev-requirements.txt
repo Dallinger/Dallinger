@@ -271,7 +271,7 @@ nbformat==5.2.0
     #   nbclient
     #   nbconvert
     #   notebook
-nest-asyncio==1.5.4
+nest-asyncio==1.5.5
     # via
     #   jupyter-client
     #   nbclient
