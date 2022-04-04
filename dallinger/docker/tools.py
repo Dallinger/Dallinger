@@ -295,7 +295,7 @@ def build_image(
         ]
 
     docker_build_invocation += ["-t", image_name]
-    dockerfile_text = fr"""# syntax=docker/dockerfile:1
+    dockerfile_text = rf"""# syntax=docker/dockerfile:1
     FROM {base_image_name}
     COPY . /experiment
     WORKDIR /experiment

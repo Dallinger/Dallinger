@@ -27,7 +27,7 @@ class TestBots(object):
     @pytest.mark.slow
     def test_bot_using_chrome_headless(self, active_config):
         """Create a bot."""
-        active_config.extend({"webdriver_type": u"chrome_headless"})
+        active_config.extend({"webdriver_type": "chrome_headless"})
         from dallinger.bots import BotBase
 
         bot = BotBase("http://dallinger.io")
@@ -37,7 +37,7 @@ class TestBots(object):
     @pytest.mark.usefixtures("check_firefox")
     def test_bot_using_firefox(self, active_config):
         """Create a bot."""
-        active_config.extend({"webdriver_type": u"firefox"})
+        active_config.extend({"webdriver_type": "firefox"})
         from dallinger.bots import BotBase
 
         bot = BotBase("http://dallinger.io")
@@ -46,7 +46,7 @@ class TestBots(object):
     @pytest.mark.usefixtures("check_chrome")
     def test_bot_using_chrome(self, active_config):
         """Create a bot."""
-        active_config.extend({"webdriver_type": u"chrome"})
+        active_config.extend({"webdriver_type": "chrome"})
         from dallinger.bots import BotBase
 
         bot = BotBase("http://dallinger.io")
@@ -58,7 +58,7 @@ class TestBots(object):
         """Create a bot."""
         active_config.extend(
             {
-                "webdriver_type": u"chrome_headless",
+                "webdriver_type": "chrome_headless",
                 "webdriver_url": self._config.getvalue("webdriver").decode("ascii"),
             }
         )
@@ -74,7 +74,7 @@ class TestBots(object):
         """Create a bot."""
         active_config.extend(
             {
-                "webdriver_type": u"firefox",
+                "webdriver_type": "firefox",
                 "webdriver_url": self._config.getvalue("webdriver").decode("ascii"),
             }
         )
@@ -90,7 +90,7 @@ class TestBots(object):
         """Create a bot."""
         active_config.extend(
             {
-                "webdriver_type": u"chrome",
+                "webdriver_type": "chrome",
                 "webdriver_url": self._config.getvalue("webdriver").decode("ascii"),
             }
         )

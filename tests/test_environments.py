@@ -41,4 +41,4 @@ class TestEnvironments(object):
 
         state = environment.state()
 
-        assert state.contents == u"some content"
+        assert state.contents == "some content"
