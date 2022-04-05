@@ -219,6 +219,7 @@ jinja2==3.1.1
     #   nbconvert
     #   notebook
     #   sphinx
+    #   sphinx-js
 jmespath==1.0.0
     # via
     #   boto3
@@ -323,6 +324,8 @@ paramiko==2.10.3
     #   dallinger
     #   docker
     #   sshtunnel
+parsimonious==0.7.0
+    # via sphinx-js
 parso==0.8.3
     # via jedi
 pathspec==0.9.0
@@ -471,6 +474,7 @@ six==1.16.0
     #   dockerpty
     #   jsonschema
     #   paramiko
+    #   parsimonious
     #   python-dateutil
     #   sqlalchemy-postgres-copy
     #   tox
@@ -488,8 +492,11 @@ sphinx==4.5.0
     # via
     #   dallinger
     #   recommonmark
+    #   sphinx-js
     #   sphinx-rtd-theme
     #   sphinxcontrib-spelling
+sphinx-js @ git+https://github.com/jorritsmit/sphinx-js
+    # via dallinger
 sphinx-rtd-theme==1.0.0
     # via dallinger
 sphinxcontrib-applehelp==1.0.2
