@@ -976,14 +976,11 @@ class TestDashboardDatabaseActions(object):
             webapp.post("/dashboard/database/action/dashboard_fail").status_code == 401
         )
 
-    @pytest.mark.skip(reason="Temporarily disable for Flask upgrade.")
     def test_disallowed_action(self, logged_in):
         resp = logged_in.post("/dashboard/database/action/evil_action")
         resp.status_code == 403
-        assert resp.json["status"] == "error"
-        assert "Access to evil_action not allowed" in resp.json["html"]
+        assert "400 Bad Request" in str(resp.data)
 
-    @pytest.mark.skip(reason="Temporarily disable for Flask upgrade.")
     def test_missing_action(self, logged_in):
         with mock.patch(
             "dallinger.experiment.Experiment.dashboard_database_actions"
@@ -993,8 +990,7 @@ class TestDashboardDatabaseActions(object):
             ]
             resp = logged_in.post("/dashboard/database/action/missing_action")
             resp.status_code == 404
-            assert resp.json["status"] == "error"
-            assert "Method missing_action not found" in resp.json["html"]
+            assert "400 Bad Request" in str(resp.text)
 
     def test_custom_action(self, logged_in):
         from dallinger.experiment import Experiment
