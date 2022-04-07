@@ -979,7 +979,8 @@ class TestDashboardDatabaseActions(object):
     def test_disallowed_action(self, logged_in):
         resp = logged_in.post("/dashboard/database/action/evil_action")
         resp.status_code == 403
-        assert "400 Bad Request" in str(resp.data)
+        assert resp.json["status"] == "error"
+        assert "Access to evil_action not allowed" in resp.json["html"]
 
     def test_missing_action(self, logged_in):
         with mock.patch(
@@ -990,7 +991,8 @@ class TestDashboardDatabaseActions(object):
             ]
             resp = logged_in.post("/dashboard/database/action/missing_action")
             resp.status_code == 404
-            assert "400 Bad Request" in str(resp.text)
+            assert resp.json["status"] == "error"
+            assert "Method missing_action not found" in resp.json["html"]
 
     def test_custom_action(self, logged_in):
         from dallinger.experiment import Experiment
