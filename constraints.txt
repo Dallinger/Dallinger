@@ -40,11 +40,11 @@ beautifulsoup4==4.10.0
     # via nbconvert
 black==22.3.0
     # via dallinger
-bleach==4.1.0
+bleach==5.0.0
     # via nbconvert
-boto3==1.21.33
+boto3==1.21.35
     # via dallinger
-botocore==1.24.33
+botocore==1.24.36
     # via
     #   boto3
     #   s3transfer
@@ -230,7 +230,7 @@ jsonschema==3.2.0
     #   nbformat
 jupyter==1.0.0
     # via dallinger
-jupyter-client==7.2.1
+jupyter-client==7.2.2
     # via
     #   ipykernel
     #   jupyter-console
@@ -305,7 +305,6 @@ outcome==1.1.0
     # via trio
 packaging==21.3
     # via
-    #   bleach
     #   build
     #   ipykernel
     #   pytest
@@ -340,7 +339,7 @@ pexpect==4.8.0
     #   ipython
 pickleshare==0.7.5
     # via ipython
-pip-tools==6.5.1
+pip-tools==6.6.0
     # via dallinger
 platformdirs==2.5.1
     # via
@@ -352,7 +351,7 @@ pluggy==1.0.0
     #   tox
 pre-commit==2.18.1
     # via dallinger
-prometheus-client==0.13.1
+prometheus-client==0.14.0
     # via notebook
 prompt-toolkit==3.0.29
     # via
@@ -464,6 +463,8 @@ selenium==4.1.3
     # via dallinger
 send2trash==1.8.0
     # via notebook
+simplejson==3.17.6
+    # via dallinger
 six==1.16.0
     # via
     #   apscheduler
@@ -486,7 +487,7 @@ snowballstemmer==2.2.0
     # via sphinx
 sortedcontainers==2.4.0
     # via trio
-soupsieve==2.3.1
+soupsieve==2.3.2
     # via beautifulsoup4
 sphinx==4.5.0
     # via
@@ -513,7 +514,7 @@ sphinxcontrib-serializinghtml==1.1.5
     # via sphinx
 sphinxcontrib-spelling==7.3.2
     # via dallinger
-sqlalchemy==1.4.34
+sqlalchemy==1.4.35
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
