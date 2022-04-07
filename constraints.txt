@@ -34,7 +34,7 @@ bcrypt==3.2.0
     # via paramiko
 black==21.11b1
     # via dallinger
-bleach==4.1.0
+bleach==5.0.0
     # via nbconvert
 boto3==1.21.25
     # via dallinger
