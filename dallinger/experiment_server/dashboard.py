@@ -769,10 +769,6 @@ def develop():
 def database_action(route_name):
     from dallinger.experiment_server.experiment_server import Experiment, session
 
-    import simplejson
-    from werkzeug.wrappers import Request
-
-    Request.json_module = simplejson
     data = request.json
     exp = Experiment(session)
     if route_name not in {a["name"] for a in exp.dashboard_database_actions()}:
