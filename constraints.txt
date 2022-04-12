@@ -235,7 +235,7 @@ jupyter-core==4.9.2
     #   nbformat
     #   notebook
     #   qtconsole
-jupyterlab-pygments==0.1.2
+jupyterlab-pygments==0.2.1
     # via nbconvert
 jupyterlab-widgets==1.1.0
     # via ipywidgets
