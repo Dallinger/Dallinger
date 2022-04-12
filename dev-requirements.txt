@@ -36,15 +36,15 @@ backcall==0.2.0
     # via ipython
 bcrypt==3.2.0
     # via paramiko
-beautifulsoup4==4.10.0
+beautifulsoup4==4.11.1
     # via nbconvert
 black==22.3.0
     # via dallinger
 bleach==5.0.0
     # via nbconvert
-boto3==1.21.35
+boto3==1.21.38
     # via dallinger
-botocore==1.24.36
+botocore==1.24.38
     # via
     #   boto3
     #   s3transfer
@@ -186,7 +186,7 @@ imagesize==1.3.0
     # via sphinx
 iniconfig==1.1.1
     # via pytest
-ipykernel==6.12.1
+ipykernel==6.13.0
     # via
     #   ipywidgets
     #   jupyter
@@ -246,7 +246,7 @@ jupyter-core==4.9.2
     #   nbformat
     #   notebook
     #   qtconsole
-jupyterlab-pygments==0.1.2
+jupyterlab-pygments==0.2.0
     # via nbconvert
 jupyterlab-widgets==1.1.0
     # via ipywidgets
@@ -273,7 +273,7 @@ mypy-extensions==0.4.3
     # via black
 nbclient==0.5.13
     # via nbconvert
-nbconvert==6.4.5
+nbconvert==6.5.0
     # via
     #   jupyter
     #   notebook
@@ -307,6 +307,7 @@ packaging==21.3
     # via
     #   build
     #   ipykernel
+    #   nbconvert
     #   pytest
     #   qtpy
     #   redis
@@ -351,7 +352,7 @@ pluggy==1.0.0
     #   tox
 pre-commit==2.18.1
     # via dallinger
-prometheus-client==0.14.0
+prometheus-client==0.14.1
     # via notebook
 prompt-toolkit==3.0.29
     # via
@@ -389,7 +390,6 @@ pygments==2.11.2
     # via
     #   ipython
     #   jupyter-console
-    #   jupyterlab-pygments
     #   nbconvert
     #   qtconsole
     #   sphinx
@@ -399,7 +399,7 @@ pyopenssl==22.0.0
     # via urllib3
 pypandoc==1.7.5
     # via dallinger
-pyparsing==3.0.7
+pyparsing==3.0.8
     # via packaging
 pyrsistent==0.18.1
     # via jsonschema
@@ -463,8 +463,6 @@ selenium==4.1.3
     # via dallinger
 send2trash==1.8.0
     # via notebook
-simplejson==3.17.6
-    # via dallinger
 six==1.16.0
     # via
     #   apscheduler
@@ -524,7 +522,7 @@ sshtunnel==0.4.0
     # via dallinger
 stack-data==0.2.0
     # via ipython
-tablib[all]==3.2.0
+tablib[all]==3.2.1
     # via dallinger
 tabulate==0.8.9
     # via
@@ -534,12 +532,12 @@ tenacity==8.0.1
     # via dallinger
 terminado==0.13.3
     # via notebook
-testpath==0.6.0
-    # via nbconvert
 texttable==1.6.4
     # via docker-compose
 timeago==1.0.15
     # via dallinger
+tinycss2==1.1.1
+    # via nbconvert
 toml==0.10.2
     # via
     #   pre-commit
@@ -556,7 +554,7 @@ tornado==6.1
     #   jupyter-client
     #   notebook
     #   terminado
-tox==3.24.5
+tox==3.25.0
     # via dallinger
 traitlets==5.1.1
     # via
@@ -594,14 +592,16 @@ urllib3[secure,socks]==1.26.9
     #   selenium
 user-agents==2.2.0
     # via dallinger
-virtualenv==20.14.0
+virtualenv==20.14.1
     # via
     #   pre-commit
     #   tox
 wcwidth==0.2.5
     # via prompt-toolkit
 webencodings==0.5.1
-    # via bleach
+    # via
+    #   bleach
+    #   tinycss2
 websocket-client==0.59.0
     # via
     #   docker
