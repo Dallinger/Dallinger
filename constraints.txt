@@ -259,7 +259,7 @@ mock==4.0.3
     # via dallinger
 mypy-extensions==0.4.3
     # via black
-nbclient==0.5.13
+nbclient==0.6.0
     # via nbconvert
 nbconvert==6.4.4
     # via
