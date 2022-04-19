@@ -245,7 +245,7 @@ class TestDataLocally(object):
 class TestImport(object):
     @pytest.fixture
     def network_file(self):
-        data = u"""id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,max_size,full,role
+        data = """id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,max_size,full,role
 1,2001-01-01 09:46:40.133536,,,,,,f,,fully-connected,4,f,experiment"""
         f = io.StringIO(initial_value=data)
         return f
@@ -253,7 +253,7 @@ class TestImport(object):
     @pytest.fixture
     def missing_column_required(self):
         """Test participant table without worker_id column"""
-        data = u"""id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,worker_id,\
+        data = """id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,worker_id,\
 assignment_id,unique_id,hit_id,mode,end_time,base_pay,bonus,status
 1,2001-01-01 09:46:40.133536,,,,,,f,,participant,,8,8:36V4Q8R5ZLTJWMX0SFF0G6R67PCQMI,\
 3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,,,returned"""
@@ -263,7 +263,7 @@ assignment_id,unique_id,hit_id,mode,end_time,base_pay,bonus,status
     @pytest.fixture
     def missing_column_not_required(self):
         """Test participant table without fingerprint_hash column"""
-        data = u"""id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,worker_id,\
+        data = """id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,worker_id,\
 assignment_id,unique_id,hit_id,mode,end_time,base_pay,bonus,status
 1,2001-01-01 09:46:40.133536,,,,,,f,,participant,8,36V4Q8R5ZLTJWMX0SFF0G6R67PCQMI,8:36V4Q8R5ZLTJWM\
 X0SFF0G6R67PCQMI,3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,,,returned"""
@@ -331,7 +331,7 @@ X0SFF0G6R67PCQMI,3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,
         infos = dallinger.models.Info.query.all()
         assert len(infos) == 5
         for info in infos:
-            assert info.contents.startswith(u"One night two young men")
+            assert info.contents.startswith("One night two young men")
 
     def test_ingest_zip_recreates_notifications(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)
@@ -344,7 +344,7 @@ X0SFF0G6R67PCQMI,3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,
         p1_questions = model.query.filter_by(participant_id=1).all()
         for q in p1_questions:
             if q.response:
-                assert q.response == u"5"
+                assert q.response == "5"
 
     def test_ingest_zip_recreates_vectors(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)

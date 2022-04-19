@@ -269,9 +269,9 @@ class MTurkService(object):
     @property
     def host(self):
         if self.is_sandbox:
-            template = u"https://mturk-requester-sandbox.{}.amazonaws.com"
+            template = "https://mturk-requester-sandbox.{}.amazonaws.com"
         else:
-            template = u"https://mturk-requester.{}.amazonaws.com"
+            template = "https://mturk-requester.{}.amazonaws.com"
         return template.format(self.region_name)
 
     def account_balance(self):

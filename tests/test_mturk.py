@@ -83,13 +83,13 @@ def as_batch_responses(key, things):
 
     canned_response = [
         {
-            u"NextToken": u"FAKE_NEXT_TOKEN",
-            u"NumResults": len(things),
+            "NextToken": "FAKE_NEXT_TOKEN",
+            "NumResults": len(things),
             key: things,
             "ResponseMetadata": response_metadata()["ResponseMetadata"],
         },
         {
-            u"NumResults": 0,
+            "NumResults": 0,
             key: [],
             "ResponseMetadata": response_metadata()["ResponseMetadata"],
         },
@@ -100,14 +100,14 @@ def as_batch_responses(key, things):
 
 def fake_balance_response():
     return {
-        u"AvailableBalance": u"10000.00",
+        "AvailableBalance": "10000.00",
         "ResponseMetadata": response_metadata()["ResponseMetadata"],
     }
 
 
 def fake_hit_type_response():
     return {
-        u"HITTypeId": six.text_type(generate_random_id(size=32)),
+        "HITTypeId": six.text_type(generate_random_id(size=32)),
         "ResponseMetadata": response_metadata()["ResponseMetadata"],
     }
 
@@ -115,49 +115,49 @@ def fake_hit_type_response():
 def fake_hit_response(**kwargs):
     tz = get_localzone()
     canned_response = {
-        u"HIT": {
-            u"AssignmentDurationInSeconds": 900,
-            u"AutoApprovalDelayInSeconds": 0,
-            u"CreationTime": datetime.datetime(2018, 1, 1, 1, 26, 52, 54000).replace(
+        "HIT": {
+            "AssignmentDurationInSeconds": 900,
+            "AutoApprovalDelayInSeconds": 0,
+            "CreationTime": datetime.datetime(2018, 1, 1, 1, 26, 52, 54000).replace(
                 tzinfo=tz
             ),
-            u"Description": u"***TEST SUITE HIT***43683",
-            u"Expiration": datetime.datetime(2018, 1, 1, 1, 27, 26, 54000).replace(
+            "Description": "***TEST SUITE HIT***43683",
+            "Expiration": datetime.datetime(2018, 1, 1, 1, 27, 26, 54000).replace(
                 tzinfo=tz
             ),
-            u"HITGroupId": u"36IAL8HYPYM1MDNBSTAEZW89WH74RJ",
-            u"HITId": u"3X7837UUADRXYCA1K7JAJLKC66DJ60",
-            u"HITReviewStatus": u"NotReviewed",
-            u"HITStatus": u"Assignable",
-            u"HITTypeId": u"3V76OXST9SAE3THKN85FUPK7730050",
-            u"Keywords": u"testkw1,testkw2",
-            u"MaxAssignments": 1,
-            u"NumberOfAssignmentsAvailable": 1,
-            u"NumberOfAssignmentsCompleted": 0,
-            u"NumberOfAssignmentsPending": 0,
-            u"QualificationRequirements": [
+            "HITGroupId": "36IAL8HYPYM1MDNBSTAEZW89WH74RJ",
+            "HITId": "3X7837UUADRXYCA1K7JAJLKC66DJ60",
+            "HITReviewStatus": "NotReviewed",
+            "HITStatus": "Assignable",
+            "HITTypeId": "3V76OXST9SAE3THKN85FUPK7730050",
+            "Keywords": "testkw1,testkw2",
+            "MaxAssignments": 1,
+            "NumberOfAssignmentsAvailable": 1,
+            "NumberOfAssignmentsCompleted": 0,
+            "NumberOfAssignmentsPending": 0,
+            "QualificationRequirements": [
                 {
-                    u"Comparator": u"GreaterThanOrEqualTo",
-                    u"IntegerValues": [95],
-                    u"QualificationTypeId": u"000000000000000000L0",
-                    u"RequiredToPreview": True,
+                    "Comparator": "GreaterThanOrEqualTo",
+                    "IntegerValues": [95],
+                    "QualificationTypeId": "000000000000000000L0",
+                    "RequiredToPreview": True,
                 },
                 {
-                    u"Comparator": u"EqualTo",
-                    u"LocaleValues": [{u"Country": u"US"}],
-                    u"QualificationTypeId": u"00000000000000000071",
-                    u"RequiredToPreview": True,
+                    "Comparator": "EqualTo",
+                    "LocaleValues": [{"Country": "US"}],
+                    "QualificationTypeId": "00000000000000000071",
+                    "RequiredToPreview": True,
                 },
             ],
-            u"Question": (
-                u'<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/'
-                u'AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
-                u"<ExternalURL>https://www.example.com/ad</ExternalURL>"
-                u"<FrameHeight>600</FrameHeight>"
-                u"</ExternalQuestion>"
+            "Question": (
+                '<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/'
+                'AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
+                "<ExternalURL>https://www.example.com/ad</ExternalURL>"
+                "<FrameHeight>600</FrameHeight>"
+                "</ExternalQuestion>"
             ),
-            u"Reward": u"0.01",
-            u"Title": u"Test Title",
+            "Reward": "0.01",
+            "Title": "Test Title",
         },
         "ResponseMetadata": response_metadata()["ResponseMetadata"],
     }
@@ -176,12 +176,12 @@ def fake_list_hits_responses(hits=None):
 def fake_worker_qualification_response():
     tz = get_localzone()
     canned_response = {
-        u"Qualification": {
-            u"GrantTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
-            u"IntegerValue": 2,
-            u"QualificationTypeId": six.text_type(generate_random_id(size=32)),
-            u"Status": u"Granted",
-            u"WorkerId": u"FAKE_WORKER_ID",
+        "Qualification": {
+            "GrantTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
+            "IntegerValue": 2,
+            "QualificationTypeId": six.text_type(generate_random_id(size=32)),
+            "Status": "Granted",
+            "WorkerId": "FAKE_WORKER_ID",
         },
         "ResponseMetadata": response_metadata()["ResponseMetadata"],
     }
@@ -194,21 +194,21 @@ def fake_list_worker_qualification_responses(quals=None):
         quals = [fake_worker_qualification_response()]
 
     return as_batch_responses(
-        key=u"Qualifications", things=[q["Qualification"] for q in quals]
+        key="Qualifications", things=[q["Qualification"] for q in quals]
     )
 
 
 def fake_qualification_type_response():
     tz = get_localzone()
     canned_response = {
-        u"QualificationType": {
-            u"AutoGranted": False,
-            u"CreationTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
-            u"Description": u"***TEST SUITE QUALIFICATION***",
-            u"IsRequestable": True,
-            u"Name": u"Test Qualification",
-            u"QualificationTypeId": generate_random_id(size=32),
-            u"QualificationTypeStatus": u"Active",
+        "QualificationType": {
+            "AutoGranted": False,
+            "CreationTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
+            "Description": "***TEST SUITE QUALIFICATION***",
+            "IsRequestable": True,
+            "Name": "Test Qualification",
+            "QualificationTypeId": generate_random_id(size=32),
+            "QualificationTypeStatus": "Active",
         }
     }
     return canned_response
@@ -219,7 +219,7 @@ def fake_list_qualification_types_responses(qtypes=None):
         qtypes = [fake_qualification_type_response()]
 
     return as_batch_responses(
-        key=u"QualificationTypes", things=[q["QualificationType"] for q in qtypes]
+        key="QualificationTypes", things=[q["QualificationType"] for q in qtypes]
     )
 
 
@@ -596,7 +596,7 @@ class TestMTurkService(object):
         )
 
         assert isinstance(result["id"], six.text_type)
-        assert result["status"] == u"Active"
+        assert result["status"] == "Active"
         assert with_cleanup.dispose_qualification_type(result["id"])
 
     def test_create_qualification_type_with_existing_name_raises(
@@ -1190,7 +1190,7 @@ class TestMTurkServiceWithFakeConnection(object):
         assert isinstance(result["created"], datetime.datetime)
 
     def test_create_qualification_type_raises_on_duplicate_name(self, with_mock):
-        error = Exception(u"already created a QualificationType with this name")
+        error = Exception("already created a QualificationType with this name")
         with_mock.mturk.configure_mock(
             **{"create_qualification_type.side_effect": error}
         )
@@ -1229,7 +1229,7 @@ class TestMTurkServiceWithFakeConnection(object):
                 MaxResults=100,
                 QualificationTypeId="qid",
                 Status="Granted",
-                NextToken=u"FAKE_NEXT_TOKEN",
+                NextToken="FAKE_NEXT_TOKEN",
             ),
         ]
         # need to unroll the iterator:
