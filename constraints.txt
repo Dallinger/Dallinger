@@ -277,7 +277,7 @@ nest-asyncio==1.5.4
     #   nbclient
 nodeenv==1.6.0
     # via pre-commit
-notebook==6.4.10
+notebook==6.4.11
     # via
     #   jupyter
     #   widgetsnbextension
