@@ -4,6 +4,7 @@ import os
 import time
 
 from hashlib import sha256
+
 from jinja2 import Template
 from pathlib import Path
 from shutil import which
@@ -82,6 +83,7 @@ class DockerComposeWrapper(object):
                     experiment_name=self.experiment_name,
                     experiment_image=f"{self.experiment_name}:{tag}",
                     needs_chrome=self.needs_chrome,
+                    config=self.config,
                 )
             )
         with open(os.path.join(self.tmp_dir, ".env"), "w") as fh:
