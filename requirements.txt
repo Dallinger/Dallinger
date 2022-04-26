@@ -40,7 +40,7 @@ click==7.1.2
     #   flask
     #   pip-tools
     #   rq
-cryptography==36.0.2
+cryptography==37.0.0
     # via
     #   pyopenssl
     #   urllib3
