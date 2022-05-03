@@ -265,7 +265,7 @@ nbconvert==6.4.4
     # via
     #   jupyter
     #   notebook
-nbformat==5.2.0
+nbformat==5.4.0
     # via
     #   ipywidgets
     #   nbclient
