@@ -333,7 +333,7 @@ pluggy==1.0.0
     # via
     #   pytest
     #   tox
-pre-commit==2.18.1
+pre-commit==2.19.0
     # via dallinger
 prometheus-client==0.13.1
     # via notebook
