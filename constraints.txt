@@ -38,7 +38,7 @@ bleach==4.1.0
     # via nbconvert
 boto3==1.21.25
     # via dallinger
-botocore==1.24.25
+botocore==1.26.2
     # via
     #   boto3
     #   s3transfer
