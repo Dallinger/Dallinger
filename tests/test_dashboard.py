@@ -977,7 +977,7 @@ class TestDashboardDatabaseActions(object):
         )
 
     def test_disallowed_action(self, logged_in):
-        resp = logged_in.post("/dashboard/database/action/evil_action")
+        resp = logged_in.post("/dashboard/database/action/evil_action", json={})
         resp.status_code == 403
         assert resp.json["status"] == "error"
         assert "Access to evil_action not allowed" in resp.json["html"]
@@ -989,7 +989,7 @@ class TestDashboardDatabaseActions(object):
             actions.return_value = [
                 {"name": "missing_action", "title": "Missing Action"}
             ]
-            resp = logged_in.post("/dashboard/database/action/missing_action")
+            resp = logged_in.post("/dashboard/database/action/missing_action", json={})
             resp.status_code == 404
             assert resp.json["status"] == "error"
             assert "Method missing_action not found" in resp.json["html"]
