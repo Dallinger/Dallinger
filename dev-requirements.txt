@@ -42,9 +42,9 @@ black==22.3.0
     # via dallinger
 bleach==5.0.0
     # via nbconvert
-boto3==1.22.13
+boto3==1.23.3
     # via dallinger
-botocore==1.25.13
+botocore==1.26.3
     # via
     #   boto3
     #   s3transfer
@@ -56,7 +56,7 @@ bumpversion==0.6.0
     # via dallinger
 cached-property==1.5.2
     # via dallinger
-certifi==2021.10.8
+certifi==2022.5.18
     # via
     #   requests
     #   urllib3
@@ -319,7 +319,7 @@ pandas==1.4.2
     #   tablib
 pandocfilters==1.5.0
     # via nbconvert
-paramiko==2.10.4
+paramiko==2.11.0
     # via
     #   dallinger
     #   docker
@@ -340,7 +340,7 @@ pexpect==4.8.0
     #   ipython
 pickleshare==0.7.5
     # via ipython
-pip-tools==6.6.0
+pip-tools==6.6.1
     # via dallinger
 platformdirs==2.5.2
     # via
@@ -529,7 +529,7 @@ tabulate==0.8.9
     #   tablib
 tenacity==8.0.1
     # via dallinger
-terminado==0.13.3
+terminado==0.15.0
     # via notebook
 texttable==1.6.4
     # via docker-compose
@@ -555,7 +555,7 @@ tornado==6.1
     #   terminado
 tox==3.25.0
     # via dallinger
-traitlets==5.2.0
+traitlets==5.2.1.post0
     # via
     #   ipykernel
     #   ipython
