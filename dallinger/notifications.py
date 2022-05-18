@@ -6,7 +6,7 @@ from email.mime.text import MIMEText
 
 
 logger = logging.getLogger(__file__)
-CONFIG_PLACEHOLDER = u"???"
+CONFIG_PLACEHOLDER = "???"
 
 
 class InvalidEmailConfig(ValueError):
