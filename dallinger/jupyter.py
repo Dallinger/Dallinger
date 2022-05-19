@@ -5,7 +5,7 @@ from traitlets import observe, Unicode
 from dallinger.config import get_config
 
 header_template = Template(
-    u"""
+    """
 <h2>{{ name }}</h2>
 <div>Status: {{ status }}</div>
 {% if app_id %}<div>App ID: {{ app_id }}</div>{% endif %}
@@ -13,7 +13,7 @@ header_template = Template(
 )
 
 config_template = Template(
-    u"""
+    """
 <table style="min-width: 50%">
 {% for k, v in config %}
 <tr>

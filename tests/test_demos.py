@@ -68,7 +68,7 @@ class TestBartlett1932(object):
 
     def test_networks_holds_single_experiment_node(self, demo):
         assert len(demo.networks()) == 1
-        assert u"experiment" == demo.networks()[0].role
+        assert "experiment" == demo.networks()[0].role
 
 
 class TestEntryPointImport(object):
