@@ -299,7 +299,7 @@ numpy==1.22.3
     # via pandas
 odfpy==1.4.1
     # via tablib
-openpyxl==3.0.9
+openpyxl==3.0.10
     # via tablib
 outcome==1.1.0
     # via trio
