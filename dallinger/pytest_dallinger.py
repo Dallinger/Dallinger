@@ -122,53 +122,53 @@ def stub_config():
     dallinger.config.get_config()
     """
     defaults = {
-        u"ad_group": u"Test ad group",
-        u"approve_requirement": 95,
-        u"assign_qualifications": True,
-        u"auto_recruit": True,
-        u"aws_access_key_id": u"fake aws key",
-        u"aws_secret_access_key": u"fake aws secret",
-        u"aws_region": u"us-east-1",
-        u"base_payment": 0.01,
-        u"base_port": 5000,
-        u"browser_exclude_rule": u"MSIE, mobile, tablet",
-        u"clock_on": False,
-        u"contact_email_on_error": u"error_contact@test.com",
-        u"dallinger_email_address": u"test@example.com",
-        u"database_size": u"standard-0",
-        u"disable_when_duration_exceeded": True,
-        u"enable_global_experiment_registry": False,
-        u"redis_size": u"premium-0",
-        u"dashboard_user": u"admin",
-        u"database_url": u"postgresql://postgres@localhost/dallinger",
-        u"description": u"fake HIT description",
-        u"duration": 1.0,
-        u"dyno_type": u"free",
-        u"heroku_app_id_root": u"fake-customid",
-        u"heroku_auth_token": u"heroku secret",
-        u"heroku_python_version": u"3.9.2",
-        u"heroku_team": u"",
-        u"host": u"0.0.0.0",
-        u"id": u"TEST_EXPERIMENT_UID",  # This is a significant value; change with caution.
-        u"keywords": u"kw1, kw2, kw3",
-        u"lifetime": 1,
-        u"logfile": u"-",
-        u"loglevel": 0,
-        u"mode": u"debug",
-        u"num_dynos_web": 1,
-        u"num_dynos_worker": 1,
-        u"organization_name": u"Monsters University",
-        u"sentry": True,
-        u"smtp_host": u"smtp.fakehost.com:587",
-        u"smtp_username": u"fake email username",
-        u"smtp_password": u"fake email password",
-        u"threads": u"1",
-        u"title": u"fake experiment title",
-        u"us_only": True,
-        u"webdriver_type": u"chrome_headless",
-        u"whimsical": True,
-        u"replay": False,
-        u"worker_multiplier": 1.5,
+        "ad_group": "Test ad group",
+        "approve_requirement": 95,
+        "assign_qualifications": True,
+        "auto_recruit": True,
+        "aws_access_key_id": "fake aws key",
+        "aws_secret_access_key": "fake aws secret",
+        "aws_region": "us-east-1",
+        "base_payment": 0.01,
+        "base_port": 5000,
+        "browser_exclude_rule": "MSIE, mobile, tablet",
+        "clock_on": False,
+        "contact_email_on_error": "error_contact@test.com",
+        "dallinger_email_address": "test@example.com",
+        "database_size": "standard-0",
+        "disable_when_duration_exceeded": True,
+        "enable_global_experiment_registry": False,
+        "redis_size": "premium-0",
+        "dashboard_user": "admin",
+        "database_url": "postgresql://postgres@localhost/dallinger",
+        "description": "fake HIT description",
+        "duration": 1.0,
+        "dyno_type": "free",
+        "heroku_app_id_root": "fake-customid",
+        "heroku_auth_token": "heroku secret",
+        "heroku_python_version": "3.9.2",
+        "heroku_team": "",
+        "host": "0.0.0.0",
+        "id": "TEST_EXPERIMENT_UID",  # This is a significant value; change with caution.
+        "keywords": "kw1, kw2, kw3",
+        "lifetime": 1,
+        "logfile": "-",
+        "loglevel": 0,
+        "mode": "debug",
+        "num_dynos_web": 1,
+        "num_dynos_worker": 1,
+        "organization_name": "Monsters University",
+        "sentry": True,
+        "smtp_host": "smtp.fakehost.com:587",
+        "smtp_username": "fake email username",
+        "smtp_password": "fake email password",
+        "threads": "1",
+        "title": "fake experiment title",
+        "us_only": True,
+        "webdriver_type": "chrome_headless",
+        "whimsical": True,
+        "replay": False,
+        "worker_multiplier": 1.5,
     }
     from dallinger.config import default_keys
     from dallinger.config import Configuration
@@ -200,7 +200,7 @@ def active_config(stub_config):
 @pytest.fixture
 def dashboard_config(active_config):
     active_config.extend(
-        {"dashboard_user": u"admin", "dashboard_password": u"DUMBPASSWORD"}
+        {"dashboard_user": "admin", "dashboard_password": "DUMBPASSWORD"}
     )
     return active_config
 
@@ -413,11 +413,11 @@ def debug_experiment(request, env, clear_workers):
     p.logfile = sys.stdout
 
     try:
-        p.expect_exact(u"Server is running", timeout=timeout)
+        p.expect_exact("Server is running", timeout=timeout)
         yield p
         if request.node.rep_setup.passed and request.node.rep_call.passed:
-            p.expect_exact(u"Experiment completed", timeout=timeout)
-            p.expect_exact(u"Local Heroku process terminated", timeout=timeout)
+            p.expect_exact("Experiment completed", timeout=timeout)
+            p.expect_exact("Local Heroku process terminated", timeout=timeout)
     finally:
         try:
             flush_output(p, timeout=0.1)
@@ -453,8 +453,8 @@ def recruitment_loop(request, debug_experiment):
         while True:
             index = debug_experiment.expect(
                 [
-                    u"{}: (.*&mode=debug)".format(NEW_RECRUIT_LOG_PREFIX),
-                    u"{}".format(CLOSE_RECRUITMENT_LOG_PREFIX),
+                    "{}: (.*&mode=debug)".format(NEW_RECRUIT_LOG_PREFIX),
+                    "{}".format(CLOSE_RECRUITMENT_LOG_PREFIX),
                 ],
                 timeout=timeout,
             )
@@ -489,9 +489,9 @@ def test_valid_recruitment_urls():
 
 
 DRIVER_MAP = {
-    u"firefox": webdriver.Firefox,
-    u"chrome": webdriver.Chrome,
-    u"chrome_headless": webdriver.Chrome,
+    "firefox": webdriver.Firefox,
+    "chrome": webdriver.Chrome,
+    "chrome_headless": webdriver.Chrome,
 }
 
 
@@ -534,8 +534,8 @@ def selenium_recruits(request, recruitment_loop):
 
 @pytest.fixture
 def bot_recruits(request, active_config, recruitment_loop):
-    driver_type = request.param or u"chrome_headless"
-    active_config.set(u"webdriver_type", driver_type)
+    driver_type = request.param or "chrome_headless"
+    active_config.set("webdriver_type", driver_type)
 
     def recruit_bots():
         bot_class = getattr(request.module, "PYTEST_BOT_CLASS", BotBase)

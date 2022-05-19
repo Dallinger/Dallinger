@@ -1485,7 +1485,7 @@ def scheduled_task(trigger, **kwargs):
     The task registration is deferred until clock server setup to allow tasks to be
     overridden by subclasses.
 
-    :param trigger: an ``appscheduler`` trigger type. One of "interval", "cron",
+    :param trigger: an ``apscheduler`` trigger type. One of "interval", "cron",
                     or "date"
     :param \**kwargs: other arguments for `apscheduler.schedulers.base.BaseSchedule.scheduled_job`
                       generally used for trigger arguments to determine

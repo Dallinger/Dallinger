@@ -75,6 +75,26 @@ services:
       PORT: 5000
     ports:
       - "5000:5000"
+  clock:
+    image: {{ experiment_image }}
+    user: "${UID}:${GID}"
+    command: dallinger_heroku_clock
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+{%- if needs_chrome %}
+    cap_add: # Is it really necessary?
+        - SYS_ADMIN # Or only needed for the `worker` container?
+{%- endif %}
+    volumes:
+      - "/dev/shm:/dev/shm"
+{%- for volumestr in volumes %}
+      - "{{ volumestr }}"
+{%- endfor %}
+    environment:
+      <<: *commonenv
 
 volumes:
   dallinger_{{ experiment_name }}_pg_data:

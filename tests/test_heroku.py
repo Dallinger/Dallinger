@@ -136,7 +136,7 @@ class TestHerokuUtilFunctions(object):
 
     def test_auth_token(self, heroku, check_output):
         check_output.return_value = b"some response "
-        assert heroku.auth_token() == u"some response"
+        assert heroku.auth_token() == "some response"
 
     def test_log_in_ok(self, heroku, check_output):
         check_output.return_value = b"all good"
@@ -150,16 +150,16 @@ class TestHerokuUtilFunctions(object):
 
     def test_sanity_check_raises_on_invalid_config_combo(self, heroku, stub_config):
         assert heroku.sanity_check(stub_config) is None
-        stub_config.set("heroku_team", u"my_team")
-        stub_config.set("dyno_type", u"free")
+        stub_config.set("heroku_team", "my_team")
+        stub_config.set("dyno_type", "free")
         with pytest.raises(RuntimeError) as excinfo:
             heroku.sanity_check(stub_config)
         assert excinfo.match("dyno type not compatible")
 
     def test_sanity_check_raises_on_invalid_web_dyno_combo(self, heroku, stub_config):
         assert heroku.sanity_check(stub_config) is None
-        stub_config.set("heroku_team", u"my_team")
-        stub_config.set("dyno_type_web", u"free")
+        stub_config.set("heroku_team", "my_team")
+        stub_config.set("dyno_type_web", "free")
         with pytest.raises(RuntimeError) as excinfo:
             heroku.sanity_check(stub_config)
         assert excinfo.match("dyno type not compatible")
@@ -168,8 +168,8 @@ class TestHerokuUtilFunctions(object):
         self, heroku, stub_config
     ):
         assert heroku.sanity_check(stub_config) is None
-        stub_config.set("heroku_team", u"my_team")
-        stub_config.set("dyno_type_worker", u"free")
+        stub_config.set("heroku_team", "my_team")
+        stub_config.set("dyno_type_worker", "free")
         with pytest.raises(RuntimeError) as excinfo:
             heroku.sanity_check(stub_config)
         assert excinfo.match("dyno type not compatible")
@@ -213,23 +213,21 @@ class TestHerokuApp(object):
             yield the_app
 
     def test_name(self, app):
-        assert app.name == u"dlgr-fake-uid"
+        assert app.name == "dlgr-fake-uid"
 
     def test_url(self, app):
-        assert app.url == u"https://dlgr-fake-uid.herokuapp.com"
+        assert app.url == "https://dlgr-fake-uid.herokuapp.com"
 
     def test_config_url(self, app):
-        assert (
-            app.config_url == u"https://api.heroku.com/apps/dlgr-fake-uid/config-vars"
-        )
+        assert app.config_url == "https://api.heroku.com/apps/dlgr-fake-uid/config-vars"
 
     def test_dashboard_url(self, app):
-        assert app.dashboard_url == u"https://dashboard.heroku.com/apps/dlgr-fake-uid"
+        assert app.dashboard_url == "https://dashboard.heroku.com/apps/dlgr-fake-uid"
 
     def test_dashboard_metrics_url(self, app):
         assert (
             app.dashboard_metrics_url
-            == u"https://dashboard.heroku.com/apps/dlgr-fake-uid/metrics"
+            == "https://dashboard.heroku.com/apps/dlgr-fake-uid/metrics"
         )
 
     def test_bootstrap_creates_app_with_team(self, app, check_call, check_output):
@@ -315,10 +313,10 @@ class TestHerokuApp(object):
 
     def test_db_uri(self, app, check_output):
         check_output.return_value = b"blahblahpostgres://foobar"
-        assert app.db_uri == u"postgres://foobar"
+        assert app.db_uri == "postgres://foobar"
 
     def test_db_uri_raises_if_no_match(self, app, check_output):
-        check_output.return_value = u"└─ as DATABASE on ⬢ dlgr-da089b8f app".encode(
+        check_output.return_value = "└─ as DATABASE on ⬢ dlgr-da089b8f app".encode(
             "utf8"
         )
         with pytest.raises(NameError) as excinfo:
@@ -327,7 +325,7 @@ class TestHerokuApp(object):
 
     def test_db_url(self, app, check_output, check_call):
         check_output.return_value = b"some url    "
-        assert app.db_url == u"some url"
+        assert app.db_url == "some url"
         check_call.assert_called_once_with(
             ["heroku", "pg:wait", "--app", app.name], stdout=None
         )
@@ -357,7 +355,7 @@ class TestHerokuApp(object):
 
     def test_get(self, app, check_output):
         check_output.return_value = b"some value"
-        assert app.get("some key") == u"some value"
+        assert app.get("some key") == "some value"
         check_output.assert_called_once_with(
             ["heroku", "config:get", "some key", "--app", app.name]
         )
@@ -383,7 +381,7 @@ class TestHerokuApp(object):
 
     def test_redis_url(self, app, check_output):
         check_output.return_value = b"some url"
-        assert app.redis_url == u"some url"
+        assert app.redis_url == "some url"
         check_output.assert_called_once_with(
             ["heroku", "config:get", "REDIS_URL", "--app", app.name]
         )
@@ -423,11 +421,11 @@ class TestHerokuApp(object):
         check_call.assert_has_calls(
             [
                 mock.call(
-                    ["heroku", "ps:scale", "web=0", "--app", u"dlgr-fake-uid"],
+                    ["heroku", "ps:scale", "web=0", "--app", "dlgr-fake-uid"],
                     stdout=None,
                 ),
                 mock.call(
-                    ["heroku", "ps:scale", "worker=0", "--app", u"dlgr-fake-uid"],
+                    ["heroku", "ps:scale", "worker=0", "--app", "dlgr-fake-uid"],
                     stdout=None,
                 ),
             ]
@@ -439,15 +437,15 @@ class TestHerokuApp(object):
         check_call.assert_has_calls(
             [
                 mock.call(
-                    ["heroku", "ps:scale", "web=0", "--app", u"dlgr-fake-uid"],
+                    ["heroku", "ps:scale", "web=0", "--app", "dlgr-fake-uid"],
                     stdout=None,
                 ),
                 mock.call(
-                    ["heroku", "ps:scale", "worker=0", "--app", u"dlgr-fake-uid"],
+                    ["heroku", "ps:scale", "worker=0", "--app", "dlgr-fake-uid"],
                     stdout=None,
                 ),
                 mock.call(
-                    ["heroku", "ps:scale", "clock=0", "--app", u"dlgr-fake-uid"],
+                    ["heroku", "ps:scale", "clock=0", "--app", "dlgr-fake-uid"],
                     stdout=None,
                 ),
             ]
@@ -485,9 +483,9 @@ class TestHerokuApp(object):
     @pytest.mark.usefixtures("check_heroku")
     def test_full_monty(self, full_app, temp_repo):
         app = full_app
-        assert app.name == u"dlgr-fake-uid"
-        assert app.url == u"https://dlgr-fake-uid.herokuapp.com"
-        assert app.dashboard_url == u"https://dashboard.heroku.com/apps/dlgr-fake-uid"
+        assert app.name == "dlgr-fake-uid"
+        assert app.url == "https://dlgr-fake-uid.herokuapp.com"
+        assert app.dashboard_url == "https://dashboard.heroku.com/apps/dlgr-fake-uid"
         app.bootstrap()
         app.buildpack("https://github.com/stomita/heroku-buildpack-phantomjs")
         app.set("auto_recruit", True)
