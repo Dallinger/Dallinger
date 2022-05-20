@@ -1,7 +1,15 @@
 # Change Log
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
-## [v8.1.0](https://github.com/dallinger/dallinger/tree/v8.1.0) (2021-03-25)
+## [v9.0.0](https://github.com/dallinger/dallinger/tree/v9.0.0) (2022-05-19)
+- Infrastructure: Drop support for Python 3.7
+- Infrastructure: Update versions of various dependencies, including those which had been impossible while retaining Python 3.7 compatibility, e.g. Flask to v2.x, Jinja2 to v3.x, numpy to 1.22.x, pandas to v1.4.x, click to 8.x and Sphinx to 4.5.x
+- Enhancement: Add a check for circular imports in experiment module loading
+- Enhancement: Enforce standard Python code style by applying `"black"` v22.3.0
+- Bugfix: Add `clock` support in Docker
+- Fix typos and some broken links in docs
+
+## [v8.1.0](https://github.com/dallinger/dallinger/tree/v8.1.0) (2022-03-25)
 - Enhancement: numerous usability improvements and enhancements to tools which provide
   hot reloading of dallinger and experiment code while developing: run
   ``dallinger developer debug`` from the experiment directory, wait a few moments,
@@ -18,7 +26,7 @@
 - Enhancement: ensure ``dallinger debug`` executes in ``--verbose`` mode in automated tests,
   and correctly propagates logging output to pytest so all errors are visible
 
-## [v8.0.0](https://github.com/dallinger/dallinger/tree/v8.0.0) (2021-02-22)
+## [v8.0.0](https://github.com/dallinger/dallinger/tree/v8.0.0) (2022-02-22)
 - Potential breaking change: The function signature of the ``Recruiter.reward_bonus()``
   method has changed, so if you've implemented your own recruiter, this will need to be
   updated.
