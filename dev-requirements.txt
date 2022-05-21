@@ -219,7 +219,6 @@ jinja2==3.1.2
     #   nbconvert
     #   notebook
     #   sphinx
-    #   sphinx-js
 jmespath==1.0.0
     # via
     #   boto3
@@ -324,8 +323,6 @@ paramiko==2.11.0
     #   dallinger
     #   docker
     #   sshtunnel
-parsimonious==0.7.0
-    # via sphinx-js
 parso==0.8.3
     # via jedi
 pathspec==0.9.0
@@ -490,11 +487,8 @@ sphinx==4.5.0
     # via
     #   dallinger
     #   recommonmark
-    #   sphinx-js
     #   sphinx-rtd-theme
     #   sphinxcontrib-spelling
-sphinx-js @ git+https://github.com/jorritsmit/sphinx-js
-    # via dallinger
 sphinx-rtd-theme==1.0.0
     # via dallinger
 sphinxcontrib-applehelp==1.0.2
