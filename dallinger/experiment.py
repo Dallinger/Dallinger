@@ -1445,6 +1445,10 @@ def load():
             )
         elif len(classes) == 0:
             logger.error("Error retrieving experiment class")
+            if not module_is_initialized(experiment):
+                logger.error(
+                    "The experiment module is only partly initialized. Maybe you have a circular import?"
+                )
             raise (
                 first_err
                 or second_err
@@ -1455,6 +1459,20 @@ def load():
     except ImportError:
         logger.error("Could not import experiment.")
         raise
+
+
+def module_is_initialized(module):
+    """
+    Checks whether a given module has been initialized by catching the AttributeError that happens when accessing
+    an unknown attribute within that module. This is a bit of a hack, but it seems to be the easiest
+    way of checking the modules initialization status.
+    """
+    try:
+        module.abcdefghijklmnop123456789
+    except AttributeError as err:
+        if "partially initialized module" in str(err):
+            return False
+    return True
 
 
 EXPERIMENT_TASK_REGISTRATIONS = []
