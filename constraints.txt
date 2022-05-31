@@ -134,7 +134,7 @@ faker==13.11.1
     # via dallinger
 fastjsonschema==2.15.3
     # via nbformat
-filelock==3.7.0
+filelock==3.7.1
     # via
     #   tox
     #   virtualenv
