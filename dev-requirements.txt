@@ -81,7 +81,7 @@ codecov==2.1.12
     # via dallinger
 commonmark==0.9.1
     # via recommonmark
-coverage==6.3.3
+coverage==6.4.1
     # via
     #   codecov
     #   coverage-pth
