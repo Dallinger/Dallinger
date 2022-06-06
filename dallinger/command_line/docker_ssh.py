@@ -390,13 +390,16 @@ def deploy(mode, server, dns_host, config_options, archive_path):  # pragma: no 
     )
     print(response.json()["recruitment_msg"])
 
-    print("To display the logs for this experiment you can run:")
-    print(
-        f"ssh {ssh_user}@{ssh_host} docker-compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
-    )
-    print(
-        f"You can now log in to the console at https://{experiment_id}.{dns_host}/dashboard as user {cfg['ADMIN_USER']} using password {cfg['dashboard_password']}"
-    )
+    deployment_infos = [
+        "To display the logs for this experiment you can run:",
+        f"ssh {ssh_user}@{ssh_host} docker-compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f",
+        f"You can now log in to the console at https://{experiment_id}.{dns_host}/dashboard as user {cfg['ADMIN_USER']} using password {cfg['dashboard_password']}",
+    ]
+    for line in deployment_infos:
+        print(line)
+    with open(f"deployment-info_{experiment_id}.txt", "w") as f:
+        for line in deployment_infos:
+            f.write(f"{line}\n")
 
 
 def get_experiment_id_from_archive(archive_path):
