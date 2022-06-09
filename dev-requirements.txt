@@ -444,7 +444,7 @@ redis==4.3.1
     # via
     #   dallinger
     #   rq
-requests==2.27.1
+requests==2.28.0
     # via
     #   codecov
     #   dallinger
