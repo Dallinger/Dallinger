@@ -30,7 +30,7 @@ attrs==21.4.0
     #   outcome
     #   pytest
     #   trio
-babel==2.10.1
+babel==2.10.2
     # via sphinx
 backcall==0.2.0
     # via ipython
