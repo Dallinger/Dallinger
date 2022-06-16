@@ -18,9 +18,9 @@ attrs==21.4.0
     # via
     #   outcome
     #   trio
-boto3==1.23.5
+boto3==1.24.11
     # via dallinger
-botocore==1.26.5
+botocore==1.27.11
     # via
     #   boto3
     #   s3transfer
@@ -28,7 +28,7 @@ build==0.8.0
     # via dallinger
 cached-property==1.5.2
     # via dallinger
-certifi==2022.5.18.1
+certifi==2022.6.15
     # via
     #   requests
     #   urllib3
@@ -48,7 +48,7 @@ cryptography==37.0.2
     #   urllib3
 deprecated==1.2.13
     # via redis
-faker==13.11.1
+faker==13.13.0
     # via dallinger
 flask==2.1.2
     # via
@@ -106,7 +106,7 @@ markupsafe==2.1.1
     # via
     #   jinja2
     #   wtforms
-outcome==1.1.0
+outcome==1.2.0
     # via trio
 packaging==21.3
     # via
@@ -118,7 +118,7 @@ pep517==0.12.0
     #   pip-tools
 pexpect==4.8.0
     # via dallinger
-pip-tools==6.6.1
+pip-tools==6.6.2
     # via dallinger
 psutil==5.9.1
     # via dallinger
@@ -145,19 +145,19 @@ pytz==2022.1
     # via apscheduler
 pytz-deprecation-shim==0.1.0.post0
     # via tzlocal
-redis==4.3.1
+redis==4.3.3
     # via
     #   dallinger
     #   rq
-requests==2.27.1
+requests==2.28.0
     # via
     #   dallinger
     #   heroku3
 rq==1.10.1
     # via dallinger
-s3transfer==0.5.2
+s3transfer==0.6.0
     # via boto3
-selenium==4.1.5
+selenium==4.2.0
     # via dallinger
 six==1.16.0
     # via
@@ -169,7 +169,7 @@ sniffio==1.2.0
     # via trio
 sortedcontainers==2.4.0
     # via trio
-sqlalchemy==1.4.36
+sqlalchemy==1.4.37
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
@@ -185,7 +185,7 @@ tomli==2.0.1
     # via
     #   build
     #   pep517
-trio==0.20.0
+trio==0.21.0
     # via
     #   selenium
     #   trio-websocket
