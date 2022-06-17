@@ -24,11 +24,11 @@ attrs==21.4.0
     #   -c ../../../../dev-requirements.txt
     #   outcome
     #   trio
-boto3==1.23.5
+boto3==1.24.11
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-botocore==1.26.5
+botocore==1.27.11
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
@@ -41,7 +41,7 @@ cached-property==1.5.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-certifi==2022.5.18.1
+certifi==2022.6.15
     # via
     #   -c ../../../../dev-requirements.txt
     #   requests
@@ -66,13 +66,13 @@ cryptography==37.0.2
     #   -c ../../../../dev-requirements.txt
     #   pyopenssl
     #   urllib3
-dallinger==9.0.0
+dallinger==9.0.1
     # via -r requirements.txt
 deprecated==1.2.13
     # via
     #   -c ../../../../dev-requirements.txt
     #   redis
-faker==13.11.1
+faker==13.13.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -161,7 +161,7 @@ markupsafe==2.1.1
     #   -c ../../../../dev-requirements.txt
     #   jinja2
     #   wtforms
-outcome==1.1.0
+outcome==1.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
@@ -179,7 +179,7 @@ pexpect==4.8.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-pip-tools==6.6.1
+pip-tools==6.6.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -226,12 +226,12 @@ pytz-deprecation-shim==0.1.0.post0
     # via
     #   -c ../../../../dev-requirements.txt
     #   tzlocal
-redis==4.3.1
+redis==4.3.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
     #   rq
-requests==2.27.1
+requests==2.28.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -240,11 +240,11 @@ rq==1.10.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-s3transfer==0.5.2
+s3transfer==0.6.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
-selenium==4.1.5
+selenium==4.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -263,7 +263,7 @@ sortedcontainers==2.4.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
-sqlalchemy==1.4.36
+sqlalchemy==1.4.37
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -289,7 +289,7 @@ tomli==2.0.1
     #   -c ../../../../dev-requirements.txt
     #   build
     #   pep517
-trio==0.20.0
+trio==0.21.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   selenium
