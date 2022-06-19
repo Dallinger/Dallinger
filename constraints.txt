@@ -503,7 +503,7 @@ sphinxcontrib-qthelp==1.0.3
     # via sphinx
 sphinxcontrib-serializinghtml==1.1.5
     # via sphinx
-sphinxcontrib-spelling==7.5.0
+sphinxcontrib-spelling==7.5.1
     # via dallinger
 sqlalchemy==1.4.37
     # via
