@@ -429,7 +429,7 @@ pyyaml==5.4.1
     #   docker-compose
     #   pre-commit
     #   tablib
-pyzmq==23.1.0
+pyzmq==23.2.0
     # via
     #   ipykernel
     #   jupyter-client
