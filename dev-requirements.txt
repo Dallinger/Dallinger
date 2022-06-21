@@ -517,7 +517,7 @@ stack-data==0.3.0
     # via ipython
 tablib[all]==3.2.1
     # via dallinger
-tabulate==0.8.9
+tabulate==0.8.10
     # via
     #   dallinger
     #   tablib
