@@ -175,7 +175,7 @@ sqlalchemy==1.4.37
     #   sqlalchemy-postgres-copy
 sqlalchemy-postgres-copy==0.5.0
     # via dallinger
-tabulate==0.8.9
+tabulate==0.8.10
     # via dallinger
 tenacity==8.0.1
     # via dallinger
