@@ -288,7 +288,7 @@ nest-asyncio==1.5.5
     #   jupyter-client
     #   nbclient
     #   notebook
-nodeenv==1.6.0
+nodeenv==1.7.0
     # via pre-commit
 notebook==6.4.12
     # via
