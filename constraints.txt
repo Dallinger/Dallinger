@@ -182,7 +182,7 @@ idna==3.3
     #   requests
     #   trio
     #   urllib3
-imagesize==1.3.0
+imagesize==1.4.0
     # via sphinx
 iniconfig==1.1.1
     # via pytest
