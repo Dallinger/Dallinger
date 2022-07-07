@@ -238,7 +238,7 @@ jupyter-client==7.3.4
     #   qtconsole
 jupyter-console==6.4.3
     # via jupyter
-jupyter-core==4.10.0
+jupyter-core==4.11.0
     # via
     #   jupyter-client
     #   nbconvert
