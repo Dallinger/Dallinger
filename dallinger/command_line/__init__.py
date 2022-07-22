@@ -194,10 +194,13 @@ def get_summary(app):
     default=False,
     help="Skip opening browsers",
 )
+@click.option("--archive", default=None, help="Optional path to an experiment archive")
 @require_exp_directory
-def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
+def debug(verbose, bot, proxy, no_browsers=False, exp_config=None, archive=None):
     """Run the experiment locally."""
-    debugger = DebugDeployment(Output(), verbose, bot, proxy, exp_config, no_browsers)
+    debugger = DebugDeployment(
+        Output(), verbose, bot, proxy, exp_config, no_browsers, archive
+    )
     log(header, chevrons=False)
     debugger.run()
 

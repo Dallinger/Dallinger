@@ -20,6 +20,7 @@ from dallinger import heroku
 from dallinger import recruiters
 from dallinger import registration
 from dallinger.config import get_config
+from dallinger.data import bootstrap_db_from_zip
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.redis_utils import connect_to_redis
@@ -363,7 +364,16 @@ class DebugDeployment(HerokuLocalDeployment):
         r"{}".format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
     }
 
-    def __init__(self, output, verbose, bot, proxy_port, exp_config, no_browsers=False):
+    def __init__(
+        self,
+        output,
+        verbose,
+        bot,
+        proxy_port,
+        exp_config,
+        no_browsers=False,
+        archive=None,
+    ):
         self.out = output
         self.verbose = verbose
         self.bot = bot
@@ -376,6 +386,7 @@ class DebugDeployment(HerokuLocalDeployment):
         self.environ = {
             "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
         }
+        self.archive = archive
 
     def with_proxy_port(self, url):
         if self.proxy_port is not None:
@@ -402,6 +413,13 @@ class DebugDeployment(HerokuLocalDeployment):
             heroku.monitor(listener=self.notify)
         else:
             if result["status"] == "success":
+                if self.archive:
+                    self.out.log(
+                        "Populating the database with the contents of {}...".format(
+                            self.archive
+                        )
+                    )
+                    bootstrap_db_from_zip(self.archive, db.engine)
                 self.out.log(result["recruitment_msg"])
                 dashboard_url = self.with_proxy_port("{}/dashboard/".format(base_url))
                 self.display_dashboard_access_details(dashboard_url)
