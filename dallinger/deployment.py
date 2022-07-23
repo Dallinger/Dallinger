@@ -20,7 +20,7 @@ from dallinger import heroku
 from dallinger import recruiters
 from dallinger import registration
 from dallinger.config import get_config
-from dallinger.data import bootstrap_db_from_zip
+from dallinger.data import ingest_zip
 from dallinger.heroku.tools import HerokuApp
 from dallinger.heroku.tools import HerokuLocalWrapper
 from dallinger.redis_utils import connect_to_redis
@@ -419,7 +419,7 @@ class DebugDeployment(HerokuLocalDeployment):
                             self.archive
                         )
                     )
-                    bootstrap_db_from_zip(self.archive, db.engine)
+                    ingest_zip(self.archive, db.engine)
                 self.out.log(result["recruitment_msg"])
                 dashboard_url = self.with_proxy_port("{}/dashboard/".format(base_url))
                 self.display_dashboard_access_details(dashboard_url)
