@@ -59,7 +59,7 @@ flask==2.1.2
     #   flask-wtf
 flask-crossdomain==0.1
     # via dallinger
-flask-login==0.6.1
+flask-login==0.6.2
     # via dallinger
 flask-sockets==0.2.1
     # via dallinger
