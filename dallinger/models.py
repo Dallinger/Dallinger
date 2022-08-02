@@ -161,7 +161,9 @@ class SharedMixin(object):
         the `failure_cascade` property.
         """
         if self.failed is True:
-            raise AttributeError("Cannot fail {} - it has already failed.".format(self))
+            raise AlreadyFailedError(
+                "Cannot fail {} - it has already failed.".format(self)
+            )
         else:
             self.failed = True
             self.failed_reason = reason
@@ -175,6 +177,14 @@ class SharedMixin(object):
                     obj.fail(reason=wrapped_reason)
                 except TypeError:
                     obj.fail()
+                except AlreadyFailedError:
+                    pass
+
+
+class AlreadyFailedError(AttributeError):
+    """
+    Raised when trying to fail an object that has already been failed.
+    """
 
 
 class Participant(Base, SharedMixin):
