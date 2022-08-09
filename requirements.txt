@@ -50,7 +50,7 @@ deprecated==1.2.13
     # via redis
 faker==13.13.0
     # via dallinger
-flask==2.1.2
+flask==2.2.2
     # via
     #   dallinger
     #   flask-crossdomain
