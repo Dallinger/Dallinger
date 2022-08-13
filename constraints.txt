@@ -128,7 +128,7 @@ entrypoints==0.4
     #   nbconvert
 et-xmlfile==1.1.0
     # via openpyxl
-executing==0.8.3
+executing==0.10.0
     # via stack-data
 faker==13.13.0
     # via dallinger
