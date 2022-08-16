@@ -258,7 +258,7 @@ markupsafe==2.1.1
     #   jinja2
     #   nbconvert
     #   wtforms
-matplotlib-inline==0.1.3
+matplotlib-inline==0.1.5
     # via
     #   ipykernel
     #   ipython
