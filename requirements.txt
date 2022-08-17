@@ -48,7 +48,7 @@ cryptography==37.0.2
     #   urllib3
 deprecated==1.2.13
     # via redis
-faker==13.13.0
+faker==14.1.0
     # via dallinger
 flask==2.1.2
     # via
