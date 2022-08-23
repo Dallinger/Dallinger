@@ -216,7 +216,7 @@ wheel==0.37.1
     # via pip-tools
 wrapt==1.14.1
     # via deprecated
-wsproto==1.1.0
+wsproto==1.2.0
     # via trio-websocket
 wtforms==3.0.1
     # via flask-wtf
