@@ -69,11 +69,18 @@ class DockerComposeWrapper(object):
         editable_dallinger_path = get_editable_dallinger_path()
         if editable_dallinger_path:
             volumes.append(f"{editable_dallinger_path}/dallinger:/dallinger/dallinger")
+            # TODO - determine python version used in current images, instead of hardcoding links for all of them
             volumes.append(
                 f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.8/dist-packages/dallinger/"
             )
             volumes.append(
                 f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.9/dist-packages/dallinger/"
+            )
+            volumes.append(
+                f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.10/dist-packages/dallinger/"
+            )
+            volumes.append(
+                f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.11/dist-packages/dallinger/"
             )
         tag = get_experiment_image_tag(self.tmp_dir)
         with open(os.path.join(self.tmp_dir, "docker-compose.yml"), "w") as fh:
