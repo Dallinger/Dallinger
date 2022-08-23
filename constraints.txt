@@ -42,9 +42,9 @@ black==22.6.0
     # via dallinger
 bleach==5.0.1
     # via nbconvert
-boto3==1.24.57
+boto3==1.24.58
     # via dallinger
-botocore==1.27.57
+botocore==1.27.58
     # via
     #   boto3
     #   s3transfer
@@ -268,7 +268,7 @@ mock==4.0.3
     # via dallinger
 mypy-extensions==0.4.3
     # via black
-nbclient==0.6.6
+nbclient==0.6.7
     # via nbconvert
 nbconvert==7.0.0
     # via
@@ -601,7 +601,7 @@ widgetsnbextension==4.0.2
     # via ipywidgets
 wrapt==1.14.1
     # via deprecated
-wsproto==1.1.0
+wsproto==1.2.0
     # via trio-websocket
 wtforms==3.0.1
     # via flask-wtf
