@@ -30,7 +30,7 @@ LABEL org.opencontainers.image.source https://github.com/Dallinger/Dallinger
 
 # Install runtime dependencies
 RUN apt-get update && \
-    apt-get install -y software-properties-common && \
+    apt-get install -y software-properties-common python3-distutils && \
     add-apt-repository -y ppa:deadsnakes/ppa && \
     apt-get install -y libpq5 python3-pip python3.10 enchant tzdata --no-install-recommends && \
     python3.10 -m pip install -U pip && \
