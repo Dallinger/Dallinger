@@ -9,8 +9,10 @@ EXPOSE 5000
 
 # Install build dependencies
 RUN apt-get update && \
-    apt-get install -y libpq-dev python3-pip python3-dev enchant tzdata pandoc && \
-    python3 -m pip install -U pip && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt-get install -y libpq-dev python3-pip python3.8-dev enchant tzdata pandoc && \
+    python3.8 -m pip install -U pip && \
     rm -rf /var/lib/apt/lists/*
 
 COPY constraints.txt requirements.txt /dallinger/
@@ -18,7 +20,7 @@ WORKDIR /dallinger
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     mkdir /wheelhouse && \
-    python3 -m pip wheel --wheel-dir=/wheelhouse -r requirements.txt -c constraints.txt
+    python3.8 -m pip wheel --wheel-dir=/wheelhouse -r requirements.txt -c constraints.txt
 
 
 ###################### Dallinger base image ###################################
@@ -28,8 +30,10 @@ LABEL org.opencontainers.image.source https://github.com/Dallinger/Dallinger
 
 # Install runtime dependencies
 RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
     apt-get install -y libpq5 python3-pip enchant tzdata --no-install-recommends && \
-    python3 -m pip install -U pip && \
+    python3.8 -m pip install -U pip && \
     rm -rf /var/lib/apt/lists/*
 
 COPY constraints.txt requirements.txt /dallinger/
@@ -37,12 +41,12 @@ WORKDIR /dallinger
 
 RUN --mount=type=bind,source=/wheelhouse,from=wheels,target=/wheelhouse \
     (ls -l /wheelhouse || (echo 'You need to enable docker buildkit to build dallinger: DOCKER_BUILDKIT=1' && false) ) &&\
-    python3 -m pip install --find-links file:///wheelhouse -r requirements.txt -c constraints.txt
+    python3.8 -m pip install --find-links file:///wheelhouse -r requirements.txt -c constraints.txt
 
 COPY . /dallinger
-RUN python3 -m pip install --find-links file:///wheelhouse -e .[data]
+RUN python3.8 -m pip install --find-links file:///wheelhouse -e .[data]
 
-# Add two ENV variables as a fix when using python3, to prevent this error:
+# Add two ENV variables as a fix when using python 3, to prevent this error:
 # Click will abort further execution because Python 3 was configured
 # to use ASCII as encoding for the environment.
 # Consult http://click.pocoo.org/python3/for mitigation steps.
