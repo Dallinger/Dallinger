@@ -28,7 +28,8 @@ LABEL org.opencontainers.image.source https://github.com/Dallinger/Dallinger
 
 # Install runtime dependencies
 RUN apt-get update && \
-    apt-get install -y libpq5 python3-pip enchant tzdata --no-install-recommends && \
+    apt-get install -y libpq5 python3-pip enchant busybox tzdata --no-install-recommends && \
+    busybox --install && \
     python3 -m pip install -U pip && \
     rm -rf /var/lib/apt/lists/*
 
