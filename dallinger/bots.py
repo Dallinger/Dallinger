@@ -154,9 +154,9 @@ class BotBase(object):
         Answers the questions in the base questionnaire.
         """
         logger.info("Complete questionnaire.")
-        difficulty = self.driver.find_element_by_id("difficulty")
+        difficulty = self.driver.find_element("id", "difficulty")
         difficulty.value = "4"
-        engagement = self.driver.find_element_by_id("engagement")
+        engagement = self.driver.find_element("id", "engagement")
         engagement.value = "3"
 
     def sign_off(self):
