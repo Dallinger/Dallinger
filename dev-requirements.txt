@@ -34,7 +34,7 @@ babel==2.10.3
     # via sphinx
 backcall==0.2.0
     # via ipython
-bcrypt==3.2.2
+bcrypt==4.0.0
     # via paramiko
 beautifulsoup4==4.11.1
     # via nbconvert
@@ -65,7 +65,6 @@ certifi==2022.6.15
 cffi==1.15.1
     # via
     #   argon2-cffi-bindings
-    #   bcrypt
     #   cryptography
     #   pynacl
 cfgv==3.3.1
