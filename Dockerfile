@@ -50,6 +50,8 @@ RUN python3 -m pip install --find-links file:///wheelhouse -e .[data]
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
 
+ENV SKIP_DEPENDENCY_CHECK true
+
 CMD /bin/bash
 
 ###################### Dallinger bot image ####################################
