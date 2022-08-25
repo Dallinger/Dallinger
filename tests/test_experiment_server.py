@@ -101,9 +101,15 @@ class TestAppConfiguration(object):
 
         assert exc_info.match("Call to disabled route")
 
+    def test_routes_can_be_disabled_without_affecting_others(
+        self, webapp, active_config
+    ):
+        active_config.set("disabled_routes", '["/info/<int:node_id>/<int:info_id>"]')
+
         # Other routes unaffected:
-        response = webapp.get("/")
-        assert response.status == "200 OK"
+        assert webapp.get("/").status == "200 OK"
+        assert webapp.get("").status == "308 PERMANENT REDIRECT"
+        assert webapp.get("/nonexistent").status == "404 NOT FOUND"
 
 
 @pytest.mark.usefixtures("experiment_dir")

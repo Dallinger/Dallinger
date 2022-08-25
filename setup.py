@@ -50,7 +50,6 @@ setup_args = dict(
         "boto3",
         "build",
         "click",
-        "decorator",
         "faker",
         "Flask-Sockets",
         "Flask",

@@ -1,7 +1,6 @@
 """ This module provides the backend Flask server that serves an experiment. """
 
 from datetime import datetime
-from decorator import decorator
 import gevent
 from json import dumps
 from json import loads
@@ -61,15 +60,17 @@ WAITING_ROOM_CHANNEL = "quorum"
 app = Flask("Experiment_Server")
 
 
-@decorator
-def if_enabled(func, *args, **kw):
-    current_route = request.url_rule.rule
+@app.before_request
+def check_for_disabled_routes():
+    try:
+        active_rule = request.url_rule.rule
+    except AttributeError:
+        return
+
     disabled = Experiment(session).disabled_routes
 
-    if current_route in disabled:
-        raise PermissionError(f'Call to disabled route "{current_route}": {request}')
-
-    return func(*args, **kw)
+    if active_rule in disabled:
+        raise PermissionError(f'Call to disabled route "{active_rule}": {request}')
 
 
 @app.before_first_request
@@ -181,7 +182,6 @@ app.config["dashboard_tabs"] = dashboard.dashboard_tabs
 
 
 @app.route("/")
-@if_enabled
 def index():
     """Index route"""
     html = (
@@ -195,7 +195,6 @@ def index():
 
 
 @app.route("/robots.txt")
-@if_enabled
 def static_robots_txt():
     """Serve robots.txt from static file."""
     return send_from_directory("static", "robots.txt")
@@ -1169,7 +1168,6 @@ def connect(node_id, other_node_id):
 
 
 @app.route("/info/<int:node_id>/<int:info_id>", methods=["GET"])
-@if_enabled
 def get_info(node_id, info_id):
     """Get a specific info.
 
