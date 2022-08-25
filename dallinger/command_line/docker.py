@@ -496,7 +496,7 @@ def script_command(cmd):
 
 
 def script_command_linux(cmd):
-    return ["script", "-q", "--command", " ".join(cmd)]
+    return ["script", "-q", "--command", " ".join(cmd), "/dev/null"]
 
 
 def script_command_mac(cmd):
