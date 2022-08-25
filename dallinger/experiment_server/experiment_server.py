@@ -63,11 +63,11 @@ app = Flask("Experiment_Server")
 
 @decorator
 def if_enabled(func, *args, **kw):
-    current_route = request.path
+    current_route = request.url_rule.rule
     disabled = Experiment(session).disabled_routes
 
     if current_route in disabled:
-        return "Route was disabled via config.disabled_routes!", 200
+        raise PermissionError(f'Call to disabled route "{current_route}": {request}')
 
     return func(*args, **kw)
 
@@ -118,7 +118,7 @@ if exp_klass is not None:  # pragma: no cover
                 route["rule"],
                 endpoint=route["func_name"],
                 view_func=route_func,
-                **dict(route["kwargs"])
+                **dict(route["kwargs"]),
             )
     if routes:
         app.register_blueprint(bp)
@@ -134,7 +134,7 @@ if exp_klass is not None:  # pragma: no cover
                 "/" + route_name,
                 endpoint=route_name,
                 view_func=route_func,
-                **dict(route["kwargs"])
+                **dict(route["kwargs"]),
             )
             tabs = dashboard.dashboard_tabs
             full_tab = route.get("tab")
@@ -1169,6 +1169,7 @@ def connect(node_id, other_node_id):
 
 
 @app.route("/info/<int:node_id>/<int:info_id>", methods=["GET"])
+@if_enabled
 def get_info(node_id, info_id):
     """Get a specific info.
 
