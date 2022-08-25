@@ -49,13 +49,19 @@ def develop():
 
 @develop.command()
 @click.option("--port", default=5000, help="The port Flask is running on")
-def debug(port):
+@click.option(
+    "--skip-flask",
+    is_flag=True,
+    help="Skip launching Flask, so that Flask can be managed externally",
+)
+def debug(port, skip_flask):
     _bootstrap()
 
     q = Queue("default", connection=redis_conn)
     q.enqueue_call(launch_app_and_open_dashboard, kwargs={"port": port})
 
-    subprocess.call(["./run.sh"], cwd="develop")
+    if not skip_flask:
+        subprocess.call(["./run.sh"], cwd="develop")
 
 
 @develop.command()
