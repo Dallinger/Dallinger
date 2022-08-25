@@ -52,6 +52,7 @@ default_keys = (
     ("debug_recruiter", six.text_type, []),
     ("description", six.text_type, []),
     ("disable_when_duration_exceeded", bool, []),
+    ("disabled_routes", six.text_type, [], False, [is_valid_json]),
     ("duration", float, []),
     ("dyno_type", six.text_type, []),
     ("dyno_type_web", six.text_type, []),

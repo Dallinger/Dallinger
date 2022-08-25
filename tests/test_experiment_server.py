@@ -93,6 +93,18 @@ class TestAppConfiguration(object):
             webapp.get("/")
             assert webapp.application.config["SECRET_KEY"] == "A TEST SECRET KEY"
 
+    def test_routes_can_be_disabled_via_config(self, webapp, active_config):
+        active_config.set("disabled_routes", '["/info/<int:node_id>/<int:info_id>"]')
+
+        with pytest.raises(PermissionError) as exc_info:
+            webapp.get("/info/1/1")
+
+        assert exc_info.match("Call to disabled route")
+
+        # Other routes unaffected:
+        response = webapp.get("/")
+        assert response.status == "200 OK"
+
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
