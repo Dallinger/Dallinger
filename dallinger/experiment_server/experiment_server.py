@@ -1,6 +1,7 @@
 """ This module provides the backend Flask server that serves an experiment. """
 
 from datetime import datetime
+from decorator import decorator
 import gevent
 from json import dumps
 from json import loads
@@ -58,6 +59,17 @@ q = Queue(connection=redis_conn)
 WAITING_ROOM_CHANNEL = "quorum"
 
 app = Flask("Experiment_Server")
+
+
+@decorator
+def if_enabled(func, *args, **kw):
+    current_route = request.path
+    disabled = loads(get_config().get("disabled_routes", '["/"]'))
+
+    if current_route in disabled:
+        return "Route was disabled via config.disabled_routes!", 200
+
+    return func(*args, **kw)
 
 
 @app.before_first_request
@@ -169,6 +181,7 @@ app.config["dashboard_tabs"] = dashboard.dashboard_tabs
 
 
 @app.route("/")
+@if_enabled
 def index():
     """Index route"""
     html = (
@@ -182,6 +195,7 @@ def index():
 
 
 @app.route("/robots.txt")
+@if_enabled
 def static_robots_txt():
     """Serve robots.txt from static file."""
     return send_from_directory("static", "robots.txt")
