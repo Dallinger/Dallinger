@@ -64,7 +64,7 @@ app = Flask("Experiment_Server")
 @decorator
 def if_enabled(func, *args, **kw):
     current_route = request.path
-    disabled = loads(get_config().get("disabled_routes", '["/"]'))
+    disabled = Experiment(session).disabled_routes
 
     if current_route in disabled:
         return "Route was disabled via config.disabled_routes!", 200

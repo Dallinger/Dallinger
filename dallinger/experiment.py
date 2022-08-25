@@ -11,6 +11,7 @@ from functools import wraps
 import datetime
 import inspect
 from importlib import import_module
+import json
 import logging
 from operator import itemgetter
 import os
@@ -186,6 +187,10 @@ class Experiment(object):
         :ref:`Extra Configuration <extra-configuration>` for an example.
         """
         pass
+
+    @property
+    def disabled_routes(self):
+        return json.loads(get_config().get("disabled_routes", '["/"]'))
 
     def configure(self):
         """Load experiment configuration here"""
