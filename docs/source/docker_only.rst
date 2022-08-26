@@ -4,6 +4,12 @@ This guide goes through the necessary steps to achieve this.
 Set up services
 ===============
 
+Create the dallinger docker network (if not present already):
+
+.. code-block:: shell
+
+    docker network create dallinger
+
 Start services needed by dallinger:
 
 .. code-block:: shell
@@ -11,20 +17,29 @@ Start services needed by dallinger:
     docker run -d --name dallinger_redis --network=dallinger -v dallinger_redis:/data redis redis-server --appendonly yes
     docker run -d --name dallinger_postgres --network=dallinger -e POSTGRES_USER=dallinger -e POSTGRES_PASSWORD=dallinger -e POSTGRES_DB=dallinger -v dallinger_postgres:/var/lib/postgresql/data postgres:12
 
+If you have these already created you can remove the existing ones and recreate them. To remove the existing ones run:
+
+.. code-block:: shell
+
+    # Needed if you want to recreate containers
+    docker rm dallinger_redis
+    docker rm dallinger_postgres
+
+or you can start the containers you have:
+
+.. code-block:: shell
+
+    # Needed if you want to start stopped containers
+    docker start dallinger_redis dallinger_postgres
+
 Start adminer:
 
 .. code-block:: shell
 
-    docker run -d --name dallinger_adminer --network dallinger --link dallinger_postgres:db adminer
+    docker run -d -p 8080:8080 --name dallinger_adminer --network dallinger --link dallinger_postgres:db adminer
 
-Find the adminer ip:
-
-.. code-block:: shell
-
-    docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' dallinger_adminer
-
-Connect to adminer by visiting http://<result-of-docker-inspect>:8080
-Select PostgreSQL from the dropdown, and enter `dallinger` as both username and password.
+Connect to adminer by visiting http://localhost:8080
+Select PostgreSQL from the dropdown, and enter `dallinger` as both username and password. You can leave the "database" field blank to get a list of existing databases.
 
 
 Run experiment from docker image
