@@ -98,3 +98,32 @@ The admin password can be found in the develop `config.txt` file:
 .. code-block:: shell
 
     grep dashboard_password ./develop/config.txt
+
+
+Deploy the experiment image using ssh
+=====================================
+
+We're going to use variations of the same command, so we create an alias for convenience.
+
+.. code-block:: shell
+
+    alias docker-dallinger='docker run --rm -ti -v ~/.ssh:/home/.ssh -v /etc/passwd:/etc/passwd -v /etc/shadow:/etc/shadow -v ~/.local/share/dallinger/:/home/.local/share/dallinger/ -e HOME=/home -e DALLINGER_NO_EGG_BUILD=1 -u $(id -u ${USER}):$(id -g ${USER}) -v /var/run/docker.sock:/var/run/docker.sock -v ${PWD}:/experiment  ${EXPERIMENT_IMAGE} dallinger'
+
+
+Then we can use the alias to run dallinger inside a container:
+
+.. code-block:: shell
+
+    docker-dallinger docker-ssh servers list
+
+Create a remote server with
+
+.. code-block:: shell
+
+    docker-dallinger docker-ssh servers add
+
+[STILL NOT WORKING] And deploy to it with
+
+.. code-block:: shell
+
+    docker-dallinger docker-ssh deploy
