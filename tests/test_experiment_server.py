@@ -1078,7 +1078,7 @@ class TestParticipantNodeCreationRoute(object):
         assert Star.query.one().nodes()[0].id == data["node"]["network_id"]
 
     def test_participant_status_not_working_returns_error(self, a, db_session, webapp):
-        participant = a.participant()
+        participant = a.participant(assignment_id="a_id", hit_id="h_id", worker_id="w_id")
         participant.status = "submitted"
         db_session.commit()
 
@@ -1086,9 +1086,9 @@ class TestParticipantNodeCreationRoute(object):
 
         error_report = resp.data.decode("utf8")
         assert "Error type: /node POST, status = submitted" in error_report
-        assert "HIT id: {}".format(participant.hit_id) in error_report
-        assert "Assignment id: {}".format(participant.assignment_id) in error_report
-        assert "Worker id: {}".format(participant.worker_id) in error_report
+        assert "HIT id: h_id" in error_report
+        assert "Assignment id: a_id" in error_report
+        assert "Worker id: w_id" in error_report
 
     def test_no_network_for_participant_returns_error(self, a, db_session, webapp):
         participant = a.participant()
