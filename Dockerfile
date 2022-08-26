@@ -41,7 +41,7 @@ RUN --mount=type=bind,source=/wheelhouse,from=wheels,target=/wheelhouse \
     python3 -m pip install --find-links file:///wheelhouse -r requirements.txt -c constraints.txt
 
 COPY . /dallinger
-RUN python3 -m pip install --find-links file:///wheelhouse -e .[data]
+RUN python3 -m pip install --find-links file:///wheelhouse -e .[data,docker]
 
 # Add two ENV variables as a fix when using python3, to prevent this error:
 # Click will abort further execution because Python 3 was configured

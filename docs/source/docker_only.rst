@@ -45,30 +45,56 @@ Select PostgreSQL from the dropdown, and enter `dallinger` as both username and 
 Run experiment from docker image
 ================================
 
-Identify the experment image you want to use. We'll use ghcr.io/dallinger/dallinger/bartlett1932:75a9580c in this example:
+Enter the experiment directory:
 
 .. code-block:: shell
 
-   EXPERIMENT_IMAGE=ghcr.io/dallinger/dallinger/bartlett1932:75a9580c
+   cd /path/to/experiment-directory
 
-Copy the contents of the experiment to a local directory to be able to work on them while running a container:
+Create a file named `Dockerfile` with these contents (replace image name in the `FROM` directive to match the dallinger version you depend on in your `constraints.txt` file):
+
+.. code-block::
+
+    # syntax = docker/dockerfile:1.2
+    FROM ghcr.io/dallinger/dallinger:9.1.0a1
+
+    RUN mkdir /experiment
+    COPY requirements.txt /experiment/constraints.txt
+
+    WORKDIR /experiment
+
+    RUN python3 -m pip install -e /dallinger[docker]
+
+    # If a dependency needs the ssh client and git, install them
+    RUN grep git+ constraints.txt && \
+        apt-get update && \
+        apt-get install -y openssh-client git && \
+        rm -rf /var/lib/apt/lists || true
+
+    # We rely on the already installed dallinger: the docker image tag has been chosen
+    # based on the contents of this file. This makes sure dallinger stays installed from
+    # /dallinger, and that it doesn't waste space with two copies in two different layers.
+    RUN mkdir ~/.ssh && echo "Host *\n    StrictHostKeyChecking no" >> ~/.ssh/config
+    RUN --mount=type=ssh grep -v ^dallinger constraints.txt > /tmp/requirements_no_dallinger.txt && \
+        python3 -m pip install -r /tmp/requirements_no_dallinger.txt
+    ENV PORT=5000
+    CMD dallinger_heroku_web
+
+Build a docker image for the experiment using Buildkit:
 
 .. code-block:: shell
-
-    docker run --rm -ti -u $(id -u ${USER}):$(id -g ${USER}) -v ${PWD}:/dest ${EXPERIMENT_IMAGE} cp -ar /experiment /dest/experiment-code
-
-This will create a directory `experiment-code` in the current directory, containing all experiment related files.
-
+    EXPERIMENT_IMAGE=my-experiment
+    DOCKER_BUILDKIT=1 docker build . -t ${EXPERIMENT_IMAGE}
 
 Start the development server with docker:
 
 .. code-block:: shell
 
-    docker run --name dallinger --rm -ti -u $(id -u ${USER}):$(id -g ${USER}) -v ${PWD}:/dest -v ${PWD}/experiment-code:/experiment --network dallinger -p 5000:5000 -e FlASK_OPTIONS='-h 0.0.0.0' -e REDIS_URL=redis://dallinger_redis:6379 -e DATABASE_URL=postgresql://dallinger:dallinger@dallinger_postgres/dallinger ${EXPERIMENT_IMAGE} dallinger develop debug
+    docker run --name dallinger --rm -ti -u $(id -u ${USER}):$(id -g ${USER}) -v ${PWD}:/experiment --network dallinger -p 5000:5000 -e FlASK_OPTIONS='-h 0.0.0.0' -e REDIS_URL=redis://dallinger_redis:6379 -e DATABASE_URL=postgresql://dallinger:dallinger@dallinger_postgres/dallinger ${EXPERIMENT_IMAGE} dallinger develop debug
 
 You can now access the running dallinger instance on http://localhost:5000/dashboard
 The admin password can be found in the develop `config.txt` file:
 
 .. code-block:: shell
 
-    grep dashboard_password experiment-code/develop/config.txt
+    grep dashboard_password ./develop/config.txt
