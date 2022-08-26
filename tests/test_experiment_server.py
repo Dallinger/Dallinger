@@ -1078,7 +1078,9 @@ class TestParticipantNodeCreationRoute(object):
         assert Star.query.one().nodes()[0].id == data["node"]["network_id"]
 
     def test_participant_status_not_working_returns_error(self, a, db_session, webapp):
-        participant = a.participant(assignment_id="a_id", hit_id="h_id", worker_id="w_id")
+        participant = a.participant(
+            assignment_id="a_id", hit_id="h_id", worker_id="w_id"
+        )
         participant.status = "submitted"
         db_session.commit()
 

@@ -562,7 +562,9 @@ class TestMTurkRecruiterMessages(object):
 SNS_ROUTE_PATH = "/mturk-sns-listener"
 
 
-@pytest.mark.usefixtures("experiment_dir")  # Needed because @before_request loads the exp
+@pytest.mark.usefixtures(
+    "experiment_dir"
+)  # Needed because @before_request loads the exp
 class TestSNSListenerRoute(object):
     @pytest.fixture
     def recruiter(self, active_config):
