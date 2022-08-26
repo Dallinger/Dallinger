@@ -189,18 +189,18 @@ class Experiment(object):
         pass
 
     @property
-    def disabled_routes(self):
+    def protected_routes(self):
         """Disable one or more standard Dallinger Flask routes by name.
 
         When called, Flask routes which have been disabled will raise a
         PermissionError and return a 500 response.
 
         By default, this list will be parsed as a JSON array
-        the `disabled_routes` config parameter. The values should be route rule names,
+        the `protected_routes` config parameter. The values should be route rule names,
         like "/" for the application root, or "/info/<int:node_id>/<int:info_id>"
         for fetching JSON for a specific `Info`.
         """
-        return json.loads(get_config().get("disabled_routes", "[]"))
+        return json.loads(get_config().get("protected_routes", "[]"))
 
     def configure(self):
         """Load experiment configuration here"""

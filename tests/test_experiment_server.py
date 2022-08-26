@@ -93,23 +93,30 @@ class TestAppConfiguration(object):
             webapp.get("/")
             assert webapp.application.config["SECRET_KEY"] == "A TEST SECRET KEY"
 
-    def test_routes_can_be_disabled_via_config(self, webapp, active_config):
-        active_config.set("disabled_routes", '["/info/<int:node_id>/<int:info_id>"]')
+    def test_routes_can_be_protected_via_config(self, webapp, active_config):
+        active_config.set("protected_routes", '["/robots.txt"]')
 
         with pytest.raises(PermissionError) as exc_info:
-            webapp.get("/info/1/1")
+            webapp.get("/robots.txt")
 
-        assert exc_info.match("Call to disabled route")
+        assert exc_info.match("Unauthorized")
 
-    def test_routes_can_be_disabled_without_affecting_others(
+    def test_routes_can_be_protected_without_affecting_others(
         self, webapp, active_config
     ):
-        active_config.set("disabled_routes", '["/info/<int:node_id>/<int:info_id>"]')
+        active_config.set("protected_routes", '["/robots.txt"]')
 
         # Other routes unaffected:
         assert webapp.get("/").status == "200 OK"
         assert webapp.get("").status == "308 PERMANENT REDIRECT"
         assert webapp.get("/nonexistent").status == "404 NOT FOUND"
+
+    def test_protected_routes_still_accessible_if_authenticated(
+        self, webapp_admin, active_config
+    ):
+        active_config.set("protected_routes", '["/robots.txt"]')
+
+        assert webapp_admin.get("/robots.txt").status == "200 OK"
 
 
 @pytest.mark.usefixtures("experiment_dir")
@@ -719,6 +726,7 @@ class TestParticipantCreateRoute(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_exp.is_overrecruited.return_value = True
             mock_exp.quorum = 50
             mock_exp.create_participant.return_value = a.participant()
@@ -729,11 +737,18 @@ class TestParticipantCreateRoute(object):
     def test_create_participant_calls_experiment_method(self, a, webapp):
         p = a.participant()
         with mock.patch(
-            "dallinger.experiment.Experiment.create_participant"
-        ) as create_participant:
-            create_participant.side_effect = lambda **args: p
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
+            mock_exp.is_overrecruited.return_value = False
+            mock_exp.quorum = None
+            mock_exp.create_participant.side_effect = lambda **args: p
+            mock_class.return_value = mock_exp
+
             webapp.post("/participant/1/1/1/debug")
-            create_participant.assert_called_once_with(
+
+            mock_exp.create_participant.assert_called_once_with(
                 worker_id="1",
                 hit_id="1",
                 assignment_id="1",
@@ -1282,6 +1297,7 @@ class TestInfoRoutePOST(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_class.return_value = mock_exp
             webapp.post("/info/{}".format(node.id), data=data)
             mock_exp.info_post_request.assert_called_once()
@@ -1293,6 +1309,7 @@ class TestInfoRoutePOST(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_exp.info_post_request.side_effect = Exception("boom!")
             mock_class.return_value = mock_exp
             resp = webapp.post("/info/{}".format(node.id), data=data)
@@ -1351,6 +1368,7 @@ class TestNodeNeighbors(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_class.return_value = mock_exp
             webapp.get("/node/{}/neighbors".format(node.id))
             mock_exp.node_get_request.assert_called_once_with(node=node, nodes=[])
@@ -1361,6 +1379,7 @@ class TestNodeNeighbors(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_exp.node_get_request.side_effect = Exception("boom!")
             mock_class.return_value = mock_exp
             resp = webapp.get("/node/{}/neighbors".format(node.id))
@@ -1409,6 +1428,7 @@ class TestNodeReceivedInfos(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_class.return_value = mock_exp
             webapp.get("/node/{}/received_infos".format(node.id))
             mock_exp.info_get_request.assert_called_once_with(node=node, infos=[])
@@ -1419,6 +1439,7 @@ class TestNodeReceivedInfos(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_exp.info_get_request.side_effect = Exception("boom!")
             mock_class.return_value = mock_exp
             resp = webapp.get("/node/{}/received_infos".format(node.id))
@@ -1454,6 +1475,7 @@ class TestTransformationGet(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_class.return_value = mock_exp
             webapp.get("/node/{}/transformations".format(node.id))
             mock_exp.transformation_get_request.assert_called_once_with(
@@ -1466,6 +1488,7 @@ class TestTransformationGet(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_exp.transformation_get_request.side_effect = Exception("boom!")
             mock_class.return_value = mock_exp
             resp = webapp.get("/node/{}/transformations".format(node.id))
@@ -1513,6 +1536,7 @@ class TestTransformationPost(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_class.return_value = mock_exp
             webapp.post(
                 "/transformation/{}/{}/{}".format(node.id, info_in.id, info_out.id)
@@ -1527,6 +1551,7 @@ class TestTransformationPost(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_exp.transformation_post_request.side_effect = Exception("boom!")
             mock_class.return_value = mock_exp
             resp = webapp.post(
@@ -1549,6 +1574,7 @@ class TestLaunchRoute(object):
         ) as mock_class:
             bad_log = mock.Mock(side_effect=IOError)
             mock_exp = mock.Mock(log=bad_log)
+            mock_exp.protected_routes = []
             mock_class.return_value = mock_exp
             resp = webapp.post("/launch", data={})
 

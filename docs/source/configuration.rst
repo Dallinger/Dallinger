@@ -61,11 +61,11 @@ General
     An optional login name for accessing the Dallinger Dashboard interface. If not
     specified ``admin`` will be used.
 
-``disabled_routes`` *unicode - JSON formatted*
+``protected_routes`` *unicode - JSON formatted*
     An optional JSON array of Flask route rule names which should be made inaccessible.
     Example::
 
-        disabled_routes = ["/participant/<participant_id>", "/network/<network_id>", "/node/<int:node_id>/neighbors"]
+        protected_routes = ["/participant/<participant_id>", "/network/<network_id>", "/node/<int:node_id>/neighbors"]
 
     Accessing routes included in this list will raise a PermissionError
     and no data will be returned.

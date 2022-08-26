@@ -17,7 +17,7 @@ from flask import (
     send_from_directory,
     url_for,
 )
-from flask_login import LoginManager, login_required
+from flask_login import current_user, LoginManager, login_required
 from jinja2 import TemplateNotFound
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
@@ -61,16 +61,20 @@ app = Flask("Experiment_Server")
 
 
 @app.before_request
-def check_for_disabled_routes():
+def check_for_protected_routes():
+    if current_user.is_authenticated:
+        return
+
     try:
         active_rule = request.url_rule.rule
     except AttributeError:
         return
 
-    disabled = Experiment(session).disabled_routes
-
-    if active_rule in disabled:
-        raise PermissionError(f'Call to disabled route "{active_rule}": {request}')
+    protected = Experiment(session).protected_routes
+    if active_rule in protected:
+        raise PermissionError(
+            f'Unauthorized call to protected route "{active_rule}": {request}'
+        )
 
 
 @app.before_first_request

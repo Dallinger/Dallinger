@@ -1,7 +1,7 @@
 [Experiment]
 mode = debug
 assign_qualifications = true
-disabled_routes = []
+protected_routes = []
 
 [Database]
 database_url = postgresql://postgres@localhost/dallinger
