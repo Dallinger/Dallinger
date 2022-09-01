@@ -414,12 +414,17 @@ class DebugDeployment(HerokuLocalDeployment):
         else:
             if result["status"] == "success":
                 if self.archive:
+                    _archive_path = (
+                        self.archive
+                        if os.path.isabs(self.archive)
+                        else os.path.join(self.original_dir, self.archive)
+                    )
                     self.out.log(
                         "Populating the database with the contents of {}...".format(
-                            self.archive
+                            _archive_path
                         )
                     )
-                    ingest_zip(self.archive, db.engine)
+                    ingest_zip(_archive_path, db.engine)
                 self.out.log(result["recruitment_msg"])
                 dashboard_url = self.with_proxy_port("{}/dashboard/".format(base_url))
                 self.display_dashboard_access_details(dashboard_url)
