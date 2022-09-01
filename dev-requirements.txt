@@ -465,7 +465,7 @@ six==1.16.0
     #   sqlalchemy-postgres-copy
     #   tox
     #   websocket-client
-sniffio==1.2.0
+sniffio==1.3.0
     # via trio
 snowballstemmer==2.2.0
     # via sphinx
