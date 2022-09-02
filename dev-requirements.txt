@@ -596,7 +596,7 @@ werkzeug==2.2.2
     #   flask-login
 wheel==0.37.1
     # via pip-tools
-widgetsnbextension==4.0.2
+widgetsnbextension==4.0.3
     # via ipywidgets
 wrapt==1.14.1
     # via deprecated
