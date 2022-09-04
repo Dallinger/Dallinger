@@ -114,7 +114,7 @@ pexpect==4.8.0
     # via dallinger
 pip-tools==6.8.0
     # via dallinger
-psutil==5.9.1
+psutil==5.9.2
     # via dallinger
 psycopg2==2.9.3
     # via
