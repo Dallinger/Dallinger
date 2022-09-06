@@ -7,4 +7,4 @@ export FLASK_ENV="development"
 # https://github.com/miguelgrinberg/Flask-SocketIO/issues/901
 echo "Starting flask..."
 echo "Remember to terminate this process with <control-c> before running 'dallinger bootstrap' again"
-flask run --eager-loading ${FlASK_OPTIONS} "$@"
+flask run --eager-loading ${FLASK_OPTIONS} "$@"
