@@ -195,8 +195,8 @@ class Experiment(object):
         When called, Flask routes which have been disabled will raise a
         PermissionError and return a 500 response.
 
-        By default, this list will be parsed as a JSON array
-        the `protected_routes` config parameter. The values should be route rule names,
+        By default, this list is loaded from the `protected_routes` config parameter,
+        and is parsed as a JSON array. The values should be route rule names,
         like "/" for the application root, or "/info/<int:node_id>/<int:info_id>"
         for fetching JSON for a specific `Info`.
         """
