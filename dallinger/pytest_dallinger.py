@@ -98,7 +98,7 @@ def env():
             try:
                 shutil.copyfile(
                     os.path.join(original_home, ".dallingerconfig"),
-                    os.path.join(fake_home, ".dallingerconfig")
+                    os.path.join(fake_home, ".dallingerconfig"),
                 )
             except FileNotFoundError:
                 pass
