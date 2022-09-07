@@ -85,7 +85,7 @@ def env():
     # Heroku requires a home directory to start up
     # We create a fake one using tempfile and set it into the
     # environment to handle sandboxes on CI servers
-    original_home = os.getenv("HOME")
+    original_home = os.path.expanduser("~")
     with mock.patch("os.environ", os.environ.copy()) as environ_patched:
         running_on_ci = environ_patched.get("CI", False)
         have_home_dir = environ_patched.get("HOME", False)
