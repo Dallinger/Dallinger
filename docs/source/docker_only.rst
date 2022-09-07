@@ -107,7 +107,7 @@ We're going to use variations of the same command, so we create an alias for con
 
 .. code-block:: shell
 
-    alias docker-dallinger='docker run --rm -ti -v ~/.ssh:/home/.ssh -v /etc/passwd:/etc/passwd -v /etc/shadow:/etc/shadow -v ~/.local/share/dallinger/:/home/.local/share/dallinger/ -e HOME=/home -e DALLINGER_NO_EGG_BUILD=1 -u $(id -u ${USER}):$(id -g ${USER}) -v /var/run/docker.sock:/var/run/docker.sock -v ${PWD}:/experiment  ${EXPERIMENT_IMAGE} dallinger'
+    alias docker-dallinger='docker run --rm -ti -v ~/.ssh:/home/${USER}/.ssh -v /etc/passwd:/etc/passwd -v /etc/shadow:/etc/shadow -v ~/.local/share/dallinger/:/home/${USER}/.local/share/dallinger/ -e HOME=/home/${USER} -e DALLINGER_NO_EGG_BUILD=1 -u $(id -u ${USER}):$(id -g ${USER}) -v /var/run/docker.sock:/var/run/docker.sock -v ${PWD}:/experiment  ${EXPERIMENT_IMAGE} dallinger'
 
 
 Then we can use the alias to run dallinger inside a container:
