@@ -108,6 +108,14 @@ class TestExperimentBaseClass(object):
         assert n.failed is True
         assert n2.failed is True
 
+    def test_protected_routes_is_empty_list_by_default(self, exp):
+        assert exp.protected_routes == []
+
+    def test_protected_routes_parses_config_value_json(self, active_config, exp):
+        active_config.set("protected_routes", '["/info/<int:node_id>/<int:info_id>"]')
+
+        assert exp.protected_routes == ["/info/<int:node_id>/<int:info_id>"]
+
     def test_normalize_entry_information_calls_recruiter(self, exp):
         with mock.patch(
             "dallinger.recruiters.Recruiter.normalize_entry_information"

@@ -11,6 +11,7 @@ from functools import wraps
 import datetime
 import inspect
 from importlib import import_module
+import json
 import logging
 from operator import itemgetter
 import os
@@ -186,6 +187,20 @@ class Experiment(object):
         :ref:`Extra Configuration <extra-configuration>` for an example.
         """
         pass
+
+    @property
+    def protected_routes(self):
+        """Disable one or more standard Dallinger Flask routes by name.
+
+        When called, Flask routes which have been disabled will raise a
+        PermissionError and return a 500 response.
+
+        By default, this list is loaded from the `protected_routes` config parameter,
+        and is parsed as a JSON array. The values should be route rule names,
+        like "/" for the application root, or "/info/<int:node_id>/<int:info_id>"
+        for fetching JSON for a specific `Info`.
+        """
+        return json.loads(get_config().get("protected_routes", "[]"))
 
     def configure(self):
         """Load experiment configuration here"""

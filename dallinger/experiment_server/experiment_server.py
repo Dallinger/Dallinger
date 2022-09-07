@@ -17,7 +17,7 @@ from flask import (
     send_from_directory,
     url_for,
 )
-from flask_login import LoginManager, login_required
+from flask_login import current_user, LoginManager, login_required
 from jinja2 import TemplateNotFound
 from rq import Queue
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
@@ -58,6 +58,23 @@ q = Queue(connection=redis_conn)
 WAITING_ROOM_CHANNEL = "quorum"
 
 app = Flask("Experiment_Server")
+
+
+@app.before_request
+def check_for_protected_routes():
+    if current_user.is_authenticated:
+        return
+
+    try:
+        active_rule = request.url_rule.rule
+    except AttributeError:
+        return
+
+    protected = Experiment(session).protected_routes
+    if active_rule in protected:
+        raise PermissionError(
+            f'Unauthorized call to protected route "{active_rule}": {request}'
+        )
 
 
 @app.before_first_request
@@ -106,7 +123,7 @@ if exp_klass is not None:  # pragma: no cover
                 route["rule"],
                 endpoint=route["func_name"],
                 view_func=route_func,
-                **dict(route["kwargs"])
+                **dict(route["kwargs"]),
             )
     if routes:
         app.register_blueprint(bp)
@@ -122,7 +139,7 @@ if exp_klass is not None:  # pragma: no cover
                 "/" + route_name,
                 endpoint=route_name,
                 view_func=route_func,
-                **dict(route["kwargs"])
+                **dict(route["kwargs"]),
             )
             tabs = dashboard.dashboard_tabs
             full_tab = route.get("tab")
