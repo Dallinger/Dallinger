@@ -14,8 +14,10 @@ from sqlalchemy import create_engine
 from sqlalchemy import event
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.schema import DropTable
 
 from dallinger.config import initialize_experiment_package
 from dallinger.redis_utils import connect_to_redis
@@ -120,6 +122,15 @@ def scoped_session_decorator(func):
             return func(*args, **kwargs)
 
     return wrapper
+
+
+# By default sqlalchemy does not issue a CASCADE to PostgreSQL
+# when dropping tables. This makes init_db fail when tables depend
+# on one another. The following code fixes this by instructing the compiler
+# to always issue CASCADE when dropping tables.
+@compiles(DropTable, "postgresql")
+def _compile_drop_table(element, compiler, **kwargs):
+    return compiler.visit_drop_table(element) + " CASCADE"
 
 
 def init_db(drop_all=False, bind=engine):
