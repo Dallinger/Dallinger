@@ -1373,6 +1373,11 @@ class Vector(Base, SharedMixin):
 
     __tablename__ = "vector"
 
+    #: A String giving the name of the class. Defaults to
+    #: ``vector``. This allows subclassing.
+    type = Column(String(50))
+    __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "vector"}
+
     #: the id of the Node at which the vector originates
     origin_id = Column(Integer, ForeignKey("node.id"), index=True)
 
