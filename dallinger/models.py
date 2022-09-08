@@ -1375,7 +1375,7 @@ class Vector(Base, SharedMixin):
 
     #: A String giving the name of the class. Defaults to
     #: ``vector``. This allows subclassing.
-    type = Column(String(50))
+    type = Column(String(50), default="vector", server_default="vector")
     __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "vector"}
 
     #: the id of the Node at which the vector originates
