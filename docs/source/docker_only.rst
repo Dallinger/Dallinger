@@ -59,25 +59,22 @@ Create a file named `Dockerfile` with these contents (replace image name in the 
     FROM ghcr.io/dallinger/dallinger:9.1.0a1
 
     RUN mkdir /experiment
-    COPY requirements.txt /experiment/constraints.txt
+    COPY requirements.txt /experiment/requirements.txt
+    COPY constraints.txt /experiment/constraints.txt
 
     WORKDIR /experiment
 
     RUN python3 -m pip install -e /dallinger[docker]
 
-    # If a dependency needs the ssh client and git, install them
-    RUN grep git+ constraints.txt && \
-        apt-get update && \
-        apt-get install -y openssh-client git && \
-        rm -rf /var/lib/apt/lists || true
+    # Some experiments might only list dallinger as dependency
+    # If they do the grep command will exit non-0, the pip command will not run
+    # but the whole `RUN` group will succeed thanks to the last `true` invocation
+    RUN grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
+        python3 -m pip install -r /tmp/requirements_no_dallinger.txt -c constraints.txt || true
 
-    # We rely on the already installed dallinger: the docker image tag has been chosen
-    # based on the contents of this file. This makes sure dallinger stays installed from
-    # /dallinger, and that it doesn't waste space with two copies in two different layers.
-    RUN mkdir ~/.ssh && echo "Host *\n    StrictHostKeyChecking no" >> ~/.ssh/config
-    RUN --mount=type=ssh grep -v ^dallinger constraints.txt > /tmp/requirements_no_dallinger.txt && \
-        python3 -m pip install -r /tmp/requirements_no_dallinger.txt
+    COPY . /experiment
     ENV PORT=5000
+
     CMD dallinger_heroku_web
 
 Build a docker image for the experiment using Buildkit:
