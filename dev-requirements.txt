@@ -288,7 +288,7 @@ nodeenv==1.7.0
     # via pre-commit
 notebook==6.4.12
     # via jupyter
-numpy==1.23.2
+numpy==1.23.3
     # via pandas
 odfpy==1.4.1
     # via tablib
