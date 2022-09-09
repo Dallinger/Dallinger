@@ -1377,8 +1377,8 @@ class Vector(Base, SharedMixin):
     #: ``vector``. This allows subclassing.
     #:
     #: Note: The type column was added in 9/2022, 7+ years after the Vector ORM class was introduced. To support
-    #: datasets which don't include this column we define a default value which will be used when object instances are
-    #: loaded.
+    #: importing datasets which don't include this column we define a default value which will be used when deploying
+    #: experiments from zip files.
     type = Column(String(50), default="vector", server_default="vector")
     __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "vector"}
 
