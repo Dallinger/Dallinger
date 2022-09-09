@@ -1,6 +1,6 @@
 # syntax = docker/dockerfile:1.2
 ###################### Image with build tools to compile wheels ###############
-FROM ubuntu:20.04 as wheels
+FROM python:3.10-bullseye as wheels
 ENV DEBIAN_FRONTEND=noninteractive
 
 LABEL Description="Dallinger base docker image" Version="1.0"
@@ -9,7 +9,7 @@ EXPOSE 5000
 
 # Install build dependencies
 RUN apt-get update && \
-    apt-get install -y libpq-dev python3-pip python3-dev enchant tzdata pandoc && \
+    apt-get install -y libpq-dev python3-pip python3-dev tzdata pandoc && \
     python3 -m pip install -U pip && \
     rm -rf /var/lib/apt/lists/*
 
@@ -22,13 +22,13 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 
 ###################### Dallinger base image ###################################
-FROM ubuntu:20.04 as dallinger
+FROM python:3.10-bullseye as dallinger
 ENV DEBIAN_FRONTEND=noninteractive
 LABEL org.opencontainers.image.source https://github.com/Dallinger/Dallinger
 
 # Install runtime dependencies
 RUN apt-get update && \
-    apt-get install -y libpq5 python3-pip enchant busybox tzdata --no-install-recommends && \
+    apt-get install -y libpq5 python3-pip busybox tzdata --no-install-recommends && \
     busybox --install && \
     python3 -m pip install -U pip && \
     rm -rf /var/lib/apt/lists/*
