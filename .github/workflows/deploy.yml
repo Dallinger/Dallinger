@@ -15,7 +15,7 @@ jobs:
       - name: Set up Ruby
         uses: actions/setup-ruby@v1
         with:
-          ruby-version: 2.6
+          ruby-version: 2.7
       - name: Install Chandler
         run: gem install chandler -v 0.7.0
       - name: Set up Node.js
