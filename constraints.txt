@@ -173,7 +173,7 @@ heroku3==5.1.4
     # via dallinger
 identify==2.5.3
     # via pre-commit
-idna==3.3
+idna==3.4
     # via
     #   requests
     #   trio
