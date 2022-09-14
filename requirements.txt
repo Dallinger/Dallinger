@@ -81,7 +81,7 @@ h11==0.13.0
     # via wsproto
 heroku3==5.1.4
     # via dallinger
-idna==3.3
+idna==3.4
     # via
     #   requests
     #   trio
