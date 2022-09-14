@@ -1377,6 +1377,15 @@ class Vector(Base, SharedMixin):
 
     __tablename__ = "vector"
 
+    #: A String giving the name of the class. Defaults to
+    #: ``vector``. This allows subclassing.
+    #:
+    #: Note: The type column was added in 9/2022, 7+ years after the Vector ORM class was introduced. To support
+    #: importing datasets which don't include this column we define a default value which will be used when deploying
+    #: experiments from zip files.
+    type = Column(String(50), default="vector", server_default="vector")
+    __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "vector"}
+
     #: the id of the Node at which the vector originates
     origin_id = Column(Integer, ForeignKey("node.id"), index=True)
 
