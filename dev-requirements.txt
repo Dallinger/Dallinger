@@ -307,7 +307,7 @@ packaging==21.3
     #   redis
     #   sphinx
     #   tox
-pandas==1.4.3
+pandas==1.5.0
     # via
     #   dallinger
     #   tablib
