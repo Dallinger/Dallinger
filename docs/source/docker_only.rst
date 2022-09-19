@@ -64,13 +64,17 @@ Create a file named `Dockerfile` with these contents (replace image name in the 
 
     WORKDIR /experiment
 
-    RUN python3 -m pip install -e /dallinger[docker]
+    RUN python3 -m pip install -e /dallinger[docker] && rm -rf /root/.cache
 
     # Some experiments might only list dallinger as dependency
     # If they do the grep command will exit non-0, the pip command will not run
-    # but the whole `RUN` group will succeed thanks to the last `true` invocation
-    RUN grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
-        python3 -m pip install -r /tmp/requirements_no_dallinger.txt -c constraints.txt || true
+    # but the whole `RUN` group will succeed thanks to the last `true` invocation.
+    # We remove dallinger from the dependencies since it's already present in the base image
+    # and pip-installing it again might result in wasted time and space while pip
+    # looks for all its dependencies and potentially reinstalls already present packages.
+    RUN (grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
+        python3 -m pip install -r /tmp/requirements_no_dallinger.txt -c constraints.txt && \
+        rm -rf /root/.cache) || true
 
     COPY . /experiment
     ENV PORT=5000
