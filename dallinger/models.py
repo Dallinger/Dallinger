@@ -385,7 +385,9 @@ class Question(Base, SharedMixin):
     participant_id = Column(Integer, ForeignKey("participant.id"))
 
     #: the participant who answered the question
-    participant = relationship(Participant, backref="all_questions")
+    participant = relationship(
+        Participant, foreign_keys=[participant_id], backref="all_questions"
+    )
 
     #: A number identifying the question. e.g., each participant might complete
     #: three questions numbered 1, 2, and 3.
@@ -669,13 +671,15 @@ class Node(Base, SharedMixin):
     network_id = Column(Integer, ForeignKey("network.id"), index=True)
 
     #: the network the node is in
-    network = relationship(Network, backref="all_nodes")
+    network = relationship(Network, foreign_keys=[network_id], backref="all_nodes")
 
     #: the id of the participant whose node this is
     participant_id = Column(Integer, ForeignKey("participant.id"), index=True)
 
     #: the participant the node is associated with
-    participant = relationship(Participant, backref="all_nodes")
+    participant = relationship(
+        Participant, foreign_keys=[participant_id], backref="all_nodes"
+    )
 
     def __init__(self, network, participant=None):
         """Create a node."""
@@ -1402,7 +1406,7 @@ class Vector(Base, SharedMixin):
     network_id = Column(Integer, ForeignKey("network.id"), index=True)
 
     #: the network the vector is in.
-    network = relationship(Network, backref="all_vectors")
+    network = relationship(Network, foreign_keys=[network_id], backref="all_vectors")
 
     def __init__(self, origin, destination):
         """Create a vector."""
@@ -1507,13 +1511,13 @@ class Info(Base, SharedMixin):
     origin_id = Column(Integer, ForeignKey("node.id"), index=True)
 
     #: the Node that created the info.
-    origin = relationship(Node, backref="all_infos")
+    origin = relationship(Node, foreign_keys=[origin_id], backref="all_infos")
 
     #: the id of the network the info is in
     network_id = Column(Integer, ForeignKey("network.id"), index=True)
 
     #: the network the info is in
-    network = relationship(Network, backref="all_infos")
+    network = relationship(Network, foreign_keys=[network_id], backref="all_infos")
 
     #: the contents of the info. Must be stored as a String.
     contents = Column(Text(), default=None)
@@ -1641,13 +1645,13 @@ class Transmission(Base, SharedMixin):
     vector_id = Column(Integer, ForeignKey("vector.id"), index=True)
 
     #: the vector the info was sent along.
-    vector = relationship(Vector, backref="all_transmissions")
+    vector = relationship(Vector, foreign_keys=[vector_id], backref="all_transmissions")
 
     #: the id of the info that was transmitted
     info_id = Column(Integer, ForeignKey("info.id"), index=True)
 
     #: the info that was transmitted.
-    info = relationship(Info, backref="all_transmissions")
+    info = relationship(Info, foreign_keys=[info_id], backref="all_transmissions")
 
     #: the id of the Node that sent the transmission
     origin_id = Column(Integer, ForeignKey("node.id"), index=True)
@@ -1669,7 +1673,9 @@ class Transmission(Base, SharedMixin):
     network_id = Column(Integer, ForeignKey("network.id"), index=True)
 
     #: the network the transmission is in.
-    network = relationship(Network, backref="networks_transmissions")
+    network = relationship(
+        Network, foreign_keys=[network_id], backref="networks_transmissions"
+    )
 
     #: the time at which the transmission was received
     receive_time = Column(DateTime, default=None)
@@ -1767,13 +1773,15 @@ class Transformation(Base, SharedMixin):
     node_id = Column(Integer, ForeignKey("node.id"), index=True)
 
     #: the Node that did the transformation.
-    node = relationship(Node, backref="transformations_here")
+    node = relationship(Node, foreign_keys=[node_id], backref="transformations_here")
 
     #: the id of the network the transformation is in.
     network_id = Column(Integer, ForeignKey("network.id"), index=True)
 
     #: the network the transmission is in.
-    network = relationship(Network, backref="networks_transformations")
+    network = relationship(
+        Network, foreign_keys=[network_id], backref="networks_transformations"
+    )
 
     def __repr__(self):
         """The string representation of a transformation."""
