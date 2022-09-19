@@ -128,7 +128,7 @@ executing==0.10.0
     # via stack-data
 faker==14.1.0
     # via dallinger
-fastjsonschema==2.16.1
+fastjsonschema==2.16.2
     # via nbformat
 filelock==3.8.0
     # via
