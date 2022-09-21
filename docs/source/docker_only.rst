@@ -64,8 +64,6 @@ Create a file named `Dockerfile` with these contents (replace image name in the 
 
     WORKDIR /experiment
 
-    RUN python3 -m pip install -e /dallinger[docker] && rm -rf /root/.cache
-
     # Some experiments might only list dallinger as dependency
     # If they do the grep command will exit non-0, the pip command will not run
     # but the whole `RUN` group will succeed thanks to the last `true` invocation.
