@@ -85,6 +85,7 @@ def env():
     # Heroku requires a home directory to start up
     # We create a fake one using tempfile and set it into the
     # environment to handle sandboxes on CI servers
+    original_home = os.path.expanduser("~")
     with mock.patch("os.environ", os.environ.copy()) as environ_patched:
         running_on_ci = environ_patched.get("CI", False)
         have_home_dir = environ_patched.get("HOME", False)
@@ -94,6 +95,13 @@ def env():
         else:
             fake_home = tempfile.mkdtemp()
             environ_patched.update({"HOME": fake_home})
+            try:
+                shutil.copyfile(
+                    os.path.join(original_home, ".dallingerconfig"),
+                    os.path.join(fake_home, ".dallingerconfig"),
+                )
+            except FileNotFoundError:
+                pass
             yield environ_patched
             shutil.rmtree(fake_home, ignore_errors=True)
 
@@ -203,6 +211,37 @@ def dashboard_config(active_config):
         {"dashboard_user": "admin", "dashboard_password": "DUMBPASSWORD"}
     )
     return active_config
+
+
+@pytest.fixture
+def csrf_token(dashboard_config, webapp):
+    # Initialize app to get user info in config
+    webapp.get("/")
+    # Make a writeable session and copy the csrf token into it
+    from flask_wtf.csrf import generate_csrf
+
+    with webapp.application.test_request_context() as request:
+        with webapp.session_transaction() as sess:
+            token = generate_csrf()
+            sess.update(request.session)
+    yield token
+
+
+@pytest.fixture
+def webapp_admin(csrf_token, webapp):
+    admin_user = webapp.application.config["ADMIN_USER"]
+    webapp.post(
+        "/dashboard/login",
+        data={
+            "username": admin_user.id,
+            "password": admin_user.password,
+            "next": "/dashboard/something",
+            "submit": "Sign In",
+            "csrf_token": csrf_token,
+        },
+    )
+
+    yield webapp
 
 
 @pytest.fixture

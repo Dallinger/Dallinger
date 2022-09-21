@@ -61,6 +61,15 @@ General
     An optional login name for accessing the Dallinger Dashboard interface. If not
     specified ``admin`` will be used.
 
+``protected_routes`` *unicode - JSON formatted*
+    An optional JSON array of Flask route rule names which should be made inaccessible.
+    Example::
+
+        protected_routes = ["/participant/<participant_id>", "/network/<network_id>", "/node/<int:node_id>/neighbors"]
+
+    Accessing routes included in this list will raise a PermissionError
+    and no data will be returned.
+
 ``enable_global_experiment_registry`` *boolean*
     Enable a global experiment id registration. When enabled, the ``collect`` API
     check this registry to see if an experiment has already been run and reject
