@@ -511,7 +511,7 @@ tabulate==0.8.10
     # via
     #   dallinger
     #   tablib
-tenacity==8.0.1
+tenacity==8.1.0
     # via dallinger
 terminado==0.15.0
     # via notebook
