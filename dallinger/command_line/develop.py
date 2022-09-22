@@ -2,11 +2,13 @@ import click
 import logging
 import subprocess
 
+from pathlib import Path
 from six.moves.urllib.parse import urlparse
 from six.moves.urllib.parse import urlunparse
 
 from rq import Queue
 
+from dallinger.command_line.utils import error
 from dallinger.command_line.utils import header
 from dallinger.command_line.utils import log
 from dallinger.command_line.utils import Output
@@ -15,6 +17,7 @@ from dallinger.config import get_config
 from dallinger.db import redis_conn
 from dallinger.deployment import DevelopmentDeployment
 from dallinger.deployment import _handle_launch_data
+from dallinger.utils import develop_target_path
 from dallinger.utils import open_browser
 
 
@@ -58,10 +61,16 @@ def debug(port, skip_flask):
     _bootstrap()
 
     q = Queue("default", connection=redis_conn)
-    q.enqueue_call(launch_app_and_open_dashboard, kwargs={"port": port})
+    job = q.enqueue_call(launch_app_and_open_dashboard, kwargs={"port": port})
 
     if not skip_flask:
-        subprocess.call(["./run.sh"], cwd="develop")
+        config = get_config()
+        develop_dir = develop_target_path(config)
+        try:
+            subprocess.check_call(["./run.sh"], cwd=develop_dir)
+        except subprocess.CalledProcessError as ex:
+            job.cancel()
+            error("Failed to run flask: {} See traceback above for details.".format(ex))
 
 
 @develop.command()
@@ -71,7 +80,7 @@ def bootstrap(exp_config=None):
 
 
 def _bootstrap(exp_config=None):
-    """Creates a directory called 'develop' which will be used to host the development version of the experiment."""
+    """Creates a directory which will be used to host the development version of the experiment."""
     bootstrapper = DevelopmentDeployment(Output(), exp_config)
     log(header, chevrons=False)
     bootstrapper.run()

@@ -186,7 +186,6 @@ class TestHeader(object):
         assert dallinger.version.__version__ in dallinger.command_line.header
 
 
-@pytest.mark.slow
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
 class TestDevelopCommand(object):
     """One very high level test, at least for now, while functionality is
@@ -194,22 +193,25 @@ class TestDevelopCommand(object):
     """
 
     @pytest.fixture
-    def develop(self):
+    def develop(self, active_config, tempdir):
         from dallinger.command_line.develop import develop
+
+        # Write files (or symlinks in this case) to a temp dir
+        # which will get automatically cleaned up:
+        active_config.extend({"dallinger_develop_directory": tempdir})
 
         yield develop
 
-        shutil.rmtree("develop", ignore_errors=True)
+    def test_bootstrap(self, active_config, develop):
+        develop_directory = active_config.get("dallinger_develop_directory", None)
 
-    def test_bootstrap(self, develop):
         result = CliRunner().invoke(develop, ["bootstrap"])
 
         assert result.exit_code == 0
         assert "Preparing your pristine development environment" in result.output
-        assert found_in("develop", ".")
-        assert found_in("app.py", "develop")
-        assert found_in("run.sh", "develop")
-        assert found_in("experiment.py", "develop")
+        assert found_in("app.py", develop_directory)
+        assert found_in("run.sh", develop_directory)
+        assert found_in("experiment.py", develop_directory)
         # etc...
 
 

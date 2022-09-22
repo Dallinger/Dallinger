@@ -1,4 +1,5 @@
 #!/bin/sh
+echo "Firing up run.sh from: ${PWD}"
 export FLASK_APP="app.py"
 export FLASK_DEBUG=1
 

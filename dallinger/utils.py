@@ -400,6 +400,24 @@ def check_experiment_dependencies(requirement_file):
     pkg_resources.require(dependencies)
 
 
+def develop_target_path(config):
+    """Extract the target `dallinger develop` working directory from
+    configuration, and return it as a Path.
+    """
+    develop_path_string = config.get("dallinger_develop_directory", None)
+    try:
+        develop_path = Path(develop_path_string).expanduser()
+    except TypeError:
+        raise ValueError(
+            'The Dallinger configuration value "dallinger_develop_directory" '
+            'must be a file path, like "~/dallinger_develop".\n'
+            'Your value is "{}" which cannot be translated '
+            "to a file path.".format(develop_path_string)
+        )
+
+    return develop_path
+
+
 def bootstrap_development_session(exp_config, experiment_path, log):
     check_local_db_connection(log)
     check_experiment_dependencies(Path(experiment_path) / "requirements.txt")
@@ -424,22 +442,26 @@ def bootstrap_development_session(exp_config, experiment_path, log):
     if not config.get("dashboard_password", None):
         config.set("dashboard_password", fake.password(length=20, special_chars=False))
 
-    develop_source_path = Path(dallinger_package_path()) / "dev_server"
-    dst = Path(experiment_path) / "develop"
+    source_path = Path(dallinger_package_path()) / "dev_server"
+    destination_path = develop_target_path(config)
+
     log("Wiping develop directory and re-writing it...")
-    ensure_directory(dst)
-    expunge_directory(dst)
+    ensure_directory(destination_path)
+    expunge_directory(destination_path)
     collate_experiment_files(
-        config, experiment_path=experiment_path, destination=dst, copy_func=symlink_file
+        config,
+        experiment_path=experiment_path,
+        destination=destination_path,
+        copy_func=symlink_file,
     )
 
-    copy_file(develop_source_path / "app.py", dst / "app.py")
-    copy_file(develop_source_path / "run.sh", dst / "run.sh")
-    (dst / "run.sh").chmod(0o744)  # Make run script executable
+    copy_file(source_path / "app.py", destination_path / "app.py")
+    copy_file(source_path / "run.sh", destination_path / "run.sh")
+    (destination_path / "run.sh").chmod(0o744)  # Make run script executable
 
-    config.write(directory=dst)
+    config.write(directory=destination_path)
 
-    return (experiment_uid, dst)
+    return (experiment_uid, destination_path)
 
 
 def setup_experiment(

@@ -142,6 +142,7 @@ def stub_config():
         "browser_exclude_rule": "MSIE, mobile, tablet",
         "clock_on": False,
         "contact_email_on_error": "error_contact@test.com",
+        # "dallinger_develop_directory": None,
         "dallinger_email_address": "test@example.com",
         "database_size": "standard-0",
         "disable_when_duration_exceeded": True,
