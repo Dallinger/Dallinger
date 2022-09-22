@@ -4,7 +4,6 @@ import click
 import mock
 import os
 import re
-import shutil
 import six
 import subprocess
 from time import sleep
