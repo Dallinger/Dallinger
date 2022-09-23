@@ -414,6 +414,14 @@ def develop_target_path(config):
             'Your value is "{}" which cannot be translated '
             "to a file path.".format(develop_path_string)
         )
+    if not develop_path.name.isidentifier():
+        raise ValueError(
+            'The directory in the Dallinger configuration value "dallinger_develop_directory" '
+            "must be a valid python identifier: only letters, numbers and underscores are allowed.\n"
+            'The directory name "{}" is not a valid identifier.'.format(
+                develop_path.name
+            )
+        )
 
     return develop_path
 
