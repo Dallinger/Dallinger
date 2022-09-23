@@ -448,7 +448,12 @@ Docker Deployment Configuration
 ``docker_image_name``
     The docker image name to use for this experiment.
 
-    If present, the code in the current directory will not be used.
+    If present, the code in the current directory will not be used when deploying.
     The specified image will be used instead.
 
     Example: ``ghcr.io/dallinger/dallinger/bartlett1932@sha256:ad3c7b376e23798438c18aae6e0136eb97f5627ddde6baafe1958d40274fa478``
+
+``docker_ssh_volumes``
+    Additional list of volumes to mount when deploying using docker-ssh.
+
+    Example: ``/host/path:/container_path,/another-path:/another-container-path``

@@ -30,6 +30,11 @@ services:
       - dallinger
     volumes:
       - /var/lib/dallinger/{{ experiment_id }}:/var/lib/dallinger
+    {%- if config.get("docker_ssh_volumes", "") %}
+    {%- for volume in config.get("docker_ssh_volumes", "").split(",") %}
+      - {{ volume | string() | tojson }}
+    {%- endfor %}
+    {%- endif %}
 
   web:
     image: {{ experiment_image }}
@@ -46,6 +51,11 @@ services:
           - {{ experiment_id }}_web
     volumes:
       - /var/lib/dallinger/{{ experiment_id }}:/var/lib/dallinger
+    {%- if config.get("docker_ssh_volumes", "") %}
+    {%- for volume in config.get("docker_ssh_volumes", "").split(",") %}
+      - {{ volume | string() | tojson }}
+    {%- endfor %}
+    {%- endif %}
 
 {%- if config["clock_on"] %}
   clock:
