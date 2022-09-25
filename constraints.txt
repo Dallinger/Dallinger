@@ -124,7 +124,7 @@ entrypoints==0.4
     # via jupyter-client
 et-xmlfile==1.1.0
     # via openpyxl
-executing==1.0.0
+executing==1.1.0
     # via stack-data
 faker==14.2.0
     # via dallinger
