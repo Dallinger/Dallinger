@@ -496,25 +496,23 @@ def script_command(cmd):
 
 
 def script_command_linux(cmd):
-    return ["script", "-q", "--command", " ".join(cmd)]
+    return ["script", "-O", "/dev/null", "-q", "--command", " ".join(cmd)]
 
 
 def script_command_mac(cmd):
     return ["script", "-q", "/dev/null"] + cmd
 
 
-for alternative in (script_command_linux, script_command_mac):
-    try:
-        if (
-            subprocess.check_output(
-                alternative(["echo", "success"]),
-                stderr=subprocess.PIPE,
-                stdin=None,
-                timeout=0.1,
-            ).strip()
-            == b"success"
-        ):
-            script_command = alternative  # noqa
-            break
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        pass
+try:
+    output = subprocess.check_output(
+        ["script", "--help"],
+        stderr=subprocess.PIPE,
+        stdin=None,
+        timeout=0.1,
+    ).strip()
+    if output.startswith(b"Usage:\n"):
+        script_command = script_command_linux  # noqa
+    if output.startswith(b"script: illegal option"):
+        script_command = script_command_mac  # noqa
+except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    pass
