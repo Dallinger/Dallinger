@@ -175,7 +175,7 @@ tomli==2.0.1
     # via
     #   build
     #   pep517
-trio==0.21.0
+trio==0.22.0
     # via
     #   selenium
     #   trio-websocket
