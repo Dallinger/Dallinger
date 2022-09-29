@@ -513,7 +513,7 @@ tabulate==0.8.10
     #   tablib
 tenacity==8.0.1
     # via dallinger
-terminado==0.15.0
+terminado==0.16.0
     # via notebook
 texttable==1.6.4
     # via docker-compose
