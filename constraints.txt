@@ -269,7 +269,7 @@ mypy-extensions==0.4.3
     # via black
 nbclient==0.6.8
     # via nbconvert
-nbconvert==7.0.0
+nbconvert==7.1.0
     # via
     #   jupyter
     #   notebook
