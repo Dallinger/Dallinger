@@ -42,7 +42,7 @@ black==22.8.0
     # via dallinger
 bleach==5.0.1
     # via nbconvert
-boto3==1.24.75
+boto3==1.24.88
     # via dallinger
 botocore==1.27.75
     # via
