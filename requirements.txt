@@ -116,7 +116,7 @@ pip-tools==6.8.0
     # via dallinger
 psutil==5.9.2
     # via dallinger
-psycopg2==2.9.3
+psycopg2==2.9.4
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
