@@ -63,7 +63,7 @@ flask-wtf==1.0.1
     # via dallinger
 future==0.18.2
     # via dallinger
-gevent==21.12.0
+gevent==22.8.0
     # via
     #   dallinger
     #   flask-sockets
