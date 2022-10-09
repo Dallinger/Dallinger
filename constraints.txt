@@ -34,7 +34,7 @@ babel==2.10.3
     # via sphinx
 backcall==0.2.0
     # via ipython
-bcrypt==4.0.0
+bcrypt==4.0.1
     # via paramiko
 beautifulsoup4==4.11.1
     # via nbconvert
