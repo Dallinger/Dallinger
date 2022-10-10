@@ -103,7 +103,7 @@ deprecated==1.2.13
     # via redis
 distlib==0.3.6
     # via virtualenv
-distro==1.7.0
+distro==1.8.0
     # via docker-compose
 docker==6.0.0
     # via
