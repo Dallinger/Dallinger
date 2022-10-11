@@ -34,17 +34,17 @@ babel==2.10.3
     # via sphinx
 backcall==0.2.0
     # via ipython
-bcrypt==4.0.0
+bcrypt==4.0.1
     # via paramiko
 beautifulsoup4==4.11.1
     # via nbconvert
-black==22.8.0
+black==22.10.0
     # via dallinger
 bleach==5.0.1
     # via nbconvert
-boto3==1.24.75
+boto3==1.24.89
     # via dallinger
-botocore==1.27.75
+botocore==1.27.89
     # via
     #   boto3
     #   s3transfer
@@ -58,7 +58,7 @@ bumpversion==0.6.0
     # via dallinger
 cached-property==1.5.2
     # via dallinger
-certifi==2022.9.14
+certifi==2022.9.24
     # via
     #   requests
     #   selenium
@@ -82,7 +82,7 @@ codecov==2.1.12
     # via dallinger
 commonmark==0.9.1
     # via recommonmark
-coverage==6.4.4
+coverage==6.5.0
     # via
     #   codecov
     #   coverage-pth
@@ -103,7 +103,7 @@ deprecated==1.2.13
     # via redis
 distlib==0.3.6
     # via virtualenv
-distro==1.7.0
+distro==1.8.0
     # via docker-compose
 docker[ssh]==6.0.0
     # via
@@ -124,11 +124,13 @@ entrypoints==0.4
     # via jupyter-client
 et-xmlfile==1.1.0
     # via openpyxl
-executing==1.0.0
+exceptiongroup==1.0.0rc9
+    # via trio
+executing==1.1.1
     # via stack-data
-faker==14.2.0
+faker==15.0.0
     # via dallinger
-fastjsonschema==2.16.1
+fastjsonschema==2.16.2
     # via nbformat
 filelock==3.8.0
     # via
@@ -153,25 +155,25 @@ flask-wtf==1.0.1
     # via dallinger
 future==0.18.2
     # via dallinger
-gevent==21.12.0
+gevent==22.8.0
     # via
     #   dallinger
     #   flask-sockets
     #   gevent-websocket
 gevent-websocket==0.10.1
     # via flask-sockets
-greenlet==1.1.3
+greenlet==1.1.3.post0
     # via
     #   dallinger
     #   gevent
     #   sqlalchemy
 gunicorn==20.1.0
     # via dallinger
-h11==0.13.0
+h11==0.14.0
     # via wsproto
 heroku3==5.1.4
     # via dallinger
-identify==2.5.5
+identify==2.5.6
     # via pre-commit
 idna==3.4
     # via
@@ -181,7 +183,7 @@ imagesize==1.4.1
     # via sphinx
 iniconfig==1.1.1
     # via pytest
-ipykernel==6.15.3
+ipykernel==6.16.0
     # via
     #   ipywidgets
     #   jupyter
@@ -223,7 +225,7 @@ jsonschema==3.2.0
     #   nbformat
 jupyter==1.0.0
     # via dallinger
-jupyter-client==7.3.5
+jupyter-client==7.4.1
     # via
     #   ipykernel
     #   jupyter-console
@@ -245,8 +247,6 @@ jupyterlab-widgets==3.0.3
     # via ipywidgets
 localconfig==1.1.3
     # via dallinger
-lxml==4.9.1
-    # via nbconvert
 markuppy==1.14
     # via tablib
 markupsafe==2.1.1
@@ -267,18 +267,18 @@ mock==4.0.3
     # via dallinger
 mypy-extensions==0.4.3
     # via black
-nbclient==0.6.8
+nbclient==0.7.0
     # via nbconvert
-nbconvert==7.0.0
+nbconvert==7.2.1
     # via
     #   jupyter
     #   notebook
-nbformat==5.5.0
+nbformat==5.7.0
     # via
     #   nbclient
     #   nbconvert
     #   notebook
-nest-asyncio==1.5.5
+nest-asyncio==1.5.6
     # via
     #   ipykernel
     #   jupyter-client
@@ -330,7 +330,7 @@ pexpect==4.8.0
     #   ipython
 pickleshare==0.7.5
     # via ipython
-pip-tools==6.8.0
+pip-tools==6.9.0
     # via dallinger
 platformdirs==2.5.2
     # via
@@ -352,7 +352,7 @@ psutil==5.9.2
     # via
     #   dallinger
     #   ipykernel
-psycopg2==2.9.3
+psycopg2==2.9.4
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
@@ -385,7 +385,7 @@ pygments==2.13.0
     #   sphinx
 pynacl==1.5.0
     # via paramiko
-pypandoc==1.8.1
+pypandoc==1.9
     # via dallinger
 pyparsing==3.0.9
     # via packaging
@@ -408,7 +408,7 @@ python-dateutil==2.8.2
     #   pandas
 python-dotenv==0.21.0
     # via docker-compose
-pytz==2022.2.1
+pytz==2022.4
     # via
     #   apscheduler
     #   babel
@@ -420,7 +420,7 @@ pyyaml==5.4.1
     #   docker-compose
     #   pre-commit
     #   tablib
-pyzmq==24.0.0
+pyzmq==24.0.1
     # via
     #   ipykernel
     #   jupyter-client
@@ -428,7 +428,7 @@ pyzmq==24.0.0
     #   qtconsole
 qtconsole==5.3.2
     # via jupyter
-qtpy==2.2.0
+qtpy==2.2.1
     # via qtconsole
 recommonmark==0.7.1
     # via dallinger
@@ -444,11 +444,11 @@ requests==2.28.1
     #   docker-compose
     #   heroku3
     #   sphinx
-rq==1.11.0
+rq==1.11.1
     # via dallinger
 s3transfer==0.6.0
     # via boto3
-selenium==4.4.3
+selenium==4.5.0
     # via dallinger
 send2trash==1.8.0
     # via notebook
@@ -473,7 +473,7 @@ sortedcontainers==2.4.0
     # via trio
 soupsieve==2.3.2.post1
     # via beautifulsoup4
-sphinx==5.1.1
+sphinx==5.2.3
     # via
     #   dallinger
     #   recommonmark
@@ -493,7 +493,7 @@ sphinxcontrib-qthelp==1.0.3
     # via sphinx
 sphinxcontrib-serializinghtml==1.1.5
     # via sphinx
-sphinxcontrib-spelling==7.6.0
+sphinxcontrib-spelling==7.6.1
     # via dallinger
 sqlalchemy==1.4.41
     # via
@@ -503,17 +503,17 @@ sqlalchemy-postgres-copy==0.5.0
     # via dallinger
 sshtunnel==0.4.0
     # via dallinger
-stack-data==0.5.0
+stack-data==0.5.1
     # via ipython
 tablib[all]==3.2.1
     # via dallinger
-tabulate==0.8.10
+tabulate==0.9.0
     # via
     #   dallinger
     #   tablib
-tenacity==8.0.1
+tenacity==8.1.0
     # via dallinger
-terminado==0.15.0
+terminado==0.16.0
     # via notebook
 texttable==1.6.4
     # via docker-compose
@@ -551,13 +551,13 @@ traitlets==5.4.0
     #   nbformat
     #   notebook
     #   qtconsole
-trio==0.21.0
+trio==0.22.0
     # via
     #   selenium
     #   trio-websocket
 trio-websocket==0.9.2
     # via selenium
-tzdata==2022.2
+tzdata==2022.4
     # via pytz-deprecation-shim
 tzlocal==4.2
     # via
@@ -609,7 +609,7 @@ xlwt==1.3.0
     # via tablib
 zope-event==4.5.0
     # via gevent
-zope-interface==5.4.0
+zope-interface==5.5.0
     # via gevent
 
 # The following packages are considered to be unsafe in a requirements file:
