@@ -89,7 +89,7 @@ coverage==6.4.4
     #   dallinger
 coverage-pth==0.0.2
     # via dallinger
-cryptography==38.0.1
+cryptography==38.0.2
     # via paramiko
 debugpy==1.6.3
     # via ipykernel
