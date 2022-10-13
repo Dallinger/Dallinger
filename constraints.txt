@@ -286,7 +286,7 @@ nest-asyncio==1.5.5
     #   notebook
 nodeenv==1.7.0
     # via pre-commit
-notebook==6.4.12
+notebook==6.5.0
     # via jupyter
 numpy==1.23.3
     # via pandas
