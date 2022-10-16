@@ -473,7 +473,7 @@ sortedcontainers==2.4.0
     # via trio
 soupsieve==2.3.2.post1
     # via beautifulsoup4
-sphinx==5.1.1
+sphinx==5.3.0
     # via
     #   dallinger
     #   recommonmark
