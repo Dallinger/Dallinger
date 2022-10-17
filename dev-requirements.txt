@@ -519,7 +519,7 @@ texttable==1.6.4
     # via docker-compose
 timeago==1.0.16
     # via dallinger
-tinycss2==1.1.1
+tinycss2==1.2.0
     # via nbconvert
 toml==0.10.2
     # via pre-commit
