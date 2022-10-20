@@ -53,6 +53,11 @@ General
     regarding various experiment errors are whimsical in tone, or more
     matter-of-fact.
 
+``dallinger_develop_directory`` *unicode*
+    The directory on your computer to be used to hold files and symlinks
+    when running ``dallinger develop``. Defaults to ``~/dallinger_develop``
+    (a folder named ``dallinger_develop`` inside your home directory).
+
 ``dashboard_password`` *unicode*
     An optional password for accessing the Dallinger Dashboard interface. If not
     specified, a random password will be generated.
