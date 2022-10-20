@@ -273,6 +273,10 @@ def build_and_push_image(f):
     help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
 )
 @click.option(
+    "--app-name",
+    help="Name to use for the app. If not provided a random one will be generated",
+)
+@click.option(
     "--archive",
     "-a",
     "archive_path",
@@ -281,7 +285,9 @@ def build_and_push_image(f):
 )
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 @build_and_push_image
-def deploy(mode, server, dns_host, config_options, archive_path):  # pragma: no cover
+def deploy(
+    mode, server, dns_host, app_name, config_options, archive_path
+):  # pragma: no cover
     """Deploy a dallnger experiment docker image to a server using ssh."""
     config = get_config()
     config.load()
@@ -313,7 +319,9 @@ def deploy(mode, server, dns_host, config_options, archive_path):  # pragma: no 
     print("Launched http and postgresql servers. Starting experiment")
 
     experiment_uuid = str(uuid4())
-    if archive_path:
+    if app_name:
+        experiment_id = app_name
+    elif archive_path:
         experiment_id = get_experiment_id_from_archive(archive_path)
     else:
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
