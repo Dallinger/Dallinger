@@ -2,7 +2,7 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
-## [v9.1.0](https://github.com/dallinger/dallinger/tree/v9.1.0) (2022-06-17)
+## [v9.1.0](https://github.com/dallinger/dallinger/tree/v9.1.0) (2022-10-20)
 
 - Feature: Allow experiment authors/deployers to disabled some or all of Dallinger's native routes via a new `protected_routes` configuration
   variable
