@@ -56,7 +56,7 @@ Create a file named `Dockerfile` with these contents (replace image name in the 
 .. code-block::
 
     # syntax = docker/dockerfile:1.2
-    FROM ghcr.io/dallinger/dallinger:9.1.0a1
+    FROM ghcr.io/dallinger/dallinger
 
     RUN mkdir /experiment
     COPY requirements.txt /experiment/requirements.txt
