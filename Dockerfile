@@ -52,7 +52,9 @@ ENV LANG C.UTF-8
 
 ENV SKIP_DEPENDENCY_CHECK true
 
-# Also install docker client package (docker-ce-cli) to support using the dallinger image without docker
+# Also install docker client package (docker-ce-cli) to support using the dallinger image without installing dallinger:
+# some dallinger commands depend on the docker binaries being available (the dallinger commands will invoke docker on
+# bahalf of the user). So they need to be availble in the same context dallinger is run, i.e. inside a container.
 
 RUN apt-get update && \
     apt-get install -y ca-certificates curl gnupg && \
