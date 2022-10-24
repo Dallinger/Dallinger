@@ -288,14 +288,14 @@ def deploy(mode, config_options, archive_path):  # pragma: no cover
     )
     print("Cleaning up db/user")
     executor.run(
-        fr"""docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
+        rf"""docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
     )
     executor.run(
-        fr"""docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
+        rf"""docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
     )
     print(f"Creating database {experiment_id}")
     executor.run(
-        fr"""docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
+        rf"""docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
     )
     create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
     executor.run(
