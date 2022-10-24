@@ -85,11 +85,12 @@ Build a docker image for the experiment using Buildkit:
     EXPERIMENT_IMAGE=my-experiment
     DOCKER_BUILDKIT=1 docker build . -t ${EXPERIMENT_IMAGE}
 
-Start the development server with docker:
+Create an alias to start the development server with docker and run it:
 
 .. code-block:: shell
 
-    docker run --name dallinger --rm -ti -u $(id -u ${USER}):$(id -g ${USER}) -v ${PWD}:/experiment --network dallinger -p 5000:5000 -e FLASK_OPTIONS='-h 0.0.0.0' -e REDIS_URL=redis://dallinger_redis:6379 -e DATABASE_URL=postgresql://dallinger:dallinger@dallinger_postgres/dallinger ${EXPERIMENT_IMAGE} dallinger develop debug
+    alias dallinger-dev-server='docker run --name dallinger --rm -ti -u $(id -u ${USER}):$(id -g ${USER}) -v ${PWD}:/experiment --network dallinger -p 5000:5000 -e FLASK_OPTIONS='-h 0.0.0.0' -e REDIS_URL=redis://dallinger_redis:6379 -e DATABASE_URL=postgresql://dallinger:dallinger@dallinger_postgres/dallinger ${EXPERIMENT_IMAGE} dallinger develop debug'
+    dallinger-dev-server
 
 You can now access the running dallinger instance on http://localhost:5000/dashboard
 The admin password can be found in the develop `config.txt` file:
