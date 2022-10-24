@@ -44,6 +44,7 @@ default_keys = (
     ("clock_on", bool, []),
     ("contact_email_on_error", six.text_type, []),
     ("chrome-path", six.text_type, []),
+    ("dallinger_develop_directory", six.text_type, []),
     ("dallinger_email_address", six.text_type, []),
     ("dashboard_password", six.text_type, [], True),
     ("dashboard_user", six.text_type, [], True),
@@ -103,6 +104,7 @@ default_keys = (
     ("worker_multiplier", float, []),
     ("docker_image_base_name", six.text_type, [], ""),
     ("docker_image_name", six.text_type, [], ""),
+    ("docker_ssh_volumes", six.text_type, [], ""),
 )
 
 

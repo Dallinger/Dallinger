@@ -1,8 +1,10 @@
 from contextlib import contextmanager
+import hashlib
 from io import BytesIO
 from email.utils import parseaddr
 from functools import wraps
 from getpass import getuser
+import os
 from secrets import token_urlsafe
 from shlex import quote
 from socket import gethostname
@@ -145,6 +147,28 @@ def prepare_server(host, user):
         print("Docker compose already installed")
 
 
+def copy_docker_config(host, user):
+    executor = Executor(host, user)
+
+    local_docker_conf_path = os.path.expanduser("~/.docker/config.json")
+    if os.path.exists(local_docker_conf_path):
+        with open(local_docker_conf_path, "rb") as fh:
+            local_file_contents = fh.read()
+        remote_has_conf = executor.run(
+            "ls ~/.docker/config.json > /dev/null && echo true || true"
+        ).strip()
+        if remote_has_conf == "true":
+            remote_sha, _ = executor.run("sha256sum ~/.docker/config.json").split()
+            local_sha = hashlib.sha256(local_file_contents).hexdigest()
+            if local_sha != remote_sha:
+                # Move the remote file to a temporary location
+                executor.run(
+                    "mv ~/.docker/config.json  ~/.docker/config.json.$(date +%d-%m-%Y-%H:%M.bak)"
+                ).split()
+        sftp = get_sftp(host, user=user)
+        sftp.putfo(BytesIO(local_file_contents), ".docker/config.json")
+
+
 def install_docker_compose_via_pip(executor):
     try:
         executor.run("python3 --version")
@@ -247,6 +271,10 @@ def build_and_push_image(f):
     help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
 )
 @click.option(
+    "--app-name",
+    help="Name to use for the app. If not provided a random one will be generated",
+)
+@click.option(
     "--archive",
     "-a",
     "archive_path",
@@ -255,13 +283,16 @@ def build_and_push_image(f):
 )
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 @build_and_push_image
-def deploy(mode, server, dns_host, config_options, archive_path):  # pragma: no cover
+def deploy(
+    mode, server, dns_host, app_name, config_options, archive_path
+):  # pragma: no cover
     """Deploy a dallnger experiment docker image to a server using ssh."""
     config = get_config()
     config.load()
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
+    copy_docker_config(ssh_host, ssh_user)
     HAS_TLS = ssh_host != "localhost"
     # We abuse the mturk contact_email_on_error to provide an email for let's encrypt certificate
     email_addr = config.get("contact_email_on_error")
@@ -286,7 +317,9 @@ def deploy(mode, server, dns_host, config_options, archive_path):  # pragma: no 
     print("Launched http and postgresql servers. Starting experiment")
 
     experiment_uuid = str(uuid4())
-    if archive_path:
+    if app_name:
+        experiment_id = app_name
+    elif archive_path:
         experiment_id = get_experiment_id_from_archive(archive_path)
     else:
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
