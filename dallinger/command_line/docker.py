@@ -266,6 +266,9 @@ def deploy_image(image, mode, config_options):
     app.run_command("dallinger-housekeeper initdb")
 
     print("Scaling dynos")
+    services = ["web", "worker"]
+    if config.get("clock_on"):
+        services.append("clock")
     payload = {
         "updates": [
             dict(
@@ -273,7 +276,7 @@ def deploy_image(image, mode, config_options):
                 quantity=config.get(f"num_dynos_{type}", 1),
                 size=config.get("dyno_type", "hobby"),
             )
-            for type in ("web", "worker")
+            for type in services
         ]
     }
     app._h._http_resource(
@@ -335,7 +338,10 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     heroku.container_log_in()
     config.set("heroku_auth_token", heroku.auth_token())
     log("", chevrons=False)
-    for service in ["web", "worker"]:
+    services = ["web", "worker"]
+    if config.get("clock_on"):
+        services.append("clock")
+    for service in services:
         text = f"""FROM {pushed_image}
         CMD dallinger_heroku_{service}
         """
@@ -392,10 +398,10 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
 
     log("Scaling up the dynos...")
     default_size = config.get("dyno_type")
-    for process in ["web", "worker"]:
-        size = config.get("dyno_type_" + process, default_size)
-        qty = config.get("num_dynos_" + process)
-        heroku_app.scale_up_dyno(process, qty, size)
+    for service in services:
+        size = config.get("dyno_type_" + service, default_size)
+        qty = config.get("num_dynos_" + service, 1)
+        heroku_app.scale_up_dyno(service, qty, size)
 
     log("Waiting for addons to be ready...")
     ready = False
@@ -490,25 +496,23 @@ def script_command(cmd):
 
 
 def script_command_linux(cmd):
-    return ["script", "-q", "--command", " ".join(cmd)]
+    return ["script", "-O", "/dev/null", "-q", "--command", " ".join(cmd)]
 
 
 def script_command_mac(cmd):
     return ["script", "-q", "/dev/null"] + cmd
 
 
-for alternative in (script_command_linux, script_command_mac):
-    try:
-        if (
-            subprocess.check_output(
-                alternative(["echo", "success"]),
-                stderr=subprocess.PIPE,
-                stdin=None,
-                timeout=0.1,
-            ).strip()
-            == b"success"
-        ):
-            script_command = alternative  # noqa
-            break
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        pass
+try:
+    output = subprocess.check_output(
+        ["script", "--help"],
+        stderr=subprocess.PIPE,
+        stdin=None,
+        timeout=0.1,
+    ).strip()
+    if output.startswith(b"Usage:\n"):
+        script_command = script_command_linux  # noqa
+    if output.startswith(b"script: illegal option"):
+        script_command = script_command_mac  # noqa
+except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    pass

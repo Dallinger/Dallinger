@@ -30,6 +30,11 @@ services:
       - dallinger
     volumes:
       - /var/lib/dallinger/{{ experiment_id }}:/var/lib/dallinger
+    {%- if config.get("docker_ssh_volumes", "") %}
+    {%- for volume in config.get("docker_ssh_volumes", "").split(",") %}
+      - {{ volume | string() | tojson }}
+    {%- endfor %}
+    {%- endif %}
 
   web:
     image: {{ experiment_image }}
@@ -46,6 +51,29 @@ services:
           - {{ experiment_id }}_web
     volumes:
       - /var/lib/dallinger/{{ experiment_id }}:/var/lib/dallinger
+    {%- if config.get("docker_ssh_volumes", "") %}
+    {%- for volume in config.get("docker_ssh_volumes", "").split(",") %}
+      - {{ volume | string() | tojson }}
+    {%- endfor %}
+    {%- endif %}
+
+{%- if config["clock_on"] %}
+  clock:
+    image: {{ experiment_image }}
+    user: "${UID}:${GID}"
+    command: dallinger_heroku_clock
+    depends_on:
+      <<: *commondepends
+    environment:
+      <<: *commonenv
+      PORT: 5000
+    networks:
+      dallinger:
+        aliases:
+          - {{ experiment_id }}_clock
+    volumes:
+      - /var/lib/dallinger/{{ experiment_id }}:/var/lib/dallinger
+{%- endif %}
 
 volumes:
   dallinger_{{ experiment_id }}_redis_data:

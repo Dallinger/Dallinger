@@ -36,7 +36,7 @@ jobs:
     needs: check_mturk_changes
     strategy:
       matrix:
-        python-version: ["3.7", "3.8", "3.9", "3.10"]
+        python-version: ["3.8", "3.9", "3.10"]
     services:
       redis:
         image: redis
@@ -76,7 +76,7 @@ jobs:
       - name: Set up Ruby
         uses: actions/setup-ruby@v1
         with:
-          ruby-version: 2.6
+          ruby-version: 2.7
       - name: Ruby dependencies
         run: |
           gem install danger
@@ -195,6 +195,11 @@ jobs:
         run: pip install --upgrade pip wheel tox
       - name: Chromedriver setup
         uses: nanasess/setup-chromedriver@v1.0.5
+      - name: Change dallinger version required by bartlett1932 to match current version
+        run: |
+          VERSION=$(grep __version__ dallinger/version.py |sed -e 's/__version__ = "//;s/"//')
+          echo Changing to version ${VERSION}
+          sed -i.orig -e "s/dallinger==.*/dallinger==${VERSION}/" demos/dlgr/demos/bartlett1932/constraints.txt
       - name: Run docker tests
         run: tox -e dockertests
       - name: Show docker logs

@@ -153,7 +153,9 @@ class HerokuApp(HerokuCommandRunner):
 
     def release_containers(self):
         """Start the dynos for web and worker"""
-        self._run(["heroku", "container:release", "web", "worker", "-a", self.name])
+        self._run(
+            ["heroku", "container:release", "web", "worker", "clock", "-a", self.name]
+        )
 
     @property
     def name(self):

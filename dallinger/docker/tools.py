@@ -4,6 +4,7 @@ import os
 import time
 
 from hashlib import sha256
+
 from jinja2 import Template
 from pathlib import Path
 from shutil import which
@@ -82,6 +83,7 @@ class DockerComposeWrapper(object):
                     experiment_name=self.experiment_name,
                     experiment_image=f"{self.experiment_name}:{tag}",
                     needs_chrome=self.needs_chrome,
+                    config=self.config,
                 )
             )
         with open(os.path.join(self.tmp_dir, ".env"), "w") as fh:
@@ -295,7 +297,7 @@ def build_image(
         ]
 
     docker_build_invocation += ["-t", image_name]
-    dockerfile_text = fr"""# syntax=docker/dockerfile:1
+    dockerfile_text = rf"""# syntax=docker/dockerfile:1
     FROM {base_image_name}
     COPY . /experiment
     WORKDIR /experiment

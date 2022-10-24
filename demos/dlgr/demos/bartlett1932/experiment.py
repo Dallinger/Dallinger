@@ -89,8 +89,8 @@ class Bot(BotBase):
             ready = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable((By.ID, "finish-reading"))
             )
-            stimulus = self.driver.find_element_by_id("stimulus")
-            story = stimulus.find_element_by_id("story")
+            stimulus = self.driver.find_element("id", "stimulus")
+            story = stimulus.find_element("id", "story")
             story_text = story.text
             logger.info("Stimulus text:")
             logger.info(story_text)

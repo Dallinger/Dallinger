@@ -44,7 +44,7 @@ class Bot(BotBase):
     ]
 
     def get_chat_history(self):
-        story = self.driver.find_element_by_id("story")
+        story = self.driver.find_element("id", "story")
         return story.text.split("\n")
 
     def wait_to_send_message(self):
@@ -52,11 +52,11 @@ class Bot(BotBase):
         time.sleep(waiting_time)
 
     def send_message(self, message):
-        self.driver.find_element_by_id("reproduction").send_keys(message)
-        self.driver.find_element_by_id("send-message").click()
+        self.driver.find_element("id", "reproduction").send_keys(message)
+        self.driver.find_element("id", "send-message").click()
 
     def leave_chat(self):
-        self.driver.find_element_by_id("leave-chat").click()
+        self.driver.find_element("id", "leave-chat").click()
 
     def participate(self):
         random.seed(self.worker_id)

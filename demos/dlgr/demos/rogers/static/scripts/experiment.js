@@ -1,6 +1,8 @@
 var trial = 0;
 var lock = true;
 var my_node_id;
+var blueButton = "{{ url_for('static', filename='images/blue_social.jpg') }}";
+var yellowButton = "{{ url_for('static', filename='images/yellow_social.jpg') }}";
 
 dallinger.getExperimentProperty('practice_repeats')
   .done(function (resp) {
@@ -84,9 +86,9 @@ get_received_infos = function() {
       meme = info.contents;
 
       if (meme === "blue") {
-        $("#stimulus").attr("src", "/static/images/blue_social.jpg");
+        $("#stimulus").attr("src", blueButton);
       } else if (meme === "yellow") {
-        $("#stimulus").attr("src", "/static/images/yellow_social.jpg");
+        $("#stimulus").attr("src", yellowButton);
       }
       $("#stimulus").show();
       setTimeout(function() {

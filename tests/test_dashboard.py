@@ -263,42 +263,12 @@ class TestDashboard(object):
 
 
 @pytest.fixture
-def csrf_token(dashboard_config, webapp):
-    # Initialize app to get user info in config
-    webapp.get("/")
-    # Make a writeable session and copy the csrf token into it
-    from flask_wtf.csrf import generate_csrf
-
-    with webapp.application.test_request_context() as request:
-        with webapp.session_transaction() as sess:
-            token = generate_csrf()
-            sess.update(request.session)
-    yield token
-
-
-@pytest.fixture
-def logged_in(csrf_token, webapp):
-    admin_user = webapp.application.config["ADMIN_USER"]
-    webapp.post(
-        "/dashboard/login",
-        data={
-            "username": admin_user.id,
-            "password": admin_user.password,
-            "next": "/dashboard/something",
-            "submit": "Sign In",
-            "csrf_token": csrf_token,
-        },
-    )
-    yield webapp
-
-
-@pytest.fixture
-def mock_renderer(logged_in):
+def mock_renderer(webapp_admin):
     with mock.patch(
         "dallinger.experiment_server.dashboard.render_template"
     ) as renderer:
         renderer.return_value = ""
-        yield logged_in, renderer
+        yield webapp_admin, renderer
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")
@@ -365,28 +335,28 @@ class TestDashboardCoreRoutes(object):
         assert resp.status_code == 302
         assert resp.location.endswith("/dashboard/index")
 
-    def test_login_session_retained(self, logged_in):
+    def test_login_session_retained(self, webapp_admin):
 
-        resp = logged_in.get("/dashboard/")
+        resp = webapp_admin.get("/dashboard/")
         assert resp.status_code == 200
         assert 'Welcome User: "admin"' in resp.data.decode("utf8")
 
-    def test_logout(self, active_config, logged_in):
+    def test_logout(self, active_config, webapp_admin):
         active_config.set("mode", "sandbox")
-        resp = logged_in.get("/dashboard/")
+        resp = webapp_admin.get("/dashboard/")
         assert resp.status_code == 200
 
-        logout_resp = logged_in.get("/dashboard/logout")
+        logout_resp = webapp_admin.get("/dashboard/logout")
         assert logout_resp.status_code == 302
 
-        loggedout_resp = logged_in.get("/dashboard/")
+        loggedout_resp = webapp_admin.get("/dashboard/")
         assert loggedout_resp.status_code == 302
         assert loggedout_resp.location.endswith("/dashboard/login?next=%2Fdashboard%2F")
 
     # Cannot be isolated because route registration happens at import time
     @pytest.mark.xfail
-    def test_custom_route(self, logged_in):
-        resp = logged_in.get("/dashboard/custom_dashboard")
+    def test_custom_route(self, webapp_admin):
+        resp = webapp_admin.get("/dashboard/custom_dashboard")
         assert resp.status_code == 200
         assert "A custom dashboard for TestExperiment." in resp.data.decode("utf8")
 
@@ -398,8 +368,8 @@ class TestDashboardCoreRoutes(object):
 
     # Cannot be isolated because route registration happens at import time
     @pytest.mark.xfail
-    def test_custom_route_tabs(self, logged_in):
-        tabs = logged_in.application.config["dashboard_tabs"]
+    def test_custom_route_tabs(self, webapp_admin):
+        tabs = webapp_admin.application.config["dashboard_tabs"]
         tab_titles = [t.title for t in tabs]
         # Inserted after "monitoring"
         assert "Custom Tab" in tab_titles
@@ -423,15 +393,17 @@ class TestDashboardMTurkRoutes(object):
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/mturk").status_code == 401
 
-    def test_loads_hit_data(self, fake_mturk_data, logged_in):
-        resp = logged_in.get("/dashboard/mturk")
+    def test_loads_hit_data(self, fake_mturk_data, webapp_admin):
+        resp = webapp_admin.get("/dashboard/mturk")
 
         assert resp.status_code == 200
         assert "<td>Fake HIT Title</td>" in resp.data.decode("utf8")
 
-    def test_explains_if_hit_data_not_yet_available(self, fake_mturk_data, logged_in):
+    def test_explains_if_hit_data_not_yet_available(
+        self, fake_mturk_data, webapp_admin
+    ):
         fake_mturk_data.current_hit = None
-        resp = logged_in.get("/dashboard/mturk")
+        resp = webapp_admin.get("/dashboard/mturk")
 
         assert resp.status_code == 200
         assert (
@@ -439,17 +411,19 @@ class TestDashboardMTurkRoutes(object):
             in resp.data.decode("utf8")
         )
 
-    def test_shows_error_if_not_using_mturk_recruiter(self, active_config, logged_in):
+    def test_shows_error_if_not_using_mturk_recruiter(
+        self, active_config, webapp_admin
+    ):
         active_config.extend({"mode": "live", "recruiter": "cli"})
-        resp = logged_in.get("/dashboard/mturk")
+        resp = webapp_admin.get("/dashboard/mturk")
 
         assert resp.status_code == 200
         assert "This experiment does not use the MTurk Recruiter." in resp.data.decode(
             "utf8"
         )
 
-    def test_includes_expire_command_info(self, fake_mturk_data, logged_in):
-        page = logged_in.get("/dashboard/mturk").data.decode("utf8")
+    def test_includes_expire_command_info(self, fake_mturk_data, webapp_admin):
+        page = webapp_admin.get("/dashboard/mturk").data.decode("utf8")
         assert (
             'data-content="dallinger expire --sandbox --app TEST_EXPERIMENT_UID"'
             in page
@@ -461,15 +435,15 @@ class TestDashboardMonitorRoute(object):
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/monitoring").status_code == 401
 
-    def test_has_statistics(self, logged_in):
-        resp = logged_in.get("/dashboard/monitoring")
+    def test_has_statistics(self, webapp_admin):
+        resp = webapp_admin.get("/dashboard/monitoring")
 
         assert resp.status_code == 200
         resp_text = resp.data.decode("utf8")
         assert "<h3>Participants</h3>" in resp_text
         assert "<li>working: 0</li>" in resp_text
 
-    def test_statistics_show_working(self, logged_in, db_session):
+    def test_statistics_show_working(self, webapp_admin, db_session):
         from dallinger.models import Participant
 
         participant = Participant(
@@ -481,20 +455,20 @@ class TestDashboardMonitorRoute(object):
         )
         db_session.add(participant)
 
-        resp = logged_in.get("/dashboard/monitoring")
+        resp = webapp_admin.get("/dashboard/monitoring")
 
         assert resp.status_code == 200
         resp_text = resp.data.decode("utf8")
         assert "<h3>Participants</h3>" in resp_text
         assert "<li>working: 1</li>" in resp_text
 
-    def test_custom_vis_options(self, logged_in):
+    def test_custom_vis_options(self, webapp_admin):
         # The HTML is customized using a property on the model class
         with mock.patch(
             "dallinger.experiment.Experiment.node_visualization_options"
         ) as vis_options:
             vis_options.return_value = {"custom_vis_option": 3}
-            resp = logged_in.get("/dashboard/monitoring")
+            resp = webapp_admin.get("/dashboard/monitoring")
             assert resp.status_code == 200
             resp_text = resp.data.decode("utf8")
             assert '"custom_vis_option": 3' in resp_text
@@ -653,17 +627,17 @@ class TestDashboardLifeCycleRoutes(object):
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/lifecycle").status_code == 401
 
-    def test_includes_destroy_command(self, active_config, logged_in):
-        resp = logged_in.get("/dashboard/lifecycle")
+    def test_includes_destroy_command(self, active_config, webapp_admin):
+        resp = webapp_admin.get("/dashboard/lifecycle")
 
         app_id = active_config.get("heroku_app_id_root")
 
         assert resp.status_code == 200
         assert "dallinger destroy --app {}".format(app_id) in resp.data.decode("utf8")
 
-    def test_add_sandbox_option_to_destroy_command(self, active_config, logged_in):
+    def test_add_sandbox_option_to_destroy_command(self, active_config, webapp_admin):
         active_config.set("mode", "sandbox")
-        resp = logged_in.get("/dashboard/lifecycle")
+        resp = webapp_admin.get("/dashboard/lifecycle")
 
         app_id = active_config.get("heroku_app_id_root")
 
@@ -678,7 +652,7 @@ class TestDashboardHerokuRoutes(object):
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/heroku").status_code == 401
 
-    def test_renders_links_for_heroku_services(self, active_config, logged_in):
+    def test_renders_links_for_heroku_services(self, active_config, webapp_admin):
         from dallinger.heroku.tools import HerokuApp
 
         details = '{"REDIS": {"url": "https://redis-url", "title": "REDIS"}}'
@@ -686,15 +660,17 @@ class TestDashboardHerokuRoutes(object):
         active_config.set("mode", "sandbox")
         heroku_app = HerokuApp(active_config.get("heroku_app_id_root"))
 
-        resp = logged_in.get("/dashboard/heroku")
+        resp = webapp_admin.get("/dashboard/heroku")
 
         assert '<a href="https://redis-url"' in resp.data.decode("utf8")
         assert '<a href="{}"'.format(
             heroku_app.dashboard_metrics_url
         ) in resp.data.decode("utf8")
 
-    def test_shows_no_links_when_not_deployed_to_heroku(self, active_config, logged_in):
-        resp = logged_in.get("/dashboard/heroku")
+    def test_shows_no_links_when_not_deployed_to_heroku(
+        self, active_config, webapp_admin
+    ):
+        resp = webapp_admin.get("/dashboard/heroku")
         assert '<a href="https://redis-url"' not in resp.data.decode("utf8")
 
 
@@ -703,8 +679,8 @@ class TestDashboardDatabase(object):
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/database").status_code == 401
 
-    def test_render(self, active_config, logged_in):
-        resp = logged_in.get("/dashboard/database?model_type=Network")
+    def test_render(self, active_config, webapp_admin):
+        resp = webapp_admin.get("/dashboard/database?model_type=Network")
 
         assert resp.status_code == 200
         assert "<h1>Database View: Networks</h1>" in resp.data.decode("utf8")
@@ -976,25 +952,27 @@ class TestDashboardDatabaseActions(object):
             webapp.post("/dashboard/database/action/dashboard_fail").status_code == 401
         )
 
-    def test_disallowed_action(self, logged_in):
-        resp = logged_in.post("/dashboard/database/action/evil_action")
+    def test_disallowed_action(self, webapp_admin):
+        resp = webapp_admin.post("/dashboard/database/action/evil_action", json={})
         resp.status_code == 403
         assert resp.json["status"] == "error"
         assert "Access to evil_action not allowed" in resp.json["html"]
 
-    def test_missing_action(self, logged_in):
+    def test_missing_action(self, webapp_admin):
         with mock.patch(
             "dallinger.experiment.Experiment.dashboard_database_actions"
         ) as actions:
             actions.return_value = [
                 {"name": "missing_action", "title": "Missing Action"}
             ]
-            resp = logged_in.post("/dashboard/database/action/missing_action")
+            resp = webapp_admin.post(
+                "/dashboard/database/action/missing_action", json={}
+            )
             resp.status_code == 404
             assert resp.json["status"] == "error"
             assert "Method missing_action not found" in resp.json["html"]
 
-    def test_custom_action(self, logged_in):
+    def test_custom_action(self, webapp_admin):
         from dallinger.experiment import Experiment
 
         with mock.patch.object(Experiment, "dashboard_database_actions") as actions:
@@ -1003,26 +981,26 @@ class TestDashboardDatabaseActions(object):
             ]
             Experiment.custom_test_action = mock.Mock("Custom Action")
             Experiment.custom_test_action.return_value = {"message": "Way to go!"}
-            resp = logged_in.post(
+            resp = webapp_admin.post(
                 "/dashboard/database/action/custom_test_action", json=[]
             )
             del Experiment.custom_test_action
         resp.status_code == 200
         assert resp.json == {"status": "success", "message": "Way to go!"}
 
-    def test_fail_route(self, logged_in):
-        resp = logged_in.post(
+    def test_fail_route(self, webapp_admin):
+        resp = webapp_admin.post(
             "/dashboard/database/action/dashboard_fail",
             json=[{"id": 1, "object_type": "Participant"}],
         )
         resp.status_code == 200
         assert resp.json == {"status": "success", "message": "No nodes found to fail"}
 
-    def test_fail_route_fails_participant(self, logged_in, a, db_session):
+    def test_fail_route_fails_participant(self, webapp_admin, a, db_session):
         p = a.participant()
         p_id = p.id
         assert p.failed is False
-        resp = logged_in.post(
+        resp = webapp_admin.post(
             "/dashboard/database/action/dashboard_fail",
             json=[{"id": p_id, "object_type": "Participant"}],
         )

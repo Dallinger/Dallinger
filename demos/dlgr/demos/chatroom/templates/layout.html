@@ -6,5 +6,5 @@
 
 {% block libs %}
     {{ super() }}
-    <script src="/static/scripts/experiment.js" type="text/javascript"> </script>
+    <script src="{{ url_for('static', filename='scripts/experiment.js') }}" type="text/javascript"> </script>
 {% endblock %}

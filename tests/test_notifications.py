@@ -17,10 +17,10 @@ class TestEmailConfig(object):
     def test_catches_missing_config_values(self, klass, stub_config):
         stub_config.extend(
             {
-                "dallinger_email_address": u"",
-                "contact_email_on_error": u"",
-                "smtp_username": u"???",
-                "smtp_password": u"???",
+                "dallinger_email_address": "",
+                "contact_email_on_error": "",
+                "smtp_username": "???",
+                "smtp_password": "???",
             }
         )
         econfig = klass(stub_config)
@@ -103,19 +103,19 @@ class TestMailerFactory(object):
     def test_returns_emailing_version_if_configured(self, factory, stub_config):
         from dallinger.notifications import SMTPMailer
 
-        stub_config.extend({"mode": u"sandbox"})
+        stub_config.extend({"mode": "sandbox"})
         assert isinstance(factory(stub_config), SMTPMailer)
 
     def test_returns_debug_version_if_email_config_invalid(self, factory, stub_config):
         from dallinger.notifications import LoggingMailer
 
-        stub_config.extend({"mode": u"sandbox", "dallinger_email_address": u""})
+        stub_config.extend({"mode": "sandbox", "dallinger_email_address": ""})
         assert isinstance(factory(stub_config), LoggingMailer)
 
     def test_raises_on_invalid_config_in_strict_mode(self, factory, stub_config):
         from dallinger.notifications import InvalidEmailConfig
 
-        stub_config.extend({"mode": u"sandbox", "dallinger_email_address": u""})
+        stub_config.extend({"mode": "sandbox", "dallinger_email_address": ""})
         with pytest.raises(InvalidEmailConfig):
             factory(stub_config, strict=True)
 
@@ -135,13 +135,13 @@ class TestMessengerFactory(object):
     def test_returns_emailing_version_if_configured(self, factory, stub_config):
         from dallinger.notifications import SMTPMailer
 
-        stub_config.extend({"mode": u"sandbox"})
+        stub_config.extend({"mode": "sandbox"})
         assert isinstance(factory(stub_config).mailer, SMTPMailer)
 
     def test_returns_debug_version_if_email_config_invalid(self, factory, stub_config):
         from dallinger.notifications import LoggingMailer
 
-        stub_config.extend({"mode": u"sandbox", "dallinger_email_address": u""})
+        stub_config.extend({"mode": "sandbox", "dallinger_email_address": ""})
         assert isinstance(factory(stub_config).mailer, LoggingMailer)
 
 

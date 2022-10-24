@@ -44,6 +44,7 @@ default_keys = (
     ("clock_on", bool, []),
     ("contact_email_on_error", six.text_type, []),
     ("chrome-path", six.text_type, []),
+    ("dallinger_develop_directory", six.text_type, []),
     ("dallinger_email_address", six.text_type, []),
     ("dashboard_password", six.text_type, [], True),
     ("dashboard_user", six.text_type, [], True),
@@ -84,6 +85,7 @@ default_keys = (
     ("prolific_maximum_allowed_minutes", int, []),
     ("prolific_recruitment_config", six.text_type, [], False, [is_valid_json]),
     ("prolific_reward_cents", int, []),
+    ("protected_routes", six.text_type, [], False, [is_valid_json]),
     ("recruiter", six.text_type, []),
     ("recruiters", six.text_type, []),
     ("redis_size", six.text_type, []),
@@ -102,6 +104,7 @@ default_keys = (
     ("worker_multiplier", float, []),
     ("docker_image_base_name", six.text_type, [], ""),
     ("docker_image_name", six.text_type, [], ""),
+    ("docker_ssh_volumes", six.text_type, [], ""),
 )
 
 
@@ -346,7 +349,6 @@ def initialize_experiment_package(path):
     init_py = os.path.join(path, "__init__.py")
     if not os.path.exists(init_py):
         open(init_py, "a").close()
-
     # Retain already set experiment module
     if sys.modules.get("dallinger_experiment") is not None:
         return
@@ -354,7 +356,7 @@ def initialize_experiment_package(path):
     basename = os.path.basename(path)
     sys.path.insert(0, dirname)
     package = __import__(basename)
-    if path not in package.__path__:
+    if Path(path) not in [Path(p) for p in package.__path__]:
         raise Exception(
             "Package was not imported from the requested path! ({} not in {})".format(
                 path, package.__path__
@@ -362,4 +364,5 @@ def initialize_experiment_package(path):
         )
     sys.modules["dallinger_experiment"] = package
     package.__package__ = "dallinger_experiment"
+    package.__name__ = "dallinger_experiment"
     sys.path.pop(0)

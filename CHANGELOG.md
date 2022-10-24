@@ -1,6 +1,53 @@
 # Change Log
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.0.1](https://github.com/dallinger/dallinger/tree/v9.0.1) (2022-06-17)
+- Enhancement: Persist docker deployment infos to a file in the current directory
+- Infrastructure: Update dependencies
+
+## [v9.0.0](https://github.com/dallinger/dallinger/tree/v9.0.0) (2022-05-19)
+- Infrastructure: Drop support for Python 3.7
+- Infrastructure: Update versions of various dependencies, including those which had been impossible while retaining Python 3.7 compatibility, e.g. Flask to v2.x, Jinja2 to v3.x, numpy to 1.22.x, pandas to v1.4.x, click to 8.x and Sphinx to 4.5.x
+- Enhancement: Add a check for circular imports in experiment module loading
+- Enhancement: Enforce standard Python code style by applying `"black"` v22.3.0
+- Bugfix: Add `clock` support in Docker
+- Fix typos and some broken links in docs
+
+## [v8.1.0](https://github.com/dallinger/dallinger/tree/v8.1.0) (2022-03-25)
+- Enhancement: numerous usability improvements and enhancements to tools which provide
+  hot reloading of dallinger and experiment code while developing: run
+  ``dallinger developer debug`` from the experiment directory, wait a few moments,
+  then the dashboard appears, presenting a button which the user can press to open a
+  new participant window
+- Enhancement: ``dallinger debug`` startup time reduced by 5 seconds by opening the
+  dashboard browser window asyncronously
+- Enhancement: improvements to the experiment network visualization in the Dallinger
+  dashboard:
+  - the text by Infos so that it says the class name rather than just 'info'
+  - fixed an issue for the display of networks that have no nodes; previously the
+    visualization would draw a line between these networks and an unrelated node
+    from a different network, but now the network is just diplayed without any connections
+- Enhancement: ensure ``dallinger debug`` executes in ``--verbose`` mode in automated tests,
+  and correctly propagates logging output to pytest so all errors are visible
+
+## [v8.0.0](https://github.com/dallinger/dallinger/tree/v8.0.0) (2022-02-22)
+- Potential breaking change: The function signature of the ``Recruiter.reward_bonus()``
+  method has changed, so if you've implemented your own recruiter, this will need to be
+  updated.
+- Feature: Support for recruitment via the [Prolific](https://www.prolific.co/)
+  platform
+- Feature: Dallinger dashboard tabs can be hidden by including their route names in a
+  ``hidden_dashboards`` attribute (a ``tuple``) on your custom ``Experiment`` subclass.
+- Enhancement: ``dallinger.createParticipant()`` method now always stores ``entry_information``
+  on the Participant record by default, falling back to the old mechanism if no
+  ``entry_information`` can be extracted from the URL/Request.
+- Enhancement: when running ``dallinger generate-constraints``, if the requirements-dev.txt
+  file for the current Dallinger version can't be found on github the local one is looked up
+  (and can be found if dallinger was installed in editable mode) and used.
+- Bugfix: Dallinger's templates now use Flask's ``url_for()`` function to generate absolute
+  URLs
+- Infrastructure: MTurk integration test stability improvements
+
 ## [v7.8.0](https://github.com/dallinger/dallinger/tree/v7.8.0) (2021-11-29)
 - Documentation: Docs for ``dallinger docker start-services``
 - Bugfix: Releases should now update dallinger.readthedocs.io correctly

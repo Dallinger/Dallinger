@@ -4,7 +4,6 @@ import click
 import mock
 import os
 import re
-import shutil
 import six
 import subprocess
 from time import sleep
@@ -186,7 +185,6 @@ class TestHeader(object):
         assert dallinger.version.__version__ in dallinger.command_line.header
 
 
-@pytest.mark.slow
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
 class TestDevelopCommand(object):
     """One very high level test, at least for now, while functionality is
@@ -194,22 +192,25 @@ class TestDevelopCommand(object):
     """
 
     @pytest.fixture
-    def develop(self):
+    def develop(self, active_config, tempdir):
         from dallinger.command_line.develop import develop
+
+        # Write files (or symlinks in this case) to a temp dir
+        # which will get automatically cleaned up:
+        active_config.extend({"dallinger_develop_directory": tempdir})
 
         yield develop
 
-        shutil.rmtree("develop", ignore_errors=True)
+    def test_bootstrap(self, active_config, develop):
+        develop_directory = active_config.get("dallinger_develop_directory", None)
 
-    def test_bootstrap(self, develop):
         result = CliRunner().invoke(develop, ["bootstrap"])
 
         assert result.exit_code == 0
         assert "Preparing your pristine development environment" in result.output
-        assert found_in("develop", ".")
-        assert found_in("app.py", "develop")
-        assert found_in("run.sh", "develop")
-        assert found_in("experiment.py", "develop")
+        assert found_in("app.py", develop_directory)
+        assert found_in("run.sh", develop_directory)
+        assert found_in("experiment.py", develop_directory)
         # etc...
 
 
@@ -357,12 +358,12 @@ class TestSummary(object):
     def patched_summary_route(self):
         response = mock.Mock()
         response.json.return_value = {
-            u"completed": True,
-            u"nodes_remaining": 0,
-            u"required_nodes": 0,
-            u"status": "success",
-            u"summary": [["approved", 1], ["submitted", 1]],
-            u"unfilled_networks": 0,
+            "completed": True,
+            "nodes_remaining": 0,
+            "required_nodes": 0,
+            "status": "success",
+            "summary": [["approved", 1], ["submitted", 1]],
+            "unfilled_networks": 0,
         }
         with mock.patch("dallinger.command_line.requests") as req:
             req.get.return_value = response
@@ -504,8 +505,8 @@ class TestQualify(object):
         assert result.exit_code == 0
         mturk.assign_qualification.assert_has_calls(
             [
-                mock.call(u"some qid", u"worker1", 1, notify=False),
-                mock.call(u"some qid", u"worker2", 1, notify=False),
+                mock.call("some qid", "worker1", 1, notify=False),
+                mock.call("some qid", "worker2", 1, notify=False),
             ]
         )
 
@@ -571,7 +572,7 @@ class TestEmailTest(object):
         assert result.exit_code == 0
 
     def test_check_with_missing_value(self, email_test, mailer, active_config):
-        active_config.extend({"smtp_username": u"???"})
+        active_config.extend({"smtp_username": "???"})
         result = CliRunner().invoke(
             email_test,
         )
@@ -629,7 +630,7 @@ class TestCompensate(object):
 
         assert result.exit_code == 0
         mturkrecruiter.compensate_worker.assert_called_once_with(
-            worker_id=u"some worker ID",
+            worker_id="some worker ID",
             email="worker@example.com",
             dollars=5.0,
             notify=True,
@@ -646,7 +647,7 @@ class TestCompensate(object):
 
         assert result.exit_code == 0
         mturkrecruiter.compensate_worker.assert_called_once_with(
-            worker_id=u"some worker ID", email=None, dollars=5.0, notify=False
+            worker_id="some worker ID", email=None, dollars=5.0, notify=False
         )
 
     def test_can_be_aborted_cleanly_after_warning(self, compensate, mturkrecruiter):
@@ -713,7 +714,7 @@ class TestExtendMTurkHIT(object):
         )
         assert result.exit_code == 0
         mturk.extend_hit.assert_called_once_with(
-            duration_hours=2.5, hit_id=u"some HIT ID", number=3
+            duration_hours=2.5, hit_id="some HIT ID", number=3
         )
 
     def test_duration_is_optional(self, extend, mturk):
@@ -724,7 +725,7 @@ class TestExtendMTurkHIT(object):
         )
         assert result.exit_code == 0
         mturk.extend_hit.assert_called_once_with(
-            duration_hours=None, hit_id=u"some HIT ID", number=3
+            duration_hours=None, hit_id="some HIT ID", number=3
         )
 
     def test_can_be_aborted_cleanly_after_warning(self, extend, mturk):
@@ -782,7 +783,7 @@ class TestRevoke(object):
         )
         assert result.exit_code == 0
         mturk.revoke_qualification.assert_called_once_with(
-            u"some qid", u"some worker id", u"some reason"
+            "some qid", "some worker id", "some reason"
         )
 
     def test_can_be_aborted_cleanly_after_warning(self, revoke, mturk):
@@ -823,9 +824,9 @@ class TestRevoke(object):
         )
         assert result.exit_code == 0
         mturk.revoke_qualification.assert_called_once_with(
-            u"some qid",
-            u"some worker id",
-            u"Revoking automatically assigned Dallinger qualification",
+            "some qid",
+            "some worker id",
+            "Revoking automatically assigned Dallinger qualification",
         )
 
     def test_raises_with_no_worker(self, revoke, mturk):
@@ -836,7 +837,7 @@ class TestRevoke(object):
         assert "at least one worker ID" in result.output
 
     def test_raises_with_no_qualification(self, revoke, mturk):
-        result = CliRunner().invoke(revoke, [u"some worker id"], input=self.DO_IT)
+        result = CliRunner().invoke(revoke, ["some worker id"], input=self.DO_IT)
         assert result.exit_code != 0
         assert "at least one worker ID" in result.output
 
@@ -856,8 +857,8 @@ class TestRevoke(object):
         assert result.exit_code == 0
         mturk.revoke_qualification.assert_has_calls(
             [
-                mock.call(u"some qid", u"worker1", u"some reason"),
-                mock.call(u"some qid", u"worker2", u"some reason"),
+                mock.call("some qid", "worker1", "some reason"),
+                mock.call("some qid", "worker2", "some reason"),
             ]
         )
 
@@ -877,7 +878,7 @@ class TestRevoke(object):
         )
         assert result.exit_code == 0
         mturk.revoke_qualification.assert_called_once_with(
-            u"some qid", u"some worker id", u"some reason"
+            "some qid", "some worker id", "some reason"
         )
 
     def test_bad_qualification_name_shows_error(self, revoke, mturk):
@@ -937,7 +938,7 @@ class TestAwaken(object):
         assert expected == heroku.addon.call_args_list[0]
 
     def test_adds_redis(self, awaken, heroku, data, active_config):
-        active_config.set("redis_size", u"premium-2")
+        active_config.set("redis_size", "premium-2")
         CliRunner().invoke(awaken, ["--app", "some-app-uid"])
         assert mock.call("heroku-redis:premium-2") == heroku.addon.call_args_list[1]
 
@@ -1187,7 +1188,7 @@ class TestApps(object):
     def test_apps(
         self, apps, custom_app_output, console_output, tabulate, active_config
     ):
-        active_config["team"] = u"fake team"
+        active_config["team"] = "fake team"
         result = CliRunner().invoke(apps)
         assert result.exit_code == 0
         custom_app_output.assert_has_calls(
@@ -1200,7 +1201,7 @@ class TestApps(object):
         tabulate.assert_called_with(
             [["my-uid", "2018-01-01T12:00Z", "https://dlgr-my-uid.herokuapp.com"]],
             ["UID", "Started", "URL"],
-            tablefmt=u"psql",
+            tablefmt="psql",
         )
 
 

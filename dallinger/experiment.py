@@ -11,6 +11,7 @@ from functools import wraps
 import datetime
 import inspect
 from importlib import import_module
+import json
 import logging
 from operator import itemgetter
 import os
@@ -186,6 +187,20 @@ class Experiment(object):
         :ref:`Extra Configuration <extra-configuration>` for an example.
         """
         pass
+
+    @property
+    def protected_routes(self):
+        """Disable one or more standard Dallinger Flask routes by name.
+
+        When called, Flask routes which have been disabled will raise a
+        PermissionError and return a 500 response.
+
+        By default, this list is loaded from the `protected_routes` config parameter,
+        and is parsed as a JSON array. The values should be route rule names,
+        like "/" for the application root, or "/info/<int:node_id>/<int:info_id>"
+        for fetching JSON for a specific `Info`.
+        """
+        return json.loads(get_config().get("protected_routes", "[]"))
 
     def configure(self):
         """Load experiment configuration here"""
@@ -1445,6 +1460,10 @@ def load():
             )
         elif len(classes) == 0:
             logger.error("Error retrieving experiment class")
+            if not module_is_initialized(experiment):
+                logger.error(
+                    "The experiment module is only partly initialized. Maybe you have a circular import?"
+                )
             raise (
                 first_err
                 or second_err
@@ -1457,6 +1476,20 @@ def load():
         raise
 
 
+def module_is_initialized(module):
+    """
+    Checks whether a given module has been initialized by catching the AttributeError that happens when accessing
+    an unknown attribute within that module. This is a bit of a hack, but it seems to be the easiest
+    way of checking the modules initialization status.
+    """
+    try:
+        module.abcdefghijklmnop123456789
+    except AttributeError as err:
+        if "partially initialized module" in str(err):
+            return False
+    return True
+
+
 EXPERIMENT_TASK_REGISTRATIONS = []
 
 
@@ -1467,7 +1500,7 @@ def scheduled_task(trigger, **kwargs):
     The task registration is deferred until clock server setup to allow tasks to be
     overridden by subclasses.
 
-    :param trigger: an ``appscheduler`` trigger type. One of "interval", "cron",
+    :param trigger: an ``apscheduler`` trigger type. One of "interval", "cron",
                     or "date"
     :param \**kwargs: other arguments for `apscheduler.schedulers.base.BaseSchedule.scheduled_job`
                       generally used for trigger arguments to determine

@@ -4,12 +4,14 @@ Recruitment
 A ``recruiter`` is a program that takes charge of recruiting participants for
 an experiment. Dallinger's design supports the option to run the same experiment
 with different recruitment systems, generally requiring only changes to configuration
-parameters in config.txt, but no changes to your experiment's code.
+parameters in your experiment's ``config.txt`` file, but no changes to your experiment
+code.
 
 General Considerations
 ----------------------
 
-Some facets of recruiting are common across all recruitment systems.
+Some facets of recruiting are common across all recruitment systems, so we'll
+describe these first.
 
 Recruitment Planning
 ^^^^^^^^^^^^^^^^^^^^
@@ -30,7 +32,7 @@ time, then opt out of any further experiments by the same experimenter.
 Configuration
 ^^^^^^^^^^^^^
 
-For a specific experiment, the experimenter will want a given number of
+For a specific experiment, the experimenter will want to specify a number of
 participants that can be trusted as much as possible to follow the
 instructions and complete the experiment. Dallinger's recruiters
 each support various configuration parameters to let the experimenter achieve
@@ -51,7 +53,17 @@ parameterized space of games for the study of human social behavior::
     approve_requirement = 95
     group_name = Griduniverse,Survival
 
-The ``title`` and ``description`` (and in the case of the MTurk recruiter, ``keywords``) are important, because these are what a potential participant will see when deciding whether to participate in an experiment or not.
+The ``title`` and ``description`` (and in the case of the MTurk recruiter, ``keywords``)
+are important, because these are what a potential participant will see when deciding
+whether to participate in an experiment or not.
+
+Other values control compensation (``base_payment``), how long to display the HIT in
+worker feeds (``lifetime``), filters on which workers will see the HIT in their feed
+(``us_only``, ``approval_requirement``), and so on.
+
+Some of these values will be common across recruiters, but many will be specific to the
+recruiter you choose.
+
 
 Amazon Mechanical Turk ("MTurk") Recruiting
 -------------------------------------------
@@ -70,7 +82,7 @@ are not required to interact with each other, might benefit from a larger
 window.
 
 Once a participant is looking at your experiment sign on page, the
-``duration`` parameter controls how long it will wait for participation
+``duration`` parameter controls how long (in hours) it will wait for participation
 confirmation before timing out. This prevents undecided or forgetful users
 from causing recruitment problems.
 
@@ -160,6 +172,12 @@ the options of MTurk, different configuration keys are used to avoid ambiguous
 meaning. Details of the keys used for Prolific recruitment are described in
 detail in the :ref:`prolific-recruitment` section of the
 :doc:`Configuration <configuration>` documentation.
+
+Currencies
+^^^^^^^^^^
+
+Prolific will use the currency of your researcher account, and convert automatically
+to the participant's currency when calculating base pay and bonuses.
 
 
 Advanced Features
