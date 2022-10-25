@@ -199,7 +199,7 @@ def get_local_ip_name():
     resolver.port = 5353  # mdns port
     try:
         answers = resolver.query(ip_to_query, "PTR")
-    except dns.resolver.NXDOMAIN:
+    except (dns.resolver.NXDOMAIN, dns.resolver.LifetimeTimeout):
         return local_ip
     else:
         # Make sure to remove the trailing dot, or it will confuse Caddy
