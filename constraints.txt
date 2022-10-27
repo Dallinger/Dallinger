@@ -47,13 +47,13 @@ black==22.10.0
     # via dallinger
 bleach==5.0.1
     # via nbconvert
-boto3==1.25.0
+boto3==1.25.2
     # via dallinger
-botocore==1.28.0
+botocore==1.28.2
     # via
     #   boto3
     #   s3transfer
-build==0.8.0
+build==0.9.0
     # via
     #   dallinger
     #   pip-tools
@@ -129,7 +129,7 @@ entrypoints==0.4
     # via jupyter-client
 et-xmlfile==1.1.0
     # via openpyxl
-exceptiongroup==1.0.0rc9
+exceptiongroup==1.0.0
     # via
     #   pytest
     #   trio
@@ -385,7 +385,7 @@ psutil==5.9.3
     # via
     #   dallinger
     #   ipykernel
-psycopg2==2.9.4
+psycopg2==2.9.5
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
@@ -579,7 +579,7 @@ tornado==6.2
     #   nbclassic
     #   notebook
     #   terminado
-tox==3.26.0
+tox==3.27.0
     # via dallinger
 traitlets==5.5.0
     # via
@@ -620,7 +620,7 @@ urllib3==1.26.12
     #   selenium
 user-agents==2.2.0
     # via dallinger
-virtualenv==20.16.5
+virtualenv==20.16.6
     # via
     #   pre-commit
     #   tox
