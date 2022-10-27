@@ -391,7 +391,11 @@ def check_local_db_connection(log):
 def check_experiment_dependencies(requirement_file):
     """Verify that the dependencies defined in a requirements file are
     in fact installed.
+    If the environment variable SKIP_DEPENDENCY_CHECK is set, no check
+    will be performed.
     """
+    if os.environ.get("SKIP_DEPENDENCY_CHECK"):
+        return
     try:
         with open(requirement_file, "r") as f:
             dependencies = [r for r in f.readlines() if r[:3] != "-e "]
@@ -541,7 +545,12 @@ def ensure_constraints_file_presence(directory: str):
 
     If the `requirements.txt` does not exist one is created with
     `dallinger` as its only dependency.
+
+    If the environment variable SKIP_DEPENDENCY_CHECK is set, no action
+    will be performed.
     """
+    if os.environ.get("SKIP_DEPENDENCY_CHECK"):
+        return
     constraints_path = Path(directory) / "constraints.txt"
     requirements_path = Path(directory) / "requirements.txt"
     if not requirements_path.exists():
@@ -642,7 +651,8 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
 
     requirements_path = Path(dst) / "requirements.txt"
     # Overwrite the requirements.txt file with the contents of the constraints.txt file
-    (Path(dst) / "constraints.txt").replace(requirements_path)
+    if not os.environ.get("SKIP_DEPENDENCY_CHECK"):
+        (Path(dst) / "constraints.txt").replace(requirements_path)
     if for_remote:
         dallinger_path = get_editable_dallinger_path()
         if dallinger_path and not os.environ.get("DALLINGER_NO_EGG_BUILD"):

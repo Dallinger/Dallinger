@@ -192,9 +192,7 @@ if len(CONFIGURED_HOSTS) == 1:
     server_prompt = False
 else:
     default_server = None
-    server_prompt = (
-        "Choose one of the configured servers (add one with `dallinger docker-ssh servers add`)\n",
-    )
+    server_prompt = "Choose one of the configured servers (add one with `dallinger docker-ssh servers add`)\n"
 server_option = click.option(
     "--server",
     required=True,

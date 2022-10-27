@@ -7,4 +7,4 @@ export FLASK_DEBUG=1
 # https://github.com/miguelgrinberg/Flask-SocketIO/issues/901
 echo "Starting flask..."
 echo "Remember to terminate this process with <control-c> before running 'dallinger bootstrap' again"
-flask run "$@"
+flask run ${FLASK_OPTIONS} "$@"
