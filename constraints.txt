@@ -47,9 +47,9 @@ black==22.10.0
     # via dallinger
 bleach==5.0.1
     # via nbconvert
-boto3==1.25.2
+boto3==1.25.3
     # via dallinger
-botocore==1.28.2
+botocore==1.28.3
     # via
     #   boto3
     #   s3transfer
@@ -180,7 +180,7 @@ h11==0.14.0
     # via wsproto
 heroku3==5.1.4
     # via dallinger
-identify==2.5.7
+identify==2.5.8
     # via pre-commit
 idna==3.4
     # via
@@ -291,7 +291,7 @@ nbclassic==0.4.5
     # via notebook
 nbclient==0.7.0
     # via nbconvert
-nbconvert==7.2.2
+nbconvert==7.2.3
     # via
     #   jupyter
     #   jupyter-server
