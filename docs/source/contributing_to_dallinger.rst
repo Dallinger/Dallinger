@@ -43,7 +43,11 @@ files in the demos.
 
 5. After that's merged, you'll want to tag the merge commit with `git tag vX.X.X` and do `git push origin --tags`. PyPI releases versions based on the tags via `.travis.yml`.
 
-6. Create a new branch (``increment-master-version`` or similar), and bump the
+6. At this point, **WAIT** to make sure the release is successful. If you prematurely
+   increment versions again (see next step) and the release has problems, you'll
+   find yourself in an unnecessarily confusing situation.
+
+7. Create a new branch (``increment-master-version`` or similar), and bump the
 version to the next `minor` increment::
 
     $ git checkout -b increment-master-version
