@@ -2,6 +2,11 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.2.0](https://github.com/dallinger/dallinger/tree/v9.2.0) (2022-10-31)
+
+- Infrastructure: drop Chandler automatic CHANGELOG -> release notes syncing,
+  as Chandler is no longer maintained and was causing problems with releases
+
 ## [v9.1.0](https://github.com/dallinger/dallinger/tree/v9.1.0) (2022-10-28)
 
 - Feature: Infrastructure and documentation to support running Dallinger
