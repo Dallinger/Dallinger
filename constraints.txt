@@ -439,7 +439,7 @@ python-dateutil==2.8.2
     #   pandas
 python-dotenv==0.21.0
     # via docker-compose
-pytz==2022.5
+pytz==2022.6
     # via
     #   apscheduler
     #   babel
