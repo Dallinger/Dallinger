@@ -110,7 +110,7 @@ distlib==0.3.6
     # via virtualenv
 distro==1.8.0
     # via docker-compose
-docker==6.0.0
+docker==6.0.1
     # via
     #   dallinger
     #   docker-compose
