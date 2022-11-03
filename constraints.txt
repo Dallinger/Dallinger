@@ -287,7 +287,7 @@ mock==4.0.3
     # via dallinger
 mypy-extensions==0.4.3
     # via black
-nbclassic==0.4.5
+nbclassic==0.4.8
     # via notebook
 nbclient==0.7.0
     # via nbconvert
