@@ -315,7 +315,7 @@ nodeenv==1.7.0
     # via pre-commit
 notebook==6.5.1
     # via jupyter
-notebook-shim==0.2.0
+notebook-shim==0.2.2
     # via nbclassic
 numpy==1.23.4
     # via pandas
