@@ -420,7 +420,7 @@ pypandoc==1.10
     # via dallinger
 pyparsing==3.0.9
     # via packaging
-pyrsistent==0.18.1
+pyrsistent==0.19.2
     # via jsonschema
 pysocks==1.7.1
     # via urllib3
