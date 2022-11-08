@@ -639,7 +639,7 @@ werkzeug==2.2.2
     # via
     #   flask
     #   flask-login
-wheel==0.37.1
+wheel==0.38.3
     # via pip-tools
 widgetsnbextension==4.0.3
     # via ipywidgets
