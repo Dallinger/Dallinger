@@ -257,7 +257,7 @@ jupyter-core==4.11.2
     #   nbformat
     #   notebook
     #   qtconsole
-jupyter-server==1.21.0
+jupyter-server==1.23.1
     # via
     #   nbclassic
     #   notebook-shim
