@@ -1,8 +1,14 @@
+Docker-only installation
+========================
+
 It is possible to develop with dallinger using only docker as a prerequisite.
-This guide goes through the necessary steps to achieve this.
+This means you do not need to follow most of the steps detailed in the Installation instructions.
+Instead, you just need to install Docker, and create a ``.dallingerconfig`` file containing
+the information requested in the Installation instructions.
+Once these steps are complete, you can move forward following these instructions:
 
 Set up services
-===============
+---------------
 
 Create the dallinger docker network (if not present already):
 
@@ -43,7 +49,7 @@ Select PostgreSQL from the dropdown, and enter `dallinger` as both username and 
 
 
 Run experiment from docker image
-================================
+--------------------------------
 
 Enter the experiment directory:
 
@@ -101,7 +107,7 @@ The admin password can be found in the develop `config.txt` file:
 
 
 Deploy the experiment image using ssh
-=====================================
+-------------------------------------
 
 We're going to use variations of the same command, so we create an alias for convenience.
 
