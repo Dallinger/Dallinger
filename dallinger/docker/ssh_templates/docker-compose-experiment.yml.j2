@@ -29,7 +29,7 @@ services:
     networks:
       - dallinger
     volumes:
-      - /var/lib/dallinger/{{ experiment_id }}:/var/lib/dallinger
+      - "${HOME}/dallinger_file_systems/{{ experiment_id }}":/var/lib/dallinger
     {%- if config.get("docker_ssh_volumes", "") %}
     {%- for volume in config.get("docker_ssh_volumes", "").split(",") %}
       - {{ volume | string() | tojson }}
@@ -50,7 +50,7 @@ services:
         aliases:
           - {{ experiment_id }}_web
     volumes:
-      - /var/lib/dallinger/{{ experiment_id }}:/var/lib/dallinger
+      - "${HOME}/dallinger_file_systems/{{ experiment_id }}":/var/lib/dallinger
     {%- if config.get("docker_ssh_volumes", "") %}
     {%- for volume in config.get("docker_ssh_volumes", "").split(",") %}
       - {{ volume | string() | tojson }}
@@ -72,7 +72,7 @@ services:
         aliases:
           - {{ experiment_id }}_clock
     volumes:
-      - /var/lib/dallinger/{{ experiment_id }}:/var/lib/dallinger
+      - "${HOME}/dallinger_file_systems/{{ experiment_id }}":/var/lib/dallinger
 {%- endif %}
 
 volumes:

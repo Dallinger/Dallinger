@@ -236,7 +236,7 @@ To stop an experiment and remove its containers from the server, run:
 .. note::
 
       When deploying to a server using docker, the experiment can save files to the directory ``/var/lib/dallinger``.
-      This directory will be visible on the server as ``/var/lib/dallinger/${experiment_id}``.
+      This directory will be visible on the server as ``~/dallinger_file_systems/${experiment_id}``.
 
 
 Support for python dependencies in private repositories
