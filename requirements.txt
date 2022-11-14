@@ -44,7 +44,7 @@ click==8.1.3
     #   rq
 deprecated==1.2.13
     # via redis
-exceptiongroup==1.0.0
+exceptiongroup==1.0.3
     # via trio
 faker==15.1.1
     # via dallinger
