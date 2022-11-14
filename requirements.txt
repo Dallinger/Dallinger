@@ -114,7 +114,7 @@ pep517==0.13.0
     # via build
 pexpect==4.8.0
     # via dallinger
-pip-tools==6.9.0
+pip-tools==6.10.0
     # via dallinger
 psutil==5.9.3
     # via dallinger
