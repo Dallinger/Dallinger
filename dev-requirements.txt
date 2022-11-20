@@ -556,7 +556,7 @@ terminado==0.17.0
     #   jupyter-server
     #   nbclassic
     #   notebook
-texttable==1.6.4
+texttable==1.6.5
     # via docker-compose
 timeago==1.0.16
     # via dallinger
