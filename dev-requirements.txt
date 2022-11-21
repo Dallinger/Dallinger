@@ -377,7 +377,7 @@ prometheus-client==0.15.0
     #   jupyter-server
     #   nbclassic
     #   notebook
-prompt-toolkit==3.0.31
+prompt-toolkit==3.0.33
     # via
     #   ipython
     #   jupyter-console
