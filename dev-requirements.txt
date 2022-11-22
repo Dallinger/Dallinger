@@ -465,7 +465,7 @@ qtpy==2.2.1
     # via qtconsole
 recommonmark==0.7.1
     # via dallinger
-redis==4.3.4
+redis==4.3.5
     # via
     #   dallinger
     #   rq
