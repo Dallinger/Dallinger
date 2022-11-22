@@ -46,7 +46,7 @@ deprecated==1.2.13
     # via redis
 exceptiongroup==1.0.0
     # via trio
-faker==15.1.1
+faker==15.3.3
     # via dallinger
 flask==2.2.2
     # via
