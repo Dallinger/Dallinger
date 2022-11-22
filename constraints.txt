@@ -217,7 +217,7 @@ itsdangerous==2.1.2
     # via
     #   flask
     #   flask-wtf
-jedi==0.18.1
+jedi==0.18.2
     # via ipython
 jinja2==3.1.2
     # via
