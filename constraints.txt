@@ -47,9 +47,9 @@ black==22.10.0
     # via dallinger
 bleach==5.0.1
     # via nbconvert
-boto3==1.26.15
+boto3==1.26.16
     # via dallinger
-botocore==1.29.15
+botocore==1.29.16
     # via
     #   boto3
     #   s3transfer
@@ -141,7 +141,7 @@ filelock==3.8.0
     # via
     #   tox
     #   virtualenv
-flake8==5.0.4
+flake8==6.0.0
     # via dallinger
 flask==2.2.2
     # via
@@ -336,7 +336,7 @@ packaging==21.3
     #   redis
     #   sphinx
     #   tox
-pandas==1.5.1
+pandas==1.5.2
     # via
     #   dallinger
     #   tablib
@@ -397,7 +397,7 @@ pure-eval==0.2.2
     # via stack-data
 py==1.11.0
     # via tox
-pycodestyle==2.9.1
+pycodestyle==2.10.0
     # via
     #   dallinger
     #   flake8
@@ -405,7 +405,7 @@ pycparser==2.21
     # via cffi
 pyenchant==3.2.2
     # via sphinxcontrib-spelling
-pyflakes==2.5.0
+pyflakes==3.0.1
     # via flake8
 pygments==2.13.0
     # via
@@ -556,7 +556,7 @@ terminado==0.17.0
     #   jupyter-server
     #   nbclassic
     #   notebook
-texttable==1.6.6
+texttable==1.6.7
     # via docker-compose
 timeago==1.0.16
     # via dallinger
@@ -612,7 +612,7 @@ ua-parser==0.16.1
     # via
     #   dallinger
     #   user-agents
-urllib3==1.26.12
+urllib3==1.26.13
     # via
     #   botocore
     #   docker

@@ -18,9 +18,9 @@ attrs==22.1.0
     # via
     #   outcome
     #   trio
-boto3==1.26.15
+boto3==1.26.16
     # via dallinger
-botocore==1.29.15
+botocore==1.29.16
     # via
     #   boto3
     #   s3transfer
@@ -191,7 +191,7 @@ ua-parser==0.16.1
     # via
     #   dallinger
     #   user-agents
-urllib3[socks]==1.26.12
+urllib3[socks]==1.26.13
     # via
     #   botocore
     #   requests
