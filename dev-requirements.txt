@@ -541,7 +541,7 @@ sqlalchemy-postgres-copy==0.5.0
     # via dallinger
 sshtunnel==0.4.0
     # via dallinger
-stack-data==0.6.1
+stack-data==0.6.2
     # via ipython
 tablib[all]==3.2.1
     # via dallinger
