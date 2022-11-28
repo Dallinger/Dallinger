@@ -197,7 +197,7 @@ ipykernel==6.17.1
     #   nbclassic
     #   notebook
     #   qtconsole
-ipython==8.6.0
+ipython==8.7.0
     # via
     #   ipykernel
     #   ipywidgets
