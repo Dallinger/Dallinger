@@ -1,2 +1,2 @@
 -c constraints.txt
-Dallinger==9.1.0a1
+Dallinger==9.2.1

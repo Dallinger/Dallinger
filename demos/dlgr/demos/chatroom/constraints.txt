@@ -6,7 +6,7 @@
 #
 # from the root of the dallinger repository
 #
-apscheduler==3.9.1
+apscheduler==3.9.1.post1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -19,38 +19,35 @@ async-timeout==4.0.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   redis
-attrs==21.4.0
+attrs==22.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   outcome
     #   trio
-boto3==1.24.11
+boto3==1.26.16
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-botocore==1.27.11
+botocore==1.29.16
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
     #   s3transfer
-build==0.8.0
+build==0.9.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
+    #   pip-tools
 cached-property==1.5.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-certifi==2022.6.15
+certifi==2022.9.24
     # via
     #   -c ../../../../dev-requirements.txt
     #   requests
-    #   urllib3
-cffi==1.15.0
-    # via
-    #   -c ../../../../dev-requirements.txt
-    #   cryptography
-charset-normalizer==2.0.12
+    #   selenium
+charset-normalizer==2.1.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   requests
@@ -62,22 +59,17 @@ click==8.1.3
     #   nltk
     #   pip-tools
     #   rq
-cryptography==37.0.2
-    # via
-    #   -c ../../../../dev-requirements.txt
-    #   pyopenssl
-    #   urllib3
-dallinger==9.0.1
+dallinger==9.2.1
     # via -r requirements.txt
-deprecated==1.2.13
+exceptiongroup==1.0.4
     # via
     #   -c ../../../../dev-requirements.txt
-    #   redis
-faker==13.13.0
+    #   trio
+faker==15.3.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-flask==2.1.2
+flask==2.2.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -89,7 +81,7 @@ flask-crossdomain==0.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-flask-login==0.6.1
+flask-login==0.6.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -105,7 +97,7 @@ future==0.18.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-gevent==21.12.0
+gevent==22.10.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -115,7 +107,7 @@ gevent-websocket==0.10.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask-sockets
-greenlet==1.1.2
+greenlet==2.0.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -125,7 +117,7 @@ gunicorn==20.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-h11==0.13.0
+h11==0.14.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   wsproto
@@ -133,12 +125,11 @@ heroku3==5.1.4
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-idna==3.3
+idna==3.4
     # via
     #   -c ../../../../dev-requirements.txt
     #   requests
     #   trio
-    #   urllib3
 itsdangerous==2.1.2
     # via
     #   -c ../../../../dev-requirements.txt
@@ -148,7 +139,7 @@ jinja2==3.1.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask
-jmespath==1.0.0
+jmespath==1.0.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
@@ -163,6 +154,7 @@ markupsafe==2.1.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   jinja2
+    #   werkzeug
     #   wtforms
 nltk==3.6.3
     # via -r requirements.txt
@@ -175,24 +167,23 @@ packaging==21.3
     #   -c ../../../../dev-requirements.txt
     #   build
     #   redis
-pep517==0.12.0
+pep517==0.13.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   build
-    #   pip-tools
 pexpect==4.8.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-pip-tools==6.6.2
+pip-tools==6.10.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-psutil==5.9.1
+psutil==5.9.4
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-psycopg2==2.9.3
+psycopg2==2.9.5
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -201,14 +192,6 @@ ptyprocess==0.7.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   pexpect
-pycparser==2.21
-    # via
-    #   -c ../../../../dev-requirements.txt
-    #   cffi
-pyopenssl==22.0.0
-    # via
-    #   -c ../../../../dev-requirements.txt
-    #   urllib3
 pyparsing==3.0.9
     # via
     #   -c ../../../../dev-requirements.txt
@@ -223,7 +206,7 @@ python-dateutil==2.8.2
     #   botocore
     #   faker
     #   heroku3
-pytz==2022.1
+pytz==2022.6
     # via
     #   -c ../../../../dev-requirements.txt
     #   apscheduler
@@ -231,19 +214,19 @@ pytz-deprecation-shim==0.1.0.post0
     # via
     #   -c ../../../../dev-requirements.txt
     #   tzlocal
-redis==4.3.3
+redis==4.3.5
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
     #   rq
 regex==2022.3.15
     # via nltk
-requests==2.28.0
+requests==2.28.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
     #   heroku3
-rq==1.10.1
+rq==1.11.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -251,7 +234,7 @@ s3transfer==0.6.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
-selenium==4.2.0
+selenium==4.6.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -262,7 +245,7 @@ six==1.16.0
     #   dallinger
     #   python-dateutil
     #   sqlalchemy-postgres-copy
-sniffio==1.2.0
+sniffio==1.3.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
@@ -270,7 +253,7 @@ sortedcontainers==2.4.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
-sqlalchemy==1.4.37
+sqlalchemy==1.4.44
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -279,15 +262,15 @@ sqlalchemy-postgres-copy==0.5.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-tabulate==0.8.9
+tabulate==0.9.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-tenacity==8.0.1
+tenacity==8.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-timeago==1.0.15
+timeago==1.0.16
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -298,7 +281,7 @@ tomli==2.0.1
     #   pep517
 tqdm==4.62.3
     # via nltk
-trio==0.21.0
+trio==0.22.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   selenium
@@ -307,7 +290,7 @@ trio-websocket==0.9.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   selenium
-tzdata==2022.1
+tzdata==2022.6
     # via
     #   -c ../../../../dev-requirements.txt
     #   pytz-deprecation-shim
@@ -316,12 +299,12 @@ tzlocal==4.2
     #   -c ../../../../dev-requirements.txt
     #   apscheduler
     #   dallinger
-ua-parser==0.10.0
+ua-parser==0.16.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
     #   user-agents
-urllib3[secure,socks]==1.26.9
+urllib3[socks]==1.26.13
     # via
     #   -c ../../../../dev-requirements.txt
     #   botocore
@@ -331,20 +314,16 @@ user-agents==2.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-werkzeug==2.1.2
+werkzeug==2.2.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask
     #   flask-login
-wheel==0.37.1
+wheel==0.38.4
     # via
     #   -c ../../../../dev-requirements.txt
     #   pip-tools
-wrapt==1.14.1
-    # via
-    #   -c ../../../../dev-requirements.txt
-    #   deprecated
-wsproto==1.1.0
+wsproto==1.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio-websocket
@@ -356,7 +335,7 @@ zope-event==4.5.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   gevent
-zope-interface==5.4.0
+zope-interface==5.5.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   gevent

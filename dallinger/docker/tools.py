@@ -315,9 +315,13 @@ def build_image(
     # We rely on the already installed dallinger: the docker image tag has been chosen
     # based on the contents of this file. This makes sure dallinger stays installed from
     # /dallinger, and that it doesn't waste space with two copies in two different layers.
-    RUN mkdir ~/.ssh && echo "Host *\n    StrictHostKeyChecking no" >> ~/.ssh/config
+
+    # Some experiments might only list dallinger as dependency
+    # If they do the grep command will exit non-0, the pip command will not run
+    # but the whole `RUN` group will succeed thanks to the last `true` invocation
+    RUN mkdir -p ~/.ssh && echo "Host *\n    StrictHostKeyChecking no" >> ~/.ssh/config
     RUN {ssh_mount} grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
-        python3 -m pip install -r /tmp/requirements_no_dallinger.txt
+        python3 -m pip install -r /tmp/requirements_no_dallinger.txt || true
     ENV PORT=5000
     CMD dallinger_heroku_web
     """

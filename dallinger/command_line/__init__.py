@@ -896,7 +896,6 @@ def apps():
 
 
 @dallinger.command()
-@require_exp_directory
 def generate_constraints():
     """Update an experiment's constraints.txt pinned dependencies based on requirements.txt."""
     experiment_dir = Path(os.getcwd())

@@ -70,7 +70,7 @@ def check_for_protected_routes():
     except AttributeError:
         return
 
-    protected = Experiment(session).protected_routes
+    protected = Experiment(None).protected_routes
     if active_rule in protected:
         raise PermissionError(
             f'Unauthorized call to protected route "{active_rule}": {request}'
