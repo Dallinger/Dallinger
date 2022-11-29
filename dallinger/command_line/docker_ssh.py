@@ -304,7 +304,7 @@ def deploy(
     tls = "tls internal" if not HAS_TLS else f"tls {email_addr}"
     if not dns_host:
         dns_host = get_dns_host(ssh_host)
-    executor = Executor(ssh_host, user=ssh_user)
+    executor = Executor(ssh_host, user=ssh_user, app=app_name)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
     sftp = get_sftp(ssh_host, user=ssh_user)
@@ -502,7 +502,7 @@ def remote_postgres(server_info, app):
     try:
         ssh_host = server_info["host"]
         ssh_user = server_info.get("user")
-        executor = Executor(ssh_host, user=ssh_user)
+        executor = Executor(ssh_host, user=ssh_user, app=app)
         # Prepare a tunnel to be able to pass a postgresql URL to the databse
         # on the remote docker container. First we need to find the IP of the
         # container running docker
@@ -529,7 +529,7 @@ def destroy(server, app):
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
-    executor = Executor(ssh_host, user=ssh_user)
+    executor = Executor(ssh_host, user=ssh_user, app=app)
     # Remove the caddy configuration file and reload caddy config
     try:
         executor.run(f"ls ~/dallinger/caddy.d/{app}")
@@ -582,9 +582,10 @@ def get_dns_host(ssh_host):
 class Executor:
     """Execute remote commands using paramiko"""
 
-    def __init__(self, host, user=None):
+    def __init__(self, host, user=None, app=None):
         import paramiko
 
+        self.app = app
         self.client = paramiko.SSHClient()
         # For convenience we always trust the remote host
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -605,8 +606,26 @@ class Executor:
             print(f"Error: exit code was not 0 ({status})")
             print(channel.recv(10**10).decode())
             print(channel.recv_stderr(10**10).decode())
-            raise ExecuteException
+            self.print_docker_compose_logs()
+            raise ExecuteException(
+                f"An error occurred when running the following command on the remote server: \n{cmd}"
+            )
         return channel.recv(10**10).decode()
+
+    def print_docker_compose_logs(self):
+        if self.app:
+            channel = self.client.get_transport().open_session()
+            channel.exec_command(
+                f'docker-compose -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
+            )
+            # channel.exec_command(f'cd "$HOME/dallinger/{self.app}" && docker-compose logs')
+            status = channel.recv_exit_status()
+            if status != 0:
+                print("docker-compose logs failed to run.")
+            else:
+                print("*** BEGIN docker-compose logs ***")
+                print(channel.recv(10**10).decode())
+                print("*** END docker-compose logs ***")
 
     def check_sudo(self):
         """Make sure the current user is authorized to invoke sudo without providing a password.
