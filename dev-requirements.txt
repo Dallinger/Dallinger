@@ -581,7 +581,7 @@ tornado==6.2
     #   terminado
 tox==3.27.1
     # via dallinger
-traitlets==5.5.0
+traitlets==5.6.0
     # via
     #   ipykernel
     #   ipython
