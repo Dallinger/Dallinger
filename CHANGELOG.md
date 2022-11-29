@@ -2,6 +2,14 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.2.1](https://github.com/dallinger/dallinger/tree/v9.2.1) (2022-11-26)
+
+- Bugfix: Fixed flake8 URL to make the pre-commit test pass again
+- Bugfix: Prevent accessing database tables when checking for protected routes.
+  This fixes the issue of being unable to deploy to Heroku as Dallinger tried
+  to access database tables before they were created.
+- Infrastructure: Update dependencies
+
 ## [v9.2.0](https://github.com/dallinger/dallinger/tree/v9.2.0) (2022-10-31)
 
 - Infrastructure: drop Chandler automatic CHANGELOG -> release notes syncing,
