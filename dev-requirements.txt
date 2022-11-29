@@ -21,7 +21,7 @@ argon2-cffi==21.3.0
     #   notebook
 argon2-cffi-bindings==21.2.0
     # via argon2-cffi
-asttokens==2.1.0
+asttokens==2.2.0
     # via stack-data
 async-generator==1.10
     # via
