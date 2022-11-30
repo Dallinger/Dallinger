@@ -75,7 +75,7 @@ jobs:
       - name: Set up Ruby
         uses: actions/setup-ruby@v1
         with:
-          ruby-version: 2.7
+          ruby-version: 3.1
       - name: Ruby dependencies
         run: |
           gem install danger
