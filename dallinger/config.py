@@ -305,10 +305,7 @@ class Configuration(object):
         # This will run any experiment specific parameter registrations
         from dallinger.experiment import load
 
-        try:
-            exp_klass = load()
-        except ImportError:
-            exp_klass = None
+        exp_klass = load()
         exp_params = getattr(exp_klass, "extra_parameters", None)
         if exp_params is not None and not self._experiment_params_loaded:
             exp_params()
