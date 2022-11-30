@@ -40,7 +40,7 @@ Vagrant.configure("2") do |config|
     cd /vagrant
 
     # Documentation building dependencies
-    sudo apt-get install -y enchant pandoc zip
+    sudo apt-get install -y enchant-2 pandoc zip
     pip install pyenchant
     pip install -r dev-requirements.txt
 

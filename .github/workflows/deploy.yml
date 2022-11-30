@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Install Ubuntu packages
-        run: sudo apt-get --yes install curl enchant pandoc
+        run: sudo apt-get --yes install curl enchant-2 pandoc
       - name: Set up Ruby
         uses: actions/setup-ruby@v1
         with:

@@ -63,7 +63,7 @@ jobs:
       - name: Check out Dallinger repository
         uses: actions/checkout@v2
       - name: Install Ubuntu packages
-        run: sudo apt-get --yes install pandoc enchant curl
+        run: sudo apt-get --yes install pandoc enchant-2 curl
       - name: Chromedriver setup
         uses: nanasess/setup-chromedriver@v1.0.5
       - name: Install snap packages
@@ -188,7 +188,7 @@ jobs:
             ${{ runner.os }}-pip-
             ${{ runner.os }}-
       - name: Install Ubuntu packages
-        run: sudo apt-get --yes install enchant curl
+        run: sudo apt-get --yes install enchant-2 curl
       - name: Install and upgrade wheel, pip and tox
         run: pip install --upgrade pip wheel tox
       - name: Chromedriver setup
