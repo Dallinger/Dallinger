@@ -625,7 +625,7 @@ class Executor:
             else:
                 print("*** BEGIN docker-compose logs ***")
                 print(channel.recv(10**10).decode())
-                print("*** END docker-compose logs ***")
+                print("*** END docker-compose logs ***\n")
 
     def check_sudo(self):
         """Make sure the current user is authorized to invoke sudo without providing a password.
