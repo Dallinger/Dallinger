@@ -20,7 +20,7 @@ attrs==22.1.0
     #   trio
 boto3==1.26.20
     # via dallinger
-botocore==1.29.20
+botocore==1.29.22
     # via
     #   boto3
     #   s3transfer
