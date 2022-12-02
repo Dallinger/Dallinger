@@ -4,7 +4,7 @@ aws_secret_access_key = YourSecretAccessKey
 aws_region = us-east-1
 
 [Development]
-dallinger_develop_directory = ~/dallinger_develop
+dallinger_develop_directory = /tmp/dallinger_develop
 
 [Email Access]
 smtp_host = smtp.gmail.com:587
