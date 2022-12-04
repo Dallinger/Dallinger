@@ -47,9 +47,9 @@ black==22.10.0
     # via dallinger
 bleach==5.0.1
     # via nbconvert
-boto3==1.26.20
+boto3==1.26.22
     # via dallinger
-botocore==1.29.20
+botocore==1.29.22
     # via
     #   boto3
     #   s3transfer
@@ -333,7 +333,6 @@ packaging==21.3
     #   pytest
     #   pytest-rerunfailures
     #   qtpy
-    #   redis
     #   sphinx
     #   tox
 pandas==1.5.2
@@ -359,7 +358,7 @@ pexpect==4.8.0
     #   ipython
 pickleshare==0.7.5
     # via ipython
-pip-tools==6.10.0
+pip-tools==6.11.0
     # via dallinger
 platformdirs==2.5.4
     # via
@@ -465,7 +464,7 @@ qtpy==2.3.0
     # via qtconsole
 recommonmark==0.7.1
     # via dallinger
-redis==4.3.5
+redis==4.4.0
     # via
     #   dallinger
     #   rq
@@ -481,7 +480,7 @@ rq==1.11.1
     # via dallinger
 s3transfer==0.6.0
     # via boto3
-selenium==4.6.1
+selenium==4.7.2
     # via dallinger
 send2trash==1.8.0
     # via
