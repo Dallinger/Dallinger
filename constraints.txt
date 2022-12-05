@@ -235,7 +235,7 @@ jsonschema==3.2.0
     #   nbformat
 jupyter==1.0.0
     # via dallinger
-jupyter-client==7.4.7
+jupyter-client==7.4.8
     # via
     #   ipykernel
     #   jupyter-console
