@@ -19,6 +19,7 @@ import sys
 import socket
 import zipfile
 
+import paramiko.ssh_exception
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -117,7 +118,15 @@ def remove(host):
 
 
 def prepare_server(host, user):
-    executor = Executor(host, user)
+    try:
+        executor = Executor(host, user)
+    except paramiko.ssh_exception.AuthenticationException as exc:
+        if user is None:
+            raise paramiko.ssh_exception.AuthenticationException(
+                "Failed to authenticate to the server. Do you need to specify a user?"
+            ) from exc
+        raise
+
     print("Checking docker presence")
     try:
         executor.run("docker ps")
