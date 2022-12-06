@@ -647,7 +647,7 @@ class Executor:
     def reload_caddy(self):
         self.run(
             "docker-compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
-            "caddy reload -config /etc/caddy/Caddyfile"
+            "caddy reload --config /etc/caddy/Caddyfile"
         )
 
     def run_and_echo(self, cmd):  # pragma: no cover
