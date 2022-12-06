@@ -1,35 +1,32 @@
-import click
 import codecs
 import netrc
 import os
-import re
 import secrets
 import subprocess
 import tempfile
 import time
 import uuid
-
 from datetime import datetime
 from pathlib import Path
 from shlex import quote
-from heroku3.core import Heroku as Heroku3Client
+
+import click
 import requests
+from heroku3.core import Heroku as Heroku3Client
 
 from dallinger import heroku
 from dallinger import registration
-from dallinger.config import get_config
-from dallinger.config import LOCAL_CONFIG
-from dallinger.heroku.tools import HerokuApp
 from dallinger.command_line.utils import Output
 from dallinger.command_line.utils import header
 from dallinger.command_line.utils import log
 from dallinger.command_line.utils import require_exp_directory
 from dallinger.command_line.utils import verify_id
+from dallinger.config import get_config
 from dallinger.deployment import _handle_launch_data
-from dallinger.utils import abspath_from_egg
+from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import GitClient
+from dallinger.utils import abspath_from_egg
 from dallinger.utils import setup_experiment
-
 
 HEROKU_YML = abspath_from_egg("dallinger", "dallinger/docker/heroku.yml").read_text()
 
@@ -326,10 +323,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     build_image(tmp, Path(os.getcwd()).name, Output(), force_build=True)
 
     # Push the built image to get the registry sha256
-    pushed_image = push.callback(use_existing=True)
-
-    # Persist the built image sha256 into the experiment
-    add_image_name(LOCAL_CONFIG, pushed_image)
+    image_name = push.callback(use_existing=True)
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
@@ -342,7 +336,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     if config.get("clock_on"):
         services.append("clock")
     for service in services:
-        text = f"""FROM {pushed_image}
+        text = f"""FROM {image_name}
         CMD dallinger_heroku_{service}
         """
         (Path(tmp) / f"Dockerfile.{service}").write_text(text)
@@ -381,6 +375,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
         "whimsical": config["whimsical"],
         "dashboard_password": config["dashboard_password"],
         "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
+        "docker_image_name": image_name,
     }
 
     # Set up the preferred class as an environment variable, if one is set
@@ -460,25 +455,6 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
         # "recruitment_msg": launch_data.get("recruitment_msg", None),
     }
     return result
-
-
-def add_image_name(config_path: str, image_name: str):
-    """Alters the text file at `config_path` to set the contents
-    of the variable `docker_image_name` to the passed `image_name`.
-    If a line is already present it will be replaced.
-    If it's not it will be added next to the line with the `docker_image_base_name` variable.
-    """
-    config = Path(config_path)
-    new_line = f"docker_image_name = {image_name}"
-    old_text = config.read_text()
-    if re.search("^docker_image_name =", old_text, re.M):
-        text = re.sub("docker_image_name = .*", new_line, old_text)
-    elif re.search("^docker_image_base_name =", old_text, re.M):
-        text = re.sub("(docker_image_base_name = .*)", r"\g<1>\n" + new_line, old_text)
-    else:
-        text = "".join((old_text, "\n" + new_line))
-
-    config.write_text(text)
 
 
 def heroku_addons_cmd(app_name):

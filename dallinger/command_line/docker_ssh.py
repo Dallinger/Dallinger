@@ -1,45 +1,42 @@
-from contextlib import contextmanager
 import hashlib
-from io import BytesIO
+import json
+import logging
+import os
+import select
+import socket
+import sys
+import zipfile
+from contextlib import contextmanager
 from email.utils import parseaddr
 from functools import wraps
 from getpass import getuser
-import os
+from io import BytesIO
 from secrets import token_urlsafe
 from shlex import quote
-from socket import gethostname
 from socket import gethostbyname_ex
+from socket import gethostname
 from subprocess import CalledProcessError
 from typing import Dict
 from uuid import uuid4
-import json
-import logging
-import select
-import sys
-import socket
-import zipfile
 
+import click
 import paramiko.ssh_exception
+import requests
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import click
-import requests
 
-from dallinger.data import bootstrap_db_from_zip
-from dallinger.db import create_db_engine
 from dallinger.command_line.config import get_configured_hosts
 from dallinger.command_line.config import remove_host
 from dallinger.command_line.config import store_host
-from dallinger.command_line.docker import add_image_name
 from dallinger.command_line.utils import Output
-from dallinger.config import LOCAL_CONFIG
-from dallinger.data import export_db_uri
-from dallinger.deployment import setup_experiment
 from dallinger.config import get_config
+from dallinger.data import bootstrap_db_from_zip
+from dallinger.data import export_db_uri
+from dallinger.db import create_db_engine
+from dallinger.deployment import setup_experiment
 from dallinger.utils import abspath_from_egg
 from dallinger.utils import check_output
-
 
 # Find an identifier for the current user to use as CREATOR of the experiment
 HOSTNAME = gethostname()
@@ -262,10 +259,8 @@ def build_and_push_image(f):
             Output().log, exp_config=config.as_dict(), local_checks=False
         )
         build_image(tmp_dir, config.get("docker_image_base_name"), out=Output())
-
-        pushed_image = push.callback(use_existing=True)
-        add_image_name(LOCAL_CONFIG, pushed_image)
-        return f(*args, **kwargs)
+        image_name = push.callback(use_existing=True)
+        return f(image_name, *args, **kwargs)
 
     return wrapper
 
@@ -298,7 +293,7 @@ def build_and_push_image(f):
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 @build_and_push_image
 def deploy(
-    mode, server, dns_host, app_name, config_options, archive_path
+    image, mode, server, dns_host, app_name, config_options, archive_path
 ):  # pragma: no cover
     """Deploy a dallnger experiment docker image to a server using ssh."""
     config = get_config()
@@ -338,7 +333,7 @@ def deploy(
     else:
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
     dashboard_password = token_urlsafe(8)
-    image = config.get("docker_image_name", None)
+
     cfg = config.as_dict()
     for key in "aws_access_key_id", "aws_secret_access_key":
         # AWS credentials are not included by default in to_dict() result
@@ -354,6 +349,7 @@ def deploy(
             "CREATOR": f"{USER}@{HOSTNAME}",
             "DALLINGER_UID": experiment_uuid,
             "ADMIN_USER": "admin",
+            "docker_image_name": image,
         }
     )
     cfg.update(config_options)
