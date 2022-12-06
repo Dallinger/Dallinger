@@ -432,6 +432,7 @@ def deploy(
     print(response.json()["recruitment_msg"])
 
     deployment_infos = [
+        f"Deployed Docker image name: {image}",
         "To display the logs for this experiment you can run:",
         f"ssh {ssh_user}@{ssh_host} docker-compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f",
         f"You can now log in to the console at https://{experiment_id}.{dns_host}/dashboard as user {cfg['ADMIN_USER']} using password {cfg['dashboard_password']}",
