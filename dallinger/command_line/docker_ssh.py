@@ -166,6 +166,11 @@ def copy_docker_config(host, user):
                     "mv ~/.docker/config.json  ~/.docker/config.json.$(date +%d-%m-%Y-%H:%M.bak)"
                 ).split()
         sftp = get_sftp(host, user=user)
+        try:
+            # Create the .docker directory if it doesn't exist
+            sftp.mkdir(".docker")
+        except IOError:
+            pass
         sftp.putfo(BytesIO(local_file_contents), ".docker/config.json")
 
 
