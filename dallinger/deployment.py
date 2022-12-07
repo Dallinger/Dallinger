@@ -440,7 +440,9 @@ class DebugDeployment(HerokuLocalDeployment):
 
     def display_dashboard_access_details(self, url):
         config = get_config()
-        self.out.log("Experiment dashboard: {}".format(url))
+        self.out.log(
+            "Experiment dashboard: {} (open this in Google Chrome)".format(url)
+        )
         self.out.log(
             "Dashboard user: {} password: {}".format(
                 config.get("dashboard_user"),
