@@ -63,7 +63,7 @@ bumpversion==0.6.0
     # via dallinger
 cached-property==1.5.2
     # via dallinger
-certifi==2022.9.24
+certifi==2022.12.7
     # via
     #   requests
     #   selenium
