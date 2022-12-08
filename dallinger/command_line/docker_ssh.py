@@ -434,11 +434,12 @@ def deploy(
     dashboard_user = cfg["ADMIN_USER"]
     dashboard_password = cfg["dashboard_password"]
     dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
+    log_command = f"ssh {ssh_user}@{ssh_host} docker-compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
 
     deployment_infos = [
         f"Deployed Docker image name: {image}",
         "To display the logs for this experiment you can run:",
-        f"ssh {ssh_user}@{ssh_host} docker-compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f",
+        log_command,
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
     ]
     for line in deployment_infos:
@@ -446,6 +447,13 @@ def deploy(
     with open(f"deployment-info_{experiment_id}.txt", "w") as f:
         for line in deployment_infos:
             f.write(f"{line}\n")
+
+    return {
+        "dashboard_user": dashboard_user,
+        "dashboard_password": dashboard_password,
+        "dashboard_link": dashboard_link,
+        "log_command": log_command,
+    }
 
 
 def get_experiment_id_from_archive(archive_path):
