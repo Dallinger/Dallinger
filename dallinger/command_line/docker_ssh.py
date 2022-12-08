@@ -475,6 +475,7 @@ def apps(server):
     apps = executor.run("ls ~/dallinger/caddy.d")
     for app in apps.split():
         print(app)
+    return apps
 
 
 @docker_ssh.command()
