@@ -104,7 +104,7 @@ markupsafe==2.1.1
     #   wtforms
 outcome==1.2.0
     # via trio
-packaging==21.3
+packaging==22.0
     # via
     #   build
     #   redis
