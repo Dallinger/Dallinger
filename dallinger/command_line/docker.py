@@ -105,7 +105,7 @@ def remove_services_data():
 @require_exp_directory
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
-    _deploy_in_mode(mode="sandbox", verbose=verbose, log=log, app=app)
+    return _deploy_in_mode(mode="sandbox", verbose=verbose, log=log, app=app)
 
 
 @docker.command()
@@ -114,7 +114,7 @@ def sandbox(verbose, app):
 @require_exp_directory
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
-    _deploy_in_mode(mode="live", verbose=verbose, log=log, app=app)
+    return _deploy_in_mode(mode="live", verbose=verbose, log=log, app=app)
 
 
 @docker.command()
@@ -301,7 +301,7 @@ def _deploy_in_mode(mode, verbose, log, app=None):
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
-    deploy_heroku_docker(log=log, verbose=verbose, app=app)
+    return deploy_heroku_docker(log=log, verbose=verbose, app=app)
 
 
 def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
@@ -451,6 +451,8 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,
+        "dashboard_user": result["dashboard_user"],
+        "dashboard_password": result["dashboard_password"],
         "dashboard_url": "{}/dashboard/".format(heroku_app.url),
         # "recruitment_msg": launch_data.get("recruitment_msg", None),
     }
