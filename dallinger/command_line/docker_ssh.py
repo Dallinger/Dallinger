@@ -504,7 +504,7 @@ def stats(server):
     help="Don't scrub PII (Personally Identifiable Information) - if not specified PII will be scrubbed",
 )
 @server_option
-def export(server, app, local, no_scrub):
+def export(app, local, no_scrub, server):
     """Export database to a local file."""
     server_info = CONFIGURED_HOSTS[server]
     with remote_postgres(server_info, app) as db_uri:
