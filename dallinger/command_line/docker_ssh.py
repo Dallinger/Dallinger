@@ -11,6 +11,7 @@ from email.utils import parseaddr
 from functools import wraps
 from getpass import getuser
 from io import BytesIO
+from pathlib import Path
 from secrets import token_urlsafe
 from shlex import quote
 from socket import gethostbyname_ex
@@ -444,7 +445,10 @@ def deploy(
     ]
     for line in deployment_infos:
         print(line)
-    with open(f"deployment-info_{experiment_id}.txt", "w") as f:
+
+    deploy_log_path = Path("deploy_logs") / f"{experiment_id}.txt"
+    deploy_log_path.parent.mkdir(exist_ok=True)
+    with open(deploy_log_path, "w") as f:
         for line in deployment_infos:
             f.write(f"{line}\n")
 
