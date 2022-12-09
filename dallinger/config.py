@@ -295,7 +295,11 @@ class Configuration(object):
         self.ready = True
 
         if self.get("docker_image_base_name", None) is None:
-            self.set("docker_image_base_name", Path(os.getcwd()).name)
+            raise ValueError(
+                "docker_image_base_name must be specified in config.txt before you can "
+                "launch an experiment using Docker. For example, you might write the following: \n\n"
+                "docker_image_base_name = registry.gitlab.developers.cam.ac.uk/mus/cms/psynet-experiment-images"
+            )
 
     def register_extra_parameters(self):
         initialize_experiment_package(os.getcwd())
