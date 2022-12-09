@@ -297,7 +297,7 @@ class Configuration(object):
         if self.get("docker_image_base_name", None) is None:
             raise ValueError(
                 "docker_image_base_name must be specified in config.txt before you can "
-                "launch an experiment using Docker. For example, you might write the following: \n\n"
+                "launch an experiment using Docker. For example, you might write the following: \n"
                 "docker_image_base_name = registry.gitlab.developers.cam.ac.uk/mus/cms/psynet-experiment-images"
             )
 
