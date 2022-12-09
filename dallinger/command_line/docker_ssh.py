@@ -21,7 +21,6 @@ from typing import Dict
 from uuid import uuid4
 
 import click
-import paramiko.ssh_exception
 import requests
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
@@ -116,6 +115,8 @@ def remove(host):
 
 
 def prepare_server(host, user):
+    import paramiko.ssh_exception
+
     try:
         executor = Executor(host, user)
     except paramiko.ssh_exception.AuthenticationException as exc:
