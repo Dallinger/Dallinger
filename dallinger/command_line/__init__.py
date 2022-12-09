@@ -241,7 +241,7 @@ def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
-    deploy_sandbox_shared_setup(
+    return deploy_sandbox_shared_setup(
         log=log, verbose=verbose, app=app, prelaunch_actions=prelaunch
     )
 
