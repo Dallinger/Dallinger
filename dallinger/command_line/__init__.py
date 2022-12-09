@@ -275,7 +275,9 @@ def fail_on_unsupported_urls(f):
 @report_idle_after(21600)
 def sandbox(verbose, app, archive):
     """Deploy app using Heroku to the MTurk Sandbox."""
-    _deploy_in_mode(mode="sandbox", verbose=verbose, log=log, app=app, archive=archive)
+    return _deploy_in_mode(
+        mode="sandbox", verbose=verbose, log=log, app=app, archive=archive
+    )
 
 
 @dallinger.command()
