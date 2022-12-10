@@ -1,6 +1,7 @@
 import codecs
 import netrc
 import os
+import re
 import secrets
 import subprocess
 import tempfile
@@ -457,6 +458,25 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
         # "recruitment_msg": launch_data.get("recruitment_msg", None),
     }
     return result
+
+
+def add_image_name(config_path: str, image_name: str):
+    """Alters the text file at `config_path` to set the contents
+    of the variable `docker_image_name` to the passed `image_name`.
+    If a line is already present it will be replaced.
+    If it's not it will be added next to the line with the `docker_image_base_name` variable.
+    """
+    config = Path(config_path)
+    new_line = f"docker_image_name = {image_name}"
+    old_text = config.read_text()
+    if re.search("^docker_image_name =", old_text, re.M):
+        text = re.sub("docker_image_name = .*", new_line, old_text)
+    elif re.search("^docker_image_base_name =", old_text, re.M):
+        text = re.sub("(docker_image_base_name = .*)", r"\g<1>\n" + new_line, old_text)
+    else:
+        text = "".join((old_text, "\n" + new_line))
+
+    config.write_text(text)
 
 
 def heroku_addons_cmd(app_name):
