@@ -647,7 +647,6 @@ class Executor:
             channel.exec_command(
                 f'docker-compose -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
             )
-            # channel.exec_command(f'cd "$HOME/dallinger/{self.app}" && docker-compose logs')
             status = channel.recv_exit_status()
             if status != 0:
                 print("docker-compose logs failed to run.")
