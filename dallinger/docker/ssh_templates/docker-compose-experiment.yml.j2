@@ -30,8 +30,8 @@ services:
       - dallinger
     volumes:
       - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
-    {%- if config.get("docker_ssh_volumes", "") %}
-    {%- for volume in config.get("docker_ssh_volumes", "").split(",") %}
+    {%- if config.get("docker_volumes", "") %}
+    {%- for volume in config.get("docker_volumes", "").split(",") %}
       - {{ volume | string() | tojson }}
     {%- endfor %}
     {%- endif %}
@@ -51,8 +51,8 @@ services:
           - {{ experiment_id }}_web
     volumes:
       - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
-    {%- if config.get("docker_ssh_volumes", "") %}
-    {%- for volume in config.get("docker_ssh_volumes", "").split(",") %}
+    {%- if config.get("docker_volumes", "") %}
+    {%- for volume in config.get("docker_volumes", "").split(",") %}
       - {{ volume | string() | tojson }}
     {%- endfor %}
     {%- endif %}
