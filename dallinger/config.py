@@ -194,7 +194,10 @@ class Configuration(object):
             except KeyError:
                 continue
         if default is marker:
-            raise KeyError(key)
+            raise KeyError(
+                f"The following config parameter was not set: {key}. Consider setting it in "
+                "config.txt or in ~/.dallingerconfig."
+            )
         return default
 
     def __getitem__(self, key):
@@ -270,7 +273,8 @@ class Configuration(object):
     def load_defaults(self):
         """Load default configuration values"""
         # Apply extra parameters before loading the configs
-        self.register_extra_parameters()
+        if self.experiment_available():
+            self.register_extra_parameters()
 
         global_config_name = ".dallingerconfig"
         global_config = os.path.expanduser(os.path.join("~/", global_config_name))
@@ -283,6 +287,9 @@ class Configuration(object):
         # Load the configuration, with local parameters overriding global ones.
         for config_file in [global_defaults_file, local_defaults_file, global_config]:
             self.load_from_file(config_file)
+
+    def experiment_available(self):
+        return "dallinger_experiment" in sys.modules or Path("experiment.py").exists()
 
     def load(self):
         self.load_defaults()
