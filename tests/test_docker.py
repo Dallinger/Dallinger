@@ -1,3 +1,4 @@
+from pathlib import Path
 import yaml
 
 
@@ -36,6 +37,30 @@ def test_get_docker_compose_yml_env_vars_escaping():
     assert (
         result["services"]["worker"]["environment"]["foo"]
         == r'" a quote and a \ backslash '
+    )
+
+
+def test_add_image_name(tempdir):
+    from dallinger.command_line.docker import add_image_name
+
+    file = Path(tempdir) / "test.txt"
+
+    file.write_text("")
+    add_image_name(str(file), "foobar")
+    assert "docker_image_name = foobar" in file.read_text()
+
+    file.write_text("\ndocker_image_name = old_image_name\n")
+    add_image_name(str(file), "new_image_name")
+    assert "old_image_name" not in file.read_text()
+    assert "docker_image_name = new_image_name" in file.read_text()
+
+    file.write_text(
+        "foo = bar\ndocker_image_base_name = the_base_image_name\nbar = foo"
+    )
+    add_image_name(str(file), "foobar_image")
+    assert (
+        file.read_text()
+        == "foo = bar\ndocker_image_base_name = the_base_image_name\ndocker_image_name = foobar_image\nbar = foo"
     )
 
 
