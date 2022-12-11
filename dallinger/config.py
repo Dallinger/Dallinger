@@ -289,7 +289,7 @@ class Configuration(object):
             self.load_from_file(config_file)
 
     def experiment_available(self):
-        return "dallinger_experiment" in sys.modules or Path("experiment.py").exists()
+        return Path("experiment.py").exists()
 
     def load(self):
         self.load_defaults()
