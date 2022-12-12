@@ -84,6 +84,7 @@ setup_args = dict(
     extras_require={
         "jupyter": [
             "jupyter",
+            "jupyter-server==1.23.3",
             "ipywidgets",
         ],
         "data": [
