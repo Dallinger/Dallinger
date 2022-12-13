@@ -199,7 +199,7 @@ REGISTRY_UNAUTHORIZED_HELP_TEXT = [
 @click.option("--live", "mode", flag_value="live", help="Deploy to the real MTurk")
 @click.option("--image", required=True, help="Name of the docker image to deploy")
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
-def deploy_image(image, mode, config_options):
+def deploy_image(image_name, mode, config_options):
     """Deploy Heroku app using a docker image and MTurk."""
     config = get_config()
     config.load()
@@ -238,12 +238,12 @@ def deploy_image(image, mode, config_options):
     # Prepare the git repo to push to Heroku
     tmp = tempfile.mkdtemp()
     os.chdir(tmp)
-    Path("Dockerfile").write_text(f"FROM {image}")
+    Path("Dockerfile").write_text(f"FROM {image_name}")
     Path("heroku.yml").write_text(HEROKU_YML)
     git = GitClient()
     git.init()
     git.add("--all")
-    git.commit(f"Deploying image {image}")
+    git.commit(f"Deploying image {image_name}")
 
     # Launch the Heroku app.
     print("Pushing code to Heroku...")
