@@ -28,12 +28,12 @@ browser_exclude_rule = MSIE, mobile, tablet
 
 [Database]
 database_url = postgresql://postgres@localhost/dallinger
-database_size = hobby-dev
+database_size = standard-0
 
 [Server]
 dyno_type = hobby
 num_dynos_web = 1
 num_dynos_worker = 1
-redis_size = hobby-dev
+redis_size = premium-0
 host = 0.0.0.0
 clock_on = false
