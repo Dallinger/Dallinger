@@ -295,7 +295,7 @@ def build_and_push_image(f):
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 @build_and_push_image
 def deploy(
-    image, mode, server, dns_host, app_name, config_options, archive_path
+    image_name, mode, server, dns_host, app_name, config_options, archive_path
 ):  # pragma: no cover
     """Deploy a dallnger experiment docker image to a server using ssh."""
     config = get_config()
@@ -351,7 +351,7 @@ def deploy(
             "CREATOR": f"{USER}@{HOSTNAME}",
             "DALLINGER_UID": experiment_uuid,
             "ADMIN_USER": "admin",
-            "docker_image_name": image,
+            "docker_image_name": image_name,
         }
     )
     cfg.update(config_options)
@@ -361,7 +361,7 @@ def deploy(
     sftp.putfo(
         BytesIO(
             get_docker_compose_yml(
-                cfg, experiment_id, image, postgresql_password
+                cfg, experiment_id, image_name, postgresql_password
             ).encode()
         ),
         f"dallinger/{experiment_id}/docker-compose.yml",
@@ -439,7 +439,7 @@ def deploy(
     log_command = f"ssh {ssh_user}@{ssh_host} docker-compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
 
     deployment_infos = [
-        f"Deployed Docker image name: {image}",
+        f"Deployed Docker image name: {image_name}",
         "To display the logs for this experiment you can run:",
         log_command,
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
