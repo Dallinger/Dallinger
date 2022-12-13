@@ -47,9 +47,9 @@ black==22.12.0
     # via dallinger
 bleach==5.0.1
     # via nbconvert
-boto3==1.26.28
+boto3==1.26.29
     # via dallinger
-botocore==1.29.28
+botocore==1.29.29
     # via
     #   boto3
     #   s3transfer
@@ -587,7 +587,7 @@ tornado==6.2
     #   nbclassic
     #   notebook
     #   terminado
-tox==4.0.8
+tox==4.0.9
     # via dallinger
 traitlets==5.7.1
     # via
