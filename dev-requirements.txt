@@ -47,9 +47,9 @@ black==22.12.0
     # via dallinger
 bleach==5.0.1
     # via nbconvert
-boto3==1.26.27
+boto3==1.26.28
     # via dallinger
-botocore==1.29.27
+botocore==1.29.28
     # via
     #   boto3
     #   s3transfer
