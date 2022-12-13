@@ -109,6 +109,7 @@ setup_args = dict(
             "sphinxcontrib-spelling",
             "Sphinx",
             "tox",
+            "sphinx-js@git+https://github.com/jorritsmit/sphinx-js#egg=sphinx-js",
             "sphinx_rtd_theme",
         ],
         "docker": ["docker", "docker-compose", "paramiko", "sshtunnel"],

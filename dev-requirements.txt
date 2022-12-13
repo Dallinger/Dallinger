@@ -47,9 +47,9 @@ black==22.12.0
     # via dallinger
 bleach==5.0.1
     # via nbconvert
-boto3==1.26.28
+boto3==1.26.29
     # via dallinger
-botocore==1.29.28
+botocore==1.29.29
     # via
     #   boto3
     #   s3transfer
@@ -233,6 +233,7 @@ jinja2==3.1.2
     #   nbconvert
     #   notebook
     #   sphinx
+    #   sphinx-js
 jmespath==1.0.1
     # via
     #   boto3
@@ -356,6 +357,8 @@ paramiko==2.12.0
     #   dallinger
     #   docker
     #   sshtunnel
+parsimonious==0.7.0
+    # via sphinx-js
 parso==0.8.3
     # via jedi
 pathspec==0.10.3
@@ -505,6 +508,7 @@ six==1.16.0
     #   dockerpty
     #   jsonschema
     #   paramiko
+    #   parsimonious
     #   python-dateutil
     #   sqlalchemy-postgres-copy
     #   websocket-client
@@ -522,8 +526,11 @@ sphinx==5.3.0
     # via
     #   dallinger
     #   recommonmark
+    #   sphinx-js
     #   sphinx-rtd-theme
     #   sphinxcontrib-spelling
+sphinx-js @ git+https://github.com/jorritsmit/sphinx-js
+    # via dallinger
 sphinx-rtd-theme==1.1.1
     # via dallinger
 sphinxcontrib-applehelp==1.0.2
@@ -587,7 +594,7 @@ tornado==6.2
     #   nbclassic
     #   notebook
     #   terminado
-tox==4.0.8
+tox==4.0.9
     # via dallinger
 traitlets==5.7.1
     # via
