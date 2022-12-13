@@ -33,7 +33,6 @@ chrome-path = /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 
 [Heroku]
 clock_on = False
-heroku_python_version = 3.10
 sentry = False
 redis_size = premium-0
 worker_multiplier = 1.5
