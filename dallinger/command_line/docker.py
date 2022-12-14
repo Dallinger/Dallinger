@@ -229,7 +229,7 @@ def deploy_image(image_name, mode, config_options):
 
     print(f"Heroku app {app.name} created. Installing add-ons")
 
-    app.install_addon(f"heroku-postgresql:{config.get('database_size', 'hobby-dev')}")
+    app.install_addon(f"heroku-postgresql:{config.get('database_size', 'standard-0')}")
     # redistogo is significantly faster to start than heroku-redis
     app.install_addon("redistogo:nano")
     app.install_addon("papertrail")
