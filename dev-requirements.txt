@@ -357,7 +357,7 @@ paramiko==2.12.0
     #   dallinger
     #   docker
     #   sshtunnel
-parsimonious==0.7.0
+parsimonious==0.10.0
     # via sphinx-js
 parso==0.8.3
     # via jedi
