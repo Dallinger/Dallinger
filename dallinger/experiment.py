@@ -213,6 +213,13 @@ class Experiment(object):
         """
         return []
 
+    def on_launch(self):
+        """This function is called upon experiment launch. Unlike
+        the background tasks, this function is blocking: recruitment
+        won't start until the function has returned.
+        """
+        pass
+
     @cached_property
     def recruiter(self):
         """Reference to a Recruiter, the Dallinger class that recruits
