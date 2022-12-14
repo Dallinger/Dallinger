@@ -645,9 +645,10 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
         file.write(exp_id)
 
     # Write out a runtime.txt file based on configuration
-    pyversion = config.get("heroku_python_version")
-    with open(os.path.join(dst, "runtime.txt"), "w") as file:
-        file.write("python-{}".format(pyversion))
+    pyversion = config.get("heroku_python_version", None)
+    if pyversion:
+        with open(os.path.join(dst, "runtime.txt"), "w") as file:
+            file.write("python-{}".format(pyversion))
 
     requirements_path = Path(dst) / "requirements.txt"
     # Overwrite the requirements.txt file with the contents of the constraints.txt file

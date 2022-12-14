@@ -297,35 +297,41 @@ def build_image(
         ]
 
     docker_build_invocation += ["-t", image_name]
-    dockerfile_text = rf"""# syntax=docker/dockerfile:1
-    FROM {base_image_name}
-    COPY . /experiment
-    WORKDIR /experiment
-    # If a dallinger wheel is present, install it.
-    # This will be true if Dallinger was installed with the editable `-e` flag
-    RUN if [ -f dallinger-*.whl ]; then pip install dallinger-*.whl; fi
-    # If a dependency needs the ssh client and git, install them
-    RUN grep git+ requirements.txt && \
-        apt-get update && \
-        apt-get install -y openssh-client git && \
-        rm -rf /var/lib/apt/lists || true
-    RUN {ssh_mount} echo 'Running script prepare_docker_image.sh' && \
-        chmod 755 ./prepare_docker_image.sh && \
-        ./prepare_docker_image.sh
-    # We rely on the already installed dallinger: the docker image tag has been chosen
-    # based on the contents of this file. This makes sure dallinger stays installed from
-    # /dallinger, and that it doesn't waste space with two copies in two different layers.
+    dockerfile_path = Path(tmp_dir) / "Dockerfile"
+    if dockerfile_path.exists():
+        out.blather(
+            "Found a custom Dockerfile in the experiment directory, will use this for deployment."
+        )
+    else:
+        dockerfile_text = rf"""# syntax=docker/dockerfile:1
+        FROM {base_image_name}
+        COPY . /experiment
+        WORKDIR /experiment
+        # If a dallinger wheel is present, install it.
+        # This will be true if Dallinger was installed with the editable `-e` flag
+        RUN if [ -f dallinger-*.whl ]; then pip install dallinger-*.whl; fi
+        # If a dependency needs the ssh client and git, install them
+        RUN grep git+ requirements.txt && \
+            apt-get update && \
+            apt-get install -y openssh-client git && \
+            rm -rf /var/lib/apt/lists || true
+        RUN {ssh_mount} echo 'Running script prepare_docker_image.sh' && \
+            chmod 755 ./prepare_docker_image.sh && \
+            ./prepare_docker_image.sh
+        # We rely on the already installed dallinger: the docker image tag has been chosen
+        # based on the contents of this file. This makes sure dallinger stays installed from
+        # /dallinger, and that it doesn't waste space with two copies in two different layers.
 
-    # Some experiments might only list dallinger as dependency
-    # If they do the grep command will exit non-0, the pip command will not run
-    # but the whole `RUN` group will succeed thanks to the last `true` invocation
-    RUN mkdir -p ~/.ssh && echo "Host *\n    StrictHostKeyChecking no" >> ~/.ssh/config
-    RUN {ssh_mount} grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
-        python3 -m pip install -r /tmp/requirements_no_dallinger.txt || true
-    ENV PORT=5000
-    CMD dallinger_heroku_web
-    """
-    (Path(tmp_dir) / "Dockerfile").write_text(dockerfile_text)
+        # Some experiments might only list dallinger as dependency
+        # If they do the grep command will exit non-0, the pip command will not run
+        # but the whole `RUN` group will succeed thanks to the last `true` invocation
+        RUN mkdir -p ~/.ssh && echo "Host *\n    StrictHostKeyChecking no" >> ~/.ssh/config
+        RUN {ssh_mount} grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
+            python3 -m pip install -r /tmp/requirements_no_dallinger.txt || true
+        ENV PORT=5000
+        CMD dallinger_heroku_web
+        """
+        dockerfile_path.write_text(dockerfile_text)
     try:
         check_output(docker_build_invocation, env=env)
     except CalledProcessError:

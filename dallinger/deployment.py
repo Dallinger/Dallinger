@@ -224,6 +224,8 @@ def deploy_sandbox_shared_setup(
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,
         "dashboard_url": "{}/dashboard/".format(heroku_app.url),
+        "dashboard_user": config.get("dashboard_user"),
+        "dashboard_password": config.get("dashboard_password"),
         "recruitment_msg": launch_data.get("recruitment_msg", None),
     }
 
