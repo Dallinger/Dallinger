@@ -104,7 +104,7 @@ default_keys = (
     ("worker_multiplier", float, []),
     ("docker_image_base_name", six.text_type, [], ""),
     ("docker_image_name", six.text_type, [], ""),
-    ("docker_ssh_volumes", six.text_type, [], ""),
+    ("docker_volumes", six.text_type, [], ""),
 )
 
 
@@ -194,7 +194,10 @@ class Configuration(object):
             except KeyError:
                 continue
         if default is marker:
-            raise KeyError(key)
+            raise KeyError(
+                f"The following config parameter was not set: {key}. Consider setting it in "
+                "config.txt or in ~/.dallingerconfig."
+            )
         return default
 
     def __getitem__(self, key):
@@ -270,7 +273,8 @@ class Configuration(object):
     def load_defaults(self):
         """Load default configuration values"""
         # Apply extra parameters before loading the configs
-        self.register_extra_parameters()
+        if self.experiment_available():
+            self.register_extra_parameters()
 
         global_config_name = ".dallingerconfig"
         global_config = os.path.expanduser(os.path.join("~/", global_config_name))
@@ -284,6 +288,9 @@ class Configuration(object):
         for config_file in [global_defaults_file, local_defaults_file, global_config]:
             self.load_from_file(config_file)
 
+    def experiment_available(self):
+        return Path("experiment.py").exists()
+
     def load(self):
         self.load_defaults()
 
@@ -294,9 +301,6 @@ class Configuration(object):
         self.load_from_environment()
         self.ready = True
 
-        if self.get("docker_image_base_name", None) is None:
-            self.set("docker_image_base_name", Path(os.getcwd()).name)
-
     def register_extra_parameters(self):
         initialize_experiment_package(os.getcwd())
         extra_parameters = None
@@ -305,10 +309,7 @@ class Configuration(object):
         # This will run any experiment specific parameter registrations
         from dallinger.experiment import load
 
-        try:
-            exp_klass = load()
-        except ImportError:
-            exp_klass = None
+        exp_klass = load()
         exp_params = getattr(exp_klass, "extra_parameters", None)
         if exp_params is not None and not self._experiment_params_loaded:
             exp_params()

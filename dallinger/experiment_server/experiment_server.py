@@ -392,6 +392,16 @@ def launch():
         )
 
     try:
+        exp.on_launch()
+    except Exception as e:
+        return error_response(
+            error_text="An error occurred when calling on_launch(), check experiment server log "
+            "for details: {}".format(str(e)),
+            status=500,
+            simple=True,
+        )
+
+    try:
         recruitment_details = exp.recruiter.open_recruitment(
             n=exp.initial_recruitment_size
         )

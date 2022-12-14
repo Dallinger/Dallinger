@@ -45,6 +45,11 @@ services:
 {%- for volumestr in volumes %}
       - "{{ volumestr }}"
 {%- endfor %}
+{%- if config.get("docker_volumes", "") %}
+{%- for volume in config.get("docker_volumes", "").split(",") %}
+      - {{ volume | string() | tojson }}
+{%- endfor %}
+{%- endif %}
     environment: &commonenv
 {%- if needs_chrome %}
       HOST: web # Tell the worker where we expect the web service to be
@@ -70,6 +75,11 @@ services:
 {%- for volumestr in volumes %}
       - "{{ volumestr }}"
 {%- endfor %}
+{%- if config.get("docker_volumes", "") %}
+{%- for volume in config.get("docker_volumes", "").split(",") %}
+      - {{ volume | string() | tojson }}
+{%- endfor %}
+{%- endif %}
     environment:
       <<: *commonenv
       PORT: 5000
