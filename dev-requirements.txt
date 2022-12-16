@@ -529,7 +529,7 @@ sphinx==5.3.0
     #   sphinx-js
     #   sphinx-rtd-theme
     #   sphinxcontrib-spelling
-sphinx-js @ git+https://github.com/jorritsmit/sphinx-js
+sphinx-js==3.2.1
     # via dallinger
 sphinx-rtd-theme==1.1.1
     # via dallinger
