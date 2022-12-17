@@ -2,6 +2,24 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.3.0](https://github.com/dallinger/dallinger/tree/v9.3.0) (2022-12-16)
+- Enhancement: Docker quality of life improvements
+  - Major
+    - Disabled the behavior where the built image name is written to config.txt. This behavior was inconsistent with the other Dallinger deployment patterns, because it meant that if you deployed once, changed code in experiment.py, then redeployed, then the experiment would launch in the former version unless you remembered to delete the image name from config.txt.
+    - Heroku deployments were failing because the default `heroku_python_version` had been discontinued by Heroku. We have experienced similar problems in the past and have always had to update Dallinger. Now we have changed the behaviour such that, if `heroku_python_version` is not specified in the experiment config, then it will use the default Python runtime currently in use by Heroku.
+  - Minor
+    - Propagate more information from deployment-related functions (e.g. dashboard credentials) so that they can be used by wrapper functions.
+    - Print more information (e.g. dashboard credentials) in deployment-related functions.
+    - Better debugging logs for docker-ssh deployments.
+    - Move deployment info logs from `deployment-info_{experiment_id}.txt` to `deploy_logs/*` to avoid clutter.
+    - Move default `dallinger_develop_directory` to `/tmp/dallinger_develop` because the original location was not writable by default on Docker.
+    - Minor bugfixes in docker-ssh deployment/export.
+    - Rename config variable `docker_ssh_volumes` -> `docker_volumes` because it's relevant also when we're doing docker locally.
+    - Some minor renaming of internal variables for consistency.
+- Infrastructure: Update dependencies; readd sphinx-js package
+- Infrastructure: Update GitHub workflows to use 'ruby-version: 3.1'
+- Infrastructure: Migrate to new Heroku Postgres/Redis plans
+
 ## [v9.2.1](https://github.com/dallinger/dallinger/tree/v9.2.1) (2022-11-26)
 
 - Bugfix: Fixed flake8 URL to make the pre-commit test pass again
