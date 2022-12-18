@@ -10,8 +10,8 @@ More information on account verification can be found `here <https://devcenter.h
 If you wish to only make use of Heroku's free tier offerings, set the following in the demo's config.txt file:
 ::
 
-    database_size = hobby-dev
-    redis_size = hobby-dev
+    database_size = standard-0
+    redis_size = premium-0
 
 
 You can read more about Heroku's `Postgres Plans <https://devcenter.heroku.com/articles/heroku-postgres-plans/>`__ and

@@ -1,44 +1,42 @@
-from contextlib import contextmanager
 import hashlib
-from io import BytesIO
+import json
+import logging
+import os
+import select
+import socket
+import sys
+import zipfile
+from contextlib import contextmanager
 from email.utils import parseaddr
 from functools import wraps
 from getpass import getuser
-import os
+from io import BytesIO
+from pathlib import Path
 from secrets import token_urlsafe
 from shlex import quote
-from socket import gethostname
 from socket import gethostbyname_ex
+from socket import gethostname
 from subprocess import CalledProcessError
 from typing import Dict
 from uuid import uuid4
-import json
-import logging
-import select
-import sys
-import socket
-import zipfile
 
+import click
+import requests
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import click
-import requests
 
-from dallinger.data import bootstrap_db_from_zip
-from dallinger.db import create_db_engine
 from dallinger.command_line.config import get_configured_hosts
 from dallinger.command_line.config import remove_host
 from dallinger.command_line.config import store_host
-from dallinger.command_line.docker import add_image_name
 from dallinger.command_line.utils import Output
-from dallinger.config import LOCAL_CONFIG
-from dallinger.data import export_db_uri
-from dallinger.deployment import setup_experiment
 from dallinger.config import get_config
+from dallinger.data import bootstrap_db_from_zip
+from dallinger.data import export_db_uri
+from dallinger.db import create_db_engine
+from dallinger.deployment import setup_experiment
 from dallinger.utils import abspath_from_egg
 from dallinger.utils import check_output
-
 
 # Find an identifier for the current user to use as CREATOR of the experiment
 HOSTNAME = gethostname()
@@ -117,7 +115,17 @@ def remove(host):
 
 
 def prepare_server(host, user):
-    executor = Executor(host, user)
+    import paramiko.ssh_exception
+
+    try:
+        executor = Executor(host, user)
+    except paramiko.ssh_exception.AuthenticationException as exc:
+        if user is None:
+            raise paramiko.ssh_exception.AuthenticationException(
+                "Failed to authenticate to the server. Do you need to specify a user?"
+            ) from exc
+        raise
+
     print("Checking docker presence")
     try:
         executor.run("docker ps")
@@ -166,6 +174,11 @@ def copy_docker_config(host, user):
                     "mv ~/.docker/config.json  ~/.docker/config.json.$(date +%d-%m-%Y-%H:%M.bak)"
                 ).split()
         sftp = get_sftp(host, user=user)
+        try:
+            # Create the .docker directory if it doesn't exist
+            sftp.mkdir(".docker")
+        except IOError:
+            pass
         sftp.putfo(BytesIO(local_file_contents), ".docker/config.json")
 
 
@@ -248,10 +261,8 @@ def build_and_push_image(f):
             Output().log, exp_config=config.as_dict(), local_checks=False
         )
         build_image(tmp_dir, config.get("docker_image_base_name"), out=Output())
-
-        pushed_image = push.callback(use_existing=True)
-        add_image_name(LOCAL_CONFIG, pushed_image)
-        return f(*args, **kwargs)
+        image_name = push.callback(use_existing=True)
+        return f(image_name, *args, **kwargs)
 
     return wrapper
 
@@ -284,7 +295,7 @@ def build_and_push_image(f):
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 @build_and_push_image
 def deploy(
-    mode, server, dns_host, app_name, config_options, archive_path
+    image_name, mode, server, dns_host, app_name, config_options, archive_path
 ):  # pragma: no cover
     """Deploy a dallnger experiment docker image to a server using ssh."""
     config = get_config()
@@ -304,7 +315,7 @@ def deploy(
     tls = "tls internal" if not HAS_TLS else f"tls {email_addr}"
     if not dns_host:
         dns_host = get_dns_host(ssh_host)
-    executor = Executor(ssh_host, user=ssh_user)
+    executor = Executor(ssh_host, user=ssh_user, app=app_name)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
     sftp = get_sftp(ssh_host, user=ssh_user)
@@ -324,7 +335,7 @@ def deploy(
     else:
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
     dashboard_password = token_urlsafe(8)
-    image = config.get("docker_image_name", None)
+
     cfg = config.as_dict()
     for key in "aws_access_key_id", "aws_secret_access_key":
         # AWS credentials are not included by default in to_dict() result
@@ -340,6 +351,7 @@ def deploy(
             "CREATOR": f"{USER}@{HOSTNAME}",
             "DALLINGER_UID": experiment_uuid,
             "ADMIN_USER": "admin",
+            "docker_image_name": image_name,
         }
     )
     cfg.update(config_options)
@@ -349,7 +361,7 @@ def deploy(
     sftp.putfo(
         BytesIO(
             get_docker_compose_yml(
-                cfg, experiment_id, image, postgresql_password
+                cfg, experiment_id, image_name, postgresql_password
             ).encode()
         ),
         f"dallinger/{experiment_id}/docker-compose.yml",
@@ -421,16 +433,32 @@ def deploy(
     )
     print(response.json()["recruitment_msg"])
 
+    dashboard_user = cfg["ADMIN_USER"]
+    dashboard_password = cfg["dashboard_password"]
+    dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
+    log_command = f"ssh {ssh_user}@{ssh_host} docker-compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
+
     deployment_infos = [
+        f"Deployed Docker image name: {image_name}",
         "To display the logs for this experiment you can run:",
-        f"ssh {ssh_user}@{ssh_host} docker-compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f",
-        f"You can now log in to the console at https://{experiment_id}.{dns_host}/dashboard as user {cfg['ADMIN_USER']} using password {cfg['dashboard_password']}",
+        log_command,
+        f"You can now log in to the console at {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
     ]
     for line in deployment_infos:
         print(line)
-    with open(f"deployment-info_{experiment_id}.txt", "w") as f:
+
+    deploy_log_path = Path("deploy_logs") / f"{experiment_id}.txt"
+    deploy_log_path.parent.mkdir(exist_ok=True)
+    with open(deploy_log_path, "w") as f:
         for line in deployment_infos:
             f.write(f"{line}\n")
+
+    return {
+        "dashboard_user": dashboard_user,
+        "dashboard_password": dashboard_password,
+        "dashboard_link": dashboard_link,
+        "log_command": log_command,
+    }
 
 
 def get_experiment_id_from_archive(archive_path):
@@ -452,6 +480,7 @@ def apps(server):
     apps = executor.run("ls ~/dallinger/caddy.d")
     for app in apps.split():
         print(app)
+    return apps
 
 
 @docker_ssh.command()
@@ -480,7 +509,7 @@ def stats(server):
     help="Don't scrub PII (Personally Identifiable Information) - if not specified PII will be scrubbed",
 )
 @server_option
-def export(server, app, local, no_scrub):
+def export(app, local, no_scrub, server):
     """Export database to a local file."""
     server_info = CONFIGURED_HOSTS[server]
     with remote_postgres(server_info, app) as db_uri:
@@ -502,7 +531,7 @@ def remote_postgres(server_info, app):
     try:
         ssh_host = server_info["host"]
         ssh_user = server_info.get("user")
-        executor = Executor(ssh_host, user=ssh_user)
+        executor = Executor(ssh_host, user=ssh_user, app=app)
         # Prepare a tunnel to be able to pass a postgresql URL to the databse
         # on the remote docker container. First we need to find the IP of the
         # container running docker
@@ -529,7 +558,7 @@ def destroy(server, app):
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
-    executor = Executor(ssh_host, user=ssh_user)
+    executor = Executor(ssh_host, user=ssh_user, app=app)
     # Remove the caddy configuration file and reload caddy config
     try:
         executor.run(f"ls ~/dallinger/caddy.d/{app}")
@@ -582,9 +611,10 @@ def get_dns_host(ssh_host):
 class Executor:
     """Execute remote commands using paramiko"""
 
-    def __init__(self, host, user=None):
+    def __init__(self, host, user=None, app=None):
         import paramiko
 
+        self.app = app
         self.client = paramiko.SSHClient()
         # For convenience we always trust the remote host
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -605,8 +635,25 @@ class Executor:
             print(f"Error: exit code was not 0 ({status})")
             print(channel.recv(10**10).decode())
             print(channel.recv_stderr(10**10).decode())
-            raise ExecuteException
+            self.print_docker_compose_logs()
+            raise ExecuteException(
+                f"An error occurred when running the following command on the remote server: \n{cmd}"
+            )
         return channel.recv(10**10).decode()
+
+    def print_docker_compose_logs(self):
+        if self.app:
+            channel = self.client.get_transport().open_session()
+            channel.exec_command(
+                f'docker-compose -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
+            )
+            status = channel.recv_exit_status()
+            if status != 0:
+                print("docker-compose logs failed to run.")
+            else:
+                print("*** BEGIN docker-compose logs ***")
+                print(channel.recv(10**10).decode())
+                print("*** END docker-compose logs ***\n")
 
     def check_sudo(self):
         """Make sure the current user is authorized to invoke sudo without providing a password.
@@ -623,7 +670,7 @@ class Executor:
     def reload_caddy(self):
         self.run(
             "docker-compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
-            "caddy reload -config /etc/caddy/Caddyfile"
+            "caddy reload --config /etc/caddy/Caddyfile"
         )
 
     def run_and_echo(self, cmd):  # pragma: no cover

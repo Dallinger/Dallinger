@@ -116,7 +116,9 @@ def _browser(route=None, port=5000):
     config.load()
     url_factory = valid_routes.get(route)
     if url_factory is not None:
-        open_browser(url_factory(config, port))
+        url = url_factory(config, port)
+        logger.info("Experiment dashboard: %s", url)
+        open_browser(url)
     else:
         click.echo(
             "Supported routes are:\n\t{}".format("\n\t".join(valid_routes.keys()))

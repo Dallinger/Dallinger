@@ -1,8 +1,6 @@
 from __future__ import unicode_literals
 
-import mock
 import os
-import sys
 from tempfile import NamedTemporaryFile
 
 import pytest
@@ -202,11 +200,6 @@ worldwide = false
         config.ready = True
         assert config.get("num_participants") == 1
 
-    def test_docker_image_default(self, experiment_dir):
-        config = get_config()
-        config.load()
-        assert config.get("docker_image_base_name") == "experiment"
-
 
 @pytest.mark.usefixtures("experiment_dir_merged")
 class TestConfigurationIntegrationTests(object):
@@ -230,16 +223,6 @@ class TestConfigurationIntegrationTests(object):
         config._reset(register_defaults=True)
         config.register_extra_parameters()
         config.load_from_file(LOCAL_CONFIG)
-
-    def test_custom_experiment_module_set_and_retained(self, reset_config):
-        config = get_config()
-        config.register_extra_parameters()
-        assert sys.modules["dallinger_experiment"] is not None
-        exp_module = mock.Mock()
-        with mock.patch.dict("sys.modules", dallinger_experiment=exp_module):
-            config.clear()
-            config.register_extra_parameters()
-            assert sys.modules["dallinger_experiment"] is exp_module
 
     def test_write_omits_sensitive_keys_if_filter_sensitive(self, in_tempdir):
         config = get_config()

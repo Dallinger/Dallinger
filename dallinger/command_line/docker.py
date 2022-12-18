@@ -1,4 +1,3 @@
-import click
 import codecs
 import netrc
 import os
@@ -8,28 +7,27 @@ import subprocess
 import tempfile
 import time
 import uuid
-
 from datetime import datetime
 from pathlib import Path
 from shlex import quote
-from heroku3.core import Heroku as Heroku3Client
+
+import click
 import requests
+from heroku3.core import Heroku as Heroku3Client
 
 from dallinger import heroku
 from dallinger import registration
-from dallinger.config import get_config
-from dallinger.config import LOCAL_CONFIG
-from dallinger.heroku.tools import HerokuApp
 from dallinger.command_line.utils import Output
 from dallinger.command_line.utils import header
 from dallinger.command_line.utils import log
 from dallinger.command_line.utils import require_exp_directory
 from dallinger.command_line.utils import verify_id
+from dallinger.config import get_config
 from dallinger.deployment import _handle_launch_data
-from dallinger.utils import abspath_from_egg
+from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import GitClient
+from dallinger.utils import abspath_from_egg
 from dallinger.utils import setup_experiment
-
 
 HEROKU_YML = abspath_from_egg("dallinger", "dallinger/docker/heroku.yml").read_text()
 
@@ -108,7 +106,7 @@ def remove_services_data():
 @require_exp_directory
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
-    _deploy_in_mode(mode="sandbox", verbose=verbose, log=log, app=app)
+    return _deploy_in_mode(mode="sandbox", verbose=verbose, log=log, app=app)
 
 
 @docker.command()
@@ -117,7 +115,7 @@ def sandbox(verbose, app):
 @require_exp_directory
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
-    _deploy_in_mode(mode="live", verbose=verbose, log=log, app=app)
+    return _deploy_in_mode(mode="live", verbose=verbose, log=log, app=app)
 
 
 @docker.command()
@@ -201,7 +199,7 @@ REGISTRY_UNAUTHORIZED_HELP_TEXT = [
 @click.option("--live", "mode", flag_value="live", help="Deploy to the real MTurk")
 @click.option("--image", required=True, help="Name of the docker image to deploy")
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
-def deploy_image(image, mode, config_options):
+def deploy_image(image_name, mode, config_options):
     """Deploy Heroku app using a docker image and MTurk."""
     config = get_config()
     config.load()
@@ -231,7 +229,7 @@ def deploy_image(image, mode, config_options):
 
     print(f"Heroku app {app.name} created. Installing add-ons")
 
-    app.install_addon(f"heroku-postgresql:{config.get('database_size', 'hobby-dev')}")
+    app.install_addon(f"heroku-postgresql:{config.get('database_size', 'standard-0')}")
     # redistogo is significantly faster to start than heroku-redis
     app.install_addon("redistogo:nano")
     app.install_addon("papertrail")
@@ -240,12 +238,12 @@ def deploy_image(image, mode, config_options):
     # Prepare the git repo to push to Heroku
     tmp = tempfile.mkdtemp()
     os.chdir(tmp)
-    Path("Dockerfile").write_text(f"FROM {image}")
+    Path("Dockerfile").write_text(f"FROM {image_name}")
     Path("heroku.yml").write_text(HEROKU_YML)
     git = GitClient()
     git.init()
     git.add("--all")
-    git.commit(f"Deploying image {image}")
+    git.commit(f"Deploying image {image_name}")
 
     # Launch the Heroku app.
     print("Pushing code to Heroku...")
@@ -304,7 +302,7 @@ def _deploy_in_mode(mode, verbose, log, app=None):
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
-    deploy_heroku_docker(log=log, verbose=verbose, app=app)
+    return deploy_heroku_docker(log=log, verbose=verbose, app=app)
 
 
 def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
@@ -326,10 +324,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     build_image(tmp, Path(os.getcwd()).name, Output(), force_build=True)
 
     # Push the built image to get the registry sha256
-    pushed_image = push.callback(use_existing=True)
-
-    # Persist the built image sha256 into the experiment
-    add_image_name(LOCAL_CONFIG, pushed_image)
+    image_name = push.callback(use_existing=True)
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
@@ -342,7 +337,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     if config.get("clock_on"):
         services.append("clock")
     for service in services:
-        text = f"""FROM {pushed_image}
+        text = f"""FROM {image_name}
         CMD dallinger_heroku_{service}
         """
         (Path(tmp) / f"Dockerfile.{service}").write_text(text)
@@ -381,6 +376,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
         "whimsical": config["whimsical"],
         "dashboard_password": config["dashboard_password"],
         "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
+        "docker_image_name": image_name,
     }
 
     # Set up the preferred class as an environment variable, if one is set
@@ -456,6 +452,8 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,
+        "dashboard_user": result["dashboard_user"],
+        "dashboard_password": result["dashboard_password"],
         "dashboard_url": "{}/dashboard/".format(heroku_app.url),
         # "recruitment_msg": launch_data.get("recruitment_msg", None),
     }

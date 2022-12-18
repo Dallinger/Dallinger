@@ -241,7 +241,7 @@ def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
-    deploy_sandbox_shared_setup(
+    return deploy_sandbox_shared_setup(
         log=log, verbose=verbose, app=app, prelaunch_actions=prelaunch
     )
 
@@ -275,7 +275,9 @@ def fail_on_unsupported_urls(f):
 @report_idle_after(21600)
 def sandbox(verbose, app, archive):
     """Deploy app using Heroku to the MTurk Sandbox."""
-    _deploy_in_mode(mode="sandbox", verbose=verbose, log=log, app=app, archive=archive)
+    return _deploy_in_mode(
+        mode="sandbox", verbose=verbose, log=log, app=app, archive=archive
+    )
 
 
 @dallinger.command()
@@ -287,7 +289,9 @@ def sandbox(verbose, app, archive):
 @report_idle_after(21600)
 def deploy(verbose, app, archive):
     """Deploy app using Heroku to MTurk."""
-    _deploy_in_mode(mode="live", verbose=verbose, log=log, app=app, archive=archive)
+    return _deploy_in_mode(
+        mode="live", verbose=verbose, log=log, app=app, archive=archive
+    )
 
 
 @dallinger.command()
