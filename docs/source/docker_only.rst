@@ -1,8 +1,14 @@
+Docker-only installation
+========================
+
 It is possible to develop with dallinger using only docker as a prerequisite.
-This guide goes through the necessary steps to achieve this.
+This means you do not need to follow most of the steps detailed in the Installation instructions.
+Instead, you just need to install Docker, and create a ``.dallingerconfig`` file containing
+the information requested in the Installation instructions.
+Once these steps are complete, you can move forward following these instructions:
 
 Set up services
-===============
+---------------
 
 Create the dallinger docker network (if not present already):
 
@@ -43,7 +49,7 @@ Select PostgreSQL from the dropdown, and enter `dallinger` as both username and 
 
 
 Run experiment from docker image
-================================
+--------------------------------
 
 Enter the experiment directory:
 
@@ -82,6 +88,7 @@ Create a file named `Dockerfile` with these contents (replace image name in the 
 Build a docker image for the experiment using Buildkit:
 
 .. code-block:: shell
+
     EXPERIMENT_IMAGE=my-experiment
     DOCKER_BUILDKIT=1 docker build . -t ${EXPERIMENT_IMAGE}
 
@@ -101,11 +108,12 @@ The admin password can be found in the develop `config.txt` file:
 
 
 Deploy the experiment image using ssh
-=====================================
+-------------------------------------
 
 We're going to use variations of the same command, so we create an alias for convenience.
 
 .. code-block:: shell
+
     # On Linux you can use:
     alias docker-dallinger='docker run --rm -ti -v /etc/group:/etc/group -v ~/.docker:/root/.docker -v ~/.local/share/dallinger/:/root/.local/share/dallinger/ -e HOME=/root -e DALLINGER_NO_EGG_BUILD=1 -v /var/run/docker.sock:/var/run/docker.sock -v $(readlink -f $SSH_AUTH_SOCK):/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent -v ${PWD}:/experiment  ${EXPERIMENT_IMAGE} dallinger'
 

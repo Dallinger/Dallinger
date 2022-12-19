@@ -57,6 +57,7 @@ Several demos demonstrate Dallinger in action:
     :maxdepth: 1
 
     demo_index
+    demos_on_heroku
 
 
 Experiment Author Documentation
@@ -71,9 +72,8 @@ designing new experiments for others to use.
 
     developing_dallinger_setup_guide
     creating_an_experiment
+    required_experiment_files
     networks
-    docker_support
-    docker_tutorial
     the_experiment_class
     classes
     web_api
@@ -86,6 +86,25 @@ designing new experiments for others to use.
     recruitment
     scheduled_tasks
     private_repo
+
+Alternative Environments Documentation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+We are currently experimenting with several other development and deployment environments
+for Dallinger, such as Docker and Vagrant. These potentially offer various advantages,
+such as better cross-platform compatibility, enhanced reproducibility, and so on.
+The following documentation topics describe some of these approaches. However,
+this work is still experimental and so the documentation is not complete yet.
+
+.. toctree::
+    :caption: Alternative Environments
+    :maxdepth: 1
+
+    docker_tutorial
+    docker_support
+    docker_only
+    vagrant_setup
+
 
 Core Contribution Documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
