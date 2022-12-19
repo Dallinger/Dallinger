@@ -20,6 +20,7 @@ import webbrowser
 from collections import Counter
 from functools import wraps
 from pathlib import Path
+from dallinger.command_line.docker_local import docker_local as docker_local_group
 from rq import Worker, Connection
 from sqlalchemy import exc as sa_exc
 
@@ -124,6 +125,7 @@ def dallinger():
 dallinger.add_command(develop)
 dallinger.add_command(docker)
 dallinger.add_command(docker_ssh)
+dallinger.add_command(docker_local_group)
 
 
 @dallinger.command()

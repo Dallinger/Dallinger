@@ -25,6 +25,7 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - ./caddy.d:/etc/caddy/caddy.d
+      - ./experiments.d:/etc/caddy/experiments.d
       - caddy_config:/config
     networks:
       - dallinger

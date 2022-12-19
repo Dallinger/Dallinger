@@ -50,6 +50,7 @@ setup_args = dict(
         "boto3",
         "build",
         "click",
+        "dnspython",
         "faker",
         "Flask-Sockets",
         "Flask",

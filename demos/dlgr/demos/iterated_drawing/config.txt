@@ -1,20 +1,12 @@
 [Experiment]
 mode = sandbox
 auto_recruit = true
+recruiter = hotair
 
-[MTurk]
-title = Remember the drawing
-description = View an image and then try to recreate it
-keywords = Psychology, drawing, images
-base_payment = 1.00
-lifetime = 24
-duration = 0.1
-us_only = true
-approve_requirement = 95
-contact_email_on_error = bartlettdrawing@mailinator.com
-ad_group = Drawing
-organization_name = Monsters University
-browser_exclude_rule = MSIE, mobile, tablet
+# Without a base_payment HITs can't complete
+# If it's 0 dallinger.command_line.verify_config will complain
+# and won't let dallinger generate-constraints run
+base_payment = 1
 
 [Database]
 database_url = postgresql://postgres@localhost/dallinger
@@ -28,3 +20,7 @@ redis_size = premium-0
 host = 0.0.0.0
 clock_on = false
 logfile = -
+
+[Docker]
+docker_image_base_name = ghcr.io/dallinger/dallinger/iterated_drawing
+docker_image_name = ghcr.io/dallinger/dallinger/iterated_drawing@sha256:55403ccf8c9ee84e29163e36c3f0c41e0d6991afc08b5ee048e206b40e681064
