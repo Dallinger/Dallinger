@@ -428,7 +428,8 @@ def deploy(
     executor.reload_caddy()
 
     print("Launching experiment")
-    response = get_retrying_http_client().post(
+    max_launch_attempts = int(os.getenv("MAX_LAUNCH_ATTEMPTS", 30))
+    response = get_retrying_http_client(max_launch_attempts).post(
         f"https://{experiment_id}.{dns_host}/launch", verify=HAS_TLS
     )
     print(response.json()["recruitment_msg"])
@@ -589,9 +590,9 @@ def get_docker_compose_yml(
     )
 
 
-def get_retrying_http_client():
+def get_retrying_http_client(max_attempts=30):
     retry_strategy = Retry(
-        total=30,
+        total=max_attempts,
         backoff_factor=0.2,
         status_forcelist=[429, 500, 502, 503, 504],
         method_whitelist=["POST"],

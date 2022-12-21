@@ -219,7 +219,10 @@ def deploy_sandbox_shared_setup(
     log("Launching the experiment on the remote server and starting recruitment...")
     launch_url = "{}/launch".format(heroku_app.url)
     log("Calling {}".format(launch_url), chevrons=False)
-    launch_data = _handle_launch_data(launch_url, error=log)
+    max_launch_attempts = int(os.getenv("MAX_LAUNCH_ATTEMPTS", 6))
+    launch_data = _handle_launch_data(
+        launch_url, error=log, attempts=max_launch_attempts
+    )
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,
@@ -550,7 +553,12 @@ class LoaderDeployment(HerokuLocalDeployment):
         if self.exp_config.get("replay"):
             self.out.log("Launching the experiment...")
             time.sleep(4)
-            _handle_launch_data("{}/launch".format(base_url), error=self.out.error)
+            max_launch_attempts = int(os.getenv("MAX_LAUNCH_ATTEMPTS", 6))
+            _handle_launch_data(
+                "{}/launch".format(base_url),
+                error=self.out.error,
+                attempts=max_launch_attempts,
+            )
             heroku.monitor(listener=self.notify)
 
         # Just run until interrupted:
