@@ -285,7 +285,10 @@ def deploy_image(image_name, mode, config_options):
 
     print("Launching experiment")
     app_url = f"https://{app_hostname}"
-    launch_data = _handle_launch_data(f"{app_url}/launch", print)
+    max_launch_attempts = int(os.getenv("MAX_LAUNCH_ATTEMPTS", 30))
+    launch_data = _handle_launch_data(
+        f"{app_url}/launch", print, attempts=max_launch_attempts
+    )
     print(launch_data.get("recruitment_msg"))
 
     print(
@@ -420,7 +423,10 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     log("Launching the experiment on the remote server and starting recruitment...")
     launch_url = "{}/launch".format(heroku_app.url)
     log("Calling {}".format(launch_url), chevrons=False)
-    launch_data = _handle_launch_data(launch_url, error=log)
+    max_launch_attempts = int(os.getenv("MAX_LAUNCH_ATTEMPTS", 6))
+    launch_data = _handle_launch_data(
+        launch_url, error=log, attempts=max_launch_attempts
+    )
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,

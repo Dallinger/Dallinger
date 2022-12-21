@@ -1,3 +1,5 @@
+import os
+
 import click
 import logging
 import subprocess
@@ -92,7 +94,8 @@ def launch_app_and_open_dashboard(port):
 
 def _launch_app(port):
     url = BASE_URL.format(port) + "launch"
-    _handle_launch_data(url, error=log, delay=1.0)
+    max_launch_attempts = int(os.getenv("MAX_LAUNCH_ATTEMPTS", 6))
+    _handle_launch_data(url, error=log, delay=1.0, attempts=max_launch_attempts)
 
 
 def _open_dashboard(port):
