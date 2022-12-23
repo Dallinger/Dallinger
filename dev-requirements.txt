@@ -264,7 +264,7 @@ jupyter-core==5.1.0
     #   nbformat
     #   notebook
     #   qtconsole
-jupyter-server==1.23.3
+jupyter-server==2.0.5
     # via
     #   dallinger
     #   nbclassic
