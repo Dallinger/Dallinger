@@ -135,7 +135,7 @@ entrypoints==0.4
     # via jupyter-client
 et-xmlfile==1.1.0
     # via openpyxl
-exceptiongroup==1.0.4
+exceptiongroup==1.1.0
     # via
     #   pytest
     #   trio
