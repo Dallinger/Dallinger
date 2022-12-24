@@ -95,7 +95,7 @@ comm==0.1.2
     # via ipykernel
 commonmark==0.9.1
     # via recommonmark
-coverage==6.5.0
+coverage==7.0.1
     # via
     #   codecov
     #   coverage-pth
