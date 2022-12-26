@@ -380,7 +380,7 @@ pluggy==1.0.0
     # via
     #   pytest
     #   tox
-pre-commit==2.20.0
+pre-commit==2.21.0
     # via dallinger
 prometheus-client==0.15.0
     # via
