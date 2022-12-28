@@ -291,7 +291,7 @@ mccabe==0.7.0
     # via flake8
 mistune==2.0.4
     # via nbconvert
-mock==4.0.3
+mock==5.0.0
     # via dallinger
 mypy-extensions==0.4.3
     # via black
