@@ -254,7 +254,7 @@ jupyter-client==7.4.8
     #   qtconsole
 jupyter-console==6.4.4
     # via jupyter
-jupyter-core==5.1.0
+jupyter-core==5.1.2
     # via
     #   jupyter-client
     #   jupyter-server
