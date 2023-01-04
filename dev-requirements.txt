@@ -426,7 +426,7 @@ pynacl==1.5.0
     # via paramiko
 pypandoc==1.10
     # via dallinger
-pyproject-api==1.2.1
+pyproject-api==1.4.0
     # via tox
 pyrsistent==0.19.2
     # via jsonschema
