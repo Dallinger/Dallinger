@@ -104,7 +104,7 @@ coverage-pth==0.0.2
     # via dallinger
 cryptography==38.0.4
     # via paramiko
-debugpy==1.6.4
+debugpy==1.6.5
     # via ipykernel
 decorator==5.1.1
     # via ipython
