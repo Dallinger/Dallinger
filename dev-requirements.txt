@@ -195,7 +195,7 @@ idna==3.4
     #   trio
 imagesize==1.4.1
     # via sphinx
-iniconfig==1.1.1
+iniconfig==2.0.0
     # via pytest
 ipykernel==6.19.2
     # via
