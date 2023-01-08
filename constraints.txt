@@ -332,7 +332,7 @@ openpyxl==3.0.10
     # via tablib
 outcome==1.2.0
     # via trio
-packaging==22.0
+packaging==23.0
     # via
     #   build
     #   docker
