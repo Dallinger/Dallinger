@@ -197,7 +197,7 @@ imagesize==1.4.1
     # via sphinx
 iniconfig==1.1.1
     # via pytest
-ipykernel==6.19.2
+ipykernel==6.20.1
     # via
     #   ipywidgets
     #   jupyter
