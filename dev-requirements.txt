@@ -633,7 +633,7 @@ virtualenv==20.17.1
     # via
     #   pre-commit
     #   tox
-wcwidth==0.2.5
+wcwidth==0.2.6
     # via prompt-toolkit
 webencodings==0.5.1
     # via
