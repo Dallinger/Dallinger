@@ -108,10 +108,13 @@ class ProlificService:
         del args["self"]
         del args["mode"]
         draft = self.draft_study(**args)
-        if mode == "sandbox":
-            return draft
+        study_id = draft["id"]
+        if mode == "live":
+            logger.info(f"Publishing experiment {study_id} on Prolific...")
+            return self.publish_study(study_id)
         else:
-            return self.publish_study(draft["id"])
+            logger.info(f"Sandboxing experiment {study_id} in Prolific (saved as draft, not public)...")
+            return draft
 
     def draft_study(
         self,
