@@ -271,6 +271,7 @@ class ProlificRecruiter(Recruiter):
             "prolific_id_option": "url_parameters",
             "reward": self.config.get("prolific_reward_cents"),
             "total_available_places": n,
+            "mode": self.config.get("mode")
         }
         # Merge in any explicit configuration untouched:
         if self.config.get("prolific_recruitment_config", None) is not None:

@@ -95,6 +95,7 @@ class ProlificService:
         prolific_id_option: str,
         reward: int,
         total_available_places: int,
+        mode: str,
         device_compatibility: Optional[List[str]] = None,
         peripheral_requirements: Optional[List[str]] = None,
     ) -> dict:
@@ -106,7 +107,10 @@ class ProlificService:
         args = locals()
         del args["self"]
         draft = self.draft_study(**args)
-        return self.publish_study(draft["id"])
+        if mode == "sandbox":
+            return draft
+        else:
+            return self.publish_study(draft["id"])
 
     def draft_study(
         self,
