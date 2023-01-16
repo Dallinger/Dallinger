@@ -133,19 +133,19 @@ class ProlificService:
         """Create a draft Study on Prolific, and return its properties."""
 
         payload = {
+            "name": name,
+            "internal_name": internal_name,
+            "description": description,
+            "external_study_url": external_study_url,
+            "prolific_id_option": prolific_id_option,
             "completion_code": completion_code,
             "completion_option": completion_option,
-            "description": description,
-            "eligibility_requirements": eligibility_requirements,
-            "estimated_completion_time": estimated_completion_time,
-            "external_study_url": external_study_url,
-            "internal_name": internal_name,
-            "maximum_allowed_time": maximum_allowed_time,
-            "name": name,
-            "prolific_id_option": prolific_id_option,
-            "reward": reward,
-            "status": "UNPUBLISHED",
             "total_available_places": total_available_places,
+            "estimated_completion_time": estimated_completion_time,
+            "maximum_allowed_time": maximum_allowed_time,
+            "reward": reward,
+            "eligibility_requirements": eligibility_requirements,
+            "status": "UNPUBLISHED",
         }
 
         if device_compatibility is not None:
