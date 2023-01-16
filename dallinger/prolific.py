@@ -106,6 +106,7 @@ class ProlificService:
         """
         args = locals()
         del args["self"]
+        del args["mode"]
         draft = self.draft_study(**args)
         if mode == "sandbox":
             return draft
