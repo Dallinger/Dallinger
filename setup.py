@@ -99,7 +99,7 @@ setup_args = dict(
             "coverage_pth",
             "codecov",
             "flake8",
-            "mock",
+            "mock==5.0.0",
             "pre-commit",
             "pycodestyle",
             "pypandoc",

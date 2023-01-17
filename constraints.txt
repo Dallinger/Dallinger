@@ -141,7 +141,7 @@ exceptiongroup==1.1.0
     #   trio
 executing==1.2.0
     # via stack-data
-faker==16.4.0
+faker==16.5.0
     # via dallinger
 fastjsonschema==2.16.2
     # via nbformat
@@ -291,7 +291,7 @@ mccabe==0.7.0
     # via flake8
 mistune==2.0.4
     # via nbconvert
-mock==5.0.1
+mock==5.0.0
     # via dallinger
 mypy-extensions==0.4.3
     # via black
