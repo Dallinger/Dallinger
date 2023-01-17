@@ -269,6 +269,15 @@ Prolific Recruitment
             ]
         }
 
+
+    You can also specify the devices you expect the participants to have, e.g.::
+        {
+            "eligibility_requirements": […],
+            "device_compatibility": ["desktop"],
+            "peripheral_requirements": ["audio", "microphone"]
+        }
+    Supported devices are ``desktop``, ``tablet``, and ``mobile``. Supported peripherals are ``audio``, ``camera``, ``download`` (download additional software to run the experiment), and ``microphone``.
+
     You would then include this file in your overall configuration by adding the following
     to your config.txt file::
 
