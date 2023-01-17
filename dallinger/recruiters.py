@@ -265,12 +265,11 @@ class ProlificRecruiter(Recruiter):
                 "prolific_maximum_allowed_minutes",
                 3 * self.config.get("prolific_estimated_completion_minutes") + 2,
             ),
-            "name": "{} ({})".format(
-                self.config.get("title"), heroku_tools.app_name(self.config.get("id"))
-            ),
+            "name": self.config.get("title"),
             "prolific_id_option": "url_parameters",
             "reward": self.config.get("prolific_reward_cents"),
             "total_available_places": n,
+            "mode": self.config.get("mode")
         }
         # Merge in any explicit configuration untouched:
         if self.config.get("prolific_recruitment_config", None) is not None:

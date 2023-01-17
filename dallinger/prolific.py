@@ -95,6 +95,7 @@ class ProlificService:
         prolific_id_option: str,
         reward: int,
         total_available_places: int,
+        mode: str,
         device_compatibility: Optional[List[str]] = None,
         peripheral_requirements: Optional[List[str]] = None,
     ) -> dict:
@@ -105,8 +106,15 @@ class ProlificService:
         """
         args = locals()
         del args["self"]
+        del args["mode"]
         draft = self.draft_study(**args)
-        return self.publish_study(draft["id"])
+        study_id = draft["id"]
+        if mode == "live":
+            logger.info(f"Publishing experiment {study_id} on Prolific...")
+            return self.publish_study(study_id)
+        else:
+            logger.info(f"Sandboxing experiment {study_id} in Prolific (saved as draft, not public)...")
+            return draft
 
     def draft_study(
         self,
@@ -128,19 +136,19 @@ class ProlificService:
         """Create a draft Study on Prolific, and return its properties."""
 
         payload = {
+            "name": name,
+            "internal_name": internal_name,
+            "description": description,
+            "external_study_url": external_study_url,
+            "prolific_id_option": prolific_id_option,
             "completion_code": completion_code,
             "completion_option": completion_option,
-            "description": description,
-            "eligibility_requirements": eligibility_requirements,
-            "estimated_completion_time": estimated_completion_time,
-            "external_study_url": external_study_url,
-            "internal_name": internal_name,
-            "maximum_allowed_time": maximum_allowed_time,
-            "name": name,
-            "prolific_id_option": prolific_id_option,
-            "reward": reward,
-            "status": "UNPUBLISHED",
             "total_available_places": total_available_places,
+            "estimated_completion_time": estimated_completion_time,
+            "maximum_allowed_time": maximum_allowed_time,
+            "reward": reward,
+            "eligibility_requirements": eligibility_requirements,
+            "status": "UNPUBLISHED",
         }
 
         if device_compatibility is not None:
