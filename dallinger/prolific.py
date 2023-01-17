@@ -113,7 +113,9 @@ class ProlificService:
             logger.info(f"Publishing experiment {study_id} on Prolific...")
             return self.publish_study(study_id)
         else:
-            logger.info(f"Sandboxing experiment {study_id} in Prolific (saved as draft, not public)...")
+            logger.info(
+                f"Sandboxing experiment {study_id} in Prolific (saved as draft, not public)..."
+            )
             return draft
 
     def draft_study(
