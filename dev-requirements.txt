@@ -47,9 +47,9 @@ black==22.12.0
     # via dallinger
 bleach==5.0.1
     # via nbconvert
-boto3==1.26.50
+boto3==1.26.51
     # via dallinger
-botocore==1.29.50
+botocore==1.29.51
     # via
     #   boto3
     #   s3transfer
@@ -141,7 +141,7 @@ exceptiongroup==1.1.0
     #   trio
 executing==1.2.0
     # via stack-data
-faker==16.5.0
+faker==16.6.0
     # via dallinger
 fastjsonschema==2.16.2
     # via nbformat
@@ -164,7 +164,7 @@ flask-login==0.6.2
     # via dallinger
 flask-sockets==0.2.1
     # via dallinger
-flask-wtf==1.1.0
+flask-wtf==1.1.1
     # via dallinger
 future==0.18.3
     # via dallinger
