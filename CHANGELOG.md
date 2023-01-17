@@ -2,6 +2,18 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.3.1](https://github.com/dallinger/dallinger/tree/v9.3.1) (2023-01-17)
+
+- Bugfixes:
+    - Prevent the survey from being published when sandboxing. Before, when `mode` was set to `"sandbox"` in `config.txt` the survey was published on Prolific.
+    - Fixed unpublished doc pages.
+- Enhancements:
+  - Extended the Prolific documentation showing how to select specific devices (e.g., desktop only) or additional hardware (e.g., microphone).
+  - Only use the app hash in the internal title and not in the public title as this is not informative to participants.
+  - Explicitly log whether the experiment is sandboxed or deployed to Prolific.
+  - Eliminate unnecessary 'is not a valid configuration key' errors.
+- Infrastructure: Update dependencies
+
 ## [v9.3.0](https://github.com/dallinger/dallinger/tree/v9.3.0) (2022-12-16)
 - Enhancement: Docker quality of life improvements
   - Major
