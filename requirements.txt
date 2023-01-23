@@ -143,7 +143,7 @@ rq==1.12.0
     # via dallinger
 s3transfer==0.6.0
     # via boto3
-selenium==4.7.2
+selenium==4.8.0
     # via dallinger
 six==1.16.0
     # via
