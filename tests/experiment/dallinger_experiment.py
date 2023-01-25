@@ -27,6 +27,10 @@ class TestExperiment(Experiment):
         config = get_config()
         config.register("custom_parameter2", bool, [])
 
+    @classmethod
+    def config_defaults(cls):
+        return {"duration": 12345}
+
     @property
     def public_properties(self):
         return {"exists": True}

@@ -258,3 +258,12 @@ class TestConfigurationIntegrationTests(object):
         with open(os.path.join(target, LOCAL_CONFIG)) as txt:
             contents = txt.read()
         assert "aws_region" in contents
+
+    def test_experiment_config_defaults(self):
+        # import pydevd_pycharm
+        # pydevd_pycharm.settrace('localhost', port=12345, stdoutToServer=True, stderrToServer=True)
+
+        config = get_config()
+        config.load_experiment_config_defaults()
+
+        assert config.get("duration") == 12345
