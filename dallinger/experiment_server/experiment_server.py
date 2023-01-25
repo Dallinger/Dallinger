@@ -43,7 +43,7 @@ from .utils import (
     error_response,
     success_response,
     ExperimentError,
-    ValidatesBrowser
+    ValidatesBrowser,
 )
 
 from flask import redirect
@@ -466,6 +466,7 @@ def launch():
 
     return success_response(recruitment_msg=message)
 
+
 def prepare_advertisement():
     session = db.session
     config = _config()
@@ -484,7 +485,7 @@ def prepare_advertisement():
         for entry_param in ("hitId", "assignmentId", "workerId"):
             if not redirect_params.get(entry_param):
                 redirect_params[entry_param] = generate_random_id()
-        return True, {'redirect': redirect(url_for("advertisement", **redirect_params))}
+        return True, {"redirect": redirect(url_for("advertisement", **redirect_params))}
 
     app_id = config.get("id", "unknown")
     exp = Experiment(session)
@@ -500,10 +501,10 @@ def prepare_advertisement():
     if worker_id is not None:
         # Check if this workerId has completed the task before
         already_participated = (
-                models.Participant.query.filter(
-                    models.Participant.worker_id == worker_id
-                ).first()
-                is not None
+            models.Participant.query.filter(
+                models.Participant.worker_id == worker_id
+            ).first()
+            is not None
         )
 
         if already_participated:
@@ -515,13 +516,13 @@ def prepare_advertisement():
         recruiter_name = recruiter.nickname
 
     kwargs = {
-        'recruiter': recruiter_name,
-        'hitid': hit_id,
-        'assignmentid': assignment_id,
-        'workerid': worker_id,
-        'mode': mode,
-        'app_id': app_id,
-        'query_string': request.query_string.decode()
+        "recruiter": recruiter_name,
+        "hitid": hit_id,
+        "assignmentid": assignment_id,
+        "workerid": worker_id,
+        "mode": mode,
+        "app_id": app_id,
+        "query_string": request.query_string.decode(),
     }
     return False, kwargs
 
@@ -550,10 +551,7 @@ def advertisement():
     else:
         # Participant has not yet agreed to the consent. They might not
         # even have accepted the HIT.
-        return render_template(
-            "ad.html",
-            **kw
-        )
+        return render_template("ad.html", **kw)
 
 
 @app.route("/recruiter-exit", methods=["GET"])
