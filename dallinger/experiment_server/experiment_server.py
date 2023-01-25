@@ -10,12 +10,10 @@ import re
 from flask import (
     abort,
     Flask,
-    redirect,
     render_template,
     request,
     Response,
     send_from_directory,
-    url_for,
 )
 from flask_login import current_user, LoginManager, login_required
 from jinja2 import TemplateNotFound
@@ -28,12 +26,12 @@ from psycopg2.extensions import TransactionRollbackError
 
 from dallinger import db
 from dallinger import experiment
-from dallinger import models
-from dallinger.config import get_config
-from dallinger import recruiters
 from dallinger.notifications import admin_notifier
 from dallinger.notifications import MessengerError
+from dallinger.config import get_config
 from dallinger.utils import generate_random_id
+from dallinger import models
+from dallinger import recruiters
 
 from . import dashboard
 from .replay import ReplayBackend
@@ -41,12 +39,16 @@ from .worker_events import worker_function
 from .utils import (
     crossdomain,
     nocache,
-    ValidatesBrowser,
     error_page,
     error_response,
     success_response,
     ExperimentError,
+    ValidatesBrowser
 )
+
+from flask import redirect
+from flask import url_for
+from json import dumps
 
 
 # Initialize the Dallinger database.
@@ -464,6 +466,65 @@ def launch():
 
     return success_response(recruitment_msg=message)
 
+def prepare_advertisement():
+    session = db.session
+    config = _config()
+    mode = config.get("mode")
+
+    # Browser rule validation, if configured:
+    browser = ValidatesBrowser(config)
+    if not browser.is_supported(request.user_agent.string):
+        raise ExperimentError("browser_type_not_allowed")
+
+    entry_information = request.args.to_dict()
+
+    if entry_information.get("generate_tokens", None) in ("1", "true", "yes"):
+        redirect_params = entry_information.copy()
+        del redirect_params["generate_tokens"]
+        for entry_param in ("hitId", "assignmentId", "workerId"):
+            if not redirect_params.get(entry_param):
+                redirect_params[entry_param] = generate_random_id()
+        return True, {'redirect': redirect(url_for("advertisement", **redirect_params))}
+
+    app_id = config.get("id", "unknown")
+    exp = Experiment(session)
+    entry_data = exp.normalize_entry_information(entry_information)
+
+    hit_id = entry_data.get("hit_id")
+    assignment_id = entry_data.get("assignment_id")
+    worker_id = entry_data.get("worker_id")
+
+    if not (hit_id and assignment_id):
+        raise ExperimentError("hit_assign_worker_id_not_set_by_recruiter")
+
+    if worker_id is not None:
+        # Check if this workerId has completed the task before
+        already_participated = (
+                models.Participant.query.filter(
+                    models.Participant.worker_id == worker_id
+                ).first()
+                is not None
+        )
+
+        if already_participated:
+            raise ExperimentError("already_did_exp_hit")
+
+    recruiter_name = request.args.get("recruiter")
+    if not recruiter_name:
+        recruiter = recruiters.from_config(config)
+        recruiter_name = recruiter.nickname
+
+    kwargs = {
+        'recruiter': recruiter_name,
+        'hitid': hit_id,
+        'assignmentid': assignment_id,
+        'workerid': worker_id,
+        'mode': mode,
+        'app_id': app_id,
+        'query_string': request.query_string.decode()
+    }
+    return False, kwargs
+
 
 @app.route("/ad", methods=["GET"])
 @nocache
@@ -482,65 +543,17 @@ def advertisement():
         The user will be redirected to this view with random recruiter
         arguments set.
     """
-    config = _config()
 
-    # Browser rule validation, if configured:
-    browser = ValidatesBrowser(config)
-    if not browser.is_supported(request.user_agent.string):
-        raise ExperimentError("browser_type_not_allowed")
-
-    entry_information = request.args.to_dict()
-
-    if entry_information.get("generate_tokens", None) in ("1", "true", "yes"):
-        redirect_params = entry_information.copy()
-        del redirect_params["generate_tokens"]
-        for entry_param in ("hitId", "assignmentId", "workerId"):
-            if not redirect_params.get(entry_param):
-                redirect_params[entry_param] = generate_random_id()
-        return redirect(url_for("advertisement", **redirect_params))
-
-    app_id = config.get("id", "unknown")
-    exp = Experiment(session)
-    entry_data = exp.normalize_entry_information(entry_information)
-
-    hit_id = entry_data.get("hit_id")
-    assignment_id = entry_data.get("assignment_id")
-    worker_id = entry_data.get("worker_id")
-
-    if not (hit_id and assignment_id):
-        raise ExperimentError("hit_assign_worker_id_not_set_by_recruiter")
-
-    if worker_id is not None:
-        # Check if this workerId has completed the task before
-        already_participated = (
-            models.Participant.query.filter(
-                models.Participant.worker_id == worker_id
-            ).first()
-            is not None
-        )
-
-        if already_participated:
-            raise ExperimentError("already_did_exp_hit")
-
-    recruiter_name = request.args.get("recruiter")
-    if recruiter_name:
-        recruiter = recruiters.by_name(recruiter_name)
+    is_redirect, kw = prepare_advertisement()
+    if is_redirect:
+        return kw["redirect"]
     else:
-        recruiter = recruiters.from_config(config)
-        recruiter_name = recruiter.nickname
-
-    # Participant has not yet agreed to the consent. They might not
-    # even have accepted the HIT.
-    return render_template(
-        "ad.html",
-        recruiter=recruiter_name,
-        hitid=hit_id,
-        assignmentid=assignment_id,
-        workerid=worker_id,
-        mode=config.get("mode"),
-        app_id=app_id,
-        query_string=request.query_string.decode(),
-    )
+        # Participant has not yet agreed to the consent. They might not
+        # even have accepted the HIT.
+        return render_template(
+            "ad.html",
+            **kw
+        )
 
 
 @app.route("/recruiter-exit", methods=["GET"])

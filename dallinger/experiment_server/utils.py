@@ -12,7 +12,6 @@ from functools import update_wrapper
 from json import dumps
 from dallinger.config import get_config
 
-
 logger = logging.getLogger(__name__)
 
 
