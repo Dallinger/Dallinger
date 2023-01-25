@@ -263,4 +263,4 @@ class TestConfigurationIntegrationTests(object):
         config = get_config()
         config.load_experiment_config_defaults()
 
-        assert config.get("duration") == 12345
+        assert config.get("duration") == 12345.0
