@@ -10,7 +10,6 @@ from flask import render_template
 from flask import Response
 from functools import update_wrapper
 from json import dumps
-
 from dallinger.config import get_config
 
 logger = logging.getLogger(__name__)
@@ -79,8 +78,6 @@ def nocache(func):
         return resp
 
     return update_wrapper(new_func, func)
-
-
 
 
 class ExperimentError(Exception):
