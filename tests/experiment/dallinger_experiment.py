@@ -29,7 +29,7 @@ class TestExperiment(Experiment):
 
     @classmethod
     def config_defaults(cls):
-        return {"duration": 12345}
+        return {"duration": 12345.0}
 
     @property
     def public_properties(self):
