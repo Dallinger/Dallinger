@@ -8,16 +8,10 @@ from flask import request
 from flask import current_app
 from flask import render_template
 from flask import Response
-from flask import redirect
-from flask import url_for
 from functools import update_wrapper
 from json import dumps
 
-from dallinger import db
 from dallinger.config import get_config
-from dallinger.utils import generate_random_id
-from dallinger import models
-from dallinger import recruiters
 
 logger = logging.getLogger(__name__)
 
@@ -87,65 +81,6 @@ def nocache(func):
     return update_wrapper(new_func, func)
 
 
-def prepare_advertisement():
-    from dallinger.experiment_server.experiment_server import Experiment
-    session = db.session
-    config = _config()
-    mode = config.get("mode")
-
-    # Browser rule validation, if configured:
-    browser = ValidatesBrowser(config)
-    if not browser.is_supported(request.user_agent.string):
-        raise ExperimentError("browser_type_not_allowed")
-
-    entry_information = request.args.to_dict()
-
-    if entry_information.get("generate_tokens", None) in ("1", "true", "yes"):
-        redirect_params = entry_information.copy()
-        del redirect_params["generate_tokens"]
-        for entry_param in ("hitId", "assignmentId", "workerId"):
-            if not redirect_params.get(entry_param):
-                redirect_params[entry_param] = generate_random_id()
-        return True, {'redirect': redirect(url_for("advertisement", **redirect_params))}
-
-    app_id = config.get("id", "unknown")
-    exp = Experiment(session)
-    entry_data = exp.normalize_entry_information(entry_information)
-
-    hit_id = entry_data.get("hit_id")
-    assignment_id = entry_data.get("assignment_id")
-    worker_id = entry_data.get("worker_id")
-
-    if not (hit_id and assignment_id):
-        raise ExperimentError("hit_assign_worker_id_not_set_by_recruiter")
-
-    if worker_id is not None:
-        # Check if this workerId has completed the task before
-        already_participated = (
-                models.Participant.query.filter(
-                    models.Participant.worker_id == worker_id
-                ).first()
-                is not None
-        )
-
-        if already_participated:
-            raise ExperimentError("already_did_exp_hit")
-
-    recruiter_name = request.args.get("recruiter")
-    if not recruiter_name:
-        recruiter = recruiters.from_config(config)
-        recruiter_name = recruiter.nickname
-
-    kwargs = {
-        'recruiter': recruiter_name,
-        'hitid': hit_id,
-        'assignmentid': assignment_id,
-        'workerid': worker_id,
-        'mode': mode,
-        'app_id': app_id,
-        'query_string': request.query_string.decode()
-    }
-    return False, kwargs
 
 
 class ExperimentError(Exception):
