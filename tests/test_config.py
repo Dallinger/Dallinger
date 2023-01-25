@@ -260,9 +260,6 @@ class TestConfigurationIntegrationTests(object):
         assert "aws_region" in contents
 
     def test_experiment_config_defaults(self):
-        # import pydevd_pycharm
-        # pydevd_pycharm.settrace('localhost', port=12345, stdoutToServer=True, stderrToServer=True)
-
         config = get_config()
         config.load_experiment_config_defaults()
 
