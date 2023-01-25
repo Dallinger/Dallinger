@@ -1,55 +1,48 @@
 """The base experiment class."""
 
-from __future__ import print_function
-from __future__ import unicode_literals
+from __future__ import print_function, unicode_literals
 
-from cached_property import cached_property
-from collections import Counter
-from collections import OrderedDict
-from contextlib import contextmanager
-from functools import wraps
 import datetime
 import inspect
-from importlib import import_module
 import json
 import logging
-from operator import itemgetter
 import os
 import random
-import requests
 import sys
 import time
 import uuid
 import warnings
+from collections import Counter, OrderedDict
+from contextlib import contextmanager
+from functools import wraps
+from importlib import import_module
+from operator import itemgetter
 
+import requests
+from cached_property import cached_property
 from flask import Blueprint
-from sqlalchemy import and_
-from sqlalchemy import create_engine
-from sqlalchemy import distinct
-from sqlalchemy import func
-from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy import and_, create_engine, distinct, func
+from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
 
-from dallinger import recruiters
-from dallinger.config import get_config, LOCAL_CONFIG
-from dallinger.config import initialize_experiment_package
-from dallinger.data import Data
-from dallinger.data import export
-from dallinger.data import is_registered
+from dallinger import models, recruiters
+from dallinger.config import LOCAL_CONFIG, get_config, initialize_experiment_package
+from dallinger.data import (
+    Data,
+    export,
+    find_experiment_export,
+    ingest_zip,
+    is_registered,
+)
 from dallinger.data import load as data_load
-from dallinger.data import find_experiment_export
-from dallinger.data import ingest_zip
-from dallinger.db import init_db, db_url
-from dallinger import models
-from dallinger.models import Network, Node, Info, Transformation, Participant, Vector
+from dallinger.db import db_url, init_db
 from dallinger.heroku.tools import HerokuApp
 from dallinger.information import Gene, Meme, State
-from dallinger.nodes import Agent, Source, Environment
-from dallinger.transformations import Compression, Response
-from dallinger.transformations import Mutation, Replication
-from dallinger.utils import deferred_route_decorator, struct_to_html
-
+from dallinger.models import Info, Network, Node, Participant, Transformation, Vector
 from dallinger.networks import Empty
+from dallinger.nodes import Agent, Environment, Source
+from dallinger.transformations import Compression, Mutation, Replication, Response
+from dallinger.utils import deferred_route_decorator, struct_to_html
 
 logger = logging.getLogger(__file__)
 
@@ -1256,8 +1249,8 @@ class Experiment(object):
             self.widget.status = status
 
     def jupyter_replay(self, *args, **kwargs):
-        from ipywidgets import widgets
         from IPython.display import display
+        from ipywidgets import widgets
 
         try:
             sys.modules["dallinger_experiment"]._jupyter_cleanup()

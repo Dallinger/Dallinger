@@ -1,5 +1,6 @@
 """Install Dallinger as a command line utility."""
 import pathlib
+
 from setuptools import setup
 
 # The directory containing this file
@@ -99,6 +100,7 @@ setup_args = dict(
             "coverage_pth",
             "codecov",
             "flake8",
+            "isort",
             "mock==5.0.0",
             "pre-commit",
             "pycodestyle",

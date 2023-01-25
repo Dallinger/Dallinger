@@ -1,8 +1,12 @@
 import os
+
 import pytest
-from dallinger.pytest_dallinger import wait_for_element
-from dallinger.pytest_dallinger import wait_for_text
-from dallinger.pytest_dallinger import wait_until_clickable
+
+from dallinger.pytest_dallinger import (
+    wait_for_element,
+    wait_for_text,
+    wait_until_clickable,
+)
 
 
 @pytest.fixture(scope="class")

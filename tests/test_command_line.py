@@ -1,20 +1,20 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-import click
-import mock
 import os
 import re
-import six
 import subprocess
 from time import sleep
 from uuid import UUID
 
-from click.testing import CliRunner
+import click
+import mock
 import pytest
+import six
+from click.testing import CliRunner
 
 import dallinger.command_line
-from dallinger.command_line import report_idle_after
 import dallinger.version
+from dallinger.command_line import report_idle_after
 
 
 def found_in(name, path):
@@ -391,9 +391,9 @@ class TestBot(object):
             yield bot
 
     def test_bot_factory(self):
+        from dallinger.bots import BotBase
         from dallinger.command_line import bot_factory
         from dallinger.deployment import setup_experiment
-        from dallinger.bots import BotBase
 
         setup_experiment(log=mock.Mock())
         bot = bot_factory("some url")

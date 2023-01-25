@@ -1,7 +1,7 @@
 """Bartlett's trasmission chain experiment from Remembering (1932)."""
 
-from dallinger.networks import Empty
 from dallinger.experiment import Experiment
+from dallinger.networks import Empty
 
 
 class VoxPopuli(Experiment):

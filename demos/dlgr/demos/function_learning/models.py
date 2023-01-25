@@ -1,8 +1,10 @@
-from dallinger.nodes import Source
-import random
 import json
-from sqlalchemy.ext.declarative import declared_attr
 import math
+import random
+
+from sqlalchemy.ext.declarative import declared_attr
+
+from dallinger.nodes import Source
 
 
 class AbstractFnSource(Source):

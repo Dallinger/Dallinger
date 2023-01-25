@@ -14,8 +14,7 @@ from io import BytesIO
 from pathlib import Path
 from secrets import token_urlsafe
 from shlex import quote
-from socket import gethostbyname_ex
-from socket import gethostname
+from socket import gethostbyname_ex, gethostname
 from subprocess import CalledProcessError
 from typing import Dict
 from uuid import uuid4
@@ -26,17 +25,13 @@ from jinja2 import Template
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from dallinger.command_line.config import get_configured_hosts
-from dallinger.command_line.config import remove_host
-from dallinger.command_line.config import store_host
+from dallinger.command_line.config import get_configured_hosts, remove_host, store_host
 from dallinger.command_line.utils import Output
 from dallinger.config import get_config
-from dallinger.data import bootstrap_db_from_zip
-from dallinger.data import export_db_uri
+from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import setup_experiment
-from dallinger.utils import abspath_from_egg
-from dallinger.utils import check_output
+from dallinger.utils import abspath_from_egg, check_output
 
 # Find an identifier for the current user to use as CREATOR of the experiment
 HOSTNAME = gethostname()
@@ -228,9 +223,10 @@ def build_and_push_image(f):
 
     @wraps(f)
     def wrapper(*args, **kwargs):  # pragma: no cover
-        from dallinger.docker.tools import build_image
-        from dallinger.command_line.docker import push
         import docker
+
+        from dallinger.command_line.docker import push
+        from dallinger.docker.tools import build_image
 
         config = get_config()
         config.load()

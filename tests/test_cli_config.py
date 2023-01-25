@@ -1,10 +1,10 @@
-from pathlib import Path
 import json
+import shutil
+import tempfile
+from pathlib import Path
 
 import mock
 import pytest
-import shutil
-import tempfile
 
 
 def test_list_hosts_empty():
@@ -25,8 +25,7 @@ def test_list_hosts_results(tmp_appdir):
 
 
 def test_store_host():
-    from dallinger.command_line.config import get_configured_hosts
-    from dallinger.command_line.config import store_host
+    from dallinger.command_line.config import get_configured_hosts, store_host
 
     host1 = dict(user="test_user_1", host="test_host_1")
     host2 = dict(user="test_user_2", host="test_host_2")

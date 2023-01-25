@@ -6,8 +6,7 @@ from tempfile import NamedTemporaryFile
 import pytest
 import six
 
-from dallinger.config import Configuration
-from dallinger.config import get_config, LOCAL_CONFIG
+from dallinger.config import LOCAL_CONFIG, Configuration, get_config
 
 
 class TestConfigurationUnitTests(object):

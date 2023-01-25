@@ -1,6 +1,6 @@
 from ipywidgets import widgets
 from jinja2 import Template
-from traitlets import observe, Unicode
+from traitlets import Unicode, observe
 
 from dallinger.config import get_config
 

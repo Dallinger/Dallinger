@@ -1,5 +1,5 @@
-from six import text_type as unicode
 import six
+from six import text_type as unicode
 
 unicode  # for flake8
 

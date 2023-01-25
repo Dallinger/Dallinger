@@ -1,21 +1,18 @@
-import click
-import docker
 import os
 import time
-
 from hashlib import sha256
-
-from jinja2 import Template
 from pathlib import Path
 from shutil import which
-from subprocess import check_output
-from subprocess import CalledProcessError
+from subprocess import CalledProcessError, check_output
+
+import click
+import docker
+from jinja2 import Template
 from pip._internal.network.session import PipSession
 from pip._internal.req import parse_requirements
 
 from dallinger.docker.wheel_filename import parse_wheel_filename
-from dallinger.utils import abspath_from_egg
-from dallinger.utils import get_editable_dallinger_path
+from dallinger.utils import abspath_from_egg, get_editable_dallinger_path
 
 docker_compose_template = Template(
     abspath_from_egg("dallinger", "dallinger/docker/docker-compose.yml.j2").read_text()

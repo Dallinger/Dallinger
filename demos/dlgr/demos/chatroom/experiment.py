@@ -1,6 +1,7 @@
 """Chatroom game."""
 
 import logging
+
 from dallinger import networks
 from dallinger.compat import unicode
 from dallinger.config import get_config

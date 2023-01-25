@@ -1,55 +1,46 @@
 """ This module provides the backend Flask server that serves an experiment. """
 
-from datetime import datetime
-import gevent
-from json import dumps
-from json import loads
 import os
 import re
+from datetime import datetime
+from json import dumps, loads
 
+import gevent
 from flask import (
-    abort,
     Flask,
+    Response,
+    abort,
+    redirect,
     render_template,
     request,
-    Response,
     send_from_directory,
+    url_for,
 )
-from flask_login import current_user, LoginManager, login_required
+from flask_login import LoginManager, current_user, login_required
 from jinja2 import TemplateNotFound
-from rq import Queue
-from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
-from sqlalchemy import exc
-from sqlalchemy import func
-from sqlalchemy.sql.expression import true
 from psycopg2.extensions import TransactionRollbackError
+from rq import Queue
+from sqlalchemy import exc, func
+from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
+from sqlalchemy.sql.expression import true
 
-from dallinger import db
-from dallinger import experiment
-from dallinger.notifications import admin_notifier
-from dallinger.notifications import MessengerError
+from dallinger import db, experiment, models, recruiters
 from dallinger.config import get_config
+from dallinger.notifications import MessengerError, admin_notifier
 from dallinger.utils import generate_random_id
-from dallinger import models
-from dallinger import recruiters
 
 from . import dashboard
 from .replay import ReplayBackend
-from .worker_events import worker_function
 from .utils import (
-    crossdomain,
-    nocache,
-    error_page,
-    error_response,
-    success_response,
     ExperimentError,
     ValidatesBrowser,
+    crossdomain,
+    error_page,
+    error_response,
+    nocache,
+    success_response,
 )
-
-from flask import redirect
-from flask import url_for
-from json import dumps
-
+from .worker_events import worker_function
 
 # Initialize the Dallinger database.
 session = db.session

@@ -1,8 +1,9 @@
-import gevent
 import logging
 import time
-from dallinger.utils import get_base_url
 
+import gevent
+
+from dallinger.utils import get_base_url
 
 logger = logging.getLogger(__file__)
 

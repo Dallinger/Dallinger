@@ -1,24 +1,21 @@
-import click
 import logging
 import subprocess
 
-from six.moves.urllib.parse import urlparse
-from six.moves.urllib.parse import urlunparse
-
+import click
 from rq import Queue
+from six.moves.urllib.parse import urlparse, urlunparse
 
-from dallinger.command_line.utils import error
-from dallinger.command_line.utils import header
-from dallinger.command_line.utils import log
-from dallinger.command_line.utils import Output
-from dallinger.command_line.utils import require_exp_directory
+from dallinger.command_line.utils import (
+    Output,
+    error,
+    header,
+    log,
+    require_exp_directory,
+)
 from dallinger.config import get_config
 from dallinger.db import redis_conn
-from dallinger.deployment import DevelopmentDeployment
-from dallinger.deployment import _handle_launch_data
-from dallinger.utils import develop_target_path
-from dallinger.utils import open_browser
-
+from dallinger.deployment import DevelopmentDeployment, _handle_launch_data
+from dallinger.utils import develop_target_path, open_browser
 
 logger = logging.getLogger(__name__)
 BASE_URL = "http://127.0.0.1:{}/"

@@ -1,11 +1,13 @@
 """The Sheep Market."""
 
-from dallinger.networks import Empty
+import json
+
+from flask import abort, jsonify, render_template
+from jinja2 import TemplateNotFound
+
 from dallinger.experiment import Experiment, experiment_route
 from dallinger.models import Info
-from jinja2 import TemplateNotFound
-from flask import abort, jsonify, render_template
-import json
+from dallinger.networks import Empty
 
 
 class SheepMarket(Experiment):

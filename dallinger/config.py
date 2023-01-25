@@ -1,16 +1,17 @@
 from __future__ import unicode_literals
 
-from collections import deque
-from contextlib import contextmanager
-from six.moves import configparser
-from pathlib import Path
 import distutils.util
 import io
 import json
 import logging
 import os
-import six
 import sys
+from collections import deque
+from contextlib import contextmanager
+from pathlib import Path
+
+import six
+from six.moves import configparser
 
 logger = logging.getLogger(__file__)
 

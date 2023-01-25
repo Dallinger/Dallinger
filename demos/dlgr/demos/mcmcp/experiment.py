@@ -4,10 +4,10 @@ import time
 from operator import attrgetter
 
 from flask import Response
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 from dallinger.bots import BotBase
 from dallinger.experiment import Experiment, experiment_route
@@ -74,8 +74,9 @@ class MCMCP(Experiment):
     @experiment_route("/choice/<int:node_id>/<int:choice>", methods=["POST"])
     @classmethod
     def choice(cls, node_id, choice):
-        from .models import Agent
         from dallinger import db
+
+        from .models import Agent
 
         try:
             exp = MCMCP(db.session)

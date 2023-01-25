@@ -1,24 +1,22 @@
-import mock
 import os
-import pexpect
-import pytest
 import re
 import shutil
 import sys
 import tempfile
 import time
+
+import mock
+import pexpect
+import pytest
 from jinja2 import FileSystemLoader
 from selenium import webdriver
-from dallinger import information
-from dallinger import models
-from dallinger import networks
-from dallinger import nodes
-from dallinger.bots import BotBase
-from dallinger.recruiters import NEW_RECRUIT_LOG_PREFIX
-from dallinger.recruiters import CLOSE_RECRUITMENT_LOG_PREFIX
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+
+from dallinger import information, models, networks, nodes
+from dallinger.bots import BotBase
+from dallinger.recruiters import CLOSE_RECRUITMENT_LOG_PREFIX, NEW_RECRUIT_LOG_PREFIX
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
@@ -178,8 +176,7 @@ def stub_config():
         "replay": False,
         "worker_multiplier": 1.5,
     }
-    from dallinger.config import default_keys
-    from dallinger.config import Configuration
+    from dallinger.config import Configuration, default_keys
 
     config = Configuration()
     for key in default_keys:

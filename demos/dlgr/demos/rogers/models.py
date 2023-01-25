@@ -1,12 +1,12 @@
-from operator import attrgetter
 import random
+from operator import attrgetter
 
 from sqlalchemy import Float, Integer
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql.expression import cast
 
-from dallinger.models import Transformation
 from dallinger.information import Gene, Meme, State
+from dallinger.models import Transformation
 from dallinger.nodes import Agent, Source
 
 

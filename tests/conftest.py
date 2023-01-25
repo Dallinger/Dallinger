@@ -1,8 +1,9 @@
 import json
-import mock
 import os
-import pytest
 from datetime import datetime
+
+import mock
+import pytest
 from tzlocal import get_localzone
 
 pytest_plugins = ["pytest_dallinger"]
@@ -110,8 +111,10 @@ def experiment_dir_merged(experiment_dir, active_config):
     """A temp directory with files from the standard test experiment, merged
     with standard Dallinger files by the same process that occurs in production.
     """
-    from dallinger.utils import assemble_experiment_temp_dir
-    from dallinger.utils import ensure_constraints_file_presence
+    from dallinger.utils import (
+        assemble_experiment_temp_dir,
+        ensure_constraints_file_presence,
+    )
 
     current_dir = os.getcwd()
     ensure_constraints_file_presence(current_dir)
