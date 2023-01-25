@@ -1,6 +1,8 @@
 """Recruiters manage the flow of participants to the experiment."""
+from __future__ import print_function
 from __future__ import unicode_literals
 
+import tabulate
 import flask
 import json
 import logging
@@ -37,6 +39,7 @@ from dallinger.utils import get_base_url
 from dallinger.utils import generate_random_id
 from dallinger.utils import ParticipationTime
 from dallinger.version import __version__
+from dallinger.command_line.utils import Output
 
 
 logger = logging.getLogger(__file__)
@@ -163,6 +166,75 @@ class Recruiter(object):
         """
         return "AssignmentSubmitted"
 
+    def load_service(self, sandbox):
+        """Load the appropriate service for this recruiter."""
+        raise NotImplementedError
+    def hits(self, app=None, sandbox=False):
+        """Lists all hits on a recruiter."""
+        service = self.load_service(sandbox)
+        hits = _current_hits(service, app)
+        formatted_hit_list = []
+
+        def _format_date_if_present(date):
+            dateformat = "%Y/%-m/%-d %I:%M:%S %p"
+            try:
+                return date.strftime(dateformat)
+            except AttributeError:
+                return ""
+
+        for h in hits:
+            title = h["title"][:40] + "..." if len(h["title"]) > 40 else h["title"]
+            description = (
+                h["description"][:60] + "..."
+                if len(h["description"]) > 60
+                else h["description"]
+            )
+            formatted_hit_list.append(
+                [
+                    h["id"],
+                    title,
+                    h["annotation"],
+                    h["status"],
+                    _format_date_if_present(h["created"]),
+                    _format_date_if_present(h["expiration"]),
+                    description,
+                ]
+            )
+        out = Output()
+        out.log("Found {} hit[s]:".format(len(formatted_hit_list)))
+        out.log(
+            tabulate.tabulate(
+                formatted_hit_list,
+                headers=[
+                    "Hit ID",
+                    "Title",
+                    "Annotation (experiment ID)",
+                    "Status",
+                    "Created",
+                    "Expiration",
+                    "Description",
+                ],
+            ),
+            chevrons=False,
+        )
+
+    def clean_qualifications(self, experiment_details):
+        """Remove qualifications with default values."""
+        return experiment_details
+    def hit_details(self, hit_id, sandbox=False):
+        """Returns details of a hit/hits with the same app name."""
+        service = self.load_service(sandbox)
+        details = service.get_study(hit_id)
+        return self.clean_qualifications(details)
+    @property
+    def default_qualification_name(self):
+        """Name of the qualification file containing rules to filter participants."""
+        raise NotImplementedError
+
+    def get_qualifications(self, hit_id, sandbox):
+        """Return the JSON file containing rules to filter participants."""
+        raise NotImplementedError
+
 
 def alphanumeric_code(seed: str, length: int = 8):
     """Return and alphanumeric string of specified length based on a
@@ -210,6 +282,37 @@ def prolific_submission_listener():
 # with the right values when they redirect participants to us
 PROLIFIC_AD_QUERYSTRING = "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
 
+def _current_hits(service, app):
+    if app is not None:
+        if type(service) is MTurkService:
+            hits = service.get_hits(hit_filter=lambda h: h.get("annotation") == app)
+        elif type(service) is ProlificService:
+            hits = service.get_hits(hit_filter=lambda h: h.get("internal_name", None) == app)
+        else:
+            raise NotImplementedError
+    else:
+        hits = service.get_hits()
+
+    if type(service) is ProlificService:
+        if service.sandbox:
+            keys = ["UNPUBLISHED"]
+        else:
+            keys = ["AWAITING REVIEW", "COMPLETED"]
+        hits = [h for h in hits if h["status"] in keys]
+    return hits
+
+def _get_and_load_config():
+    config = get_config()
+    config.load()
+    return config
+def _prolific_service_from_config(sandbox=False):
+    config = _get_and_load_config()
+    return ProlificService(
+        api_token=config.get("prolific_api_token"),
+        api_version=config.get("prolific_api_version"),
+        referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
+        sandbox=sandbox,
+    )
 
 class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.co/)"""
@@ -218,16 +321,12 @@ class ProlificRecruiter(Recruiter):
 
     def __init__(self, *args, **kwargs):
         super().__init__()
-        self.config = get_config()
+        self.config = _get_and_load_config()
         base_url = get_base_url()
         self.ad_url = f"{base_url}/ad?recruiter={self.nickname}"
         self.completion_code = alphanumeric_code(self.config.get("id"))
         self.study_domain = os.getenv("HOST")
-        self.prolificservice = ProlificService(
-            api_token=self.config.get("prolific_api_token"),
-            api_version=self.config.get("prolific_api_version"),
-            referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
-        )
+        self.prolificservice = _prolific_service_from_config()
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
@@ -258,9 +357,7 @@ class ProlificRecruiter(Recruiter):
                 "prolific_estimated_completion_minutes"
             ),
             "external_study_url": self.ad_url + PROLIFIC_AD_QUERYSTRING,
-            "internal_name": "{} ({})".format(
-                self.config.get("title"), self.config.get("id")
-            ),
+            "internal_name": self.config.get("id"),
             "maximum_allowed_time": self.config.get(
                 "prolific_maximum_allowed_minutes",
                 3 * self.config.get("prolific_estimated_completion_minutes") + 2,
@@ -386,6 +483,55 @@ class ProlificRecruiter(Recruiter):
     def _handle_exit_form_submission(self, assignment_id: str, participant_id: str):
         q = _get_queue()
         q.enqueue(worker_function, "AssignmentSubmitted", assignment_id, participant_id)
+
+    def load_service(self, sandbox):
+        return _prolific_service_from_config(sandbox)
+    def clean_qualifications(self, experiment_details):
+        requirements = []
+        for requirement in experiment_details['eligibility_requirements']:
+            cleaned_attributes = []
+            for attribute in requirement['attributes']:
+                if attribute['value'] is False or attribute['value'] is None or attribute['value'] == []:
+                    continue
+
+                elif requirement['type'] == 'input' and attribute['value'] == attribute['default_value']:
+                    continue
+                cleaned_attributes.append(attribute)
+            attributes = requirement['attributes']
+            if requirement['type'] == 'range':
+                if len(attributes) == 0:
+                    continue
+                if attributes[0]['min'] == attributes[0]['value'] and attributes[1]['max'] == attributes[1]['value']:
+                    continue
+
+            requirement['attributes'] = cleaned_attributes
+            if len(cleaned_attributes) > 0:
+                try:
+                    query_id = requirement['query']['id']
+                    title = requirement['query']['title']
+                except:
+                    query_id = None
+                    title = None
+                requirements.append({
+                    'type': requirement['type'],
+                    'attributes': cleaned_attributes,
+                    'query': {'id': query_id, 'title': title},
+                    '_cls': requirement['_cls']
+                })
+        experiment_details['eligibility_requirements'] = requirements
+        return experiment_details
+
+    @property
+    def default_qualification_name(self):
+        return 'prolific_config.json'
+
+    def get_qualifications(self, hit_id, sandbox):
+        details = self.hit_details(hit_id, sandbox)
+        return {
+            'device_compatibility': details['device_compatibility'],
+            'eligibility_requirements': details['eligibility_requirements'],
+            'peripheral_requirements': details['peripheral_requirements'],
+        }
 
 
 class CLIRecruiter(Recruiter):
@@ -695,6 +841,15 @@ class MTurkRecruiterException(Exception):
 mturk_routes = flask.Blueprint("mturk_recruiter", __name__)
 
 
+def _mturk_service_from_config(sandbox):
+    config = _get_and_load_config()
+    return MTurkService(
+        aws_access_key_id=config.get("aws_access_key_id"),
+        aws_secret_access_key=config.get("aws_secret_access_key"),
+        region_name=config.get("aws_region"),
+        sandbox=sandbox,
+    )
+
 @mturk_routes.route("/mturk-sns-listener", methods=["POST", "GET"])
 @crossdomain(origin="*")
 def mturk_recruiter_notify():
@@ -771,7 +926,7 @@ class MTurkRecruiter(Recruiter):
 
     def __init__(self, *args, **kwargs):
         super().__init__()
-        self.config = get_config()
+        self.config = _get_and_load_config()
         base_url = get_base_url()
         self.ad_url = "{}/ad?recruiter={}".format(base_url, self.nickname)
         self.notification_url = "{}/mturk-sns-listener".format(base_url)
@@ -785,7 +940,11 @@ class MTurkRecruiter(Recruiter):
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
-        self._validate_config()
+
+        is_dummy_mode = 'is_dummy' in kwargs and kwargs['is_dummy']
+
+        if not is_dummy_mode:
+            self._validate_config()
 
     def _validate_config(self):
         mode = self.config.get("mode")
@@ -1198,6 +1357,9 @@ class MTurkRecruiter(Recruiter):
             self.notifies_admin.send(message["subject"], message["body"])
         except MessengerError as ex:
             logger.exception(ex)
+
+    def load_service(self, sandbox):
+        return _mturk_service_from_config(sandbox)
 
 
 class RedisTally(object):
