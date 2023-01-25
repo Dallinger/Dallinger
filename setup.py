@@ -110,7 +110,7 @@ setup_args = dict(
             "recommonmark",
             "sphinxcontrib-spelling",
             "Sphinx==5.3.0",
-            "tox",
+            "tox==4.3.5",
             "sphinx_rtd_theme",
         ],
         "docker": ["docker", "docker-compose", "paramiko", "sshtunnel"],
