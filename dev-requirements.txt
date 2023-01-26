@@ -219,8 +219,6 @@ ipywidgets==8.0.4
     # via
     #   dallinger
     #   jupyter
-isort==5.11.4
-    # via dallinger
 itsdangerous==2.1.2
     # via
     #   flask
@@ -586,7 +584,7 @@ tornado==6.2
     #   nbclassic
     #   notebook
     #   terminado
-tox==4.3.5
+tox==4.4.0
     # via dallinger
 traitlets==5.8.1
     # via
