@@ -188,6 +188,11 @@ class Experiment(object):
         """
         pass
 
+    @classmethod
+    def config_defaults(cls):
+        """Override this classmethod to register new default values for config variables."""
+        return {}
+
     @property
     def protected_routes(self):
         """Disable one or more standard Dallinger Flask routes by name.
