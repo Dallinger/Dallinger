@@ -2,6 +2,12 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.4.0](https://github.com/dallinger/dallinger/tree/v9.4.0) (2023-01-26)
+
+- Enhancement: Refactored `advertisement` method to prepare the advertisement in a separate function `prepare_advertisement`. This allows wrappers around Dallinger, e.g. PsyNet, to use other rendering functions than the one used in Flask. For example, this is important if you want to add custom Jinja2 filters or add translations.
+- Enhancement: Add a new customizable `config_defaults` method on the `Experiment class` that allows the user to specify custom default values for config variables.
+- Infrastructure: Added `isort` to the list of pre-commit hooks to sort imports alphabetically, and automatically separated into sections and by type.
+
 ## [v9.3.1](https://github.com/dallinger/dallinger/tree/v9.3.1) (2023-01-17)
 
 - Bugfix and Enhancements for Prolific recruitment:
