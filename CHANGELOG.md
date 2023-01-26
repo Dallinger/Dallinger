@@ -6,6 +6,7 @@
 
 - Enhancement: Refactored `advertisement` method to prepare the advertisement in a separate function `prepare_advertisement`. This allows wrappers around Dallinger, e.g. PsyNet, to use other rendering functions than the one used in Flask. For example, this is important if you want to add custom Jinja2 filters or add translations.
 - Enhancement: Add a new customizable `config_defaults` method on the `Experiment class` that allows the user to specify custom default values for config variables.
+- Enhancement: Add `source=dashboard` to the entry information stored for participant sessions created via the dashboard. This helps to distinguish debugging participants from 'real' participants.
 - Infrastructure: Added `isort` to the list of pre-commit hooks to sort imports alphabetically, and automatically separated into sections and by type.
 
 ## [v9.3.1](https://github.com/dallinger/dallinger/tree/v9.3.1) (2023-01-17)
