@@ -587,7 +587,7 @@ def get_docker_compose_yml(
 
 def get_retrying_http_client():
     retry_strategy = Retry(
-        total=30,
+        total=6,
         backoff_factor=0.2,
         status_forcelist=[429, 500, 502, 503, 504],
         method_whitelist=["POST"],
