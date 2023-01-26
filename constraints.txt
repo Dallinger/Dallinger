@@ -584,7 +584,7 @@ tornado==6.2
     #   nbclassic
     #   notebook
     #   terminado
-tox==4.3.5
+tox==4.4.2
     # via dallinger
 traitlets==5.8.1
     # via
