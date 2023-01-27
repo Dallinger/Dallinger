@@ -1,34 +1,30 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+
 import codecs
 import json
 import os
 import re
+import threading
+import time
+from shlex import quote
+
 import redis
 import requests
 import six
-import threading
-import time
+from six.moves.urllib.parse import urlparse, urlunparse
 
-from shlex import quote
-from six.moves.urllib.parse import urlparse
-from six.moves.urllib.parse import urlunparse
-
-from dallinger import data
-from dallinger import db
-from dallinger import heroku
-from dallinger import recruiters
-from dallinger import registration
+from dallinger import data, db, heroku, recruiters, registration
 from dallinger.config import get_config
-from dallinger.heroku.tools import HerokuApp
-from dallinger.heroku.tools import HerokuLocalWrapper
+from dallinger.heroku.tools import HerokuApp, HerokuLocalWrapper
 from dallinger.redis_utils import connect_to_redis
-from dallinger.utils import bootstrap_development_session
-from dallinger.utils import get_base_url
-from dallinger.utils import open_browser
-from dallinger.utils import setup_experiment
-from dallinger.utils import GitClient
-
+from dallinger.utils import (
+    GitClient,
+    bootstrap_development_session,
+    get_base_url,
+    open_browser,
+    setup_experiment,
+)
 
 INITIAL_DELAY = 1
 BACKOFF_FACTOR = 2

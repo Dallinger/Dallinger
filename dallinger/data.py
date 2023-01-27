@@ -1,29 +1,28 @@
 """Data-handling tools."""
 
-from .config import get_config
-
 import csv
 import errno
+import hashlib
 import io
 import logging
 import os
 import shutil
-import six
 import subprocess
 import tempfile
 import warnings
-from zipfile import ZipFile, ZIP_DEFLATED
+from zipfile import ZIP_DEFLATED, ZipFile
 
-import botocore
 import boto3
-import hashlib
+import botocore
 import postgres_copy
 import psycopg2
+import six
 
+from dallinger import db, models
 from dallinger.compat import open_for_csv
 from dallinger.heroku.tools import HerokuApp
-from dallinger import db
-from dallinger import models
+
+from .config import get_config
 
 logger = logging.getLogger(__name__)
 

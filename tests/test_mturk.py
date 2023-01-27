@@ -1,26 +1,29 @@
 import datetime
 import hmac
-import mock
 import os
-import pytest
-import six
 import socket
 import time
-from botocore.exceptions import ClientError
 from hashlib import sha1
-from tzlocal import get_localzone
-from dallinger.mturk import DuplicateQualificationNameError
-from dallinger.mturk import MTurkService
-from dallinger.mturk import MTurkServiceException
-from dallinger.mturk import SNSService
-from dallinger.mturk import WorkerLacksQualification
-from dallinger.mturk import MTurkQualificationRequirements
-from dallinger.mturk import MTurkQuestions
-from dallinger.mturk import RevokedQualification
-from dallinger.mturk import QualificationNotFoundException
-from dallinger.utils import generate_random_id
-from six.moves import input
 
+import mock
+import pytest
+import six
+from botocore.exceptions import ClientError
+from six.moves import input
+from tzlocal import get_localzone
+
+from dallinger.mturk import (
+    DuplicateQualificationNameError,
+    MTurkQualificationRequirements,
+    MTurkQuestions,
+    MTurkService,
+    MTurkServiceException,
+    QualificationNotFoundException,
+    RevokedQualification,
+    SNSService,
+    WorkerLacksQualification,
+)
+from dallinger.utils import generate_random_id
 
 TEST_HIT_DESCRIPTION = "***TEST SUITE HIT***"
 TEST_QUALIFICATION_DESCRIPTION = "***TEST SUITE QUALIFICATION***"

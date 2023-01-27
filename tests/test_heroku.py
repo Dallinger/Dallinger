@@ -1,11 +1,13 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-import os
-import mock
-import pytest
 import datetime
+import os
 import signal
 import time
+
+import mock
+import pytest
+
 from dallinger.config import get_config
 
 

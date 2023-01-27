@@ -16,8 +16,8 @@ __version__ = "1.4.4"
 __version_info__ = tuple(int(segment) for segment in __version__.split("."))
 
 
-import sys
 import os
+import sys
 
 PY3 = sys.version_info[0] == 3
 
@@ -519,6 +519,7 @@ def _get_win_folder_with_ctypes(csidl_name):
 
 def _get_win_folder_with_jna(csidl_name):
     import array
+
     from com.sun import jna
     from com.sun.jna.platform import win32
 

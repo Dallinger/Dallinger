@@ -1,8 +1,9 @@
 import json
 import logging
+from typing import List, Optional
+
 import requests
 import tenacity
-from typing import List, Optional
 
 logger = logging.getLogger(__file__)
 

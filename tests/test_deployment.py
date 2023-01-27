@@ -1,23 +1,25 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-import mock
+
 import os
-import pexpect
-import pytest
 import re
 import shutil
-import six
 import sys
 import tempfile
 import textwrap
 import uuid
-from pytest import raises
-from six.moves import configparser
 from pathlib import Path
 
-from dallinger.config import get_config
+import mock
+import pexpect
+import pytest
+import six
+from pytest import raises
+from six.moves import configparser
+
 from dallinger import recruiters
+from dallinger.config import get_config
 
 
 def found_in(name, path):

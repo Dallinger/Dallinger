@@ -1,7 +1,7 @@
-import tempfile
 import os
 import shutil
 import subprocess as sp
+import tempfile
 
 
 def make_demo(name, src, dst):

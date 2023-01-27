@@ -1,14 +1,14 @@
-from dallinger.config import get_config
-from dallinger.config import initialize_experiment_package
-from dallinger.utils import ExperimentFileSource
-from dallinger.version import __version__
-from functools import wraps
-import click
 import inspect
 import os
 import sys
 import tempfile
+from functools import wraps
 
+import click
+
+from dallinger.config import get_config, initialize_experiment_package
+from dallinger.utils import ExperimentFileSource
+from dallinger.version import __version__
 
 header = r"""
     ____        ____

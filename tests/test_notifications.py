@@ -35,6 +35,7 @@ class TestSMTPMailer(object):
     @pytest.fixture
     def smtp(self):
         from smtplib import SMTP
+
         from dallinger import notifications
 
         server = mock.create_autospec(SMTP)
@@ -65,6 +66,7 @@ class TestSMTPMailer(object):
 
     def test_wraps_mail_server_exceptions(self, mailer, smtp):
         import smtplib
+
         from dallinger.notifications import MessengerError
 
         smtp.login.side_effect = smtplib.SMTPException("Boom!")
@@ -148,9 +150,7 @@ class TestMessengerFactory(object):
 class TestNotifiesAdmin(object):
     @pytest.fixture
     def messenger(self, stub_config):
-        from dallinger.notifications import NotifiesAdmin
-        from dallinger.notifications import EmailConfig
-        from dallinger.notifications import LoggingMailer
+        from dallinger.notifications import EmailConfig, LoggingMailer, NotifiesAdmin
 
         return NotifiesAdmin(EmailConfig(stub_config), LoggingMailer())
 

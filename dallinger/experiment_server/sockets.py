@@ -2,16 +2,20 @@
 """
 
 from __future__ import unicode_literals
-from .experiment_server import app
-from dallinger.db import redis_conn
-from gevent.lock import Semaphore
+
+import os
+import socket
+
+import gevent
+import six
 from flask import request
 from flask_sockets import Sockets
+from gevent.lock import Semaphore
 from redis import ConnectionError
-import gevent
-import os
-import six
-import socket
+
+from dallinger.db import redis_conn
+
+from .experiment_server import app
 
 sockets = Sockets(app)
 

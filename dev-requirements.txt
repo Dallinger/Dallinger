@@ -47,9 +47,9 @@ black==22.12.0
     # via dallinger
 bleach==6.0.0
     # via nbconvert
-boto3==1.26.56
+boto3==1.26.58
     # via dallinger
-botocore==1.29.56
+botocore==1.29.58
     # via
     #   boto3
     #   s3transfer
@@ -131,8 +131,6 @@ docutils==0.17.1
     #   recommonmark
     #   sphinx
     #   sphinx-rtd-theme
-entrypoints==0.4
-    # via jupyter-client
 et-xmlfile==1.1.0
     # via openpyxl
 exceptiongroup==1.1.0
@@ -205,7 +203,7 @@ ipykernel==6.20.2
     #   nbclassic
     #   notebook
     #   qtconsole
-ipython==8.8.0
+ipython==8.9.0
     # via
     #   ipykernel
     #   ipywidgets
@@ -219,6 +217,8 @@ ipywidgets==8.0.4
     # via
     #   dallinger
     #   jupyter
+isort==5.11.4
+    # via dallinger
 itsdangerous==2.1.2
     # via
     #   flask
@@ -237,13 +237,14 @@ jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-jsonschema==3.2.0
+jsonschema[format-nongpl]==3.2.0
     # via
     #   docker-compose
+    #   jupyter-events
     #   nbformat
 jupyter==1.0.0
     # via dallinger
-jupyter-client==7.4.9
+jupyter-client==8.0.1
     # via
     #   ipykernel
     #   jupyter-console
@@ -264,11 +265,15 @@ jupyter-core==5.1.5
     #   nbformat
     #   notebook
     #   qtconsole
-jupyter-server==1.23.3
+jupyter-events==0.6.3
+    # via jupyter-server
+jupyter-server==2.1.0
     # via
     #   dallinger
     #   nbclassic
     #   notebook-shim
+jupyter-server-terminals==0.4.4
+    # via jupyter-server
 jupyterlab-pygments==0.2.2
     # via nbconvert
 jupyterlab-widgets==3.0.5
@@ -295,7 +300,7 @@ mock==5.0.0
     # via dallinger
 mypy-extensions==0.4.3
     # via black
-nbclassic==0.4.8
+nbclassic==0.5.1
     # via notebook
 nbclient==0.7.2
     # via nbconvert
@@ -315,7 +320,6 @@ nbformat==5.7.3
 nest-asyncio==1.5.6
     # via
     #   ipykernel
-    #   jupyter-client
     #   nbclassic
     #   notebook
 nodeenv==1.7.0
@@ -378,7 +382,7 @@ pluggy==1.0.0
     # via
     #   pytest
     #   tox
-pre-commit==3.0.0
+pre-commit==3.0.1
     # via dallinger
 prometheus-client==0.16.0
     # via
@@ -447,6 +451,8 @@ python-dateutil==2.8.2
     #   pandas
 python-dotenv==0.21.1
     # via docker-compose
+python-json-logger==2.0.4
+    # via jupyter-events
 pytz==2022.7.1
     # via
     #   apscheduler
@@ -457,6 +463,7 @@ pytz-deprecation-shim==0.1.0.post0
 pyyaml==5.4.1
     # via
     #   docker-compose
+    #   jupyter-events
     #   pre-commit
     #   tablib
 pyzmq==25.0.0
@@ -485,6 +492,10 @@ requests==2.28.2
     #   docker-compose
     #   heroku3
     #   sphinx
+rfc3339-validator==0.1.4
+    # via jupyter-events
+rfc3986-validator==0.1.1
+    # via jupyter-events
 rq==1.12.0
     # via dallinger
 s3transfer==0.6.0
@@ -505,6 +516,7 @@ six==1.16.0
     #   dockerpty
     #   jsonschema
     #   python-dateutil
+    #   rfc3339-validator
     #   sqlalchemy-postgres-copy
     #   websocket-client
 sniffio==1.3.0
@@ -560,6 +572,7 @@ tenacity==8.1.0
 terminado==0.17.1
     # via
     #   jupyter-server
+    #   jupyter-server-terminals
     #   nbclassic
     #   notebook
 texttable==1.6.7
@@ -584,7 +597,7 @@ tornado==6.2
     #   nbclassic
     #   notebook
     #   terminado
-tox==4.3.5
+tox==4.4.2
     # via dallinger
 traitlets==5.8.1
     # via
@@ -594,6 +607,7 @@ traitlets==5.8.1
     #   ipywidgets
     #   jupyter-client
     #   jupyter-core
+    #   jupyter-events
     #   jupyter-server
     #   matplotlib-inline
     #   nbclassic

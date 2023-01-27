@@ -3,17 +3,18 @@
 from __future__ import unicode_literals
 
 import json
-from six.moves import shlex_quote as quote
-import signal
 import netrc
 import os
-import psutil
 import re
-import six
-import sys
+import signal
 import subprocess
+import sys
 import time
 import traceback
+
+import psutil
+import six
+from six.moves import shlex_quote as quote
 
 from dallinger.config import SENSITIVE_KEY_NAMES
 from dallinger.utils import check_call, check_output

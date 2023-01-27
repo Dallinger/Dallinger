@@ -1,16 +1,16 @@
 """Tests for the data module."""
 
-from collections import OrderedDict
 import csv
-from datetime import datetime
 import io
-import mock
 import os
+import shutil
 import tempfile
 import uuid
-import shutil
+from collections import OrderedDict
+from datetime import datetime
 from zipfile import ZipFile
 
+import mock
 import pandas as pd
 import psycopg2
 import pytest

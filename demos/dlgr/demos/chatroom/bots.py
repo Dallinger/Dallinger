@@ -9,10 +9,9 @@ from nltk.chat.iesha import iesha_chatbot
 from nltk.chat.rude import rude_chatbot
 from nltk.chat.suntsu import suntsu_chatbot
 from nltk.chat.zen import zen_chatbot
-
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 from dallinger.bots import BotBase
 

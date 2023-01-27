@@ -1,7 +1,7 @@
-from dallinger import processes, networks, nodes, models
-from dallinger.nodes import Agent
-
 import pytest
+
+from dallinger import models, networks, nodes, processes
+from dallinger.nodes import Agent
 
 
 class TestProcesses(object):

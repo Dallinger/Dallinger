@@ -2,13 +2,15 @@
 
 from __future__ import print_function
 
-import six
 import sys
 from datetime import datetime
+
+import six
+from pytest import mark, raises
+
 from dallinger import models, nodes
-from pytest import raises, mark
-from dallinger.nodes import Agent, Source
 from dallinger.information import Gene
+from dallinger.nodes import Agent, Source
 from dallinger.transformations import Mutation
 
 

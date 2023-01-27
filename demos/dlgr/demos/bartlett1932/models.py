@@ -1,5 +1,6 @@
-from dallinger.nodes import Source
 import random
+
+from dallinger.nodes import Source
 
 
 class WarOfTheGhostsSource(Source):

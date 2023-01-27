@@ -3,57 +3,59 @@
 
 """The Dallinger command-line utility."""
 
-from __future__ import print_function
-from __future__ import unicode_literals
+from __future__ import print_function, unicode_literals
 
-import click
 import os
-import requests
 import shutil
 import signal
 import sys
-import tabulate
 import time
 import warnings
 import webbrowser
-
 from collections import Counter
 from functools import wraps
 from pathlib import Path
-from rq import Worker, Connection
+
+import click
+import requests
+import tabulate
+from rq import Connection, Worker
 from sqlalchemy import exc as sa_exc
 
-
-from dallinger.config import get_config
-from dallinger import data
-from dallinger import db
-from dallinger.deployment import deploy_sandbox_shared_setup
-from dallinger.deployment import DebugDeployment
-from dallinger.deployment import LoaderDeployment
-from dallinger.deployment import setup_experiment
+from dallinger import data, db
 from dallinger.command_line.develop import develop
 from dallinger.command_line.docker import docker
 from dallinger.command_line.docker_ssh import docker_ssh
-from dallinger.notifications import admin_notifier
-from dallinger.notifications import SMTPMailer
-from dallinger.notifications import EmailConfig
-from dallinger.notifications import MessengerError
-from dallinger.heroku.tools import HerokuApp
-from dallinger.heroku.tools import HerokuInfo
-from dallinger.mturk import MTurkService
-from dallinger.mturk import MTurkServiceException
+from dallinger.command_line.utils import (
+    Output,
+    header,
+    log,
+    require_exp_directory,
+    verify_id,
+    verify_package,
+)
+from dallinger.config import get_config
+from dallinger.deployment import (
+    DebugDeployment,
+    LoaderDeployment,
+    deploy_sandbox_shared_setup,
+    setup_experiment,
+)
+from dallinger.heroku.tools import HerokuApp, HerokuInfo
+from dallinger.mturk import MTurkService, MTurkServiceException
+from dallinger.notifications import (
+    EmailConfig,
+    MessengerError,
+    SMTPMailer,
+    admin_notifier,
+)
 from dallinger.recruiters import by_name
-from dallinger.command_line.utils import Output
-from dallinger.command_line.utils import header
-from dallinger.command_line.utils import log
-from dallinger.command_line.utils import require_exp_directory
-from dallinger.command_line.utils import verify_package
-from dallinger.command_line.utils import verify_id
-from dallinger.utils import check_call
-from dallinger.utils import ensure_constraints_file_presence
-from dallinger.utils import generate_random_id
+from dallinger.utils import (
+    check_call,
+    ensure_constraints_file_presence,
+    generate_random_id,
+)
 from dallinger.version import __version__
-
 
 click.disable_unicode_literals_warning = True
 warnings.simplefilter("ignore", category=sa_exc.SAWarning)

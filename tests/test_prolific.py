@@ -1,7 +1,6 @@
 import mock
 import pytest
 
-
 study_request = {
     "completion_code": "A1B2C3D4",
     "completion_option": "url",
