@@ -8,6 +8,7 @@
 - Enhancement: Add a new customizable `config_defaults` method on the `Experiment class` that allows the user to specify custom default values for config variables.
 - Enhancement: Add `source=dashboard` to the entry information stored for participant sessions created via the dashboard. This helps to distinguish debugging participants from 'real' participants.
 - Infrastructure: Added `isort` to the list of pre-commit hooks to sort imports alphabetically, and automatically separated into sections and by type.
+- Infrastructure: Update dependencies; pinning SQLAlchemy to a version `<2`.
 
 ## [v9.3.1](https://github.com/dallinger/dallinger/tree/v9.3.1) (2023-01-17)
 
