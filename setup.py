@@ -73,7 +73,7 @@ setup_args = dict(
         "rq",
         "selenium",
         "six",
-        "SQLAlchemy",
+        "SQLAlchemy<2",
         "sqlalchemy-postgres-copy",
         "tabulate",
         "tenacity",
