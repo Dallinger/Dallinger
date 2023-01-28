@@ -217,7 +217,7 @@ ipywidgets==8.0.4
     # via
     #   dallinger
     #   jupyter
-isort==5.11.4
+isort==5.12.0
     # via dallinger
 itsdangerous==2.1.2
     # via
