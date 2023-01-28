@@ -70,7 +70,7 @@ gevent==22.10.2
     #   gevent-websocket
 gevent-websocket==0.10.1
     # via flask-sockets
-greenlet==2.0.1
+greenlet==2.0.2
     # via
     #   dallinger
     #   gevent
