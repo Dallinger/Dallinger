@@ -265,6 +265,13 @@ def build_image(
     tmp_dir, base_image_name, out, needs_chrome=False, force_build=False
 ) -> str:
     """Build the docker image for the experiment and return its name."""
+    # The logic for when to reuse previous builds needs discussion. Previously a build was only invalidated
+    # when requirements.txt or prepare_docker_image.sh was changed. As a result, changes to experiment.py
+    # would not be propagated to the build. This error was not seen in Heroku deployment because
+    # the invocation used force_build=True, but it would manifest in SSH deployment.
+    # We've now set force_build = True here as a temporary fix, but if everyone agrees, we should
+    # disable this check entirely and allow Docker to manage its own cache.
+    force_build = True
     tag = get_experiment_image_tag(tmp_dir)
     image_name = f"{base_image_name}:{tag}"
     base_image_name = get_base_image(tmp_dir, needs_chrome)
