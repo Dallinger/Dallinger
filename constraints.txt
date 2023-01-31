@@ -332,7 +332,7 @@ numpy==1.24.1
     # via pandas
 odfpy==1.4.1
     # via tablib
-openpyxl==3.0.10
+openpyxl==3.1.0
     # via tablib
 outcome==1.2.0
     # via trio
@@ -370,7 +370,7 @@ pexpect==4.8.0
     #   ipython
 pickleshare==0.7.5
     # via ipython
-pip-tools==6.12.1
+pip-tools==6.12.2
     # via dallinger
 platformdirs==2.6.2
     # via
@@ -597,7 +597,7 @@ tornado==6.2
     #   nbclassic
     #   notebook
     #   terminado
-tox==4.4.2
+tox==4.4.3
     # via dallinger
 traitlets==5.9.0
     # via
