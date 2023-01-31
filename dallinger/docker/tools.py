@@ -304,9 +304,17 @@ def build_image(
         )
     else:
         dockerfile_text = rf"""# syntax=docker/dockerfile:1
-        FROM {base_image_name}
-        COPY . /experiment
+        # FROM {base_image_name}\
+        # TODO - revert to above version when making Dallinger release
+        FROM ghcr.io/dallinger/dallinger:9.4.0
+        #
+        RUN mkdir /experiment
         WORKDIR /experiment
+        #
+        COPY requirements.txt requirements.txt
+        COPY dallinger-*.whl .
+        COPY *prepare_docker_image.sh prepare_docker_image.sh
+        #
         # If a dallinger wheel is present, install it.
         # This will be true if Dallinger was installed with the editable `-e` flag
         RUN if [ -f dallinger-*.whl ]; then pip install dallinger-*.whl; fi
@@ -320,14 +328,15 @@ def build_image(
             ./prepare_docker_image.sh
         # We rely on the already installed dallinger: the docker image tag has been chosen
         # based on the contents of this file. This makes sure dallinger stays installed from
-        # /dallinger, and that it doesn't waste space with two copies in two different layers.
-
+        # /dallinger, and that it doesn't waste space with two copies in two different layers.\
+        #
         # Some experiments might only list dallinger as dependency
         # If they do the grep command will exit non-0, the pip command will not run
         # but the whole `RUN` group will succeed thanks to the last `true` invocation
         RUN mkdir -p ~/.ssh && echo "Host *\n    StrictHostKeyChecking no" >> ~/.ssh/config
         RUN {ssh_mount} grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
             python3 -m pip install -r /tmp/requirements_no_dallinger.txt || true
+        COPY . /experiment
         ENV PORT=5000
         CMD dallinger_heroku_web
         """
