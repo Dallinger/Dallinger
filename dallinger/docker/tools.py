@@ -304,9 +304,7 @@ def build_image(
         )
     else:
         dockerfile_text = rf"""# syntax=docker/dockerfile:1
-        # FROM {base_image_name}\
-        # TODO - revert to above version when making Dallinger release
-        FROM ghcr.io/dallinger/dallinger:9.4.0
+        FROM {base_image_name}
         #
         RUN mkdir /experiment
         WORKDIR /experiment
