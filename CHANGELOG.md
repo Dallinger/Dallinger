@@ -2,6 +2,9 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+- Fixed: Docker image caching problems with SSH deployment.
+- Fixed: Redis server contamination when deploying multiple apps with the same name via SSH.
+
 ## [v9.4.0](https://github.com/dallinger/dallinger/tree/v9.4.0) (2023-01-26)
 
 - Enhancement: Refactored `advertisement` method to prepare the advertisement in a separate function `prepare_advertisement`. This allows wrappers around Dallinger, e.g. PsyNet, to use other rendering functions than the one used in Flask. For example, this is important if you want to add custom Jinja2 filters or add translations.
