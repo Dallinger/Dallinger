@@ -43,7 +43,7 @@ bcrypt==4.0.1
     # via paramiko
 beautifulsoup4==4.11.1
     # via nbconvert
-black==22.12.0
+black==23.1.0
     # via dallinger
 bleach==6.0.0
     # via nbconvert
