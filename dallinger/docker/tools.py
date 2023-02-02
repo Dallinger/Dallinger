@@ -262,9 +262,12 @@ def get_experiment_image_tag(experiment_tmp_path: str) -> str:
 
 
 def build_image(
-    tmp_dir, base_image_name, out, needs_chrome=False, force_build=False
+    tmp_dir, base_image_name, out, needs_chrome=False, force_build=True
 ) -> str:
-    """Build the docker image for the experiment and return its name."""
+    """Build the docker image for the experiment and return its name.
+    If force_build=False, then the image will only be rebuilt if requirements.txt or prepare_docker_image.sh
+    have changed.
+    """
     tag = get_experiment_image_tag(tmp_dir)
     image_name = f"{base_image_name}:{tag}"
     base_image_name = get_base_image(tmp_dir, needs_chrome)
@@ -302,8 +305,14 @@ def build_image(
     else:
         dockerfile_text = rf"""# syntax=docker/dockerfile:1
         FROM {base_image_name}
-        COPY . /experiment
+        #
+        RUN mkdir /experiment
         WORKDIR /experiment
+        #
+        COPY requirements.txt requirements.txt
+        COPY dallinger-*.whl .
+        COPY *prepare_docker_image.sh prepare_docker_image.sh
+        #
         # If a dallinger wheel is present, install it.
         # This will be true if Dallinger was installed with the editable `-e` flag
         RUN if [ -f dallinger-*.whl ]; then pip install dallinger-*.whl; fi
@@ -318,13 +327,14 @@ def build_image(
         # We rely on the already installed dallinger: the docker image tag has been chosen
         # based on the contents of this file. This makes sure dallinger stays installed from
         # /dallinger, and that it doesn't waste space with two copies in two different layers.
-
+        #
         # Some experiments might only list dallinger as dependency
         # If they do the grep command will exit non-0, the pip command will not run
         # but the whole `RUN` group will succeed thanks to the last `true` invocation
         RUN mkdir -p ~/.ssh && echo "Host *\n    StrictHostKeyChecking no" >> ~/.ssh/config
         RUN {ssh_mount} grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
             python3 -m pip install -r /tmp/requirements_no_dallinger.txt || true
+        COPY . /experiment
         ENV PORT=5000
         CMD dallinger_heroku_web
         """
