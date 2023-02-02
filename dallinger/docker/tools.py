@@ -326,7 +326,7 @@ def build_image(
             ./prepare_docker_image.sh
         # We rely on the already installed dallinger: the docker image tag has been chosen
         # based on the contents of this file. This makes sure dallinger stays installed from
-        # /dallinger, and that it doesn't waste space with two copies in two different layers.\
+        # /dallinger, and that it doesn't waste space with two copies in two different layers.
         #
         # Some experiments might only list dallinger as dependency
         # If they do the grep command will exit non-0, the pip command will not run
