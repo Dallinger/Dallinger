@@ -693,7 +693,7 @@ class Executor:
 
         Adapted from paramiko "interactive.py" demo.
         """
-        from paramiko.py3compat import u
+        from paramiko.util import u
 
         chan = self.client.get_transport().open_session()
         chan.exec_command(cmd)
