@@ -928,7 +928,6 @@ class Node(Base, SharedMixin):
                 connected.append(w in origins)
 
         elif direction in ["either", "both"]:
-
             vectors = (
                 Vector.query.with_entities(Vector.origin_id, Vector.destination_id)
                 .filter(

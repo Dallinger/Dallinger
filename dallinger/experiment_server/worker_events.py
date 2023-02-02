@@ -145,7 +145,6 @@ def worker_function(
 
 
 class WorkerEvent(object):
-
     key = "-----"
 
     supported_event_types = (
@@ -204,7 +203,6 @@ class AssignmentReturned(WorkerEvent):
 
 
 class AssignmentSubmitted(WorkerEvent):
-
     min_real_bonus = 0.01
 
     def __call__(self):

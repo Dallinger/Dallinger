@@ -27,7 +27,6 @@ config_template = Template(
 
 
 class ExperimentWidget(widgets.VBox):
-
     status = Unicode("Unknown")
 
     def __init__(self, exp):

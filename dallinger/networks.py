@@ -239,7 +239,6 @@ class ScaleFree(Network):
         # ...then add newcomers one by one with preferential attachment.
         else:
             for idx_newvector in range(self.m):
-
                 these_nodes = [
                     n
                     for n in nodes

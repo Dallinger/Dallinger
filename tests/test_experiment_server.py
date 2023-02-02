@@ -334,7 +334,6 @@ class TestWorkerComplete(object):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as Experiment:
-
             webapp.post(
                 "/worker_complete",
                 data={"participant_id": participant.id},
@@ -1592,7 +1591,6 @@ class TestLaunchRoute(object):
 
 @pytest.mark.usefixtures("experiment_dir")
 class TestWorkerFunctionIntegration(object):
-
     dispatcher = "dallinger.experiment_server.worker_events.WorkerEvent"
 
     @pytest.fixture

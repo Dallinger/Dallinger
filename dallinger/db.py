@@ -215,7 +215,6 @@ def queue_message(channel, message):
 # Publish messages to redis after commit
 @event.listens_for(Session, "after_commit")
 def after_commit(session):
-
     for channel, message in session.info.get("outbox", ()):
         logger.debug("Publishing message to {}: {}".format(channel, message))
         redis_conn.publish(channel, message)

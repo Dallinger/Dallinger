@@ -66,7 +66,6 @@ class Bot(BotBase):
         logger.info("Entering participate method")
         start = time.time()
         while (time.time() - start) < self.TOTAL_CHAT_TIME:
-
             self.wait_to_send_message()
             history = self.get_chat_history()
             logger.info("History: %s" % history)

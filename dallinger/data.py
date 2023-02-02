@@ -434,11 +434,9 @@ class Data(object):
     """Dallinger data object."""
 
     def __init__(self, URL):
-
         self.source = URL
 
         if self.source.endswith(".zip"):
-
             input_zip = ZipFile(URL)
             tmp_dir = tempfile.mkdtemp()
             input_zip.extractall(tmp_dir)
@@ -455,7 +453,6 @@ class Table(object):
     """Dallinger data-table object."""
 
     def __init__(self, path):
-
         self.tablib_dataset = tablib.Dataset().load(open(path).read(), "csv")
 
     @property

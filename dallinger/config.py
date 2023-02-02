@@ -110,7 +110,6 @@ default_keys = (
 
 
 class Configuration(object):
-
     SUPPORTED_TYPES = {six.binary_type, six.text_type, int, float, bool}
     _experiment_params_loaded = False
     _module_params_loaded = False

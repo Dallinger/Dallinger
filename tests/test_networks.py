@@ -549,7 +549,6 @@ class TestScaleFree(object):
 
 
 class GenerationalAgent(nodes.Agent):
-
     from sqlalchemy.ext.hybrid import hybrid_property
 
     __mapper_args__ = {"polymorphic_identity": "test_agent"}
@@ -575,7 +574,6 @@ class GenerationalAgent(nodes.Agent):
 
 @pytest.mark.slow
 class TestDiscreteGenerational(object):
-
     n_gens = 4
     gen_size = 4
 
