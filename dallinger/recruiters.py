@@ -292,6 +292,10 @@ class ProlificRecruiter(Recruiter):
 
     def recruit(self, n: int = 1):
         """Recruit `n` new participants to an existing Prolific Study"""
+        if not self.config.get("auto_recruit"):
+            logger.info("auto_recruit is False: recruitment suppressed")
+            return
+
         return self.prolificservice.add_participants_to_study(
             study_id=self.current_study_id, number_to_add=n
         )
