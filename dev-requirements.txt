@@ -299,7 +299,7 @@ mistune==2.0.4
     # via nbconvert
 mock==5.0.0
     # via dallinger
-mypy-extensions==0.4.3
+mypy-extensions==1.0.0
     # via black
 nbclassic==0.5.1
     # via notebook
