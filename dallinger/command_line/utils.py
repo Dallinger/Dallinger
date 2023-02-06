@@ -208,7 +208,7 @@ def verify_config(verbose=True):
 
         if base_pay < 0:
             log(
-                "✗ base_payment must be positive value in config.txt.",
+                "✗ base_payment must be greater than or equal to zero in config.txt.",
                 chevrons=False,
                 verbose=verbose,
             )
