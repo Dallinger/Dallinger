@@ -206,7 +206,7 @@ def verify_config(verbose=True):
     else:
         dollarFormat = "{:.2f}".format(base_pay)
 
-        if base_pay <= 0:
+        if base_pay < 0:
             log(
                 "✗ base_payment must be positive value in config.txt.",
                 chevrons=False,
