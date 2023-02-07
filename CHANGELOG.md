@@ -2,8 +2,13 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.4.1](https://github.com/dallinger/dallinger/tree/v9.4.1) (2023-02-07)
+
 - Fixed: Docker image caching problems with SSH deployment.
 - Fixed: Redis server contamination when deploying multiple apps with the same name via SSH.
+- Fixed paramiko import.
+- Changed: Allow base pay to be 0 (for Prolific recruitment).
+- Infrastructure: Update dependencies.
 
 ## [v9.4.0](https://github.com/dallinger/dallinger/tree/v9.4.0) (2023-01-26)
 
