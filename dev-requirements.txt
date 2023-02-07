@@ -295,7 +295,7 @@ matplotlib-inline==0.1.6
     #   ipython
 mccabe==0.7.0
     # via flake8
-mistune==2.0.4
+mistune==2.0.5
     # via nbconvert
 mock==5.0.0
     # via dallinger
