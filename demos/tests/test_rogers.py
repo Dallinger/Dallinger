@@ -84,7 +84,6 @@ class TestRogers(object):
         process_time = dum - dum
 
         while exp.networks(full=False):
-
             num_completed_participants = len(exp.networks()[0].nodes(type=Agent))
 
             if p_times:
@@ -176,7 +175,6 @@ class TestRogers(object):
             assert bonus <= 1
             attended = exp.attention_check(participant=p)
             if not attended:
-
                 participant_nodes = models.Node.query.filter_by(
                     participant_id=p_id, failed=False
                 ).all()
@@ -313,7 +311,6 @@ class TestRogers(object):
         sys.stdout.flush()
 
         for network in [exp.networks()[0]]:
-
             agents = network.nodes(type=Agent)
             vectors = network.vectors()
             source = network.nodes(type=RogersSource)[0]
@@ -364,7 +361,6 @@ class TestRogers(object):
         sys.stdout.flush()
 
         for network in [exp.networks()[0]]:
-
             agents = network.nodes(type=Agent)
             vectors = network.vectors()
             source = network.nodes(type=RogersSource)[0]
@@ -428,7 +424,6 @@ class TestRogers(object):
             assert n.fitness == (baseline + 1 * b - is_asocial * c) ** e
 
         for network in [exp.networks()[0]]:
-
             agents = network.nodes(type=Agent)
 
             for agent in agents:

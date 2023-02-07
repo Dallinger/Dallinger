@@ -1205,7 +1205,6 @@ class TestMTurkLargeRecruiter(object):
     def counter(self):
         # We don't want to depend on redis in these tests.
         class PrimitiveCounter(object):
-
             _count = 0
 
             def increment(self, count):

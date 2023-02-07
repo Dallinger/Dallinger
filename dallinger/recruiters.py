@@ -669,7 +669,6 @@ class MTurkHITMessages(object):
 
 
 class WhimsicalMTurkHITMessages(MTurkHITMessages):
-
     _templates = {
         "resubmitted": {
             "subject": "A matter of minor concern.",
@@ -1195,7 +1194,6 @@ class MTurkRecruiter(Recruiter):
 
 
 class RedisTally(object):
-
     _key = "num_recruited"
 
     def __init__(self):
@@ -1210,7 +1208,6 @@ class RedisTally(object):
 
 
 class MTurkLargeRecruiter(MTurkRecruiter):
-
     nickname = "mturklarge"
     pool_size = 10
 
@@ -1320,7 +1317,6 @@ class BotRecruiter(Recruiter):
 
 
 class MultiRecruiter(Recruiter):
-
     nickname = "multi"
 
     # recruiter spec e.g. recruiters = bots: 5, mturk: 1

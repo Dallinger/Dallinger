@@ -12,7 +12,7 @@ alabaster==0.7.13
     #   sphinx
 anyio==3.6.2
     # via jupyter-server
-apscheduler==3.9.1.post1
+apscheduler==3.10.0
     # via dallinger
 argon2-cffi==21.3.0
     # via
@@ -41,15 +41,15 @@ backcall==0.2.0
     # via ipython
 bcrypt==4.0.1
     # via paramiko
-beautifulsoup4==4.11.1
+beautifulsoup4==4.11.2
     # via nbconvert
-black==22.12.0
+black==23.1.0
     # via dallinger
 bleach==6.0.0
     # via nbconvert
-boto3==1.26.60
+boto3==1.26.65
     # via dallinger
-botocore==1.29.60
+botocore==1.29.65
     # via
     #   boto3
     #   s3transfer
@@ -195,7 +195,7 @@ imagesize==1.4.1
     # via sphinx
 iniconfig==2.0.0
     # via pytest
-ipykernel==6.21.0
+ipykernel==6.21.1
     # via
     #   ipywidgets
     #   jupyter
@@ -268,7 +268,7 @@ jupyter-core==5.2.0
     #   qtconsole
 jupyter-events==0.6.3
     # via jupyter-server
-jupyter-server==2.1.0
+jupyter-server==2.2.1
     # via
     #   dallinger
     #   nbclassic
@@ -299,7 +299,7 @@ mistune==2.0.4
     # via nbconvert
 mock==5.0.0
     # via dallinger
-mypy-extensions==0.4.3
+mypy-extensions==1.0.0
     # via black
 nbclassic==0.5.1
     # via notebook
@@ -320,6 +320,7 @@ nbformat==5.7.3
     #   notebook
 nest-asyncio==1.5.6
     # via
+    #   ipykernel
     #   nbclassic
     #   notebook
 nodeenv==1.7.0
@@ -328,7 +329,7 @@ notebook==6.5.2
     # via jupyter
 notebook-shim==0.2.2
     # via nbclassic
-numpy==1.24.1
+numpy==1.24.2
     # via pandas
 odfpy==1.4.1
     # via tablib
@@ -338,6 +339,7 @@ outcome==1.2.0
     # via trio
 packaging==23.0
     # via
+    #   black
     #   build
     #   docker
     #   ipykernel
@@ -382,7 +384,7 @@ pluggy==1.0.0
     # via
     #   pytest
     #   tox
-pre-commit==3.0.2
+pre-commit==3.0.4
     # via dallinger
 prometheus-client==0.16.0
     # via
@@ -541,7 +543,7 @@ sphinxcontrib-applehelp==1.0.4
     # via sphinx
 sphinxcontrib-devhelp==1.0.2
     # via sphinx
-sphinxcontrib-htmlhelp==2.0.0
+sphinxcontrib-htmlhelp==2.0.1
     # via sphinx
 sphinxcontrib-jsmath==1.0.1
     # via sphinx
@@ -597,7 +599,7 @@ tornado==6.2
     #   nbclassic
     #   notebook
     #   terminado
-tox==4.4.3
+tox==4.4.4
     # via dallinger
 traitlets==5.9.0
     # via
@@ -640,7 +642,7 @@ urllib3==1.26.14
     #   selenium
 user-agents==2.2.0
     # via dallinger
-virtualenv==20.17.1
+virtualenv==20.18.0
     # via
     #   pre-commit
     #   tox

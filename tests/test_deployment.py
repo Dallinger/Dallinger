@@ -1031,7 +1031,6 @@ class TestDockerServer(object):
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
 class TestLoad(object):
-
     exp_id = "some_experiment_id"
 
     @pytest.fixture

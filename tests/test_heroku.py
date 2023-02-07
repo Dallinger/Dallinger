@@ -586,7 +586,6 @@ class TestHerokuLocalWrapper(object):
         heroku._log_failure.assert_called_once()
 
     def test_failure_logs_until_process_end(self, heroku):
-
         heroku._stream = mock.Mock(
             return_value=["real", "stopped", heroku.STREAM_SENTINEL]
         )
@@ -597,7 +596,6 @@ class TestHerokuLocalWrapper(object):
         assert len(heroku._record) == 0
 
     def test_failure_logs_until_new_error(self, heroku):
-
         heroku._stream = mock.Mock(
             return_value=[
                 "real",
@@ -680,7 +678,6 @@ class TestHerokuLocalWrapper(object):
 class TestHerokuInfo(object):
     @pytest.fixture
     def info(self):
-
         from dallinger.heroku.tools import HerokuInfo
 
         yield HerokuInfo(team="fake team")

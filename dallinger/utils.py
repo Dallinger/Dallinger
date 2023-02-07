@@ -197,7 +197,6 @@ class GitClient(object):
 
 
 class ParticipationTime(object):
-
     grace_period_seconds = 120
 
     def __init__(self, participant, reference_time, config):
