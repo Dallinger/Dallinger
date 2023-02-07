@@ -76,12 +76,20 @@ button#refresh:after {
 }
 #element-details {
     box-sizing: border-box;
-    background-color: #F2F2E9;
-    border: 3px solid #34487E;
+    background-color: #f8f9fa;
+    border: 1px solid lightgray;
+    border-top: none;
     min-height: 200px;
+    max-height: 40vh;
     padding: 10px;
-    width: 100%
+    width: 100%;
+    overflow: scroll;
 }
+
+.field{
+    float: left;
+}
+
 #element-details pre {
     box-sizing: border-box;
     width: 100%;

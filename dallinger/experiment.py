@@ -967,6 +967,22 @@ class Experiment(object):
 
         return stats
 
+    @staticmethod
+    def count_active_complete_failed(entities):
+        n_pending = 0
+        n_completed = 0
+        n_failed = 0
+        for entity in entities:
+            if entity.failed is False:
+                is_pending = isinstance(entity, Info) and entity.answer is None
+                if is_pending:
+                    n_pending += 1
+                else:
+                    n_completed += 1
+            else:
+                n_failed += 1
+        return n_pending, n_completed, n_failed
+
     def network_structure(self, **kw):
         network_ids = {i[0] for i in self.session.query(distinct(Network.id)).all()}
         if "network_roles" in kw:
@@ -979,35 +995,65 @@ class Experiment(object):
         if "network_ids" in kw:
             network_ids = network_ids.intersection(int(v) for v in kw["network_ids"])
 
-        jnetworks = [
-            n.__json__()
-            for n in Network.query.filter(Network.id.in_(network_ids)).all()
-        ]
+        network_ids = sorted(network_ids)  # default sorting is by id
+
+        jnetworks = []
+        for network in Network.query.filter(Network.id.in_(network_ids)).all():
+            (
+                n_pending_infos,
+                n_completed_infos,
+                n_failed_infos,
+            ) = self.count_active_complete_failed(network.all_infos)
+            _, n_completed_nodes, n_failed_nodes = self.count_active_complete_failed(
+                network.all_nodes
+            )
+
+            jnetworks.append(
+                {
+                    **network.__json__(),
+                    "n_pending_infos": n_pending_infos,
+                    "n_completed_infos": n_completed_infos,
+                    "n_failed_infos": n_failed_infos,
+                    "n_completed_nodes": n_completed_nodes,
+                    "n_failed_nodes": n_failed_nodes,
+                }
+            )
+
         if "collapsed" in kw:
             # Collapsed view shows Source nodes only
             jnodes = [
                 n.__json__()
-                for n in Source.query.filter(Node.network_id.in_(network_ids)).all()
+                for n in Source.query.filter(Node.network_id.in_(network_ids))
+                .order_by(Source.id)
+                .all()
             ]
             jinfos = jparticipants = jtransformations = jvectors = []
         else:
             jnodes = [
                 n.__json__()
-                for n in Node.query.filter(Node.network_id.in_(network_ids)).all()
+                for n in Node.query.filter(Node.network_id.in_(network_ids))
+                .order_by(Node.id)
+                .all()
             ]
             jinfos = [
                 n.__json__()
-                for n in Info.query.filter(Info.network_id.in_(network_ids)).all()
+                for n in Info.query.filter(Info.network_id.in_(network_ids))
+                .order_by(Info.id)
+                .all()
             ]
             # We don't filter participants because they aren't directly connected to specific networks
-            jparticipants = [n.__json__() for n in Participant.query.all()]
+            jparticipants = [
+                n.__json__() for n in Participant.query.order_by(Participant.id).all()
+            ]
             jtransformations = []
             if kw.get("transformations"):
                 jtransformations = [
                     n.__json__()
                     for n in Transformation.query.filter(
                         Transformation.network_id.in_(network_ids)
-                    ).all()
+                    )
+                    .order_by(Transformation.id)
+                    .all()
                 ]
 
             jvectors = [
@@ -1017,7 +1063,9 @@ class Experiment(object):
                     "id": v.id,
                     "failed": v.failed,
                 }
-                for v in Vector.query.filter(Vector.network_id.in_(network_ids)).all()
+                for v in Vector.query.filter(Vector.network_id.in_(network_ids))
+                .order_by(Vector.id)
+                .all()
             ]
 
         return {
