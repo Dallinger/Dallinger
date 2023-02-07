@@ -6,7 +6,6 @@ from dallinger.nodes import Agent
 
 class TestProcesses(object):
     def test_random_walk_from_source(self, db_session):
-
         net = models.Network()
         db_session.add(net)
         db_session.commit()
@@ -42,7 +41,6 @@ class TestProcesses(object):
 
     @pytest.mark.slow
     def test_moran_process_cultural(self, db_session):
-
         # Create a fully-connected network.
         net = models.Network()
         db_session.add(net)
@@ -91,7 +89,6 @@ class TestProcesses(object):
 
     @pytest.mark.slow
     def test_moran_process_sexual(self, db_session):
-
         # Create a fully-connected network.
         net = networks.Network()
         db_session.add(net)

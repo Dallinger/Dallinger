@@ -581,7 +581,6 @@ class TestEmailTest(object):
 
 
 class TestCompensate(object):
-
     DO_IT = "Y\n"
     DO_NOT_DO_IT = "N\n"
 
@@ -674,7 +673,6 @@ class TestCompensate(object):
 
 
 class TestExtendMTurkHIT(object):
-
     DO_IT = "Y\n"
     DO_NOT_DO_IT = "N\n"
 
@@ -747,7 +745,6 @@ class TestExtendMTurkHIT(object):
 
 
 class TestRevoke(object):
-
     DO_IT = "Y\n"
     DO_NOT_DO_IT = "N\n"
 

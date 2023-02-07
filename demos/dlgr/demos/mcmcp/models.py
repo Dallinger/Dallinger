@@ -10,7 +10,6 @@ from dallinger.nodes import Agent, Source
 
 
 class MCMCPAgent(Agent):
-
     __mapper_args__ = {"polymorphic_identity": "MCMCP_agent"}
 
     def update(self, infos):

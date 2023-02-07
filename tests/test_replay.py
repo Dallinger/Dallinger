@@ -20,7 +20,6 @@ class DummyEvents(list):
 
 
 class DummyExperiment(object):
-
     replay_path = "/replay"
     _events = DummyEvents()
     replayed = []
@@ -47,7 +46,6 @@ class DummyExperiment(object):
 
 @pytest.mark.slow
 class TestReplayBackend:
-
     allowed_jitter = 0.05
 
     def launch_replay_task(self, exp):

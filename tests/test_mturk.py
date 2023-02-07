@@ -287,7 +287,6 @@ def mturk(aws_creds):
 
 @pytest.fixture
 def with_cleanup(aws_creds, request, test_session_desc):
-
     # tear-down: clean up all specially-marked HITs:
     def test_hits_only(hit):
         return hit["description"] == test_session_desc

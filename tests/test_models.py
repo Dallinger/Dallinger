@@ -21,7 +21,6 @@ class TestModels(object):
         session.commit()
 
     def test_models(self, db_session):
-
         """####################
         #### Test Network ####
         ####################"""
@@ -214,7 +213,6 @@ class TestModels(object):
         assert repr(node).split("-") == ["Node", str(node.id), "node"]
 
     def _check_single_connection(self, node1, node2):
-
         assert node1.is_connected(direction="to", whom=node2)
         assert not node1.is_connected(direction="from", whom=node2)
         assert node2.is_connected(direction="from", whom=node1)

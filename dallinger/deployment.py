@@ -39,7 +39,7 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
         try:
             launch_request = requests.post(url)
             request_happened = True
-        except (requests.exceptions.RequestException):
+        except requests.exceptions.RequestException:
             request_happened = False
             error(f"Error accessing {url}")
 
@@ -275,7 +275,6 @@ class DevelopmentDeployment(object):
 
 
 class HerokuLocalDeployment(object):
-
     exp_id = None
     tmp_dir = None
     dispatch = {}  # Subclass may provide handlers for Heroku process output
@@ -355,7 +354,6 @@ class HerokuLocalDeployment(object):
 
 
 class DebugDeployment(HerokuLocalDeployment):
-
     dispatch = {
         r"[^\"]{} (.*)$".format(recruiters.NEW_RECRUIT_LOG_PREFIX): "new_recruit",
         r"{}".format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",

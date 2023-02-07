@@ -287,7 +287,6 @@ class TestDashboardCoreRoutes(object):
         assert resp.location.endswith("/login?next=%2Fdashboard%2F")
 
     def test_login_bad_password(self, csrf_token, webapp):
-
         resp = webapp.post(
             "/dashboard/login",
             data={
@@ -339,7 +338,6 @@ class TestDashboardCoreRoutes(object):
         assert resp.location.endswith("/dashboard/index")
 
     def test_login_session_retained(self, webapp_admin):
-
         resp = webapp_admin.get("/dashboard/")
         assert resp.status_code == 200
         assert 'Welcome User: "admin"' in resp.data.decode("utf8")
