@@ -18,8 +18,6 @@ attrs==22.2.0
     # via
     #   outcome
     #   trio
-bcrypt==4.0.1
-    # via paramiko
 boto3==1.26.68
     # via dallinger
 botocore==1.29.68
@@ -37,9 +35,7 @@ certifi==2022.12.7
     #   requests
     #   selenium
 cffi==1.15.1
-    # via
-    #   cryptography
-    #   pynacl
+    # via cryptography
 charset-normalizer==3.0.1
     # via requests
 click==8.1.3
@@ -49,9 +45,7 @@ click==8.1.3
     #   pip-tools
     #   rq
 cryptography==39.0.1
-    # via
-    #   paramiko
-    #   pyopenssl
+    # via pyopenssl
 exceptiongroup==1.1.0
     # via trio
 faker==16.8.1
@@ -116,8 +110,6 @@ outcome==1.2.0
     # via trio
 packaging==23.0
     # via build
-paramiko==3.0.0
-    # via dallinger
 pexpect==4.8.0
     # via dallinger
 pip-tools==6.12.2
@@ -132,8 +124,6 @@ ptyprocess==0.7.0
     # via pexpect
 pycparser==2.21
     # via cffi
-pynacl==1.5.0
-    # via paramiko
 pyopenssl==23.0.0
     # via dallinger
 pyproject-hooks==1.0.0
