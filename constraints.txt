@@ -139,7 +139,7 @@ exceptiongroup==1.1.0
     #   trio
 executing==1.2.0
     # via stack-data
-faker==16.6.1
+faker==16.8.1
     # via dallinger
 fastjsonschema==2.16.2
     # via nbformat
