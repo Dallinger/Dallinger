@@ -63,7 +63,6 @@ setup_args = dict(
         "gunicorn",
         "heroku3",
         "localconfig",
-        "paramiko",
         "pexpect",
         "pip>=20",
         "pip-tools",
