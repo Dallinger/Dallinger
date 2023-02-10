@@ -68,6 +68,7 @@ setup_args = dict(
         "pip-tools",
         "psycopg2",
         "psutil",
+        "pyopenssl",
         "redis",
         "requests",
         "rq",
