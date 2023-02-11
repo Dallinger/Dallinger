@@ -242,7 +242,9 @@ class ProlificService:
         try:
             parsed = response.json()
         except requests.exceptions.JSONDecodeError as err:
-            raise ProlificServiceException(f"Failed to parse the following JSON response from Prolific: {err.doc}")
+            raise ProlificServiceException(
+                f"Failed to parse the following JSON response from Prolific: {err.doc}"
+            )
 
         if "error" in parsed:
             error = {
