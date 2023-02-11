@@ -147,7 +147,7 @@ def init_db(drop_all=False, bind=engine):
         Base.metadata.create_all(bind=bind)
     except OperationalError as err:
         msg = 'password authentication failed for user "dallinger"'
-        if msg in err.message:
+        if hasattr(err, "message") and msg in err.message:
             sys.stderr.write(db_user_warning)
         raise
 
