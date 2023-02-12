@@ -476,7 +476,7 @@ def remove_redis_volumes(app_name, executor):
             executor.run(f"docker volume rm '{redis_volume_name}'")
         except ExecuteException:
             err = stdout.getvalue()
-            if "No such volume" not in err:
+            if "no such volume" not in err.lower():
                 raise ExecuteException(err)
 
 
