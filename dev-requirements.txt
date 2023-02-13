@@ -47,9 +47,9 @@ black==23.1.0
     # via dallinger
 bleach==6.0.0
     # via nbconvert
-boto3==1.26.68
+boto3==1.26.70
     # via dallinger
-botocore==1.29.68
+botocore==1.29.70
     # via
     #   boto3
     #   s3transfer
@@ -141,7 +141,7 @@ exceptiongroup==1.1.0
     #   trio
 executing==1.2.0
     # via stack-data
-faker==16.8.1
+faker==17.0.0
     # via dallinger
 fastjsonschema==2.16.2
     # via nbformat
@@ -186,7 +186,7 @@ h11==0.14.0
     # via wsproto
 heroku3==5.2.0
     # via dallinger
-identify==2.5.17
+identify==2.5.18
     # via pre-commit
 idna==3.4
     # via
@@ -197,7 +197,7 @@ imagesize==1.4.1
     # via sphinx
 iniconfig==2.0.0
     # via pytest
-ipykernel==6.21.1
+ipykernel==6.21.2
     # via
     #   ipywidgets
     #   jupyter
@@ -205,7 +205,7 @@ ipykernel==6.21.1
     #   nbclassic
     #   notebook
     #   qtconsole
-ipython==8.9.0
+ipython==8.10.0
     # via
     #   ipykernel
     #   ipywidgets
@@ -255,7 +255,7 @@ jupyter-client==8.0.2
     #   nbclient
     #   notebook
     #   qtconsole
-jupyter-console==6.5.0
+jupyter-console==6.5.1
     # via jupyter
 jupyter-core==5.2.0
     # via
@@ -336,7 +336,7 @@ numpy==1.24.2
     # via pandas
 odfpy==1.4.1
     # via tablib
-openpyxl==3.1.0
+openpyxl==3.1.1
     # via tablib
 outcome==1.2.0
     # via trio
@@ -458,7 +458,7 @@ python-dateutil==2.8.2
     #   pandas
 python-dotenv==0.21.1
     # via docker-compose
-python-json-logger==2.0.4
+python-json-logger==2.0.5
     # via jupyter-events
 pytz==2022.7.1
     # via
