@@ -6,7 +6,7 @@ Dallinger
 [![Code Climate](https://codeclimate.com/github/Dallinger/Dallinger/badges/gpa.svg)](https://codeclimate.com/github/Dallinger/Dallinger)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://en.wikipedia.org/wiki/MIT_License)
 
-<img src="incubator.png?raw=true" width="125" alt="Dallinger's incubator">
+<img src="https://raw.githubusercontent.com/Dallinger/Dallinger/master/incubator.png" width="125" alt="Dallinger's incubator">
 
 Laboratory automation for the behavioral and social sciences.
 
