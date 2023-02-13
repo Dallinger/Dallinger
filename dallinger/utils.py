@@ -694,10 +694,10 @@ def collate_experiment_files(config, experiment_path, destination, copy_func):
     # Order matters here, since the first files copied "win" if there's a
     # collision:
     ExperimentFileSource(experiment_path).apply_to(destination, copy_func=copy_func)
+    ExplicitFileSource(experiment_path).apply_to(destination, copy_func=copy_func)
     DallingerFileSource(config, dallinger_package_path()).apply_to(
         destination, copy_func=copy_func
     )
-    ExplicitFileSource(experiment_path).apply_to(destination, copy_func=copy_func)
 
 
 class FileSource(object):
