@@ -2,15 +2,6 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
-## [v9.4.2](https://github.com/dallinger/dallinger/tree/v9.4.2) (2023-02-14)
-
-- Fixes:
-  - Updated error catching logic to standardise case before catching `ExecuteException` error when deploying with Docker-SSH.
-  - The `collate_experiment_files` function is responsible for constructing the experiment directory that is eventually deployed. Due to an oversight, the original version was written in a way such that it was impossible to override built-in Dallinger resources using the `extra_files` hook; such cases were instead silently ignored. This has now been rectified.
-  - Added `db.session.commit()` at the end of scheduled task `check_db_for_missing_notifications` in case the server process has to be restarted. This would cause errors otherwise, because there would never be a moment at which the connection could be gracefully terminated.
-  - Fixed URL link of Dallinger logo.
-- Infrastructure: Update dependencies; add `pyopenssl` to `install_requires` in setup.py.
-
 ## [v9.4.1](https://github.com/dallinger/dallinger/tree/v9.4.1) (2023-02-07)
 
 - Fixed: Docker image caching problems with SSH deployment.
