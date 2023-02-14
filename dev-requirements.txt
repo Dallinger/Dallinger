@@ -458,7 +458,7 @@ python-dateutil==2.8.2
     #   pandas
 python-dotenv==0.21.1
     # via docker-compose
-python-json-logger==2.0.5
+python-json-logger==2.0.6
     # via jupyter-events
 pytz==2022.7.1
     # via
