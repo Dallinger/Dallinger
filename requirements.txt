@@ -18,9 +18,9 @@ attrs==22.2.0
     # via
     #   outcome
     #   trio
-boto3==1.26.70
+boto3==1.26.71
     # via dallinger
-botocore==1.29.70
+botocore==1.29.71
     # via
     #   boto3
     #   s3transfer
@@ -202,7 +202,7 @@ urllib3[socks]==1.26.14
     #   selenium
 user-agents==2.2.0
     # via dallinger
-werkzeug==2.2.2
+werkzeug==2.2.3
     # via
     #   flask
     #   flask-login
