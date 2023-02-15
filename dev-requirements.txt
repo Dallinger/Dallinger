@@ -271,7 +271,7 @@ jupyter-core==5.2.0
     #   qtconsole
 jupyter-events==0.6.3
     # via jupyter-server
-jupyter-server==2.2.1
+jupyter-server==2.3.0
     # via
     #   dallinger
     #   nbclassic
