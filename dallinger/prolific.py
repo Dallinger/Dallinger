@@ -223,6 +223,11 @@ class ProlificService:
           out of our "beta" period with Prolific)
         * Parses response and does error handling
         """
+        if self.api_token == "Set your Prolific API token in ~/.dallingerconfig!":
+            raise RuntimeError(
+                "Your Prolific API token is missing, please set it in ~/.dallingerconfig."
+            )
+
         headers = {
             "Authorization": f"Token {self.api_token}",
             "Referer": self.referer_header,
