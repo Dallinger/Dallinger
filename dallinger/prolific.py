@@ -239,7 +239,13 @@ class ProlificService:
         if method == "DELETE" and response.ok:
             return {"status_code": response.status_code}
 
-        parsed = response.json()
+        try:
+            parsed = response.json()
+        except requests.exceptions.JSONDecodeError as err:
+            raise ProlificServiceException(
+                f"Failed to parse the following JSON response from Prolific: {err.doc}"
+            )
+
         if "error" in parsed:
             error = {
                 "method": method,
