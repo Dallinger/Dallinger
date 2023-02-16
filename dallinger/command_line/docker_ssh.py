@@ -350,6 +350,7 @@ def deploy(
             "smtp_username": config.get("smtp_username"),
             "smtp_password": config.get("smtp_password"),
             "prolific_api_token": config["prolific_api_token"],
+            "auto_recruit": config["auto_recruit"],
             "dashboard_password": dashboard_password,
             "mode": mode,
             "CREATOR": f"{USER}@{HOSTNAME}",
