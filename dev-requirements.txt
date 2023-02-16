@@ -151,7 +151,7 @@ filelock==3.9.0
     #   virtualenv
 flake8==6.0.0
     # via dallinger
-flask==2.2.2
+flask==2.2.3
     # via
     #   dallinger
     #   flask-crossdomain
