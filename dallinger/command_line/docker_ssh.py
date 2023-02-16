@@ -347,6 +347,9 @@ def deploy(
         {
             "FLASK_SECRET_KEY": token_urlsafe(16),
             "AWS_DEFAULT_REGION": config["aws_region"],
+            "smtp_username": config.get("smtp_username"),
+            "smtp_password": config.get("smtp_password"),
+            "prolific_api_token": config["prolific_api_token"],
             "dashboard_password": dashboard_password,
             "mode": mode,
             "CREATOR": f"{USER}@{HOSTNAME}",
