@@ -246,7 +246,7 @@ jsonschema[format-nongpl]==3.2.0
     #   nbformat
 jupyter==1.0.0
     # via dallinger
-jupyter-client==8.0.2
+jupyter-client==8.0.3
     # via
     #   ipykernel
     #   jupyter-console
