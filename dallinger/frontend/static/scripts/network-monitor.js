@@ -406,8 +406,8 @@ var draw_network = function () {
         // create edges for transformation
         for (i = 0; i < net_structure.trans.length; i++) {
             tran = net_structure.trans[i];
-            from = tran.origin_id;
-            to = tran.destination_id;
+            from = tran.info_in_id;
+            to = tran.info_out_id;
             var from_n = map_infoid_to_infonum[from];
             var to_n = map_infoid_to_infonum[to];
 
