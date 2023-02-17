@@ -169,6 +169,7 @@ class Recruiter(object):
     def load_service(self, sandbox):
         """Load the appropriate service for this recruiter."""
         raise NotImplementedError
+
     def hits(self, app=None, sandbox=False):
         """Lists all hits on a recruiter."""
         service = self.load_service(sandbox)
@@ -221,11 +222,13 @@ class Recruiter(object):
     def clean_qualifications(self, experiment_details):
         """Remove qualifications with default values."""
         return experiment_details
+
     def hit_details(self, hit_id, sandbox=False):
         """Returns details of a hit/hits with the same app name."""
         service = self.load_service(sandbox)
         details = service.get_study(hit_id)
         return self.clean_qualifications(details)
+
     @property
     def default_qualification_name(self):
         """Name of the qualification file containing rules to filter participants."""
@@ -282,12 +285,15 @@ def prolific_submission_listener():
 # with the right values when they redirect participants to us
 PROLIFIC_AD_QUERYSTRING = "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
 
+
 def _current_hits(service, app):
     if app is not None:
         if type(service) is MTurkService:
             hits = service.get_hits(hit_filter=lambda h: h.get("annotation") == app)
         elif type(service) is ProlificService:
-            hits = service.get_hits(hit_filter=lambda h: h.get("internal_name", None) == app)
+            hits = service.get_hits(
+                hit_filter=lambda h: h.get("internal_name", None) == app
+            )
         else:
             raise NotImplementedError
     else:
@@ -301,10 +307,13 @@ def _current_hits(service, app):
         hits = [h for h in hits if h["status"] in keys]
     return hits
 
+
 def _get_and_load_config():
     config = get_config()
     config.load()
     return config
+
+
 def _prolific_service_from_config(sandbox=False):
     config = _get_and_load_config()
     return ProlificService(
@@ -313,6 +322,7 @@ def _prolific_service_from_config(sandbox=False):
         referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
         sandbox=sandbox,
     )
+
 
 class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.co/)"""
@@ -366,7 +376,7 @@ class ProlificRecruiter(Recruiter):
             "prolific_id_option": "url_parameters",
             "reward": self.config.get("prolific_reward_cents"),
             "total_available_places": n,
-            "mode": self.config.get("mode")
+            "mode": self.config.get("mode"),
         }
         # Merge in any explicit configuration untouched:
         if self.config.get("prolific_recruitment_config", None) is not None:
@@ -486,51 +496,64 @@ class ProlificRecruiter(Recruiter):
 
     def load_service(self, sandbox):
         return _prolific_service_from_config(sandbox)
+
     def clean_qualifications(self, experiment_details):
         requirements = []
-        for requirement in experiment_details['eligibility_requirements']:
+        for requirement in experiment_details["eligibility_requirements"]:
             cleaned_attributes = []
-            for attribute in requirement['attributes']:
-                if attribute['value'] is False or attribute['value'] is None or attribute['value'] == []:
+            for attribute in requirement["attributes"]:
+                if (
+                    attribute["value"] is False
+                    or attribute["value"] is None
+                    or attribute["value"] == []
+                ):
                     continue
 
-                elif requirement['type'] == 'input' and attribute['value'] == attribute['default_value']:
+                elif (
+                    requirement["type"] == "input"
+                    and attribute["value"] == attribute["default_value"]
+                ):
                     continue
                 cleaned_attributes.append(attribute)
-            attributes = requirement['attributes']
-            if requirement['type'] == 'range':
+            attributes = requirement["attributes"]
+            if requirement["type"] == "range":
                 if len(attributes) == 0:
                     continue
-                if attributes[0]['min'] == attributes[0]['value'] and attributes[1]['max'] == attributes[1]['value']:
+                if (
+                    attributes[0]["min"] == attributes[0]["value"]
+                    and attributes[1]["max"] == attributes[1]["value"]
+                ):
                     continue
 
-            requirement['attributes'] = cleaned_attributes
+            requirement["attributes"] = cleaned_attributes
             if len(cleaned_attributes) > 0:
                 try:
-                    query_id = requirement['query']['id']
-                    title = requirement['query']['title']
-                except:
+                    query_id = requirement["query"]["id"]
+                    title = requirement["query"]["title"]
+                except Exception:
                     query_id = None
                     title = None
-                requirements.append({
-                    'type': requirement['type'],
-                    'attributes': cleaned_attributes,
-                    'query': {'id': query_id, 'title': title},
-                    '_cls': requirement['_cls']
-                })
-        experiment_details['eligibility_requirements'] = requirements
+                requirements.append(
+                    {
+                        "type": requirement["type"],
+                        "attributes": cleaned_attributes,
+                        "query": {"id": query_id, "title": title},
+                        "_cls": requirement["_cls"],
+                    }
+                )
+        experiment_details["eligibility_requirements"] = requirements
         return experiment_details
 
     @property
     def default_qualification_name(self):
-        return 'prolific_config.json'
+        return "prolific_config.json"
 
     def get_qualifications(self, hit_id, sandbox):
         details = self.hit_details(hit_id, sandbox)
         return {
-            'device_compatibility': details['device_compatibility'],
-            'eligibility_requirements': details['eligibility_requirements'],
-            'peripheral_requirements': details['peripheral_requirements'],
+            "device_compatibility": details["device_compatibility"],
+            "eligibility_requirements": details["eligibility_requirements"],
+            "peripheral_requirements": details["peripheral_requirements"],
         }
 
 
@@ -850,6 +873,7 @@ def _mturk_service_from_config(sandbox):
         sandbox=sandbox,
     )
 
+
 @mturk_routes.route("/mturk-sns-listener", methods=["POST", "GET"])
 @crossdomain(origin="*")
 def mturk_recruiter_notify():
@@ -941,7 +965,7 @@ class MTurkRecruiter(Recruiter):
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
 
-        is_dummy_mode = 'is_dummy' in kwargs and kwargs['is_dummy']
+        is_dummy_mode = "is_dummy" in kwargs and kwargs["is_dummy"]
 
         if not is_dummy_mode:
             self._validate_config()
@@ -1360,6 +1384,14 @@ class MTurkRecruiter(Recruiter):
 
     def load_service(self, sandbox):
         return _mturk_service_from_config(sandbox)
+
+    @property
+    def default_qualification_name(self):
+        return "mturk_qualifications.json"
+
+    def get_qualifications(self, hit_id, sandbox):
+        service = self.load_service(sandbox)
+        return service.get_study(hit_id)["QualificationRequirements"]
 
 
 class RedisTally(object):

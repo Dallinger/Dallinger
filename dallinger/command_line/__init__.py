@@ -204,8 +204,6 @@ def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
     debugger.run()
 
 
-
-
 def prelaunch_db_bootstrapper(zip_path, log):
     def bootstrap_db(heroku_app, config):
         # Pre-populate the database if an archive was given
@@ -508,7 +506,10 @@ def get_recruiter(recruiter_name):
     elif recruiter_name == "prolific":
         return ProlificRecruiter(is_dummy=True)
     else:
-        raise NotImplementedError(f"Invalid recruiter, please choose from {available_recruiters}")
+        raise NotImplementedError(
+            f"Invalid recruiter, please choose from {available_recruiters}"
+        )
+
 
 @dallinger.command()
 @click.option("--app", default=None, help="Experiment id")
@@ -520,12 +521,12 @@ def get_recruiter(recruiter_name):
 )
 @click.option("--recruiter", default="mturk", help="Experiment id")
 def hits(app, sandbox, recruiter):
-    """List all HITs for the recruiter account or for a specific experiment id.
-    """
+    """List all HITs for the recruiter account or for a specific experiment id."""
     if app is not None:
         verify_id(None, "--app", app)
 
     get_recruiter(recruiter).hits(app, sandbox)
+
 
 @dallinger.command()
 @click.option("--hit_id", default=None, help="MTurk HIT ID")
@@ -539,7 +540,8 @@ def hits(app, sandbox, recruiter):
 def hit_details(hit_id, sandbox, recruiter):
     """Print the details for a specific HIT is for a recruiter."""
     details = get_recruiter(recruiter).hit_details(hit_id, sandbox)
-    print(json.dumps(details, indent=4))
+    print(json.dumps(details, indent=4, default=str))
+
 
 @dallinger.command()
 @click.option("--hit_id", default=None, help="MTurk HIT ID")
@@ -550,20 +552,29 @@ def hit_details(hit_id, sandbox, recruiter):
     help="Look for HITs in the MTurk sandbox rather than the live/production environment",
 )
 @click.option("--recruiter", default="mturk", help="Experiment id")
-@click.option("--qualification_path", default=None, help="Filename/path for the qualification file")
+@click.option(
+    "--qualification_path",
+    default=None,
+    help="Filename/path for the qualification file",
+)
 def copy_qualifications(hit_id, sandbox, recruiter, qualification_path):
     """Copy qualifications from an existing HIT ID."""
     recruiter = get_recruiter(recruiter)
     if qualification_path is None:
         qualification_path = recruiter.default_qualification_name
-    assert qualification_path.endswith(".json"), "Qualification path must be a json file"
+    assert qualification_path.endswith(
+        ".json"
+    ), "Qualification path must be a json file"
     if exists(qualification_path):
-        overwrite = query_yes_no(f"Overwrite existing qualification file: {qualification_path}?")
+        overwrite = query_yes_no(
+            f"Overwrite existing qualification file: {qualification_path}?"
+        )
         if not overwrite:
             raise Exception(f"Qualification file already exists: {qualification_path}.")
     qualifications = recruiter.get_qualifications(hit_id, sandbox)
     with open(qualification_path, "w") as f:
         json.dump(qualifications, f, indent=4)
+
 
 @dallinger.command()
 @click.option("--hit_id", default=None, help="MTurk HIT ID")
