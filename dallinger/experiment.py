@@ -974,7 +974,9 @@ class Experiment(object):
         n_failed = 0
         for entity in entities:
             if entity.failed is False:
-                is_pending = isinstance(entity, Info) and entity.answer is None
+                is_pending = (
+                    issubclass(entity.__class__, Info) and entity.get_contents() is None
+                )
                 if is_pending:
                     n_pending += 1
                 else:
