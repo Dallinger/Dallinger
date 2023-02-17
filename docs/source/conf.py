@@ -423,8 +423,8 @@ texinfo_documents = [
 
 # -- Install demo files -------------------------------------------
 
-import sys
 import os
+import sys
 
 root = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(root)

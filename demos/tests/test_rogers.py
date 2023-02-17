@@ -3,27 +3,28 @@
 from __future__ import print_function
 
 import os
-import sys
 import random
-import traceback
-from datetime import datetime
-import pytest
-import subprocess
 import re
-import requests
+import subprocess
+import sys
 import threading
 import time
+import traceback
+from datetime import datetime
 
-from dallinger.nodes import Agent, Source
-from dallinger.information import Gene, Meme, State
-from dallinger import models
+import pytest
+import requests
 from dlgr.demos.rogers.experiment import RogersExperiment
 from dlgr.demos.rogers.models import (
-    RogersAgent,
-    RogersSource,
-    RogersEnvironment,
     LearningGene,
+    RogersAgent,
+    RogersEnvironment,
+    RogersSource,
 )
+
+from dallinger import models
+from dallinger.information import Gene, Meme, State
+from dallinger.nodes import Agent, Source
 
 
 def timenow():

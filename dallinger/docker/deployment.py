@@ -1,5 +1,4 @@
-from dallinger.deployment import DebugDeployment
-from dallinger.deployment import setup_experiment
+from dallinger.deployment import DebugDeployment, setup_experiment
 
 
 class DockerDebugDeployment(DebugDeployment):

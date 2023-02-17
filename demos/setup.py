@@ -1,7 +1,7 @@
 import os
 import sys
-from setuptools import setup, find_packages
 
+from setuptools import find_packages, setup
 
 if sys.argv[-1] == "publish":
     os.system("python setup.py sdist upload")
@@ -10,7 +10,7 @@ if sys.argv[-1] == "publish":
 
 setup_args = dict(
     name="dlgr.demos",
-    version="9.4.0a1",
+    version="9.5.0a1",
     description="Demonstration experiments for Dallinger",
     url="http://github.com/Dallinger/Dallinger",
     maintainer="Jordan Suchow",

@@ -1,8 +1,9 @@
 import json
 import logging
+from typing import List, Optional
+
 import requests
 import tenacity
-from typing import List, Optional
 from dateutil import parser
 
 logger = logging.getLogger(__file__)
@@ -17,7 +18,9 @@ class ProlificServiceException(Exception):
 class ProlificService:
     """Wrapper for Prolific REST API"""
 
-    def __init__(self, api_token: str, api_version: str, referer_header: str, sandbox: bool):
+    def __init__(
+        self, api_token: str, api_version: str, referer_header: str, sandbox: bool
+    ):
         self.api_token = api_token
         # For error logging:
         self.api_token_fragment = f"{api_token[:3]}...{api_token[-3:]}"
@@ -115,7 +118,9 @@ class ProlificService:
             logger.info(f"Publishing experiment {study_id} on Prolific...")
             return self.publish_study(study_id)
         else:
-            logger.info(f"Sandboxing experiment {study_id} in Prolific (saved as draft, not public)...")
+            logger.info(
+                f"Sandboxing experiment {study_id} in Prolific (saved as draft, not public)..."
+            )
             return draft
 
     def draft_study(
@@ -170,9 +175,10 @@ class ProlificService:
                 "annotation": hit.get("internal_name", ""),
                 "status": hit["status"],
                 "created": parser.parse(hit["date_created"]),
-                "expiration": '',  # Not available in Prolific in list view
-                "description": '',  # Not available in Prolific in list view
-            } for hit in response["results"]
+                "expiration": "",  # Not available in Prolific in list view
+                "description": "",  # Not available in Prolific in list view
+            }
+            for hit in response["results"]
         ]
 
     def get_study(self, study_id: str) -> dict:

@@ -15,19 +15,18 @@ import click
 import requests
 from heroku3.core import Heroku as Heroku3Client
 
-from dallinger import heroku
-from dallinger import registration
-from dallinger.command_line.utils import Output
-from dallinger.command_line.utils import header
-from dallinger.command_line.utils import log
-from dallinger.command_line.utils import require_exp_directory
-from dallinger.command_line.utils import verify_id
+from dallinger import heroku, registration
+from dallinger.command_line.utils import (
+    Output,
+    header,
+    log,
+    require_exp_directory,
+    verify_id,
+)
 from dallinger.config import get_config
 from dallinger.deployment import _handle_launch_data
 from dallinger.heroku.tools import HerokuApp
-from dallinger.utils import GitClient
-from dallinger.utils import abspath_from_egg
-from dallinger.utils import setup_experiment
+from dallinger.utils import GitClient, abspath_from_egg, setup_experiment
 
 HEROKU_YML = abspath_from_egg("dallinger", "dallinger/docker/heroku.yml").read_text()
 
@@ -134,8 +133,9 @@ def build():
 @click.option("--use-existing", is_flag=True, default=False)
 def push(use_existing: bool, **kwargs) -> str:
     """Build and push the docker image for this experiment."""
-    from dallinger.docker.tools import build_image
     from docker import client
+
+    from dallinger.docker.tools import build_image
 
     config = get_config()
     config.load()

@@ -1,7 +1,9 @@
 import json
+from datetime import datetime
+
 import mock
 import pytest
-from datetime import datetime
+
 from dallinger import models
 from dallinger.config import get_config
 
@@ -1644,9 +1646,9 @@ class TestWorkerFunctionIntegration(object):
             runner.call_args[0][0] is participant
 
     def test_tracking_event(self, worker_func, db_session):
-        from dallinger.models import Participant
-        from dallinger.information import TrackingEvent
         from dallinger.experiment_server.experiment_server import Experiment
+        from dallinger.information import TrackingEvent
+        from dallinger.models import Participant
 
         participant = Participant(
             recruiter_id="hotair",
@@ -1684,8 +1686,10 @@ class TestWorkerFunctionIntegration(object):
 
 class TestWorkerEvents(object):
     def test_dispatch(self):
-        from dallinger.experiment_server.worker_events import WorkerEvent
-        from dallinger.experiment_server.worker_events import AssignmentSubmitted
+        from dallinger.experiment_server.worker_events import (
+            AssignmentSubmitted,
+            WorkerEvent,
+        )
 
         cls = WorkerEvent.for_name("AssignmentSubmitted")
 
@@ -1711,8 +1715,9 @@ def experiment():
 
 @pytest.fixture
 def standard_args(experiment):
-    from dallinger.models import Participant
     from sqlalchemy.orm.scoping import scoped_session
+
+    from dallinger.models import Participant
 
     participant = mock.Mock(
         spec_set=Participant,

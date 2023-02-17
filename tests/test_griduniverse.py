@@ -1,17 +1,18 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 from __future__ import print_function
+
 import os
-import pytest
 import shutil
 import sys
+
+import pytest
 
 
 class TestGridUniverse(object):
     @pytest.mark.usefixtures("check_griduniverse")
     def test_tests(self):
-        from dallinger.utils import GitClient
-        from dallinger.utils import run_command
+        from dallinger.utils import GitClient, run_command
 
         original_dir = os.getcwd()
         git = GitClient()

@@ -5,16 +5,16 @@ import logging
 import random
 import uuid
 
+import gevent
+import requests
 from cached_property import cached_property
+from requests.exceptions import RequestException
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from six.moves import urllib
-import gevent
-import requests
-from requests.exceptions import RequestException
 
 logger = logging.getLogger(__file__)
 

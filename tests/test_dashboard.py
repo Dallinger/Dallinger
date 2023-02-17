@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+
 import codecs
+
 import mock
 import pytest
 
@@ -227,6 +229,7 @@ class TestDashboard(object):
 
     def test_unauthorized_debug_mode(self, active_config, env):
         from werkzeug.exceptions import Unauthorized
+
         from dallinger.experiment_server.dashboard import unauthorized
 
         active_config.set("mode", "debug")

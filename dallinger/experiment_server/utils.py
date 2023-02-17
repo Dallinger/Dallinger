@@ -1,17 +1,13 @@
 import logging
 import sys
-import user_agents
-
 from datetime import timedelta
-from flask import make_response
-from flask import request
-from flask import current_app
-from flask import render_template
-from flask import Response
 from functools import update_wrapper
 from json import dumps
-from dallinger.config import get_config
 
+import user_agents
+from flask import Response, current_app, make_response, render_template, request
+
+from dallinger.config import get_config
 
 logger = logging.getLogger(__name__)
 

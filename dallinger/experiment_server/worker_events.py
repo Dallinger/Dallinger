@@ -1,13 +1,11 @@
 import logging
 from datetime import datetime
 from operator import attrgetter
-from rq import Queue
-from rq import get_current_job
-from dallinger import db
-from dallinger import information
-from dallinger import models
-from dallinger.config import get_config
 
+from rq import Queue, get_current_job
+
+from dallinger import db, information, models
+from dallinger.config import get_config
 
 logger = logging.getLogger(__name__)
 

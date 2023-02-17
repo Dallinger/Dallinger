@@ -2,16 +2,15 @@
 
 import logging
 
-from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 from dallinger.bots import BotBase
 from dallinger.config import get_config
-from dallinger.networks import Chain
 from dallinger.experiment import Experiment
-
+from dallinger.networks import Chain
 
 logger = logging.getLogger(__file__)
 

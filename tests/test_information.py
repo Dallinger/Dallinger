@@ -1,4 +1,4 @@
-from dallinger import models, information
+from dallinger import information, models
 
 
 class TestInformation(object):

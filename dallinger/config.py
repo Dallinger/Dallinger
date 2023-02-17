@@ -1,16 +1,17 @@
 from __future__ import unicode_literals
 
-from collections import deque
-from contextlib import contextmanager
-from six.moves import configparser
-from pathlib import Path
 import distutils.util
 import io
 import json
 import logging
 import os
-import six
 import sys
+from collections import deque
+from contextlib import contextmanager
+from pathlib import Path
+
+import six
+from six.moves import configparser
 
 logger = logging.getLogger(__file__)
 
@@ -287,6 +288,9 @@ class Configuration(object):
         for config_file in [global_defaults_file, local_defaults_file, global_config]:
             self.load_from_file(config_file)
 
+        if self.experiment_available():
+            self.load_experiment_config_defaults()
+
     def experiment_available(self):
         return Path("experiment.py").exists()
 
@@ -327,6 +331,12 @@ class Configuration(object):
         if extra_parameters is not None and not self._module_params_loaded:
             extra_parameters()
             self._module_params_loaded = True
+
+    def load_experiment_config_defaults(self):
+        from dallinger.experiment import load
+
+        exp_klass = load()
+        self.extend(exp_klass.config_defaults(), strict=True)
 
 
 config = None

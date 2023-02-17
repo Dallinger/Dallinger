@@ -2,6 +2,29 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+- Fixed: Docker image caching problems with SSH deployment.
+- Fixed: Redis server contamination when deploying multiple apps with the same name via SSH.
+
+## [v9.4.0](https://github.com/dallinger/dallinger/tree/v9.4.0) (2023-01-26)
+
+- Enhancement: Refactored `advertisement` method to prepare the advertisement in a separate function `prepare_advertisement`. This allows wrappers around Dallinger, e.g. PsyNet, to use other rendering functions than the one used in Flask. For example, this is important if you want to add custom Jinja2 filters or add translations.
+- Enhancement: Add a new customizable `config_defaults` method on the `Experiment class` that allows the user to specify custom default values for config variables.
+- Enhancement: Add `source=dashboard` to the entry information stored for participant sessions created via the dashboard. This helps to distinguish debugging participants from 'real' participants.
+- Infrastructure: Added `isort` to the list of pre-commit hooks to sort imports alphabetically, and automatically separated into sections and by type.
+- Infrastructure: Update dependencies; pinning SQLAlchemy to a version `<2`.
+
+## [v9.3.1](https://github.com/dallinger/dallinger/tree/v9.3.1) (2023-01-17)
+
+- Bugfix and Enhancements for Prolific recruitment:
+  - Bugfix: Prevent the survey from being published when sandboxing.
+    Before, when `mode` was set to `"sandbox"` in `config.txt` the survey was published on Prolific.
+  - Enhancement: Extended the Prolific documentation showing how to select specific devices (e.g., desktop only) or additional hardware (e.g., microphone).
+  - Enhancement: Only use the app hash in the internal title and not in the public title as this is not informative to participants.
+  - Enhancement: Explicitly log whether the experiment is sandboxed or deployed to Prolific.
+- Bugfix: Fixed unpublished doc pages.
+- Enhancement: Eliminate unnecessary 'is not a valid configuration key' errors.
+- Infrastructure: Update dependencies
+
 ## [v9.3.0](https://github.com/dallinger/dallinger/tree/v9.3.0) (2022-12-16)
 - Enhancement: Docker quality of life improvements
   - Major

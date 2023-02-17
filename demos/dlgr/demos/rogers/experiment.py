@@ -1,13 +1,13 @@
 """Replicate Rogers' paradox by simulating evolution with people."""
 
 import random
+
 import six
 
 from dallinger.config import get_config
 from dallinger.experiment import Experiment
 from dallinger.information import Meme
-from dallinger.models import Node
-from dallinger.models import Participant
+from dallinger.models import Node, Participant
 from dallinger.networks import DiscreteGenerational
 
 

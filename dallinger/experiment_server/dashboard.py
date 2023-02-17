@@ -1,31 +1,37 @@
 import json
 import logging
+from copy import deepcopy
+from datetime import datetime, timedelta
+from xml.sax.saxutils import escape
+
 import six
 import timeago
-from copy import deepcopy
-from datetime import datetime
-from datetime import timedelta
-from six.moves.urllib.parse import urlencode
-from xml.sax.saxutils import escape
-from flask import Blueprint
-from flask import current_app
-from flask import abort, flash, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask.wrappers import Response
-from flask_wtf import FlaskForm
-from tzlocal import get_localzone
-from wtforms import StringField, PasswordField, BooleanField, SubmitField, HiddenField
-from wtforms.validators import DataRequired, ValidationError
-from flask_login import current_user, login_required, login_user, logout_user
-from flask_login import UserMixin
+from flask_login import UserMixin, current_user, login_required, login_user, logout_user
 from flask_login.utils import login_url as make_login_url
+from flask_wtf import FlaskForm
+from six.moves.urllib.parse import urlencode
+from tzlocal import get_localzone
+from wtforms import BooleanField, HiddenField, PasswordField, StringField, SubmitField
+from wtforms.validators import DataRequired, ValidationError
 
 import dallinger.db
 from dallinger import recruiters
-from dallinger.heroku.tools import HerokuApp
 from dallinger.config import get_config
+from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import deferred_route_decorator
-from .utils import date_handler, error_response, success_response
 
+from .utils import date_handler, error_response, success_response
 
 logger = logging.getLogger(__name__)
 
@@ -562,6 +568,7 @@ def mturk():
 @login_required
 def monitoring():
     from sqlalchemy import distinct, func
+
     from dallinger.experiment_server.experiment_server import Experiment, session
     from dallinger.models import Network
 

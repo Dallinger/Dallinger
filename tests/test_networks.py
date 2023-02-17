@@ -1,7 +1,9 @@
-from dallinger import networks, nodes, models
 import random
-import pytest
 from collections import defaultdict
+
+import pytest
+
+from dallinger import models, networks, nodes
 
 
 class TestNetworks(object):

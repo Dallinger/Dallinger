@@ -1,4 +1,5 @@
 import hashlib
+import io
 import json
 import logging
 import os
@@ -6,7 +7,7 @@ import select
 import socket
 import sys
 import zipfile
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 from email.utils import parseaddr
 from functools import wraps
 from getpass import getuser
@@ -14,8 +15,7 @@ from io import BytesIO
 from pathlib import Path
 from secrets import token_urlsafe
 from shlex import quote
-from socket import gethostbyname_ex
-from socket import gethostname
+from socket import gethostbyname_ex, gethostname
 from subprocess import CalledProcessError
 from typing import Dict
 from uuid import uuid4
@@ -26,17 +26,13 @@ from jinja2 import Template
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from dallinger.command_line.config import get_configured_hosts
-from dallinger.command_line.config import remove_host
-from dallinger.command_line.config import store_host
+from dallinger.command_line.config import get_configured_hosts, remove_host, store_host
 from dallinger.command_line.utils import Output
 from dallinger.config import get_config
-from dallinger.data import bootstrap_db_from_zip
-from dallinger.data import export_db_uri
+from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import setup_experiment
-from dallinger.utils import abspath_from_egg
-from dallinger.utils import check_output
+from dallinger.utils import abspath_from_egg, check_output
 
 # Find an identifier for the current user to use as CREATOR of the experiment
 HOSTNAME = gethostname()
@@ -228,9 +224,10 @@ def build_and_push_image(f):
 
     @wraps(f)
     def wrapper(*args, **kwargs):  # pragma: no cover
-        from dallinger.docker.tools import build_image
-        from dallinger.command_line.docker import push
         import docker
+
+        from dallinger.command_line.docker import push
+        from dallinger.docker.tools import build_image
 
         config = get_config()
         config.load()
@@ -324,9 +321,13 @@ def deploy(
         BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
         "dallinger/Caddyfile",
     )
-    executor.run("docker-compose -f ~/dallinger/docker-compose.yml up -d")
-    print("Launched http and postgresql servers. Starting experiment")
+    print("Removing any pre-existing Redis volumes.")
+    remove_redis_volumes(app_name, executor)
 
+    print("Launching http and postgresql servers.")
+    executor.run("docker-compose -f ~/dallinger/docker-compose.yml up -d")
+
+    print("Starting experiment.")
     experiment_uuid = str(uuid4())
     if app_name:
         experiment_id = app_name
@@ -465,6 +466,18 @@ def get_experiment_id_from_archive(archive_path):
     with zipfile.ZipFile(archive_path) as archive:
         with archive.open("experiment_id.md") as fh:
             return fh.read().decode("utf-8")
+
+
+def remove_redis_volumes(app_name, executor):
+    redis_volume_name = f"{app_name}_dallinger_{app_name}_redis_data"
+    stdout = io.StringIO()
+    with redirect_stdout(stdout):
+        try:
+            executor.run(f"docker volume rm '{redis_volume_name}'")
+        except ExecuteException:
+            err = stdout.getvalue()
+            if "No such volume" not in err:
+                raise ExecuteException(err)
 
 
 @docker_ssh.command()
@@ -680,7 +693,7 @@ class Executor:
 
         Adapted from paramiko "interactive.py" demo.
         """
-        from paramiko.py3compat import u
+        from paramiko.util import u
 
         chan = self.client.get_transport().open_session()
         chan.exec_command(cmd)

@@ -1,13 +1,24 @@
 """Define Dallinger's core models."""
 
-from datetime import datetime
 import inspect
+from datetime import datetime
 
-from sqlalchemy import ForeignKey, or_, and_
-from sqlalchemy import Column, String, Text, Enum, Integer, Boolean, DateTime, Float
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    and_,
+    or_,
+)
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.sql.expression import false
 from sqlalchemy.orm import relationship, validates
+from sqlalchemy.sql.expression import false
 
 from .db import Base
 

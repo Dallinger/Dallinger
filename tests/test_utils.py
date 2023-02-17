@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import io
 import locale
+from datetime import datetime, timedelta
+
 import mock
 import pytest
-from datetime import datetime
-from datetime import timedelta
-from dallinger import utils, config
+
+from dallinger import config, utils
 
 
 class TestSubprocessWrapper(object):

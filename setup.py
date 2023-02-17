@@ -1,5 +1,6 @@
 """Install Dallinger as a command line utility."""
 import pathlib
+
 from setuptools import setup
 
 # The directory containing this file
@@ -11,7 +12,7 @@ README = (HERE / "README.md").read_text(encoding="utf-8")
 setup_args = dict(
     name="dallinger",
     packages=["dallinger", "dallinger_scripts"],
-    version="9.4.0a1",
+    version="9.5.0a1",
     description="Laboratory automation for the behavioral and social sciences",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -72,7 +73,7 @@ setup_args = dict(
         "rq",
         "selenium",
         "six",
-        "SQLAlchemy",
+        "SQLAlchemy<2",
         "sqlalchemy-postgres-copy",
         "tabulate",
         "tenacity",
@@ -84,7 +85,7 @@ setup_args = dict(
     extras_require={
         "jupyter": [
             "jupyter",
-            "jupyter-server==1.23.3",
+            "jupyter-server",
             "ipywidgets",
         ],
         "data": [
@@ -99,7 +100,8 @@ setup_args = dict(
             "coverage_pth",
             "codecov",
             "flake8",
-            "mock",
+            "isort",
+            "mock==5.0.0",
             "pre-commit",
             "pycodestyle",
             "pypandoc",
@@ -107,7 +109,7 @@ setup_args = dict(
             "pytest-rerunfailures",
             "recommonmark",
             "sphinxcontrib-spelling",
-            "Sphinx",
+            "Sphinx==5.3.0",
             "tox",
             "sphinx_rtd_theme",
         ],

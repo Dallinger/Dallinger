@@ -1,46 +1,39 @@
 """Recruiters manage the flow of participants to the experiment."""
-from __future__ import print_function
-from __future__ import unicode_literals
+from __future__ import print_function, unicode_literals
 
-import tabulate
-import flask
 import json
 import logging
 import os
 import random
 import re
-import requests
 import string
 import time
 
+import flask
+import requests
+import tabulate
 from rq import Queue
 from sqlalchemy import func
 
+from dallinger.command_line.utils import Output
 from dallinger.config import get_config
-from dallinger.db import redis_conn
-from dallinger.db import session
-from dallinger.experiment_server.utils import success_response
-from dallinger.experiment_server.utils import crossdomain
+from dallinger.db import redis_conn, session
+from dallinger.experiment_server.utils import crossdomain, success_response
 from dallinger.experiment_server.worker_events import worker_function
 from dallinger.heroku import tools as heroku_tools
-from dallinger.notifications import get_mailer
-from dallinger.notifications import admin_notifier
-from dallinger.notifications import MessengerError
 from dallinger.models import Recruitment
-from dallinger.mturk import MTurkQualificationRequirements
-from dallinger.mturk import MTurkQuestions
-from dallinger.mturk import MTurkService
-from dallinger.mturk import DuplicateQualificationNameError
-from dallinger.mturk import MTurkServiceException
-from dallinger.mturk import QualificationNotFoundException
-from dallinger.prolific import ProlificService
-from dallinger.prolific import ProlificServiceException
-from dallinger.utils import get_base_url
-from dallinger.utils import generate_random_id
-from dallinger.utils import ParticipationTime
+from dallinger.mturk import (
+    DuplicateQualificationNameError,
+    MTurkQualificationRequirements,
+    MTurkQuestions,
+    MTurkService,
+    MTurkServiceException,
+    QualificationNotFoundException,
+)
+from dallinger.notifications import MessengerError, admin_notifier, get_mailer
+from dallinger.prolific import ProlificService, ProlificServiceException
+from dallinger.utils import ParticipationTime, generate_random_id, get_base_url
 from dallinger.version import __version__
-from dallinger.command_line.utils import Output
-
 
 logger = logging.getLogger(__file__)
 

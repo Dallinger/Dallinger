@@ -13,15 +13,16 @@ monkey.patch_all()
 
 import logging
 import signal
+
 import gevent
 import gevent.pool
 from rq import Worker
-from rq.job import JobStatus
-from rq.timeouts import BaseDeathPenalty, JobTimeoutException
-from rq.worker import StopRequested, green, blue, WorkerStatus
 from rq.exceptions import DequeueTimeout
+from rq.job import JobStatus
 from rq.logutils import setup_loghandlers
+from rq.timeouts import BaseDeathPenalty, JobTimeoutException
 from rq.version import VERSION
+from rq.worker import StopRequested, WorkerStatus, blue, green
 
 
 class GeventDeathPenalty(BaseDeathPenalty):
@@ -214,6 +215,7 @@ class GeventWorker(Worker):
 
 def main():
     import sys
+
     from rq.cli import worker as rq_main
 
     if "-w" in sys.argv or "--worker-class" in sys.argv:

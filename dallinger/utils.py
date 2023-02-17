@@ -1,26 +1,27 @@
 from __future__ import unicode_literals
+
 import functools
 import io
 import locale
 import os
-import pkg_resources
 import random
 import re
-import requests
 import shutil
 import string
 import subprocess
 import sys
 import tempfile
 import webbrowser
-
-from faker import Faker
-from flask import request
 from hashlib import md5
 from pathlib import Path
-from pkg_resources import get_distribution
-from unicodedata import normalize
 from tempfile import TemporaryDirectory
+from unicodedata import normalize
+
+import pkg_resources
+import requests
+from faker import Faker
+from flask import request
+from pkg_resources import get_distribution
 
 try:
     from importlib.metadata import files as files_metadata
@@ -28,10 +29,9 @@ except ImportError:
     from importlib_metadata import files as files_metadata
 
 from dallinger import db
-from dallinger.version import __version__
-from dallinger.config import get_config
 from dallinger.compat import is_command
-
+from dallinger.config import get_config
+from dallinger.version import __version__
 
 fake = Faker()
 
@@ -677,6 +677,7 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
             requirements_path.write_text(new_constraints_text)
     return dst
 
+
 def query_yes_no(question, default="yes"):
     """Ask a yes/no question via raw_input() and return their answer.
 
@@ -706,6 +707,7 @@ def query_yes_no(question, default="yes"):
             return valid[choice]
         else:
             sys.stdout.write("Please respond with 'yes' or 'no' " "(or 'y' or 'n').\n")
+
 
 def copy_file(from_path, to_path):
     """Actually copy a file from one location to another."""

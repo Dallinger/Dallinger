@@ -1,27 +1,24 @@
 """Create a connection to the database."""
 
-from contextlib import contextmanager
-from functools import wraps
 import logging
 import os
-import psycopg2
+import random
 import sys
 import time
-import random
+from contextlib import contextmanager
+from functools import wraps
 
+import psycopg2
 from psycopg2.extensions import TransactionRollbackError
-from sqlalchemy import create_engine
-from sqlalchemy import event
-from sqlalchemy.orm import Session
-from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy import create_engine, event
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session, scoped_session, sessionmaker
 from sqlalchemy.schema import DropTable
 
 from dallinger.config import initialize_experiment_package
 from dallinger.redis_utils import connect_to_redis
-
 
 logger = logging.getLogger("dallinger.db")
 

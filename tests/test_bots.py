@@ -1,4 +1,5 @@
 import json
+
 import mock
 import pytest
 from selenium import webdriver

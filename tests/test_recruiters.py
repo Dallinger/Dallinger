@@ -1,11 +1,12 @@
 import json
+from datetime import datetime
+
 import mock
 import pytest
-from datetime import datetime
-from dallinger.models import Participant
+
 from dallinger.experiment import Experiment
-from dallinger.mturk import MTurkQualificationRequirements
-from dallinger.mturk import MTurkQuestions
+from dallinger.models import Participant
+from dallinger.mturk import MTurkQualificationRequirements, MTurkQuestions
 
 
 class TestModuleFunctions(object):
@@ -512,6 +513,7 @@ class TestMTurkRecruiterMessages(object):
     @pytest.fixture
     def summary(self, a, stub_config):
         from datetime import timedelta
+
         from dallinger.recruiters import ParticipationTime
 
         p = a.participant()
@@ -728,8 +730,7 @@ class TestMTurkRecruiter(object):
             return r
 
     def test_instantiation_fails_with_invalid_mode(self, active_config):
-        from dallinger.recruiters import MTurkRecruiter
-        from dallinger.recruiters import MTurkRecruiterException
+        from dallinger.recruiters import MTurkRecruiter, MTurkRecruiterException
 
         active_config.extend({"mode": "nonsense"})
         with pytest.raises(MTurkRecruiterException) as ex_info:

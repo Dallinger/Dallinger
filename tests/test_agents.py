@@ -1,8 +1,9 @@
 """Tests for creating and manipulating agents."""
 
-from dallinger import nodes, information, models
-from dallinger.information import Meme, Gene
 from pytest import raises
+
+from dallinger import information, models, nodes
+from dallinger.information import Gene, Meme
 
 
 class TestAgents(object):

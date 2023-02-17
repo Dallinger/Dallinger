@@ -1,6 +1,7 @@
 import os
-import pytest
 import sys
+
+import pytest
 
 from dallinger import experiments
 from dallinger.command_line.utils import verify_package
@@ -74,6 +75,7 @@ class TestBartlett1932(object):
 class TestEntryPointImport(object):
     def test_bartlett1932_entry_point(self):
         from dlgr.demos.bartlett1932.experiment import Bartlett1932 as OrigExp
+
         from dallinger.experiments import Bartlett1932
 
         assert Bartlett1932 is OrigExp

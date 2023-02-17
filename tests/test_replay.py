@@ -1,7 +1,7 @@
-from datetime import datetime
-import gevent
 import random
+from datetime import datetime
 
+import gevent
 import pytest
 
 
