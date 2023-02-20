@@ -508,6 +508,23 @@ class TestProlificRecruiter(object):
             mock.ANY, "AssignmentSubmitted", "some assignment ID", "some participant ID"
         ),
 
+    def test_clean_qualification_attributes(self, recruiter):
+        with open("datasets/example_prolific_details.json", "r") as f:
+            details = json.load(f)
+        cleaned_details = recruiter.clean_qualification_attributes(details)
+        assert details.keys() == cleaned_details.keys(), "Keys should be the same"
+        requirements = cleaned_details["eligibility_requirements"]
+        assert len(requirements) == 5, "Should be 5 requirements"
+        set_options = (
+            ["Spain"] * 3 + ["Spanish"] + ["I was raised with my native language only"]
+        )
+        assert [
+            req["attributes"][0]["name"] for req in requirements
+        ] == set_options, "Spanish natives only"
+        assert all(
+            [req["attributes"][0]["value"] for req in requirements]
+        ), "All set option should be true"
+
 
 class TestMTurkRecruiterMessages(object):
     @pytest.fixture
