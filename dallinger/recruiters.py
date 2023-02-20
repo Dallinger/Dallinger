@@ -212,15 +212,15 @@ class Recruiter(object):
             chevrons=False,
         )
 
-    def clean_qualifications(self, experiment_details):
-        """Remove qualifications with default values."""
+    def clean_qualification_attributes(self, experiment_details):
+        """Remove any attributes that are not required for the qualification."""
         return experiment_details
 
     def hit_details(self, hit_id, sandbox=False):
         """Returns details of a hit/hits with the same app name."""
         service = self.load_service(sandbox)
         details = service.get_study(hit_id)
-        return self.clean_qualifications(details)
+        return self.clean_qualification_attributes(details)
 
     @property
     def default_qualification_name(self):
@@ -490,51 +490,89 @@ class ProlificRecruiter(Recruiter):
     def load_service(self, sandbox):
         return _prolific_service_from_config(sandbox)
 
-    def clean_qualifications(self, experiment_details):
-        requirements = []
-        for requirement in experiment_details["eligibility_requirements"]:
-            cleaned_attributes = []
-            for attribute in requirement["attributes"]:
-                if (
+    def clean_qualification_query(self, requirement):
+        """Prolific's API returns queries with a lot of unnecessary information:
+        {
+            "query": {
+            "id": "54bef0fafdf99b15608c504e",
+            "question": "In what country do you currently reside?",
+            "description": "",
+            "title": "Current Country of Residence",
+            "help_text": "Please note that Prolific is currently only available for participants who live in OECD countries. <a href='https://researcher-help.prolific.co/hc/en-gb/articles/360009220833-Who-are-the-people-in-your-participant-pool' target='_blank'>Read more about this</a>",
+            "participant_help_text": "",
+            "researcher_help_text": "",
+            "is_new": false,
+            "tags": [
+              "rep_sample_country",
+              "core-7",
+              "default_export_country_of_residence"
+            ]
+        }
+         However, to identify the qualification, we only need the ID. For readability, we add the title as well.
+        """
+        try:
+            query_id = requirement["query"]["id"]
+            title = requirement["query"]["title"]
+        except KeyError:
+            query_id = None
+            title = None
+        return {"id": query_id, "title": title}
+
+    def clean_qualification_requirement(self, requirement):
+        attributes = requirement["attributes"]
+
+        cleaned_attributes = [
+            attribute
+            for attribute in attributes
+            # Skip attribute if
+            if not (
+                (
+                    # It is a not selected option
                     attribute["value"] is False
                     or attribute["value"] is None
                     or attribute["value"] == []
-                ):
-                    continue
-
-                elif (
+                )
+                or (
+                    # It is an input field with the default value
                     requirement["type"] == "input"
                     and attribute["value"] == attribute["default_value"]
-                ):
-                    continue
-                cleaned_attributes.append(attribute)
-            attributes = requirement["attributes"]
-            if requirement["type"] == "range":
-                if len(attributes) == 0:
-                    continue
-                if (
-                    attributes[0]["min"] == attributes[0]["value"]
-                    and attributes[1]["max"] == attributes[1]["value"]
-                ):
-                    continue
-
-            requirement["attributes"] = cleaned_attributes
-            if len(cleaned_attributes) > 0:
-                try:
-                    query_id = requirement["query"]["id"]
-                    title = requirement["query"]["title"]
-                except Exception:
-                    query_id = None
-                    title = None
-                requirements.append(
-                    {
-                        "type": requirement["type"],
-                        "attributes": cleaned_attributes,
-                        "query": {"id": query_id, "title": title},
-                        "_cls": requirement["_cls"],
-                    }
                 )
-        experiment_details["eligibility_requirements"] = requirements
+            )
+        ]
+
+        if requirement["type"] == "range":
+            if len(attributes) == 0:
+                return None
+            if (
+                attributes[0]["min"] == attributes[0]["value"]
+                and attributes[1]["max"] == attributes[1]["value"]
+            ):
+                return None
+
+        if len(cleaned_attributes) > 0:
+            return {
+                "type": requirement["type"],
+                "attributes": cleaned_attributes,
+                "query": self.clean_qualification_query(requirement),
+                "_cls": requirement["_cls"],
+            }
+        else:
+            return None
+
+    def clean_qualification_attributes(self, experiment_details):
+        """In Prolific, each selection query lists all possible options even if they are not selected. This obfuscates
+        which options *are* selected. The API does not need unselected options, so we'll remove it here.
+        """
+        cleaned_requirements = [
+            self.clean_qualification_requirement(requirement)
+            for requirement in experiment_details["eligibility_requirements"]
+        ]
+        cleaned_requirements = [
+            requirement
+            for requirement in cleaned_requirements
+            if requirement is not None
+        ]
+        experiment_details["eligibility_requirements"] = cleaned_requirements
         return experiment_details
 
     @property
