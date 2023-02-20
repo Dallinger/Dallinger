@@ -223,6 +223,11 @@ class ProlificService:
           out of our "beta" period with Prolific)
         * Parses response and does error handling
         """
+        if self.api_token == "Set your Prolific API token in ~/.dallingerconfig!":
+            raise RuntimeError(
+                "Your Prolific API token is missing, please set it in ~/.dallingerconfig."
+            )
+
         headers = {
             "Authorization": f"Token {self.api_token}",
             "Referer": self.referer_header,
@@ -239,7 +244,13 @@ class ProlificService:
         if method == "DELETE" and response.ok:
             return {"status_code": response.status_code}
 
-        parsed = response.json()
+        try:
+            parsed = response.json()
+        except requests.exceptions.JSONDecodeError as err:
+            raise ProlificServiceException(
+                f"Failed to parse the following JSON response from Prolific: {err.doc}"
+            )
+
         if "error" in parsed:
             error = {
                 "method": method,
