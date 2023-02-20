@@ -47,9 +47,9 @@ black==23.1.0
     # via dallinger
 bleach==6.0.0
     # via nbconvert
-boto3==1.26.71
+boto3==1.26.74
     # via dallinger
-botocore==1.29.71
+botocore==1.29.74
     # via
     #   boto3
     #   s3transfer
@@ -151,7 +151,7 @@ filelock==3.9.0
     #   virtualenv
 flake8==6.0.0
     # via dallinger
-flask==2.2.2
+flask==2.2.3
     # via
     #   dallinger
     #   flask-crossdomain
@@ -246,7 +246,7 @@ jsonschema[format-nongpl]==3.2.0
     #   nbformat
 jupyter==1.0.0
     # via dallinger
-jupyter-client==8.0.2
+jupyter-client==8.0.3
     # via
     #   ipykernel
     #   jupyter-console
@@ -271,7 +271,7 @@ jupyter-core==5.2.0
     #   qtconsole
 jupyter-events==0.6.3
     # via jupyter-server
-jupyter-server==2.2.1
+jupyter-server==2.3.0
     # via
     #   dallinger
     #   nbclassic
@@ -304,7 +304,7 @@ mock==5.0.0
     # via dallinger
 mypy-extensions==1.0.0
     # via black
-nbclassic==0.5.1
+nbclassic==0.5.2
     # via notebook
 nbclient==0.7.2
     # via nbconvert
@@ -447,7 +447,7 @@ pytest==7.2.1
     # via
     #   dallinger
     #   pytest-rerunfailures
-pytest-rerunfailures==11.1
+pytest-rerunfailures==11.1.1
     # via dallinger
 python-dateutil==2.8.2
     # via
@@ -504,11 +504,11 @@ rfc3339-validator==0.1.4
     # via jupyter-events
 rfc3986-validator==0.1.1
     # via jupyter-events
-rq==1.12.0
+rq==1.13.0
     # via dallinger
 s3transfer==0.6.0
     # via boto3
-selenium==4.8.0
+selenium==4.8.2
     # via dallinger
 send2trash==1.8.0
     # via
@@ -559,7 +559,7 @@ sphinxcontrib-qthelp==1.0.3
     # via sphinx
 sphinxcontrib-serializinghtml==1.1.5
     # via sphinx
-sphinxcontrib-spelling==7.7.0
+sphinxcontrib-spelling==8.0.0
     # via dallinger
 sqlalchemy==1.4.46
     # via

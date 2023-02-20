@@ -18,9 +18,9 @@ attrs==22.2.0
     # via
     #   outcome
     #   trio
-boto3==1.26.71
+boto3==1.26.74
     # via dallinger
-botocore==1.29.71
+botocore==1.29.74
     # via
     #   boto3
     #   s3transfer
@@ -50,7 +50,7 @@ exceptiongroup==1.1.0
     # via trio
 faker==17.0.0
     # via dallinger
-flask==2.2.2
+flask==2.2.3
     # via
     #   dallinger
     #   flask-crossdomain
@@ -147,11 +147,11 @@ requests==2.28.2
     # via
     #   dallinger
     #   heroku3
-rq==1.12.0
+rq==1.13.0
     # via dallinger
 s3transfer==0.6.0
     # via boto3
-selenium==4.8.0
+selenium==4.8.2
     # via dallinger
 six==1.16.0
     # via
