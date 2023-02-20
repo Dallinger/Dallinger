@@ -1672,7 +1672,7 @@ def _descendent_classes(cls):
             yield cls
 
 
-def by_name(name):
+def by_name(name, **kwargs):
     """Attempt to return a recruiter class by name.
 
     Actual class names and known nicknames are both supported.
@@ -1683,4 +1683,4 @@ def by_name(name):
 
     klass = by_name.get(name)
     if klass is not None:
-        return klass()
+        return klass(**kwargs)
