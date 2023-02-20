@@ -1646,9 +1646,6 @@ class Info(Base, SharedMixin):
             "_mutated_contents needs to be overwritten in class {}".format(type(self))
         )
 
-    def get_contents(self):
-        return self.contents
-
 
 class Transmission(Base, SharedMixin):
     """An instance of an Info being sent along a Vector."""
