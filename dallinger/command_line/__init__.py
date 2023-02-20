@@ -51,12 +51,7 @@ from dallinger.notifications import (
     SMTPMailer,
     admin_notifier,
 )
-from dallinger.recruiters import (
-    MTurkRecruiter,
-    ProlificRecruiter,
-    _mturk_service_from_config,
-    by_name,
-)
+from dallinger.recruiters import _mturk_service_from_config, by_name
 from dallinger.utils import (
     check_call,
     ensure_constraints_file_presence,
@@ -504,19 +499,6 @@ def hibernate(app):
     ]
     for addon in addons:
         heroku_app.addon_destroy(addon)
-
-
-def get_recruiter(recruiter_name):
-    """Return a recruiter by name."""
-    available_recruiters = ["mturk", "prolific"]
-    if recruiter_name == "mturk":
-        return MTurkRecruiter(is_dummy=True)
-    elif recruiter_name == "prolific":
-        return ProlificRecruiter(is_dummy=True)
-    else:
-        raise NotImplementedError(
-            f"Invalid recruiter, please choose from {available_recruiters}"
-        )
 
 
 @dallinger.command()
