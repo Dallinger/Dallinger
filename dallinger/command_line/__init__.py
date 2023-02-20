@@ -533,7 +533,8 @@ def hits(app, sandbox, recruiter):
     if app is not None:
         verify_id(None, "--app", app)
 
-    get_recruiter(recruiter).hits(app, sandbox)
+    rec = by_name(recruiter, not_validate_config=True)
+    rec.hits(app, sandbox)
 
 
 @dallinger.command()
@@ -547,7 +548,8 @@ def hits(app, sandbox, recruiter):
 @click.option("--recruiter", default="mturk", help="Experiment id")
 def hit_details(hit_id, sandbox, recruiter):
     """Print the details for a specific HIT is for a recruiter."""
-    details = get_recruiter(recruiter).hit_details(hit_id, sandbox)
+    rec = by_name(recruiter, not_validate_config=True)
+    details = rec.hit_details(hit_id, sandbox)
     print(json.dumps(details, indent=4, default=str))
 
 
@@ -567,9 +569,9 @@ def hit_details(hit_id, sandbox, recruiter):
 )
 def copy_qualifications(hit_id, sandbox, recruiter, qualification_path):
     """Copy qualifications from an existing HIT ID."""
-    recruiter = get_recruiter(recruiter)
+    rec = by_name(recruiter, not_validate_config=True)
     if qualification_path is None:
-        qualification_path = recruiter.default_qualification_name
+        qualification_path = rec.default_qualification_name
     assert qualification_path.endswith(
         ".json"
     ), "Qualification path must be a json file"
@@ -579,7 +581,7 @@ def copy_qualifications(hit_id, sandbox, recruiter, qualification_path):
         )
         if not overwrite:
             raise Exception(f"Qualification file already exists: {qualification_path}.")
-    qualifications = recruiter.get_qualifications(hit_id, sandbox)
+    qualifications = rec.get_qualifications(hit_id, sandbox)
     with open(qualification_path, "w") as f:
         json.dump(qualifications, f, indent=4)
 

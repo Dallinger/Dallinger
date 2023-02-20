@@ -958,9 +958,11 @@ class MTurkRecruiter(Recruiter):
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
 
-        is_dummy_mode = "is_dummy" in kwargs and kwargs["is_dummy"]
+        not_validate_config = (
+            "not_validate_config" in kwargs and kwargs["not_validate_config"]
+        )
 
-        if not is_dummy_mode:
+        if not not_validate_config:
             self._validate_config()
 
     def _validate_config(self):
