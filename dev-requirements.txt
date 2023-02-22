@@ -47,9 +47,9 @@ black==23.1.0
     # via dallinger
 bleach==6.0.0
     # via nbconvert
-boto3==1.26.74
+boto3==1.26.77
     # via dallinger
-botocore==1.29.74
+botocore==1.29.77
     # via
     #   boto3
     #   s3transfer
@@ -255,7 +255,7 @@ jupyter-client==8.0.3
     #   nbclient
     #   notebook
     #   qtconsole
-jupyter-console==6.5.1
+jupyter-console==6.6.1
     # via jupyter
 jupyter-core==5.2.0
     # via
@@ -394,7 +394,7 @@ prometheus-client==0.16.0
     #   jupyter-server
     #   nbclassic
     #   notebook
-prompt-toolkit==3.0.36
+prompt-toolkit==3.0.37
     # via
     #   ipython
     #   jupyter-console
@@ -458,7 +458,7 @@ python-dateutil==2.8.2
     #   pandas
 python-dotenv==0.21.1
     # via docker-compose
-python-json-logger==2.0.6
+python-json-logger==2.0.7
     # via jupyter-events
 pytz==2022.7.1
     # via
@@ -607,7 +607,7 @@ tornado==6.2
     #   nbclassic
     #   notebook
     #   terminado
-tox==4.4.5
+tox==4.4.6
     # via dallinger
 traitlets==5.9.0
     # via
