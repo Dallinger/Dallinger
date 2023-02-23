@@ -4,9 +4,9 @@ cd $dir/..
 set -xe
 rm -f requirements.txt dev-requirements.txt constraints.txt
 export CUSTOM_COMPILE_COMMAND=./scripts/update_dependencies.sh
-pip-compile constraints.in
-pip-compile dev-requirements.in
-pip-compile
+pip-compile --resolver=backtracking constraints.in
+pip-compile --resolver=backtracking dev-requirements.in
+pip-compile --resolver=backtracking
 
 # Remove the line specifying dallinger as editable dependency
 sed -e "s/^-e.*//" -i *.txt

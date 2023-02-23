@@ -592,7 +592,13 @@ cp requirements.txt constraints.txt"""
             tmpfile = Path(tmpdirname) / "requirements.txt"
             tmpfile.write_text(Path("requirements.txt").read_text() + "\n-c " + url)
             check_output(
-                ["pip-compile", str(tmpfile), "-o", "constraints.txt"],
+                [
+                    "pip-compile",
+                    "--resolver=backtracking",
+                    str(tmpfile),
+                    "-o",
+                    "constraints.txt",
+                ],
                 env=dict(
                     os.environ,
                     CUSTOM_COMPILE_COMMAND=compile_info,
