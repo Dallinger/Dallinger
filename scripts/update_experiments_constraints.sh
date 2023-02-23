@@ -19,6 +19,8 @@ for demo_name in $(ls demos/dlgr/demos/); do
         pip-compile temp-requirements.txt -o constraints.txt
         rm temp-requirements.txt
         echo '# generate from file with hash ' $(md5_cmd requirements.txt) >> constraints.txt
+        # Remove the extras from constraints.txt
+        sed -e 's/\[.*==/==/' -i constraints.txt
         cd -
     fi
 done
