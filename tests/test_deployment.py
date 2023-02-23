@@ -1128,7 +1128,9 @@ class TestConstraints(object):
         # https://raw.githubusercontent.com/Dallinger/Dallinger/v[__version__]
         # so use an older version we know will exist, rather than the current
         # version, which may not be tagged/released yet:
-        extant_github_tag = "7.6.0"
+
+        # Change this to the current version after release
+        extant_github_tag = "b98f719c1ce851353f7cfcc78362cfaace51bb8d"
         (Path(tmp_path) / "requirements.txt").write_text("black")
         with mock.patch("dallinger.utils.__version__", extant_github_tag):
             ensure_constraints_file_presence(tmp_path)
