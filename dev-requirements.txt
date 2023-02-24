@@ -456,7 +456,7 @@ python-dateutil==2.8.2
     #   heroku3
     #   jupyter-client
     #   pandas
-python-dotenv==0.21.1
+python-dotenv==1.0.0
     # via docker-compose
 python-json-logger==2.0.5
     # via jupyter-events
