@@ -48,7 +48,7 @@ cryptography==39.0.1
     # via pyopenssl
 exceptiongroup==1.1.0
     # via trio
-faker==17.0.0
+faker==17.3.0
     # via dallinger
 flask==2.2.2
     # via
