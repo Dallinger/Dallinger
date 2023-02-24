@@ -118,7 +118,7 @@ distlib==0.3.6
     # via virtualenv
 distro==1.8.0
     # via docker-compose
-docker[ssh]==6.0.1
+docker==6.0.1
     # via
     #   dallinger
     #   docker-compose
@@ -239,7 +239,7 @@ jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-jsonschema[format-nongpl]==3.2.0
+jsonschema==3.2.0
     # via
     #   docker-compose
     #   jupyter-events
@@ -571,7 +571,7 @@ sshtunnel==0.4.0
     # via dallinger
 stack-data==0.6.2
     # via ipython
-tablib[all]==3.3.0
+tablib==3.3.0
     # via dallinger
 tabulate==0.9.0
     # via
@@ -643,7 +643,7 @@ ua-parser==0.16.1
     # via
     #   dallinger
     #   user-agents
-urllib3[socks]==1.26.14
+urllib3==1.26.14
     # via
     #   botocore
     #   docker
