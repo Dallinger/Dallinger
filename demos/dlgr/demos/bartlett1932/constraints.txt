@@ -24,11 +24,11 @@ attrs==22.2.0
     #   -c ../../../../dev-requirements.txt
     #   outcome
     #   trio
-boto3==1.26.70
+boto3==1.26.79
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-botocore==1.29.70
+botocore==1.29.79
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
@@ -47,6 +47,10 @@ certifi==2022.12.7
     #   -c ../../../../dev-requirements.txt
     #   requests
     #   selenium
+cffi==1.15.1
+    # via
+    #   -c ../../../../dev-requirements.txt
+    #   cryptography
 charset-normalizer==3.0.1
     # via
     #   -c ../../../../dev-requirements.txt
@@ -58,17 +62,21 @@ click==8.1.3
     #   flask
     #   pip-tools
     #   rq
-dallinger==9.4.2
+cryptography==39.0.1
+    # via
+    #   -c ../../../../dev-requirements.txt
+    #   pyopenssl
+dallinger==9.4.3
     # via -r requirements.txt
 exceptiongroup==1.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
-faker==17.0.0
+faker==17.3.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-flask==2.2.2
+flask==2.2.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -182,6 +190,14 @@ ptyprocess==0.7.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   pexpect
+pycparser==2.21
+    # via
+    #   -c ../../../../dev-requirements.txt
+    #   cffi
+pyopenssl==23.0.0
+    # via
+    #   -c ../../../../dev-requirements.txt
+    #   dallinger
 pyproject-hooks==1.0.0
     # via
     #   -c ../../../../dev-requirements.txt
@@ -214,7 +230,7 @@ requests==2.28.2
     #   -c ../../../../dev-requirements.txt
     #   dallinger
     #   heroku3
-rq==1.12.0
+rq==1.13.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -222,7 +238,7 @@ s3transfer==0.6.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
-selenium==4.8.0
+selenium==4.8.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -290,7 +306,7 @@ ua-parser==0.16.1
     #   -c ../../../../dev-requirements.txt
     #   dallinger
     #   user-agents
-urllib3[socks]==1.26.14
+urllib3==1.26.14
     # via
     #   -c ../../../../dev-requirements.txt
     #   botocore
@@ -300,7 +316,7 @@ user-agents==2.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-werkzeug==2.2.2
+werkzeug==2.2.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask
