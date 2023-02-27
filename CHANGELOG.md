@@ -2,6 +2,16 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.4.3](https://github.com/dallinger/dallinger/tree/v9.4.3) (2023-02-25)
+
+- Fixed: Check if auto_recruit is True in order to autorecruit a new participant.
+- Fixed: Rename 'default_worker_ttl' to 'worker_ttl' to work with rq==1.13.0 (See https://github.com/rq/rq/commit/b69ee10cbba78789e48ce44fa69f14715d94b7a5).
+- Fixed: Remove extras from sonstraints and requirements files.
+- Changed: Add soon to be default resolver 'backtracking' to pip-compile commands.
+- Enhancement: Add better logging on Prolific JSONDecodeError.
+- Enhancement: Ensure that Prolific API token is sent to the deployed server.
+- Infrastructure: Update dependencies.
+
 ## [v9.4.2](https://github.com/dallinger/dallinger/tree/v9.4.2) (2023-02-14)
 
 - Fixes:
