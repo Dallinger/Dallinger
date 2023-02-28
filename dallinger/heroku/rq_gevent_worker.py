@@ -120,7 +120,13 @@ class GeventWorker(Worker):
                         self.log.info("Stopping on request.")
                         break
 
-                    timeout = None if burst else max(1, self.worker_ttl - 60)
+                    try:
+                        worker_ttl = self.worker_ttl
+                    except AttributeError:
+                        # For back-compatibility with rq < 1.13.0
+                        worker_ttl = self.default_worker_ttl
+
+                    timeout = None if burst else max(1, worker_ttl - 60)
 
                     result = self.dequeue_job_and_maintain_ttl(timeout)
                     if result is None and burst:
