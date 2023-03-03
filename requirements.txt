@@ -6,7 +6,7 @@
 #
 
     # via -r requirements.in
-apscheduler==3.10.0
+apscheduler==3.10.1
     # via dallinger
 async-generator==1.10
     # via
