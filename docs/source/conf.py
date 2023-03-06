@@ -45,8 +45,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
-    "sphinx_js",
-    "recommonmark",
+    "myst_parser",
 ]
 
 # Hack to make sphinx_js work with python 3.10
