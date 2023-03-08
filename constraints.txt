@@ -21,6 +21,8 @@ argon2-cffi==21.3.0
     #   notebook
 argon2-cffi-bindings==21.2.0
     # via argon2-cffi
+arrow==1.2.3
+    # via isoduration
 asttokens==2.2.1
     # via stack-data
 async-generator==1.10
@@ -114,18 +116,8 @@ defusedxml==0.7.1
     #   odfpy
 distlib==0.3.6
     # via virtualenv
-distro==1.8.0
-    # via docker-compose
 docker==6.0.1
-    # via
-    #   dallinger
-    #   docker-compose
-docker-compose==1.29.2
     # via dallinger
-dockerpty==0.4.1
-    # via docker-compose
-docopt==0.6.2
-    # via docker-compose
 docutils==0.18.1
     # via
     #   myst-parser
@@ -164,6 +156,8 @@ flask-sockets==0.2.1
     # via dallinger
 flask-wtf==1.1.1
     # via dallinger
+fqdn==1.5.1
+    # via jsonschema
 future==0.18.3
     # via dallinger
 gevent==22.10.2
@@ -189,6 +183,7 @@ identify==2.5.18
 idna==3.4
     # via
     #   anyio
+    #   jsonschema
     #   requests
     #   trio
 imagesize==1.4.1
@@ -217,6 +212,8 @@ ipywidgets==8.0.4
     # via
     #   dallinger
     #   jupyter
+isoduration==20.11.0
+    # via jsonschema
 isort==5.12.0
     # via dallinger
 itsdangerous==2.1.2
@@ -238,9 +235,10 @@ jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-jsonschema==3.2.0
+jsonpointer==2.3
+    # via jsonschema
+jsonschema==4.17.3
     # via
-    #   docker-compose
     #   jupyter-events
     #   nbformat
 jupyter==1.0.0
@@ -372,7 +370,6 @@ pandocfilters==1.5.0
 paramiko==3.0.0
     # via
     #   dallinger
-    #   docker
     #   sshtunnel
 parso==0.8.3
     # via jedi
@@ -460,13 +457,12 @@ pytest-rerunfailures==11.1.1
     # via dallinger
 python-dateutil==2.8.2
     # via
+    #   arrow
     #   botocore
     #   faker
     #   heroku3
     #   jupyter-client
     #   pandas
-python-dotenv==0.21.1
-    # via docker-compose
 python-json-logger==2.0.7
     # via jupyter-events
 pytz==2022.7.1
@@ -475,9 +471,8 @@ pytz==2022.7.1
     #   pandas
 pytz-deprecation-shim==0.1.0.post0
     # via tzlocal
-pyyaml==5.4.1
+pyyaml==6.0
     # via
-    #   docker-compose
     #   jupyter-events
     #   myst-parser
     #   pre-commit
@@ -504,13 +499,16 @@ requests==2.28.2
     #   codecov
     #   dallinger
     #   docker
-    #   docker-compose
     #   heroku3
     #   sphinx
 rfc3339-validator==0.1.4
-    # via jupyter-events
+    # via
+    #   jsonschema
+    #   jupyter-events
 rfc3986-validator==0.1.1
-    # via jupyter-events
+    # via
+    #   jsonschema
+    #   jupyter-events
 rq==1.13.0
     # via dallinger
 s3transfer==0.6.0
@@ -528,12 +526,9 @@ six==1.16.0
     #   asttokens
     #   bleach
     #   dallinger
-    #   dockerpty
-    #   jsonschema
     #   python-dateutil
     #   rfc3339-validator
     #   sqlalchemy-postgres-copy
-    #   websocket-client
 sniffio==1.3.0
     # via
     #   anyio
@@ -592,8 +587,6 @@ terminado==0.17.1
     #   jupyter-server-terminals
     #   nbclassic
     #   notebook
-texttable==1.6.7
-    # via docker-compose
 timeago==1.0.16
     # via dallinger
 tinycss2==1.2.1
@@ -650,6 +643,8 @@ ua-parser==0.16.1
     # via
     #   dallinger
     #   user-agents
+uri-template==1.2.0
+    # via jsonschema
 urllib3==1.26.14
     # via
     #   botocore
@@ -664,14 +659,15 @@ virtualenv==20.20.0
     #   tox
 wcwidth==0.2.6
     # via prompt-toolkit
+webcolors==1.12
+    # via jsonschema
 webencodings==0.5.1
     # via
     #   bleach
     #   tinycss2
-websocket-client==0.59.0
+websocket-client==1.5.1
     # via
     #   docker
-    #   docker-compose
     #   jupyter-server
 werkzeug==2.2.3
     # via
