@@ -47,9 +47,9 @@ black==23.1.0
     # via dallinger
 bleach==6.0.0
     # via nbconvert
-boto3==1.26.84
+boto3==1.26.86
     # via dallinger
-botocore==1.29.84
+botocore==1.29.86
     # via
     #   boto3
     #   s3transfer
@@ -311,7 +311,7 @@ mock==5.0.0
     # via dallinger
 mypy-extensions==1.0.0
     # via black
-myst-parser==0.19.1
+myst-parser==1.0.0
     # via dallinger
 nbclassic==0.5.3
     # via notebook
