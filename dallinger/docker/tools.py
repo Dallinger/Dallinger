@@ -280,7 +280,9 @@ def build_image(
         out.blather("Rebuilding\n")
     except docker.errors.ImageNotFound:
         out.blather(f"Image {image_name} not found - building\n")
+
     env = {
+        **os.environ.copy(),
         "DOCKER_BUILDKIT": "1",
     }
     ssh_mount = ""
