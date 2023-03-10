@@ -300,7 +300,10 @@ def deploy(
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
-    copy_docker_config(ssh_host, ssh_user)
+
+    # We deleted this because synchronizing configs between local and remote can cause problems especially when using
+    # different credential managers
+    # copy_docker_config(ssh_host, ssh_user)
     HAS_TLS = ssh_host != "localhost"
     # We abuse the mturk contact_email_on_error to provide an email for let's encrypt certificate
     email_addr = config.get("contact_email_on_error")
