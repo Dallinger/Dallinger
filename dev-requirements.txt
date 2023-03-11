@@ -643,7 +643,7 @@ ua-parser==0.16.1
     # via
     #   dallinger
     #   user-agents
-urllib3==1.26.14
+urllib3==1.26.15
     # via
     #   botocore
     #   docker
