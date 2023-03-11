@@ -482,7 +482,7 @@ pyzmq==25.0.0
     #   nbclassic
     #   notebook
     #   qtconsole
-qtconsole==5.4.0
+qtconsole==5.4.1
     # via jupyter
 qtpy==2.3.0
     # via qtconsole
