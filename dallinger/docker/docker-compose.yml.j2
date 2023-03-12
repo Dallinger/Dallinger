@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: dallinger
       POSTGRES_DB: dallinger
     volumes:
-      - dallinger_{{ experiment_name }}_pg_data:/var/lib/postgresql/data
+      - dallinger_${{ experiment_name }}_pg_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
       interval: 2s
@@ -19,7 +19,7 @@ services:
     image: redis
     command: redis-server --appendonly yes
     volumes:
-      - dallinger_{{ experiment_name }}_redis_data:/data
+      - dallinger_${{ experiment_name }}_redis_data:/data
     healthcheck:
         test: "[ $$(redis-cli ping) = 'PONG' ]"
         interval: 2s
@@ -107,5 +107,5 @@ services:
       <<: *commonenv
 
 volumes:
-  dallinger_{{ experiment_name }}_pg_data:
-  dallinger_{{ experiment_name }}_redis_data:
+  dallinger_${{ experiment_name }}_pg_data:
+  dallinger_${{ experiment_name }}_redis_data:
