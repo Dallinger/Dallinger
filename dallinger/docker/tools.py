@@ -192,7 +192,7 @@ class DockerComposeWrapper(object):
         compose_commands = ["exec", "redis", "redis-cli", "ping"]
         """
         return check_output(
-            ["docker compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
+            ["docker", "compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
             + compose_commands,
         )
 
