@@ -136,17 +136,10 @@ def prepare_server(host, user):
     else:
         print("Docker daemon already installed")
 
-    try:
-        executor.run("docker-compose --version")
-    except ExecuteException:
-        try:
-            install_docker_compose_via_pip(executor)
-        except ExecuteException:
-            executor.check_sudo()
-            executor.run(
-                "sudo -n wget https://github.com/docker/compose/releases/download/1.29.1/docker-compose-Linux-x86_64 -O /usr/local/bin/docker-compose"
-            )
-            executor.run("sudo -n chmod 755 /usr/local/bin/docker-compose")
+    docker_compose_version_output = executor.run("docker compose version").strip()
+    if not docker_compose_version_output == "Docker Compose version v2.16.0":
+        executor.check_sudo()
+        executor.run("sudo apt install docker-compose-plugin")
     else:
         print("Docker compose already installed")
 
@@ -176,23 +169,6 @@ def copy_docker_config(host, user):
         except IOError:
             pass
         sftp.putfo(BytesIO(local_file_contents), ".docker/config.json")
-
-
-def install_docker_compose_via_pip(executor):
-    try:
-        executor.run("python3 --version")
-    except ExecuteException:
-        # No python: better give up
-        return
-
-    try:
-        executor.run("python3 -m pip --version")
-    except ExecuteException:
-        # No pip. Let's try to install it
-        executor.run("python3 <(wget -O - https://bootstrap.pypa.io/get-pip.py)")
-    executor.run("python3 -m pip install --user docker-compose")
-    executor.run("sudo ln -s ~/.local/bin/docker-compose /usr/local/bin/docker-compose")
-    print("docker-compose installed using pip")
 
 
 CONFIGURED_HOSTS = get_configured_hosts()
