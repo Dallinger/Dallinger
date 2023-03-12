@@ -165,7 +165,7 @@ class DockerComposeWrapper(object):
         """Return the name of the first container for the given service name
         as it is known to docker, as opposed to docker-compose.
         """
-        return f"{self.experiment_name}-{service_name}-1"
+        return f"bartlett1932-{service_name}-1"
 
     def monitor(self, listener):
         # How can we get a stream for two containers?
