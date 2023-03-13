@@ -473,7 +473,7 @@ pyyaml==5.4.1
     #   jupyter-events
     #   pre-commit
     #   tablib
-pyzmq==25.0.0
+pyzmq==25.0.1
     # via
     #   ipykernel
     #   jupyter-client
