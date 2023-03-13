@@ -24,9 +24,7 @@ argon2-cffi-bindings==21.2.0
 asttokens==2.2.1
     # via stack-data
 async-generator==1.10
-    # via
-    #   trio
-    #   trio-websocket
+    # via trio
 async-timeout==4.0.2
     # via redis
 attrs==22.2.0
@@ -47,9 +45,9 @@ black==23.1.0
     # via dallinger
 bleach==6.0.0
     # via nbconvert
-boto3==1.26.89
+boto3==1.26.90
     # via dallinger
-botocore==1.29.89
+botocore==1.29.90
     # via
     #   boto3
     #   s3transfer
@@ -137,6 +135,7 @@ exceptiongroup==1.1.1
     # via
     #   pytest
     #   trio
+    #   trio-websocket
 executing==1.2.0
     # via stack-data
 faker==17.6.0
@@ -483,7 +482,7 @@ pyyaml==5.4.1
     #   myst-parser
     #   pre-commit
     #   tablib
-pyzmq==25.0.0
+pyzmq==25.0.1
     # via
     #   ipykernel
     #   jupyter-client
@@ -639,7 +638,7 @@ trio==0.22.0
     # via
     #   selenium
     #   trio-websocket
-trio-websocket==0.9.2
+trio-websocket==0.10.0
     # via selenium
 tzdata==2022.7
     # via pytz-deprecation-shim
