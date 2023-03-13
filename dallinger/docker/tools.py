@@ -105,7 +105,7 @@ class DockerComposeWrapper(object):
         self.out.blather("Redis ready\n")
 
     def wait_postgres_ready(self):
-        """Block until the postgresql server in the docker-compose configuration
+        """Block until the postgresql server in the `docker compose` configuration
         is ready to accept connections.
         """
         needle = b"ready to accept connections"
@@ -163,7 +163,7 @@ class DockerComposeWrapper(object):
 
     def get_container_name(self, service_name):
         """Return the name of the first container for the given service name
-        as it is known to docker, as opposed to docker-compose.
+        as it is known to docker, as opposed to `docker compose`.
         """
         return f"{self.experiment_name}-{service_name}-1"
 
@@ -184,9 +184,9 @@ class DockerComposeWrapper(object):
     def run_compose(self, compose_commands: str):
         """Run a command in the (already built) tmp directory of the current experiment
         `compose_commands` should be an array of strings to be appended to the
-        docker-compose command.
+        `docker compose` command.
         Examples:
-        # return the output of `docker-compose ps`
+        # return the output of `docker compose ps`
         compose_commands = ["ps"]
         # Run `redis-cli ping` inside the `redis` container and return its output
         compose_commands = ["exec", "redis", "redis-cli", "ping"]

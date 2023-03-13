@@ -90,9 +90,9 @@ def list_servers():
 @click.option("--user", help="User to use when connecting to remote host")
 def add(host, user):
     """Add a server to deploy experiments through ssh using docker.
-    The server needs docker and docker-compose usable by the current user.
+    The server needs `docker` and `docker compose` usable by the current user.
     Port 80 and 443 must be free for dallinger to use.
-    In case docker and/or docker-compose are missing, dallnger will try to
+    In case `docker` and/or `docker compose` are missing, dallinger will try to
     install them using `sudo`. The given user must have passwordless sudo rights.
     """
     prepare_server(host, user)
@@ -263,7 +263,7 @@ def build_and_push_image(f):
 def deploy(
     image_name, mode, server, dns_host, app_name, config_options, archive_path
 ):  # pragma: no cover
-    """Deploy a dallnger experiment docker image to a server using ssh."""
+    """Deploy a dallinger experiment docker image to a server using ssh."""
     config = get_config()
     config.load()
     server_info = CONFIGURED_HOSTS[server]
@@ -341,7 +341,7 @@ def deploy(
         f"dallinger/{experiment_id}/docker-compose.yml",
     )
     # We invoke the "ls" command in the context of the `web` container.
-    # docker-compose will honour `web`'s dependencies and block
+    # `docker compose` will honour `web`'s dependencies and block
     # until postgresql is ready. This way we can be sure we can start creating the database.
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
@@ -410,7 +410,7 @@ def deploy(
     dashboard_user = cfg["ADMIN_USER"]
     dashboard_password = cfg["dashboard_password"]
     dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
-    log_command = f"ssh {ssh_user}@{ssh_host} docker-compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
+    log_command = f"ssh {ssh_user}@{ssh_host} docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
 
     deployment_infos = [
         f"Deployed Docker image name: {image_name}",
@@ -635,11 +635,11 @@ class Executor:
             )
             status = channel.recv_exit_status()
             if status != 0:
-                print("docker-compose logs failed to run.")
+                print("`docker compose` logs failed to run.")
             else:
-                print("*** BEGIN docker-compose logs ***")
+                print("*** BEGIN docker compose logs ***")
                 print(channel.recv(10**10).decode())
-                print("*** END docker-compose logs ***\n")
+                print("*** END docker compose logs ***\n")
 
     def check_sudo(self):
         """Make sure the current user is authorized to invoke sudo without providing a password.
