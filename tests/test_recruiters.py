@@ -514,16 +514,63 @@ class TestProlificRecruiter(object):
         cleaned_details = recruiter.clean_qualification_attributes(details)
         assert details.keys() == cleaned_details.keys(), "Keys should be the same"
         requirements = cleaned_details["eligibility_requirements"]
-        assert len(requirements) == 5, "Should be 5 requirements"
-        set_options = (
-            ["Spain"] * 3 + ["Spanish"] + ["I was raised with my native language only"]
-        )
-        assert [
-            req["attributes"][0]["name"] for req in requirements
-        ] == set_options, "Spanish natives only"
-        assert all(
-            [req["attributes"][0]["value"] for req in requirements]
-        ), "All set option should be true"
+
+        assert requirements == [
+            {
+                "type": "select",
+                "attributes": [
+                    {"label": "Spain", "name": "Spain", "value": True, "index": 5}
+                ],
+                "query": {
+                    "id": "54bef0fafdf99b15608c504e",
+                    "title": "Current Country of Residence",
+                },
+                "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
+            },
+            {
+                "type": "select",
+                "attributes": [
+                    {"label": "Spain", "name": "Spain", "value": True, "index": 5}
+                ],
+                "query": {"id": "54ac6ea9fdf99b2204feb896", "title": "Nationality"},
+                "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
+            },
+            {
+                "type": "select",
+                "attributes": [
+                    {"label": "Spain", "name": "Spain", "value": True, "index": 5}
+                ],
+                "query": {
+                    "id": "54ac6ea9fdf99b2204feb895",
+                    "title": "Country of Birth",
+                },
+                "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
+            },
+            {
+                "type": "select",
+                "attributes": [
+                    {"label": "Spanish", "name": "Spanish", "value": True, "index": 59}
+                ],
+                "query": {"id": "54ac6ea9fdf99b2204feb899", "title": "First Language"},
+                "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
+            },
+            {
+                "type": "select",
+                "attributes": [
+                    {
+                        "label": "I was raised with my native language only",
+                        "name": "I was raised with my native language only",
+                        "value": True,
+                        "index": 0,
+                    }
+                ],
+                "query": {
+                    "id": "59c2434b5364260001dc4b0a",
+                    "title": "Were you raised monolingual?",
+                },
+                "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
+            },
+        ]
 
 
 class TestMTurkRecruiterMessages(object):
