@@ -136,13 +136,6 @@ def prepare_server(host, user):
     else:
         print("Docker daemon already installed")
 
-    docker_compose_version_output = executor.run("docker compose version").strip()
-    if not docker_compose_version_output == "Docker Compose version v2.16.0":
-        executor.check_sudo()
-        executor.run("sudo apt install docker-compose-plugin")
-    else:
-        print("Docker compose already installed")
-
 
 def copy_docker_config(host, user):
     executor = Executor(host, user)
