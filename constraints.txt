@@ -26,9 +26,7 @@ arrow==1.2.3
 asttokens==2.2.1
     # via stack-data
 async-generator==1.10
-    # via
-    #   trio
-    #   trio-websocket
+    # via trio
 async-timeout==4.0.2
     # via redis
 attrs==22.2.0
@@ -49,9 +47,9 @@ black==23.1.0
     # via dallinger
 bleach==6.0.0
     # via nbconvert
-boto3==1.26.86
+boto3==1.26.90
     # via dallinger
-botocore==1.29.86
+botocore==1.29.90
     # via
     #   boto3
     #   s3transfer
@@ -125,10 +123,11 @@ docutils==0.18.1
     #   sphinx-rtd-theme
 et-xmlfile==1.1.0
     # via openpyxl
-exceptiongroup==1.1.0
+exceptiongroup==1.1.1
     # via
     #   pytest
     #   trio
+    #   trio-websocket
 executing==1.2.0
     # via stack-data
 faker==17.6.0
@@ -178,7 +177,7 @@ h11==0.14.0
     # via wsproto
 heroku3==5.2.0
     # via dallinger
-identify==2.5.18
+identify==2.5.20
     # via pre-commit
 idna==3.4
     # via
@@ -343,7 +342,7 @@ numpy==1.24.2
     # via pandas
 odfpy==1.4.1
     # via tablib
-openpyxl==3.1.1
+openpyxl==3.1.2
     # via tablib
 outcome==1.2.0
     # via trio
@@ -358,6 +357,7 @@ packaging==23.0
     #   pyproject-api
     #   pytest
     #   pytest-rerunfailures
+    #   qtconsole
     #   qtpy
     #   sphinx
     #   tox
@@ -367,7 +367,7 @@ pandas==1.5.3
     #   tablib
 pandocfilters==1.5.0
     # via nbconvert
-paramiko==3.0.0
+paramiko==3.1.0
     # via
     #   dallinger
     #   sshtunnel
@@ -383,7 +383,7 @@ pickleshare==0.7.5
     # via ipython
 pip-tools==6.12.3
     # via dallinger
-platformdirs==3.1.0
+platformdirs==3.1.1
     # via
     #   black
     #   jupyter-core
@@ -441,7 +441,7 @@ pyopenssl==23.0.0
     # via dallinger
 pypandoc==1.11
     # via dallinger
-pyproject-api==1.5.0
+pyproject-api==1.5.1
     # via tox
 pyproject-hooks==1.0.0
     # via build
@@ -453,7 +453,7 @@ pytest==7.2.2
     # via
     #   dallinger
     #   pytest-rerunfailures
-pytest-rerunfailures==11.1.1
+pytest-rerunfailures==11.1.2
     # via dallinger
 python-dateutil==2.8.2
     # via
@@ -477,7 +477,7 @@ pyyaml==6.0
     #   myst-parser
     #   pre-commit
     #   tablib
-pyzmq==25.0.0
+pyzmq==25.0.1
     # via
     #   ipykernel
     #   jupyter-client
@@ -486,7 +486,7 @@ pyzmq==25.0.0
     #   nbclassic
     #   notebook
     #   qtconsole
-qtconsole==5.4.0
+qtconsole==5.4.1
     # via jupyter
 qtpy==2.3.0
     # via qtconsole
@@ -607,7 +607,7 @@ tornado==6.2
     #   nbclassic
     #   notebook
     #   terminado
-tox==4.4.6
+tox==4.4.7
     # via dallinger
 traitlets==5.9.0
     # via
@@ -631,7 +631,7 @@ trio==0.22.0
     # via
     #   selenium
     #   trio-websocket
-trio-websocket==0.9.2
+trio-websocket==0.10.0
     # via selenium
 tzdata==2022.7
     # via pytz-deprecation-shim
@@ -645,7 +645,7 @@ ua-parser==0.16.1
     #   user-agents
 uri-template==1.2.0
     # via jsonschema
-urllib3==1.26.14
+urllib3==1.26.15
     # via
     #   botocore
     #   docker
@@ -653,7 +653,7 @@ urllib3==1.26.14
     #   selenium
 user-agents==2.2.0
     # via dallinger
-virtualenv==20.20.0
+virtualenv==20.21.0
     # via
     #   pre-commit
     #   tox
