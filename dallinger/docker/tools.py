@@ -84,7 +84,7 @@ class DockerComposeWrapper(object):
                 )
             )
         with open(os.path.join(self.tmp_dir, ".env"), "w") as fh:
-            fh.write(f"COMPOSE_PROJECT_NAME=${self.experiment_name}\n")
+            fh.write(f"COMPOSE_PROJECT_NAME={self.experiment_name}\n")
             fh.write(f"FLASK_SECRET_KEY=${self.env.get('FLASK_SECRET_KEY')}\n")
             fh.write(f"UID={os.getuid()}\n")
             fh.write(f"GID={os.getgid()}\n")
