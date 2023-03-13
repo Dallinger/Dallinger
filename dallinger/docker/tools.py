@@ -34,7 +34,7 @@ class DockerComposeWrapper(object):
     strings as arguments.
     """
 
-    shell_command = "docker compose --compatibility"
+    shell_command = "docker compose"
     MONITOR_STOP = object()
 
     def __init__(
@@ -57,7 +57,7 @@ class DockerComposeWrapper(object):
         self._record = []
         self.needs_chrome = needs_chrome
 
-    def copy_docker_compose_files(self):
+    def copy_docker_compse_files(self):
         """Prepare a docker-compose.yml file and place it in the experiment tmp dir"""
         volumes = [
             f"{self.original_dir}:{self.original_dir}",
@@ -115,9 +115,9 @@ class DockerComposeWrapper(object):
         self.out.blather("Postgresql ready\n")
 
     def start(self):
-        self.copy_docker_compose_files()
+        self.copy_docker_compse_files()
         build_image(self.tmp_dir, self.experiment_name, self.out, self.needs_chrome)
-        check_output("docker compose --compatibility up -d".split())
+        check_output("docker compose up -d".split())
         # Wait for postgres to complete initialization
         self.wait_postgres_ready()
         try:
@@ -159,9 +159,7 @@ class DockerComposeWrapper(object):
         self.stop()
 
     def stop(self):
-        os.system(
-            f"docker compose --compatibility -f '{self.tmp_dir}/docker-compose.yml' stop"
-        )
+        os.system(f"docker compose -f '{self.tmp_dir}/docker-compose.yml' stop")
 
     def get_container_name(self, service_name):
         """Return the name of the first container for the given service name
@@ -194,13 +192,7 @@ class DockerComposeWrapper(object):
         compose_commands = ["exec", "redis", "redis-cli", "ping"]
         """
         return check_output(
-            [
-                "docker",
-                "compose",
-                "--compatibility",
-                "-f",
-                f"{self.tmp_dir}/docker-compose.yml",
-            ]
+            ["docker", "compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
             + compose_commands,
         )
 
