@@ -56,7 +56,6 @@ from dallinger.utils import (
     check_call,
     ensure_constraints_file_presence,
     generate_random_id,
-    query_yes_no,
 )
 from dallinger.version import __version__
 
@@ -558,11 +557,11 @@ def copy_qualifications(hit_id, sandbox, recruiter, qualification_path):
         ".json"
     ), "Qualification path must be a json file"
     if exists(qualification_path):
-        overwrite = query_yes_no(
+        if not click.confirm(
             f"Overwrite existing qualification file: {qualification_path}?"
-        )
-        if not overwrite:
-            raise Exception(f"Qualification file already exists: {qualification_path}.")
+        ):
+            click.echo("Aborting...")
+            return
     qualifications = rec.get_qualifications(hit_id, sandbox)
     with open(qualification_path, "w") as f:
         json.dump(qualifications, f, indent=4)
