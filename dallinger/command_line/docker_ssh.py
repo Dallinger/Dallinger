@@ -301,7 +301,9 @@ def deploy(
     remove_redis_volumes(app_name, executor)
 
     print("Launching http and postgresql servers.")
-    executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
+    executor.run(
+        "docker compose --compatibility -f ~/dallinger/docker-compose.yml up -d"
+    )
 
     print("Starting experiment.")
     experiment_uuid = str(uuid4())
@@ -351,22 +353,22 @@ def deploy(
     # docker-compose will honour `web`'s dependencies and block
     # until postgresql is ready. This way we can be sure we can start creating the database.
     executor.run(
-        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
+        f"docker compose --compatibility -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
     )
     print("Cleaning up db/user")
     executor.run(
-        rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
+        rf"""docker compose --compatibility -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
     )
     executor.run(
-        rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
+        rf"""docker compose --compatibility -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
     )
     print(f"Creating database {experiment_id}")
     executor.run(
-        rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
+        rf"""docker compose --compatibility -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
     )
     create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
     executor.run(
-        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
+        f"docker compose --compatibility -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
     )
     grant_roles_script = (
         f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
@@ -385,16 +387,16 @@ def deploy(
                 )
 
     executor.run(
-        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
+        f"docker compose --compatibility -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
     )
 
     executor.run(
-        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
+        f"docker compose --compatibility -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
     )
     if archive_path is None:
         print(f"Experiment {experiment_id} started. Initializing database")
         executor.run(
-            f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
+            f"docker compose --compatibility -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
         )
         print("Database initialized")
 
@@ -561,7 +563,8 @@ def destroy(server, app):
     executor.run(f"rm ~/dallinger/caddy.d/{app}")
     executor.reload_caddy()
     executor.run(
-        f"docker compose -f ~/dallinger/{app}/docker-compose.yml down", raise_=False
+        f"docker compose --compatibility -f ~/dallinger/{app}/docker-compose.yml down",
+        raise_=False,
     )
     executor.run(f"rm -rf ~/dallinger/{app}/")
     print(f"App {app} removed")
@@ -638,7 +641,7 @@ class Executor:
         if self.app:
             channel = self.client.get_transport().open_session()
             channel.exec_command(
-                f'docker compose -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
+                f'docker compose --compatibility -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
             )
             status = channel.recv_exit_status()
             if status != 0:
@@ -662,7 +665,7 @@ class Executor:
 
     def reload_caddy(self):
         self.run(
-            "docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
+            "docker compose --compatibility -f ~/dallinger/docker-compose.yml exec -T httpserver "
             "caddy reload --config /etc/caddy/Caddyfile"
         )
 
