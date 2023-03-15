@@ -367,7 +367,7 @@ paramiko==3.0.0
     #   sshtunnel
 parso==0.8.3
     # via jedi
-pathspec==0.11.0
+pathspec==0.11.1
     # via black
 pexpect==4.8.0
     # via
