@@ -16,9 +16,9 @@ attrs==22.2.0
     # via
     #   outcome
     #   trio
-boto3==1.26.90
+boto3==1.26.93
     # via dallinger
-botocore==1.29.90
+botocore==1.29.93
     # via
     #   boto3
     #   s3transfer
@@ -206,7 +206,7 @@ werkzeug==2.2.3
     # via
     #   flask
     #   flask-login
-wheel==0.38.4
+wheel==0.40.0
     # via pip-tools
 wsproto==1.2.0
     # via trio-websocket
@@ -214,7 +214,7 @@ wtforms==3.0.1
     # via flask-wtf
 zope-event==4.6
     # via gevent
-zope-interface==5.5.2
+zope-interface==6.0
     # via gevent
 
 # The following packages are considered to be unsafe in a requirements file:
