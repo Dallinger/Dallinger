@@ -441,7 +441,7 @@ class TestDashboardMonitorRoute(object):
 
         assert resp.status_code == 200
         resp_text = resp.data.decode("utf8")
-        assert "<h3>Participants</h3>" in resp_text
+        assert '<h5 class="card-title">Participants</h5>' in resp_text
         assert "<li>working: 0</li>" in resp_text
 
     def test_statistics_show_working(self, webapp_admin, db_session):
@@ -460,7 +460,7 @@ class TestDashboardMonitorRoute(object):
 
         assert resp.status_code == 200
         resp_text = resp.data.decode("utf8")
-        assert "<h3>Participants</h3>" in resp_text
+        assert '<h5 class="card-title">Participants</h5>' in resp_text
         assert "<li>working: 1</li>" in resp_text
 
     def test_custom_vis_options(self, webapp_admin):

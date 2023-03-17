@@ -71,4 +71,4 @@ def get_yaml(config):
     yaml_contents = get_docker_compose_yml(
         config, "dlgr-8c43a887", "ghcr.io/dallinger/dallinger/bartlett1932", "foobar"
     )
-    return yaml.load(yaml_contents)
+    return yaml.safe_load(yaml_contents)

@@ -114,7 +114,7 @@ setup_args = dict(
             "sphinxcontrib-spelling",
             "tox",
         ],
-        "docker": ["docker", "docker-compose", "paramiko", "sshtunnel"],
+        "docker": ["docker", "paramiko", "sshtunnel"],
         ':python_version <= "3.7"': ["importlib_metadata"],
     },
 )

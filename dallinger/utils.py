@@ -595,6 +595,7 @@ cp requirements.txt constraints.txt"""
                 [
                     "pip-compile",
                     "--resolver=backtracking",
+                    "-v",
                     str(tmpfile),
                     "-o",
                     "constraints.txt",

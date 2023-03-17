@@ -65,7 +65,7 @@ def docker():
 )
 @require_exp_directory
 def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
-    """Run the experiment locally using docker compose."""
+    """Run the experiment locally using `docker compose`."""
     from dallinger.docker.deployment import DockerDebugDeployment
 
     debugger = DockerDebugDeployment(
