@@ -110,6 +110,7 @@ setup_args = dict(
             "pytest",
             "pytest-rerunfailures",
             "sphinx",
+            "sphinx-js==3.2.1",
             "sphinx_rtd_theme",
             "sphinxcontrib-spelling",
             "tox",
