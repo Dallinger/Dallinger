@@ -4,9 +4,9 @@ coverage
 coverage_pth
 codecov
 flake8
+myst_parser
 pypandoc
 pytest
-recommonmark
 sphinxcontrib-spelling
-Sphinx
+sphinx
 tox

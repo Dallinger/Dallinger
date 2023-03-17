@@ -34,7 +34,7 @@ class DockerComposeWrapper(object):
     strings as arguments.
     """
 
-    shell_command = "docker-compose"
+    shell_command = "docker compose"
     MONITOR_STOP = object()
 
     def __init__(
@@ -84,7 +84,7 @@ class DockerComposeWrapper(object):
                 )
             )
         with open(os.path.join(self.tmp_dir, ".env"), "w") as fh:
-            fh.write(f"COMPOSE_PROJECT_NAME=${self.experiment_name}\n")
+            fh.write(f"COMPOSE_PROJECT_NAME={self.experiment_name}\n")
             fh.write(f"FLASK_SECRET_KEY=${self.env.get('FLASK_SECRET_KEY')}\n")
             fh.write(f"UID={os.getuid()}\n")
             fh.write(f"GID={os.getgid()}\n")
@@ -105,7 +105,7 @@ class DockerComposeWrapper(object):
         self.out.blather("Redis ready\n")
 
     def wait_postgres_ready(self):
-        """Block until the postgresql server in the docker-compose configuration
+        """Block until the postgresql server in the `docker compose` configuration
         is ready to accept connections.
         """
         needle = b"ready to accept connections"
@@ -117,7 +117,7 @@ class DockerComposeWrapper(object):
     def start(self):
         self.copy_docker_compse_files()
         build_image(self.tmp_dir, self.experiment_name, self.out, self.needs_chrome)
-        check_output("docker-compose up -d".split())
+        check_output("docker compose up -d".split())
         # Wait for postgres to complete initialization
         self.wait_postgres_ready()
         try:
@@ -159,13 +159,13 @@ class DockerComposeWrapper(object):
         self.stop()
 
     def stop(self):
-        os.system(f"docker-compose -f '{self.tmp_dir}/docker-compose.yml' stop")
+        os.system(f"docker compose -f '{self.tmp_dir}/docker-compose.yml' stop")
 
     def get_container_name(self, service_name):
         """Return the name of the first container for the given service name
-        as it is known to docker, as opposed to docker-compose.
+        as it is known to docker, as opposed to `docker compose`.
         """
-        return f"{self.experiment_name}_{service_name}_1"
+        return f"{self.experiment_name}-{service_name}-1"
 
     def monitor(self, listener):
         # How can we get a stream for two containers?
@@ -184,15 +184,15 @@ class DockerComposeWrapper(object):
     def run_compose(self, compose_commands: str):
         """Run a command in the (already built) tmp directory of the current experiment
         `compose_commands` should be an array of strings to be appended to the
-        docker-compose command.
+        `docker compose` command.
         Examples:
-        # return the output of `docker-compose ps`
+        # return the output of `docker compose ps`
         compose_commands = ["ps"]
         # Run `redis-cli ping` inside the `redis` container and return its output
         compose_commands = ["exec", "redis", "redis-cli", "ping"]
         """
         return check_output(
-            ["docker-compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
+            ["docker", "compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
             + compose_commands,
         )
 

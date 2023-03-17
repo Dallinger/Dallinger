@@ -90,9 +90,9 @@ def list_servers():
 @click.option("--user", help="User to use when connecting to remote host")
 def add(host, user):
     """Add a server to deploy experiments through ssh using docker.
-    The server needs docker and docker-compose usable by the current user.
+    The server needs `docker` and `docker compose` usable by the current user.
     Port 80 and 443 must be free for dallinger to use.
-    In case docker and/or docker-compose are missing, dallnger will try to
+    In case `docker` and/or `docker compose` are missing, dallinger will try to
     install them using `sudo`. The given user must have passwordless sudo rights.
     """
     prepare_server(host, user)
@@ -136,20 +136,6 @@ def prepare_server(host, user):
     else:
         print("Docker daemon already installed")
 
-    try:
-        executor.run("docker-compose --version")
-    except ExecuteException:
-        try:
-            install_docker_compose_via_pip(executor)
-        except ExecuteException:
-            executor.check_sudo()
-            executor.run(
-                "sudo -n wget https://github.com/docker/compose/releases/download/1.29.1/docker-compose-Linux-x86_64 -O /usr/local/bin/docker-compose"
-            )
-            executor.run("sudo -n chmod 755 /usr/local/bin/docker-compose")
-    else:
-        print("Docker compose already installed")
-
 
 def copy_docker_config(host, user):
     executor = Executor(host, user)
@@ -176,23 +162,6 @@ def copy_docker_config(host, user):
         except IOError:
             pass
         sftp.putfo(BytesIO(local_file_contents), ".docker/config.json")
-
-
-def install_docker_compose_via_pip(executor):
-    try:
-        executor.run("python3 --version")
-    except ExecuteException:
-        # No python: better give up
-        return
-
-    try:
-        executor.run("python3 -m pip --version")
-    except ExecuteException:
-        # No pip. Let's try to install it
-        executor.run("python3 <(wget -O - https://bootstrap.pypa.io/get-pip.py)")
-    executor.run("python3 -m pip install --user docker-compose")
-    executor.run("sudo ln -s ~/.local/bin/docker-compose /usr/local/bin/docker-compose")
-    print("docker-compose installed using pip")
 
 
 CONFIGURED_HOSTS = get_configured_hosts()
@@ -294,7 +263,7 @@ def build_and_push_image(f):
 def deploy(
     image_name, mode, server, dns_host, app_name, config_options, archive_path
 ):  # pragma: no cover
-    """Deploy a dallnger experiment docker image to a server using ssh."""
+    """Deploy a dallinger experiment docker image to a server using ssh."""
     config = get_config()
     config.load()
     server_info = CONFIGURED_HOSTS[server]
@@ -328,7 +297,7 @@ def deploy(
     remove_redis_volumes(app_name, executor)
 
     print("Launching http and postgresql servers.")
-    executor.run("docker-compose -f ~/dallinger/docker-compose.yml up -d")
+    executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
 
     print("Starting experiment.")
     experiment_uuid = str(uuid4())
@@ -375,25 +344,25 @@ def deploy(
         f"dallinger/{experiment_id}/docker-compose.yml",
     )
     # We invoke the "ls" command in the context of the `web` container.
-    # docker-compose will honour `web`'s dependencies and block
+    # `docker compose` will honour `web`'s dependencies and block
     # until postgresql is ready. This way we can be sure we can start creating the database.
     executor.run(
-        f"docker-compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
+        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
     )
     print("Cleaning up db/user")
     executor.run(
-        rf"""docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
+        rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
     )
     executor.run(
-        rf"""docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
+        rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
     )
     print(f"Creating database {experiment_id}")
     executor.run(
-        rf"""docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
+        rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
     )
     create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
     executor.run(
-        f"docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
+        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
     )
     grant_roles_script = (
         f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
@@ -412,16 +381,16 @@ def deploy(
                 )
 
     executor.run(
-        f"docker-compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
+        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
     )
 
     executor.run(
-        f"docker-compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
+        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
     )
     if archive_path is None:
         print(f"Experiment {experiment_id} started. Initializing database")
         executor.run(
-            f"docker-compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
+            f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
         )
         print("Database initialized")
 
@@ -444,7 +413,7 @@ def deploy(
     dashboard_user = cfg["ADMIN_USER"]
     dashboard_password = cfg["dashboard_password"]
     dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
-    log_command = f"ssh {ssh_user}@{ssh_host} docker-compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
+    log_command = f"ssh {ssh_user}@{ssh_host} docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
 
     deployment_infos = [
         f"Deployed Docker image name: {image_name}",
@@ -588,7 +557,7 @@ def destroy(server, app):
     executor.run(f"rm ~/dallinger/caddy.d/{app}")
     executor.reload_caddy()
     executor.run(
-        f"docker-compose -f ~/dallinger/{app}/docker-compose.yml down", raise_=False
+        f"docker compose -f ~/dallinger/{app}/docker-compose.yml down", raise_=False
     )
     executor.run(f"rm -rf ~/dallinger/{app}/")
     print(f"App {app} removed")
@@ -665,15 +634,15 @@ class Executor:
         if self.app:
             channel = self.client.get_transport().open_session()
             channel.exec_command(
-                f'docker-compose -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
+                f'docker compose -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
             )
             status = channel.recv_exit_status()
             if status != 0:
-                print("docker-compose logs failed to run.")
+                print("`docker compose` logs failed to run.")
             else:
-                print("*** BEGIN docker-compose logs ***")
+                print("*** BEGIN docker compose logs ***")
                 print(channel.recv(10**10).decode())
-                print("*** END docker-compose logs ***\n")
+                print("*** END docker compose logs ***\n")
 
     def check_sudo(self):
         """Make sure the current user is authorized to invoke sudo without providing a password.
@@ -689,7 +658,7 @@ class Executor:
 
     def reload_caddy(self):
         self.run(
-            "docker-compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
+            "docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
             "caddy reload --config /etc/caddy/Caddyfile"
         )
 
