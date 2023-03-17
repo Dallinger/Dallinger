@@ -47,9 +47,9 @@ black==23.1.0
     # via dallinger
 bleach==6.0.0
     # via nbconvert
-boto3==1.26.90
+boto3==1.26.93
     # via dallinger
-botocore==1.29.90
+botocore==1.29.93
     # via
     #   boto3
     #   s3transfer
@@ -93,7 +93,7 @@ colorama==0.4.6
     # via tox
 comm==0.1.2
     # via ipykernel
-coverage==7.2.1
+coverage==7.2.2
     # via
     #   codecov
     #   coverage-pth
@@ -134,7 +134,7 @@ faker==17.6.0
     # via dallinger
 fastjsonschema==2.16.3
     # via nbformat
-filelock==3.9.0
+filelock==3.10.0
     # via
     #   tox
     #   virtualenv
@@ -177,7 +177,7 @@ h11==0.14.0
     # via wsproto
 heroku3==5.2.0
     # via dallinger
-identify==2.5.20
+identify==2.5.21
     # via pre-commit
 idna==3.4
     # via
@@ -253,7 +253,7 @@ jupyter-client==8.0.3
     #   qtconsole
 jupyter-console==6.6.3
     # via jupyter
-jupyter-core==5.2.0
+jupyter-core==5.3.0
     # via
     #   ipykernel
     #   jupyter-client
@@ -267,7 +267,7 @@ jupyter-core==5.2.0
     #   qtconsole
 jupyter-events==0.6.3
     # via jupyter-server
-jupyter-server==2.4.0
+jupyter-server==2.5.0
     # via
     #   dallinger
     #   nbclassic
@@ -314,7 +314,7 @@ nbclassic==0.5.3
     # via notebook
 nbclient==0.7.2
     # via nbconvert
-nbconvert==7.2.9
+nbconvert==7.2.10
     # via
     #   jupyter
     #   jupyter-server
@@ -373,7 +373,7 @@ paramiko==3.1.0
     #   sshtunnel
 parso==0.8.3
     # via jedi
-pathspec==0.11.0
+pathspec==0.11.1
     # via black
 pexpect==4.8.0
     # via
@@ -544,6 +544,7 @@ sphinx==6.1.3
     #   dallinger
     #   myst-parser
     #   sphinx-rtd-theme
+    #   sphinxcontrib-jquery
     #   sphinxcontrib-spelling
 sphinx-rtd-theme==1.2.0
     # via dallinger
@@ -553,7 +554,7 @@ sphinxcontrib-devhelp==1.0.2
     # via sphinx
 sphinxcontrib-htmlhelp==2.0.1
     # via sphinx
-sphinxcontrib-jquery==2.0.0
+sphinxcontrib-jquery==4.1
     # via sphinx-rtd-theme
 sphinxcontrib-jsmath==1.0.1
     # via sphinx
@@ -673,7 +674,7 @@ werkzeug==2.2.3
     # via
     #   flask
     #   flask-login
-wheel==0.38.4
+wheel==0.40.0
     # via pip-tools
 widgetsnbextension==4.0.5
     # via ipywidgets
