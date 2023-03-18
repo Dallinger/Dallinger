@@ -187,7 +187,7 @@ trio-websocket==0.10.0
     # via selenium
 tzdata==2022.7
     # via pytz-deprecation-shim
-tzlocal==4.2
+tzlocal==4.3
     # via
     #   apscheduler
     #   dallinger
