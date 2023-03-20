@@ -8,6 +8,7 @@ import os
 import sys
 from collections import deque
 from contextlib import contextmanager
+from functools import cache
 from pathlib import Path
 
 import six
@@ -338,16 +339,17 @@ class Configuration(object):
         self.extend(exp_klass.config_defaults(), strict=True)
 
 
-config = None
-
-
+@cache
 def get_config():
-    global config
+    from dallinger.experiment import load
 
-    if config is None:
-        config = Configuration()
-        for registration in default_keys:
-            config.register(*registration)
+    exp_klass = load()
+
+    config_class = exp_klass.config_class()
+    config = config_class()
+
+    for registration in default_keys:
+        config.register(*registration)
 
     return config
 

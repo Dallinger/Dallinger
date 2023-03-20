@@ -8,12 +8,12 @@ import requests
 from dallinger.config import get_config
 
 logger = logging.getLogger(__file__)
-config = get_config()
 root = "https://api.osf.io/v2"
 
 
 def register(dlgr_id, snapshot=None):
     """Register the experiment using configured services."""
+    config = get_config()
     try:
         config.get("osf_access_token")
     except KeyError:
@@ -25,6 +25,7 @@ def register(dlgr_id, snapshot=None):
 
 def _create_osf_project(dlgr_id, description=None):
     """Create a project on the OSF."""
+    config = get_config()
 
     if not description:
         description = "Experiment {} registered by Dallinger.".format(dlgr_id)
@@ -49,6 +50,7 @@ def _create_osf_project(dlgr_id, description=None):
 
 def _upload_assets_to_OSF(dlgr_id, osf_id, provider="osfstorage"):
     """Upload experimental assets to the OSF."""
+    config = get_config()
     root = "https://files.osf.io/v1"
     snapshot_filename = "{}-code.zip".format(dlgr_id)
     snapshot_path = os.path.join("snapshots", snapshot_filename)
