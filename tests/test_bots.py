@@ -4,10 +4,6 @@ import mock
 import pytest
 from selenium import webdriver
 
-from dallinger.config import get_config
-
-config = get_config()
-
 
 class TestBots(object):
     def test_create_bot(self, active_config):
