@@ -543,27 +543,19 @@ def hit_details(hit_id, sandbox, recruiter):
     help="Look for HITs in the MTurk sandbox rather than the live/production environment",
 )
 @click.option("--recruiter", default="mturk", help="Experiment id")
-@click.option(
-    "--qualification_path",
-    default=None,
-    help="Filename/path for the qualification file",
-)
-def copy_qualifications(hit_id, sandbox, recruiter, qualification_path):
+@click.option("--path", default=None, help="Filename/path for the qualification file")
+def copy_qualifications(hit_id, sandbox, recruiter, path):
     """Copy qualifications from an existing HIT ID."""
     rec = by_name(recruiter, not_validate_config=True)
-    if qualification_path is None:
-        qualification_path = rec.default_qualification_name
-    assert qualification_path.endswith(
-        ".json"
-    ), "Qualification path must be a json file"
-    if exists(qualification_path):
-        if not click.confirm(
-            f"Overwrite existing qualification file: {qualification_path}?"
-        ):
+    if path is None:
+        path = rec.default_qualification_name
+    assert path.endswith(".json"), "Qualification path must be a json file"
+    if exists(path):
+        if not click.confirm(f"Overwrite existing qualification file: {path}?"):
             click.echo("Aborting...")
             return
     qualifications = rec.get_qualifications(hit_id, sandbox)
-    with open(qualification_path, "w") as f:
+    with open(path, "w") as f:
         json.dump(qualifications, f, indent=4)
 
 
