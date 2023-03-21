@@ -514,7 +514,7 @@ def hits(app, sandbox, recruiter):
     if app is not None:
         verify_id(None, "--app", app)
 
-    rec = by_name(recruiter, not_validate_config=True)
+    rec = by_name(recruiter, skip_config_validation=True)
     rec.hits(app, sandbox)
 
 
@@ -529,7 +529,7 @@ def hits(app, sandbox, recruiter):
 @click.option("--recruiter", default="mturk", help="Experiment id")
 def hit_details(hit_id, sandbox, recruiter):
     """Print the details of a specific HIT for a recruiter."""
-    rec = by_name(recruiter, not_validate_config=True)
+    rec = by_name(recruiter, skip_config_validation=True)
     details = rec.hit_details(hit_id, sandbox)
     print(json.dumps(details, indent=4, default=str))
 
@@ -546,7 +546,7 @@ def hit_details(hit_id, sandbox, recruiter):
 @click.option("--path", default=None, help="Filename/path for the qualification file")
 def copy_qualifications(hit_id, sandbox, recruiter, path):
     """Copy qualifications from an existing HIT and save them to a JSON file."""
-    rec = by_name(recruiter, not_validate_config=True)
+    rec = by_name(recruiter, skip_config_validation=True)
     if path is None:
         path = rec.default_qualification_name
     assert path.endswith(".json"), "Qualification path must be a json file"

@@ -995,11 +995,11 @@ class MTurkRecruiter(Recruiter):
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
 
-        not_validate_config = (
-            "not_validate_config" in kwargs and kwargs["not_validate_config"]
+        skip_config_validation = (
+            "skip_config_validation" in kwargs and kwargs["skip_config_validation"]
         )
 
-        if not not_validate_config:
+        if not skip_config_validation:
             self._validate_config()
 
     def _validate_config(self):
