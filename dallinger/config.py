@@ -183,11 +183,6 @@ class Configuration(object):
 
     def get(self, key, default=marker):
         if not self.ready:
-            import pydevd_pycharm
-
-            pydevd_pycharm.settrace(
-                "localhost", port=12345, stdoutToServer=True, stderrToServer=True
-            )
             raise RuntimeError("Config not loaded")
         for layer in self.data:
             try:
