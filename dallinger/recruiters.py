@@ -163,10 +163,20 @@ class Recruiter(object):
         """Load the appropriate service for this recruiter."""
         raise NotImplementedError
 
+    def _get_hits_from_app(self, service, app):
+        """Return a list of hits for the given app."""
+        raise NotImplementedError
+
+    def _current_hits(self, service, app):
+        if app is not None:
+            return self._get_hits_from_app(service, app)
+        else:
+            return service.get_hits()
+
     def hits(self, app=None, sandbox=False):
         """Lists all hits on a recruiter."""
         service = self.load_service(sandbox)
-        hits = _current_hits(service, app)
+        hits = self._current_hits(service, app)
         formatted_hit_list = []
 
         def _format_date_if_present(date):
@@ -277,28 +287,6 @@ def prolific_submission_listener():
 # We provide these values in our /ad URL, and Prolific will replace the tokens
 # with the right values when they redirect participants to us
 PROLIFIC_AD_QUERYSTRING = "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
-
-
-def _current_hits(service, app):
-    if app is not None:
-        if type(service) is MTurkService:
-            hits = service.get_hits(hit_filter=lambda h: h.get("annotation") == app)
-        elif type(service) is ProlificService:
-            hits = service.get_hits(
-                hit_filter=lambda h: h.get("internal_name", None) == app
-            )
-        else:
-            raise NotImplementedError
-    else:
-        hits = service.get_hits()
-
-    if type(service) is ProlificService:
-        if service.sandbox:
-            keys = ["UNPUBLISHED"]
-        else:
-            keys = ["AWAITING REVIEW", "COMPLETED"]
-        hits = [h for h in hits if h["status"] in keys]
-    return hits
 
 
 def _get_and_load_config():
@@ -489,6 +477,17 @@ class ProlificRecruiter(Recruiter):
 
     def load_service(self, sandbox):
         return _prolific_service_from_config(sandbox)
+
+    def _get_hits_from_app(self, service, app):
+        return service.get_hits(hit_filter=lambda h: h.get("annotation") == app)
+
+    def _current_hits(self, service, app):
+        hits = super()._current_hits(service, app)
+        if service.sandbox:
+            keys = ["UNPUBLISHED"]
+        else:
+            keys = ["AWAITING REVIEW", "COMPLETED"]
+        return [h for h in hits if h["status"] in keys]
 
     def clean_qualification_query(self, requirement):
         """Prolific's API returns queries with a lot of unnecessary information:
@@ -1417,6 +1416,11 @@ class MTurkRecruiter(Recruiter):
 
     def load_service(self, sandbox):
         return _mturk_service_from_config(sandbox)
+
+    def _get_hits_from_app(self, service, app):
+        return service.get_hits(
+            hit_filter=lambda h: h.get("internal_name", None) == app
+        )
 
     @property
     def default_qualification_name(self):
