@@ -207,7 +207,7 @@ ipython-genutils==0.2.0
     #   nbclassic
     #   notebook
     #   qtconsole
-ipywidgets==8.0.4
+ipywidgets==8.0.5
     # via
     #   dallinger
     #   jupyter
