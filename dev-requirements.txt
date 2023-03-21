@@ -676,7 +676,7 @@ werkzeug==2.2.3
     #   flask-login
 wheel==0.40.0
     # via pip-tools
-widgetsnbextension==4.0.5
+widgetsnbextension==4.0.6
     # via ipywidgets
 wsproto==1.2.0
     # via trio-websocket
