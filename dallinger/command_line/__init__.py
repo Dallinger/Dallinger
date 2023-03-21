@@ -545,7 +545,7 @@ def hit_details(hit_id, sandbox, recruiter):
 @click.option("--recruiter", default="mturk", help="Experiment id")
 @click.option("--path", default=None, help="Filename/path for the qualification file")
 def copy_qualifications(hit_id, sandbox, recruiter, path):
-    """Copy qualifications from an existing HIT ID."""
+    """Copy qualifications from an existing HIT and save them to a JSON file."""
     rec = by_name(recruiter, not_validate_config=True)
     if path is None:
         path = rec.default_qualification_name
