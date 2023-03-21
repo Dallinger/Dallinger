@@ -528,7 +528,7 @@ def hits(app, sandbox, recruiter):
 )
 @click.option("--recruiter", default="mturk", help="Experiment id")
 def hit_details(hit_id, sandbox, recruiter):
-    """Print the details for a specific HIT is for a recruiter."""
+    """Print the details of a specific HIT for a recruiter."""
     rec = by_name(recruiter, not_validate_config=True)
     details = rec.hit_details(hit_id, sandbox)
     print(json.dumps(details, indent=4, default=str))
