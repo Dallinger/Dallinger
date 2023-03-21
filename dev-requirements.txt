@@ -276,7 +276,7 @@ jupyter-server-terminals==0.4.4
     # via jupyter-server
 jupyterlab-pygments==0.2.2
     # via nbconvert
-jupyterlab-widgets==3.0.5
+jupyterlab-widgets==3.0.6
     # via ipywidgets
 localconfig==1.1.3
     # via dallinger
