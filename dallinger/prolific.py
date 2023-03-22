@@ -16,7 +16,15 @@ class ProlificServiceException(Exception):
 
 
 class ProlificService:
-    """Wrapper for Prolific REST API"""
+    """
+    Wrapper for Prolific REST API.
+
+    :param api_token: API token for Prolific API.
+    :param api_version: Version of the API.
+    :param referer_header: to help Prolific identify our requests when troubleshooting.
+    :param sandbox: Sandbox mode only exists for Mechanical Turk. Here "sandbox" refers to unpublished studies which you
+                can use to preview the survey through the prolific account.
+    """
 
     def __init__(
         self, api_token: str, api_version: str, referer_header: str, sandbox: bool
