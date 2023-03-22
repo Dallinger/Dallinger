@@ -41,15 +41,15 @@ backcall==0.2.0
     # via ipython
 bcrypt==4.0.1
     # via paramiko
-beautifulsoup4==4.11.2
+beautifulsoup4==4.12.0
     # via nbconvert
 black==23.1.0
     # via dallinger
 bleach==6.0.0
     # via nbconvert
-boto3==1.26.93
+boto3==1.26.96
     # via dallinger
-botocore==1.29.93
+botocore==1.29.96
     # via
     #   boto3
     #   s3transfer
@@ -130,7 +130,7 @@ exceptiongroup==1.1.1
     #   trio-websocket
 executing==1.2.0
     # via stack-data
-faker==17.6.0
+faker==18.3.0
     # via dallinger
 fastjsonschema==2.16.3
     # via nbformat
@@ -189,9 +189,8 @@ imagesize==1.4.1
     # via sphinx
 iniconfig==2.0.0
     # via pytest
-ipykernel==6.21.3
+ipykernel==6.22.0
     # via
-    #   ipywidgets
     #   jupyter
     #   jupyter-console
     #   nbclassic
@@ -207,7 +206,7 @@ ipython-genutils==0.2.0
     #   nbclassic
     #   notebook
     #   qtconsole
-ipywidgets==8.0.4
+ipywidgets==8.0.5
     # via
     #   dallinger
     #   jupyter
@@ -242,7 +241,7 @@ jsonschema==4.17.3
     #   nbformat
 jupyter==1.0.0
     # via dallinger
-jupyter-client==8.0.3
+jupyter-client==8.1.0
     # via
     #   ipykernel
     #   jupyter-console
@@ -276,7 +275,7 @@ jupyter-server-terminals==0.4.4
     # via jupyter-server
 jupyterlab-pygments==0.2.2
     # via nbconvert
-jupyterlab-widgets==3.0.5
+jupyterlab-widgets==3.0.6
     # via ipywidgets
 localconfig==1.1.3
     # via dallinger
@@ -320,7 +319,7 @@ nbconvert==7.2.10
     #   jupyter-server
     #   nbclassic
     #   notebook
-nbformat==5.7.3
+nbformat==5.8.0
     # via
     #   jupyter-server
     #   nbclassic
@@ -393,7 +392,7 @@ pluggy==1.0.0
     # via
     #   pytest
     #   tox
-pre-commit==3.1.1
+pre-commit==3.2.0
     # via dallinger
 prometheus-client==0.16.0
     # via
@@ -477,7 +476,7 @@ pyyaml==6.0
     #   myst-parser
     #   pre-commit
     #   tablib
-pyzmq==25.0.1
+pyzmq==25.0.2
     # via
     #   ipykernel
     #   jupyter-client
@@ -490,7 +489,7 @@ qtconsole==5.4.1
     # via jupyter
 qtpy==2.3.0
     # via qtconsole
-redis==4.5.1
+redis==4.5.2
     # via
     #   dallinger
     #   rq
@@ -564,7 +563,7 @@ sphinxcontrib-serializinghtml==1.1.5
     # via sphinx
 sphinxcontrib-spelling==8.0.0
     # via dallinger
-sqlalchemy==1.4.46
+sqlalchemy==1.4.47
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
@@ -632,11 +631,11 @@ trio==0.22.0
     # via
     #   selenium
     #   trio-websocket
-trio-websocket==0.10.0
+trio-websocket==0.10.2
     # via selenium
 tzdata==2022.7
     # via pytz-deprecation-shim
-tzlocal==4.2
+tzlocal==4.3
     # via
     #   apscheduler
     #   dallinger
@@ -676,7 +675,7 @@ werkzeug==2.2.3
     #   flask-login
 wheel==0.40.0
     # via pip-tools
-widgetsnbextension==4.0.5
+widgetsnbextension==4.0.6
     # via ipywidgets
 wsproto==1.2.0
     # via trio-websocket
@@ -688,7 +687,7 @@ xlwt==1.3.0
     # via tablib
 zope-event==4.6
     # via gevent
-zope-interface==5.5.2
+zope-interface==6.0
     # via gevent
 
 # The following packages are considered to be unsafe in a requirements file:
