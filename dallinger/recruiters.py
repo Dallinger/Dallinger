@@ -1,5 +1,5 @@
 """Recruiters manage the flow of participants to the experiment."""
-from __future__ import unicode_literals
+from __future__ import print_function, unicode_literals
 
 import json
 import logging
@@ -11,9 +11,11 @@ import time
 
 import flask
 import requests
+import tabulate
 from rq import Queue
 from sqlalchemy import func
 
+from dallinger.command_line.utils import Output
 from dallinger.config import get_config
 from dallinger.db import redis_conn, session
 from dallinger.experiment_server.utils import crossdomain, success_response
@@ -157,6 +159,88 @@ class Recruiter(object):
         """
         return "AssignmentSubmitted"
 
+    def load_service(self, sandbox):
+        """Load the appropriate service for this recruiter."""
+        raise NotImplementedError
+
+    def _get_hits_from_app(self, service, app):
+        """Return a list of hits for the given app."""
+        raise NotImplementedError
+
+    def _current_hits(self, service, app):
+        if app is not None:
+            return self._get_hits_from_app(service, app)
+        else:
+            return service.get_hits()
+
+    def hits(self, app=None, sandbox=False):
+        """Lists all hits on a recruiter."""
+        service = self.load_service(sandbox)
+        hits = self._current_hits(service, app)
+        formatted_hit_list = []
+
+        def _format_date_if_present(date):
+            dateformat = "%Y/%-m/%-d %I:%M:%S %p"
+            try:
+                return date.strftime(dateformat)
+            except AttributeError:
+                return ""
+
+        for h in hits:
+            title = h["title"][:40] + "..." if len(h["title"]) > 40 else h["title"]
+            description = (
+                h["description"][:60] + "..."
+                if len(h["description"]) > 60
+                else h["description"]
+            )
+            formatted_hit_list.append(
+                [
+                    h["id"],
+                    title,
+                    h["annotation"],
+                    h["status"],
+                    _format_date_if_present(h["created"]),
+                    _format_date_if_present(h["expiration"]),
+                    description,
+                ]
+            )
+        out = Output()
+        out.log("Found {} hit[s]:".format(len(formatted_hit_list)))
+        out.log(
+            tabulate.tabulate(
+                formatted_hit_list,
+                headers=[
+                    "Hit ID",
+                    "Title",
+                    "Annotation (experiment ID)",
+                    "Status",
+                    "Created",
+                    "Expiration",
+                    "Description",
+                ],
+            ),
+            chevrons=False,
+        )
+
+    def clean_qualification_attributes(self, experiment_details):
+        """Remove any attributes that are not required for the qualification."""
+        return experiment_details
+
+    def hit_details(self, hit_id, sandbox=False):
+        """Returns details of a hit/hits with the same app name."""
+        service = self.load_service(sandbox)
+        details = service.get_study(hit_id)
+        return self.clean_qualification_attributes(details)
+
+    @property
+    def default_qualification_name(self):
+        """Name of the qualification file containing rules to filter participants."""
+        raise NotImplementedError
+
+    def get_qualifications(self, hit_id, sandbox):
+        """Return the JSON file containing rules to filter participants."""
+        raise NotImplementedError
+
 
 def alphanumeric_code(seed: str, length: int = 8):
     """Return and alphanumeric string of specified length based on a
@@ -205,6 +289,22 @@ def prolific_submission_listener():
 PROLIFIC_AD_QUERYSTRING = "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
 
 
+def _get_and_load_config():
+    config = get_config()
+    config.load()
+    return config
+
+
+def _prolific_service_from_config(sandbox=False):
+    config = _get_and_load_config()
+    return ProlificService(
+        api_token=config.get("prolific_api_token"),
+        api_version=config.get("prolific_api_version"),
+        referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
+        sandbox=sandbox,
+    )
+
+
 class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.co/)"""
 
@@ -212,16 +312,12 @@ class ProlificRecruiter(Recruiter):
 
     def __init__(self, *args, **kwargs):
         super().__init__()
-        self.config = get_config()
+        self.config = _get_and_load_config()
         base_url = get_base_url()
         self.ad_url = f"{base_url}/ad?recruiter={self.nickname}"
         self.completion_code = alphanumeric_code(self.config.get("id"))
         self.study_domain = os.getenv("HOST")
-        self.prolificservice = ProlificService(
-            api_token=self.config.get("prolific_api_token"),
-            api_version=self.config.get("prolific_api_version"),
-            referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
-        )
+        self.prolificservice = _prolific_service_from_config()
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
@@ -252,9 +348,7 @@ class ProlificRecruiter(Recruiter):
                 "prolific_estimated_completion_minutes"
             ),
             "external_study_url": self.ad_url + PROLIFIC_AD_QUERYSTRING,
-            "internal_name": "{} ({})".format(
-                self.config.get("title"), self.config.get("id")
-            ),
+            "internal_name": self.config.get("id"),
             "maximum_allowed_time": self.config.get(
                 "prolific_maximum_allowed_minutes",
                 3 * self.config.get("prolific_estimated_completion_minutes") + 2,
@@ -384,6 +478,117 @@ class ProlificRecruiter(Recruiter):
     def _handle_exit_form_submission(self, assignment_id: str, participant_id: str):
         q = _get_queue()
         q.enqueue(worker_function, "AssignmentSubmitted", assignment_id, participant_id)
+
+    def load_service(self, sandbox):
+        return _prolific_service_from_config(sandbox)
+
+    def _get_hits_from_app(self, service, app):
+        return service.get_hits(hit_filter=lambda h: h.get("annotation") == app)
+
+    def _current_hits(self, service, app):
+        hits = super()._current_hits(service, app)
+        if service.sandbox:
+            keys = ["UNPUBLISHED"]
+        else:
+            keys = ["AWAITING REVIEW", "COMPLETED"]
+        return [h for h in hits if h["status"] in keys]
+
+    def clean_qualification_query(self, requirement):
+        """Prolific's API returns queries with a lot of unnecessary information:
+        {
+            "query": {
+            "id": "54bef0fafdf99b15608c504e",
+            "question": "In what country do you currently reside?",
+            "description": "",
+            "title": "Current Country of Residence",
+            "help_text": "Please note that Prolific is currently only available for participants who live in OECD countries. <a href='https://researcher-help.prolific.co/hc/en-gb/articles/360009220833-Who-are-the-people-in-your-participant-pool' target='_blank'>Read more about this</a>",
+            "participant_help_text": "",
+            "researcher_help_text": "",
+            "is_new": false,
+            "tags": [
+              "rep_sample_country",
+              "core-7",
+              "default_export_country_of_residence"
+            ]
+        }
+         However, to identify the qualification, we only need the ID. For readability, we add the title as well.
+        """
+        try:
+            query_id = requirement["query"]["id"]
+            title = requirement["query"]["title"]
+        except KeyError:
+            query_id = None
+            title = None
+        return {"id": query_id, "title": title}
+
+    def clean_qualification_requirement(self, requirement):
+        attributes = requirement["attributes"]
+
+        cleaned_attributes = [
+            attribute
+            for attribute in attributes
+            # Skip attribute if
+            if not (
+                (
+                    # It is a not selected option
+                    attribute["value"] is False
+                    or attribute["value"] is None
+                    or attribute["value"] == []
+                )
+                or (
+                    # It is an input field with the default value
+                    requirement["type"] == "input"
+                    and attribute["value"] == attribute["default_value"]
+                )
+            )
+        ]
+
+        if requirement["type"] == "range":
+            if len(attributes) == 0:
+                return None
+            if (
+                attributes[0]["min"] == attributes[0]["value"]
+                and attributes[1]["max"] == attributes[1]["value"]
+            ):
+                return None
+
+        if len(cleaned_attributes) > 0:
+            return {
+                "type": requirement["type"],
+                "attributes": cleaned_attributes,
+                "query": self.clean_qualification_query(requirement),
+                "_cls": requirement["_cls"],
+            }
+        else:
+            return None
+
+    def clean_qualification_attributes(self, experiment_details):
+        """In Prolific, each selection query lists all possible options even if they are not selected. This obfuscates
+        which options *are* selected. The API does not need unselected options, so we'll remove it here.
+        """
+        cleaned_requirements = [
+            self.clean_qualification_requirement(requirement)
+            for requirement in experiment_details["eligibility_requirements"]
+        ]
+        cleaned_requirements = [
+            requirement
+            for requirement in cleaned_requirements
+            if requirement is not None
+        ]
+        experiment_details["eligibility_requirements"] = cleaned_requirements
+        return experiment_details
+
+    @property
+    def default_qualification_name(self):
+        return "prolific_config.json"
+
+    def get_qualifications(self, hit_id, sandbox):
+        details = self.hit_details(hit_id, sandbox)
+        return {
+            "device_compatibility": details["device_compatibility"],
+            "eligibility_requirements": details["eligibility_requirements"],
+            "peripheral_requirements": details["peripheral_requirements"],
+        }
 
 
 class CLIRecruiter(Recruiter):
@@ -692,6 +897,16 @@ class MTurkRecruiterException(Exception):
 mturk_routes = flask.Blueprint("mturk_recruiter", __name__)
 
 
+def _mturk_service_from_config(sandbox):
+    config = _get_and_load_config()
+    return MTurkService(
+        aws_access_key_id=config.get("aws_access_key_id"),
+        aws_secret_access_key=config.get("aws_secret_access_key"),
+        region_name=config.get("aws_region"),
+        sandbox=sandbox,
+    )
+
+
 @mturk_routes.route("/mturk-sns-listener", methods=["POST", "GET"])
 @crossdomain(origin="*")
 def mturk_recruiter_notify():
@@ -768,7 +983,7 @@ class MTurkRecruiter(Recruiter):
 
     def __init__(self, *args, **kwargs):
         super().__init__()
-        self.config = get_config()
+        self.config = _get_and_load_config()
         base_url = get_base_url()
         self.ad_url = "{}/ad?recruiter={}".format(base_url, self.nickname)
         self.notification_url = "{}/mturk-sns-listener".format(base_url)
@@ -782,7 +997,11 @@ class MTurkRecruiter(Recruiter):
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
-        self._validate_config()
+
+        skip_config_validation = kwargs.get("skip_config_validation", False)
+
+        if not skip_config_validation:
+            self._validate_config()
 
     def _validate_config(self):
         mode = self.config.get("mode")
@@ -1196,6 +1415,22 @@ class MTurkRecruiter(Recruiter):
         except MessengerError as ex:
             logger.exception(ex)
 
+    def load_service(self, sandbox):
+        return _mturk_service_from_config(sandbox)
+
+    def _get_hits_from_app(self, service, app):
+        return service.get_hits(
+            hit_filter=lambda h: h.get("internal_name", None) == app
+        )
+
+    @property
+    def default_qualification_name(self):
+        return "mturk_qualifications.json"
+
+    def get_qualifications(self, hit_id, sandbox):
+        service = self.load_service(sandbox)
+        return service.get_study(hit_id)["QualificationRequirements"]
+
 
 class RedisTally(object):
     _key = "num_recruited"
@@ -1479,7 +1714,7 @@ def _descendent_classes(cls):
             yield cls
 
 
-def by_name(name):
+def by_name(name, **kwargs):
     """Attempt to return a recruiter class by name.
 
     Actual class names and known nicknames are both supported.
@@ -1490,4 +1725,4 @@ def by_name(name):
 
     klass = by_name.get(name)
     if klass is not None:
-        return klass()
+        return klass(**kwargs)
