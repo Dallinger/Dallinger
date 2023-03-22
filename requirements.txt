@@ -8,8 +8,6 @@
     # via -r requirements.in
 apscheduler==3.10.1
     # via dallinger
-asttokens==2.2.1
-    # via stack-data
 async-generator==1.10
     # via trio
 async-timeout==4.0.2
@@ -18,8 +16,6 @@ attrs==22.2.0
     # via
     #   outcome
     #   trio
-backcall==0.2.0
-    # via ipython
 boto3==1.26.96
     # via dallinger
 botocore==1.29.96
@@ -46,20 +42,12 @@ click==8.1.3
     #   flask
     #   pip-tools
     #   rq
-comm==0.1.2
-    # via ipykernel
 cryptography==39.0.2
     # via pyopenssl
-debugpy==1.6.6
-    # via ipykernel
-decorator==5.1.1
-    # via ipython
 exceptiongroup==1.1.1
     # via
     #   trio
     #   trio-websocket
-executing==1.2.0
-    # via stack-data
 faker==18.3.0
     # via dallinger
 flask==2.2.3
@@ -101,34 +89,16 @@ idna==3.4
     # via
     #   requests
     #   trio
-ipykernel==6.22.0
-    # via ipywidgets
-ipython==8.11.0
-    # via
-    #   ipykernel
-    #   ipywidgets
-ipywidgets==8.0.4
-    # via dallinger
 itsdangerous==2.1.2
     # via
     #   flask
     #   flask-wtf
-jedi==0.18.2
-    # via ipython
 jinja2==3.1.2
     # via flask
 jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-jupyter-client==8.1.0
-    # via ipykernel
-jupyter-core==5.3.0
-    # via
-    #   ipykernel
-    #   jupyter-client
-jupyterlab-widgets==3.0.6
-    # via ipywidgets
 localconfig==1.1.3
     # via dallinger
 markupsafe==2.1.2
@@ -136,48 +106,24 @@ markupsafe==2.1.2
     #   jinja2
     #   werkzeug
     #   wtforms
-matplotlib-inline==0.1.6
-    # via
-    #   ipykernel
-    #   ipython
-nest-asyncio==1.5.6
-    # via ipykernel
 outcome==1.2.0
     # via trio
 packaging==23.0
-    # via
-    #   build
-    #   ipykernel
-parso==0.8.3
-    # via jedi
+    # via build
 pexpect==4.8.0
-    # via
-    #   dallinger
-    #   ipython
-pickleshare==0.7.5
-    # via ipython
+    # via dallinger
 pip-tools==6.12.3
     # via dallinger
-platformdirs==3.1.1
-    # via jupyter-core
-prompt-toolkit==3.0.38
-    # via ipython
 psutil==5.9.4
-    # via
-    #   dallinger
-    #   ipykernel
+    # via dallinger
 psycopg2==2.9.5
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
 ptyprocess==0.7.0
     # via pexpect
-pure-eval==0.2.2
-    # via stack-data
 pycparser==2.21
     # via cffi
-pygments==2.14.0
-    # via ipython
 pyopenssl==23.0.0
     # via dallinger
 pyproject-hooks==1.0.0
@@ -189,15 +135,10 @@ python-dateutil==2.8.2
     #   botocore
     #   faker
     #   heroku3
-    #   jupyter-client
 pytz==2022.7.1
     # via apscheduler
 pytz-deprecation-shim==0.1.0.post0
     # via tzlocal
-pyzmq==25.0.2
-    # via
-    #   ipykernel
-    #   jupyter-client
 redis==4.5.2
     # via
     #   dallinger
@@ -215,7 +156,6 @@ selenium==4.8.2
 six==1.16.0
     # via
     #   apscheduler
-    #   asttokens
     #   dallinger
     #   python-dateutil
     #   sqlalchemy-postgres-copy
@@ -229,8 +169,6 @@ sqlalchemy==1.4.47
     #   sqlalchemy-postgres-copy
 sqlalchemy-postgres-copy==0.5.0
     # via dallinger
-stack-data==0.6.2
-    # via ipython
 tabulate==0.9.0
     # via dallinger
 tenacity==8.2.2
@@ -241,19 +179,6 @@ tomli==2.0.1
     # via
     #   build
     #   pyproject-hooks
-tornado==6.2
-    # via
-    #   ipykernel
-    #   jupyter-client
-traitlets==5.9.0
-    # via
-    #   comm
-    #   ipykernel
-    #   ipython
-    #   ipywidgets
-    #   jupyter-client
-    #   jupyter-core
-    #   matplotlib-inline
 trio==0.22.0
     # via
     #   selenium
@@ -277,16 +202,12 @@ urllib3==1.26.15
     #   selenium
 user-agents==2.2.0
     # via dallinger
-wcwidth==0.2.6
-    # via prompt-toolkit
 werkzeug==2.2.3
     # via
     #   flask
     #   flask-login
 wheel==0.40.0
     # via pip-tools
-widgetsnbextension==4.0.6
-    # via ipywidgets
 wsproto==1.2.0
     # via trio-websocket
 wtforms==3.0.1

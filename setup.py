@@ -62,7 +62,6 @@ setup_args = dict(
         "greenlet",
         "gunicorn",
         "heroku3",
-        "ipywidgets==8.0.4",
         "localconfig",
         "pexpect",
         "pip>=20",
@@ -86,9 +85,9 @@ setup_args = dict(
     ],
     extras_require={
         "jupyter": [
+            "ipywidgets==8.0.4",
             "jupyter",
             "jupyter-server",
-            "ipywidgets",
         ],
         "data": [
             "pandas",
