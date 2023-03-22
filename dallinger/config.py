@@ -272,7 +272,8 @@ class Configuration(object):
     def load_defaults(self):
         """Load default configuration values"""
         # Apply extra parameters before loading the configs
-        if self.experiment_available():
+        if experiment_available():
+            # In practice, experiment_available should only return False in tests
             self.register_extra_parameters()
 
         global_config_name = ".dallingerconfig"
@@ -287,11 +288,8 @@ class Configuration(object):
         for config_file in [global_defaults_file, local_defaults_file, global_config]:
             self.load_from_file(config_file)
 
-        if self.experiment_available():
+        if experiment_available():
             self.load_experiment_config_defaults()
-
-    def experiment_available(self):
-        return Path("experiment.py").exists()
 
     def load(self):
         self.load_defaults()
@@ -345,7 +343,16 @@ def get_config():
     global config
 
     if config is None:
-        config = Configuration()
+        if experiment_available():
+            from dallinger.experiment import load
+
+            exp_klass = load()
+            config_class = exp_klass.config_class()
+        else:
+            config_class = Configuration
+
+        config = config_class()
+
         for registration in default_keys:
             config.register(*registration)
 
@@ -375,3 +382,7 @@ def initialize_experiment_package(path):
     package.__package__ = "dallinger_experiment"
     package.__name__ = "dallinger_experiment"
     sys.path.pop(0)
+
+
+def experiment_available():
+    return Path("experiment.py").exists()
