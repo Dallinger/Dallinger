@@ -58,7 +58,7 @@ def data():
 
 @pytest.fixture
 def mturk(fake_parsed_hit):
-    with mock.patch("dallinger.mturk.MTurkService") as mock_mturk:
+    with mock.patch("dallinger.command_line.MTurkService") as mock_mturk:
         mock_instance = mock.Mock()
         mock_instance.get_hits.return_value = [fake_parsed_hit]
         mock_mturk.return_value = mock_instance
@@ -419,7 +419,7 @@ class TestQualify(object):
 
     @pytest.fixture
     def mturk(self):
-        with mock.patch("dallinger.mturk.MTurkService") as mock_mturk:
+        with mock.patch("dallinger.command_line.MTurkService") as mock_mturk:
             mock_results = [{"id": "some qid", "score": 1}]
             mock_instance = mock.Mock()
             mock_instance.get_workers_with_qualification.return_value = mock_results
@@ -447,7 +447,7 @@ class TestQualify(object):
 
     def test_uses_mturk_sandbox_if_specified(self, qualify):
         qual_value = 1
-        with mock.patch("dallinger.mturk.MTurkService") as mock_mturk:
+        with mock.patch("dallinger.command_line.MTurkService") as mock_mturk:
             mock_mturk.return_value = mock.Mock()
             CliRunner().invoke(
                 qualify,
@@ -684,7 +684,7 @@ class TestExtendMTurkHIT(object):
 
     @pytest.fixture
     def mturk(self):
-        with mock.patch("dallinger.mturk.MTurkService") as mock_mturk:
+        with mock.patch("dallinger.command_line.MTurkService") as mock_mturk:
             mock_instance = mock.Mock()
             mock_instance.extend_hit.return_value = {
                 "title": "HIT Title",
@@ -756,7 +756,7 @@ class TestRevoke(object):
 
     @pytest.fixture
     def mturk(self):
-        with mock.patch("dallinger.mturk.MTurkService") as mock_mturk:
+        with mock.patch("dallinger.command_line.MTurkService") as mock_mturk:
             mock_instance = mock.Mock()
             mock_instance.get_qualification_type_by_name.return_value = "some qid"
             mock_instance.get_workers_with_qualification.return_value = [
@@ -799,7 +799,7 @@ class TestRevoke(object):
         mturk.revoke_qualification.assert_not_called()
 
     def test_uses_mturk_sandbox_if_specified(self, revoke):
-        with mock.patch("dallinger.mturk.MTurkService") as mock_mturk:
+        with mock.patch("dallinger.command_line.MTurkService") as mock_mturk:
             mock_mturk.return_value = mock.Mock()
             CliRunner().invoke(
                 revoke,
@@ -976,7 +976,7 @@ class TestDestroy(object):
         CliRunner().invoke(destroy, ["--app", "some-app-uid", "--yes", "--expire-hit"])
         heroku.destroy.assert_called_once()
         mturk_instance = mturk.return_value
-        mturk_instance.get_hits.assert_called()
+        mturk_instance.get_hits.assert_called_once()
         mturk_instance.expire_hit.assert_called()
 
     def test_destroy_no_expire_hits(self, destroy, heroku, mturk):
