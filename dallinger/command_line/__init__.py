@@ -5,7 +5,6 @@
 
 from __future__ import print_function, unicode_literals
 
-import json
 import os
 import shutil
 import signal
@@ -15,7 +14,6 @@ import warnings
 import webbrowser
 from collections import Counter
 from functools import wraps
-from os.path import exists
 from pathlib import Path
 
 import click
@@ -44,14 +42,14 @@ from dallinger.deployment import (
     setup_experiment,
 )
 from dallinger.heroku.tools import HerokuApp, HerokuInfo
-from dallinger.mturk import MTurkServiceException
+from dallinger.mturk import MTurkService, MTurkServiceException
 from dallinger.notifications import (
     EmailConfig,
     MessengerError,
     SMTPMailer,
     admin_notifier,
 )
-from dallinger.recruiters import _mturk_service_from_config, by_name
+from dallinger.recruiters import by_name
 from dallinger.utils import (
     check_call,
     ensure_constraints_file_presence,
@@ -204,6 +202,17 @@ def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
     debugger = DebugDeployment(Output(), verbose, bot, proxy, exp_config, no_browsers)
     log(header, chevrons=False)
     debugger.run()
+
+
+def _mturk_service_from_config(sandbox):
+    config = get_config()
+    config.load()
+    return MTurkService(
+        aws_access_key_id=config.get("aws_access_key_id"),
+        aws_secret_access_key=config.get("aws_secret_access_key"),
+        region_name=config.get("aws_region"),
+        sandbox=sandbox,
+    )
 
 
 def prelaunch_db_bootstrapper(zip_path, log):
@@ -500,6 +509,12 @@ def hibernate(app):
         heroku_app.addon_destroy(addon)
 
 
+def _current_hits(service, app):
+    if app is not None:
+        return service.get_hits(hit_filter=lambda h: h.get("annotation") == app)
+    return service.get_hits()
+
+
 @dallinger.command()
 @click.option("--app", default=None, help="Experiment id")
 @click.option(
@@ -508,55 +523,49 @@ def hibernate(app):
     flag_value=True,
     help="Look for HITs in the MTurk sandbox rather than the live/production environment",
 )
-@click.option("--recruiter", default="mturk", help="Experiment id")
-def hits(app, sandbox, recruiter):
-    """List all HITs for the recruiter account or for a specific experiment id."""
+def hits(app, sandbox):
+    """List all HITs for the user's configured MTurk request account,
+    or for a specific experiment id.
+    """
     if app is not None:
         verify_id(None, "--app", app)
-
-    rec = by_name(recruiter, skip_config_validation=True)
-    rec.hits(app, sandbox)
-
-
-@dallinger.command()
-@click.option("--hit_id", default=None, help="MTurk HIT ID")
-@click.option(
-    "--sandbox",
-    is_flag=True,
-    flag_value=True,
-    help="Look for HITs in the MTurk sandbox rather than the live/production environment",
-)
-@click.option("--recruiter", default="mturk", help="Experiment id")
-def hit_details(hit_id, sandbox, recruiter):
-    """Print the details of a specific HIT for a recruiter."""
-    rec = by_name(recruiter, skip_config_validation=True)
-    details = rec.hit_details(hit_id, sandbox)
-    print(json.dumps(details, indent=4, default=str))
-
-
-@dallinger.command()
-@click.option("--hit_id", default=None, help="MTurk HIT ID")
-@click.option(
-    "--sandbox",
-    is_flag=True,
-    flag_value=True,
-    help="Look for HITs in the MTurk sandbox rather than the live/production environment",
-)
-@click.option("--recruiter", default="mturk", help="Experiment id")
-@click.option("--path", default=None, help="Filename/path for the qualification file")
-def copy_qualifications(hit_id, sandbox, recruiter, path):
-    """Copy qualifications from an existing HIT and save them to a JSON file."""
-    rec = by_name(recruiter, skip_config_validation=True)
-    if path is None:
-        path = rec.default_qualification_name
-    assert path.endswith(".json"), "Qualification path must be a json file"
-    if exists(path):
-        if not click.confirm(f"Overwrite existing qualification file: {path}?"):
-            click.echo("Aborting...")
-            return
-    qualifications = rec.get_qualifications(hit_id, sandbox)
-    with open(path, "w") as f:
-        json.dump(qualifications, f, indent=4)
+    formatted_hit_list = []
+    dateformat = "%Y/%-m/%-d %I:%M:%S %p"
+    for h in _current_hits(_mturk_service_from_config(sandbox), app):
+        title = h["title"][:40] + "..." if len(h["title"]) > 40 else h["title"]
+        description = (
+            h["description"][:60] + "..."
+            if len(h["description"]) > 60
+            else h["description"]
+        )
+        formatted_hit_list.append(
+            [
+                h["id"],
+                title,
+                h["annotation"],
+                h["status"],
+                h["created"].strftime(dateformat),
+                h["expiration"].strftime(dateformat),
+                description,
+            ]
+        )
+    out = Output()
+    out.log("Found {} hit[s]:".format(len(formatted_hit_list)))
+    out.log(
+        tabulate.tabulate(
+            formatted_hit_list,
+            headers=[
+                "Hit ID",
+                "Title",
+                "Annotation (experiment ID)",
+                "Status",
+                "Created",
+                "Expiration",
+                "Description",
+            ],
+        ),
+        chevrons=False,
+    )
 
 
 @dallinger.command()
