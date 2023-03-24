@@ -1,5 +1,7 @@
 import json
+import os
 from datetime import datetime
+from os.path import dirname
 
 import mock
 import pytest
@@ -507,6 +509,79 @@ class TestProlificRecruiter(object):
         queue.enqueue.assert_called_once_with(
             mock.ANY, "AssignmentSubmitted", "some assignment ID", "some participant ID"
         ),
+
+    def test_clean_qualification_attributes(self, recruiter):
+        import dallinger
+
+        json_path = os.path.join(
+            dirname(dallinger.__file__),
+            "..",
+            "tests",
+            "datasets",
+            "example_prolific_details.json",
+        )
+        with open(json_path, "r") as f:
+            details = json.load(f)
+        cleaned_details = recruiter.clean_qualification_attributes(details)
+        assert details.keys() == cleaned_details.keys(), "Keys should be the same"
+        requirements = cleaned_details["eligibility_requirements"]
+
+        assert requirements == [
+            {
+                "type": "select",
+                "attributes": [
+                    {"label": "Spain", "name": "Spain", "value": True, "index": 5}
+                ],
+                "query": {
+                    "id": "54bef0fafdf99b15608c504e",
+                    "title": "Current Country of Residence",
+                },
+                "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
+            },
+            {
+                "type": "select",
+                "attributes": [
+                    {"label": "Spain", "name": "Spain", "value": True, "index": 5}
+                ],
+                "query": {"id": "54ac6ea9fdf99b2204feb896", "title": "Nationality"},
+                "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
+            },
+            {
+                "type": "select",
+                "attributes": [
+                    {"label": "Spain", "name": "Spain", "value": True, "index": 5}
+                ],
+                "query": {
+                    "id": "54ac6ea9fdf99b2204feb895",
+                    "title": "Country of Birth",
+                },
+                "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
+            },
+            {
+                "type": "select",
+                "attributes": [
+                    {"label": "Spanish", "name": "Spanish", "value": True, "index": 59}
+                ],
+                "query": {"id": "54ac6ea9fdf99b2204feb899", "title": "First Language"},
+                "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
+            },
+            {
+                "type": "select",
+                "attributes": [
+                    {
+                        "label": "I was raised with my native language only",
+                        "name": "I was raised with my native language only",
+                        "value": True,
+                        "index": 0,
+                    }
+                ],
+                "query": {
+                    "id": "59c2434b5364260001dc4b0a",
+                    "title": "Were you raised monolingual?",
+                },
+                "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
+            },
+        ]
 
 
 class TestMTurkRecruiterMessages(object):
