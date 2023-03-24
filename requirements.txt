@@ -124,7 +124,7 @@ ptyprocess==0.7.0
     # via pexpect
 pycparser==2.21
     # via cffi
-pyopenssl==23.0.0
+pyopenssl==23.1.0
     # via dallinger
 pyproject-hooks==1.0.0
     # via build
