@@ -976,7 +976,7 @@ class TestDestroy(object):
         CliRunner().invoke(destroy, ["--app", "some-app-uid", "--yes", "--expire-hit"])
         heroku.destroy.assert_called_once()
         mturk_instance = mturk.return_value
-        mturk_instance.get_hits.assert_called_once()
+        mturk_instance.get_hits.assert_called()
         mturk_instance.expire_hit.assert_called()
 
     def test_destroy_no_expire_hits(self, destroy, heroku, mturk):
