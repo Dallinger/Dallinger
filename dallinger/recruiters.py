@@ -958,17 +958,6 @@ def _run_mturk_qualification_assignment(worker_id, qualifications):
     recruiter._assign_experiment_qualifications(worker_id, qualifications)
 
 
-def _mturk_service_from_config(sandbox):
-    config = get_config()
-    config.load()
-    return MTurkService(
-        aws_access_key_id=config.get("aws_access_key_id"),
-        aws_secret_access_key=config.get("aws_secret_access_key"),
-        region_name=config.get("aws_region"),
-        sandbox=sandbox,
-    )
-
-
 class MTurkRecruiter(Recruiter):
     """Recruit participants from Amazon Mechanical Turk"""
 
@@ -1411,6 +1400,8 @@ class MTurkRecruiter(Recruiter):
             logger.exception(ex)
 
     def load_service(self, sandbox):
+        from dallinger.command_line import _mturk_service_from_config
+
         return _mturk_service_from_config(sandbox)
 
     def _get_hits_from_app(self, service, app):
