@@ -510,9 +510,9 @@ class TestProlificRecruiter(object):
         ),
 
     def test_clean_qualification_attributes(self, recruiter):
-        assert False, os.getcwd()
-        print(os.listdir(os.path.join("tests", "datasets")))
-        json_path = os.path.join("tests", "datasets", "example_prolific_details.json")
+        json_path = os.path.join(
+            os.path.dirname(__file__), "datasets", "example_prolific_details.json"
+        )
         with open(json_path, "r") as f:
             details = json.load(f)
         cleaned_details = recruiter.clean_qualification_attributes(details)
