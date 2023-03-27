@@ -47,9 +47,9 @@ black==23.1.0
     # via dallinger
 bleach==6.0.0
     # via nbconvert
-boto3==1.26.96
+boto3==1.26.100
     # via dallinger
-botocore==1.29.96
+botocore==1.29.100
     # via
     #   boto3
     #   s3transfer
@@ -91,7 +91,7 @@ codecov==2.1.12
     # via dallinger
 colorama==0.4.6
     # via tox
-comm==0.1.2
+comm==0.1.3
     # via ipykernel
 coverage==7.2.2
     # via
@@ -100,7 +100,7 @@ coverage==7.2.2
     #   dallinger
 coverage-pth==0.0.2
     # via dallinger
-cryptography==39.0.2
+cryptography==40.0.1
     # via
     #   paramiko
     #   pyopenssl
@@ -130,11 +130,11 @@ exceptiongroup==1.1.1
     #   trio-websocket
 executing==1.2.0
     # via stack-data
-faker==18.3.0
+faker==18.3.1
     # via dallinger
 fastjsonschema==2.16.3
     # via nbformat
-filelock==3.10.0
+filelock==3.10.7
     # via
     #   tox
     #   virtualenv
@@ -177,7 +177,7 @@ h11==0.14.0
     # via wsproto
 heroku3==5.2.0
     # via dallinger
-identify==2.5.21
+identify==2.5.22
     # via pre-commit
 idna==3.4
     # via
@@ -383,7 +383,7 @@ pickleshare==0.7.5
     # via ipython
 pip-tools==6.12.3
     # via dallinger
-platformdirs==3.1.1
+platformdirs==3.2.0
     # via
     #   black
     #   jupyter-core
@@ -393,7 +393,7 @@ pluggy==1.0.0
     # via
     #   pytest
     #   tox
-pre-commit==3.2.0
+pre-commit==3.2.1
     # via dallinger
 prometheus-client==0.16.0
     # via
@@ -437,7 +437,7 @@ pygments==2.14.0
     #   sphinx
 pynacl==1.5.0
     # via paramiko
-pyopenssl==23.0.0
+pyopenssl==23.1.0
     # via dallinger
 pypandoc==1.11
     # via dallinger
@@ -465,7 +465,7 @@ python-dateutil==2.8.2
     #   pandas
 python-json-logger==2.0.7
     # via jupyter-events
-pytz==2022.7.1
+pytz==2023.2
     # via
     #   apscheduler
     #   pandas
@@ -490,7 +490,7 @@ qtconsole==5.4.1
     # via jupyter
 qtpy==2.3.0
     # via qtconsole
-redis==4.5.2
+redis==4.5.3
     # via
     #   dallinger
     #   rq
@@ -513,7 +513,7 @@ rq==1.13.0
     # via dallinger
 s3transfer==0.6.0
     # via boto3
-selenium==4.8.2
+selenium==4.8.3
     # via dallinger
 send2trash==1.8.0
     # via
@@ -574,7 +574,7 @@ sshtunnel==0.4.0
     # via dallinger
 stack-data==0.6.2
     # via ipython
-tablib==3.3.0
+tablib==3.4.0
     # via dallinger
 tabulate==0.9.0
     # via
@@ -608,7 +608,7 @@ tornado==6.2
     #   nbclassic
     #   notebook
     #   terminado
-tox==4.4.7
+tox==4.4.8
     # via dallinger
 traitlets==5.9.0
     # via
@@ -634,7 +634,7 @@ trio==0.22.0
     #   trio-websocket
 trio-websocket==0.10.2
     # via selenium
-tzdata==2022.7
+tzdata==2023.2
     # via pytz-deprecation-shim
 tzlocal==4.3
     # via
@@ -660,7 +660,7 @@ virtualenv==20.21.0
     #   tox
 wcwidth==0.2.6
     # via prompt-toolkit
-webcolors==1.12
+webcolors==1.13
     # via jsonschema
 webencodings==0.5.1
     # via
