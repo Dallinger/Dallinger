@@ -1,5 +1,5 @@
 """Recruiters manage the flow of participants to the experiment."""
-from __future__ import print_function, unicode_literals
+from __future__ import unicode_literals
 
 import json
 import logging
@@ -289,19 +289,13 @@ def prolific_submission_listener():
 PROLIFIC_AD_QUERYSTRING = "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
 
 
-def _get_and_load_config():
+def _prolific_service_from_config():
     config = get_config()
     config.load()
-    return config
-
-
-def _prolific_service_from_config(sandbox=False):
-    config = _get_and_load_config()
     return ProlificService(
         api_token=config.get("prolific_api_token"),
         api_version=config.get("prolific_api_version"),
         referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
-        sandbox=sandbox,
     )
 
 
@@ -312,7 +306,9 @@ class ProlificRecruiter(Recruiter):
 
     def __init__(self, *args, **kwargs):
         super().__init__()
-        self.config = _get_and_load_config()
+        self.config = get_config()
+        if not self.config.ready:
+            self.config.load()
         base_url = get_base_url()
         self.ad_url = f"{base_url}/ad?recruiter={self.nickname}"
         self.completion_code = alphanumeric_code(self.config.get("id"))
@@ -386,10 +382,6 @@ class ProlificRecruiter(Recruiter):
 
     def recruit(self, n: int = 1):
         """Recruit `n` new participants to an existing Prolific Study"""
-        if not self.config.get("auto_recruit"):
-            logger.info("auto_recruit is False: recruitment suppressed")
-            return
-
         return self.prolificservice.add_participants_to_study(
             study_id=self.current_study_id, number_to_add=n
         )
@@ -480,18 +472,10 @@ class ProlificRecruiter(Recruiter):
         q.enqueue(worker_function, "AssignmentSubmitted", assignment_id, participant_id)
 
     def load_service(self, sandbox):
-        return _prolific_service_from_config(sandbox)
+        return _prolific_service_from_config()
 
     def _get_hits_from_app(self, service, app):
         return service.get_hits(hit_filter=lambda h: h.get("annotation") == app)
-
-    def _current_hits(self, service, app):
-        hits = super()._current_hits(service, app)
-        if service.sandbox:
-            keys = ["UNPUBLISHED"]
-        else:
-            keys = ["AWAITING REVIEW", "COMPLETED"]
-        return [h for h in hits if h["status"] in keys]
 
     def clean_qualification_query(self, requirement):
         """Prolific's API returns queries with a lot of unnecessary information:
@@ -897,16 +881,6 @@ class MTurkRecruiterException(Exception):
 mturk_routes = flask.Blueprint("mturk_recruiter", __name__)
 
 
-def _mturk_service_from_config(sandbox):
-    config = _get_and_load_config()
-    return MTurkService(
-        aws_access_key_id=config.get("aws_access_key_id"),
-        aws_secret_access_key=config.get("aws_secret_access_key"),
-        region_name=config.get("aws_region"),
-        sandbox=sandbox,
-    )
-
-
 @mturk_routes.route("/mturk-sns-listener", methods=["POST", "GET"])
 @crossdomain(origin="*")
 def mturk_recruiter_notify():
@@ -983,7 +957,9 @@ class MTurkRecruiter(Recruiter):
 
     def __init__(self, *args, **kwargs):
         super().__init__()
-        self.config = _get_and_load_config()
+        self.config = get_config()
+        if not self.config.ready:
+            self.config.load()
         base_url = get_base_url()
         self.ad_url = "{}/ad?recruiter={}".format(base_url, self.nickname)
         self.notification_url = "{}/mturk-sns-listener".format(base_url)
@@ -997,7 +973,6 @@ class MTurkRecruiter(Recruiter):
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
-
         skip_config_validation = kwargs.get("skip_config_validation", False)
 
         if not skip_config_validation:
@@ -1416,6 +1391,8 @@ class MTurkRecruiter(Recruiter):
             logger.exception(ex)
 
     def load_service(self, sandbox):
+        from dallinger.command_line import _mturk_service_from_config
+
         return _mturk_service_from_config(sandbox)
 
     def _get_hits_from_app(self, service, app):

@@ -17,24 +17,20 @@ class ProlificServiceException(Exception):
 
 class ProlificService:
     """
-    Wrapper for Prolific REST API.
+    Wrapper for Prolific REST API
 
-    :param api_token: API token for Prolific API.
-    :param api_version: Version of the API.
-    :param referer_header: to help Prolific identify our requests when troubleshooting.
-    :param sandbox: Sandbox mode only exists for Mechanical Turk. Here "sandbox" refers to unpublished studies which you
-                can use to preview the survey through the prolific account.
+    params:
+        api_token: Prolific API token
+        api_version: Prolific API version
+        referer_header: Referer header to help Prolific identify our requests when troubleshooting
     """
 
-    def __init__(
-        self, api_token: str, api_version: str, referer_header: str, sandbox: bool
-    ):
+    def __init__(self, api_token: str, api_version: str, referer_header: str):
         self.api_token = api_token
         # For error logging:
         self.api_token_fragment = f"{api_token[:3]}...{api_token[-3:]}"
         self.api_version = api_version
         self.referer_header = referer_header
-        self.sandbox = sandbox
 
     @property
     def api_root(self):
@@ -251,11 +247,6 @@ class ProlificService:
           out of our "beta" period with Prolific)
         * Parses response and does error handling
         """
-        if self.api_token == "Set your Prolific API token in ~/.dallingerconfig!":
-            raise RuntimeError(
-                "Your Prolific API token is missing, please set it in ~/.dallingerconfig."
-            )
-
         headers = {
             "Authorization": f"Token {self.api_token}",
             "Referer": self.referer_header,

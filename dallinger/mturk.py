@@ -584,11 +584,11 @@ class MTurkService(object):
             )
         return True
 
-    def get_hit(self, hit_id):
-        return self._translate_hit(self.mturk.get_hit(HITId=hit_id)["HIT"])
-
     def get_study(self, hit_id):
         return self.mturk.get_hit(HITId=hit_id)["HIT"]
+
+    def get_hit(self, hit_id):
+        return self._translate_hit(self.mturk.get_hit(HITId=hit_id)["HIT"])
 
     def get_hits(self, hit_filter=lambda x: True):
         done = False

@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import datetime
 
 import mock
@@ -509,7 +510,10 @@ class TestProlificRecruiter(object):
         ),
 
     def test_clean_qualification_attributes(self, recruiter):
-        with open("datasets/example_prolific_details.json", "r") as f:
+        json_path = os.path.join(
+            os.path.dirname(__file__), "datasets", "example_prolific_details.json"
+        )
+        with open(json_path, "r") as f:
             details = json.load(f)
         cleaned_details = recruiter.clean_qualification_attributes(details)
         assert details.keys() == cleaned_details.keys(), "Keys should be the same"
