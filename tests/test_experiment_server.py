@@ -5,9 +5,6 @@ import mock
 import pytest
 
 from dallinger import models
-from dallinger.config import get_config
-
-config = get_config()
 
 
 @pytest.mark.usefixtures("experiment_dir")

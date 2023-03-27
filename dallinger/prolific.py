@@ -4,6 +4,7 @@ from typing import List, Optional
 
 import requests
 import tenacity
+from dateutil import parser
 
 logger = logging.getLogger(__file__)
 
@@ -15,7 +16,14 @@ class ProlificServiceException(Exception):
 
 
 class ProlificService:
-    """Wrapper for Prolific REST API"""
+    """
+    Wrapper for Prolific REST API
+
+    params:
+        api_token: Prolific API token
+        api_version: Prolific API version
+        referer_header: Referer header to help Prolific identify our requests when troubleshooting
+    """
 
     def __init__(self, api_token: str, api_version: str, referer_header: str):
         self.api_token = api_token
@@ -161,6 +169,22 @@ class ProlificService:
 
         return self._req(method="POST", endpoint="/studies/", json=payload)
 
+    def get_hits(self):
+        """Get a list of all HITs in the account."""
+        response = self._req(method="GET", endpoint="/studies/")
+        return [
+            {
+                "id": hit["id"],
+                "title": hit["name"],
+                "annotation": hit.get("internal_name", ""),
+                "status": hit["status"],
+                "created": parser.parse(hit["date_created"]),
+                "expiration": "",  # Not available in Prolific in list view
+                "description": "",  # Not available in Prolific in list view
+            }
+            for hit in response["results"]
+        ]
+
     def get_study(self, study_id: str) -> dict:
         """Fetch details of an existing Study"""
         return self._req(method="GET", endpoint=f"/studies/{study_id}/")
@@ -223,11 +247,6 @@ class ProlificService:
           out of our "beta" period with Prolific)
         * Parses response and does error handling
         """
-        if self.api_token == "Set your Prolific API token in ~/.dallingerconfig!":
-            raise RuntimeError(
-                "Your Prolific API token is missing, please set it in ~/.dallingerconfig."
-            )
-
         headers = {
             "Authorization": f"Token {self.api_token}",
             "Referer": self.referer_header,

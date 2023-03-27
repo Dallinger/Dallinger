@@ -174,6 +174,16 @@ class Experiment(object):
             self.widget = module.ExperimentWidget(self)
 
     @classmethod
+    def config_class(cls):
+        """
+        Override this method in order to define a custom Configuration class
+        for dealing with config variables (see e.g. config.txt).
+        """
+        from .config import Configuration
+
+        return Configuration
+
+    @classmethod
     def extra_parameters(cls):
         """Override this classmethod to register new config variables. It is
         called during config load. See
