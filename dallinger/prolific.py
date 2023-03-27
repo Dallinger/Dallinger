@@ -22,20 +22,15 @@ class ProlificService:
     params:
         api_token: Prolific API token
         api_version: Prolific API version
-        referer_header: Referer header to to help Prolific identify our requests when troubleshooting
-        sandbox: Sandbox mode only exists for Mechanical Turk. Here "sandbox" refers to unpublished studies which you
-                 can use to preview the survey through the prolific account.
+        referer_header: Referer header to help Prolific identify our requests when troubleshooting
     """
 
-    def __init__(
-        self, api_token: str, api_version: str, referer_header: str, sandbox: bool
-    ):
+    def __init__(self, api_token: str, api_version: str, referer_header: str):
         self.api_token = api_token
         # For error logging:
         self.api_token_fragment = f"{api_token[:3]}...{api_token[-3:]}"
         self.api_version = api_version
         self.referer_header = referer_header
-        self.sandbox = sandbox
 
     @property
     def api_root(self):
