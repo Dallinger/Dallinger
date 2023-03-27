@@ -289,14 +289,13 @@ def prolific_submission_listener():
 PROLIFIC_AD_QUERYSTRING = "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
 
 
-def _prolific_service_from_config(sandbox=False):
+def _prolific_service_from_config():
     config = get_config()
     config.load()
     return ProlificService(
         api_token=config.get("prolific_api_token"),
         api_version=config.get("prolific_api_version"),
         referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
-        sandbox=sandbox,
     )
 
 
@@ -473,18 +472,10 @@ class ProlificRecruiter(Recruiter):
         q.enqueue(worker_function, "AssignmentSubmitted", assignment_id, participant_id)
 
     def load_service(self, sandbox):
-        return _prolific_service_from_config(sandbox)
+        return _prolific_service_from_config()
 
     def _get_hits_from_app(self, service, app):
         return service.get_hits(hit_filter=lambda h: h.get("annotation") == app)
-
-    def _current_hits(self, service, app):
-        hits = super()._current_hits(service, app)
-        if service.sandbox:
-            keys = ["UNPUBLISHED"]
-        else:
-            keys = ["AWAITING REVIEW", "COMPLETED"]
-        return [h for h in hits if h["status"] in keys]
 
     def clean_qualification_query(self, requirement):
         """Prolific's API returns queries with a lot of unnecessary information:
