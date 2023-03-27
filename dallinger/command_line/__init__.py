@@ -517,6 +517,11 @@ def _current_hits(service, app):
     return service.get_hits()
 
 
+def prolific_check(recruiter, sandbox):
+    if recruiter == "prolific":
+        assert sandbox is False, "Prolific does not have a sandbox mode"
+
+
 @dallinger.command()
 @click.option("--app", default=None, help="Experiment id")
 @click.option(
@@ -530,7 +535,7 @@ def hits(app, sandbox, recruiter):
     """List all HITs for the recruiter account or for a specific experiment id."""
     if app is not None:
         verify_id(None, "--app", app)
-
+    prolific_check(recruiter, sandbox)
     rec = by_name(recruiter, skip_config_validation=True)
     rec.hits(app, sandbox)
 
@@ -546,6 +551,7 @@ def hits(app, sandbox, recruiter):
 @click.option("--recruiter", default="mturk", help="Experiment id")
 def hit_details(hit_id, sandbox, recruiter):
     """Print the details of a specific HIT for a recruiter."""
+    prolific_check(recruiter, sandbox)
     rec = by_name(recruiter, skip_config_validation=True)
     details = rec.hit_details(hit_id, sandbox)
     print(json.dumps(details, indent=4, default=str))
@@ -563,6 +569,7 @@ def hit_details(hit_id, sandbox, recruiter):
 @click.option("--path", default=None, help="Filename/path for the qualification file")
 def copy_qualifications(hit_id, sandbox, recruiter, path):
     """Copy qualifications from an existing HIT and save them to a JSON file."""
+    prolific_check(recruiter, sandbox)
     rec = by_name(recruiter, skip_config_validation=True)
     if path is None:
         path = rec.default_qualification_name
