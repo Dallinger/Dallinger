@@ -6,7 +6,7 @@
 #
 # from the root of the dallinger repository
 #
-apscheduler==3.10.0
+apscheduler==3.10.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -14,7 +14,6 @@ async-generator==1.10
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
-    #   trio-websocket
 async-timeout==4.0.2
     # via
     #   -c ../../../../dev-requirements.txt
@@ -24,11 +23,11 @@ attrs==22.2.0
     #   -c ../../../../dev-requirements.txt
     #   outcome
     #   trio
-boto3==1.26.79
+boto3==1.26.100
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-botocore==1.29.79
+botocore==1.29.100
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
@@ -51,7 +50,7 @@ cffi==1.15.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   cryptography
-charset-normalizer==3.0.1
+charset-normalizer==3.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   requests
@@ -63,17 +62,18 @@ click==8.1.3
     #   nltk
     #   pip-tools
     #   rq
-cryptography==39.0.1
+cryptography==40.0.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   pyopenssl
-dallinger==9.4.3
+dallinger==9.5.0
     # via -r requirements.txt
-exceptiongroup==1.1.0
+exceptiongroup==1.1.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
-faker==17.3.0
+    #   trio-websocket
+faker==18.3.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -178,7 +178,7 @@ pexpect==4.8.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-pip-tools==6.12.2
+pip-tools==6.12.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -199,7 +199,7 @@ pycparser==2.21
     # via
     #   -c ../../../../dev-requirements.txt
     #   cffi
-pyopenssl==23.0.0
+pyopenssl==23.1.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -217,7 +217,7 @@ python-dateutil==2.8.2
     #   botocore
     #   faker
     #   heroku3
-pytz==2022.7.1
+pytz==2023.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   apscheduler
@@ -225,7 +225,7 @@ pytz-deprecation-shim==0.1.0.post0
     # via
     #   -c ../../../../dev-requirements.txt
     #   tzlocal
-redis==4.5.1
+redis==4.5.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -245,7 +245,7 @@ s3transfer==0.6.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
-selenium==4.8.2
+selenium==4.8.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -264,7 +264,7 @@ sortedcontainers==2.4.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
-sqlalchemy==1.4.46
+sqlalchemy==1.4.47
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -277,7 +277,7 @@ tabulate==0.9.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-tenacity==8.2.1
+tenacity==8.2.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -297,15 +297,15 @@ trio==0.22.0
     #   -c ../../../../dev-requirements.txt
     #   selenium
     #   trio-websocket
-trio-websocket==0.9.2
+trio-websocket==0.10.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   selenium
-tzdata==2022.7
+tzdata==2023.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   pytz-deprecation-shim
-tzlocal==4.2
+tzlocal==4.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   apscheduler
@@ -315,7 +315,7 @@ ua-parser==0.16.1
     #   -c ../../../../dev-requirements.txt
     #   dallinger
     #   user-agents
-urllib3==1.26.14
+urllib3==1.26.15
     # via
     #   -c ../../../../dev-requirements.txt
     #   botocore
@@ -330,7 +330,7 @@ werkzeug==2.2.3
     #   -c ../../../../dev-requirements.txt
     #   flask
     #   flask-login
-wheel==0.38.4
+wheel==0.40.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   pip-tools
@@ -346,7 +346,7 @@ zope-event==4.6
     # via
     #   -c ../../../../dev-requirements.txt
     #   gevent
-zope-interface==5.5.2
+zope-interface==6.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   gevent
