@@ -208,7 +208,9 @@ ipython-genutils==0.2.0
     #   notebook
     #   qtconsole
 ipywidgets==8.0.6
-    # via jupyter
+    # via
+    #   dallinger
+    #   jupyter
 isoduration==20.11.0
     # via jsonschema
 isort==5.12.0
