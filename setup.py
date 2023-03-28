@@ -85,7 +85,7 @@ setup_args = dict(
     ],
     extras_require={
         "jupyter": [
-            "ipywidgets==8.0.4",
+            "ipywidgets",
             "jupyter",
             "jupyter-server",
         ],
