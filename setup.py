@@ -85,9 +85,9 @@ setup_args = dict(
     ],
     extras_require={
         "jupyter": [
+            "ipywidgets==8.0.4",
             "jupyter",
             "jupyter-server",
-            "ipywidgets",
         ],
         "data": [
             "pandas",
