@@ -2,6 +2,28 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.5.0](https://github.com/dallinger/dallinger/tree/v9.5.0) (2023-03-29)
+
+- Fixed: Backward compatibility with rq < 1.13.0.
+- Fixed: Fixed error whereby incompatible Docker credential files would be copied to the remote server.
+- Fixed: Fixed error where environment variables were missing from `docker build` invocations.
+- Enhancement: Run pip-compile in verbose mode.
+- Enhancements to the Dallinger network monitor:
+  - Selecting a single network only redraws the graph on the front end and does not require reloading all data from the DB again.
+  - Networks can be sorted by network ID, number of failed, completed, and pending Infos, as well as the number of failed and completed nodes.
+  - Sorting can be done in ascending and descending order.
+  - Users can show the top X networks if there are too many networks in an experiment.
+  - Users can use free-text search to look for attributes in networks.
+  - Cleaned up the panels in the monitor giving more space to the monitor itself.
+- Enhancements to Prolific recruitment:
+  - Extended `dallinger hits [--recruiter=prolific|mturk] [--sandbox]` to work with Prolific as well.
+  - Addition of two new command line tools:
+    - `dallinger hit-details --hit_id  XYZ [--recruiter=prolific|mturk] [--sandbox]` which pastes all the HIT details in the console window.
+    - `dallinger copy-qualifications --hit_id  XYZ [--recruiter=prolific|mturk] [--sandbox]` which copies the requirements to participate in an experiment (e.g country or the number of completed tasks) from an existing HIT and saves it into a JSON file.
+- Enhancement: Added `Experiment.config_class`, a hook for customizing the Configuration class.
+- Infrastructure: Update dependencies.
+- Infrastructure: Upgrade to Docker Compose v2.
+
 ## [v9.4.3](https://github.com/dallinger/dallinger/tree/v9.4.3) (2023-02-25)
 
 - Fixed: Check if auto_recruit is True in order to autorecruit a new participant.
