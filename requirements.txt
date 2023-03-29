@@ -185,7 +185,7 @@ trio==0.22.0
     #   trio-websocket
 trio-websocket==0.10.2
     # via selenium
-tzdata==2023.2
+tzdata==2023.3
     # via pytz-deprecation-shim
 tzlocal==4.3
     # via
