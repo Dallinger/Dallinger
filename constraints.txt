@@ -488,7 +488,7 @@ pyzmq==25.0.2
     #   qtconsole
 qtconsole==5.4.1
     # via jupyter
-qtpy==2.3.0
+qtpy==2.3.1
     # via qtconsole
 redis==4.5.3
     # via
