@@ -310,7 +310,7 @@ mypy-extensions==1.0.0
     # via black
 myst-parser==1.0.0
     # via dallinger
-nbclassic==0.5.3
+nbclassic==0.5.4
     # via notebook
 nbclient==0.7.2
     # via nbconvert
