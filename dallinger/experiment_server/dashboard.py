@@ -564,6 +564,17 @@ def mturk():
     return render_template("dashboard_mturk.html", title="MTurk Dashboard", data=data)
 
 
+@dashboard.route("/auto_recruit/<bool_val>", methods=["POST", "GET"])
+@login_required
+def auto_recruit(bool_val):
+    from dallinger.db import redis_conn
+
+    num_val = int(bool_val)
+    assert num_val in [0, 1]
+    redis_conn.set("auto_recruit", num_val)
+    return success_response()
+
+
 @dashboard.route("/monitoring")
 @login_required
 def monitoring():
@@ -571,6 +582,10 @@ def monitoring():
 
     from dallinger.experiment_server.experiment_server import Experiment, session
     from dallinger.models import Network
+
+    config = get_config()
+    config.load()
+    config = dict(config.as_dict().items())
 
     exp = Experiment(session)
     panes = exp.monitoring_panels(**request.args.to_dict(flat=False))
@@ -593,6 +608,8 @@ def monitoring():
         net_roles=net_roles,
         net_ids=net_ids,
         vis_options=json.dumps(vis_options),
+        configuration=config,
+        config_str=json.dumps(config, indent=2).strip(),
     )
 
 
