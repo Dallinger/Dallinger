@@ -154,8 +154,7 @@ class Configuration(object):
                         value = source_file.read()
                 try:
                     if expected_type == bool:
-                        if isinstance(value, str):
-                            value = distutils.util.strtobool(value)
+                        value = distutils.util.strtobool(value)
                     value = expected_type(value)
                 except ValueError:
                     pass
@@ -182,7 +181,15 @@ class Configuration(object):
         yield self
         self.data.popleft()
 
-    def _get(self, key, default=marker):
+    def get(self, key, default=marker):
+        if key == "auto_recruit":
+            from dallinger.db import redis_conn
+
+            auto_recruit = redis_conn.get("auto_recruit")
+            if auto_recruit is not None:
+                return bool(int(auto_recruit))
+        if not self.ready:
+            raise RuntimeError("Config not loaded")
         for layer in self.data:
             try:
                 value = layer[key]
@@ -197,11 +204,6 @@ class Configuration(object):
                 "config.txt or in ~/.dallingerconfig."
             )
         return default
-
-    def get(self, key, default=marker):
-        if not self.ready:
-            raise RuntimeError("Config not loaded")
-        return self._get(key, default)
 
     def __getitem__(self, key):
         return self.get(key)
@@ -270,13 +272,6 @@ class Configuration(object):
         with open(destination, "w") as fp:
             parser.write(fp)
 
-    def load_from_redis(self):
-        from dallinger.db import redis_conn
-
-        auto_recruit = redis_conn.get("auto_recruit")
-        if auto_recruit is not None:
-            self.extend({"auto_recruit": bool(int(auto_recruit))}, cast_types=True)
-
     def load_from_environment(self):
         self.extend(os.environ, cast_types=True)
 
@@ -309,7 +304,6 @@ class Configuration(object):
         if os.path.exists(localConfig):
             self.load_from_file(localConfig)
 
-        self.load_from_redis()
         self.load_from_environment()
         self.ready = True
 

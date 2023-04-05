@@ -206,10 +206,6 @@ worldwide = false
         from dallinger.db import redis_conn
 
         redis_conn.set("auto_recruit", 1)
-        try:
-            config.load_from_redis()
-        except Exception:
-            raise
         config.ready = True
         assert config.get("auto_recruit") is True
 
