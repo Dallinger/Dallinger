@@ -41,7 +41,7 @@ backcall==0.2.0
     # via ipython
 bcrypt==4.0.1
     # via paramiko
-beautifulsoup4==4.12.0
+beautifulsoup4==4.12.2
     # via nbconvert
 black==23.1.0
     # via dallinger
