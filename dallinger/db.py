@@ -7,10 +7,11 @@ import sys
 import time
 from contextlib import contextmanager
 from functools import wraps
+from typing import Union
 
 import psycopg2
 from psycopg2.extensions import TransactionRollbackError
-from sqlalchemy import create_engine, event
+from sqlalchemy import Table, create_engine, event
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.ext.declarative import declarative_base
@@ -152,6 +153,60 @@ def init_db(drop_all=False, bind=engine):
         raise
 
     return session
+
+
+def get_mapped_classes():
+    """
+    Lists the different classes that are mapped to database rows.
+    Each class is represented by a dictionary with three values:
+    ``cls``, the class itself;
+    ``table``, the database table within which the class can be found,
+    and ``polymorphic_identity``, the string label with which the class is
+    identified in the table's type column.
+    """
+    from dallinger.experiment import Experiment
+
+    exp = Experiment(session)
+
+    classes = []
+    for table in Base.metadata.tables.values():
+        if "type" in table.columns:
+            observed_types = [
+                r.type for r in session.query(table.columns.type).distinct().all()
+            ]
+            mappers = get_polymorphic_mappers(table)
+            for type_ in observed_types:
+                cls = mappers[type_]
+                classes.append(
+                    {"cls": cls, "table": table.name, "polymorphic_identity": type_}
+                )
+        else:
+            if session.query(table.columns.id).count() > 0:
+                cls = exp.known_classes[table.name.capitalize()]
+                classes.append(
+                    {"cls": cls, "table": table.name, "polymorphic_identity": None}
+                )
+    classes.sort(key=lambda x: x["cls"].__name__)
+    return classes
+
+
+def get_polymorphic_mappers(table: Union[str, Table]):
+    """
+    Lists the different polymorphic mappings defined for a given table.
+    Returns a dictionary keyed by possible values of ``table.type``
+    with values corresponding to object classes.
+    """
+    if isinstance(table, str):
+        table_name = table
+    else:
+        assert isinstance(table, Table)
+        table_name = table.name
+
+    return {
+        mapper.polymorphic_identity: mapper.class_
+        for mapper in Base.registry.mappers
+        if table_name in [table.name for table in mapper.tables]
+    }
 
 
 def serialized(func):
