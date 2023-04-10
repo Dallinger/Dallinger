@@ -108,6 +108,11 @@ class TestModels(object):
             "property4": None,
             "property5": None,
             "details": {},
+            "n_alive_nodes": 3,
+            "n_failed_nodes": 0,
+            "n_completed_infos": 2,
+            "n_pending_infos": 0,
+            "n_failed_infos": 0,
             "object_type": "Network",
         }
 
