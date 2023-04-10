@@ -28,6 +28,7 @@ from wtforms.validators import DataRequired, ValidationError
 import dallinger.db
 from dallinger import recruiters
 from dallinger.config import get_config
+from dallinger.db import get_mapped_classes
 from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import deferred_route_decorator
 
@@ -214,9 +215,17 @@ BROWSEABLE_MODELS = [
 
 
 def database_children():
-    for model_type in BROWSEABLE_MODELS:
+    mapped_classes = get_mapped_classes().items()
+    mapped_classes.sort(key=lambda x: x[0])
+    for cls_name, cls_info in mapped_classes:
         yield DashboardTab(
-            model_type + "s", "dashboard.database", None, {"model_type": model_type}
+            cls_name,
+            "dashboard.database",
+            None,
+            {
+                "table": cls_info["table"],
+                "polymorphic_identity": cls_info["polymorphic_identity"],
+            },
         )
 
 
@@ -713,11 +722,13 @@ def database():
 
     title = "Database View"
     exp = Experiment(session)
-    model_type = request.args.get("model_type")
-    if model_type:
-        title = "Database View: {}s".format(model_type)
+
+    label = request.args.get("label")
+
+    if label:
+        title = "Database View: {}s".format(label)
     datatables_options = prep_datatables_options(
-        exp.table_data(**request.args.to_dict(flat=False))
+        exp.table_data(**request.args.to_dict())
     )
     columns = [
         c.get("name") or c["data"]

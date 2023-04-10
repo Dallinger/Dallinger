@@ -17,15 +17,16 @@ from contextlib import contextmanager
 from functools import wraps
 from importlib import import_module
 from operator import itemgetter
+from typing import List, Optional, Union
 
 import requests
 from cached_property import cached_property
 from flask import Blueprint
-from sqlalchemy import and_, create_engine, distinct, func
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy import Table, and_, create_engine, func
+from sqlalchemy.orm import scoped_session, sessionmaker, undefer
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
 
-from dallinger import models, recruiters
+from dallinger import db, models, recruiters
 from dallinger.config import LOCAL_CONFIG, get_config, initialize_experiment_package
 from dallinger.data import (
     Data,
@@ -35,10 +36,10 @@ from dallinger.data import (
     is_registered,
 )
 from dallinger.data import load as data_load
-from dallinger.db import db_url, init_db
+from dallinger.db import Base, db_url, get_polymorphic_mappers, init_db
 from dallinger.heroku.tools import HerokuApp
 from dallinger.information import Gene, Meme, State
-from dallinger.models import Info, Network, Node, Participant, Transformation, Vector
+from dallinger.models import Info, Network, Node, Participant, Transformation
 from dallinger.networks import Empty
 from dallinger.nodes import Agent, Environment, Source
 from dallinger.transformations import Compression, Mutation, Replication, Response
@@ -977,117 +978,93 @@ class Experiment(object):
 
         return stats
 
-    @staticmethod
-    def count_active_complete_failed(entities):
-        n_pending = 0
-        n_completed = 0
-        n_failed = 0
-        for entity in entities:
-            if entity.failed is False:
-                is_pending = (
-                    issubclass(entity.__class__, Info) and entity.contents is None
-                )
-                if is_pending:
-                    n_pending += 1
-                else:
-                    n_completed += 1
-            else:
-                n_failed += 1
-        return n_pending, n_completed, n_failed
+    def network_structure(self, network_roles=None, network_ids=None, collapsed=False):
+        sql_filter = []
+        if network_roles is not None:
+            sql_filter.append(Network.role.in_(network_roles))
+        if network_ids is not None:
+            sql_filter.append(Network.id.in_(network_ids))
 
-    def network_structure(self, **kw):
-        network_ids = {i[0] for i in self.session.query(distinct(Network.id)).all()}
-        if "network_roles" in kw:
-            network_ids = {
-                i[0]
-                for i in self.session.query(distinct(Network.id)).filter(
-                    Network.role.in_(kw["network_roles"])
-                )
-            }
-        if "network_ids" in kw:
-            network_ids = network_ids.intersection(int(v) for v in kw["network_ids"])
-
-        network_ids = sorted(network_ids)  # default sorting is by id
-
-        jnetworks = []
-        for network in Network.query.filter(Network.id.in_(network_ids)).all():
-            (
-                n_pending_infos,
-                n_completed_infos,
-                n_failed_infos,
-            ) = self.count_active_complete_failed(network.all_infos)
-            _, n_completed_nodes, n_failed_nodes = self.count_active_complete_failed(
-                network.all_nodes
-            )
-
-            jnetworks.append(
-                {
-                    **network.__json__(),
-                    "n_pending_infos": n_pending_infos,
-                    "n_completed_infos": n_completed_infos,
-                    "n_failed_infos": n_failed_infos,
-                    "n_completed_nodes": n_completed_nodes,
-                    "n_failed_nodes": n_failed_nodes,
-                }
-            )
-
-        if "collapsed" in kw:
-            # Collapsed view shows Source nodes only
-            jnodes = [
-                n.__json__()
-                for n in Source.query.filter(Node.network_id.in_(network_ids))
-                .order_by(Source.id)
-                .all()
-            ]
-            jinfos = jparticipants = jtransformations = jvectors = []
-        else:
-            jnodes = [
-                n.__json__()
-                for n in Node.query.filter(Node.network_id.in_(network_ids))
-                .order_by(Node.id)
-                .all()
-            ]
-            jinfos = [
-                n.__json__()
-                for n in Info.query.filter(Info.network_id.in_(network_ids))
-                .order_by(Info.id)
-                .all()
-            ]
-            # We don't filter participants because they aren't directly connected to specific networks
-            jparticipants = [
-                n.__json__() for n in Participant.query.order_by(Participant.id).all()
-            ]
-            jtransformations = []
-            if kw.get("transformations"):
-                jtransformations = [
-                    n.__json__()
-                    for n in Transformation.query.filter(
-                        Transformation.network_id.in_(network_ids)
-                    )
-                    .order_by(Transformation.id)
-                    .all()
-                ]
-
-            jvectors = [
-                {
-                    "origin_id": v.origin_id,
-                    "destination_id": v.destination_id,
-                    "id": v.id,
-                    "failed": v.failed,
-                }
-                for v in Vector.query.filter(Vector.network_id.in_(network_ids))
-                .order_by(Vector.id)
-                .all()
-            ]
-
-        return {
-            "networks": jnetworks,
-            "nodes": jnodes,
-            "vectors": jvectors,
-            "infos": jinfos,
-            "participants": jparticipants,
-            "trans": jtransformations,
+        results = {
+            "networks": self._summarize_table("network", sql_filter),
+            "nodes": self._summarize_table(
+                "node",
+                sql_filter,
+                cls_filter=lambda cls: issubclass(cls, Source) if collapsed else None,
+            ),
+            "vectors": [] if collapsed else self._summarize_table("vector", sql_filter),
+            "infos": [] if collapsed else self._summarize_table("info", sql_filter),
+            "participants": [] if collapsed else self._summarize_table("participant"),
+            "trans": []
+            if collapsed
+            else self._summarize_table("transformation", sql_filter),
         }
+
+        return results
+
+    def _summarize_table(
+        self,
+        table: Union[Table, str],
+        sql_filter: Optional[List] = None,
+        cls_filter: Optional[callable] = None,
+    ):
+        objects = self.pull_table(table, sql_filter, cls_filter)
+        return [obj.__json__() for obj in objects]
+
+    def pull_table(
+        self,
+        table: Union[Table, str],
+        sql_filter: Optional[List] = None,
+        cls_filter: Optional[callable] = None,
+        undefer_="*",
+    ):
+        """
+        Downloads every object in the specified table.
+        For efficiency, the SQL queries are batched by the values of the polymorphic identity column 'type'
+        if it is present.
+        """
+        if isinstance(table, str):
+            table = Base.metadata.tables[table]
+
+        if sql_filter is None:
+            sql_filter = []
+
+        if cls_filter is None:
+
+            def keep_all(cls):
+                return True
+
+            cls_filter = keep_all
+
+        primary_keys = [c.name for c in table.primary_key.columns]
+
+        if "type" in table.columns:
+            polymorphic_mappers = get_polymorphic_mappers(table)
+            observed_types = [
+                r.type for r in db.session.query(table.columns.type).distinct().all()
+            ]
+            objects = []
+            for _type in observed_types:
+                cls = polymorphic_mappers[_type]
+                if cls_filter(cls):
+                    objects += (
+                        cls.query.filter_by(type=_type)
+                        .filter(*sql_filter)
+                        .order_by(*primary_keys)
+                        .options(undefer(undefer_))
+                        .all()
+                    )
+        else:
+            cls = self.known_classes[table.name.capitalize()]
+            if cls_filter(cls):
+                objects = (
+                    cls.query.filter(*sql_filter)
+                    .order_by(*primary_keys)
+                    .options(undefer(undefer_))
+                    .all()
+                )
+
+        return objects
 
     def node_visualization_options(self):
         """Provides custom vis.js configuration options for the
@@ -1133,23 +1110,30 @@ class Experiment(object):
         rows = []
         found_columns = set()
         columns = []
-        model_types = kw.get("model_type", ["Participant"])
-        if hasattr(model_types, "strip"):
-            model_types = [model_types]
 
-        for model_type in model_types:
-            model = getattr(models, model_type, None)
-            for obj in model.query.order_by(model.id).all():
-                data = obj.__json__()
-                # Add participant worker_id to data, we normally leave it out of
-                # JSON renderings
-                if model_type == "Participant":
-                    data["worker_id"] = obj.worker_id
-                rows.append(data)
-                for key in data:
-                    if key not in found_columns:
-                        columns.append({"name": key, "data": key})
-                        found_columns.add(key)
+        table_name = kw.get("table", "participant")
+        table = Base.metadata.tables[table_name]
+        polymorphic_identity = kw.get("polymorphic_identity", None)
+
+        if polymorphic_identity == "None":
+            polymorphic_identity = None
+
+        if polymorphic_identity is None:
+            cls = getattr(models, table_name.capitalize())
+        else:
+            cls = get_polymorphic_mappers(table)[polymorphic_identity]
+
+        for obj in cls.query.options(undefer("*")).order_by(cls.id).all():
+            data = obj.__json__()
+            # Add participant worker_id to data, we normally leave it out of
+            # JSON renderings
+            if table_name == "participant":
+                data["worker_id"] = obj.worker_id
+            rows.append(data)
+            for key in data:
+                if key not in found_columns:
+                    columns.append({"name": key, "data": key})
+                    found_columns.add(key)
 
         # Make sure every row has an entry for every column
         for col in found_columns:
