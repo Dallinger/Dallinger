@@ -168,7 +168,7 @@ def get_mapped_classes():
 
     exp = Experiment(session)
 
-    classes = []
+    classes = {}
     for table in Base.metadata.tables.values():
         if "type" in table.columns:
             observed_types = [
@@ -177,16 +177,19 @@ def get_mapped_classes():
             mappers = get_polymorphic_mappers(table)
             for type_ in observed_types:
                 cls = mappers[type_]
-                classes.append(
-                    {"cls": cls, "table": table.name, "polymorphic_identity": type_}
-                )
+                classes[cls.__name__] = {
+                    "cls": cls,
+                    "table": table.name,
+                    "polymorphic_identity": type_,
+                }
         else:
             if session.query(table.columns.id).count() > 0:
                 cls = exp.known_classes[table.name.capitalize()]
-                classes.append(
-                    {"cls": cls, "table": table.name, "polymorphic_identity": None}
-                )
-    classes.sort(key=lambda x: x["cls"].__name__)
+                classes[cls.__name__] = {
+                    "cls": cls,
+                    "table": table.name,
+                    "polymorphic_identity": None,
+                }
     return classes
 
 
