@@ -215,7 +215,7 @@ BROWSEABLE_MODELS = [
 
 
 def database_children():
-    mapped_classes = get_mapped_classes().items()
+    mapped_classes = list(get_mapped_classes().items())
     mapped_classes.sort(key=lambda x: x[0])
     for cls_name, cls_info in mapped_classes:
         yield DashboardTab(
