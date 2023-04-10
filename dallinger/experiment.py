@@ -990,7 +990,7 @@ class Experiment(object):
             "nodes": self._summarize_table(
                 "node",
                 sql_filter,
-                cls_filter=lambda cls: issubclass(cls, Source) if collapsed else None,
+                cls_filter=(lambda cls: issubclass(cls, Source)) if collapsed else None,
             ),
             "vectors": [] if collapsed else self._summarize_table("vector", sql_filter),
             "infos": [] if collapsed else self._summarize_table("info", sql_filter),
