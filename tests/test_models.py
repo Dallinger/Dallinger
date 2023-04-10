@@ -9,7 +9,7 @@ import six
 from pytest import mark, raises
 
 from dallinger import models, nodes
-from dallinger.db import get_mapped_classes
+from dallinger.db import Base, get_mapped_classes, get_polymorphic_mappers
 from dallinger.information import Gene
 from dallinger.nodes import Agent, Source
 from dallinger.transformations import Mutation
@@ -810,3 +810,11 @@ class TestModels(object):
             "table": "node",
             "polymorphic_identity": "node",
         }
+
+    def test_get_polymorphic_mappers(self, db_session):
+        table = Base.metadata.tables["node"]
+        mappers = get_polymorphic_mappers(table)
+
+        assert mappers["generic_source"] == Source
+        assert mappers["agent"] == Agent
+        assert mappers["node"] == models.Node
