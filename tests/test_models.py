@@ -9,6 +9,7 @@ import six
 from pytest import mark, raises
 
 from dallinger import models, nodes
+from dallinger.db import get_mapped_classes
 from dallinger.information import Gene
 from dallinger.nodes import Agent, Source
 from dallinger.transformations import Mutation
@@ -760,3 +761,52 @@ class TestModels(object):
         # make sure private data is not in there
         assert "unique_id" not in participant_json
         assert "worker_id" not in participant_json
+
+    def test_get_mapped_classes(self, db_session):
+        net = models.Network()
+        participant = models.Participant(
+            recruiter_id="hotair",
+            worker_id=str(1),
+            hit_id=str(1),
+            assignment_id=str(1),
+            mode="test",
+        )
+
+        db_session.add(net)
+        db_session.add(participant)
+        db_session.commit()
+
+        node = models.Node(network=net)
+        agent = Agent(network=net, participant=participant)
+        source = Source(network=net)
+
+        db_session.add(node)
+        db_session.add(agent)
+        db_session.add(source)
+        db_session.commit()
+
+        classes = get_mapped_classes()
+
+        assert classes["Participant"] == {
+            "cls": models.Participant,
+            "table": "participant",
+            "polymorphic_identity": "participant",
+        }
+
+        assert classes["Source"] == {
+            "cls": Source,
+            "table": "node",
+            "polymorphic_identity": "generic_source",
+        }
+
+        assert classes["Agent"] == {
+            "cls": Agent,
+            "table": "node",
+            "polymorphic_identity": "agent",
+        }
+
+        assert classes["Node"] == {
+            "cls": models.Node,
+            "table": "node",
+            "polymorphic_identity": "node",
+        }
