@@ -194,10 +194,11 @@ def get_all_mapped_classes():
 
 def get_polymorphic_mapping(table: Union[str, Table]):
     """
-    Lists the different polymorphic mappings defined for a given table.
-    Returns a dictionary of classes
+    Gets the polymorphic mapping for a given table.
+    Returns a dictionary
     where the dictionary keys correspond to polymorphic identities
-    (i.e. possible values of the table's ``type`` column).
+    (i.e. possible values of the table's ``type`` column)
+    and the dictionary values correspond to classes.
     """
     if isinstance(table, str):
         table_name = table
@@ -213,6 +214,9 @@ def get_polymorphic_mapping(table: Union[str, Table]):
 
 
 def get_mapped_classes(table: Union[str, Table]):
+    """
+    Returns a list of classes that map to the provided table.
+    """
     if isinstance(table, str):
         table_name = table
     else:
@@ -227,6 +231,10 @@ def get_mapped_classes(table: Union[str, Table]):
 
 
 def get_mapped_class(table: Union[str, Table]):
+    """
+    Returns the single class that maps to the provided table.
+    Throws an ``AssertionError`` if there is not exactly one such class.
+    """
     mappers = get_mapped_classes(table)
     assert len(mappers) == 1
     return mappers[0]
