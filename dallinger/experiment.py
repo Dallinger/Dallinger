@@ -1159,12 +1159,9 @@ class Experiment(object):
         if polymorphic_identity == "None":
             polymorphic_identity = None
 
-        if polymorphic_identity is None:
-            cls = get_mapped_class(table)
-        else:
-            cls = get_polymorphic_mapping(table)[polymorphic_identity]
+        objects = self.pull_table(table, polymorphic_identity=polymorphic_identity)
 
-        for obj in cls.query.options(undefer("*")).order_by(cls.id).all():
+        for obj in objects:
             data = obj.__json__()
             # Add participant worker_id to data, we normally leave it out of
             # JSON renderings
