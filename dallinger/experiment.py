@@ -986,8 +986,8 @@ class Experiment(object):
         transformations=False,
     ):
         results = {
-            "networks": self._summarize_table("network", network_roles, network_ids),
-            "nodes": self._summarize_table(
+            "networks": self.summarize_table("network", network_roles, network_ids),
+            "nodes": self.summarize_table(
                 "node",
                 network_roles,
                 network_ids,
@@ -995,19 +995,19 @@ class Experiment(object):
             ),
             "vectors": []
             if collapsed
-            else self._summarize_table("vector", network_roles, network_ids),
+            else self.summarize_table("vector", network_roles, network_ids),
             "infos": []
             if collapsed
-            else self._summarize_table("info", network_roles, network_ids),
-            "participants": [] if collapsed else self._summarize_table("participant"),
+            else self.summarize_table("info", network_roles, network_ids),
+            "participants": [] if collapsed else self.summarize_table("participant"),
             "trans": []
             if collapsed or not transformations
-            else self._summarize_table("transformation", network_roles, network_ids),
+            else self.summarize_table("transformation", network_roles, network_ids),
         }
 
         return results
 
-    def _summarize_table(
+    def summarize_table(
         self,
         table: Union[Table, str],
         network_roles: Optional[List] = None,
