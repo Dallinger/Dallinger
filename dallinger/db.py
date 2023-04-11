@@ -164,10 +164,6 @@ def get_mapped_classes():
     and ``polymorphic_identity``, the string label with which the class is
     identified in the table's type column.
     """
-    from dallinger.experiment import Experiment
-
-    exp = Experiment(session)
-
     classes = {}
     for table in Base.metadata.tables.values():
         if "type" in table.columns:
@@ -184,7 +180,7 @@ def get_mapped_classes():
                 }
         else:
             if session.query(table.columns.id).count() > 0:
-                cls = exp.known_classes[table.name.capitalize()]
+                cls = get_mapper(table)
                 classes[cls.__name__] = {
                     "cls": cls,
                     "table": table.name,
@@ -210,6 +206,26 @@ def get_polymorphic_mappers(table: Union[str, Table]):
         for mapper in Base.registry.mappers
         if table_name in [table.name for table in mapper.tables]
     }
+
+
+def get_mappers(table: Union[str, Table]):
+    if isinstance(table, str):
+        table_name = table
+    else:
+        assert isinstance(table, Table)
+        table_name = table.name
+
+    return [
+        mapper.class_
+        for mapper in Base.registry.mappers
+        if table_name in [table.name for table in mapper.tables]
+    ]
+
+
+def get_mapper(table: Union[str, Table]):
+    mappers = get_mappers(table)
+    assert len(mappers) == 1
+    return mappers[0]
 
 
 def serialized(func):
