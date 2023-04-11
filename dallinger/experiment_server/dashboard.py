@@ -718,7 +718,7 @@ def prep_datatables_options(table_data):
 @dashboard.route("/database")
 @login_required
 def database():
-    from dallinger.db import get_polymorphic_mappers
+    from dallinger.db import get_polymorphic_mapping
     from dallinger.experiment_server.experiment_server import Experiment, session
 
     exp = Experiment(session)
@@ -734,7 +734,7 @@ def database():
 
     if polymorphic_identity is not None:
         assert table is not None
-        cls = get_polymorphic_mappers(table)[polymorphic_identity]
+        cls = get_polymorphic_mapping(table)[polymorphic_identity]
         label = cls.__name__
     else:
         label = table.capitalize()

@@ -173,9 +173,9 @@ def get_all_mapped_classes():
             observed_types = [
                 r.type for r in session.query(table.columns.type).distinct().all()
             ]
-            mappers = get_polymorphic_mappers(table)
+            mapping = get_polymorphic_mapping(table)
             for type_ in observed_types:
-                cls = mappers[type_]
+                cls = mapping[type_]
                 classes[cls.__name__] = {
                     "cls": cls,
                     "table": table.name,
@@ -192,7 +192,7 @@ def get_all_mapped_classes():
     return classes
 
 
-def get_polymorphic_mappers(table: Union[str, Table]):
+def get_polymorphic_mapping(table: Union[str, Table]):
     """
     Lists the different polymorphic mappings defined for a given table.
     Returns a dictionary of classes

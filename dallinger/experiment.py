@@ -36,7 +36,7 @@ from dallinger.data import (
     is_registered,
 )
 from dallinger.data import load as data_load
-from dallinger.db import Base, db_url, get_polymorphic_mappers, init_db
+from dallinger.db import Base, db_url, get_polymorphic_mapping, init_db
 from dallinger.heroku.tools import HerokuApp
 from dallinger.information import Gene, Meme, State
 from dallinger.models import Info, Network, Node, Participant, Transformation
@@ -1061,7 +1061,7 @@ class Experiment(object):
             cls = getattr(models, table.name.capitalize())
         else:
             assert "type" in table.columns
-            cls = get_polymorphic_mappers(table)[polymorphic_identity]
+            cls = get_polymorphic_mapping(table)[polymorphic_identity]
 
         if cls_filter is not None and not cls_filter(cls):
             return
@@ -1144,7 +1144,7 @@ class Experiment(object):
         if polymorphic_identity is None:
             cls = getattr(models, table.name.capitalize())
         else:
-            cls = get_polymorphic_mappers(table)[polymorphic_identity]
+            cls = get_polymorphic_mapping(table)[polymorphic_identity]
 
         for obj in cls.query.options(undefer("*")).order_by(cls.id).all():
             data = obj.__json__()
