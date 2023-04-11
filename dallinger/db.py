@@ -183,7 +183,7 @@ def get_all_mapped_classes():
                 }
         else:
             if session.query(table.columns.id).count() > 0:
-                cls = get_mapper(table)
+                cls = get_mapped_class(table)
                 classes[cls.__name__] = {
                     "cls": cls,
                     "table": table.name,
@@ -226,7 +226,7 @@ def get_mapped_classes(table: Union[str, Table]):
     ]
 
 
-def get_mapper(table: Union[str, Table]):
+def get_mapped_class(table: Union[str, Table]):
     mappers = get_mapped_classes(table)
     assert len(mappers) == 1
     return mappers[0]
