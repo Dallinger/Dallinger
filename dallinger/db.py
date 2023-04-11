@@ -212,7 +212,7 @@ def get_polymorphic_mappers(table: Union[str, Table]):
     }
 
 
-def get_mappers(table: Union[str, Table]):
+def get_mapped_classes(table: Union[str, Table]):
     if isinstance(table, str):
         table_name = table
     else:
@@ -227,7 +227,7 @@ def get_mappers(table: Union[str, Table]):
 
 
 def get_mapper(table: Union[str, Table]):
-    mappers = get_mappers(table)
+    mappers = get_mapped_classes(table)
     assert len(mappers) == 1
     return mappers[0]
 
