@@ -36,7 +36,13 @@ from dallinger.data import (
     is_registered,
 )
 from dallinger.data import load as data_load
-from dallinger.db import Base, db_url, get_polymorphic_mapping, init_db
+from dallinger.db import (
+    Base,
+    db_url,
+    get_mapped_class,
+    get_polymorphic_mapping,
+    init_db,
+)
 from dallinger.heroku.tools import HerokuApp
 from dallinger.information import Gene, Meme, State
 from dallinger.models import Info, Network, Node, Participant, Transformation
@@ -1010,9 +1016,15 @@ class Experiment(object):
     def summarize_table(
         self,
         table: Union[Table, str],
-        network_roles: Optional[List] = None,
-        network_ids: Optional[List] = None,
-        cls_filter: Optional[callable] = None,
+        network_roles: Optional[
+            List
+        ] = None,  # Restrict to objects from networks with given roles
+        network_ids: Optional[
+            List
+        ] = None,  # Restrict to objects from networks with given ids
+        cls_filter: Optional[
+            callable
+        ] = None,  # Lambda function returning ``False`` for classes to exclude
     ):
         objects = self.pull_table(
             table=table,
@@ -1026,11 +1038,18 @@ class Experiment(object):
     def pull_table(
         self,
         table: Union[Table, str],
-        polymorphic_identity: Optional[str] = None,
-        network_roles: Optional[List] = None,
-        network_ids: Optional[List] = None,
-        cls_filter: Optional[callable] = None,
-        undefer_="*",
+        polymorphic_identity: Optional[
+            str
+        ] = None,  # Restrict to a given polymorphic identity (see ``type`` column)
+        network_roles: Optional[
+            List
+        ] = None,  # Restrict to objects from networks with given roles
+        network_ids: Optional[
+            List
+        ] = None,  # Restrict to objects from networks with given ids
+        cls_filter: Optional[
+            callable
+        ] = None,  # Lambda function returning ``False`` for classes to exclude
     ):
         """
         Downloads every object in the specified table.
@@ -1051,14 +1070,13 @@ class Experiment(object):
                     network_roles=network_roles,
                     network_ids=network_ids,
                     cls_filter=cls_filter,
-                    undefer_=undefer_,
                 )
                 for _type in observed_types
             ]
             return [obj for sublist in obj_by_type for obj in sublist]
 
         if polymorphic_identity is None:
-            cls = getattr(models, table.name.capitalize())
+            cls = get_mapped_class(table)
         else:
             assert "type" in table.columns
             cls = get_polymorphic_mapping(table)[polymorphic_identity]
@@ -1086,7 +1104,7 @@ class Experiment(object):
 
         primary_keys = [c.name for c in table.primary_key.columns]
 
-        return query.order_by(*primary_keys).options(undefer(undefer_)).all()
+        return query.order_by(*primary_keys).options(undefer("*")).all()
 
     def node_visualization_options(self):
         """Provides custom vis.js configuration options for the
@@ -1125,7 +1143,7 @@ class Experiment(object):
 
         :param table: table to query
 
-        :param polymorphic_identity: optional value of the polymorphic identity column (i.e. ``type``)
+        :param polymorphic_identity: optional polymorphic identity (corresponds to the ``type`` column)
 
         :returns: Returns a ``dict`` with DataTablesJS data and configuration, filters using
                   arbitrary keyword arguments. Should contain ``data`` and ``columns`` keys
@@ -1142,7 +1160,7 @@ class Experiment(object):
             polymorphic_identity = None
 
         if polymorphic_identity is None:
-            cls = getattr(models, table.name.capitalize())
+            cls = get_mapped_class(table)
         else:
             cls = get_polymorphic_mapping(table)[polymorphic_identity]
 
