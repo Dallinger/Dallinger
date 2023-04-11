@@ -9,7 +9,7 @@ import six
 from pytest import mark, raises
 
 from dallinger import models, nodes
-from dallinger.db import Base, get_mapped_classes, get_polymorphic_mappers
+from dallinger.db import Base, get_all_mapped_classes, get_polymorphic_mappers
 from dallinger.information import Gene
 from dallinger.nodes import Agent, Source
 from dallinger.transformations import Mutation
@@ -762,7 +762,7 @@ class TestModels(object):
         assert "unique_id" not in participant_json
         assert "worker_id" not in participant_json
 
-    def test_get_mapped_classes(self, db_session):
+    def test_get_all_mapped_classes(self, db_session):
         net = models.Network()
         participant = models.Participant(
             recruiter_id="hotair",
@@ -785,7 +785,7 @@ class TestModels(object):
         db_session.add(source)
         db_session.commit()
 
-        classes = get_mapped_classes()
+        classes = get_all_mapped_classes()
 
         assert classes["Participant"] == {
             "cls": models.Participant,

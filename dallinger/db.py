@@ -155,7 +155,7 @@ def init_db(drop_all=False, bind=engine):
     return session
 
 
-def get_mapped_classes():
+def get_all_mapped_classes():
     """
     Lists the different classes that are mapped with SQLAlchemy.
     Classes are only included if they have at least one row in the database.
