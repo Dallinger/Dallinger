@@ -718,17 +718,28 @@ def prep_datatables_options(table_data):
 @dashboard.route("/database")
 @login_required
 def database():
+    from dallinger.db import get_polymorphic_mappers
     from dallinger.experiment_server.experiment_server import Experiment, session
 
-    title = "Database View"
     exp = Experiment(session)
 
-    label = request.args.get("polymorphic_identity", None)
-    if label is None:
-        label = request.args.get("table", None).capitalize()
+    table = request.args.get("table", None)
+    polymorphic_identity = request.args.get("polymorphic_identity", None)
 
-    if label:
-        title = "Database View: {}s".format(label)
+    if polymorphic_identity == "None":
+        polymorphic_identity = None
+
+    if table is None and polymorphic_identity is None:
+        table = "participant"
+
+    if polymorphic_identity is not None:
+        assert table is not None
+        cls = get_polymorphic_mappers(table)[polymorphic_identity]
+        label = cls.__name__
+    else:
+        label = table.capitalize()
+
+    title = "Database View: {}".format(label)
     datatables_options = prep_datatables_options(
         exp.table_data(**request.args.to_dict())
     )
