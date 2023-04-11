@@ -157,12 +157,15 @@ def init_db(drop_all=False, bind=engine):
 
 def get_mapped_classes():
     """
-    Lists the different classes that are mapped to database rows.
-    Each class is represented by a dictionary with three values:
+    Lists the different classes that are mapped with SQLAlchemy.
+    Classes are only included if they have at least one row in the database.
+    Returns a dictionary, keyed by class names,
+    where each value is itself a dictionary with three values:
     ``cls``, the class itself;
     ``table``, the database table within which the class can be found,
     and ``polymorphic_identity``, the string label with which the class is
-    identified in the table's type column.
+    identified in the table's ``type`` column. The ``polymorphic_identity`` field
+    takes a value of ``None`` if the table does not use polymorphic inheritance.
     """
     classes = {}
     for table in Base.metadata.tables.values():
