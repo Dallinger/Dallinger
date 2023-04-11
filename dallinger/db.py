@@ -195,8 +195,9 @@ def get_mapped_classes():
 def get_polymorphic_mappers(table: Union[str, Table]):
     """
     Lists the different polymorphic mappings defined for a given table.
-    Returns a dictionary keyed by possible values of ``table.type``
-    with values corresponding to object classes.
+    Returns a dictionary of classes
+    where the dictionary keys correspond to polymorphic identities
+    (i.e. possible values of the table's ``type`` column).
     """
     if isinstance(table, str):
         table_name = table
