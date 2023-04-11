@@ -685,7 +685,7 @@ class TestDashboardDatabase(object):
         resp = webapp_admin.get("/dashboard/database?table=network")
 
         assert resp.status_code == 200
-        assert "<h1>Database View: Networks</h1>" in resp.data.decode("utf8")
+        assert "<h1>Database View: Network</h1>" in resp.data.decode("utf8")
 
     def test_table_data(self, a, db_session):
         from dallinger.experiment_server.experiment_server import Experiment
