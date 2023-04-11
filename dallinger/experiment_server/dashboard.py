@@ -723,7 +723,9 @@ def database():
     title = "Database View"
     exp = Experiment(session)
 
-    label = request.args.get("label")
+    label = request.args.get("polymorphic_identity", None)
+    if label is None:
+        label = request.args.get("table", None).capitalize()
 
     if label:
         title = "Database View: {}s".format(label)

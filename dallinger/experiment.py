@@ -978,26 +978,31 @@ class Experiment(object):
 
         return stats
 
-    def network_structure(self, network_roles=None, network_ids=None, collapsed=False):
-        sql_filter = []
-        if network_roles is not None:
-            sql_filter.append(Network.role.in_(network_roles))
-        if network_ids is not None:
-            sql_filter.append(Network.id.in_(network_ids))
-
+    def network_structure(
+        self,
+        network_roles=None,
+        network_ids=None,
+        collapsed=False,
+        transformations=False,
+    ):
         results = {
-            "networks": self._summarize_table("network", sql_filter),
+            "networks": self._summarize_table("network", network_roles, network_ids),
             "nodes": self._summarize_table(
                 "node",
-                sql_filter,
+                network_roles,
+                network_ids,
                 cls_filter=(lambda cls: issubclass(cls, Source)) if collapsed else None,
             ),
-            "vectors": [] if collapsed else self._summarize_table("vector", sql_filter),
-            "infos": [] if collapsed else self._summarize_table("info", sql_filter),
+            "vectors": []
+            if collapsed
+            else self._summarize_table("vector", network_roles, network_ids),
+            "infos": []
+            if collapsed
+            else self._summarize_table("info", network_roles, network_ids),
             "participants": [] if collapsed else self._summarize_table("participant"),
             "trans": []
-            if collapsed
-            else self._summarize_table("transformation", sql_filter),
+            if collapsed or not transformations
+            else self._summarize_table("transformation", network_roles, network_ids),
         }
 
         return results
@@ -1005,16 +1010,18 @@ class Experiment(object):
     def _summarize_table(
         self,
         table: Union[Table, str],
-        sql_filter: Optional[List] = None,
+        network_roles: Optional[List] = None,
+        network_ids: Optional[List] = None,
         cls_filter: Optional[callable] = None,
     ):
-        objects = self.pull_table(table, sql_filter, cls_filter)
+        objects = self.pull_table(table, network_roles, network_ids, cls_filter)
         return [obj.__json__() for obj in objects]
 
     def pull_table(
         self,
         table: Union[Table, str],
-        sql_filter: Optional[List] = None,
+        network_roles: Optional[List] = None,
+        network_ids: Optional[List] = None,
         cls_filter: Optional[callable] = None,
         undefer_="*",
     ):
@@ -1026,8 +1033,15 @@ class Experiment(object):
         if isinstance(table, str):
             table = Base.metadata.tables[table]
 
-        if sql_filter is None:
-            sql_filter = []
+        sql_filter = []
+        if network_roles is not None:
+            sql_filter.append(Network.role.in_(network_roles))
+        if network_ids is not None:
+            sql_filter.append(Network.id.in_(network_ids))
+
+        requires_network_join = (
+            network_roles is not None or network_ids is not None
+        ) and "network_id" in table.columns
 
         if cls_filter is None:
 
@@ -1046,19 +1060,30 @@ class Experiment(object):
             objects = []
             for _type in observed_types:
                 cls = polymorphic_mappers[_type]
+
                 if cls_filter(cls):
+                    query = cls.query
+
+                    if requires_network_join:
+                        query = query.join(Network, cls.network_id == Network.id)
+
                     objects += (
-                        cls.query.filter_by(type=_type)
+                        query.filter(cls.type == _type)
                         .filter(*sql_filter)
                         .order_by(*primary_keys)
                         .options(undefer(undefer_))
                         .all()
                     )
         else:
-            cls = self.known_classes[table.name.capitalize()]
+            cls = getattr(models, table.name.capitalize())
             if cls_filter(cls):
+                query = cls.query
+
+                if requires_network_join:
+                    query = query.join(Network, cls.network_id == Network.id)
+
                 objects = (
-                    cls.query.filter(*sql_filter)
+                    query.filter(*sql_filter)
                     .order_by(*primary_keys)
                     .options(undefer(undefer_))
                     .all()
@@ -1093,15 +1118,18 @@ class Experiment(object):
                 return obj.visualization_html
         return ""
 
-    def table_data(self, **kw):
+    def table_data(
+        self, table: str = "participant", polymorphic_identity: Optional[str] = None
+    ):
         """Generates DataTablesJS data and configuration for the experiment. The data
         is compiled from the models' ``__json__`` methods, and can be customized by either
         overriding this method or using the ``json_data`` method on the model to return
         additional serializable data.
 
-        :param \**kw: arguments passed in from the request. The ``model_type`` parameter
-                      takes a ``str`` or iterable and queries all objects of those types,
-                      ordered by ``id``.
+        :param table: table to query
+
+        :param polymorphic_identity: optional value of the polymorphic identity column (i.e. ``type``)
+
         :returns: Returns a ``dict`` with DataTablesJS data and configuration, filters using
                   arbitrary keyword arguments. Should contain ``data`` and ``columns`` keys
                   at least, with ``columns`` containing data for all fields on all returned
@@ -1111,15 +1139,13 @@ class Experiment(object):
         found_columns = set()
         columns = []
 
-        table_name = kw.get("table", "participant")
-        table = Base.metadata.tables[table_name]
-        polymorphic_identity = kw.get("polymorphic_identity", None)
+        table = Base.metadata.tables[table]
 
         if polymorphic_identity == "None":
             polymorphic_identity = None
 
         if polymorphic_identity is None:
-            cls = getattr(models, table_name.capitalize())
+            cls = getattr(models, table.name.capitalize())
         else:
             cls = get_polymorphic_mappers(table)[polymorphic_identity]
 
@@ -1127,7 +1153,7 @@ class Experiment(object):
             data = obj.__json__()
             # Add participant worker_id to data, we normally leave it out of
             # JSON renderings
-            if table_name == "participant":
+            if table.name == "participant":
                 data["worker_id"] = obj.worker_id
             rows.append(data)
             for key in data:
