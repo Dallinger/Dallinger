@@ -1014,12 +1014,19 @@ class Experiment(object):
         network_ids: Optional[List] = None,
         cls_filter: Optional[callable] = None,
     ):
-        objects = self.pull_table(table, network_roles, network_ids, cls_filter)
+        objects = self.pull_table(
+            table=table,
+            polymorphic_identity=None,
+            network_roles=network_roles,
+            network_ids=network_ids,
+            cls_filter=cls_filter,
+        )
         return [obj.__json__() for obj in objects]
 
     def pull_table(
         self,
         table: Union[Table, str],
+        polymorphic_identity: Optional[str] = None,
         network_roles: Optional[List] = None,
         network_ids: Optional[List] = None,
         cls_filter: Optional[callable] = None,
@@ -1033,63 +1040,53 @@ class Experiment(object):
         if isinstance(table, str):
             table = Base.metadata.tables[table]
 
-        sql_filter = []
-        if network_roles is not None:
-            sql_filter.append(Network.role.in_(network_roles))
-        if network_ids is not None:
-            sql_filter.append(Network.id.in_(network_ids))
-
-        requires_network_join = (
-            network_roles is not None or network_ids is not None
-        ) and "network_id" in table.columns
-
-        if cls_filter is None:
-
-            def keep_all(cls):
-                return True
-
-            cls_filter = keep_all
-
-        primary_keys = [c.name for c in table.primary_key.columns]
-
-        if "type" in table.columns:
-            polymorphic_mappers = get_polymorphic_mappers(table)
+        if polymorphic_identity is None and "type" in table.columns:
             observed_types = [
                 r.type for r in db.session.query(table.columns.type).distinct().all()
             ]
-            objects = []
-            for _type in observed_types:
-                cls = polymorphic_mappers[_type]
-
-                if cls_filter(cls):
-                    query = cls.query
-
-                    if requires_network_join:
-                        query = query.join(Network, cls.network_id == Network.id)
-
-                    objects += (
-                        query.filter(cls.type == _type)
-                        .filter(*sql_filter)
-                        .order_by(*primary_keys)
-                        .options(undefer(undefer_))
-                        .all()
-                    )
-        else:
-            cls = getattr(models, table.name.capitalize())
-            if cls_filter(cls):
-                query = cls.query
-
-                if requires_network_join:
-                    query = query.join(Network, cls.network_id == Network.id)
-
-                objects = (
-                    query.filter(*sql_filter)
-                    .order_by(*primary_keys)
-                    .options(undefer(undefer_))
-                    .all()
+            obj_by_type = [
+                self.pull_table(
+                    table,
+                    polymorphic_identity=_type,
+                    network_roles=network_roles,
+                    network_ids=network_ids,
+                    cls_filter=cls_filter,
+                    undefer_=undefer_,
                 )
+                for _type in observed_types
+            ]
+            return [obj for sublist in obj_by_type for obj in sublist]
 
-        return objects
+        if polymorphic_identity is None:
+            cls = getattr(models, table.name.capitalize())
+        else:
+            assert "type" in table.columns
+            cls = get_polymorphic_mappers(table)[polymorphic_identity]
+
+        if cls_filter is not None and not cls_filter(cls):
+            return
+
+        query = cls.query
+
+        if polymorphic_identity is not None:
+            query = query.filter(cls.type == polymorphic_identity)
+
+        if network_roles is not None:
+            query = query.filter(Network.role.in_(network_roles))
+
+        if network_ids is not None:
+            try:
+                query = query.filter(Network.id.in_(network_ids))
+            except Exception:
+                raise
+
+        if network_roles is not None or network_ids is not None:
+            if "network_id" in table.columns:
+                query = query.join(Network, cls.network_id == Network.id)
+
+        primary_keys = [c.name for c in table.primary_key.columns]
+
+        return query.order_by(*primary_keys).options(undefer(undefer_)).all()
 
     def node_visualization_options(self):
         """Provides custom vis.js configuration options for the
