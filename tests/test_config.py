@@ -199,15 +199,12 @@ worldwide = false
         config.ready = True
         assert config.get("num_participants") == 1
 
-    def test_loading_auto_recruit_from_redis(self):
-        config = Configuration()
-        config.register("auto_recruit", bool)
-        config.set("auto_recruit", False)
+    def test_loading_auto_recruit_from_redis(self, active_config):
+        active_config.set("auto_recruit", False)
         from dallinger.db import redis_conn
 
         redis_conn.set("auto_recruit", 1)
-        config.ready = True
-        assert config.get("auto_recruit") is True
+        assert active_config.get("auto_recruit") is True
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")
