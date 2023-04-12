@@ -354,7 +354,6 @@ class TestSetupExperiment(object):
         assert found_in(os.path.join("templates", "dashboard_heroku.html"), dst)
         assert found_in(os.path.join("templates", "dashboard_home.html"), dst)
         assert found_in(os.path.join("templates", "dashboard_monitor.html"), dst)
-        assert found_in(os.path.join("templates", "dashboard_config.html"), dst)
         assert found_in(os.path.join("templates", "dashboard_mturk.html"), dst)
 
         assert found_in(os.path.join("templates", "base", "ad.html"), dst)
