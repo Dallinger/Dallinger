@@ -613,7 +613,7 @@ def monitoring():
 def config():
     config = get_config()
     config.load()
-    config = dict(config.as_dict().items())
+    config = config.as_dict()
 
     return render_template(
         "dashboard_config.html",
