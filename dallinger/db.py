@@ -196,6 +196,20 @@ def get_all_mapped_classes():
     return classes
 
 
+def get_mappers(table: Union[str, Table]):
+    if isinstance(table, str):
+        table_name = table
+    else:
+        assert isinstance(table, Table)
+        table_name = table.name
+
+    return [
+        mapper
+        for mapper in Base.registry.mappers
+        if table_name in [table.name for table in mapper.tables]
+    ]
+
+
 def get_polymorphic_mapping(table: Union[str, Table]):
     """
     Gets the polymorphic mapping for a given table.
@@ -204,33 +218,17 @@ def get_polymorphic_mapping(table: Union[str, Table]):
     (i.e. possible values of the table's ``type`` column)
     and the dictionary values correspond to classes.
     """
-    if isinstance(table, str):
-        table_name = table
-    else:
-        assert isinstance(table, Table)
-        table_name = table.name
-
-    return {
-        mapper.polymorphic_identity: mapper.class_
-        for mapper in Base.registry.mappers
-        if table_name in [table.name for table in mapper.tables]
-    }
+    return {mapper.polymorphic_identity: mapper.class_ for mapper in get_mappers(table)}
 
 
 def get_mapped_classes(table: Union[str, Table]):
     """
     Returns a list of classes that map to the provided table.
     """
-    if isinstance(table, str):
-        table_name = table
-    else:
-        assert isinstance(table, Table)
-        table_name = table.name
-
     return [
         mapper.class_
         for mapper in Base.registry.mappers
-        if table_name in [table.name for table in mapper.tables]
+        if mapper in get_mappers(table)
     ]
 
 
