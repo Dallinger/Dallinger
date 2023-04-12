@@ -1111,10 +1111,7 @@ class Experiment(object):
             query = query.filter(Network.role.in_(network_roles))
 
         if network_ids is not None:
-            try:
-                query = query.filter(Network.id.in_(network_ids))
-            except Exception:
-                raise
+            query = query.filter(Network.id.in_(network_ids))
 
         if network_roles is not None or network_ids is not None:
             if "network_id" in table.columns:
