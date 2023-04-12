@@ -202,18 +202,6 @@ class DashboardTabs(object):
         return iter(self.tabs)
 
 
-BROWSEABLE_MODELS = [
-    "Info",
-    "Network",
-    "Node",
-    "Participant",
-    "Question",
-    "Transformation",
-    "Transmission",
-    "Notification",
-]
-
-
 def database_children():
     mapped_classes = list(get_all_mapped_classes().items())
     mapped_classes.sort(key=lambda x: x[0])
