@@ -346,7 +346,7 @@ openpyxl==3.1.2
     # via tablib
 outcome==1.2.0
     # via trio
-packaging==23.0
+packaging==23.1
     # via
     #   black
     #   build
