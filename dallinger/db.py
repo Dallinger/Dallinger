@@ -236,6 +236,9 @@ def get_mapped_class(table: Union[str, Table]):
     """
     Returns the single class that maps to the provided table.
     Throws an ``AssertionError`` if there is not exactly one such class.
+    This function is therefore only intended for tables that do not implement
+    polymorphic identities, i.e. they do not include a ``type`` column.
+    An example is the Notification table.
     """
     mappers = get_mapped_classes(table)
     assert len(mappers) == 1
