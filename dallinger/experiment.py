@@ -1029,16 +1029,21 @@ class Experiment(object):
     def summarize_table(
         self,
         table: Union[Table, str],
-        network_roles: Optional[
-            List
-        ] = None,  # Restrict to objects from networks with given roles
-        network_ids: Optional[
-            List
-        ] = None,  # Restrict to objects from networks with given ids
-        cls_filter: Optional[
-            callable
-        ] = None,  # Lambda function returning ``False`` for classes to exclude
+        network_roles: Optional[List] = None,
+        network_ids: Optional[List] = None,
+        cls_filter: Optional[callable] = None,
     ):
+        """
+        Summarizes a given database table.
+
+        :param table: Table to be summarized
+        :param network_roles: Optionally restrict output to objects from networks with these roles
+        :param network_ids: Optionally restrict output to objects from networks with these IDs
+        :param cls_filter: Optional lambda function that returns ``False`` for classes that should be excluded
+
+        Returns a list of JSON-style dictionaries produced by calling ``.__json__()`` on every object
+        retrieved from the table.
+        """
         objects = self.pull_table(
             table=table,
             polymorphic_identity=None,
@@ -1051,23 +1056,23 @@ class Experiment(object):
     def pull_table(
         self,
         table: Union[Table, str],
-        polymorphic_identity: Optional[
-            str
-        ] = None,  # Restrict to a given polymorphic identity (see ``type`` column)
-        network_roles: Optional[
-            List
-        ] = None,  # Restrict to objects from networks with given roles
-        network_ids: Optional[
-            List
-        ] = None,  # Restrict to objects from networks with given ids
-        cls_filter: Optional[
-            callable
-        ] = None,  # Lambda function returning ``False`` for classes to exclude
+        polymorphic_identity: Optional[str] = None,
+        network_roles: Optional[List] = None,
+        network_ids: Optional[List] = None,
+        cls_filter: Optional[callable] = None,
     ):
         """
         Downloads every object in the specified table.
-        For efficiency, the SQL queries are batched by the values of the polymorphic identity column 'type'
+        For efficiency, the SQL queries are batched by the values of the polymorphic identity column ``type``
         if it is present.
+
+        :param table: Table to be summarized
+        :param polymorphic_identity: Optionally restrict output to a given polymorphic identity (i.e. ``type`` value)
+        :param network_roles: Optionally restrict output to objects from networks with these roles
+        :param network_ids: Optionally restrict output to objects from networks with these IDs
+        :param cls_filter: Optional lambda function that returns ``False`` for classes that should be excluded
+
+        Returns a list of database-mapped objects.
         """
         if isinstance(table, str):
             table = Base.metadata.tables[table]
