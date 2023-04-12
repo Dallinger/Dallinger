@@ -1,26 +1,31 @@
 {% extends "base/dashboard.html" %}
 
+{% macro toggle_switch(var) %}
+    {% if var in changeable_params %}
+        <div class="custom-control custom-switch form-switch">
+
+            <input type="checkbox" class="custom-control-input form-check-input" id="{{ var }}"
+                    {% if configuration_dictionary[var] %}
+                   checked
+                    {% endif %}
+            >
+        </div>
+    {% endif %}
+{% endmacro %}
+
 {% block body %}
 <h1>Experiment Configuration</h1>
 <p>The active <a href="https://dallinger.readthedocs.io/en/latest/configuration.html">configuration</a>,
     assembled from your configuration files, Dallinger defaults, and any explicit overrides.
 </p>
-    <div class="custom-control custom-switch form-switch">
 
-        <input type="checkbox" class="custom-control-input form-check-input" id="auto_recruit"
-                {% if configuration_dictionary.auto_recruit %}
-               checked
-                {% endif %}
-        >
-        <label class="custom-control-label form-check-label" for="auto_recruit">Auto recruit</label>
-    </div>
 <table class="table table-sm table-striped">
     <thead class="thead-dark">
         <tr><th>Key</th><th>Active Value</th></tr>
     </thead>
     <tbody>
     {% for key, value in configuration %}
-        <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+        <tr><th>{{ key }}</th><td>{{ value }} {{ toggle_switch(key) }}</td></tr>
     {% endfor %}
     </tbody>
 </table>

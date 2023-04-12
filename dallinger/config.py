@@ -181,9 +181,11 @@ class Configuration(object):
         yield self
         self.data.popleft()
 
+    changeable_params = ["auto_recruit"]
+
     def get(self, key, default=marker):
         # For now this is limited to "auto_recruit", but in the future it can be extended
-        # to other variables as well
+        # to other parameters as well
         if key == "auto_recruit":
             from dallinger.db import redis_conn
 

@@ -222,7 +222,7 @@ def database_children():
 
 dashboard_tabs = DashboardTabs(
     [
-        DashboardTab("Home", "dashboard.index"),
+        DashboardTab("Config", "dashboard.index"),
         DashboardTab("Heroku", "dashboard.heroku"),
         DashboardTab("MTurk", "dashboard.mturk"),
         DashboardTab("Monitoring", "dashboard.monitoring"),
@@ -333,13 +333,14 @@ def index():
     """Displays active experiment configuation"""
     config = get_config()
     config.load()
-    config = config.as_dict()
-    config_list = sorted(config.items())
+    config_dict = config.as_dict()
+    config_list = sorted(config_dict.items())
     return render_template(
         "dashboard_home.html",
-        title="Dashboard Home",
+        title="Config",
         configuration=config_list,
-        configuration_dictionary=config,
+        configuration_dictionary=config_dict,
+        changeable_params=config.changeable_params,
     )
 
 
