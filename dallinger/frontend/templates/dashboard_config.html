@@ -3,14 +3,14 @@
     <div id="config-wrapper">
         <main class="flex-fill">
             <h4>Config</h4>
-            <div class="custom-control custom-switch">
+            <div class="custom-control custom-switch form-switch">
 
-                <input type="checkbox" class="custom-control-input" id="auto_recruit"
+                <input type="checkbox" class="custom-control-input form-check-input" id="auto_recruit"
                         {% if configuration.auto_recruit %}
                        checked
                         {% endif %}
                 >
-                <label class="custom-control-label" for="auto_recruit">Auto recruit</label>
+                <label class="custom-control-label form-check-label" for="auto_recruit">Auto recruit</label>
             </div>
             <pre>
                     {%- if config_str -%}
