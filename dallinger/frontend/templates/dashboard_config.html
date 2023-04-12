@@ -1,0 +1,47 @@
+{% extends "base/dashboard.html" %}
+{% block body %}
+    <div id="config-wrapper">
+        <main class="flex-fill">
+            <h4>Config</h4>
+            <div class="custom-control custom-switch">
+
+                <input type="checkbox" class="custom-control-input" id="auto_recruit"
+                        {% if configuration.auto_recruit %}
+                       checked
+                        {% endif %}
+                >
+                <label class="custom-control-label" for="auto_recruit">Auto recruit</label>
+            </div>
+            <pre>
+                    {%- if config_str -%}
+                        {{ config_str }}
+                    {%- endif -%}
+                </pre>
+        </main>
+    </div>
+{% endblock %}
+
+{% block libs %}
+    {{ super() }}
+    <script>
+        $('#panel-triggers input').on('change', function () {
+            let id = this.id.replace("-trigger", "");
+            $('#' + id).toggle();
+        });
+
+        $('#auto_recruit').on('change', function () {
+            let auto_recruit = this.checked ? 1 : 0
+            $.ajax({
+                type: "GET",
+                url: "/dashboard/auto_recruit/" + auto_recruit,
+                success: function (){
+
+                    location.reload()
+                },
+                error: function (e){
+                    alert('Something went wrong' + e)
+                }
+            });
+        });
+    </script>
+{% endblock %}

@@ -226,6 +226,7 @@ dashboard_tabs = DashboardTabs(
         DashboardTab("Heroku", "dashboard.heroku"),
         DashboardTab("MTurk", "dashboard.mturk"),
         DashboardTab("Monitoring", "dashboard.monitoring"),
+        DashboardTab("Config", "dashboard.config"),
         DashboardTab("Lifecycle", "dashboard.lifecycle"),
         DashboardTab("Database", "dashboard.database", database_children),
         DashboardTab("Development", "dashboard.develop"),
@@ -608,6 +609,21 @@ def monitoring():
         net_roles=net_roles,
         net_ids=net_ids,
         vis_options=json.dumps(vis_options),
+        configuration=config,
+        config_str=json.dumps(config, indent=2).strip(),
+    )
+
+
+@dashboard.route("/config")
+@login_required
+def config():
+    config = get_config()
+    config.load()
+    config = dict(config.as_dict().items())
+
+    return render_template(
+        "dashboard_config.html",
+        title="Config",
         configuration=config,
         config_str=json.dumps(config, indent=2).strip(),
     )
