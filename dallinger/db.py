@@ -170,6 +170,8 @@ def get_all_mapped_classes():
     classes = {}
     for table in Base.metadata.tables.values():
         if "type" in table.columns:
+            # Most Dallinger tables (e.g. Node, Network) have a type column that specifies which class
+            # is associated with that database row.
             observed_types = [
                 r.type for r in session.query(table.columns.type).distinct().all()
             ]
@@ -182,6 +184,8 @@ def get_all_mapped_classes():
                     "polymorphic_identity": type_,
                 }
         else:
+            # Some tables (e.g. Notification) don't have any such column, so we can assume
+            # that they have exactly one mapped class.
             if session.query(table.columns.id).count() > 0:
                 cls = get_mapped_class(table)
                 classes[cls.__name__] = {
