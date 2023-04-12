@@ -991,27 +991,40 @@ class Experiment(object):
         collapsed=False,
         transformations=False,
     ):
-        results = {
-            "networks": self.summarize_table("network", network_roles, network_ids),
-            "nodes": self.summarize_table(
-                "node",
-                network_roles,
-                network_ids,
-                cls_filter=(lambda cls: issubclass(cls, Source)) if collapsed else None,
-            ),
-            "vectors": []
-            if collapsed
-            else self.summarize_table("vector", network_roles, network_ids),
-            "infos": []
-            if collapsed
-            else self.summarize_table("info", network_roles, network_ids),
-            "participants": [] if collapsed else self.summarize_table("participant"),
-            "trans": []
-            if collapsed or not transformations
-            else self.summarize_table("transformation", network_roles, network_ids),
-        }
+        networks = (self.summarize_table("network", network_roles, network_ids),)
 
-        return results
+        nodes = self.summarize_table(
+            "node",
+            network_roles,
+            network_ids,
+            cls_filter=(lambda cls: issubclass(cls, Source)) if collapsed else None,
+        )
+
+        if collapsed:
+            vectors = []
+            infos = []
+            participants = []
+            trans = []
+        else:
+            vectors = self.summarize_table("vector", network_roles, network_ids)
+            infos = self.summarize_table("info", network_roles, network_ids)
+            participants = self.summarize_table("participant")
+
+            if transformations:
+                trans = self.summarize_table(
+                    "transformation", network_roles, network_ids
+                )
+            else:
+                trans = []
+
+        return {
+            "networks": networks,
+            "nodes": nodes,
+            "vectors": vectors,
+            "infos": infos,
+            "participants": participants,
+            "trans": trans,
+        }
 
     def summarize_table(
         self,
