@@ -584,10 +584,6 @@ def monitoring():
     from dallinger.experiment_server.experiment_server import Experiment, session
     from dallinger.models import Network
 
-    config = get_config()
-    config.load()
-    config = dict(config.as_dict().items())
-
     exp = Experiment(session)
     panes = exp.monitoring_panels(**request.args.to_dict(flat=False))
     network_structure = exp.network_structure(**request.args.to_dict(flat=False))
@@ -609,8 +605,6 @@ def monitoring():
         net_roles=net_roles,
         net_ids=net_ids,
         vis_options=json.dumps(vis_options),
-        configuration=config,
-        config_str=json.dumps(config, indent=2).strip(),
     )
 
 
