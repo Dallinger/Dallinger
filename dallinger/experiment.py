@@ -991,7 +991,7 @@ class Experiment(object):
         collapsed=False,
         transformations=False,
     ):
-        networks = (self.summarize_table("network", network_roles, network_ids),)
+        networks = self.summarize_table("network", network_roles, network_ids)
 
         nodes = self.summarize_table(
             "node",
