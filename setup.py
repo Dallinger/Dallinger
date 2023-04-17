@@ -12,7 +12,7 @@ README = (HERE / "README.md").read_text(encoding="utf-8")
 setup_args = dict(
     name="dallinger",
     packages=["dallinger", "dallinger_scripts"],
-    version="9.5.0",
+    version="9.6.0a1",
     description="Laboratory automation for the behavioral and social sciences",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -97,7 +97,6 @@ setup_args = dict(
             "alabaster",
             "black",
             "bumpversion",
-            "codecov",
             "coverage",
             "coverage_pth",
             "flake8",

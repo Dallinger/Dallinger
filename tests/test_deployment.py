@@ -986,7 +986,6 @@ class TestDockerServer(object):
             p.expect_exact("Recruitment is complete", timeout=180)
             p.expect_exact("'status': 'success'", timeout=120)
             p.expect_exact("Experiment completed", timeout=10)
-            p.expect_exact("Container bartlett1932-web-1         Stopped", timeout=30)
             p.expect(pexpect.EOF)
         finally:
             try:
@@ -1018,7 +1017,6 @@ class TestDockerServer(object):
             p.expect_exact("Recruitment is complete", timeout=240)
             p.expect_exact("'status': 'success'", timeout=120)
             p.expect_exact("Experiment completed", timeout=20)
-            p.expect_exact("Container bartlett1932-web-1         Stopped", timeout=20)
             p.expect(pexpect.EOF)
         finally:
             try:

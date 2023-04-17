@@ -14,11 +14,12 @@ from sqlalchemy import (
     String,
     Text,
     and_,
+    func,
     or_,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship, validates
-from sqlalchemy.sql.expression import false
+from sqlalchemy.orm import column_property, relationship, validates
+from sqlalchemy.sql.expression import false, select
 
 from .db import Base
 
@@ -474,12 +475,17 @@ class Network(Base, SharedMixin):
         )
 
     def json_data(self):
-        """Return json description of a participant."""
+        """Return json description of a network."""
         return {
             "type": self.type,
             "max_size": self.max_size,
             "full": self.full,
             "role": self.role,
+            "n_pending_infos": self.n_pending_infos,
+            "n_completed_infos": self.n_completed_infos,
+            "n_failed_infos": self.n_failed_infos,
+            "n_alive_nodes": self.n_alive_nodes,
+            "n_failed_nodes": self.n_failed_nodes,
             "object_type": "Network",
         }
 
@@ -1532,6 +1538,9 @@ class Info(Base, SharedMixin):
     #: the contents of the info. Must be stored as a String.
     contents = Column(Text(), default=None)
 
+    #: whether the info is 'complete', i.e. has received its contents
+    complete = Column(Boolean(), default=False)
+
     def __init__(self, origin, contents=None, details=None, failed=False):
         """Create an info."""
         # check the origin hasn't failed
@@ -1556,6 +1565,15 @@ class Info(Base, SharedMixin):
         if existing is not None:
             raise ValueError("The contents of an info is write-once.")
         return value
+
+    def __setattr__(self, key, value):
+        super().__setattr__(key, value)
+        if key != "complete":
+            self.check_complete()
+
+    def check_complete(self):
+        if self.contents is not None:
+            self.complete = True
 
     def __repr__(self):
         """The string representation of an info."""
@@ -1849,6 +1867,13 @@ class Notification(Base, SharedMixin):
     # the type of notification
     event_type = Column(String, nullable=False)
 
+    def json_data(self):
+        """The json representation of a notification."""
+        return {
+            "assignment_id": self.assignment_id,
+            "event_type": self.event_type,
+        }
+
 
 class Recruitment(Base, SharedMixin):
     """A record of a request to recruit a participant."""
@@ -1857,3 +1882,51 @@ class Recruitment(Base, SharedMixin):
 
     #: A String, the nickname of the recruiter used.
     recruiter_id = Column(String(50), nullable=True)
+
+
+Network.n_pending_infos = column_property(
+    select(func.count(Info.id))
+    .where(
+        Info.network_id == Network.id,
+        ~Info.failed,
+        ~Info.complete,
+    )
+    .scalar_subquery()
+)
+
+Network.n_completed_infos = column_property(
+    select(func.count(Info.id))
+    .where(
+        Info.network_id == Network.id,
+        ~Info.failed,
+        Info.complete,
+    )
+    .scalar_subquery()
+)
+
+Network.n_failed_infos = column_property(
+    select(func.count(Info.id))
+    .where(
+        Info.network_id == Network.id,
+        Info.failed,
+    )
+    .scalar_subquery()
+)
+
+Network.n_alive_nodes = column_property(
+    select(func.count(Node.id))
+    .where(
+        Node.network_id == Network.id,
+        ~Node.failed,
+    )
+    .scalar_subquery()
+)
+
+Network.n_failed_nodes = column_property(
+    select(func.count(Node.id))
+    .where(
+        Node.network_id == Network.id,
+        Node.failed,
+    )
+    .scalar_subquery()
+)
