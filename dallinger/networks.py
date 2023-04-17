@@ -1,11 +1,10 @@
 """Network structures commonly used in simulations of evolution."""
 
-from operator import attrgetter
 import random
+from operator import attrgetter
 
 from .models import Network
-from .nodes import Source
-from .nodes import Agent
+from .nodes import Agent, Source
 
 
 class DelayedChain(Network):
@@ -240,7 +239,6 @@ class ScaleFree(Network):
         # ...then add newcomers one by one with preferential attachment.
         else:
             for idx_newvector in range(self.m):
-
                 these_nodes = [
                     n
                     for n in nodes

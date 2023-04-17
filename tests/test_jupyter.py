@@ -19,8 +19,8 @@ class TestExperimentWidget(object):
         assert exp.widget is not None
 
     def test_experiment_updates_widget_status(self, exp):
-        exp.update_status(u"Testing")
-        assert exp.widget.status == u"Testing"
+        exp.update_status("Testing")
+        assert exp.widget.status == "Testing"
         assert "Testing" in exp.widget.children[0].value
 
     def test_experiment_displays_widget(self, exp):

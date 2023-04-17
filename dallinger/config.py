@@ -1,16 +1,17 @@
 from __future__ import unicode_literals
 
-from collections import deque
-from contextlib import contextmanager
-from six.moves import configparser
-from pathlib import Path
 import distutils.util
 import io
 import json
 import logging
 import os
-import six
 import sys
+from collections import deque
+from contextlib import contextmanager
+from pathlib import Path
+
+import six
+from six.moves import configparser
 
 logger = logging.getLogger(__file__)
 
@@ -31,15 +32,20 @@ default_keys = (
     ("approve_requirement", int, []),
     ("assign_qualifications", bool, []),
     ("auto_recruit", bool, []),
-    ("aws_access_key_id", six.text_type, [], True),
-    ("aws_region", six.text_type, []),
-    ("aws_secret_access_key", six.text_type, [], True),
+    ("aws_access_key_id", six.text_type, ["AWS_ACCESS_KEY_ID"], True),
+    (
+        "aws_region",
+        six.text_type,
+        ["AWS_REGION", "AWS_DEFAULT_REGION", "aws_default_region"],
+    ),
+    ("aws_secret_access_key", six.text_type, ["AWS_SECRET_ACCESS_KEY"], True),
     ("base_payment", float, []),
     ("base_port", int, []),
     ("browser_exclude_rule", six.text_type, []),
     ("clock_on", bool, []),
     ("contact_email_on_error", six.text_type, []),
     ("chrome-path", six.text_type, []),
+    ("dallinger_develop_directory", six.text_type, []),
     ("dallinger_email_address", six.text_type, []),
     ("dashboard_password", six.text_type, [], True),
     ("dashboard_user", six.text_type, [], True),
@@ -68,12 +74,19 @@ default_keys = (
     ("logfile", six.text_type, []),
     ("loglevel", int, []),
     ("mode", six.text_type, []),
+    ("mturk_qualification_blocklist", six.text_type, ["qualification_blacklist"]),
+    ("mturk_qualification_requirements", six.text_type, [], False, [is_valid_json]),
     ("num_dynos_web", int, []),
     ("num_dynos_worker", int, []),
     ("organization_name", six.text_type, []),
     ("port", int, ["PORT"]),
-    ("mturk_qualification_blocklist", six.text_type, ["qualification_blacklist"]),
-    ("mturk_qualification_requirements", six.text_type, [], False, [is_valid_json]),
+    ("prolific_api_token", six.text_type, ["PROLIFIC_RESEARCHER_API_TOKEN"], True),
+    ("prolific_api_version", six.text_type, []),
+    ("prolific_estimated_completion_minutes", int, []),
+    ("prolific_maximum_allowed_minutes", int, []),
+    ("prolific_recruitment_config", six.text_type, [], False, [is_valid_json]),
+    ("prolific_reward_cents", int, []),
+    ("protected_routes", six.text_type, [], False, [is_valid_json]),
     ("recruiter", six.text_type, []),
     ("recruiters", six.text_type, []),
     ("redis_size", six.text_type, []),
@@ -92,11 +105,11 @@ default_keys = (
     ("worker_multiplier", float, []),
     ("docker_image_base_name", six.text_type, [], ""),
     ("docker_image_name", six.text_type, [], ""),
+    ("docker_volumes", six.text_type, [], ""),
 )
 
 
 class Configuration(object):
-
     SUPPORTED_TYPES = {six.binary_type, six.text_type, int, float, bool}
     _experiment_params_loaded = False
     _module_params_loaded = False
@@ -131,7 +144,6 @@ class Configuration(object):
                 # This key hasn't been registered, we ignore it
                 if strict:
                     raise KeyError("{} is not a valid configuration key".format(key))
-                logger.debug("{} is not a valid configuration key".format(key))
                 continue
             expected_type = self.types.get(key)
             if cast_types:
@@ -181,7 +193,10 @@ class Configuration(object):
             except KeyError:
                 continue
         if default is marker:
-            raise KeyError(key)
+            raise KeyError(
+                f"The following config parameter was not set: {key}. Consider setting it in "
+                "config.txt or in ~/.dallingerconfig."
+            )
         return default
 
     def __getitem__(self, key):
@@ -257,7 +272,9 @@ class Configuration(object):
     def load_defaults(self):
         """Load default configuration values"""
         # Apply extra parameters before loading the configs
-        self.register_extra_parameters()
+        if experiment_available():
+            # In practice, experiment_available should only return False in tests
+            self.register_extra_parameters()
 
         global_config_name = ".dallingerconfig"
         global_config = os.path.expanduser(os.path.join("~/", global_config_name))
@@ -271,6 +288,9 @@ class Configuration(object):
         for config_file in [global_defaults_file, local_defaults_file, global_config]:
             self.load_from_file(config_file)
 
+        if experiment_available():
+            self.load_experiment_config_defaults()
+
     def load(self):
         self.load_defaults()
 
@@ -281,9 +301,6 @@ class Configuration(object):
         self.load_from_environment()
         self.ready = True
 
-        if self.get("docker_image_base_name", None) is None:
-            self.set("docker_image_base_name", Path(os.getcwd()).name)
-
     def register_extra_parameters(self):
         initialize_experiment_package(os.getcwd())
         extra_parameters = None
@@ -292,10 +309,7 @@ class Configuration(object):
         # This will run any experiment specific parameter registrations
         from dallinger.experiment import load
 
-        try:
-            exp_klass = load()
-        except ImportError:
-            exp_klass = None
+        exp_klass = load()
         exp_params = getattr(exp_klass, "extra_parameters", None)
         if exp_params is not None and not self._experiment_params_loaded:
             exp_params()
@@ -315,6 +329,12 @@ class Configuration(object):
             extra_parameters()
             self._module_params_loaded = True
 
+    def load_experiment_config_defaults(self):
+        from dallinger.experiment import load
+
+        exp_klass = load()
+        self.extend(exp_klass.config_defaults(), strict=True)
+
 
 config = None
 
@@ -323,7 +343,16 @@ def get_config():
     global config
 
     if config is None:
-        config = Configuration()
+        if experiment_available():
+            from dallinger.experiment import load
+
+            exp_klass = load()
+            config_class = exp_klass.config_class()
+        else:
+            config_class = Configuration
+
+        config = config_class()
+
         for registration in default_keys:
             config.register(*registration)
 
@@ -336,7 +365,6 @@ def initialize_experiment_package(path):
     init_py = os.path.join(path, "__init__.py")
     if not os.path.exists(init_py):
         open(init_py, "a").close()
-
     # Retain already set experiment module
     if sys.modules.get("dallinger_experiment") is not None:
         return
@@ -344,7 +372,7 @@ def initialize_experiment_package(path):
     basename = os.path.basename(path)
     sys.path.insert(0, dirname)
     package = __import__(basename)
-    if path not in package.__path__:
+    if Path(path) not in [Path(p) for p in package.__path__]:
         raise Exception(
             "Package was not imported from the requested path! ({} not in {})".format(
                 path, package.__path__
@@ -352,4 +380,9 @@ def initialize_experiment_package(path):
         )
     sys.modules["dallinger_experiment"] = package
     package.__package__ = "dallinger_experiment"
+    package.__name__ = "dallinger_experiment"
     sys.path.pop(0)
+
+
+def experiment_available():
+    return Path("experiment.py").exists()

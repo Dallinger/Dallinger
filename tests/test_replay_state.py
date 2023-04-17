@@ -1,10 +1,10 @@
 """Tests for the data module."""
 
-from datetime import datetime
 import os
-import mock
 import shutil
+from datetime import datetime
 
+import mock
 import pytest
 
 

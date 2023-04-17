@@ -1,11 +1,11 @@
 Dallinger
 ~~~~~~~~~
 
-Dallinger is a tool to automate experiments that use combinations of automated bots and human subjects recruited on platforms like Mechanical Turk.
+Dallinger is a tool to automate experiments that use combinations of automated bots and human subjects recruited on platforms like Mechanical Turk and Prolific.
 
 Dallinger allows crowd sourced experiments to be abstracted into single function calls that can be inserted into higher-order algorithms. It fully automates the process of recruiting participants, obtaining informed consent, arranging participants into a network, running the experiment, coordinating communication, recording and managing the data, and paying the participants.
 
-The Dallinger technology stack consists of: Python, Redis, Web Sockets, Heroku, AWS, Mechanical Turk, boto, Flask, PostgreSQL, SQLAlchemy, Gunicorn, Pytest and gevent among others.
+The Dallinger technology stack consists of: Python, Redis, Web Sockets, Heroku, AWS, Mechanical Turk, Prolific, boto, Flask, PostgreSQL, SQLAlchemy, Gunicorn, Pytest and gevent among others.
 
 User Documentation
 ^^^^^^^^^^^^^^^^^^
@@ -57,6 +57,7 @@ Several demos demonstrate Dallinger in action:
     :maxdepth: 1
 
     demo_index
+    demos_on_heroku
 
 
 Experiment Author Documentation
@@ -71,8 +72,8 @@ designing new experiments for others to use.
 
     developing_dallinger_setup_guide
     creating_an_experiment
+    required_experiment_files
     networks
-    docker_support
     the_experiment_class
     classes
     web_api
@@ -85,6 +86,25 @@ designing new experiments for others to use.
     recruitment
     scheduled_tasks
     private_repo
+
+Alternative Environments Documentation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+We are currently experimenting with several other development and deployment environments
+for Dallinger, such as Docker and Vagrant. These potentially offer various advantages,
+such as better cross-platform compatibility, enhanced reproducibility, and so on.
+The following documentation topics describe some of these approaches. However,
+this work is still experimental and so the documentation is not complete yet.
+
+.. toctree::
+    :caption: Alternative Environments
+    :maxdepth: 1
+
+    docker_tutorial
+    docker_support
+    docker_only
+    vagrant_setup
+
 
 Core Contribution Documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

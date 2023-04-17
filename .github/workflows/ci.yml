@@ -2,7 +2,6 @@ name: ci
 on: [push]
 
 jobs:
-
   check_mturk_changes:
     runs-on: ubuntu-latest
     outputs:
@@ -36,7 +35,7 @@ jobs:
     needs: check_mturk_changes
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: ["3.8", "3.9", "3.10"]
     services:
       redis:
         image: redis
@@ -64,7 +63,7 @@ jobs:
       - name: Check out Dallinger repository
         uses: actions/checkout@v2
       - name: Install Ubuntu packages
-        run: sudo apt-get --yes install pandoc enchant curl
+        run: sudo apt-get --yes install pandoc enchant-2 curl
       - name: Chromedriver setup
         uses: nanasess/setup-chromedriver@v1.0.5
       - name: Install snap packages
@@ -72,16 +71,15 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: '10'
+          node-version: "10"
       - name: Set up Ruby
         uses: actions/setup-ruby@v1
         with:
-          ruby-version: 2.6
+          ruby-version: 3.1
       - name: Ruby dependencies
         run: |
           gem install danger
           gem install danger-commit_lint
-          gem install chandler -v 0.7.0
       - name: Yarn
         run: yarn --frozen-lockfile --ignore-engines
       - name: Set up Python ${{ matrix.python-version }}
@@ -109,28 +107,28 @@ jobs:
           base_port: 5000
           threads: 1
           mturk_worker_id: ${{ secrets.MTURK_WORKER_ID }}
-          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          PROLIFIC_RESEARCHER_API_TOKEN: ${{ secrets.PROLIFIC_RESEARCHER_API_TOKEN }}
         run: |
           tox ${{ needs.check_mturk_changes.outputs.needs_mturk_tests == 'true' && '-- --mturkfull' || ''}}
           npm run test --coverage
-        if: matrix.python-version == 3.9
+        if: matrix.python-version == 3.10
       - name: Run Fast Tests Only
         env:
           DATABASE_URL: postgresql://dallinger:dallinger@localhost/dallinger
           PORT: 5000
           base_port: 5000
           threads: 1
-          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           tox -e fast
           npm run test --coverage
-        if: matrix.python-version != 3.9
+        if: matrix.python-version != 3.10
       - name: Codecov.io check
-        run: |
-          bash <(curl -s https://codecov.io/bash)
-        if: matrix.python-version == 3.9
+        uses: codecov/codecov-action@v3
+        if: matrix.python-version == 3.10
 
   docker:
     runs-on: ubuntu-latest
@@ -138,7 +136,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Get version
         id: vars
-        run: echo ::set-output name=version::$(grep version\ = setup.cfg|sed -e 's/.*= //')
+        run: echo ::set-output name=version::$(grep __version__\ = dallinger/version.py|sed -e 's/.*= //;s/"//g')
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
       - name: Cache Docker layers
@@ -176,24 +174,29 @@ jobs:
         run: docker run --rm ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }} python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
       - name: Make sure dallinger script entry point is working with dallinger source mounted as volume
         run: docker run -v $PWD/dallinger:/dallinger/dallinger --rm ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }} python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
-      - name: Set up Python 3.9
+      - name: Set up Python 3.10
         uses: actions/setup-python@v2
         with:
-            python-version: "3.9"
+          python-version: "3.10"
       - name: Cache pip
         uses: actions/cache@v2
         with:
-            path: ~/.cache/pip
-            key: ${{ runner.os }}-pip-${{ hashFiles('*.txt') }}
-            restore-keys: |
-              ${{ runner.os }}-pip-
-              ${{ runner.os }}-
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+            ${{ runner.os }}-
       - name: Install Ubuntu packages
-        run: sudo apt-get --yes install enchant curl
+        run: sudo apt-get --yes install enchant-2 curl
       - name: Install and upgrade wheel, pip and tox
         run: pip install --upgrade pip wheel tox
       - name: Chromedriver setup
         uses: nanasess/setup-chromedriver@v1.0.5
+      - name: Change dallinger version required by bartlett1932 to match current version
+        run: |
+          VERSION=$(grep __version__ dallinger/version.py |sed -e 's/__version__ = "//;s/"//')
+          echo Changing to version ${VERSION}
+          sed -i.orig -e "s/dallinger==.*/dallinger==${VERSION}/" demos/dlgr/demos/bartlett1932/constraints.txt
       - name: Run docker tests
         run: tox -e dockertests
       - name: Show docker logs
@@ -201,10 +204,9 @@ jobs:
         continue-on-error: true
         run: for container in $(docker ps -a -q); do echo "***** $(docker ps -a|grep $container) *******"; docker logs $container; done
 
-
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-python@v2
-    - uses: pre-commit/action@v2.0.0
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+      - uses: pre-commit/action@v2.0.0

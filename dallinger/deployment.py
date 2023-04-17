@@ -1,34 +1,30 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+
 import codecs
 import json
 import os
 import re
+import threading
+import time
+from shlex import quote
+
 import redis
 import requests
 import six
-import threading
-import time
+from six.moves.urllib.parse import urlparse, urlunparse
 
-from shlex import quote
-from six.moves.urllib.parse import urlparse
-from six.moves.urllib.parse import urlunparse
-
-from dallinger import data
-from dallinger import db
-from dallinger import heroku
-from dallinger import recruiters
-from dallinger import registration
+from dallinger import data, db, heroku, recruiters, registration
 from dallinger.config import get_config
-from dallinger.heroku.tools import HerokuApp
-from dallinger.heroku.tools import HerokuLocalWrapper
+from dallinger.heroku.tools import HerokuApp, HerokuLocalWrapper
 from dallinger.redis_utils import connect_to_redis
-from dallinger.utils import bootstrap_development_session
-from dallinger.utils import get_base_url
-from dallinger.utils import open_browser
-from dallinger.utils import setup_experiment
-from dallinger.utils import GitClient
-
+from dallinger.utils import (
+    GitClient,
+    bootstrap_development_session,
+    get_base_url,
+    open_browser,
+    setup_experiment,
+)
 
 INITIAL_DELAY = 1
 BACKOFF_FACTOR = 2
@@ -43,7 +39,7 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
         try:
             launch_request = requests.post(url)
             request_happened = True
-        except (requests.exceptions.RequestException):
+        except requests.exceptions.RequestException:
             request_happened = False
             error(f"Error accessing {url}")
 
@@ -150,9 +146,9 @@ def deploy_sandbox_shared_setup(
         heroku_app.addon(name)
 
     heroku_config = {
-        "aws_access_key_id": config["aws_access_key_id"],
-        "aws_secret_access_key": config["aws_secret_access_key"],
-        "aws_region": config["aws_region"],
+        "AWS_ACCESS_KEY_ID": config["aws_access_key_id"],
+        "AWS_SECRET_ACCESS_KEY": config["aws_secret_access_key"],
+        "AWS_DEFAULT_REGION": config["aws_region"],
         "auto_recruit": config["auto_recruit"],
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],
@@ -224,6 +220,8 @@ def deploy_sandbox_shared_setup(
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,
         "dashboard_url": "{}/dashboard/".format(heroku_app.url),
+        "dashboard_user": config.get("dashboard_user"),
+        "dashboard_password": config.get("dashboard_password"),
         "recruitment_msg": launch_data.get("recruitment_msg", None),
     }
 
@@ -277,7 +275,6 @@ class DevelopmentDeployment(object):
 
 
 class HerokuLocalDeployment(object):
-
     exp_id = None
     tmp_dir = None
     dispatch = {}  # Subclass may provide handlers for Heroku process output
@@ -357,7 +354,6 @@ class HerokuLocalDeployment(object):
 
 
 class DebugDeployment(HerokuLocalDeployment):
-
     dispatch = {
         r"[^\"]{} (.*)$".format(recruiters.NEW_RECRUIT_LOG_PREFIX): "new_recruit",
         r"{}".format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
@@ -406,7 +402,12 @@ class DebugDeployment(HerokuLocalDeployment):
                 dashboard_url = self.with_proxy_port("{}/dashboard/".format(base_url))
                 self.display_dashboard_access_details(dashboard_url)
                 if not self.no_browsers:
-                    self.open_dashboard(dashboard_url)
+                    self.async_open_dashboard(dashboard_url)
+
+                # A little delay here ensures that the experiment window always opens
+                # after the dashboard window.
+                time.sleep(0.1)
+
                 self.heroku = heroku
                 self.out.log(
                     "Monitoring the Heroku Local server for recruitment or completion..."
@@ -442,6 +443,11 @@ class DebugDeployment(HerokuLocalDeployment):
                 config.get("dashboard_password"),
             )
         )
+
+    def async_open_dashboard(self, url):
+        threading.Thread(
+            target=self.open_dashboard, name="Open dashboard", kwargs={"url": url}
+        ).start()
 
     def open_dashboard(self, url):
         config = get_config()

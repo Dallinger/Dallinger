@@ -9,10 +9,9 @@ from nltk.chat.iesha import iesha_chatbot
 from nltk.chat.rude import rude_chatbot
 from nltk.chat.suntsu import suntsu_chatbot
 from nltk.chat.zen import zen_chatbot
-
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 from dallinger.bots import BotBase
 
@@ -44,7 +43,7 @@ class Bot(BotBase):
     ]
 
     def get_chat_history(self):
-        story = self.driver.find_element_by_id("story")
+        story = self.driver.find_element("id", "story")
         return story.text.split("\n")
 
     def wait_to_send_message(self):
@@ -52,11 +51,11 @@ class Bot(BotBase):
         time.sleep(waiting_time)
 
     def send_message(self, message):
-        self.driver.find_element_by_id("reproduction").send_keys(message)
-        self.driver.find_element_by_id("send-message").click()
+        self.driver.find_element("id", "reproduction").send_keys(message)
+        self.driver.find_element("id", "send-message").click()
 
     def leave_chat(self):
-        self.driver.find_element_by_id("leave-chat").click()
+        self.driver.find_element("id", "leave-chat").click()
 
     def participate(self):
         random.seed(self.worker_id)
@@ -67,7 +66,6 @@ class Bot(BotBase):
         logger.info("Entering participate method")
         start = time.time()
         while (time.time() - start) < self.TOTAL_CHAT_TIME:
-
             self.wait_to_send_message()
             history = self.get_chat_history()
             logger.info("History: %s" % history)

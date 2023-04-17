@@ -1,7 +1,7 @@
 {% extends "base/consent.html" %}
 
 {% block consent_button %}
-    <button type="button" class="btn btn-primary btn-lg" 
-    onClick="dallinger.goToPage('instructions/instruct-1');"
+    <button type="button" class="btn btn-primary btn-lg"
+    onClick="window.location='/instructions/instruct-1?{{query_string | safe}}';"
     style="float: left;">I agree
 {% endblock %}

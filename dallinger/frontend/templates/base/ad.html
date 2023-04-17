@@ -33,7 +33,13 @@
 {% block scripts %}
 <script>
     function openwindow(event) {
-        popup = window.open('{{ server_location }}/consent?{{query_string | safe}}','Popup','toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=no,width='+1024+',height='+768+'');
+        const consentURL = "{{ url_for('consent', _external=True) }}?{{ query_string | safe }}";
+
+        popup = window.open(
+            consentURL,
+            'Popup',
+            'toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=no,width=1024,height=768'
+        );
         event.target.setAttribute("disabled", "");
     }
 
@@ -47,7 +53,7 @@
             <div class="row">
                 <div class="col-xs-2">
                     {% block lab_logo %}
-                        <img id="adlogo" src="{{ server_location }}/static/images/logo.png" alt="Lab Logo" />
+                        <img id="adlogo" src="{{ url_for('static', filename='images/logo.png') }}" alt="Lab Logo" />
                     {% endblock %}
                 </div>
                 <div class="col-xs-10">

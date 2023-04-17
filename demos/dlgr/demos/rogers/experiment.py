@@ -1,13 +1,13 @@
 """Replicate Rogers' paradox by simulating evolution with people."""
 
 import random
+
 import six
 
 from dallinger.config import get_config
 from dallinger.experiment import Experiment
 from dallinger.information import Meme
-from dallinger.models import Node
-from dallinger.models import Participant
+from dallinger.models import Node, Participant
 from dallinger.networks import DiscreteGenerational
 
 
@@ -125,7 +125,7 @@ class RogersExperiment(Experiment):
         current_generation = participant.nodes()[0].generation
         if (
             num_approved % self.generation_size == 0
-            and (current_generation % 10 + 1) == 0
+            and (current_generation % 10 + 1) == 0  # noqa
         ):
             for e in self.models.RogersEnvironment.query.all():
                 e.step()

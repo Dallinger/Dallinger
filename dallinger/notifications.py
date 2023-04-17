@@ -1,12 +1,12 @@
 import logging
-import six
 import smtplib
-from cached_property import cached_property
 from email.mime.text import MIMEText
 
+import six
+from cached_property import cached_property
 
 logger = logging.getLogger(__file__)
-CONFIG_PLACEHOLDER = u"???"
+CONFIG_PLACEHOLDER = "???"
 
 
 class InvalidEmailConfig(ValueError):

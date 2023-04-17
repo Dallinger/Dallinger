@@ -2,13 +2,16 @@
 
 from __future__ import print_function
 
-import six
 import sys
 from datetime import datetime
+
+import six
+from pytest import mark, raises
+
 from dallinger import models, nodes
-from pytest import raises, mark
-from dallinger.nodes import Agent, Source
+from dallinger.db import Base, get_all_mapped_classes, get_polymorphic_mapping
 from dallinger.information import Gene
+from dallinger.nodes import Agent, Source
 from dallinger.transformations import Mutation
 
 
@@ -19,7 +22,6 @@ class TestModels(object):
         session.commit()
 
     def test_models(self, db_session):
-
         """####################
         #### Test Network ####
         ####################"""
@@ -107,6 +109,11 @@ class TestModels(object):
             "property4": None,
             "property5": None,
             "details": {},
+            "n_alive_nodes": 3,
+            "n_failed_nodes": 0,
+            "n_completed_infos": 2,
+            "n_pending_infos": 0,
+            "n_failed_infos": 0,
             "object_type": "Network",
         }
 
@@ -212,7 +219,6 @@ class TestModels(object):
         assert repr(node).split("-") == ["Node", str(node.id), "node"]
 
     def _check_single_connection(self, node1, node2):
-
         assert node1.is_connected(direction="to", whom=node2)
         assert not node1.is_connected(direction="from", whom=node2)
         assert node2.is_connected(direction="from", whom=node1)
@@ -755,3 +761,60 @@ class TestModels(object):
         # make sure private data is not in there
         assert "unique_id" not in participant_json
         assert "worker_id" not in participant_json
+
+    def test_get_all_mapped_classes(self, db_session):
+        net = models.Network()
+        participant = models.Participant(
+            recruiter_id="hotair",
+            worker_id=str(1),
+            hit_id=str(1),
+            assignment_id=str(1),
+            mode="test",
+        )
+
+        db_session.add(net)
+        db_session.add(participant)
+        db_session.commit()
+
+        node = models.Node(network=net)
+        agent = Agent(network=net, participant=participant)
+        source = Source(network=net)
+
+        db_session.add(node)
+        db_session.add(agent)
+        db_session.add(source)
+        db_session.commit()
+
+        classes = get_all_mapped_classes()
+
+        assert classes["Participant"] == {
+            "cls": models.Participant,
+            "table": "participant",
+            "polymorphic_identity": "participant",
+        }
+
+        assert classes["Source"] == {
+            "cls": Source,
+            "table": "node",
+            "polymorphic_identity": "generic_source",
+        }
+
+        assert classes["Agent"] == {
+            "cls": Agent,
+            "table": "node",
+            "polymorphic_identity": "agent",
+        }
+
+        assert classes["Node"] == {
+            "cls": models.Node,
+            "table": "node",
+            "polymorphic_identity": "node",
+        }
+
+    def test_get_polymorphic_mapping(self, db_session):
+        table = Base.metadata.tables["node"]
+        mappers = get_polymorphic_mapping(table)
+
+        assert mappers["generic_source"] == Source
+        assert mappers["agent"] == Agent
+        assert mappers["node"] == models.Node

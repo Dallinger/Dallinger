@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 
 {% block stylesheets %}
-    <link href="static/css/main.css" rel="stylesheet" type="text/css">
+    <link href="{{ url_for('static', filename='css/main.css') }}" rel="stylesheet" type="text/css">
 {% endblock %}
 
 {% block head %}
@@ -69,17 +69,17 @@
 
 {% block libs %}
     {{ super() }}
-    <script src="/static/scripts/bind_polyfill.js"></script>
-    <script src="/static/scripts/classlist_polyfill.js"></script>
-    <script src="/static/scripts/animframe_polyfill.js"></script>
-    <script src="/static/scripts/keyboard_input_manager.js"></script>
-    <script src="/static/scripts/html_actuator.js"></script>
-    <script src="/static/scripts/grid.js"></script>
-    <script src="/static/scripts/tile.js"></script>
-    <script src="/static/scripts/local_storage_manager.js"></script>
-    <script src="/static/scripts/game_manager.js"></script>
-    <script src="/static/scripts/application.js"></script>
-    <script src="/static/scripts/experiment.js" type="text/javascript"> </script>
+    <script src="{{ url_for('static', filename='scripts/bind_polyfill.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/classlist_polyfill.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/animframe_polyfill.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/keyboard_input_manager.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/html_actuator.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/grid.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/tile.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/local_storage_manager.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/game_manager.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/application.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/experiment.js') }}"></script>
 {% endblock %}
 
 {% block scripts %}

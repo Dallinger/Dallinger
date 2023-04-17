@@ -1,0 +1,90 @@
+{% extends "layout.html" %}
+{% block stylesheets %}
+    <style>
+      body {
+          padding:0px;
+          margin: 0px;
+          background-color: white;
+          color: black;
+          font-weight: 300;
+          font-size: 13pt;
+      }
+
+      #adlogo {
+          float: right;
+          width: 140px;
+          padding: 2px;
+          border: none;
+      }
+
+      #container {
+          position: absolute;
+          top: 0px; /* Header Height */
+          bottom: 0px; /* Footer Height */
+          left: 0px;
+          right: 0px;
+          padding: 100px;
+          padding-top: 5%;
+          border: 18px solid #f3f3f3;
+          background: white;
+      }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <div id="container">
+      <div class="well">
+        <h1>Prolific Study Submission</h1>
+        <hr>
+
+        <p>To complete your Prolific study, click the button below.
+          You'll be redirected to Prolific and your submission will be recorded.
+        </p>
+
+        <button id="js-exit-button" class="btn btn-success btn-large" data-href="{{ external_submit_url }}">
+          Submit Study
+        </button>
+
+      </div>
+{% endblock %}
+
+{% block scripts %}
+<script type="text/javascript">
+    // The values our custom exit handler needs in order
+    // to to create an AssignmentSubmitted notification:
+    const participantInfo = {
+      assignmentId: "{{ assignment_id}}",
+      participantId: "{{ participant_id }}",
+    };
+    const $exitButton = $("#js-exit-button");
+
+    /**
+     * Freezes the form, calls our custom route, then redirects the
+     * participant to the Prolific study submission page
+     */
+    function onExitFormSubmission(
+      $button, submission, prolificStudySubmissionURL
+    ) {
+      const spinner = dallinger.BusyForm();
+      const xhr = dallinger.post("prolific-submission-listener", submission);
+
+      spinner.freeze([$button]);
+      xhr.done(function () {
+        window.location = prolificStudySubmissionURL;
+      }).fail(function (rejection) {
+        dallinger.error(rejection);
+      }).always(() => spinner.unfreeze());
+    }
+
+
+    $exitButton.on("click", function (e) {
+      onExitFormSubmission(
+        $exitButton,
+        participantInfo,
+        e.currentTarget.dataset.href
+      );
+      e.preventDefault();
+    });
+
+</script>
+{% endblock %}

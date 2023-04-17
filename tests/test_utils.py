@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import io
 import locale
+from datetime import datetime, timedelta
+
 import mock
 import pytest
-from datetime import datetime
-from datetime import timedelta
-from dallinger import utils, config
+
+from dallinger import config, utils
 
 
 class TestSubprocessWrapper(object):
@@ -227,35 +228,35 @@ class TestBaseURL(object):
         from dallinger.experiment_server.experiment_server import app
 
         with app.test_request_context(base_url="https://example.com", path="/launch"):
-            assert subject() == u"https://example.com"
+            assert subject() == "https://example.com"
 
     def test_base_url_uses_environment(self, subject, config):
-        config.set("host", u"127.0.0.1")
+        config.set("host", "127.0.0.1")
         config.set("base_port", 5000)
         config.set("num_dynos_web", 1)
-        assert subject() == u"http://127.0.0.1:5000"
+        assert subject() == "http://127.0.0.1:5000"
 
     def test_local_base_url_converts(self, subject, config):
-        config.set("host", u"0.0.0.0")
+        config.set("host", "0.0.0.0")
         config.set("base_port", 5000)
         config.set("num_dynos_web", 1)
-        assert subject() == u"http://localhost:5000"
+        assert subject() == "http://localhost:5000"
 
     def test_remote_base_url_always_ssl(self, subject, config):
-        config.set("host", u"http://dlgr-bogus.herokuapp.com")
+        config.set("host", "http://dlgr-bogus.herokuapp.com")
         config.set("base_port", 80)
         config.set("num_dynos_web", 1)
-        assert subject() == u"https://dlgr-bogus.herokuapp.com"
+        assert subject() == "https://dlgr-bogus.herokuapp.com"
 
     @pytest.mark.xfail(
         reason="HOST aliasing removed to fix https://github.com/Dallinger/Dallinger/issues/2130"
     )
     def test_os_HOST_environ_used_as_host(self, subject, config):
-        with mock.patch("os.environ", {"HOST": u"dlgr-bogus-2.herokuapp.com"}):
+        with mock.patch("os.environ", {"HOST": "dlgr-bogus-2.herokuapp.com"}):
             config.load_from_environment()
         config.set("base_port", 80)
         config.set("num_dynos_web", 1)
-        assert subject() == u"https://dlgr-bogus-2.herokuapp.com"
+        assert subject() == "https://dlgr-bogus-2.herokuapp.com"
 
 
 class TestIsolatedWebbrowser(object):

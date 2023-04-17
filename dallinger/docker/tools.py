@@ -1,20 +1,18 @@
-import click
-import docker
 import os
 import time
-
 from hashlib import sha256
-from jinja2 import Template
 from pathlib import Path
 from shutil import which
-from subprocess import check_output
-from subprocess import CalledProcessError
+from subprocess import CalledProcessError, check_output
+
+import click
+import docker
+from jinja2 import Template
 from pip._internal.network.session import PipSession
 from pip._internal.req import parse_requirements
 
 from dallinger.docker.wheel_filename import parse_wheel_filename
-from dallinger.utils import abspath_from_egg
-from dallinger.utils import get_editable_dallinger_path
+from dallinger.utils import abspath_from_egg, get_editable_dallinger_path
 
 docker_compose_template = Template(
     abspath_from_egg("dallinger", "dallinger/docker/docker-compose.yml.j2").read_text()
@@ -36,7 +34,7 @@ class DockerComposeWrapper(object):
     strings as arguments.
     """
 
-    shell_command = "docker-compose"
+    shell_command = "docker compose"
     MONITOR_STOP = object()
 
     def __init__(
@@ -82,10 +80,11 @@ class DockerComposeWrapper(object):
                     experiment_name=self.experiment_name,
                     experiment_image=f"{self.experiment_name}:{tag}",
                     needs_chrome=self.needs_chrome,
+                    config=self.config,
                 )
             )
         with open(os.path.join(self.tmp_dir, ".env"), "w") as fh:
-            fh.write(f"COMPOSE_PROJECT_NAME=${self.experiment_name}\n")
+            fh.write(f"COMPOSE_PROJECT_NAME={self.experiment_name}\n")
             fh.write(f"FLASK_SECRET_KEY=${self.env.get('FLASK_SECRET_KEY')}\n")
             fh.write(f"UID={os.getuid()}\n")
             fh.write(f"GID={os.getgid()}\n")
@@ -106,7 +105,7 @@ class DockerComposeWrapper(object):
         self.out.blather("Redis ready\n")
 
     def wait_postgres_ready(self):
-        """Block until the postgresql server in the docker-compose configuration
+        """Block until the postgresql server in the `docker compose` configuration
         is ready to accept connections.
         """
         needle = b"ready to accept connections"
@@ -118,7 +117,7 @@ class DockerComposeWrapper(object):
     def start(self):
         self.copy_docker_compse_files()
         build_image(self.tmp_dir, self.experiment_name, self.out, self.needs_chrome)
-        check_output("docker-compose up -d".split())
+        check_output("docker compose up -d".split())
         # Wait for postgres to complete initialization
         self.wait_postgres_ready()
         try:
@@ -160,13 +159,13 @@ class DockerComposeWrapper(object):
         self.stop()
 
     def stop(self):
-        os.system(f"docker-compose -f '{self.tmp_dir}/docker-compose.yml' stop")
+        os.system(f"docker compose -f '{self.tmp_dir}/docker-compose.yml' stop")
 
     def get_container_name(self, service_name):
         """Return the name of the first container for the given service name
-        as it is known to docker, as opposed to docker-compose.
+        as it is known to docker, as opposed to `docker compose`.
         """
-        return f"{self.experiment_name}_{service_name}_1"
+        return f"{self.experiment_name}-{service_name}-1"
 
     def monitor(self, listener):
         # How can we get a stream for two containers?
@@ -185,15 +184,15 @@ class DockerComposeWrapper(object):
     def run_compose(self, compose_commands: str):
         """Run a command in the (already built) tmp directory of the current experiment
         `compose_commands` should be an array of strings to be appended to the
-        docker-compose command.
+        `docker compose` command.
         Examples:
-        # return the output of `docker-compose ps`
+        # return the output of `docker compose ps`
         compose_commands = ["ps"]
         # Run `redis-cli ping` inside the `redis` container and return its output
         compose_commands = ["exec", "redis", "redis-cli", "ping"]
         """
         return check_output(
-            ["docker-compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
+            ["docker", "compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
             + compose_commands,
         )
 
@@ -263,9 +262,12 @@ def get_experiment_image_tag(experiment_tmp_path: str) -> str:
 
 
 def build_image(
-    tmp_dir, base_image_name, out, needs_chrome=False, force_build=False
+    tmp_dir, base_image_name, out, needs_chrome=False, force_build=True
 ) -> str:
-    """Build the docker image for the experiment and return its name."""
+    """Build the docker image for the experiment and return its name.
+    If force_build=False, then the image will only be rebuilt if requirements.txt or prepare_docker_image.sh
+    have changed.
+    """
     tag = get_experiment_image_tag(tmp_dir)
     image_name = f"{base_image_name}:{tag}"
     base_image_name = get_base_image(tmp_dir, needs_chrome)
@@ -278,7 +280,9 @@ def build_image(
         out.blather("Rebuilding\n")
     except docker.errors.ImageNotFound:
         out.blather(f"Image {image_name} not found - building\n")
+
     env = {
+        **os.environ.copy(),
         "DOCKER_BUILDKIT": "1",
     }
     ssh_mount = ""
@@ -295,31 +299,48 @@ def build_image(
         ]
 
     docker_build_invocation += ["-t", image_name]
-    dockerfile_text = fr"""# syntax=docker/dockerfile:1
-    FROM {base_image_name}
-    COPY . /experiment
-    WORKDIR /experiment
-    # If a dallinger wheel is present, install it.
-    # This will be true if Dallinger was installed with the editable `-e` flag
-    RUN if [ -f dallinger-*.whl ]; then pip install dallinger-*.whl; fi
-    # If a dependency needs the ssh client and git, install them
-    RUN grep git+ requirements.txt && \
-        apt-get update && \
-        apt-get install -y openssh-client git && \
-        rm -rf /var/lib/apt/lists || true
-    RUN {ssh_mount} echo 'Running script prepare_docker_image.sh' && \
-        chmod 755 ./prepare_docker_image.sh && \
-        ./prepare_docker_image.sh
-    # We rely on the already installed dallinger: the docker image tag has been chosen
-    # based on the contents of this file. This makes sure dallinger stays installed from
-    # /dallinger, and that it doesn't waste space with two copies in two different layers.
-    RUN mkdir ~/.ssh && echo "Host *\n    StrictHostKeyChecking no" >> ~/.ssh/config
-    RUN {ssh_mount} grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
-        python3 -m pip install -r /tmp/requirements_no_dallinger.txt
-    ENV PORT=5000
-    CMD dallinger_heroku_web
-    """
-    (Path(tmp_dir) / "Dockerfile").write_text(dockerfile_text)
+    dockerfile_path = Path(tmp_dir) / "Dockerfile"
+    if dockerfile_path.exists():
+        out.blather(
+            "Found a custom Dockerfile in the experiment directory, will use this for deployment."
+        )
+    else:
+        dockerfile_text = rf"""# syntax=docker/dockerfile:1
+        FROM {base_image_name}
+        #
+        RUN mkdir /experiment
+        WORKDIR /experiment
+        #
+        COPY requirements.txt requirements.txt
+        COPY dallinger-*.whl .
+        COPY *prepare_docker_image.sh prepare_docker_image.sh
+        #
+        # If a dallinger wheel is present, install it.
+        # This will be true if Dallinger was installed with the editable `-e` flag
+        RUN if [ -f dallinger-*.whl ]; then pip install dallinger-*.whl; fi
+        # If a dependency needs the ssh client and git, install them
+        RUN grep git+ requirements.txt && \
+            apt-get update && \
+            apt-get install -y openssh-client git && \
+            rm -rf /var/lib/apt/lists || true
+        RUN {ssh_mount} echo 'Running script prepare_docker_image.sh' && \
+            chmod 755 ./prepare_docker_image.sh && \
+            ./prepare_docker_image.sh
+        # We rely on the already installed dallinger: the docker image tag has been chosen
+        # based on the contents of this file. This makes sure dallinger stays installed from
+        # /dallinger, and that it doesn't waste space with two copies in two different layers.
+        #
+        # Some experiments might only list dallinger as dependency
+        # If they do the grep command will exit non-0, the pip command will not run
+        # but the whole `RUN` group will succeed thanks to the last `true` invocation
+        RUN mkdir -p ~/.ssh && echo "Host *\n    StrictHostKeyChecking no" >> ~/.ssh/config
+        RUN {ssh_mount} grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
+            python3 -m pip install -r /tmp/requirements_no_dallinger.txt || true
+        COPY . /experiment
+        ENV PORT=5000
+        CMD dallinger_heroku_web
+        """
+        dockerfile_path.write_text(dockerfile_text)
     try:
         check_output(docker_build_invocation, env=env)
     except CalledProcessError:

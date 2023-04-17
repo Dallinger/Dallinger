@@ -1,6 +1,7 @@
 import os
-import pytest
 import sys
+
+import pytest
 
 from dallinger import experiments
 from dallinger.command_line.utils import verify_package
@@ -68,12 +69,13 @@ class TestBartlett1932(object):
 
     def test_networks_holds_single_experiment_node(self, demo):
         assert len(demo.networks()) == 1
-        assert u"experiment" == demo.networks()[0].role
+        assert "experiment" == demo.networks()[0].role
 
 
 class TestEntryPointImport(object):
     def test_bartlett1932_entry_point(self):
         from dlgr.demos.bartlett1932.experiment import Bartlett1932 as OrigExp
+
         from dallinger.experiments import Bartlett1932
 
         assert Bartlett1932 is OrigExp

@@ -1,8 +1,12 @@
 import os
+
 import pytest
-from dallinger.pytest_dallinger import wait_for_element
-from dallinger.pytest_dallinger import wait_for_text
-from dallinger.pytest_dallinger import wait_until_clickable
+
+from dallinger.pytest_dallinger import (
+    wait_for_element,
+    wait_for_text,
+    wait_until_clickable,
+)
 
 
 @pytest.fixture(scope="class")
@@ -38,7 +42,7 @@ class TestBartlett1932(object):
 
     def test_networks_holds_single_experiment_node(self, demo):
         assert len(demo.networks()) == 1
-        assert u"experiment" == demo.networks()[0].role
+        assert "experiment" == demo.networks()[0].role
 
     @pytest.mark.slow
     def test_bartlett_selenium(self, two_iterations, bot_recruits):

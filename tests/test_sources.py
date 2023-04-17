@@ -1,4 +1,4 @@
-from dallinger import nodes, models
+from dallinger import models, nodes
 
 
 class TestSources(object):

@@ -1,29 +1,38 @@
 import json
 import logging
+from copy import deepcopy
+from datetime import datetime, timedelta
+from xml.sax.saxutils import escape
+
 import six
 import timeago
-from copy import deepcopy
-from datetime import datetime
-from datetime import timedelta
-from six.moves.urllib.parse import urlencode
-from xml.sax.saxutils import escape
-from flask import Blueprint
-from flask import current_app
-from flask import abort, flash, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask.wrappers import Response
-from flask_wtf import FlaskForm
-from tzlocal import get_localzone
-from wtforms import StringField, PasswordField, BooleanField, SubmitField, HiddenField
-from wtforms.validators import DataRequired, ValidationError
-from flask_login import current_user, login_required, login_user, logout_user
-from flask_login import UserMixin
+from flask_login import UserMixin, current_user, login_required, login_user, logout_user
 from flask_login.utils import login_url as make_login_url
-from dallinger import recruiters
-from dallinger.heroku.tools import HerokuApp
-from dallinger.config import get_config
-from dallinger.utils import deferred_route_decorator
-from .utils import date_handler, error_response, success_response
+from flask_wtf import FlaskForm
+from six.moves.urllib.parse import urlencode
+from tzlocal import get_localzone
+from wtforms import BooleanField, HiddenField, PasswordField, StringField, SubmitField
+from wtforms.validators import DataRequired, ValidationError
 
+import dallinger.db
+from dallinger import recruiters
+from dallinger.config import get_config
+from dallinger.db import get_all_mapped_classes
+from dallinger.heroku.tools import HerokuApp
+from dallinger.utils import deferred_route_decorator
+
+from .utils import date_handler, error_response, success_response
 
 logger = logging.getLogger(__name__)
 
@@ -193,22 +202,18 @@ class DashboardTabs(object):
         return iter(self.tabs)
 
 
-BROWSEABLE_MODELS = [
-    "Info",
-    "Network",
-    "Node",
-    "Participant",
-    "Question",
-    "Transformation",
-    "Transmission",
-    "Notification",
-]
-
-
 def database_children():
-    for model_type in BROWSEABLE_MODELS:
+    mapped_classes = list(get_all_mapped_classes().items())
+    mapped_classes.sort(key=lambda x: x[0])
+    for cls_name, cls_info in mapped_classes:
         yield DashboardTab(
-            model_type + "s", "dashboard.database", None, {"model_type": model_type}
+            cls_name,
+            "dashboard.database",
+            None,
+            {
+                "table": cls_info["table"],
+                "polymorphic_identity": cls_info["polymorphic_identity"],
+            },
         )
 
 
@@ -362,7 +367,7 @@ tz = get_localzone()
 
 
 def when_with_relative_time(dt):
-    now = tz.localize(datetime.now())
+    now = datetime.now().replace(tzinfo=tz)
     formatted = dt.strftime("%a %b %-d")
     return "{} ({})".format(formatted, timeago.format(dt, now))
 
@@ -421,9 +426,9 @@ _fake_hit_data = {
     "assignments_available": 1,
     "assignments_completed": 0,
     "assignments_pending": 0,
-    "created": tz.localize(datetime.now() - timedelta(minutes=10)),
+    "created": (datetime.now() - timedelta(minutes=10)).replace(tzinfo=tz),
     "description": "Fake HIT Description",
-    "expiration": tz.localize(datetime.now() + timedelta(hours=6)),
+    "expiration": (datetime.now() + timedelta(hours=6)).replace(tzinfo=tz),
     "id": "3X7837UUADRXYCA1K7JAJLKC66DJ60",
     "keywords": ["testkw1", "testkw2"],
     "max_assignments": 1,
@@ -560,6 +565,7 @@ def mturk():
 @login_required
 def monitoring():
     from sqlalchemy import distinct, func
+
     from dallinger.experiment_server.experiment_server import Experiment, session
     from dallinger.models import Network
 
@@ -595,6 +601,13 @@ def node_details(object_type, obj_id):
     exp = Experiment(session)
     html_data = exp.node_visualization_html(object_type, obj_id)
     return Response(html_data, status=200, mimetype="text/html")
+
+
+@dashboard.route("/init_db", methods=["POST"])
+@login_required
+def init_db():
+    dallinger.db.init_db(drop_all=True)
+    return success_response()
 
 
 @dashboard.route("/lifecycle")
@@ -693,15 +706,30 @@ def prep_datatables_options(table_data):
 @dashboard.route("/database")
 @login_required
 def database():
+    from dallinger.db import get_polymorphic_mapping
     from dallinger.experiment_server.experiment_server import Experiment, session
 
-    title = "Database View"
     exp = Experiment(session)
-    model_type = request.args.get("model_type")
-    if model_type:
-        title = "Database View: {}s".format(model_type)
+
+    table = request.args.get("table", None)
+    polymorphic_identity = request.args.get("polymorphic_identity", None)
+
+    if polymorphic_identity == "None":
+        polymorphic_identity = None
+
+    if table is None and polymorphic_identity is None:
+        table = "participant"
+
+    if polymorphic_identity is not None:
+        assert table is not None
+        cls = get_polymorphic_mapping(table)[polymorphic_identity]
+        label = cls.__name__
+    else:
+        label = table.capitalize()
+
+    title = "Database View: {}".format(label)
     datatables_options = prep_datatables_options(
-        exp.table_data(**request.args.to_dict(flat=False))
+        exp.table_data(**request.args.to_dict())
     )
     columns = [
         c.get("name") or c["data"]

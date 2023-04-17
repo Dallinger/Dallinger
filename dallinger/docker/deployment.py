@@ -1,9 +1,8 @@
-from dallinger.deployment import DebugDeployment
-from dallinger.deployment import setup_experiment
+from dallinger.deployment import DebugDeployment, setup_experiment
 
 
 class DockerDebugDeployment(DebugDeployment):
-    """Run the experiment in a local docker-compose based environment."""
+    """Run the experiment in a local docker compose based environment."""
 
     DEPLOY_NAME = "Docker"
     WRAPPER_CLASS = None

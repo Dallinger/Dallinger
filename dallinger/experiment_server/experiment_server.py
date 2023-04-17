@@ -1,53 +1,46 @@
 """ This module provides the backend Flask server that serves an experiment. """
 
-from datetime import datetime
-import gevent
-from json import dumps
-from json import loads
 import os
 import re
+from datetime import datetime
+from json import dumps, loads
 
+import gevent
 from flask import (
-    abort,
     Flask,
+    Response,
+    abort,
     redirect,
     render_template,
     request,
-    Response,
     send_from_directory,
     url_for,
 )
-from flask_login import LoginManager, login_required
+from flask_login import LoginManager, current_user, login_required
 from jinja2 import TemplateNotFound
-from rq import Queue
-from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
-from sqlalchemy import exc
-from sqlalchemy import func
-from sqlalchemy.sql.expression import true
 from psycopg2.extensions import TransactionRollbackError
+from rq import Queue
+from sqlalchemy import exc, func
+from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
+from sqlalchemy.sql.expression import true
 
-from dallinger import db
-from dallinger import experiment
-from dallinger import models
+from dallinger import db, experiment, models, recruiters
 from dallinger.config import get_config
-from dallinger import recruiters
-from dallinger.notifications import admin_notifier
-from dallinger.notifications import MessengerError
+from dallinger.notifications import MessengerError, admin_notifier
 from dallinger.utils import generate_random_id
 
 from . import dashboard
 from .replay import ReplayBackend
-from .worker_events import worker_function
 from .utils import (
-    crossdomain,
-    nocache,
+    ExperimentError,
     ValidatesBrowser,
+    crossdomain,
     error_page,
     error_response,
+    nocache,
     success_response,
-    ExperimentError,
 )
-
+from .worker_events import worker_function
 
 # Initialize the Dallinger database.
 session = db.session
@@ -58,6 +51,23 @@ q = Queue(connection=redis_conn)
 WAITING_ROOM_CHANNEL = "quorum"
 
 app = Flask("Experiment_Server")
+
+
+@app.before_request
+def check_for_protected_routes():
+    if current_user.is_authenticated:
+        return
+
+    try:
+        active_rule = request.url_rule.rule
+    except AttributeError:
+        return
+
+    protected = Experiment(None).protected_routes
+    if active_rule in protected:
+        raise PermissionError(
+            f'Unauthorized call to protected route "{active_rule}": {request}'
+        )
 
 
 @app.before_first_request
@@ -106,7 +116,7 @@ if exp_klass is not None:  # pragma: no cover
                 route["rule"],
                 endpoint=route["func_name"],
                 view_func=route_func,
-                **dict(route["kwargs"])
+                **dict(route["kwargs"]),
             )
     if routes:
         app.register_blueprint(bp)
@@ -122,7 +132,7 @@ if exp_klass is not None:  # pragma: no cover
                 "/" + route_name,
                 endpoint=route_name,
                 view_func=route_func,
-                **dict(route["kwargs"])
+                **dict(route["kwargs"]),
             )
             tabs = dashboard.dashboard_tabs
             full_tab = route.get("tab")
@@ -143,11 +153,18 @@ if exp_klass is not None:  # pragma: no cover
             else:
                 tabs.insert(route["title"], route_name)
 
+    # This hides dashboard tabs from view, but doesn't prevent the routes from
+    # being registered
+    hidden_dashboards = getattr(exp_klass, "hidden_dashboards", ())
+    for route_name in hidden_dashboards:
+        dashboard.dashboard_tabs.remove(route_name)
+
 
 # Ideally, we'd only load recruiter routes if the recruiter is active, but
 # it turns out this is complicated, so for now we always register our
-# primary recruiter's route:
+# primary recruiters' routes:
 app.register_blueprint(recruiters.mturk_routes)
+app.register_blueprint(recruiters.prolific_routes)
 
 # Load dashboard routes and login setup
 app.register_blueprint(dashboard.dashboard)
@@ -368,6 +385,16 @@ def launch():
         )
 
     try:
+        exp.on_launch()
+    except Exception as e:
+        return error_response(
+            error_text="An error occurred when calling on_launch(), check experiment server log "
+            "for details: {}".format(str(e)),
+            status=500,
+            simple=True,
+        )
+
+    try:
         recruitment_details = exp.recruiter.open_recruitment(
             n=exp.initial_recruitment_size
         )
@@ -431,24 +458,10 @@ def launch():
     return success_response(recruitment_msg=message)
 
 
-@app.route("/ad", methods=["GET"])
-@nocache
-def advertisement():
-    """
-    This is the url we give for the ad for our 'external question'.  The ad has
-    to display two different things: This page will be called from within
-    mechanical turk, with url arguments hitId, assignmentId, and workerId.
-    If the worker has not yet accepted the hit:
-        These arguments will have null values, we should just show an ad for
-        the experiment.
-    If the worker has accepted the hit:
-        These arguments will have appropriate values and we should enter the
-        person in the database and provide a link to the experiment popup.
-    If the url includes an argument ``generate_tokens``:
-        The user will be redirected to this view with random recruiter
-        arguments set.
-    """
+def prepare_advertisement():
+    session = db.session
     config = _config()
+    mode = config.get("mode")
 
     # Browser rule validation, if configured:
     browser = ValidatesBrowser(config)
@@ -463,7 +476,7 @@ def advertisement():
         for entry_param in ("hitId", "assignmentId", "workerId"):
             if not redirect_params.get(entry_param):
                 redirect_params[entry_param] = generate_random_id()
-        return redirect(url_for("advertisement", **redirect_params))
+        return True, {"redirect": redirect(url_for("advertisement", **redirect_params))}
 
     app_id = config.get("id", "unknown")
     exp = Experiment(session)
@@ -489,24 +502,47 @@ def advertisement():
             raise ExperimentError("already_did_exp_hit")
 
     recruiter_name = request.args.get("recruiter")
-    if recruiter_name:
-        recruiter = recruiters.by_name(recruiter_name)
-    else:
+    if not recruiter_name:
         recruiter = recruiters.from_config(config)
         recruiter_name = recruiter.nickname
 
-    # Participant has not yet agreed to the consent. They might not
-    # even have accepted the HIT.
-    return render_template(
-        "ad.html",
-        recruiter=recruiter_name,
-        hitid=hit_id,
-        assignmentid=assignment_id,
-        workerid=worker_id,
-        mode=config.get("mode"),
-        app_id=app_id,
-        query_string=request.query_string.decode(),
-    )
+    kwargs = {
+        "recruiter": recruiter_name,
+        "hitid": hit_id,
+        "assignmentid": assignment_id,
+        "workerid": worker_id,
+        "mode": mode,
+        "app_id": app_id,
+        "query_string": request.query_string.decode(),
+    }
+    return False, kwargs
+
+
+@app.route("/ad", methods=["GET"])
+@nocache
+def advertisement():
+    """
+    This is the url we give for the ad for our 'external question'.  The ad has
+    to display two different things: This page will be called from within
+    mechanical turk, with url arguments hitId, assignmentId, and workerId.
+    If the worker has not yet accepted the hit:
+        These arguments will have null values, we should just show an ad for
+        the experiment.
+    If the worker has accepted the hit:
+        These arguments will have appropriate values and we should enter the
+        person in the database and provide a link to the experiment popup.
+    If the url includes an argument ``generate_tokens``:
+        The user will be redirected to this view with random recruiter
+        arguments set.
+    """
+
+    is_redirect, kw = prepare_advertisement()
+    if is_redirect:
+        return kw["redirect"]
+    else:
+        # Participant has not yet agreed to the consent. They might not
+        # even have accepted the HIT.
+        return render_template("ad.html", **kw)
 
 
 @app.route("/recruiter-exit", methods=["GET"])
@@ -758,13 +794,17 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         msg = "/participant POST: required values were 'undefined'"
         return error_response(error_type=msg, status=403)
 
-    fingerprint_hash = request.args.get("fingerprint_hash")
-    try:
-        fingerprint_found = models.Participant.query.filter_by(
-            fingerprint_hash=fingerprint_hash
-        ).one_or_none()
-    except MultipleResultsFound:
-        fingerprint_found = True
+    fingerprint_hash = request.args.get("fingerprint_hash") or request.form.get(
+        "fingerprint_hash"
+    )
+    fingerprint_found = False
+    if fingerprint_hash:
+        try:
+            fingerprint_found = models.Participant.query.filter_by(
+                fingerprint_hash=fingerprint_hash
+            ).one_or_none()
+        except MultipleResultsFound:
+            fingerprint_found = True
 
     if fingerprint_hash and fingerprint_found:
         db.logger.warning("Same browser fingerprint detected.")
@@ -854,6 +894,8 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
 def post_participant():
     config = _config()
     entry_information = request.form.to_dict()
+    if "fingerprint_hash" in entry_information:
+        del entry_information["fingerprint_hash"]
     # Remove the mode from entry_information if provided
     mode = entry_information.pop("mode", config.get("mode"))
     exp = Experiment(session)

@@ -1,13 +1,25 @@
 """Define Dallinger's core models."""
 
-from datetime import datetime
 import inspect
+from datetime import datetime
 
-from sqlalchemy import ForeignKey, or_, and_
-from sqlalchemy import Column, String, Text, Enum, Integer, Boolean, DateTime, Float
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    and_,
+    func,
+    or_,
+)
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.sql.expression import false
-from sqlalchemy.orm import relationship, validates
+from sqlalchemy.orm import column_property, relationship, validates
+from sqlalchemy.sql.expression import false, select
 
 from .db import Base
 
@@ -385,7 +397,9 @@ class Question(Base, SharedMixin):
     participant_id = Column(Integer, ForeignKey("participant.id"))
 
     #: the participant who answered the question
-    participant = relationship(Participant, backref="all_questions")
+    participant = relationship(
+        Participant, foreign_keys=[participant_id], backref="all_questions"
+    )
 
     #: A number identifying the question. e.g., each participant might complete
     #: three questions numbered 1, 2, and 3.
@@ -461,12 +475,17 @@ class Network(Base, SharedMixin):
         )
 
     def json_data(self):
-        """Return json description of a participant."""
+        """Return json description of a network."""
         return {
             "type": self.type,
             "max_size": self.max_size,
             "full": self.full,
             "role": self.role,
+            "n_pending_infos": self.n_pending_infos,
+            "n_completed_infos": self.n_completed_infos,
+            "n_failed_infos": self.n_failed_infos,
+            "n_alive_nodes": self.n_alive_nodes,
+            "n_failed_nodes": self.n_failed_nodes,
             "object_type": "Network",
         }
 
@@ -669,13 +688,15 @@ class Node(Base, SharedMixin):
     network_id = Column(Integer, ForeignKey("network.id"), index=True)
 
     #: the network the node is in
-    network = relationship(Network, backref="all_nodes")
+    network = relationship(Network, foreign_keys=[network_id], backref="all_nodes")
 
     #: the id of the participant whose node this is
     participant_id = Column(Integer, ForeignKey("participant.id"), index=True)
 
     #: the participant the node is associated with
-    participant = relationship(Participant, backref="all_nodes")
+    participant = relationship(
+        Participant, foreign_keys=[participant_id], backref="all_nodes"
+    )
 
     def __init__(self, network, participant=None):
         """Create a node."""
@@ -913,7 +934,6 @@ class Node(Base, SharedMixin):
                 connected.append(w in origins)
 
         elif direction in ["either", "both"]:
-
             vectors = (
                 Vector.query.with_entities(Vector.origin_id, Vector.destination_id)
                 .filter(
@@ -1373,6 +1393,15 @@ class Vector(Base, SharedMixin):
 
     __tablename__ = "vector"
 
+    #: A String giving the name of the class. Defaults to
+    #: ``vector``. This allows subclassing.
+    #:
+    #: Note: The type column was added in 9/2022, 7+ years after the Vector ORM class was introduced. To support
+    #: importing datasets which don't include this column we define a default value which will be used when deploying
+    #: experiments from zip files.
+    type = Column(String(50), default="vector", server_default="vector")
+    __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "vector"}
+
     #: the id of the Node at which the vector originates
     origin_id = Column(Integer, ForeignKey("node.id"), index=True)
 
@@ -1393,7 +1422,7 @@ class Vector(Base, SharedMixin):
     network_id = Column(Integer, ForeignKey("network.id"), index=True)
 
     #: the network the vector is in.
-    network = relationship(Network, backref="all_vectors")
+    network = relationship(Network, foreign_keys=[network_id], backref="all_vectors")
 
     def __init__(self, origin, destination):
         """Create a vector."""
@@ -1498,16 +1527,19 @@ class Info(Base, SharedMixin):
     origin_id = Column(Integer, ForeignKey("node.id"), index=True)
 
     #: the Node that created the info.
-    origin = relationship(Node, backref="all_infos")
+    origin = relationship(Node, foreign_keys=[origin_id], backref="all_infos")
 
     #: the id of the network the info is in
     network_id = Column(Integer, ForeignKey("network.id"), index=True)
 
     #: the network the info is in
-    network = relationship(Network, backref="all_infos")
+    network = relationship(Network, foreign_keys=[network_id], backref="all_infos")
 
     #: the contents of the info. Must be stored as a String.
     contents = Column(Text(), default=None)
+
+    #: whether the info is 'complete', i.e. has received its contents
+    complete = Column(Boolean(), default=False)
 
     def __init__(self, origin, contents=None, details=None, failed=False):
         """Create an info."""
@@ -1533,6 +1565,15 @@ class Info(Base, SharedMixin):
         if existing is not None:
             raise ValueError("The contents of an info is write-once.")
         return value
+
+    def __setattr__(self, key, value):
+        super().__setattr__(key, value)
+        if key != "complete":
+            self.check_complete()
+
+    def check_complete(self):
+        if self.contents is not None:
+            self.complete = True
 
     def __repr__(self):
         """The string representation of an info."""
@@ -1632,13 +1673,13 @@ class Transmission(Base, SharedMixin):
     vector_id = Column(Integer, ForeignKey("vector.id"), index=True)
 
     #: the vector the info was sent along.
-    vector = relationship(Vector, backref="all_transmissions")
+    vector = relationship(Vector, foreign_keys=[vector_id], backref="all_transmissions")
 
     #: the id of the info that was transmitted
     info_id = Column(Integer, ForeignKey("info.id"), index=True)
 
     #: the info that was transmitted.
-    info = relationship(Info, backref="all_transmissions")
+    info = relationship(Info, foreign_keys=[info_id], backref="all_transmissions")
 
     #: the id of the Node that sent the transmission
     origin_id = Column(Integer, ForeignKey("node.id"), index=True)
@@ -1660,7 +1701,9 @@ class Transmission(Base, SharedMixin):
     network_id = Column(Integer, ForeignKey("network.id"), index=True)
 
     #: the network the transmission is in.
-    network = relationship(Network, backref="networks_transmissions")
+    network = relationship(
+        Network, foreign_keys=[network_id], backref="networks_transmissions"
+    )
 
     #: the time at which the transmission was received
     receive_time = Column(DateTime, default=None)
@@ -1758,13 +1801,15 @@ class Transformation(Base, SharedMixin):
     node_id = Column(Integer, ForeignKey("node.id"), index=True)
 
     #: the Node that did the transformation.
-    node = relationship(Node, backref="transformations_here")
+    node = relationship(Node, foreign_keys=[node_id], backref="transformations_here")
 
     #: the id of the network the transformation is in.
     network_id = Column(Integer, ForeignKey("network.id"), index=True)
 
     #: the network the transmission is in.
-    network = relationship(Network, backref="networks_transformations")
+    network = relationship(
+        Network, foreign_keys=[network_id], backref="networks_transformations"
+    )
 
     def __repr__(self):
         """The string representation of a transformation."""
@@ -1822,6 +1867,13 @@ class Notification(Base, SharedMixin):
     # the type of notification
     event_type = Column(String, nullable=False)
 
+    def json_data(self):
+        """The json representation of a notification."""
+        return {
+            "assignment_id": self.assignment_id,
+            "event_type": self.event_type,
+        }
+
 
 class Recruitment(Base, SharedMixin):
     """A record of a request to recruit a participant."""
@@ -1830,3 +1882,51 @@ class Recruitment(Base, SharedMixin):
 
     #: A String, the nickname of the recruiter used.
     recruiter_id = Column(String(50), nullable=True)
+
+
+Network.n_pending_infos = column_property(
+    select(func.count(Info.id))
+    .where(
+        Info.network_id == Network.id,
+        ~Info.failed,
+        ~Info.complete,
+    )
+    .scalar_subquery()
+)
+
+Network.n_completed_infos = column_property(
+    select(func.count(Info.id))
+    .where(
+        Info.network_id == Network.id,
+        ~Info.failed,
+        Info.complete,
+    )
+    .scalar_subquery()
+)
+
+Network.n_failed_infos = column_property(
+    select(func.count(Info.id))
+    .where(
+        Info.network_id == Network.id,
+        Info.failed,
+    )
+    .scalar_subquery()
+)
+
+Network.n_alive_nodes = column_property(
+    select(func.count(Node.id))
+    .where(
+        Node.network_id == Network.id,
+        ~Node.failed,
+    )
+    .scalar_subquery()
+)
+
+Network.n_failed_nodes = column_property(
+    select(func.count(Node.id))
+    .where(
+        Node.network_id == Network.id,
+        Node.failed,
+    )
+    .scalar_subquery()
+)

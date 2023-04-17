@@ -15,7 +15,7 @@
 {% endblock %}
 
 {% block libs %}
-	<script src="/static/scripts/raphael-min.js" type="text/javascript"> </script>
-	<script src="/static/scripts/raphael.sketchpad.min.js" type="text/javascript"> </script>
-	<script src="/static/scripts/drawings.js" type="text/javascript"> </script>
+	<script src="{{ url_for('static', filename='scripts/raphael-min.js') }}" type="text/javascript"> </script>
+	<script src="{{ url_for('static', filename='scripts/raphael.sketchpad.min.js') }}" type="text/javascript"> </script>
+	<script src="{{ url_for('static', filename='scripts/drawings.js') }}" type="text/javascript"> </script>
 {% endblock %}

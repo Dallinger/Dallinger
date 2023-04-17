@@ -1,12 +1,21 @@
 """Install Dallinger as a command line utility."""
+import pathlib
 
 from setuptools import setup
+
+# The directory containing this file
+HERE = pathlib.Path(__file__).parent
+
+README = (HERE / "README.md").read_text(encoding="utf-8")
+
 
 setup_args = dict(
     name="dallinger",
     packages=["dallinger", "dallinger_scripts"],
-    version="7.6.0",
+    version="9.6.0a1",
     description="Laboratory automation for the behavioral and social sciences",
+    long_description=README,
+    long_description_content_type="text/markdown",
     url="http://github.com/Dallinger/Dallinger",
     maintainer="Jordan Suchow",
     maintainer_email="suchow@berkeley.edu",
@@ -20,6 +29,7 @@ setup_args = dict(
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
         "Framework :: Pytest",
     ],
     include_package_data=True,
@@ -43,7 +53,7 @@ setup_args = dict(
         "click",
         "faker",
         "Flask-Sockets",
-        "Flask<2.0",
+        "Flask",
         "flask-crossdomain",
         "flask-login",
         "Flask-WTF",
@@ -58,14 +68,16 @@ setup_args = dict(
         "pip-tools",
         "psycopg2",
         "psutil",
+        "pyopenssl",
         "redis",
         "requests",
         "rq",
         "selenium",
         "six",
-        "SQLAlchemy",
+        "SQLAlchemy<2",
         "sqlalchemy-postgres-copy",
         "tabulate",
+        "tenacity",
         "timeago",
         "tzlocal",
         "ua-parser",
@@ -73,8 +85,9 @@ setup_args = dict(
     ],
     extras_require={
         "jupyter": [
-            "jupyter",
             "ipywidgets",
+            "jupyter",
+            "jupyter-server",
         ],
         "data": [
             "pandas",
@@ -86,22 +99,21 @@ setup_args = dict(
             "bumpversion",
             "coverage",
             "coverage_pth",
-            "codecov",
             "flake8",
-            "mock",
+            "isort",
+            "mock==5.0.0",
+            "myst-parser",
             "pre-commit",
             "pycodestyle",
             "pypandoc",
             "pytest",
             "pytest-rerunfailures",
-            "recommonmark",
-            "sphinxcontrib-spelling",
-            "Sphinx",
-            "tox",
-            "sphinx-js",
+            "sphinx",
             "sphinx_rtd_theme",
+            "sphinxcontrib-spelling",
+            "tox",
         ],
-        "docker": ["docker", "docker-compose", "paramiko", "sshtunnel"],
+        "docker": ["docker", "paramiko", "sshtunnel"],
         ':python_version <= "3.7"': ["importlib_metadata"],
     },
 )

@@ -24,7 +24,7 @@ similarly to ``dallinger debug``.
 .. note::
 
     The ``dallinger debug`` command does not require redis or postgresql already installed: they will be run
-    via docker-compose by dallinger automatically.
+    via ``docker compose`` by dallinger automatically.
 
 Every experiment will use its own redis and postgresql isolated instance.
 
@@ -40,8 +40,8 @@ How it works
 Under the hood ``dallinger docker`` creates a ``docker-compose.yml`` file inside the
 temporary directory where the experiment is assembled.
 
-This means that, while it's running all regular ``docker-compose`` commands can be
-issued by either entering that directory or by passing docker-compose the location
+This means that, while it's running all regular ``docker compose`` commands can be
+issued by either entering that directory or by passing ``docker compose`` the location
 of the yaml file using the ``-f`` option.
 
 Examples:
@@ -49,9 +49,9 @@ Examples:
 .. code-block:: shell
 
     # to display output from web and worker containers:
-    docker-compose -f ${EXPERIMENT_TMP_DIR}/docker-compose.yml logs -f web worker
+    docker compose -f ${EXPERIMENT_TMP_DIR}/docker-compose.yml logs -f web worker
     # To start a shell inside the worker container:
-    docker-compose -f ${EXPERIMENT_TMP_DIR}/docker-compose.yml exec worker bash
+    docker compose -f ${EXPERIMENT_TMP_DIR}/docker-compose.yml exec worker bash
 
 Image creation
 **************
@@ -160,7 +160,7 @@ experiments deployed this way can be found under the `dallinger docker-ssh` comm
 
     Commands:
       apps     List dallinger apps running on the remote server.
-      deploy   Deploy a dallnger experiment docker image to a server using ssh.
+      deploy   Deploy a dallinger experiment docker image to a server using ssh.
       destroy  Tear down an experiment run on a server you control via ssh.
       export   Export database to a local file.
       servers  Manage remote servers where experiments can be deployed
@@ -182,7 +182,7 @@ Given an IP address or a DNS name of te server and a username, add the host to t
 
     dallinger docker-ssh servers add --user $SERVER_USER --host $SERVER_HOSTNAME_OR_IP
 
-Dallinger verifies that ``docker`` and ``docker-compose`` are installed, and installs them if they are not.
+Dallinger verifies that ``docker`` and ``docker compose`` are installed, and installs them if they are not.
 The installation should take a couple of minutes.
 
 Now you can deploy an experiment image to the server:
@@ -208,7 +208,7 @@ The above command will output:
     Additional details:
     Recruitment requests will open browser windows automatically.
     To display the logs for this experiment you can run:
-    ssh debian@0.0.0.0 docker-compose -f '~/dallinger/dlgr-d5543ddd/docker-compose.yml' logs -f
+    ssh debian@0.0.0.0 docker compose -f '~/dallinger/dlgr-d5543ddd/docker-compose.yml' logs -f
     You can now log in to the console at https://dlgr-d5543ddd.0.0.0.0.nip.io/dashboard as user admin using password foobar
 
 Dallinger uses the free service [nip.io](https://nip.io/) to provide a URL for the experiment to get an SSL certificate from Let's Encrypt.
@@ -232,6 +232,11 @@ To stop an experiment and remove its containers from the server, run:
 .. code-block:: shell
 
     dallinger docker-ssh destroy --app $APP_ID
+
+.. note::
+
+      When deploying to a server using docker, the experiment can save files to the directory ``/var/lib/dallinger``.
+      This directory will be visible on the server as ``~/dallinger-data/${experiment_id}``.
 
 
 Support for python dependencies in private repositories

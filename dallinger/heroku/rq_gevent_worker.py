@@ -13,15 +13,16 @@ monkey.patch_all()
 
 import logging
 import signal
+
 import gevent
 import gevent.pool
 from rq import Worker
-from rq.job import JobStatus
-from rq.timeouts import BaseDeathPenalty, JobTimeoutException
-from rq.worker import StopRequested, green, blue, WorkerStatus
 from rq.exceptions import DequeueTimeout
+from rq.job import JobStatus
 from rq.logutils import setup_loghandlers
+from rq.timeouts import BaseDeathPenalty, JobTimeoutException
 from rq.version import VERSION
+from rq.worker import StopRequested, WorkerStatus, blue, green
 
 
 class GeventDeathPenalty(BaseDeathPenalty):
@@ -119,7 +120,13 @@ class GeventWorker(Worker):
                         self.log.info("Stopping on request.")
                         break
 
-                    timeout = None if burst else max(1, self.default_worker_ttl - 60)
+                    try:
+                        worker_ttl = self.worker_ttl
+                    except AttributeError:
+                        # For back-compatibility with rq < 1.13.0
+                        worker_ttl = self.default_worker_ttl
+
+                    timeout = None if burst else max(1, worker_ttl - 60)
 
                     result = self.dequeue_job_and_maintain_ttl(timeout)
                     if result is None and burst:
@@ -214,6 +221,7 @@ class GeventWorker(Worker):
 
 def main():
     import sys
+
     from rq.cli import worker as rq_main
 
     if "-w" in sys.argv or "--worker-class" in sys.argv:

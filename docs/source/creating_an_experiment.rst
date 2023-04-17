@@ -677,9 +677,9 @@ pages.
 	{%- endblock %}
 
 	{% block libs %}
-		<script src="/static/scripts/store+json2.min.js" type="text/javascript"> </script>
+		<script src="{{ url_for('static', filename='scripts/store+json2.min.js') }}" type="text/javascript"> </script>
 		{{ super() }}
-		<script src="/static/scripts/experiment.js" type="text/javascript"> </script>
+		<script src="{{ url_for('static', filename='scripts/experiment.js') }}" type="text/javascript"> </script>
 	{% endblock %}
 
 As far as layout goes, this template doesn't do much else than setting
@@ -1442,9 +1442,9 @@ include dependencies. Here's the full ``layout.html`` template:
 	{%- endblock %}
 
 	{% block libs %}
-		<script src="/static/scripts/store+json2.min.js" type="text/javascript"> </script>
+		<script src="{{ url_for('static', filename='scripts/store+json2.min.js') }}" type="text/javascript"> </script>
 		{{ super() }}
-		<script src="/static/scripts/experiment.js" type="text/javascript"> </script>
+		<script src="{{ url_for('static', filename='scripts/experiment.js') }}" type="text/javascript"> </script>
 	{% endblock %}
 
 The only important part if the layout template is the `libs` block. Here you
@@ -1590,8 +1590,8 @@ Here is the bot code:
 			try:
 				ready = WebDriverWait(self.driver, 10).until(
 					EC.element_to_be_clickable((By.ID, 'finish-reading')))
-				stimulus = self.driver.find_element_by_id('stimulus')
-				story = stimulus.find_element_by_id('story')
+				stimulus = self.driver.find_element('id', 'stimulus')
+				story = stimulus.find_element('id' ,'story')
 				story_text = story.text
 				ready.click()
 				submit = WebDriverWait(self.driver, 10).until(

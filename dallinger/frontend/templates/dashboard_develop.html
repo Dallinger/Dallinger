@@ -1,49 +1,69 @@
 {% extends "base/dashboard.html" %}
 
+{% block stylesheets %}
+    <style>
+        .dev-tools-section {
+            margin-top: 30px;
+            margin-bottom: 30px;
+        }
+    </style>
+{% endblock %}
+
 {% block body %}
-<h1>Development Server Dashboard</h1>
+    <h1>Development Mode Tools</h1>
 
-<button id="launch-route-post" class="btn btn-primary">Launch</button>
+    <div class="dev-tools-section">
+        <p>
+            You can update your experiment code while the experiment is running;
+            if you refresh the browser, you should be able to see your changes.
+        </p>
+        <p>
+            <strong>Note:</strong>
+            Certain files (in particular, JS scripts) are cached by the browser,
+            and so might not be updated by an ordinary refresh.
+            In such cases you may need to force the browser to do a non-cached refresh.
+            The shortcut for this is typically Cmd-Shift-R (Mac) or Ctrl-Shift-R (Linux, Windows).
+        </p>
+    </div>
 
-<h2>Server Responses</h2>
-<pre id="console"></pre>
+    <div class="dev-tools-section">
+        <button id="new-participant" class="btn btn-primary" onclick="handleNewParticipant()">New participant</button>
 
+        <button id="init-db" class="btn btn-danger" onclick="handleInitDB()">Reset database</button>
+    </div>
+
+    <div class="dev-tools-section">
+        <h2>Messages</h2>
+
+        <pre id="messages"></pre>
+    </div>
 
 {% endblock %}
 
 {% block scripts %}
-<script type="text/javascript">
+    <script type="text/javascript">
+        function log(data) {
+            let messages = $("#messages");
+            let time = new Date().toLocaleTimeString();
+            let text = JSON.stringify(data, null, 4)
+            messages.append("\n" + time + " - " + text);
+        }
 
-    function onLaunchSuccess(data) {
-        var $console = $("#console"),
-            response = JSON.stringify(data, null, 4);
+        function handleNewParticipant() {
+            let url = "/ad?generate_tokens=true&recruiter=hotair&source=dashboard";
+            log("Recruiting new participant...");
+            window.open(url, "_blank").focus();
+        }
 
-        $console.append("\n" + response);
-    };
-
-    function postToLaunchRoute(callback) {
-        var url = "/launch",
-        data = {};
-
-        $.ajax({
-            type: "POST",
-            url: url,
-            data: data,
-            success: callback,
-            dataType: "json"
-        });
-    };
-
-    function handleLaunchButton(event) {
-        var $button = $(event.currentTarget);
-
-        postToLaunchRoute(onLaunchSuccess);
-    };
-
-
-    $(function () {
-        $("#launch-route-post").click(handleLaunchButton);
-    })
-
-</script>
+        function handleInitDB() {
+            if (confirm("Are you sure you want to reset the database? All existing data will be lost.")) {
+                log("Initializing database reset...");
+                $.ajax({
+                    type: "POST",
+                    url: "/dashboard/init_db",
+                    success: log
+                });
+            }
+        }
+    </script>
 {% endblock %}

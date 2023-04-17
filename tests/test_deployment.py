@@ -1,23 +1,25 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-import mock
+
 import os
-import pexpect
-import pytest
 import re
 import shutil
-import six
 import sys
 import tempfile
 import textwrap
 import uuid
-from pytest import raises
-from six.moves import configparser
 from pathlib import Path
 
-from dallinger.config import get_config
+import mock
+import pexpect
+import pytest
+import six
+from pytest import raises
+from six.moves import configparser
+
 from dallinger import recruiters
+from dallinger.config import get_config
 
 
 def found_in(name, path):
@@ -623,7 +625,9 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         assert result == {
             "app_home": "fake-web-url",
             "app_name": "dlgr-fake-uid",
+            "dashboard_password": "DUMBPASSWORD",
             "dashboard_url": "fake-web-url/dashboard/",
+            "dashboard_user": "admin",
             "recruitment_msg": "fake\nrecruitment\nlist",
         }
 
@@ -652,9 +656,9 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
         dsss(log=mock.Mock())
         heroku_mock.set_multiple.assert_called_once_with(
             auto_recruit=True,
-            aws_access_key_id="fake aws key",
-            aws_region="us-east-1",
-            aws_secret_access_key="fake aws secret",
+            AWS_ACCESS_KEY_ID="fake aws key",
+            AWS_DEFAULT_REGION="us-east-1",
+            AWS_SECRET_ACCESS_KEY="fake aws secret",
             FLASK_SECRET_KEY=mock.ANY,  # password is random
             smtp_password="fake email password",
             smtp_username="fake email username",
@@ -982,7 +986,6 @@ class TestDockerServer(object):
             p.expect_exact("Recruitment is complete", timeout=180)
             p.expect_exact("'status': 'success'", timeout=120)
             p.expect_exact("Experiment completed", timeout=10)
-            p.expect_exact("Stopping bartlett1932_web_1", timeout=30)
             p.expect(pexpect.EOF)
         finally:
             try:
@@ -1014,7 +1017,6 @@ class TestDockerServer(object):
             p.expect_exact("Recruitment is complete", timeout=240)
             p.expect_exact("'status': 'success'", timeout=120)
             p.expect_exact("Experiment completed", timeout=20)
-            p.expect_exact("Stopping bartlett1932_web_1", timeout=20)
             p.expect(pexpect.EOF)
         finally:
             try:
@@ -1027,7 +1029,6 @@ class TestDockerServer(object):
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
 class TestLoad(object):
-
     exp_id = "some_experiment_id"
 
     @pytest.fixture
@@ -1121,16 +1122,25 @@ class TestConstraints(object):
         from dallinger.utils import ensure_constraints_file_presence
 
         tmp_path = tempfile.mkdtemp()
-        (Path(tmp_path) / "requirements.txt").write_text("black")
-        ensure_constraints_file_presence(tmp_path)
-        constraints_file = Path(tmp_path) / "constraints.txt"
-        # If not present a `constraints.txt` file will be generated
-        assert constraints_file.exists()
-        assert "toml" in constraints_file.read_text()
+        # We will be looking for
+        # https://raw.githubusercontent.com/Dallinger/Dallinger/v[__version__]
+        # so use an older version we know will exist, rather than the current
+        # version, which may not be tagged/released yet:
 
-        # An existing file will be left untouched
-        constraints_file.write_text("foobar")
-        with pytest.raises(ValueError):
+        # Change this to the current version after release
+        extant_github_tag = "b98f719c1ce851353f7cfcc78362cfaace51bb8d"
+        (Path(tmp_path) / "requirements.txt").write_text("black")
+        with mock.patch("dallinger.utils.__version__", extant_github_tag):
             ensure_constraints_file_presence(tmp_path)
-        assert constraints_file.read_text() == "foobar"
+            constraints_file = Path(tmp_path) / "constraints.txt"
+            # If not present a `constraints.txt` file will be generated
+            assert constraints_file.exists()
+            assert "toml" in constraints_file.read_text()
+
+            # An existing file will be left untouched
+            constraints_file.write_text("foobar")
+            with pytest.raises(ValueError):
+                ensure_constraints_file_presence(tmp_path)
+            assert constraints_file.read_text() == "foobar"
+
         shutil.rmtree(tmp_path)

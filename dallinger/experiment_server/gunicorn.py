@@ -1,12 +1,14 @@
 from __future__ import absolute_import
 
-from gunicorn.app.base import Application
-from gunicorn import util
+import logging
 import multiprocessing
 import os
-from dallinger.config import get_config
-import logging
+
+from gunicorn import util
+from gunicorn.app.base import Application
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+from dallinger.config import get_config
 
 logger = logging.getLogger(__file__)
 

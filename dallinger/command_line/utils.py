@@ -1,14 +1,14 @@
-from dallinger.config import get_config
-from dallinger.config import initialize_experiment_package
-from dallinger.utils import ExperimentFileSource
-from dallinger.version import __version__
-from functools import wraps
-import click
 import inspect
 import os
 import sys
 import tempfile
+from functools import wraps
 
+import click
+
+from dallinger.config import get_config, initialize_experiment_package
+from dallinger.utils import ExperimentFileSource
+from dallinger.version import __version__
 
 header = r"""
     ____        ____
@@ -206,9 +206,9 @@ def verify_config(verbose=True):
     else:
         dollarFormat = "{:.2f}".format(base_pay)
 
-        if base_pay <= 0:
+        if base_pay < 0:
             log(
-                "✗ base_payment must be positive value in config.txt.",
+                "✗ base_payment must be greater than or equal to zero in config.txt.",
                 chevrons=False,
                 verbose=verbose,
             )

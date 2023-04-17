@@ -1,12 +1,12 @@
-from operator import attrgetter
 import random
+from operator import attrgetter
 
 from sqlalchemy import Float, Integer
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql.expression import cast
 
-from dallinger.models import Transformation
 from dallinger.information import Gene, Meme, State
+from dallinger.models import Transformation
 from dallinger.nodes import Agent, Source
 
 
@@ -96,7 +96,7 @@ class RogersAgent(Agent):
         if self.fitness is not None:
             raise Exception(
                 "You are calculating the fitness of agent {}, ".format(self.id)
-                + "but they already have a fitness"
+                + "but they already have a fitness"  # noqa
             )
 
         said_blue = self.infos(type=Meme)[0].contents == "blue"
@@ -130,8 +130,8 @@ class RogersAgent(Agent):
         for gene in genes:
             if (
                 self.network.role == "experiment"
-                and self.generation > 0
-                and random.random() < 0.10
+                and self.generation > 0  # noqa
+                and random.random() < 0.10  # noqa
             ):
                 self.mutate(gene)
             else:

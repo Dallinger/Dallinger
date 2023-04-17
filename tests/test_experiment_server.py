@@ -1,11 +1,10 @@
 import json
+from datetime import datetime
+
 import mock
 import pytest
-from datetime import datetime
-from dallinger import models
-from dallinger.config import get_config
 
-config = get_config()
+from dallinger import models
 
 
 @pytest.mark.usefixtures("experiment_dir")
@@ -29,7 +28,7 @@ class TestAppConfiguration(object):
     def test_production_mode_leaves_flask_in_production_mode(
         self, webapp, active_config
     ):
-        active_config.extend({"mode": u"production"})
+        active_config.extend({"mode": "production"})
         webapp.application.debug = False
         from dallinger.experiment_server.gunicorn import StandaloneServer
 
@@ -38,7 +37,7 @@ class TestAppConfiguration(object):
         assert not webapp.application.debug
 
     def test_debug_mode_no_proxyfix(self, webapp, active_config):
-        active_config.extend({"mode": u"debug"})
+        active_config.extend({"mode": "debug"})
         from dallinger.experiment_server.gunicorn import StandaloneServer
 
         with mock.patch("sys.argv", ["gunicorn"]):
@@ -49,7 +48,7 @@ class TestAppConfiguration(object):
                 ProxyFix.assert_not_called()
 
     def test_production_mode_load_wraps_proxyfix(self, webapp, active_config):
-        active_config.extend({"mode": u"production"})
+        active_config.extend({"mode": "production"})
         from dallinger.experiment_server.gunicorn import StandaloneServer
 
         with mock.patch("sys.argv", ["gunicorn"]):
@@ -71,27 +70,52 @@ class TestAppConfiguration(object):
 
     def test_gunicorn_worker_config(self, webapp, active_config):
         with mock.patch("multiprocessing.cpu_count") as cpu_count:
-            active_config.extend({"threads": u"auto"})
+            active_config.extend({"threads": "auto"})
             cpu_count.return_value = 2
             from dallinger.experiment_server.gunicorn import StandaloneServer
 
             with mock.patch("sys.argv", ["gunicorn"]):
                 server = StandaloneServer()
-                assert server.options["workers"] == u"4"
+                assert server.options["workers"] == "4"
                 cpu_count.return_value = 4
                 server.load_user_config()
-                assert server.options["workers"] == u"7"
+                assert server.options["workers"] == "7"
                 active_config.extend({"worker_multiplier": 1.0})
                 server.load_user_config()
-                assert server.options["workers"] == u"5"
-                active_config.extend({"threads": u"2"})
+                assert server.options["workers"] == "5"
+                active_config.extend({"threads": "2"})
                 server.load_user_config()
-                assert server.options["workers"] == u"2"
+                assert server.options["workers"] == "2"
 
     def test_flask_secret_loaded_from_environ(self, webapp):
         with mock.patch("os.environ", {"FLASK_SECRET_KEY": "A TEST SECRET KEY"}):
             webapp.get("/")
             assert webapp.application.config["SECRET_KEY"] == "A TEST SECRET KEY"
+
+    def test_routes_can_be_protected_via_config(self, webapp, active_config):
+        active_config.set("protected_routes", '["/robots.txt"]')
+
+        with pytest.raises(PermissionError) as exc_info:
+            webapp.get("/robots.txt")
+
+        assert exc_info.match("Unauthorized")
+
+    def test_routes_can_be_protected_without_affecting_others(
+        self, webapp, active_config
+    ):
+        active_config.set("protected_routes", '["/robots.txt"]')
+
+        # Other routes unaffected:
+        assert webapp.get("/").status == "200 OK"
+        assert webapp.get("").status == "308 PERMANENT REDIRECT"
+        assert webapp.get("/nonexistent").status == "404 NOT FOUND"
+
+    def test_protected_routes_still_accessible_if_authenticated(
+        self, webapp_admin, active_config
+    ):
+        active_config.set("protected_routes", '["/robots.txt"]')
+
+        assert webapp_admin.get("/robots.txt").status == "200 OK"
 
 
 @pytest.mark.usefixtures("experiment_dir")
@@ -121,7 +145,7 @@ class TestAdvertisement(object):
             normalizer.assert_called_once_with({"some_random_info": "1"})
 
     def test_checks_browser_exclusion_rules(self, webapp, active_config):
-        active_config.extend({"browser_exclude_rule": u"tablet, bot"})
+        active_config.extend({"browser_exclude_rule": "tablet, bot"})
         resp = webapp.get(
             "/ad?hitId=foo&assignmentId=bar",
             environ_base={
@@ -217,7 +241,7 @@ class TestQuestion(object):
     def test_nonworking_mturk_participants_denied_if_not_debug(
         self, a, webapp, active_config
     ):
-        active_config.extend({"mode": u"sandbox"})
+        active_config.extend({"mode": "sandbox"})
         participant = a.participant(recruiter_id="mturk")
         participant.status = "submitted"
         webapp.post(
@@ -235,7 +259,7 @@ class TestQuestion(object):
         assert b"non-numeric number: not a number" in resp.data
 
     def test_nonworking_nonmturk_participants_accepted(self, a, webapp, active_config):
-        active_config.extend({"mode": u"sandbox", "recruiter": u"CLIRecruiter"})
+        active_config.extend({"mode": "sandbox", "recruiter": "CLIRecruiter"})
         participant = a.participant()
         participant.status = "submitted"
         webapp.post(
@@ -270,7 +294,7 @@ class TestWorkerComplete(object):
 
     def test_records_notification_if_debug_mode(self, a, webapp):
         webapp.post("/worker_complete", data={"participant_id": a.participant().id})
-        assert models.Notification.query.one().event_type == u"AssignmentSubmitted"
+        assert models.Notification.query.one().event_type == "AssignmentSubmitted"
 
     def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
         webapp.post(
@@ -278,23 +302,23 @@ class TestWorkerComplete(object):
             data={"participant_id": a.participant(recruiter_id="bots").id},
         )
 
-        assert models.Notification.query.one().event_type == u"BotAssignmentSubmitted"
+        assert models.Notification.query.one().event_type == "BotAssignmentSubmitted"
 
     def test_records_notification_for_non_mturk_recruiter(
         self, a, webapp, active_config
     ):
-        active_config.extend({"mode": u"sandbox", "recruiter": u"CLIRecruiter"})
+        active_config.extend({"mode": "sandbox", "recruiter": "CLIRecruiter"})
         webapp.post(
             "/worker_complete",
             data={"participant_id": a.participant(recruiter_id="cli").id},
         )
 
-        assert models.Notification.query.one().event_type == u"AssignmentSubmitted"
+        assert models.Notification.query.one().event_type == "AssignmentSubmitted"
 
     def test_records_no_notification_mturk_recruiter_and_nondebug(
         self, a, webapp, active_config
     ):
-        active_config.extend({"mode": u"sandbox", "assign_qualifications": False})
+        active_config.extend({"mode": "sandbox", "assign_qualifications": False})
         webapp.post(
             "/worker_complete",
             data={"participant_id": a.participant(recruiter_id="mturk").id},
@@ -307,7 +331,6 @@ class TestWorkerComplete(object):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as Experiment:
-
             webapp.post(
                 "/worker_complete",
                 data={"participant_id": participant.id},
@@ -363,7 +386,7 @@ class TestRecruiterExit(object):
     def test_mturk_recruiter_renders_hit_submission_form(
         self, a, webapp, active_config
     ):
-        active_config.extend({"mode": u"sandbox"})
+        active_config.extend({"mode": "sandbox"})
         participant = a.participant(recruiter_id="mturk")
         resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
 
@@ -393,8 +416,8 @@ class TestHandleError(object):
         assert resp.status_code == 200
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
-        assert notifications[0].event_type == u"AssignmentSubmitted"
-        assert notifications[1].event_type == u"ExperimentError"
+        assert notifications[0].event_type == "AssignmentSubmitted"
+        assert notifications[1].event_type == "ExperimentError"
 
     def test_saves_error_without_participant(self, a, webapp):
         webapp.post(
@@ -406,7 +429,7 @@ class TestHandleError(object):
         )
 
         notifi = models.Notification.query.one()
-        assert notifi.event_type == u"ExperimentError"
+        assert notifi.event_type == "ExperimentError"
         assert notifi.details["request_data"]["a"] == "b"
         assert notifi.details["feedback"] == "Some feedback"
 
@@ -418,8 +441,8 @@ class TestHandleError(object):
 
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
-        assert notifications[0].event_type == u"AssignmentSubmitted"
-        assert notifications[1].event_type == u"ExperimentError"
+        assert notifications[0].event_type == "AssignmentSubmitted"
+        assert notifications[1].event_type == "ExperimentError"
         assert notifications[1].assignment_id == assignment_id
         assert (
             notifications[1].details["request_data"]["participant_id"] == participant_id
@@ -433,8 +456,8 @@ class TestHandleError(object):
 
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
-        assert notifications[0].event_type == u"AssignmentSubmitted"
-        assert notifications[1].event_type == u"ExperimentError"
+        assert notifications[0].event_type == "AssignmentSubmitted"
+        assert notifications[1].event_type == "ExperimentError"
         assert notifications[1].assignment_id == assignment_id
         assert (
             notifications[1].details["request_data"]["participant_id"] == participant_id
@@ -461,8 +484,8 @@ class TestHandleError(object):
 
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
-        assert notifications[0].event_type == u"AssignmentSubmitted"
-        assert notifications[1].event_type == u"ExperimentError"
+        assert notifications[0].event_type == "AssignmentSubmitted"
+        assert notifications[1].event_type == "ExperimentError"
         assert notifications[1].assignment_id == assignment_id
         assert (
             notifications[1].details["request_data"]["participant_id"] == participant_id
@@ -494,8 +517,8 @@ class TestHandleError(object):
 
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
-        assert notifications[0].event_type == u"AssignmentSubmitted"
-        assert notifications[1].event_type == u"ExperimentError"
+        assert notifications[0].event_type == "AssignmentSubmitted"
+        assert notifications[1].event_type == "ExperimentError"
         assert notifications[1].assignment_id == assignment_id
         assert (
             notifications[1].details["request_data"]["participant_id"] == participant_id
@@ -529,13 +552,13 @@ class TestWorkerFailed(object):
         assert db_session.merge(participant).end_time is not None
 
     def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
-        active_config.extend({"recruiter": u"bots"})
+        active_config.extend({"recruiter": "bots"})
         webapp.get(
             "/worker_failed?participant_id={}".format(
                 a.participant(recruiter_id="bots").id
             )
         )
-        assert models.Notification.query.one().event_type == u"BotAssignmentRejected"
+        assert models.Notification.query.one().event_type == "BotAssignmentRejected"
 
     def test_records_no_notification_if_mturk_recruiter(self, a, webapp):
         webapp.get(
@@ -554,7 +577,7 @@ class TestSimpleGETRoutes(object):
 
         result = success_response(some_key="foo\nbar")
         as_dict = json.loads(result.response[0])
-        assert as_dict == {u"status": u"success", u"some_key": u"foo\nbar"}
+        assert as_dict == {"status": "success", "some_key": "foo\nbar"}
 
     def test_root(self, webapp):
         resp = webapp.get("/")
@@ -606,7 +629,7 @@ class TestSimpleGETRoutes(object):
     def test_existing_experiment_property(self, webapp):
         resp = webapp.get("/experiment/exists")
         data = json.loads(resp.data.decode("utf8"))
-        assert data == {u"exists": True, u"status": u"success"}
+        assert data == {"exists": True, "status": "success"}
 
     def test_nonexisting_experiment_property(self, webapp):
         resp = webapp.get("/experiment/missing")
@@ -628,7 +651,7 @@ class TestParticipantGetRoute(object):
         resp = webapp.get("/participant/{}".format(p.id))
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "success"
-        assert data.get("participant").get("status") == u"working"
+        assert data.get("participant").get("status") == "working"
 
     def test_participant_invalid(self, webapp):
         nonexistent_participant_id = 999
@@ -655,7 +678,7 @@ class TestParticipantByAssignmentRoute(object):
         resp = webapp.post("/load-participant", data={"assignment_id": p.assignment_id})
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "success"
-        assert data.get("participant").get("status") == u"working"
+        assert data.get("participant").get("status") == "working"
 
     def test_missing_assignment(self, webapp):
         resp = webapp.post("/load-participant")
@@ -689,7 +712,7 @@ class TestParticipantByAssignmentRoute(object):
             data = json.loads(resp.data.decode("utf8"))
             normalizer.assert_called_once_with({"random_info": "123"})
             assert data.get("status") == "success"
-            assert data.get("participant").get("status") == u"working"
+            assert data.get("participant").get("status") == "working"
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
@@ -701,6 +724,7 @@ class TestParticipantCreateRoute(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_exp.is_overrecruited.return_value = True
             mock_exp.quorum = 50
             mock_exp.create_participant.return_value = a.participant()
@@ -711,11 +735,18 @@ class TestParticipantCreateRoute(object):
     def test_create_participant_calls_experiment_method(self, a, webapp):
         p = a.participant()
         with mock.patch(
-            "dallinger.experiment.Experiment.create_participant"
-        ) as create_participant:
-            create_participant.side_effect = lambda **args: p
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as mock_class:
+            mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
+            mock_exp.is_overrecruited.return_value = False
+            mock_exp.quorum = None
+            mock_exp.create_participant.side_effect = lambda **args: p
+            mock_class.return_value = mock_exp
+
             webapp.post("/participant/1/1/1/debug")
-            create_participant.assert_called_once_with(
+
+            mock_exp.create_participant.assert_called_once_with(
                 worker_id="1",
                 hit_id="1",
                 assignment_id="1",
@@ -766,7 +797,7 @@ class TestParticipantCreateRoute(object):
         )
         data = json.loads(resp.data.decode("utf8"))
 
-        assert data.get("participant").get("status") == u"overrecruited"
+        assert data.get("participant").get("status") == "overrecruited"
 
     def test_creates_participant_with_unknown_recruiter(self, webapp):
         worker_id = "1"
@@ -836,6 +867,30 @@ class TestParticipantCreateRoute(object):
                 entry_information={"additional_stuff": "1"},
             )
 
+    def test_post_participant_removes_fingerprint(self, a, db_session, webapp):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.create_participant"
+        ) as create_participant:
+            create_participant.side_effect = lambda *args, **kw: "Result"
+            webapp.post(
+                "/participant",
+                data={
+                    "hitId": "H",
+                    "workerId": "W",
+                    "assignmentId": "A",
+                    "mode": "debug",
+                    "additional_stuff": "1",
+                    "fingerprint_hash": "fffff",
+                },
+            )
+            create_participant.assert_called_once_with(
+                hit_id="H",
+                worker_id="W",
+                assignment_id="A",
+                mode="debug",
+                entry_information={"additional_stuff": "1"},
+            )
+
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
@@ -871,12 +926,12 @@ class TestSummaryRoute(object):
         resp = webapp.get("/summary")
         data = json.loads(resp.data.decode("utf8"))
         assert data == {
-            u"completed": False,
-            u"nodes_remaining": 2,
-            u"required_nodes": 2,
-            u"status": u"success",
-            u"summary": [],
-            u"unfilled_networks": 1,
+            "completed": False,
+            "nodes_remaining": 2,
+            "required_nodes": 2,
+            "status": "success",
+            "summary": [],
+            "unfilled_networks": 1,
         }
 
     def test_summary_one_participant(self, a, webapp):
@@ -885,12 +940,12 @@ class TestSummaryRoute(object):
         resp = webapp.get("/summary")
         data = json.loads(resp.data.decode("utf8"))
         assert data == {
-            u"completed": False,
-            u"nodes_remaining": 1,
-            u"required_nodes": 2,
-            u"status": u"success",
-            u"summary": [[u"working", 1]],
-            u"unfilled_networks": 1,
+            "completed": False,
+            "nodes_remaining": 1,
+            "required_nodes": 2,
+            "status": "success",
+            "summary": [["working", 1]],
+            "unfilled_networks": 1,
         }
 
     def test_summary_two_participants_and_still_working(self, a, webapp):
@@ -901,12 +956,12 @@ class TestSummaryRoute(object):
         resp = webapp.get("/summary")
         data = json.loads(resp.data.decode("utf8"))
         assert data == {
-            u"completed": False,
-            u"nodes_remaining": 0,
-            u"required_nodes": 0,
-            u"status": u"success",
-            u"summary": [[u"working", 2]],
-            u"unfilled_networks": 0,
+            "completed": False,
+            "nodes_remaining": 0,
+            "required_nodes": 0,
+            "status": "success",
+            "summary": [["working", 2]],
+            "unfilled_networks": 0,
         }
 
     def test_summary_two_participants_with_different_status(self, a, webapp):
@@ -921,12 +976,12 @@ class TestSummaryRoute(object):
         resp = webapp.get("/summary")
         data = json.loads(resp.data.decode("utf8"))
         assert data == {
-            u"completed": True,
-            u"nodes_remaining": 0,
-            u"required_nodes": 0,
-            u"status": u"success",
-            u"summary": [[u"approved", 1], [u"submitted", 1]],
-            u"unfilled_networks": 0,
+            "completed": True,
+            "nodes_remaining": 0,
+            "required_nodes": 0,
+            "status": "success",
+            "summary": [["approved", 1], ["submitted", 1]],
+            "unfilled_networks": 0,
         }
 
     def test_summary_uses_custom_is_complete(self, a, webapp, active_config):
@@ -934,23 +989,23 @@ class TestSummaryRoute(object):
         resp = webapp.get("/summary")
         data = json.loads(resp.data)
         assert data == {
-            u"completed": False,
-            u"nodes_remaining": 2,
-            u"required_nodes": 2,
-            u"status": u"success",
-            u"summary": [],
-            u"unfilled_networks": 1,
+            "completed": False,
+            "nodes_remaining": 2,
+            "required_nodes": 2,
+            "status": "success",
+            "summary": [],
+            "unfilled_networks": 1,
         }
         active_config.extend({"_is_completed": True})
         resp = webapp.get("/summary")
         data = json.loads(resp.data)
         assert data == {
-            u"completed": True,
-            u"nodes_remaining": 2,
-            u"required_nodes": 2,
-            u"status": u"success",
-            u"summary": [],
-            u"unfilled_networks": 1,
+            "completed": True,
+            "nodes_remaining": 2,
+            "required_nodes": 2,
+            "status": "success",
+            "summary": [],
+            "unfilled_networks": 1,
         }
 
 
@@ -1021,7 +1076,9 @@ class TestParticipantNodeCreationRoute(object):
         assert Star.query.one().nodes()[0].id == data["node"]["network_id"]
 
     def test_participant_status_not_working_returns_error(self, a, db_session, webapp):
-        participant = a.participant()
+        participant = a.participant(
+            assignment_id="a_id", hit_id="h_id", worker_id="w_id"
+        )
         participant.status = "submitted"
         db_session.commit()
 
@@ -1029,9 +1086,9 @@ class TestParticipantNodeCreationRoute(object):
 
         error_report = resp.data.decode("utf8")
         assert "Error type: /node POST, status = submitted" in error_report
-        assert "HIT id: {}".format(participant.hit_id) in error_report
-        assert "Assignment id: {}".format(participant.assignment_id) in error_report
-        assert "Worker id: {}".format(participant.worker_id) in error_report
+        assert "HIT id: h_id" in error_report
+        assert "Assignment id: a_id" in error_report
+        assert "Worker id: w_id" in error_report
 
     def test_no_network_for_participant_returns_error(self, a, db_session, webapp):
         participant = a.participant()
@@ -1194,7 +1251,7 @@ class TestInfoRoutePOST(object):
         data = {"contents": "foo"}
         resp = webapp.post("/info/{}".format(node.id), data=data)
         data = json.loads(resp.data.decode("utf8"))
-        assert u"info" in data
+        assert "info" in data
 
     def test_info_defaults_to_unfailed(self, a, webapp):
         node = a.node()
@@ -1231,7 +1288,7 @@ class TestInfoRoutePOST(object):
         data = {"contents": "foo", "details": '{"key": "value"}'}
         resp = webapp.post("/info/{}".format(node.id), data=data)
         data = json.loads(resp.data.decode("utf8"))
-        assert data["info"]["details"] == {u"key": u"value"}
+        assert data["info"]["details"] == {"key": "value"}
 
     def test_pings_experiment(self, a, webapp):
         node = a.node()
@@ -1240,6 +1297,7 @@ class TestInfoRoutePOST(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_class.return_value = mock_exp
             webapp.post("/info/{}".format(node.id), data=data)
             mock_exp.info_post_request.assert_called_once()
@@ -1251,6 +1309,7 @@ class TestInfoRoutePOST(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_exp.info_post_request.side_effect = Exception("boom!")
             mock_class.return_value = mock_exp
             resp = webapp.post("/info/{}".format(node.id), data=data)
@@ -1273,8 +1332,8 @@ class TestTrackingEventRoutePOST(object):
         data = {"details": '{"key": "value"}'}
         resp = webapp.post("/tracking_event/{}".format(node.id), data=data)
         data = json.loads(resp.data.decode("utf8"))
-        assert data["status"] == u"success"
-        assert data["details"] == {u"key": u"value"}
+        assert data["status"] == "success"
+        assert data["details"] == {"key": "value"}
 
 
 @pytest.mark.usefixtures("experiment_dir")
@@ -1309,6 +1368,7 @@ class TestNodeNeighbors(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_class.return_value = mock_exp
             webapp.get("/node/{}/neighbors".format(node.id))
             mock_exp.node_get_request.assert_called_once_with(node=node, nodes=[])
@@ -1319,6 +1379,7 @@ class TestNodeNeighbors(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_exp.node_get_request.side_effect = Exception("boom!")
             mock_class.return_value = mock_exp
             resp = webapp.get("/node/{}/neighbors".format(node.id))
@@ -1367,6 +1428,7 @@ class TestNodeReceivedInfos(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_class.return_value = mock_exp
             webapp.get("/node/{}/received_infos".format(node.id))
             mock_exp.info_get_request.assert_called_once_with(node=node, infos=[])
@@ -1377,6 +1439,7 @@ class TestNodeReceivedInfos(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_exp.info_get_request.side_effect = Exception("boom!")
             mock_class.return_value = mock_exp
             resp = webapp.get("/node/{}/received_infos".format(node.id))
@@ -1412,6 +1475,7 @@ class TestTransformationGet(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_class.return_value = mock_exp
             webapp.get("/node/{}/transformations".format(node.id))
             mock_exp.transformation_get_request.assert_called_once_with(
@@ -1424,6 +1488,7 @@ class TestTransformationGet(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_exp.transformation_get_request.side_effect = Exception("boom!")
             mock_class.return_value = mock_exp
             resp = webapp.get("/node/{}/transformations".format(node.id))
@@ -1471,6 +1536,7 @@ class TestTransformationPost(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_class.return_value = mock_exp
             webapp.post(
                 "/transformation/{}/{}/{}".format(node.id, info_in.id, info_out.id)
@@ -1485,6 +1551,7 @@ class TestTransformationPost(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock(name="the experiment")
+            mock_exp.protected_routes = []
             mock_exp.transformation_post_request.side_effect = Exception("boom!")
             mock_class.return_value = mock_exp
             resp = webapp.post(
@@ -1507,20 +1574,20 @@ class TestLaunchRoute(object):
         ) as mock_class:
             bad_log = mock.Mock(side_effect=IOError)
             mock_exp = mock.Mock(log=bad_log)
+            mock_exp.protected_routes = []
             mock_class.return_value = mock_exp
             resp = webapp.post("/launch", data={})
 
         assert resp.status_code == 500
         data = json.loads(resp.get_data())
         assert data == {
-            u"message": u"IOError writing to experiment log: ",
-            u"status": u"error",
+            "message": "IOError writing to experiment log: ",
+            "status": "error",
         }
 
 
 @pytest.mark.usefixtures("experiment_dir")
 class TestWorkerFunctionIntegration(object):
-
     dispatcher = "dallinger.experiment_server.worker_events.WorkerEvent"
 
     @pytest.fixture
@@ -1574,9 +1641,9 @@ class TestWorkerFunctionIntegration(object):
             runner.call_args[0][0] is participant
 
     def test_tracking_event(self, worker_func, db_session):
-        from dallinger.models import Participant
-        from dallinger.information import TrackingEvent
         from dallinger.experiment_server.experiment_server import Experiment
+        from dallinger.information import TrackingEvent
+        from dallinger.models import Participant
 
         participant = Participant(
             recruiter_id="hotair",
@@ -1614,8 +1681,10 @@ class TestWorkerFunctionIntegration(object):
 
 class TestWorkerEvents(object):
     def test_dispatch(self):
-        from dallinger.experiment_server.worker_events import WorkerEvent
-        from dallinger.experiment_server.worker_events import AssignmentSubmitted
+        from dallinger.experiment_server.worker_events import (
+            AssignmentSubmitted,
+            WorkerEvent,
+        )
 
         cls = WorkerEvent.for_name("AssignmentSubmitted")
 
@@ -1641,11 +1710,19 @@ def experiment():
 
 @pytest.fixture
 def standard_args(experiment):
-    from dallinger.models import Participant
     from sqlalchemy.orm.scoping import scoped_session
 
+    from dallinger.models import Participant
+
+    participant = mock.Mock(
+        spec_set=Participant,
+        status="working",
+        worker_id="123",
+        assignment_id="some assignment id",
+    )
+
     return {
-        "participant": mock.Mock(spec_set=Participant, status="working"),
+        "participant": participant,
         "assignment_id": "some assignment id",
         "experiment": experiment,
         "session": mock.Mock(spec_set=scoped_session),
@@ -1674,7 +1751,7 @@ class TestAssignmentSubmitted(object):
         runner.experiment.bonus.return_value = 0.02
         runner()
         runner.participant.recruiter.reward_bonus.assert_called_once_with(
-            "some assignment id", 0.02, "You rock."
+            runner.participant, 0.02, "You rock."
         )
 
     def test_no_reward_bonus_if_experiment_returns_bonus_less_than_one_cent(

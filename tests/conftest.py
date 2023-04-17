@@ -1,8 +1,9 @@
 import json
-import mock
 import os
-import pytest
 from datetime import datetime
+
+import mock
+import pytest
 from tzlocal import get_localzone
 
 pytest_plugins = ["pytest_dallinger"]
@@ -33,12 +34,6 @@ def check_webdriver(request):
 
 
 @pytest.fixture(scope="module")
-def check_phantomjs(request):
-    if not request.config.getvalue("phantomjs"):
-        pytest.skip("--phantomjs was not specified")
-
-
-@pytest.fixture(scope="module")
 def check_heroku(request):
     if not request.config.getvalue("heroku"):
         pytest.skip("--heroku was not specified")
@@ -66,6 +61,18 @@ def check_mturkfull(request):
 def check_manual(request):
     if not request.config.getvalue("manual"):
         pytest.skip("--manual was not specified")
+
+
+@pytest.fixture(scope="module")
+def check_prolific(request):
+    if not request.config.getvalue("prolific"):
+        pytest.skip("--prolific was not specified")
+
+
+@pytest.fixture(scope="module")
+def check_prolific_writes(request):
+    if not request.config.getvalue("prolific_writes"):
+        pytest.skip("--prolific_writes was not specified")
 
 
 @pytest.fixture(scope="module")
@@ -104,8 +111,10 @@ def experiment_dir_merged(experiment_dir, active_config):
     """A temp directory with files from the standard test experiment, merged
     with standard Dallinger files by the same process that occurs in production.
     """
-    from dallinger.utils import assemble_experiment_temp_dir
-    from dallinger.utils import ensure_constraints_file_presence
+    from dallinger.utils import (
+        assemble_experiment_temp_dir,
+        ensure_constraints_file_presence,
+    )
 
     current_dir = os.getcwd()
     ensure_constraints_file_presence(current_dir)
@@ -144,16 +153,31 @@ def aws_creds():
 
 
 @pytest.fixture
+def prolific_creds():
+    from dallinger.config import get_config
+
+    config = get_config()
+    if not config.ready:
+        config.load()
+    creds = {
+        "prolific_api_token": config.get("prolific_api_token"),
+        "prolific_api_version": config.get("prolific_api_version"),
+    }
+    return creds
+
+
+@pytest.fixture
 def fake_parsed_hit():
     """Format returned by dallinger.mturk.MTurkService"""
+    tz = get_localzone()
     return {
         "annotation": "test-experiment-id",
         "assignments_available": 2,
         "assignments_completed": 0,
         "assignments_pending": 0,
-        "created": get_localzone().localize(datetime.now()),
+        "created": datetime.now().replace(tzinfo=tz),
         "description": "Recall a list of words.",
-        "expiration": get_localzone().localize(datetime.now()),
+        "expiration": datetime.now().replace(tzinfo=tz),
         "id": "fake-hit-id",
         "keywords": ["Memory", "wordlist"],
         "max_assignments": 2,
@@ -164,6 +188,28 @@ def fake_parsed_hit():
         "title": "Fake HIT Title",
         "type_id": "fake type id",
         "worker_url": "http://the-hit-url",
+    }
+
+
+@pytest.fixture
+def fake_parsed_prolific_study():
+    """Format returned by dallinger.prolific.ProlificService"""
+    return {
+        "id": "abcdefghijklmnopqrstuvwx",
+        "name": "Study about API's",
+        "internal_name": "WIT-2021 Study about API's version 2",
+        "description": "This study aims to determine how to make a good public API",
+        "external_study_url": "https://my-dallinger-app.com/?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}",
+        "prolific_id_option": "url_parameters",
+        "completion_code": "7EF9FD0D",
+        "completion_option": "url",
+        "total_available_places": 30,
+        "estimated_completion_time": 5,
+        "reward": 13,
+        "device_compatibility": ["desktop"],
+        "peripheral_requirements": [],
+        "eligibility_requirements": [],
+        "status": "ACTIVE",
     }
 
 
@@ -195,7 +241,7 @@ def custom_app_output():
         yield check_output
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture
 def patch_netrc():
     with mock.patch("dallinger.heroku.tools.netrc.netrc") as netrc:
         netrc.return_value.hosts = {"api.heroku.com": ["test@example.com"]}
@@ -225,6 +271,18 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help="Run comprehensive MTurk integration tests during test run",
+    )
+    parser.addoption(
+        "--prolific",
+        action="store_true",
+        default=False,
+        help="Run comprehensive Prolific integration tests during test run",
+    )
+    parser.addoption(
+        "--prolific_writes",
+        action="store_true",
+        default=False,
+        help="Run Prolific integration tests which write to Proflific during test run",
     )
     parser.addoption(
         "--heroku", action="store_true", help="Run tests requiring heroku login"

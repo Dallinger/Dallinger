@@ -1,7 +1,8 @@
-from mock import Mock
+import socket
+
 import gevent
 import pytest
-import socket
+from mock import Mock
 
 
 @pytest.fixture

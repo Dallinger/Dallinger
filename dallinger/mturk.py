@@ -1,12 +1,10 @@
-import boto3
 import datetime
 import logging
 import time
 
-from botocore.exceptions import ClientError
-from botocore.exceptions import NoCredentialsError
+import boto3
+from botocore.exceptions import ClientError, NoCredentialsError
 from cached_property import cached_property
-
 
 logger = logging.getLogger(__file__)
 PERCENTAGE_APPROVED_REQUIREMENT_ID = "000000000000000000L0"
@@ -269,9 +267,9 @@ class MTurkService(object):
     @property
     def host(self):
         if self.is_sandbox:
-            template = u"https://mturk-requester-sandbox.{}.amazonaws.com"
+            template = "https://mturk-requester-sandbox.{}.amazonaws.com"
         else:
-            template = u"https://mturk-requester.{}.amazonaws.com"
+            template = "https://mturk-requester.{}.amazonaws.com"
         return template.format(self.region_name)
 
     def account_balance(self):
@@ -585,6 +583,9 @@ class MTurkService(object):
                 "Failed to expire HIT {}: {}".format(hit_id, str(ex))
             )
         return True
+
+    def get_study(self, hit_id):
+        return self.mturk.get_hit(HITId=hit_id)["HIT"]
 
     def get_hit(self, hit_id):
         return self._translate_hit(self.mturk.get_hit(HITId=hit_id)["HIT"])

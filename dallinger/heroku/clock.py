@@ -2,14 +2,14 @@
 
 from collections import defaultdict
 from datetime import datetime
+
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 import dallinger
-from dallinger import recruiters
+from dallinger import db, recruiters
 from dallinger.experiment import EXPERIMENT_TASK_REGISTRATIONS
 from dallinger.models import Participant
 from dallinger.utils import ParticipationTime
-
 
 scheduler = BlockingScheduler()
 
@@ -41,6 +41,7 @@ def check_db_for_missing_notifications():
     reference_time = datetime.now()
 
     run_check(participants, config, reference_time)
+    db.session.commit()
 
 
 def launch():

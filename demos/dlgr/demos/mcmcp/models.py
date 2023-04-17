@@ -1,17 +1,15 @@
-import random
 import json
+import random
+
 from sqlalchemy import Boolean
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql.expression import cast
 
-from dallinger.models import Info
-from dallinger.models import Transformation
-from dallinger.nodes import Agent
-from dallinger.nodes import Source
+from dallinger.models import Info, Transformation
+from dallinger.nodes import Agent, Source
 
 
 class MCMCPAgent(Agent):
-
     __mapper_args__ = {"polymorphic_identity": "MCMCP_agent"}
 
     def update(self, infos):

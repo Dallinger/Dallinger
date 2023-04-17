@@ -1,13 +1,11 @@
 import logging
 from datetime import datetime
 from operator import attrgetter
-from rq import Queue
-from rq import get_current_job
-from dallinger import db
-from dallinger import information
-from dallinger import models
-from dallinger.config import get_config
 
+from rq import Queue, get_current_job
+
+from dallinger import db, information, models
+from dallinger.config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +145,6 @@ def worker_function(
 
 
 class WorkerEvent(object):
-
     key = "-----"
 
     supported_event_types = (
@@ -206,7 +203,6 @@ class AssignmentReturned(WorkerEvent):
 
 
 class AssignmentSubmitted(WorkerEvent):
-
     min_real_bonus = 0.01
 
     def __call__(self):
@@ -259,7 +255,9 @@ class AssignmentSubmitted(WorkerEvent):
     def award_bonus(self, bonus):
         self.log("Bonus = {}: paying bonus".format(bonus))
         self.participant.recruiter.reward_bonus(
-            self.assignment_id, bonus, self.experiment.bonus_reason()
+            self.participant,
+            bonus,
+            self.experiment.bonus_reason(),
         )
 
     def fail_data_check(self):

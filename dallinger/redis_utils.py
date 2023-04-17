@@ -1,7 +1,7 @@
 import os
-import redis
-
 from urllib.parse import urlparse
+
+import redis
 
 
 def connect_to_redis(url=None):

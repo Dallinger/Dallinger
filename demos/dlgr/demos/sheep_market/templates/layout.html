@@ -2,17 +2,17 @@
 
 {% block head %}
     <meta charset="utf-8">
-    <link rel="Favicon" href="/static/favicon.ico" />
+    <link rel="Favicon" href="{{ url_for('static', filename='favicon.ico') }}" />
 {% endblock %}
 
 {% block libs %}
 	<!-- We need to override entirely rather than using super()
 		 because raphael depends on an older version of jQuery -->
 	<script src="//ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
-	<script src="/static/scripts/store+json2.min.js" type="text/javascript"> </script>
-    <script src="/static/scripts/reqwest.min.js" type="text/javascript"> </script>
-    <script src="/static/scripts/markdown.min.js" type="text/javascript"> </script>
-    <script src="/static/scripts/spin.min.js" type="text/javascript"></script>
+	<script src="{{ url_for('static', filename='scripts/store+json2.min.js') }}" type="text/javascript"> </script>
+    <script src="{{ url_for('static', filename='scripts/reqwest.min.js') }}" type="text/javascript"> </script>
+    <script src="{{ url_for('static', filename='scripts/markdown.min.js') }}" type="text/javascript"> </script>
+    <script src="{{ url_for('static', filename='scripts/spin.min.js') }}" type="text/javascript"> </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fingerprintjs2/1.5.1/fingerprint2.min.js" type="text/javascript"></script>
-    <script src="/static/scripts/dallinger2.js" type="text/javascript"> </script>
+    <script src="{{ url_for('static', filename='scripts/dallinger2.js') }}" type="text/javascript"> </script>
 {% endblock %}

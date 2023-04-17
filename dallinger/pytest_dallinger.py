@@ -1,23 +1,22 @@
-import mock
 import os
-import pexpect
-import pytest
+import re
 import shutil
 import sys
 import tempfile
 import time
+
+import mock
+import pexpect
+import pytest
 from jinja2 import FileSystemLoader
 from selenium import webdriver
-from dallinger import information
-from dallinger import models
-from dallinger import networks
-from dallinger import nodes
-from dallinger.bots import BotBase
-from dallinger.recruiters import NEW_RECRUIT_LOG_PREFIX
-from dallinger.recruiters import CLOSE_RECRUITMENT_LOG_PREFIX
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+
+from dallinger import information, models, networks, nodes
+from dallinger.bots import BotBase
+from dallinger.recruiters import CLOSE_RECRUITMENT_LOG_PREFIX, NEW_RECRUIT_LOG_PREFIX
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
@@ -84,6 +83,7 @@ def env():
     # Heroku requires a home directory to start up
     # We create a fake one using tempfile and set it into the
     # environment to handle sandboxes on CI servers
+    original_home = os.path.expanduser("~")
     with mock.patch("os.environ", os.environ.copy()) as environ_patched:
         running_on_ci = environ_patched.get("CI", False)
         have_home_dir = environ_patched.get("HOME", False)
@@ -93,6 +93,13 @@ def env():
         else:
             fake_home = tempfile.mkdtemp()
             environ_patched.update({"HOME": fake_home})
+            try:
+                shutil.copyfile(
+                    os.path.join(original_home, ".dallingerconfig"),
+                    os.path.join(fake_home, ".dallingerconfig"),
+                )
+            except FileNotFoundError:
+                pass
             yield environ_patched
             shutil.rmtree(fake_home, ignore_errors=True)
 
@@ -121,56 +128,55 @@ def stub_config():
     dallinger.config.get_config()
     """
     defaults = {
-        u"ad_group": u"Test ad group",
-        u"approve_requirement": 95,
-        u"assign_qualifications": True,
-        u"auto_recruit": True,
-        u"aws_access_key_id": u"fake aws key",
-        u"aws_secret_access_key": u"fake aws secret",
-        u"aws_region": u"us-east-1",
-        u"base_payment": 0.01,
-        u"base_port": 5000,
-        u"browser_exclude_rule": u"MSIE, mobile, tablet",
-        u"clock_on": False,
-        u"contact_email_on_error": u"error_contact@test.com",
-        u"dallinger_email_address": u"test@example.com",
-        u"database_size": u"standard-0",
-        u"disable_when_duration_exceeded": True,
-        u"enable_global_experiment_registry": False,
-        u"redis_size": u"premium-0",
-        u"dashboard_user": u"admin",
-        u"database_url": u"postgresql://postgres@localhost/dallinger",
-        u"description": u"fake HIT description",
-        u"duration": 1.0,
-        u"dyno_type": u"free",
-        u"heroku_app_id_root": u"fake-customid",
-        u"heroku_auth_token": u"heroku secret",
-        u"heroku_python_version": u"3.9.2",
-        u"heroku_team": u"",
-        u"host": u"0.0.0.0",
-        u"id": u"TEST_EXPERIMENT_UID",  # This is a significant value; change with caution.
-        u"keywords": u"kw1, kw2, kw3",
-        u"lifetime": 1,
-        u"logfile": u"-",
-        u"loglevel": 0,
-        u"mode": u"debug",
-        u"num_dynos_web": 1,
-        u"num_dynos_worker": 1,
-        u"organization_name": u"Monsters University",
-        u"sentry": True,
-        u"smtp_host": u"smtp.fakehost.com:587",
-        u"smtp_username": u"fake email username",
-        u"smtp_password": u"fake email password",
-        u"threads": u"1",
-        u"title": u"fake experiment title",
-        u"us_only": True,
-        u"webdriver_type": u"chrome_headless",
-        u"whimsical": True,
-        u"replay": False,
-        u"worker_multiplier": 1.5,
+        "ad_group": "Test ad group",
+        "approve_requirement": 95,
+        "assign_qualifications": True,
+        "auto_recruit": True,
+        "aws_access_key_id": "fake aws key",
+        "aws_secret_access_key": "fake aws secret",
+        "aws_region": "us-east-1",
+        "base_payment": 0.01,
+        "base_port": 5000,
+        "browser_exclude_rule": "MSIE, mobile, tablet",
+        "clock_on": False,
+        "contact_email_on_error": "error_contact@test.com",
+        "dallinger_email_address": "test@example.com",
+        "database_size": "standard-0",
+        "disable_when_duration_exceeded": True,
+        "enable_global_experiment_registry": False,
+        "redis_size": "premium-0",
+        "dashboard_user": "admin",
+        "database_url": "postgresql://postgres@localhost/dallinger",
+        "description": "fake HIT description",
+        "duration": 1.0,
+        "dyno_type": "free",
+        "heroku_app_id_root": "fake-customid",
+        "heroku_auth_token": "heroku secret",
+        "heroku_python_version": "3.9.2",
+        "heroku_team": "",
+        "host": "0.0.0.0",
+        "id": "TEST_EXPERIMENT_UID",  # This is a significant value; change with caution.
+        "keywords": "kw1, kw2, kw3",
+        "lifetime": 1,
+        "logfile": "-",
+        "loglevel": 0,
+        "mode": "debug",
+        "num_dynos_web": 1,
+        "num_dynos_worker": 1,
+        "organization_name": "Monsters University",
+        "sentry": True,
+        "smtp_host": "smtp.fakehost.com:587",
+        "smtp_username": "fake email username",
+        "smtp_password": "fake email password",
+        "threads": "1",
+        "title": "fake experiment title",
+        "us_only": True,
+        "webdriver_type": "chrome_headless",
+        "whimsical": True,
+        "replay": False,
+        "worker_multiplier": 1.5,
     }
-    from dallinger.config import default_keys
-    from dallinger.config import Configuration
+    from dallinger.config import Configuration, default_keys
 
     config = Configuration()
     for key in default_keys:
@@ -199,9 +205,40 @@ def active_config(stub_config):
 @pytest.fixture
 def dashboard_config(active_config):
     active_config.extend(
-        {"dashboard_user": u"admin", "dashboard_password": u"DUMBPASSWORD"}
+        {"dashboard_user": "admin", "dashboard_password": "DUMBPASSWORD"}
     )
     return active_config
+
+
+@pytest.fixture
+def csrf_token(dashboard_config, webapp):
+    # Initialize app to get user info in config
+    webapp.get("/")
+    # Make a writeable session and copy the csrf token into it
+    from flask_wtf.csrf import generate_csrf
+
+    with webapp.application.test_request_context() as request:
+        with webapp.session_transaction() as sess:
+            token = generate_csrf()
+            sess.update(request.session)
+    yield token
+
+
+@pytest.fixture
+def webapp_admin(csrf_token, webapp):
+    admin_user = webapp.application.config["ADMIN_USER"]
+    webapp.post(
+        "/dashboard/login",
+        data={
+            "username": admin_user.id,
+            "password": admin_user.password,
+            "next": "/dashboard/something",
+            "submit": "Sign In",
+            "csrf_token": csrf_token,
+        },
+    )
+
+    yield webapp
 
 
 @pytest.fixture
@@ -404,24 +441,44 @@ def test_request(webapp):
 @pytest.fixture
 def debug_experiment(request, env, clear_workers):
     timeout = request.config.getvalue("recruiter_timeout", 120)
+
     # Make sure debug server runs to completion with bots
     p = pexpect.spawn(
-        "dallinger", ["debug", "--no-browsers"], env=env, encoding="utf-8"
+        "dallinger", ["debug", "--no-browsers", "--verbose"], env=env, encoding="utf-8"
     )
     p.logfile = sys.stdout
 
     try:
-        p.expect_exact(u"Server is running", timeout=timeout)
+        p.expect_exact("Server is running", timeout=timeout)
         yield p
         if request.node.rep_setup.passed and request.node.rep_call.passed:
-            p.expect_exact(u"Experiment completed", timeout=timeout)
-            p.expect_exact(u"Local Heroku process terminated", timeout=timeout)
+            p.expect_exact("Experiment completed", timeout=timeout)
+            p.expect_exact("Local Heroku process terminated", timeout=timeout)
     finally:
         try:
+            flush_output(p, timeout=0.1)
             p.sendcontrol("c")
-            p.read()
+            flush_output(p, timeout=3)
+            # Why do we need to call flush_output twice? Good question.
+            # Something about calling p.sendcontrol("c") seems to disrupt the log.
+            # Better to call it both before and after.
         except IOError:
             pass
+
+
+def flush_output(p, timeout):
+    old_timeout = p.timeout
+    p.timeout = timeout
+    try:
+        # Calling read() causes the process's output to be written to stdout,
+        # which is then propagated to pytest.
+        # This still happens even when a TIMEOUT occurs.
+        p.read(
+            1000000
+        )  # The big number sets the maximum amount of output characters to read.
+    except pexpect.TIMEOUT:
+        pass
+    p.timeout = old_timeout
 
 
 @pytest.fixture
@@ -432,8 +489,8 @@ def recruitment_loop(request, debug_experiment):
         while True:
             index = debug_experiment.expect(
                 [
-                    u"{}: (.*)$".format(NEW_RECRUIT_LOG_PREFIX),
-                    u"{}".format(CLOSE_RECRUITMENT_LOG_PREFIX),
+                    "{}: (.*&mode=debug)".format(NEW_RECRUIT_LOG_PREFIX),
+                    "{}".format(CLOSE_RECRUITMENT_LOG_PREFIX),
                 ],
                 timeout=timeout,
             )
@@ -441,6 +498,7 @@ def recruitment_loop(request, debug_experiment):
                 return
             elif index == 0:
                 url = debug_experiment.match.group(1)
+                assert is_valid_recruitment_url(url)
                 # Don't repeat the same recruitment url if it appears
                 # multiple times
                 if url in urls:
@@ -452,11 +510,24 @@ def recruitment_loop(request, debug_experiment):
     yield recruitment_looper()
 
 
+def is_valid_recruitment_url(url):
+    pattern = "^http://localhost:[0-9]+/ad\\?recruiter=[a-zA-Z0-9]+&assignmentId=[a-zA-Z0-9]+&hitId=[a-zA-Z0-9]+&workerId=[a-zA-Z0-9]+&mode=debug$"
+    return bool(re.match(pattern, url))
+
+
+def test_valid_recruitment_urls():
+    assert is_valid_recruitment_url(
+        "http://localhost:5000/ad?recruiter=hotair&assignmentId=TL6UWU&hitId=Y1A9I0&workerId=8VPUMO&mode=debug"
+    )
+    assert not is_valid_recruitment_url(
+        "http://localhost:5000/ad?recruiter=hotair&assignmentId=TL6UWU&hitId=Y1A9I0&workerId=8VPUMO&mode=debug extra text"
+    )
+
+
 DRIVER_MAP = {
-    u"phantomjs": webdriver.PhantomJS,
-    u"firefox": webdriver.Firefox,
-    u"chrome": webdriver.Chrome,
-    u"chrome_headless": webdriver.Chrome,
+    "firefox": webdriver.Firefox,
+    "chrome": webdriver.Chrome,
+    "chrome_headless": webdriver.Chrome,
 }
 
 
@@ -478,13 +549,7 @@ def selenium_recruits(request, recruitment_loop):
         for url in recruitment_loop:
             kwargs = {}
             driver_class = DRIVER_MAP.get(request.param, webdriver.Chrome)
-            if driver_class is webdriver.PhantomJS:
-                # PhantomJS needs a new local storage for every run
-                tmpdirname = tempfile.mkdtemp()
-                kwargs = {
-                    "service_args": ["--local-storage-path={}".format(tmpdirname)],
-                }
-            elif request.param == "chrome_headless":
+            if request.param == "chrome_headless":
                 from selenium.webdriver.chrome.options import Options
 
                 chrome_options = Options()
@@ -505,8 +570,8 @@ def selenium_recruits(request, recruitment_loop):
 
 @pytest.fixture
 def bot_recruits(request, active_config, recruitment_loop):
-    driver_type = request.param or u"chrome_headless"
-    active_config.set(u"webdriver_type", driver_type)
+    driver_type = request.param or "chrome_headless"
+    active_config.set("webdriver_type", driver_type)
 
     def recruit_bots():
         bot_class = getattr(request.module, "PYTEST_BOT_CLASS", BotBase)
@@ -547,7 +612,6 @@ def pytest_addoption(parser):
         help="Run chrome tests with headless driver",
     )
     parser.addoption("--firefox", action="store_true", help="Run firefox tests")
-    parser.addoption("--phantomjs", action="store_true", help="Run phantomjs tests")
     parser.addoption(
         "--runslow", action="store_true", default=False, help="run slow tests"
     )

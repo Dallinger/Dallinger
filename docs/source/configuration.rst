@@ -53,6 +53,11 @@ General
     regarding various experiment errors are whimsical in tone, or more
     matter-of-fact.
 
+``dallinger_develop_directory`` *unicode*
+    The directory on your computer to be used to hold files and symlinks
+    when running ``dallinger develop``. Defaults to ``~/dallinger_develop``
+    (a folder named ``dallinger_develop`` inside your home directory).
+
 ``dashboard_password`` *unicode*
     An optional password for accessing the Dallinger Dashboard interface. If not
     specified, a random password will be generated.
@@ -60,6 +65,15 @@ General
 ``dashboard_user`` *unicode*
     An optional login name for accessing the Dallinger Dashboard interface. If not
     specified ``admin`` will be used.
+
+``protected_routes`` *unicode - JSON formatted*
+    An optional JSON array of Flask route rule names which should be made inaccessible.
+    Example::
+
+        protected_routes = ["/participant/<participant_id>", "/network/<network_id>", "/node/<int:node_id>/neighbors"]
+
+    Accessing routes included in this list will raise a PermissionError
+    and no data will be returned.
 
 ``enable_global_experiment_registry`` *boolean*
     Enable a global experiment id registration. When enabled, the ``collect`` API
@@ -78,12 +92,19 @@ Recruitment (General)
 
 ``browser_exclude_rule`` *unicode - comma separated*
     A set of rules you can apply to prevent participants with unsupported web
-    browsers from participating in your experiment.
+    browsers from participating in your experiment. Valid exclustion values are:
+        * mobile
+        * tablet
+        * touchcapable
+        * pc
+        * bot
 
 ``recruiter`` *unicode*
     The recruiter class to use during the experiment run. While this can be a
     full class name, it is more common to use the class's ``nickname`` property
-    for this value; for example ``mturk``, ``cli``, ``bots``, or ``multi``.
+    for this value; for example ``mturk``, ``prolific``, ``cli``, ``bots``,
+    or ``multi``.
+
     NOTE: when running in debug mode, the HotAir (``hotair``) recruiter will
     always be used. The exception is if the ``--bots`` option is passed to
     ``dallinger debug``, in which case the BotRecruiter will be used instead.
@@ -167,9 +188,8 @@ Amazon Mechanical Turk Recruitment
 ``organization_name`` *unicode*
     Obsolete.
 
-
-Preventing Repeat Participants
-""""""""""""""""""""""""""""""
+Preventing Repeat Participants on MTurk
+"""""""""""""""""""""""""""""""""""""""
 
 If you set a ``group_name`` and ``assign_qualifications`` is also set to
 ``true``, workers who complete your HIT will be given an MTurk qualification for
@@ -178,6 +198,103 @@ participating in a HIT with the same ``group_name`` by including that name in
 the ``qualification_blacklist`` configuration. These four configuration keys
 work together to create a system to prevent recuiting workers who have already
 completed a prior run of the same experiment.
+
+
+.. _prolific-recruitment:
+
+Prolific Recruitment
+~~~~~~~~~~~~~~~~~~~~
+
+``title`` *unicode*
+    The title of the Study on Prolific
+
+``description`` *unicode*
+    The description of the Study on Prolific
+
+``prolific_api_token`` *unicode*
+    Your Prolific API token
+
+    These are requested from Prolific via email or some other non-programmatic
+    channel, and should be stored in your ``~/.dallingerconfig`` file.
+
+``prolific_api_version`` *unicode*
+    The version of the Prolific API you'd like to use
+
+    The default ("v1") is defined in global_config_defaults.txt
+
+``prolific_estimated_completion_minutes`` *int*
+    Estimated duration in minutes of the experiment or survey
+
+``prolific_maximum_allowed_minutes`` *int*
+    Max time in minutes for a participant to finish the submission
+
+    Submissions are timed out if it takes longer, so make sure it is not too low.
+    The default is 3 times the ``prolific_estimated_completion_minutes``, plus two
+    minutes.
+
+``prolific_recruitment_config`` *unicode - JSON formatted*
+    JSON data to add additional recruitment parameters
+
+    Since some recruitment parameters are complex and are defined with relatively complex
+    syntax, Dallinger allows you to define this configuration in raw JSON. The parameters
+    you would typically specify this way :ref:`include <json-config-disclaimer>`:
+
+        - ``device_compatibility``
+        - ``peripheral_requirements``
+        - ``eligibility_requirements``
+
+    See the `Prolific API Documentation <https://docs.prolific.co/docs/api-docs/public/#tag/Studies/paths/~1api~1v1~1studies~1/post>`__
+    for details.
+
+    Configuration can also be stored in a separate JSON file, and included by using the
+    filename, prefixed with ``file:``, as the configuration value. For example, to use a
+    JSON file called ``prolific_config.json``, you would first create this file, with
+    valid JSON as contents::
+
+        {
+            "eligibility_requirements": [
+                {
+                    "attributes": [
+                        {
+                            "name": "white_list",
+                            "value": [
+                                # worker ID one,
+                                # worker ID two,
+                                # etc.
+                            ]
+                        }
+                    ],
+                    "_cls": "web.eligibility.models.CustomWhitelistEligibilityRequirement"
+                }
+            ]
+        }
+
+
+    You can also specify the devices you expect the participants to have, e.g.::
+        {
+            "eligibility_requirements": […],
+            "device_compatibility": ["desktop"],
+            "peripheral_requirements": ["audio", "microphone"]
+        }
+    Supported devices are ``desktop``, ``tablet``, and ``mobile``. Supported peripherals are ``audio``, ``camera``, ``download`` (download additional software to run the experiment), and ``microphone``.
+
+    You would then include this file in your overall configuration by adding the following
+    to your config.txt file::
+
+        prolific_recruitment_config = file:prolific_config.json
+
+    .. _json-config-disclaimer:
+
+    A word of caution: while it is technically possible to specify other recruitment values this way
+    (for example, ``{"title": "My Experiment Title"}``), we recommend that you stick to the standard
+    key = value format of ``config.txt`` whenever possible, and leave ``prolific_recruitment_config``
+    for complex requirements which can't be configured in this simpler way.
+
+``prolific_reward_cents`` *int*
+    Base compensation to pay your participants, in cents
+
+    Prolific will use the currency of your researcher account, and convert automatically
+    to the participant's currency.
 
 
 Email Notifications
@@ -345,7 +462,12 @@ Docker Deployment Configuration
 ``docker_image_name``
     The docker image name to use for this experiment.
 
-    If present, the code in the current directory will not be used.
+    If present, the code in the current directory will not be used when deploying.
     The specified image will be used instead.
 
     Example: ``ghcr.io/dallinger/dallinger/bartlett1932@sha256:ad3c7b376e23798438c18aae6e0136eb97f5627ddde6baafe1958d40274fa478``
+
+``docker_volumes``
+    Additional list of volumes to mount when deploying using docker.
+
+    Example: ``/host/path:/container_path,/another-path:/another-container-path``

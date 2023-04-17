@@ -1,4 +1,4 @@
-from dallinger import nodes, information, models
+from dallinger import information, models, nodes
 
 
 class TestEnvironments(object):
@@ -41,4 +41,4 @@ class TestEnvironments(object):
 
         state = environment.state()
 
-        assert state.contents == u"some content"
+        assert state.contents == "some content"

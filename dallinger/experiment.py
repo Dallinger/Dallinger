@@ -1,54 +1,55 @@
 """The base experiment class."""
 
-from __future__ import print_function
-from __future__ import unicode_literals
+from __future__ import print_function, unicode_literals
 
-from cached_property import cached_property
-from collections import Counter
-from collections import OrderedDict
-from contextlib import contextmanager
-from functools import wraps
 import datetime
 import inspect
-from importlib import import_module
+import json
 import logging
-from operator import itemgetter
 import os
 import random
-import requests
 import sys
 import time
 import uuid
 import warnings
+from collections import Counter, OrderedDict
+from contextlib import contextmanager
+from functools import wraps
+from importlib import import_module
+from operator import itemgetter
+from typing import List, Optional, Union
 
+import requests
+from cached_property import cached_property
 from flask import Blueprint
-from sqlalchemy import and_
-from sqlalchemy import create_engine
-from sqlalchemy import distinct
-from sqlalchemy import func
-from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy import Table, and_, create_engine, func
+from sqlalchemy.orm import scoped_session, sessionmaker, undefer
+from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
 
-from dallinger import recruiters
-from dallinger.config import get_config, LOCAL_CONFIG
-from dallinger.config import initialize_experiment_package
-from dallinger.data import Data
-from dallinger.data import export
-from dallinger.data import is_registered
+from dallinger import db, models, recruiters
+from dallinger.config import LOCAL_CONFIG, get_config, initialize_experiment_package
+from dallinger.data import (
+    Data,
+    export,
+    find_experiment_export,
+    ingest_zip,
+    is_registered,
+)
 from dallinger.data import load as data_load
-from dallinger.data import find_experiment_export
-from dallinger.data import ingest_zip
-from dallinger.db import init_db, db_url
-from dallinger import models
-from dallinger.models import Network, Node, Info, Transformation, Participant, Vector
+from dallinger.db import (
+    Base,
+    db_url,
+    get_mapped_class,
+    get_polymorphic_mapping,
+    init_db,
+)
 from dallinger.heroku.tools import HerokuApp
 from dallinger.information import Gene, Meme, State
-from dallinger.nodes import Agent, Source, Environment
-from dallinger.transformations import Compression, Response
-from dallinger.transformations import Mutation, Replication
-from dallinger.utils import deferred_route_decorator, struct_to_html
-
+from dallinger.models import Info, Network, Node, Participant, Transformation
 from dallinger.networks import Empty
+from dallinger.nodes import Agent, Environment, Source
+from dallinger.transformations import Compression, Mutation, Replication, Response
+from dallinger.utils import deferred_route_decorator, struct_to_html
 
 logger = logging.getLogger(__file__)
 
@@ -101,6 +102,10 @@ class Experiment(object):
         template_folder="templates",
         static_folder="static",
     )
+
+    #: Sequence of dashboard route/function names that should be excluded from
+    #: rendering as tabs in the dashboard view.
+    hidden_dashboards = ()
 
     def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
@@ -176,12 +181,41 @@ class Experiment(object):
             self.widget = module.ExperimentWidget(self)
 
     @classmethod
+    def config_class(cls):
+        """
+        Override this method in order to define a custom Configuration class
+        for dealing with config variables (see e.g. config.txt).
+        """
+        from .config import Configuration
+
+        return Configuration
+
+    @classmethod
     def extra_parameters(cls):
         """Override this classmethod to register new config variables. It is
         called during config load. See
         :ref:`Extra Configuration <extra-configuration>` for an example.
         """
         pass
+
+    @classmethod
+    def config_defaults(cls):
+        """Override this classmethod to register new default values for config variables."""
+        return {}
+
+    @property
+    def protected_routes(self):
+        """Disable one or more standard Dallinger Flask routes by name.
+
+        When called, Flask routes which have been disabled will raise a
+        PermissionError and return a 500 response.
+
+        By default, this list is loaded from the `protected_routes` config parameter,
+        and is parsed as a JSON array. The values should be route rule names,
+        like "/" for the application root, or "/info/<int:node_id>/<int:info_id>"
+        for fetching JSON for a specific `Info`.
+        """
+        return json.loads(get_config().get("protected_routes", "[]"))
 
     def configure(self):
         """Load experiment configuration here"""
@@ -193,6 +227,13 @@ class Experiment(object):
         background tasks upon experiment launch.
         """
         return []
+
+    def on_launch(self):
+        """This function is called upon experiment launch. Unlike
+        the background tasks, this function is blocking: recruitment
+        won't start until the function has returned.
+        """
+        pass
 
     @cached_property
     def recruiter(self):
@@ -943,67 +984,142 @@ class Experiment(object):
 
         return stats
 
-    def network_structure(self, **kw):
-        network_ids = {i[0] for i in self.session.query(distinct(Network.id)).all()}
-        if "network_roles" in kw:
-            network_ids = {
-                i[0]
-                for i in self.session.query(distinct(Network.id)).filter(
-                    Network.role.in_(kw["network_roles"])
-                )
-            }
-        if "network_ids" in kw:
-            network_ids = network_ids.intersection(int(v) for v in kw["network_ids"])
+    def network_structure(
+        self,
+        network_roles=None,
+        network_ids=None,
+        collapsed=False,
+        transformations=False,
+    ):
+        networks = self.summarize_table("network", network_roles, network_ids)
 
-        jnetworks = [
-            n.__json__()
-            for n in Network.query.filter(Network.id.in_(network_ids)).all()
-        ]
-        if "collapsed" in kw:
-            # Collapsed view shows Source nodes only
-            jnodes = [
-                n.__json__()
-                for n in Source.query.filter(Node.network_id.in_(network_ids)).all()
-            ]
-            jinfos = jparticipants = jtransformations = jvectors = []
+        nodes = self.summarize_table(
+            "node",
+            network_roles,
+            network_ids,
+            cls_filter=(lambda cls: issubclass(cls, Source)) if collapsed else None,
+        )
+
+        if collapsed:
+            vectors = []
+            infos = []
+            participants = []
+            trans = []
         else:
-            jnodes = [
-                n.__json__()
-                for n in Node.query.filter(Node.network_id.in_(network_ids)).all()
-            ]
-            jinfos = [
-                n.__json__()
-                for n in Info.query.filter(Info.network_id.in_(network_ids)).all()
-            ]
-            # We don't filter participants because they aren't directly connected to specific networks
-            jparticipants = [n.__json__() for n in Participant.query.all()]
-            jtransformations = []
-            if kw.get("transformations"):
-                jtransformations = [
-                    n.__json__()
-                    for n in Transformation.query.filter(
-                        Transformation.network_id.in_(network_ids)
-                    ).all()
-                ]
+            vectors = self.summarize_table("vector", network_roles, network_ids)
+            infos = self.summarize_table("info", network_roles, network_ids)
+            participants = self.summarize_table("participant")
 
-            jvectors = [
-                {
-                    "origin_id": v.origin_id,
-                    "destination_id": v.destination_id,
-                    "id": v.id,
-                    "failed": v.failed,
-                }
-                for v in Vector.query.filter(Vector.network_id.in_(network_ids)).all()
-            ]
+            if transformations:
+                trans = self.summarize_table(
+                    "transformation", network_roles, network_ids
+                )
+            else:
+                trans = []
 
         return {
-            "networks": jnetworks,
-            "nodes": jnodes,
-            "vectors": jvectors,
-            "infos": jinfos,
-            "participants": jparticipants,
-            "trans": jtransformations,
+            "networks": networks,
+            "nodes": nodes,
+            "vectors": vectors,
+            "infos": infos,
+            "participants": participants,
+            "trans": trans,
         }
+
+    def summarize_table(
+        self,
+        table: Union[Table, str],
+        network_roles: Optional[List] = None,
+        network_ids: Optional[List] = None,
+        cls_filter: Optional[callable] = None,
+    ):
+        """
+        Summarizes a given database table.
+
+        :param table: Table to be summarized
+        :param network_roles: Optionally restrict output to objects from networks with these roles
+        :param network_ids: Optionally restrict output to objects from networks with these IDs
+        :param cls_filter: Optional lambda function that returns ``False`` for classes that should be excluded
+
+        Returns a list of JSON-style dictionaries produced by calling ``.__json__()`` on every object
+        retrieved from the table.
+        """
+        objects = self.pull_table(
+            table=table,
+            polymorphic_identity=None,
+            network_roles=network_roles,
+            network_ids=network_ids,
+            cls_filter=cls_filter,
+        )
+        return [obj.__json__() for obj in objects]
+
+    def pull_table(
+        self,
+        table: Union[Table, str],
+        polymorphic_identity: Optional[str] = None,
+        network_roles: Optional[List] = None,
+        network_ids: Optional[List] = None,
+        cls_filter: Optional[callable] = None,
+    ):
+        """
+        Downloads every object in the specified table.
+        For efficiency, the SQL queries are batched by the values of the polymorphic identity column ``type``
+        if it is present.
+
+        :param table: Table to be summarized
+        :param polymorphic_identity: Optionally restrict output to a given polymorphic identity (i.e. ``type`` value)
+        :param network_roles: Optionally restrict output to objects from networks with these roles
+        :param network_ids: Optionally restrict output to objects from networks with these IDs
+        :param cls_filter: Optional lambda function that returns ``False`` for classes that should be excluded
+
+        Returns a list of database-mapped objects.
+        """
+        if isinstance(table, str):
+            table = Base.metadata.tables[table]
+
+        if polymorphic_identity is None and "type" in table.columns:
+            observed_types = [
+                r.type for r in db.session.query(table.columns.type).distinct().all()
+            ]
+            obj_by_type = [
+                self.pull_table(
+                    table,
+                    polymorphic_identity=_type,
+                    network_roles=network_roles,
+                    network_ids=network_ids,
+                    cls_filter=cls_filter,
+                )
+                for _type in observed_types
+            ]
+            return [obj for sublist in obj_by_type for obj in sublist]
+
+        if polymorphic_identity is None:
+            cls = get_mapped_class(table)
+        else:
+            assert "type" in table.columns
+            cls = get_polymorphic_mapping(table)[polymorphic_identity]
+
+        if cls_filter is not None and not cls_filter(cls):
+            return
+
+        query = cls.query
+
+        if polymorphic_identity is not None:
+            query = query.filter(cls.type == polymorphic_identity)
+
+        if network_roles is not None:
+            query = query.filter(Network.role.in_(network_roles))
+
+        if network_ids is not None:
+            query = query.filter(Network.id.in_(network_ids))
+
+        if network_roles is not None or network_ids is not None:
+            if "network_id" in table.columns:
+                query = query.join(Network, cls.network_id == Network.id)
+
+        primary_keys = [c.name for c in table.primary_key.columns]
+
+        return query.order_by(*primary_keys).options(undefer("*")).all()
 
     def node_visualization_options(self):
         """Provides custom vis.js configuration options for the
@@ -1032,15 +1148,18 @@ class Experiment(object):
                 return obj.visualization_html
         return ""
 
-    def table_data(self, **kw):
+    def table_data(
+        self, table: str = "participant", polymorphic_identity: Optional[str] = None
+    ):
         """Generates DataTablesJS data and configuration for the experiment. The data
         is compiled from the models' ``__json__`` methods, and can be customized by either
         overriding this method or using the ``json_data`` method on the model to return
         additional serializable data.
 
-        :param \**kw: arguments passed in from the request. The ``model_type`` parameter
-                      takes a ``str`` or iterable and queries all objects of those types,
-                      ordered by ``id``.
+        :param table: table to query
+
+        :param polymorphic_identity: optional polymorphic identity (corresponds to the ``type`` column)
+
         :returns: Returns a ``dict`` with DataTablesJS data and configuration, filters using
                   arbitrary keyword arguments. Should contain ``data`` and ``columns`` keys
                   at least, with ``columns`` containing data for all fields on all returned
@@ -1049,23 +1168,25 @@ class Experiment(object):
         rows = []
         found_columns = set()
         columns = []
-        model_types = kw.get("model_type", ["Participant"])
-        if hasattr(model_types, "strip"):
-            model_types = [model_types]
 
-        for model_type in model_types:
-            model = getattr(models, model_type, None)
-            for obj in model.query.order_by(model.id).all():
-                data = obj.__json__()
-                # Add participant worker_id to data, we normally leave it out of
-                # JSON renderings
-                if model_type == "Participant":
-                    data["worker_id"] = obj.worker_id
-                rows.append(data)
-                for key in data:
-                    if key not in found_columns:
-                        columns.append({"name": key, "data": key})
-                        found_columns.add(key)
+        table = Base.metadata.tables[table]
+
+        if polymorphic_identity == "None":
+            polymorphic_identity = None
+
+        objects = self.pull_table(table, polymorphic_identity=polymorphic_identity)
+
+        for obj in objects:
+            data = obj.__json__()
+            # Add participant worker_id to data, we normally leave it out of
+            # JSON renderings
+            if table.name == "participant":
+                data["worker_id"] = obj.worker_id
+            rows.append(data)
+            for key in data:
+                if key not in found_columns:
+                    columns.append({"name": key, "data": key})
+                    found_columns.add(key)
 
         # Make sure every row has an entry for every column
         for col in found_columns:
@@ -1230,8 +1351,8 @@ class Experiment(object):
             self.widget.status = status
 
     def jupyter_replay(self, *args, **kwargs):
-        from ipywidgets import widgets
         from IPython.display import display
+        from ipywidgets import widgets
 
         try:
             sys.modules["dallinger_experiment"]._jupyter_cleanup()
@@ -1441,6 +1562,10 @@ def load():
             )
         elif len(classes) == 0:
             logger.error("Error retrieving experiment class")
+            if not module_is_initialized(experiment):
+                logger.error(
+                    "The experiment module is only partly initialized. Maybe you have a circular import?"
+                )
             raise (
                 first_err
                 or second_err
@@ -1453,6 +1578,20 @@ def load():
         raise
 
 
+def module_is_initialized(module):
+    """
+    Checks whether a given module has been initialized by catching the AttributeError that happens when accessing
+    an unknown attribute within that module. This is a bit of a hack, but it seems to be the easiest
+    way of checking the modules initialization status.
+    """
+    try:
+        module.abcdefghijklmnop123456789
+    except AttributeError as err:
+        if "partially initialized module" in str(err):
+            return False
+    return True
+
+
 EXPERIMENT_TASK_REGISTRATIONS = []
 
 
@@ -1463,7 +1602,7 @@ def scheduled_task(trigger, **kwargs):
     The task registration is deferred until clock server setup to allow tasks to be
     overridden by subclasses.
 
-    :param trigger: an ``appscheduler`` trigger type. One of "interval", "cron",
+    :param trigger: an ``apscheduler`` trigger type. One of "interval", "cron",
                     or "date"
     :param \**kwargs: other arguments for `apscheduler.schedulers.base.BaseSchedule.scheduled_job`
                       generally used for trigger arguments to determine

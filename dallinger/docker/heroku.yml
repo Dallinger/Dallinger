@@ -10,3 +10,7 @@ run:
     command:
       - dallinger_heroku_worker
     image: web
+  clock:
+    command:
+      - dallinger_heroku_clock
+    image: web

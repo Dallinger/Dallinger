@@ -1,4 +1,3 @@
-import click
 import codecs
 import netrc
 import os
@@ -8,28 +7,26 @@ import subprocess
 import tempfile
 import time
 import uuid
-
 from datetime import datetime
 from pathlib import Path
 from shlex import quote
-from heroku3.core import Heroku as Heroku3Client
+
+import click
 import requests
+from heroku3.core import Heroku as Heroku3Client
 
-from dallinger import heroku
-from dallinger import registration
+from dallinger import heroku, registration
+from dallinger.command_line.utils import (
+    Output,
+    header,
+    log,
+    require_exp_directory,
+    verify_id,
+)
 from dallinger.config import get_config
-from dallinger.config import LOCAL_CONFIG
-from dallinger.heroku.tools import HerokuApp
-from dallinger.command_line.utils import Output
-from dallinger.command_line.utils import header
-from dallinger.command_line.utils import log
-from dallinger.command_line.utils import require_exp_directory
-from dallinger.command_line.utils import verify_id
 from dallinger.deployment import _handle_launch_data
-from dallinger.utils import abspath_from_egg
-from dallinger.utils import GitClient
-from dallinger.utils import setup_experiment
-
+from dallinger.heroku.tools import HerokuApp
+from dallinger.utils import GitClient, abspath_from_egg, setup_experiment
 
 HEROKU_YML = abspath_from_egg("dallinger", "dallinger/docker/heroku.yml").read_text()
 
@@ -68,7 +65,7 @@ def docker():
 )
 @require_exp_directory
 def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
-    """Run the experiment locally using docker compose."""
+    """Run the experiment locally using `docker compose`."""
     from dallinger.docker.deployment import DockerDebugDeployment
 
     debugger = DockerDebugDeployment(
@@ -108,7 +105,7 @@ def remove_services_data():
 @require_exp_directory
 def sandbox(verbose, app):
     """Deploy app using Heroku to the MTurk Sandbox."""
-    _deploy_in_mode(mode="sandbox", verbose=verbose, log=log, app=app)
+    return _deploy_in_mode(mode="sandbox", verbose=verbose, log=log, app=app)
 
 
 @docker.command()
@@ -117,7 +114,7 @@ def sandbox(verbose, app):
 @require_exp_directory
 def deploy(verbose, app):
     """Deploy app using Heroku to MTurk."""
-    _deploy_in_mode(mode="live", verbose=verbose, log=log, app=app)
+    return _deploy_in_mode(mode="live", verbose=verbose, log=log, app=app)
 
 
 @docker.command()
@@ -136,8 +133,9 @@ def build():
 @click.option("--use-existing", is_flag=True, default=False)
 def push(use_existing: bool, **kwargs) -> str:
     """Build and push the docker image for this experiment."""
-    from dallinger.docker.tools import build_image
     from docker import client
+
+    from dallinger.docker.tools import build_image
 
     config = get_config()
     config.load()
@@ -201,16 +199,17 @@ REGISTRY_UNAUTHORIZED_HELP_TEXT = [
 @click.option("--live", "mode", flag_value="live", help="Deploy to the real MTurk")
 @click.option("--image", required=True, help="Name of the docker image to deploy")
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
-def deploy_image(image, mode, config_options):
+def deploy_image(image_name, mode, config_options):
     """Deploy Heroku app using a docker image and MTurk."""
     config = get_config()
     config.load()
     dashboard_password = secrets.token_urlsafe(8)
     dallinger_uid = str(uuid.uuid4())
     config_dict = {
-        "aws_access_key_id": config.get("aws_access_key_id"),
-        "aws_secret_access_key": config.get("aws_secret_access_key"),
-        "aws_region": config.get("aws_region"),
+        "AWS_ACCESS_KEY_ID": config.get("aws_access_key_id"),
+        "AWS_SECRET_ACCESS_KEY": config.get("aws_secret_access_key"),
+        "AWS_DEFAULT_REGION": config.get("aws_region"),
+        "prolific_api_token": config["prolific_api_token"],
         "auto_recruit": config.get("auto_recruit"),
         "smtp_username": config.get("smtp_username"),
         "smtp_password": config.get("smtp_password"),
@@ -231,7 +230,7 @@ def deploy_image(image, mode, config_options):
 
     print(f"Heroku app {app.name} created. Installing add-ons")
 
-    app.install_addon(f"heroku-postgresql:{config.get('database_size', 'hobby-dev')}")
+    app.install_addon(f"heroku-postgresql:{config.get('database_size', 'standard-0')}")
     # redistogo is significantly faster to start than heroku-redis
     app.install_addon("redistogo:nano")
     app.install_addon("papertrail")
@@ -240,12 +239,12 @@ def deploy_image(image, mode, config_options):
     # Prepare the git repo to push to Heroku
     tmp = tempfile.mkdtemp()
     os.chdir(tmp)
-    Path("Dockerfile").write_text(f"FROM {image}")
+    Path("Dockerfile").write_text(f"FROM {image_name}")
     Path("heroku.yml").write_text(HEROKU_YML)
     git = GitClient()
     git.init()
     git.add("--all")
-    git.commit(f"Deploying image {image}")
+    git.commit(f"Deploying image {image_name}")
 
     # Launch the Heroku app.
     print("Pushing code to Heroku...")
@@ -266,6 +265,9 @@ def deploy_image(image, mode, config_options):
     app.run_command("dallinger-housekeeper initdb")
 
     print("Scaling dynos")
+    services = ["web", "worker"]
+    if config.get("clock_on"):
+        services.append("clock")
     payload = {
         "updates": [
             dict(
@@ -273,7 +275,7 @@ def deploy_image(image, mode, config_options):
                 quantity=config.get(f"num_dynos_{type}", 1),
                 size=config.get("dyno_type", "hobby"),
             )
-            for type in ("web", "worker")
+            for type in services
         ]
     }
     app._h._http_resource(
@@ -301,7 +303,7 @@ def _deploy_in_mode(mode, verbose, log, app=None):
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
-    deploy_heroku_docker(log=log, verbose=verbose, app=app)
+    return deploy_heroku_docker(log=log, verbose=verbose, app=app)
 
 
 def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
@@ -323,10 +325,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     build_image(tmp, Path(os.getcwd()).name, Output(), force_build=True)
 
     # Push the built image to get the registry sha256
-    pushed_image = push.callback(use_existing=True)
-
-    # Persist the built image sha256 into the experiment
-    add_image_name(LOCAL_CONFIG, pushed_image)
+    image_name = push.callback(use_existing=True)
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
@@ -335,8 +334,11 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     heroku.container_log_in()
     config.set("heroku_auth_token", heroku.auth_token())
     log("", chevrons=False)
-    for service in ["web", "worker"]:
-        text = f"""FROM {pushed_image}
+    services = ["web", "worker"]
+    if config.get("clock_on"):
+        services.append("clock")
+    for service in services:
+        text = f"""FROM {image_name}
         CMD dallinger_heroku_{service}
         """
         (Path(tmp) / f"Dockerfile.{service}").write_text(text)
@@ -366,15 +368,17 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     addons_t0 = datetime.now().astimezone().replace(microsecond=0)
 
     heroku_config = {
-        "aws_access_key_id": config["aws_access_key_id"],
-        "aws_secret_access_key": config["aws_secret_access_key"],
-        "aws_region": config["aws_region"],
+        "AWS_ACCESS_KEY_ID": config["aws_access_key_id"],
+        "AWS_SECRET_ACCESS_KEY": config["aws_secret_access_key"],
+        "AWS_DEFAULT_REGION": config["aws_region"],
+        "prolific_api_token": config["prolific_api_token"],
         "auto_recruit": config["auto_recruit"],
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
         "dashboard_password": config["dashboard_password"],
         "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
+        "docker_image_name": image_name,
     }
 
     # Set up the preferred class as an environment variable, if one is set
@@ -392,10 +396,10 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
 
     log("Scaling up the dynos...")
     default_size = config.get("dyno_type")
-    for process in ["web", "worker"]:
-        size = config.get("dyno_type_" + process, default_size)
-        qty = config.get("num_dynos_" + process)
-        heroku_app.scale_up_dyno(process, qty, size)
+    for service in services:
+        size = config.get("dyno_type_" + service, default_size)
+        qty = config.get("num_dynos_" + service, 1)
+        heroku_app.scale_up_dyno(service, qty, size)
 
     log("Waiting for addons to be ready...")
     ready = False
@@ -450,6 +454,8 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,
+        "dashboard_user": result["dashboard_user"],
+        "dashboard_password": result["dashboard_password"],
         "dashboard_url": "{}/dashboard/".format(heroku_app.url),
         # "recruitment_msg": launch_data.get("recruitment_msg", None),
     }
@@ -490,25 +496,23 @@ def script_command(cmd):
 
 
 def script_command_linux(cmd):
-    return ["script", "-q", "--command", " ".join(cmd)]
+    return ["script", "-O", "/dev/null", "-q", "--command", " ".join(cmd)]
 
 
 def script_command_mac(cmd):
     return ["script", "-q", "/dev/null"] + cmd
 
 
-for alternative in (script_command_linux, script_command_mac):
-    try:
-        if (
-            subprocess.check_output(
-                alternative(["echo", "success"]),
-                stderr=subprocess.PIPE,
-                stdin=None,
-                timeout=0.1,
-            ).strip()
-            == b"success"
-        ):
-            script_command = alternative  # noqa
-            break
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        pass
+try:
+    output = subprocess.check_output(
+        ["script", "--help"],
+        stderr=subprocess.PIPE,
+        stdin=None,
+        timeout=0.1,
+    ).strip()
+    if output.startswith(b"Usage:\n"):
+        script_command = script_command_linux  # noqa
+    if output.startswith(b"script: illegal option"):
+        script_command = script_command_mac  # noqa
+except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    pass

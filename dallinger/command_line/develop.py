@@ -1,18 +1,21 @@
-import click
 import logging
+import subprocess
 
-from six.moves.urllib.parse import urlparse
-from six.moves.urllib.parse import urlunparse
+import click
+from rq import Queue
+from six.moves.urllib.parse import urlparse, urlunparse
 
-from dallinger.command_line.utils import header
-from dallinger.command_line.utils import log
-from dallinger.command_line.utils import Output
-from dallinger.command_line.utils import require_exp_directory
+from dallinger.command_line.utils import (
+    Output,
+    error,
+    header,
+    log,
+    require_exp_directory,
+)
 from dallinger.config import get_config
-from dallinger.deployment import DevelopmentDeployment
-from dallinger.deployment import _handle_launch_data
-from dallinger.utils import open_browser
-
+from dallinger.db import redis_conn
+from dallinger.deployment import DevelopmentDeployment, _handle_launch_data
+from dallinger.utils import develop_target_path, open_browser
 
 logger = logging.getLogger(__name__)
 BASE_URL = "http://127.0.0.1:{}/"
@@ -45,21 +48,52 @@ def develop():
 
 @develop.command()
 @click.option("--port", default=5000, help="The port Flask is running on")
-def launch(port):
-    """Send a POST to the /launch route"""
-    url = BASE_URL.format(port) + "launch"
-    result = _handle_launch_data(url, error=log, attempts=1)
-    if result and "status" in result:
-        log(result["status"])
+@click.option(
+    "--skip-flask",
+    is_flag=True,
+    help="Skip launching Flask, so that Flask can be managed externally",
+)
+def debug(port, skip_flask):
+    _bootstrap()
+
+    q = Queue("default", connection=redis_conn)
+    job = q.enqueue_call(launch_app_and_open_dashboard, kwargs={"port": port})
+
+    if not skip_flask:
+        config = get_config()
+        develop_dir = develop_target_path(config)
+        try:
+            subprocess.check_call(["./run.sh"], cwd=develop_dir)
+        except subprocess.CalledProcessError as ex:
+            job.cancel()
+            error("Failed to run flask: {} See traceback above for details.".format(ex))
 
 
 @develop.command()
 @require_exp_directory
 def bootstrap(exp_config=None):
-    """Run the experiment locally."""
+    _bootstrap(exp_config)
+
+
+def _bootstrap(exp_config=None):
+    """Creates a directory which will be used to host the development version of the experiment."""
     bootstrapper = DevelopmentDeployment(Output(), exp_config)
     log(header, chevrons=False)
     bootstrapper.run()
+
+
+def launch_app_and_open_dashboard(port):
+    _launch_app(port)
+    _open_dashboard(port)
+
+
+def _launch_app(port):
+    url = BASE_URL.format(port) + "launch"
+    _handle_launch_data(url, error=log, delay=1.0)
+
+
+def _open_dashboard(port):
+    _browser("dashboard", port)
 
 
 @develop.command()
@@ -70,12 +104,18 @@ def bootstrap(exp_config=None):
 )
 @click.option("--port", default=5000, help="The port Flask is running on")
 def browser(route=None, port=5000):
+    _browser(route=route, port=port)
+
+
+def _browser(route=None, port=5000):
     """Open one of the supported routes with appropriate path and URL parameters"""
     config = get_config()
     config.load()
     url_factory = valid_routes.get(route)
     if url_factory is not None:
-        open_browser(url_factory(config, port))
+        url = url_factory(config, port)
+        logger.info("Experiment dashboard: %s", url)
+        open_browser(url)
     else:
         click.echo(
             "Supported routes are:\n\t{}".format("\n\t".join(valid_routes.keys()))

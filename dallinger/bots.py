@@ -3,30 +3,27 @@
 import json
 import logging
 import random
-import tempfile
 import uuid
 
+import gevent
+import requests
 from cached_property import cached_property
+from requests.exceptions import RequestException
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from six.moves import urllib
-import gevent
-import requests
-from requests.exceptions import RequestException
 
 logger = logging.getLogger(__file__)
 
 DRIVER_MAP = {
-    "phantomjs": webdriver.PhantomJS,
     "firefox": webdriver.Firefox,
     "chrome": webdriver.Chrome,
     "chrome_headless": webdriver.Chrome,
 }
 CAPABILITY_MAP = {
-    "phantomjs": webdriver.DesiredCapabilities.PHANTOMJS,
     "firefox": webdriver.DesiredCapabilities.FIREFOX,
     "chrome": webdriver.DesiredCapabilities.CHROME,
     "chrome_headless": webdriver.DesiredCapabilities.CHROME,
@@ -93,13 +90,7 @@ class BotBase(object):
             driver_class = DRIVER_MAP.get(driver_type.lower())
             if driver_class is not None:
                 kwargs = {}
-                # Phantom JS needs a new local storage directory for every run
-                if driver_class is webdriver.PhantomJS:
-                    tmpdirname = tempfile.mkdtemp()
-                    kwargs = {
-                        "service_args": ["--local-storage-path={}".format(tmpdirname)],
-                    }
-                elif driver_type.lower() == "chrome_headless":
+                if driver_type.lower() == "chrome_headless":
                     from selenium.webdriver.chrome.options import Options
 
                     chrome_options = Options()
@@ -163,9 +154,9 @@ class BotBase(object):
         Answers the questions in the base questionnaire.
         """
         logger.info("Complete questionnaire.")
-        difficulty = self.driver.find_element_by_id("difficulty")
+        difficulty = self.driver.find_element("id", "difficulty")
         difficulty.value = "4"
-        engagement = self.driver.find_element_by_id("engagement")
+        engagement = self.driver.find_element("id", "engagement")
         engagement.value = "3"
 
     def sign_off(self):

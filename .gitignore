@@ -15,6 +15,7 @@ demos/**/develop/*
 **/snapshots/*
 **/__pycache__/*
 docs/source/demos
+docs/source/_build/
 docs/source/_static/*.zip
 durations.txt
 .env

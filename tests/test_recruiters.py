@@ -1,11 +1,13 @@
 import json
+import os
+from datetime import datetime
+
 import mock
 import pytest
-from datetime import datetime
-from dallinger.models import Participant
+
 from dallinger.experiment import Experiment
-from dallinger.mturk import MTurkQualificationRequirements
-from dallinger.mturk import MTurkQuestions
+from dallinger.models import Participant
+from dallinger.mturk import MTurkQualificationRequirements, MTurkQuestions
 
 
 class TestModuleFunctions(object):
@@ -39,34 +41,34 @@ class TestModuleFunctions(object):
         assert isinstance(r, mod.HotAirRecruiter)
 
     def test_recruiter_config_value_used_if_not_debug(self, mod, stub_config):
-        stub_config.extend({"mode": u"sandbox", "recruiter": u"CLIRecruiter"})
+        stub_config.extend({"mode": "sandbox", "recruiter": "CLIRecruiter"})
         r = mod.from_config(stub_config)
         assert isinstance(r, mod.CLIRecruiter)
 
     def test_debug_mode_trumps_recruiter_config_value(self, mod, stub_config):
-        stub_config.extend({"recruiter": u"CLIRecruiter"})
+        stub_config.extend({"recruiter": "CLIRecruiter"})
         r = mod.from_config(stub_config)
         assert isinstance(r, mod.HotAirRecruiter)
 
     def test_bot_recruiter_trumps_debug_mode(self, mod, stub_config):
-        stub_config.extend({"recruiter": u"bots"})
+        stub_config.extend({"recruiter": "bots"})
         r = mod.from_config(stub_config)
         assert isinstance(r, mod.BotRecruiter)
 
     def test_default_is_mturk_recruiter_if_not_debug(self, mod, active_config):
-        active_config.extend({"mode": u"sandbox"})
+        active_config.extend({"mode": "sandbox"})
         r = mod.from_config(active_config)
         assert isinstance(r, mod.MTurkRecruiter)
 
     def test_replay_setting_dictates_recruiter(self, mod, active_config):
         active_config.extend(
-            {"replay": True, "mode": u"sandbox", "recruiter": u"CLIRecruiter"}
+            {"replay": True, "mode": "sandbox", "recruiter": "CLIRecruiter"}
         )
         r = mod.from_config(active_config)
         assert isinstance(r, mod.HotAirRecruiter)
 
     def test_unknown_recruiter_name_raises(self, mod, stub_config):
-        stub_config.extend({"mode": u"sandbox", "recruiter": u"bogus"})
+        stub_config.extend({"mode": "sandbox", "recruiter": "bogus"})
         with pytest.raises(NotImplementedError):
             mod.from_config(stub_config)
 
@@ -96,7 +98,7 @@ class TestRecruiter(object):
 
     def test_reward_bonus(self, recruiter):
         with pytest.raises(NotImplementedError):
-            recruiter.reward_bonus("any assignment id", 0.01, "You're great!")
+            recruiter.reward_bonus(None, 0.01, "You're great!")
 
     def test_external_submission_url(self, recruiter):
         assert recruiter.external_submission_url is None
@@ -175,11 +177,13 @@ class TestCLIRecruiter(object):
     def test_approve_hit(self, recruiter):
         assert recruiter.approve_hit("any assignment id")
 
-    def test_reward_bonus(self, recruiter):
-        recruiter.reward_bonus("any assignment id", 0.01, "You're great!")
+    def test_reward_bonus(self, a, recruiter):
+        p = a.participant()
+
+        recruiter.reward_bonus(p, 0.01, "You're great!")
 
     def test_open_recruitment_uses_configured_mode(self, recruiter, active_config):
-        active_config.extend({"mode": u"new_mode"})
+        active_config.extend({"mode": "new_mode"})
         result = recruiter.open_recruitment()
         assert "mode=new_mode" in result["items"][0]
 
@@ -227,11 +231,11 @@ class TestHotAirRecruiter(object):
     def test_approve_hit(self, recruiter):
         assert recruiter.approve_hit("any assignment id")
 
-    def test_reward_bonus(self, recruiter):
-        recruiter.reward_bonus("any assignment id", 0.01, "You're great!")
+    def test_reward_bonus(self, a, recruiter):
+        recruiter.reward_bonus(a.participant(), 0.01, "You're great!")
 
     def test_open_recruitment_ignores_configured_mode(self, recruiter, active_config):
-        active_config.extend({"mode": u"new_mode"})
+        active_config.extend({"mode": "new_mode"})
         result = recruiter.open_recruitment()
         assert "mode=debug" in result["items"][0]
 
@@ -304,8 +308,8 @@ class TestBotRecruiter(object):
     def test_approve_hit(self, recruiter):
         assert recruiter.approve_hit("any assignment id")
 
-    def test_reward_bonus(self, recruiter):
-        recruiter.reward_bonus("any assignment id", 0.01, "You're great!")
+    def test_reward_bonus(self, a, recruiter):
+        recruiter.reward_bonus(a.participant(), 0.01, "You're great!")
 
     def test_returns_specific_submission_event_type(self, recruiter):
         assert recruiter.submitted_event() == "BotAssignmentSubmitted"
@@ -318,10 +322,266 @@ class TestBotRecruiter(object):
         assert bot.status == "rejected"
 
 
+@pytest.fixture
+def notifies_admin():
+    from dallinger.notifications import NotifiesAdmin
+
+    mock_notifies_admin = mock.create_autospec(NotifiesAdmin)
+    yield mock_notifies_admin
+
+
+@pytest.fixture
+def mailer():
+    from dallinger.notifications import SMTPMailer
+
+    mock_mailer = mock.create_autospec(SMTPMailer)
+    yield mock_mailer
+
+
+@pytest.fixture
+def prolific_config(active_config):
+    prolific_extensions = {
+        "prolific_api_token": "fake Prolific API token",
+        "prolific_api_version": "v1",
+        "prolific_estimated_completion_minutes": 5,
+        "prolific_reward_cents": 10,
+        "prolific_recruitment_config": json.dumps(
+            {"peripheral_requirements": ["audio", "microphone"]}
+        ),
+    }
+    active_config.extend(prolific_extensions)
+
+    return active_config
+
+
+@pytest.fixture
+def prolificservice(prolific_config, fake_parsed_prolific_study):
+    from dallinger.prolific import ProlificService
+
+    service = mock.create_autospec(
+        ProlificService,
+        api_token=prolific_config.get("prolific_api_token"),
+        api_version=prolific_config.get("prolific_api_version"),
+    )
+
+    service.published_study.return_value = fake_parsed_prolific_study
+    service.add_participants_to_study.return_value = fake_parsed_prolific_study
+
+    return service
+
+
+@pytest.mark.usefixtures("prolific_config")
+class TestProlificRecruiter(object):
+    @pytest.fixture
+    def recruiter(self, mailer, notifies_admin, prolificservice, hit_id_store):
+        from dallinger.recruiters import ProlificRecruiter
+
+        with mock.patch.multiple(
+            "dallinger.recruiters", os=mock.DEFAULT, get_base_url=mock.DEFAULT
+        ) as mocks:
+            mocks["get_base_url"].return_value = "http://fake-domain"
+            mocks["os"].getenv.return_value = "fake-host-domain"
+            r = ProlificRecruiter(store=hit_id_store)
+            r.notifies_admin = notifies_admin
+            r.mailer = mailer
+            r.prolificservice = prolificservice
+
+            return r
+
+    def test_open_recruitment_with_valid_request(self, recruiter):
+        result = recruiter.open_recruitment(n=5)
+        assert result["message"] == "Study now published on Prolific"
+
+    def test_open_recruitment_raises_if_study_already_in_progress(self, recruiter):
+        from dallinger.recruiters import ProlificRecruiterException
+
+        recruiter.open_recruitment()
+        with pytest.raises(ProlificRecruiterException):
+            recruiter.open_recruitment()
+
+    def test_open_recruitment_raises_if_running_on_localhost(self, recruiter):
+        from dallinger.recruiters import ProlificRecruiterException
+
+        recruiter.study_domain = None
+        with pytest.raises(ProlificRecruiterException) as ex_info:
+            recruiter.open_recruitment(n=1)
+
+        assert ex_info.match("Can't run a Prolific Study from localhost")
+
+    def test_normalize_entry_information_standardizes_participant_data(self, recruiter):
+        prolific_format = {
+            "STUDY_ID": "some study ID",
+            "PROLIFIC_PID": "some worker ID",
+            "SESSION_ID": "some session ID",
+        }
+
+        dallinger_format = recruiter.normalize_entry_information(prolific_format)
+
+        assert dallinger_format == {
+            "hit_id": "some study ID",
+            "worker_id": "some worker ID",
+            "assignment_id": "some session ID",
+            "entry_information": prolific_format,
+        }
+
+    def test_defers_assignment_submission_via_null_submitted_event(self, recruiter):
+        assert recruiter.submitted_event() is None
+
+    @pytest.mark.usefixtures("experiment_dir_merged")
+    def test_exit_page_includes_submission_prolific_button(self, a, webapp, recruiter):
+        p = a.participant(recruiter_id="prolific")
+
+        response = webapp.get(f"/recruiter-exit?participant_id={p.id}")
+
+        assert recruiter.external_submission_url in response.data.decode("utf-8")
+
+    def test_reward_bonus_passes_only_whats_needed(self, a, recruiter):
+        participant = a.participant(assignment_id="some assignement")
+        recruiter.reward_bonus(
+            participant=participant,
+            amount=2.99,
+            reason="well done!",
+        )
+
+        recruiter.prolificservice.pay_session_bonus.assert_called_once_with(
+            study_id=recruiter.current_study_id,
+            worker_id=participant.worker_id,
+            amount=2.99,
+        )
+
+    def test_reward_bonus_logs_exception(self, a, recruiter):
+        from dallinger.prolific import ProlificServiceException
+
+        recruiter.prolificservice.pay_session_bonus.side_effect = (
+            ProlificServiceException("Boom!")
+        )
+        with mock.patch("dallinger.recruiters.logger") as mock_logger:
+            recruiter.reward_bonus(
+                participant=a.participant(),
+                amount=2.99,
+                reason="well done!",
+            )
+
+        mock_logger.exception.assert_called_once_with("Boom!")
+
+    def test_approve_hit(self, recruiter):
+        fake_id = "fake assignment id"
+        recruiter.approve_hit(fake_id)
+
+        recruiter.prolificservice.approve_participant_session.assert_called_once_with(
+            session_id=fake_id
+        )
+
+    def test_approve_hit_logs_exception(self, recruiter):
+        from dallinger.prolific import ProlificServiceException
+
+        recruiter.prolificservice.approve_participant_session.side_effect = (
+            ProlificServiceException("Boom!")
+        )
+        with mock.patch("dallinger.recruiters.logger") as mock_logger:
+            recruiter.approve_hit("fake-hit-id")
+
+        mock_logger.exception.assert_called_once_with("Boom!")
+
+    def test_recruit_calls_add_participants_to_study(self, recruiter):
+        recruiter.open_recruitment()
+        recruiter.recruit(n=1)
+
+        recruiter.prolificservice.add_participants_to_study.assert_called_once_with(
+            study_id="abcdefghijklmnopqrstuvwx", number_to_add=1
+        )
+
+    def test_submission_listener_enqueues_assignment_submitted_notification(
+        self, queue, webapp
+    ):
+        exit_form_submission = {
+            "assignmentId": "some assignment ID",
+            "participantId": "some participant ID",
+            "somethingElse": "blah... whatever",
+        }
+
+        response = webapp.post(
+            "/prolific-submission-listener", data=exit_form_submission
+        )
+
+        assert response.status_code == 200
+        queue.enqueue.assert_called_once_with(
+            mock.ANY, "AssignmentSubmitted", "some assignment ID", "some participant ID"
+        ),
+
+    def test_clean_qualification_attributes(self, recruiter):
+        json_path = os.path.join(
+            os.path.dirname(__file__), "datasets", "example_prolific_details.json"
+        )
+        with open(json_path, "r") as f:
+            details = json.load(f)
+        cleaned_details = recruiter.clean_qualification_attributes(details)
+        assert details.keys() == cleaned_details.keys(), "Keys should be the same"
+        requirements = cleaned_details["eligibility_requirements"]
+
+        assert requirements == [
+            {
+                "type": "select",
+                "attributes": [
+                    {"label": "Spain", "name": "Spain", "value": True, "index": 5}
+                ],
+                "query": {
+                    "id": "54bef0fafdf99b15608c504e",
+                    "title": "Current Country of Residence",
+                },
+                "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
+            },
+            {
+                "type": "select",
+                "attributes": [
+                    {"label": "Spain", "name": "Spain", "value": True, "index": 5}
+                ],
+                "query": {"id": "54ac6ea9fdf99b2204feb896", "title": "Nationality"},
+                "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
+            },
+            {
+                "type": "select",
+                "attributes": [
+                    {"label": "Spain", "name": "Spain", "value": True, "index": 5}
+                ],
+                "query": {
+                    "id": "54ac6ea9fdf99b2204feb895",
+                    "title": "Country of Birth",
+                },
+                "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
+            },
+            {
+                "type": "select",
+                "attributes": [
+                    {"label": "Spanish", "name": "Spanish", "value": True, "index": 59}
+                ],
+                "query": {"id": "54ac6ea9fdf99b2204feb899", "title": "First Language"},
+                "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
+            },
+            {
+                "type": "select",
+                "attributes": [
+                    {
+                        "label": "I was raised with my native language only",
+                        "name": "I was raised with my native language only",
+                        "value": True,
+                        "index": 0,
+                    }
+                ],
+                "query": {
+                    "id": "59c2434b5364260001dc4b0a",
+                    "title": "Were you raised monolingual?",
+                },
+                "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
+            },
+        ]
+
+
 class TestMTurkRecruiterMessages(object):
     @pytest.fixture
     def summary(self, a, stub_config):
         from datetime import timedelta
+
         from dallinger.recruiters import ParticipationTime
 
         p = a.participant()
@@ -372,10 +632,13 @@ class TestMTurkRecruiterMessages(object):
 SNS_ROUTE_PATH = "/mturk-sns-listener"
 
 
+@pytest.mark.usefixtures(
+    "experiment_dir"
+)  # Needed because @before_request loads the exp
 class TestSNSListenerRoute(object):
     @pytest.fixture
     def recruiter(self, active_config):
-        active_config.extend({"mode": u"sandbox"})  # MTurkRecruiter invalid if debug
+        active_config.extend({"mode": "sandbox"})  # MTurkRecruiter invalid if debug
         with mock.patch("dallinger.recruiters.MTurkRecruiter") as klass:
             instance = klass.return_value
             yield instance
@@ -516,20 +779,6 @@ def hit_id_store():
 @pytest.mark.usefixtures("active_config", "requests", "queue")
 class TestMTurkRecruiter(object):
     @pytest.fixture
-    def notifies_admin(self):
-        from dallinger.notifications import NotifiesAdmin
-
-        mock_notifies_admin = mock.create_autospec(NotifiesAdmin)
-        yield mock_notifies_admin
-
-    @pytest.fixture
-    def mailer(self):
-        from dallinger.notifications import SMTPMailer
-
-        mock_mailer = mock.create_autospec(SMTPMailer)
-        yield mock_mailer
-
-    @pytest.fixture
     def recruiter(
         self, active_config, notifies_admin, mailer, mturkservice, hit_id_store
     ):
@@ -540,7 +789,7 @@ class TestMTurkRecruiter(object):
         ) as mocks:
             mocks["get_base_url"].return_value = "http://fake-domain"
             mocks["os"].getenv.return_value = "fake-host-domain"
-            active_config.extend({"mode": u"sandbox"})
+            active_config.extend({"mode": "sandbox"})
             r = MTurkRecruiter(store=hit_id_store)
             r.notifies_admin = notifies_admin
             r.mailer = mailer
@@ -549,10 +798,9 @@ class TestMTurkRecruiter(object):
             return r
 
     def test_instantiation_fails_with_invalid_mode(self, active_config):
-        from dallinger.recruiters import MTurkRecruiter
-        from dallinger.recruiters import MTurkRecruiterException
+        from dallinger.recruiters import MTurkRecruiter, MTurkRecruiterException
 
-        active_config.extend({"mode": u"nonsense"})
+        active_config.extend({"mode": "nonsense"})
         with pytest.raises(MTurkRecruiterException) as ex_info:
             MTurkRecruiter()
         assert ex_info.match('"nonsense" is not a valid mode')
@@ -564,7 +812,7 @@ class TestMTurkRecruiter(object):
         assert "workersandbox.mturk.com" in recruiter.external_submission_url
 
     def test_external_submission_url_live(self, recruiter):
-        recruiter.config.set("mode", u"live")
+        recruiter.config.set("mode", "live")
         assert "www.mturk.com" in recruiter.external_submission_url
 
     def test_open_recruitment_returns_one_item_recruitments_list(self, recruiter):
@@ -598,15 +846,15 @@ class TestMTurkRecruiter(object):
             question=MTurkQuestions.external(
                 ad_url="http://fake-domain/ad?recruiter=mturk"
             ),
-            description=u"fake HIT description",
+            description="fake HIT description",
             duration_hours=1.0,
             experiment_id="TEST_EXPERIMENT_UID",
-            keywords=[u"kw1", u"kw2", u"kw3"],
+            keywords=["kw1", "kw2", "kw3"],
             lifetime_days=1,
             max_assignments=1,
-            notification_url=u"http://fake-domain{}".format(SNS_ROUTE_PATH),
+            notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
-            title=u"fake experiment title (dlgr-TEST_EXPERIMENT_UI)",
+            title="fake experiment title (dlgr-TEST_EXPERIMENT_UI)",
             annotation="TEST_EXPERIMENT_UID",
             qualifications=[
                 MTurkQualificationRequirements.min_approval(95),
@@ -617,7 +865,7 @@ class TestMTurkRecruiter(object):
     def test_open_recruitment_creates_no_qualifications_if_so_configured(
         self, recruiter
     ):
-        recruiter.config.set("group_name", u"some group name")
+        recruiter.config.set("group_name", "some group name")
         recruiter.config.set("assign_qualifications", False)
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_qualification_type.assert_not_called()
@@ -632,10 +880,10 @@ class TestMTurkRecruiter(object):
         recruiter.mturkservice.create_hit.assert_called_once()
 
     def test_open_recruitment_with_blocklist(self, recruiter):
-        recruiter.config.set("mturk_qualification_blocklist", u"foo, bar")
+        recruiter.config.set("mturk_qualification_blocklist", "foo, bar")
         # Our fake response will always return the same QualificationType ID
         recruiter.mturkservice.get_qualification_type_by_name.return_value = {
-            "id": u"fake id"
+            "id": "fake id"
         }
         recruiter.open_recruitment(n=1)
         recruiter.mturkservice.create_hit.assert_called_once_with(
@@ -646,7 +894,7 @@ class TestMTurkRecruiter(object):
             duration_hours=1.0,
             experiment_id="TEST_EXPERIMENT_UID",
             lifetime_days=1,
-            keywords=[u"kw1", u"kw2", u"kw3"],
+            keywords=["kw1", "kw2", "kw3"],
             max_assignments=1,
             notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
@@ -655,15 +903,15 @@ class TestMTurkRecruiter(object):
             qualifications=[
                 MTurkQualificationRequirements.min_approval(95),
                 MTurkQualificationRequirements.restrict_to_countries(["US"]),
-                MTurkQualificationRequirements.must_not_have(u"fake id"),
-                MTurkQualificationRequirements.must_not_have(u"fake id"),
+                MTurkQualificationRequirements.must_not_have("fake id"),
+                MTurkQualificationRequirements.must_not_have("fake id"),
             ],
         )
 
     def test_open_recruitment_with_explicit_qualifications(self, recruiter):
         recruiter.config.set(
             "mturk_qualification_requirements",
-            u"""
+            """
             [
                 {
                     "QualificationTypeId":"789RVWYBAZW00EXAMPLE",
@@ -682,7 +930,7 @@ class TestMTurkRecruiter(object):
             duration_hours=1.0,
             experiment_id="TEST_EXPERIMENT_UID",
             lifetime_days=1,
-            keywords=[u"kw1", u"kw2", u"kw3"],
+            keywords=["kw1", "kw2", "kw3"],
             max_assignments=1,
             notification_url="http://fake-domain{}".format(SNS_ROUTE_PATH),
             reward=0.01,
@@ -752,21 +1000,25 @@ class TestMTurkRecruiter(object):
 
         mock_logger.exception.assert_called_once_with("Boom!")
 
-    def test_reward_bonus_is_simple_passthrough(self, recruiter):
+    def test_reward_bonus_passes_only_whats_needed(self, a, recruiter):
+        participant = a.participant()
         recruiter.reward_bonus(
-            assignment_id="fake assignment id", amount=2.99, reason="well done!"
+            participant=participant,
+            amount=2.99,
+            reason="well done!",
         )
 
         recruiter.mturkservice.grant_bonus.assert_called_once_with(
-            assignment_id="fake assignment id", amount=2.99, reason="well done!"
+            assignment_id=participant.assignment_id, amount=2.99, reason="well done!"
         )
 
-    def test_reward_bonus_logs_exception(self, recruiter):
+    def test_reward_bonus_logs_exception(self, a, recruiter):
         from dallinger.mturk import MTurkServiceException
 
+        participant = a.participant()
         recruiter.mturkservice.grant_bonus.side_effect = MTurkServiceException("Boom!")
         with mock.patch("dallinger.recruiters.logger") as mock_logger:
-            recruiter.reward_bonus("fake-assignment", 2.99, "fake reason")
+            recruiter.reward_bonus(participant, 2.99, "fake reason")
 
         mock_logger.exception.assert_called_once_with("Boom!")
 
@@ -1021,7 +1273,6 @@ class TestMTurkLargeRecruiter(object):
     def counter(self):
         # We don't want to depend on redis in these tests.
         class PrimitiveCounter(object):
-
             _count = 0
 
             def increment(self, count):
@@ -1042,7 +1293,7 @@ class TestMTurkLargeRecruiter(object):
         ) as mocks:
             mocks["get_base_url"].return_value = "http://fake-domain"
             mocks["os"].getenv.return_value = "fake-host-domain"
-            active_config.extend({"mode": u"sandbox"})
+            active_config.extend({"mode": "sandbox"})
             r = MTurkLargeRecruiter(counter=counter, store=hit_id_store)
             r.mturkservice = mturkservice
             return r
@@ -1149,7 +1400,7 @@ class TestMultiRecruiter(object):
     def recruiter(self, active_config):
         from dallinger.recruiters import MultiRecruiter
 
-        active_config.extend({"recruiters": u"cli: 2, hotair: 1"})
+        active_config.extend({"recruiters": "cli: 2, hotair: 1"})
         return MultiRecruiter()
 
     def test_parse_spec(self, recruiter):
@@ -1227,7 +1478,7 @@ class TestMultiRecruiter(object):
     def test_recruit_batches(self, active_config):
         from dallinger.recruiters import MultiRecruiter
 
-        active_config.extend({"recruiters": u"cli: 2, hotair: 1, cli: 3, hotair: 2"})
+        active_config.extend({"recruiters": "cli: 2, hotair: 1, cli: 3, hotair: 2"})
         recruiter = MultiRecruiter()
         result = recruiter.recruit(n=10)
         assert len(result) == 8

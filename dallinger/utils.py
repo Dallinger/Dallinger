@@ -1,9 +1,9 @@
 from __future__ import unicode_literals
+
 import functools
 import io
 import locale
 import os
-import pkg_resources
 import random
 import re
 import shutil
@@ -12,14 +12,16 @@ import subprocess
 import sys
 import tempfile
 import webbrowser
-
-from faker import Faker
-from flask import request
 from hashlib import md5
 from pathlib import Path
-from pkg_resources import get_distribution
-from unicodedata import normalize
 from tempfile import TemporaryDirectory
+from unicodedata import normalize
+
+import pkg_resources
+import requests
+from faker import Faker
+from flask import request
+from pkg_resources import get_distribution
 
 try:
     from importlib.metadata import files as files_metadata
@@ -27,10 +29,9 @@ except ImportError:
     from importlib_metadata import files as files_metadata
 
 from dallinger import db
-from dallinger.version import __version__
-from dallinger.config import get_config
 from dallinger.compat import is_command
-
+from dallinger.config import get_config
+from dallinger.version import __version__
 
 fake = Faker()
 
@@ -196,7 +197,6 @@ class GitClient(object):
 
 
 class ParticipationTime(object):
-
     grace_period_seconds = 120
 
     def __init__(self, participant, reference_time, config):
@@ -390,13 +390,43 @@ def check_local_db_connection(log):
 def check_experiment_dependencies(requirement_file):
     """Verify that the dependencies defined in a requirements file are
     in fact installed.
+    If the environment variable SKIP_DEPENDENCY_CHECK is set, no check
+    will be performed.
     """
+    if os.environ.get("SKIP_DEPENDENCY_CHECK"):
+        return
     try:
         with open(requirement_file, "r") as f:
             dependencies = [r for r in f.readlines() if r[:3] != "-e "]
     except (OSError, IOError):
         dependencies = []
     pkg_resources.require(dependencies)
+
+
+def develop_target_path(config):
+    """Extract the target `dallinger develop` working directory from
+    configuration, and return it as a Path.
+    """
+    develop_path_string = config.get("dallinger_develop_directory", None)
+    try:
+        develop_path = Path(develop_path_string).expanduser()
+    except TypeError:
+        raise ValueError(
+            'The Dallinger configuration value "dallinger_develop_directory" '
+            'must be a file path, like "~/dallinger_develop".\n'
+            'Your value is "{}" which cannot be translated '
+            "to a file path.".format(develop_path_string)
+        )
+    if not develop_path.name.isidentifier():
+        raise ValueError(
+            'The directory in the Dallinger configuration value "dallinger_develop_directory" '
+            "must be a valid python identifier: only letters, numbers and underscores are allowed.\n"
+            'The directory name "{}" is not a valid identifier.'.format(
+                develop_path.name
+            )
+        )
+
+    return develop_path
 
 
 def bootstrap_development_session(exp_config, experiment_path, log):
@@ -423,22 +453,26 @@ def bootstrap_development_session(exp_config, experiment_path, log):
     if not config.get("dashboard_password", None):
         config.set("dashboard_password", fake.password(length=20, special_chars=False))
 
-    develop_source_path = Path(dallinger_package_path()) / "dev_server"
-    dst = Path(experiment_path) / "develop"
+    source_path = Path(dallinger_package_path()) / "dev_server"
+    destination_path = develop_target_path(config)
+
     log("Wiping develop directory and re-writing it...")
-    ensure_directory(dst)
-    expunge_directory(dst)
+    ensure_directory(destination_path)
+    expunge_directory(destination_path)
     collate_experiment_files(
-        config, experiment_path=experiment_path, destination=dst, copy_func=symlink_file
+        config,
+        experiment_path=experiment_path,
+        destination=destination_path,
+        copy_func=symlink_file,
     )
 
-    copy_file(develop_source_path / "app.py", dst / "app.py")
-    copy_file(develop_source_path / "run.sh", dst / "run.sh")
-    (dst / "run.sh").chmod(0o744)  # Make run script executable
+    copy_file(source_path / "app.py", destination_path / "app.py")
+    copy_file(source_path / "run.sh", destination_path / "run.sh")
+    (destination_path / "run.sh").chmod(0o744)  # Make run script executable
 
-    config.write(directory=dst)
+    config.write(directory=destination_path)
 
-    return (experiment_uid, dst)
+    return (experiment_uid, destination_path)
 
 
 def setup_experiment(
@@ -510,7 +544,12 @@ def ensure_constraints_file_presence(directory: str):
 
     If the `requirements.txt` does not exist one is created with
     `dallinger` as its only dependency.
+
+    If the environment variable SKIP_DEPENDENCY_CHECK is set, no action
+    will be performed.
     """
+    if os.environ.get("SKIP_DEPENDENCY_CHECK"):
+        return
     constraints_path = Path(directory) / "constraints.txt"
     requirements_path = Path(directory) / "requirements.txt"
     if not requirements_path.exists():
@@ -528,13 +567,39 @@ def ensure_constraints_file_presence(directory: str):
     try:
         os.chdir(directory)
         url = f"https://raw.githubusercontent.com/Dallinger/Dallinger/v{__version__}/dev-requirements.txt"
+        try:
+            response = requests.get(url)
+        except requests.exceptions.ConnectionError:
+            raise RuntimeError(
+                """It looks like you're offline. Dallinger can't generate constraints
+To get a valid constraints.txt file you can copy the requirements.txt file:
+cp requirements.txt constraints.txt"""
+            )
+        if response.status_code != 200:
+            print(f"{url} not found. Using local dev-requirements.txt")
+            url_path = abspath_from_egg("dallinger", "dev-requirements.txt")
+            if not url_path.exists():
+                print(
+                    f"{url_path} is not a valid file. Either use a released dallinger version for this experiment or install dallinger in editable mode"
+                )
+                raise ValueError(
+                    "Can't find constraints for dallinger version {__version__}"
+                )
+            url = str(url_path)
         print(f"Compiling constraints.txt file from requirements.txt and {url}")
         compile_info = f"dallinger generate-constraints\n#\n# Compiled from a requirement.txt file with md5sum: {requirements_path_hash}"
         with TemporaryDirectory() as tmpdirname:
             tmpfile = Path(tmpdirname) / "requirements.txt"
             tmpfile.write_text(Path("requirements.txt").read_text() + "\n-c " + url)
             check_output(
-                ["pip-compile", str(tmpfile), "-o", "constraints.txt"],
+                [
+                    "pip-compile",
+                    "--resolver=backtracking",
+                    "-v",
+                    str(tmpfile),
+                    "-o",
+                    "constraints.txt",
+                ],
                 env=dict(
                     os.environ,
                     CUSTOM_COMPILE_COMMAND=compile_info,
@@ -586,13 +651,15 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
         file.write(exp_id)
 
     # Write out a runtime.txt file based on configuration
-    pyversion = config.get("heroku_python_version")
-    with open(os.path.join(dst, "runtime.txt"), "w") as file:
-        file.write("python-{}".format(pyversion))
+    pyversion = config.get("heroku_python_version", None)
+    if pyversion:
+        with open(os.path.join(dst, "runtime.txt"), "w") as file:
+            file.write("python-{}".format(pyversion))
 
     requirements_path = Path(dst) / "requirements.txt"
     # Overwrite the requirements.txt file with the contents of the constraints.txt file
-    (Path(dst) / "constraints.txt").replace(requirements_path)
+    if not os.environ.get("SKIP_DEPENDENCY_CHECK"):
+        (Path(dst) / "constraints.txt").replace(requirements_path)
     if for_remote:
         dallinger_path = get_editable_dallinger_path()
         if dallinger_path and not os.environ.get("DALLINGER_NO_EGG_BUILD"):
@@ -634,10 +701,10 @@ def collate_experiment_files(config, experiment_path, destination, copy_func):
     # Order matters here, since the first files copied "win" if there's a
     # collision:
     ExperimentFileSource(experiment_path).apply_to(destination, copy_func=copy_func)
+    ExplicitFileSource(experiment_path).apply_to(destination, copy_func=copy_func)
     DallingerFileSource(config, dallinger_package_path()).apply_to(
         destination, copy_func=copy_func
     )
-    ExplicitFileSource(experiment_path).apply_to(destination, copy_func=copy_func)
 
 
 class FileSource(object):

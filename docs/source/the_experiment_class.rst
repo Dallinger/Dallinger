@@ -42,6 +42,9 @@ what to do with the database when the server receives requests from outside.
   .. autoattribute:: participant_constructor
     :annotation:
 
+  .. autoattribute:: hidden_dashboards
+    :annotation:
+
   .. attribute:: public_properties
 
      dictionary, the properties of this experiment that are exposed

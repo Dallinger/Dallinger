@@ -3,27 +3,28 @@
 from __future__ import print_function
 
 import os
-import sys
 import random
-import traceback
-from datetime import datetime
-import pytest
-import subprocess
 import re
-import requests
+import subprocess
+import sys
 import threading
 import time
+import traceback
+from datetime import datetime
 
-from dallinger.nodes import Agent, Source
-from dallinger.information import Gene, Meme, State
-from dallinger import models
+import pytest
+import requests
 from dlgr.demos.rogers.experiment import RogersExperiment
 from dlgr.demos.rogers.models import (
-    RogersAgent,
-    RogersSource,
-    RogersEnvironment,
     LearningGene,
+    RogersAgent,
+    RogersEnvironment,
+    RogersSource,
 )
+
+from dallinger import models
+from dallinger.information import Gene, Meme, State
+from dallinger.nodes import Agent, Source
 
 
 def timenow():
@@ -48,7 +49,7 @@ class TestRogers(object):
         active_config.set("experiment_repeats", 10)
         active_config.set("practice_repeats", 0)
         active_config.set("practice_difficulty", 0.80)
-        active_config.set("difficulties", u"0.525, 0.5625, 0.65")
+        active_config.set("difficulties", "0.525, 0.5625, 0.65")
         active_config.set("catch_difficulty", 0.80)
         active_config.set("min_acceptable_performance", 0.833333333333333)
         active_config.set("generation_size", 2)
@@ -83,7 +84,6 @@ class TestRogers(object):
         process_time = dum - dum
 
         while exp.networks(full=False):
-
             num_completed_participants = len(exp.networks()[0].nodes(type=Agent))
 
             if p_times:
@@ -175,7 +175,6 @@ class TestRogers(object):
             assert bonus <= 1
             attended = exp.attention_check(participant=p)
             if not attended:
-
                 participant_nodes = models.Node.query.filter_by(
                     participant_id=p_id, failed=False
                 ).all()
@@ -273,7 +272,7 @@ class TestRogers(object):
                                 origin_id=source.id, destination_id=agent.id
                             ).all()
                         )
-                        == 1
+                        == 1  # noqa
                     )
                 else:
                     assert (
@@ -282,7 +281,7 @@ class TestRogers(object):
                                 origin_id=source.id, destination_id=agent.id
                             ).all()
                         )
-                        == 0
+                        == 0  # noqa
                     )
 
             for agent in agents:
@@ -292,10 +291,10 @@ class TestRogers(object):
                             v
                             for v in vectors
                             if v.origin_id == environment.id
-                            and v.destination_id == agent.id
+                            and v.destination_id == agent.id  # noqa
                         ]
                     )
-                    == 1
+                    == 1  # noqa
                 )
 
             for v in [v for v in vectors if v.origin_id == source.id]:
@@ -312,7 +311,6 @@ class TestRogers(object):
         sys.stdout.flush()
 
         for network in [exp.networks()[0]]:
-
             agents = network.nodes(type=Agent)
             vectors = network.vectors()
             source = network.nodes(type=RogersSource)[0]
@@ -329,7 +327,7 @@ class TestRogers(object):
                             if i.origin_id == agent.id and isinstance(i, Gene)
                         ]
                     )
-                    == 1
+                    == 1  # noqa
                 )
                 assert (
                     len(
@@ -339,7 +337,7 @@ class TestRogers(object):
                             if i.origin_id == agent.id and isinstance(i, LearningGene)
                         ]
                     )
-                    == 1
+                    == 1  # noqa
                 )
                 assert (
                     len(
@@ -349,7 +347,7 @@ class TestRogers(object):
                             if i.origin_id == agent.id and isinstance(i, Meme)
                         ]
                     )
-                    == 1
+                    == 1  # noqa
                 )
 
         print("Testing infos...                     done!")
@@ -363,7 +361,6 @@ class TestRogers(object):
         sys.stdout.flush()
 
         for network in [exp.networks()[0]]:
-
             agents = network.nodes(type=Agent)
             vectors = network.vectors()
             source = network.nodes(type=RogersSource)[0]
@@ -384,7 +381,7 @@ class TestRogers(object):
                             if t.destination_id == agent.id and t.status == "pending"
                         ]
                     )
-                    == 0
+                    == 0  # noqa
                 )
 
                 lg = [
@@ -427,7 +424,6 @@ class TestRogers(object):
             assert n.fitness == (baseline + 1 * b - is_asocial * c) ** e
 
         for network in [exp.networks()[0]]:
-
             agents = network.nodes(type=Agent)
 
             for agent in agents:
@@ -448,7 +444,7 @@ class TestRogers(object):
 
         assert (
             exp.bonus(participant=Participant.query.filter_by(id=p_ids[0]).all()[0])
-            == exp.bonus_payment
+            == exp.bonus_payment  # noqa
         )
 
         print("Testing bonus payments...            done!")
@@ -531,10 +527,12 @@ class TestRogersSandbox(object):
                     )
                     information2 = session.get(
                         url
-                        + "/info/"
-                        + str(agent_id)
-                        + "/"
-                        + str(transmission.json()["transmissions"][0]["info_id"]),
+                        + "/info/"  # noqa
+                        + str(agent_id)  # noqa
+                        + "/"  # noqa
+                        + str(  # noqa
+                            transmission.json()["transmissions"][0]["info_id"]
+                        ),
                         headers=headers,
                     )
                     args = {"contents": "blue", "info_type": "Meme"}
