@@ -47,19 +47,41 @@ class BotBase(object):
 
         parts = urllib.parse.urlparse(URL)
         query = urllib.parse.parse_qs(parts.query)
+
         if not assignment_id:
-            assignment_id = query.get("assignment_id", [""])[0]
+            # Dallinger experiments are not always consistent in whether the participant recruitment URL
+            # uses snake_case or camelCase. This code accepts either format.
+            assignment_id = self.get_from_query(
+                query, ["assignment_id", "assignmentId"]
+            )
+
         if not participant_id:
-            participant_id = query.get("participant_id", [""])[0]
-        if not hit_id:
-            hit_id = query.get("hit_id", [""])[0]
-        self.assignment_id = assignment_id
+            participant_id = self.get_from_query(
+                query, ["participant_id", "participantId"]
+            )
+
         if not worker_id:
-            worker_id = query.get("worker_id", [""])[0]
+            worker_id = self.get_from_query(query, ["worker_id", "workerId"])
+
+        if not hit_id:
+            hit_id = self.get_from_query(query, ["hit_id", "hitId"])
+
+        self.assignment_id = assignment_id
         self.participant_id = participant_id
-        self.hit_id = hit_id
         self.worker_id = worker_id
+        self.hit_id = hit_id
+
         self.unique_id = worker_id + ":" + assignment_id
+
+    @staticmethod
+    def get_from_query(query, args):
+        for arg in args:
+            try:
+                return query[arg][0]
+            except KeyError:
+                pass
+
+        return ""
 
     def log(self, msg):
         logger.info("{}: {}".format(self.participant_id, msg))
