@@ -28,6 +28,7 @@ from wtforms.validators import DataRequired, ValidationError
 import dallinger.db
 from dallinger import recruiters
 from dallinger.config import get_config
+from dallinger.db import get_all_mapped_classes
 from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import deferred_route_decorator
 
@@ -201,22 +202,18 @@ class DashboardTabs(object):
         return iter(self.tabs)
 
 
-BROWSEABLE_MODELS = [
-    "Info",
-    "Network",
-    "Node",
-    "Participant",
-    "Question",
-    "Transformation",
-    "Transmission",
-    "Notification",
-]
-
-
 def database_children():
-    for model_type in BROWSEABLE_MODELS:
+    mapped_classes = list(get_all_mapped_classes().items())
+    mapped_classes.sort(key=lambda x: x[0])
+    for cls_name, cls_info in mapped_classes:
         yield DashboardTab(
-            model_type + "s", "dashboard.database", None, {"model_type": model_type}
+            cls_name,
+            "dashboard.database",
+            None,
+            {
+                "table": cls_info["table"],
+                "polymorphic_identity": cls_info["polymorphic_identity"],
+            },
         )
 
 
@@ -727,15 +724,30 @@ def prep_datatables_options(table_data):
 @dashboard.route("/database")
 @login_required
 def database():
+    from dallinger.db import get_polymorphic_mapping
     from dallinger.experiment_server.experiment_server import Experiment, session
 
-    title = "Database View"
     exp = Experiment(session)
-    model_type = request.args.get("model_type")
-    if model_type:
-        title = "Database View: {}s".format(model_type)
+
+    table = request.args.get("table", None)
+    polymorphic_identity = request.args.get("polymorphic_identity", None)
+
+    if polymorphic_identity == "None":
+        polymorphic_identity = None
+
+    if table is None and polymorphic_identity is None:
+        table = "participant"
+
+    if polymorphic_identity is not None:
+        assert table is not None
+        cls = get_polymorphic_mapping(table)[polymorphic_identity]
+        label = cls.__name__
+    else:
+        label = table.capitalize()
+
+    title = "Database View: {}".format(label)
     datatables_options = prep_datatables_options(
-        exp.table_data(**request.args.to_dict(flat=False))
+        exp.table_data(**request.args.to_dict())
     )
     columns = [
         c.get("name") or c["data"]
