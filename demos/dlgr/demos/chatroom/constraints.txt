@@ -23,11 +23,11 @@ attrs==22.2.0
     #   -c ../../../../dev-requirements.txt
     #   outcome
     #   trio
-boto3==1.26.100
+boto3==1.26.111
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-botocore==1.29.100
+botocore==1.29.111
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
@@ -66,14 +66,14 @@ cryptography==40.0.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   pyopenssl
-dallinger==9.5.0
+dallinger==9.6.0
     # via -r requirements.txt
 exceptiongroup==1.1.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
     #   trio-websocket
-faker==18.3.1
+faker==18.4.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -170,7 +170,7 @@ outcome==1.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
-packaging==23.0
+packaging==23.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   build
@@ -178,7 +178,7 @@ pexpect==4.8.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-pip-tools==6.12.3
+pip-tools==6.13.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -186,7 +186,7 @@ psutil==5.9.4
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-psycopg2==2.9.5
+psycopg2==2.9.6
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -217,7 +217,7 @@ python-dateutil==2.8.2
     #   botocore
     #   faker
     #   heroku3
-pytz==2023.2
+pytz==2023.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   apscheduler
@@ -225,7 +225,7 @@ pytz-deprecation-shim==0.1.0.post0
     # via
     #   -c ../../../../dev-requirements.txt
     #   tzlocal
-redis==4.5.3
+redis==4.5.4
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -301,7 +301,7 @@ trio-websocket==0.10.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   selenium
-tzdata==2023.2
+tzdata==2023.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   pytz-deprecation-shim
