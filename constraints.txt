@@ -174,7 +174,7 @@ gunicorn==20.1.0
     # via dallinger
 h11==0.14.0
     # via wsproto
-heroku3==5.2.0
+heroku3==5.2.1
     # via dallinger
 identify==2.5.22
     # via pre-commit
