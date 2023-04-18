@@ -525,7 +525,7 @@ def remote_postgres(server_info, app):
         # on the remote docker container. First we need to find the IP of the
         # container running docker
         postgresql_remote_ip = executor.run(
-            "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' dallinger_postgresql_1"
+            "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' dallinger-postgresql-1"
         ).strip()
         # Now we start the tunnel
         tunnel = SSHTunnelForwarder(
