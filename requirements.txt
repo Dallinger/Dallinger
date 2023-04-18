@@ -16,9 +16,9 @@ attrs==23.1.0
     # via
     #   outcome
     #   trio
-boto3==1.26.114
+boto3==1.26.115
     # via dallinger
-botocore==1.29.114
+botocore==1.29.115
     # via
     #   boto3
     #   s3transfer
@@ -83,7 +83,7 @@ gunicorn==20.1.0
     # via dallinger
 h11==0.14.0
     # via wsproto
-heroku3==5.2.0
+heroku3==5.2.1
     # via dallinger
 idna==3.4
     # via
@@ -114,7 +114,7 @@ pexpect==4.8.0
     # via dallinger
 pip-tools==6.13.0
     # via dallinger
-psutil==5.9.4
+psutil==5.9.5
     # via dallinger
 psycopg2==2.9.6
     # via
