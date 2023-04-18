@@ -8,6 +8,7 @@
 - Fixed: Fixed broken Docker CI tests.
 - Fixed: Reinstate `auto_recruit` check in `ProlificRecruiter.recruit()`.
 - Fixed: The original `Bot` constructor assumed that the participant recruitment URL was specified in snake case. However the Docker CI tests use participant recruit URLs with camel case. This was causing Bot parameters (assignment ID, worker ID, participant ID) to be left unset, and seemed to have caused occasional CI errors in the Docker tests.
+- Fixed: Fixed bug in docker-ssh export caused by upgrade to docker compose v2.
 - Enhancement: Enhanced efficiency in dashboard monitor data loading. Previously the dashboard could take a very long time to load when the database contained many custom object classes. In such cases we are now running about 1000 times faster.
 
 ## [v9.5.0](https://github.com/dallinger/dallinger/tree/v9.5.0) (2023-03-29)
