@@ -599,7 +599,7 @@ tomli==2.0.1
     #   pyproject-hooks
     #   pytest
     #   tox
-tornado==6.2
+tornado==6.3
     # via
     #   ipykernel
     #   jupyter-client
