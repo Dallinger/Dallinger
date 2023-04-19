@@ -571,12 +571,14 @@ def get_docker_compose_yml(
     postgresql_password: str,
 ) -> str:
     """Generate a docker-compose.yml file based on the given"""
+    docker_volumes = config.get("docker_volumes", "[]")
     config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
 
     return DOCKER_COMPOSE_EXP_TPL.render(
         experiment_id=experiment_id,
         experiment_image=experiment_image,
         config=config_str,
+        docker_volumes=docker_volumes,
         postgresql_password=postgresql_password,
     )
 
