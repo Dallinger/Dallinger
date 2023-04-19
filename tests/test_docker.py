@@ -33,11 +33,17 @@ def test_get_docker_compose_yml_env_vars_escaping():
     result = get_yaml(
         {
             "foo": r'" a quote and a \ backslash ',
+            "bar": "Dollar signs should be escaped with another dollar sign: $1.50",
         }
     )
     assert (
         result["services"]["worker"]["environment"]["foo"]
         == r'" a quote and a \ backslash '
+    )
+
+    assert (
+        result["services"]["worker"]["environment"]["bar"]
+        == "Dollar signs should be escaped with another dollar sign: $$1.50"
     )
 
 

@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import os
+import re
 import select
 import socket
 import sys
@@ -570,10 +571,12 @@ def get_docker_compose_yml(
     postgresql_password: str,
 ) -> str:
     """Generate a docker-compose.yml file based on the given"""
+    config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
+
     return DOCKER_COMPOSE_EXP_TPL.render(
         experiment_id=experiment_id,
         experiment_image=experiment_image,
-        config=config,
+        config=config_str,
         postgresql_password=postgresql_password,
     )
 
