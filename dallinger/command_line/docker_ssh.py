@@ -1,5 +1,4 @@
 import hashlib
-import io
 import json
 import logging
 import os
@@ -8,7 +7,7 @@ import select
 import socket
 import sys
 import zipfile
-from contextlib import contextmanager, redirect_stdout
+from contextlib import contextmanager
 from email.utils import parseaddr
 from functools import wraps
 from getpass import getuser
@@ -294,8 +293,11 @@ def deploy(
         BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
         "dallinger/Caddyfile",
     )
-    print("Removing any pre-existing Redis volumes.")
-    remove_redis_volumes(app_name, executor)
+
+    print("Removing any pre-existing app, if it exists.")
+    executor.run(
+        f"docker compose -f ~/dallinger/{app_name}/docker-compose.yml down --volumes --remove-orphans"
+    )
 
     print("Launching http and postgresql servers.")
     executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
@@ -443,18 +445,6 @@ def get_experiment_id_from_archive(archive_path):
     with zipfile.ZipFile(archive_path) as archive:
         with archive.open("experiment_id.md") as fh:
             return fh.read().decode("utf-8")
-
-
-def remove_redis_volumes(app_name, executor):
-    redis_volume_name = f"{app_name}_dallinger_{app_name}_redis_data"
-    stdout = io.StringIO()
-    with redirect_stdout(stdout):
-        try:
-            executor.run(f"docker volume rm '{redis_volume_name}'")
-        except ExecuteException:
-            err = stdout.getvalue()
-            if "no such volume" not in err.lower():
-                raise ExecuteException(err)
 
 
 @docker_ssh.command()
