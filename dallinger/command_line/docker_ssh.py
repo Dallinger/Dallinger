@@ -226,7 +226,10 @@ def build_and_push_image(f):
                 )
                 raise click.Abort
         _, tmp_dir = setup_experiment(
-            Output().log, exp_config=config.as_dict(), local_checks=False
+            Output().log,
+            exp_config=config.as_dict(),
+            local_checks=False,
+            app=kwargs.get("app_name", None),
         )
         build_image(tmp_dir, config.get("docker_image_base_name"), out=Output())
         image_name = push.callback(use_existing=True)
