@@ -199,7 +199,7 @@ worldwide = false
         config.ready = True
         assert config.get("num_participants") == 1
 
-    def test_loading_auto_recruit_from_redis(self, active_config):
+    def test_loading_auto_recruit_from_redis(self, active_config, redis_conn):
         active_config.set("auto_recruit", False)
         from dallinger.db import redis_conn
 
