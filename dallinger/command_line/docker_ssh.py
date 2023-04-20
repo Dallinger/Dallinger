@@ -223,14 +223,15 @@ def build_and_push_image(f):
                     f"Could not find image {image_name} specified in experiment config as `docker_image_name`"
                 )
                 raise click.Abort
+        app_name = kwargs.get("app_name", None)
         _, tmp_dir = setup_experiment(
             Output().log,
             exp_config=config.as_dict(),
             local_checks=False,
-            app=kwargs.get("app_name", None),
+            app=app_name,
         )
         build_image(tmp_dir, config.get("docker_image_base_name"), out=Output())
-        image_name = push.callback(use_existing=True)
+        image_name = push.callback(use_existing=True, app_name=app_name)
         return f(image_name, *args, **kwargs)
 
     return wrapper
