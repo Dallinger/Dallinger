@@ -1,16 +1,14 @@
 {% extends "base/dashboard.html" %}
 
 {% macro toggle_switch(var) %}
-    {% if var in changeable_params %}
-        <div class="custom-control custom-switch form-switch">
+    <div class="custom-control custom-switch form-switch">
 
-            <input type="checkbox" class="custom-control-input form-check-input" id="{{ var }}"
-                    {% if configuration_dictionary[var] %}
-                   checked
-                    {% endif %}
-            >
-        </div>
-    {% endif %}
+        <input type="checkbox" class="custom-control-input form-check-input" id="{{ var }}"
+                {% if configuration_dictionary[var] %}
+               checked
+                {% endif %}
+        >
+    </div>
 {% endmacro %}
 
 {% block body %}
@@ -25,7 +23,7 @@
     </thead>
     <tbody>
     {% for key, value in configuration %}
-        <tr><th>{{ key }}</th><td>{{ value }} {{ toggle_switch(key) }}</td></tr>
+        <tr><th>{{ key }}</th><td>{{ value }} {% if key in changeable_params %} {{ toggle_switch(key) }} {% endif %}</td></tr>
     {% endfor %}
     </tbody>
 </table>
