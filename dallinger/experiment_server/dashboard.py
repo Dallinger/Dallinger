@@ -568,7 +568,7 @@ def mturk():
     return render_template("dashboard_mturk.html", title="MTurk Dashboard", data=data)
 
 
-@dashboard.route("/auto_recruit/<bool_val>", methods=["POST", "GET"])
+@dashboard.route("/auto_recruit/<bool_val>", methods=["POST"])
 @login_required
 def auto_recruit(bool_val):
     from dallinger.db import redis_conn

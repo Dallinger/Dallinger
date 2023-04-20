@@ -41,7 +41,7 @@
         $('#auto_recruit').on('change', function () {
             let auto_recruit = this.checked ? 1 : 0
             $.ajax({
-                type: "GET",
+                type: "POST",
                 url: "/dashboard/auto_recruit/" + auto_recruit,
                 success: function (){
 
