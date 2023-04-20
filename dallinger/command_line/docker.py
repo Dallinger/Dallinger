@@ -203,7 +203,8 @@ def deploy_image(image_name, mode, config_options):
     """Deploy Heroku app using a docker image and MTurk."""
     config = get_config()
     config.load()
-    dashboard_password = secrets.token_urlsafe(8)
+    dashboard_user = config.get("dashboard_user", "admin")
+    dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
     dallinger_uid = str(uuid.uuid4())
     config_dict = {
         "AWS_ACCESS_KEY_ID": config.get("aws_access_key_id"),
@@ -215,6 +216,7 @@ def deploy_image(image_name, mode, config_options):
         "smtp_password": config.get("smtp_password"),
         "whimsical": config.get("whimsical"),
         "FLASK_SECRET_KEY": secrets.token_urlsafe(16),
+        "dashboard_user": dashboard_user,
         "dashboard_password": dashboard_password,
         "mode": mode,
         "CREATOR": netrc.netrc().hosts["api.heroku.com"][0],
