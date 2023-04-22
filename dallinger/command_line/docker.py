@@ -139,7 +139,8 @@ def push(use_existing: bool, **kwargs) -> str:
 
     config = get_config()
     config.load()
-    _, tmp = setup_experiment(log=log, debug=True, local_checks=False)
+    app_name = kwargs.get("app_name", None)
+    _, tmp = setup_experiment(log=log, debug=True, local_checks=False, app=app_name)
     image_name_with_tag = build_image(
         tmp,
         config.get("docker_image_base_name"),
@@ -327,7 +328,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     build_image(tmp, Path(os.getcwd()).name, Output(), force_build=True)
 
     # Push the built image to get the registry sha256
-    image_name = push.callback(use_existing=True)
+    image_name = push.callback(use_existing=True, app_name=app)
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
