@@ -334,7 +334,7 @@ notebook==6.5.4
     # via jupyter
 notebook-shim==0.2.2
     # via nbclassic
-numpy==1.24.2
+numpy==1.24.3
     # via pandas
 odfpy==1.4.1
     # via tablib
