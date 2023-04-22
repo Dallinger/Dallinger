@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import os
+import secrets
 import select
 import socket
 import sys
@@ -314,7 +315,9 @@ def deploy(
         experiment_id = get_experiment_id_from_archive(archive_path)
     else:
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
-    dashboard_password = token_urlsafe(8)
+
+    dashboard_user = config.get("dashboard_user", "admin")
+    dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
     cfg = config.as_dict()
     for key in "aws_access_key_id", "aws_secret_access_key":
@@ -330,6 +333,7 @@ def deploy(
             "smtp_password": config.get("smtp_password"),
             "prolific_api_token": config["prolific_api_token"],
             "auto_recruit": config["auto_recruit"],
+            "dashboard_user": dashboard_user,
             "dashboard_password": dashboard_password,
             "mode": mode,
             "CREATOR": f"{USER}@{HOSTNAME}",
