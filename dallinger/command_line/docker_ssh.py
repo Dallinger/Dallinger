@@ -293,6 +293,13 @@ def deploy(
         BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
         "dallinger/Caddyfile",
     )
+
+    print("Removing any pre-existing app with the same name.")
+    app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
+    executor.run(
+        f"if [ -f {app_yml} ]; then docker compose -f {app_yml} down --remove-orphans; fi"
+    )
+
     print("Removing any pre-existing Redis volumes.")
     remove_redis_volumes(app_name, executor)
 
