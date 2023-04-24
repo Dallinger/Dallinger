@@ -1,5 +1,6 @@
 [Experiment]
 mode = debug
+activate_recruiter_on_start = true
 assign_qualifications = true
 protected_routes = []
 

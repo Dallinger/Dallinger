@@ -394,18 +394,20 @@ def launch():
             simple=True,
         )
 
-    try:
-        recruitment_details = exp.recruiter.open_recruitment(
-            n=exp.initial_recruitment_size
-        )
-        session.commit()
-    except Exception as e:
-        return error_response(
-            error_text="Failed to open recruitment, check experiment server log "
-            "for details: {}".format(str(e)),
-            status=500,
-            simple=True,
-        )
+    recruitment_details = None
+    if _config().get("activate_recruiter_on_start", True):
+        try:
+            recruitment_details = exp.recruiter.open_recruitment(
+                n=exp.initial_recruitment_size
+            )
+            session.commit()
+        except Exception as e:
+            return error_response(
+                error_text="Failed to open recruitment, check experiment server log "
+                "for details: {}".format(str(e)),
+                status=500,
+                simple=True,
+            )
 
     for task in exp.background_tasks:
         try:
@@ -446,15 +448,17 @@ def launch():
                 simple=True,
             )
 
-    message = "\n".join(
-        (
-            "Initial recruitment list:\n{}".format(
-                "\n".join(recruitment_details["items"])
-            ),
-            "Additional details:\n{}".format(recruitment_details["message"]),
+    if recruitment_details is not None:
+        message = "\n".join(
+            (
+                "Initial recruitment list:\n{}".format(
+                    "\n".join(recruitment_details["items"])
+                ),
+                "Additional details:\n{}".format(recruitment_details["message"]),
+            )
         )
-    )
-
+    else:
+        message = "Recruitment hasn't been started yet. Please, initialize recruitment manually!"
     return success_response(recruitment_msg=message)
 
 
