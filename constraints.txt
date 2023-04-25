@@ -308,7 +308,7 @@ myst-parser==1.0.0
     # via dallinger
 nbclassic==0.5.5
     # via notebook
-nbclient==0.7.3
+nbclient==0.7.4
     # via nbconvert
 nbconvert==7.3.1
     # via
