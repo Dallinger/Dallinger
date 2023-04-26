@@ -643,7 +643,7 @@ ua-parser==0.16.1
     #   user-agents
 uri-template==1.2.0
     # via jsonschema
-urllib3==1.26.15
+urllib3==2.0.0
     # via
     #   botocore
     #   docker
