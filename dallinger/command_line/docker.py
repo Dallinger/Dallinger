@@ -276,7 +276,7 @@ def deploy_image(image_name, mode, config_options):
             dict(
                 type=type,
                 quantity=config.get(f"num_dynos_{type}", 1),
-                size=config.get("dyno_type", "hobby"),
+                size=config.get("dyno_type", "basic"),
             )
             for type in services
         ]
