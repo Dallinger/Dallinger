@@ -655,3 +655,13 @@ def wait_for_text(driver, el_id, value, removed=False, timeout=10):
             return el
 
     raise AttributeError
+
+
+@pytest.fixture
+def redis_conn():
+    from dallinger.db import redis_conn as _redis
+
+    yield _redis
+
+    for key in _redis.keys():
+        _redis.delete(key)

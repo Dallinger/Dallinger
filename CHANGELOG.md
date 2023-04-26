@@ -2,6 +2,15 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.6.0](https://github.com/dallinger/dallinger/tree/v9.6.0) (2023-04-18)
+
+- Fixed: Fixed GitHub CI builds by removing the codecov package from setup.py and migrating the codecov setup according to https://docs.codecov.com/docs/deprecated-uploader-migration-guide#python-uploader.
+- Fixed: Fixed broken Docker CI tests.
+- Fixed: Reinstate `auto_recruit` check in `ProlificRecruiter.recruit()`.
+- Fixed: The original `Bot` constructor assumed that the participant recruitment URL was specified in snake case. However the Docker CI tests use participant recruit URLs with camel case. This was causing Bot parameters (assignment ID, worker ID, participant ID) to be left unset, and seemed to have caused occasional CI errors in the Docker tests.
+- Fixed: Fixed bug in docker-ssh export caused by upgrade to docker compose v2.
+- Enhancement: Enhanced efficiency in dashboard monitor data loading. Previously the dashboard could take a very long time to load when the database contained many custom object classes. In such cases we are now running about 1000 times faster.
+
 ## [v9.5.0](https://github.com/dallinger/dallinger/tree/v9.5.0) (2023-03-29)
 
 - Fixed: Backward compatibility with rq < 1.13.0.
