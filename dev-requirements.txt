@@ -46,9 +46,11 @@ black==23.3.0
     # via dallinger
 bleach==6.0.0
     # via nbconvert
-boto3==1.26.115
+blinker==1.6.2
+    # via flask
+boto3==1.26.120
     # via dallinger
-botocore==1.29.115
+botocore==1.29.120
     # via
     #   boto3
     #   s3transfer
@@ -126,7 +128,7 @@ exceptiongroup==1.1.1
     #   trio-websocket
 executing==1.2.0
     # via stack-data
-faker==18.4.0
+faker==18.5.1
     # via dallinger
 fastjsonschema==2.16.3
     # via nbformat
@@ -136,7 +138,7 @@ filelock==3.12.0
     #   virtualenv
 flake8==6.0.0
     # via dallinger
-flask==2.2.3
+flask==2.3.1
     # via
     #   dallinger
     #   flask-crossdomain
@@ -173,7 +175,7 @@ h11==0.14.0
     # via wsproto
 heroku3==5.2.1
     # via dallinger
-identify==2.5.22
+identify==2.5.23
     # via pre-commit
 idna==3.4
     # via
@@ -308,7 +310,7 @@ myst-parser==1.0.0
     # via dallinger
 nbclassic==0.5.5
     # via notebook
-nbclient==0.7.3
+nbclient==0.7.4
     # via nbconvert
 nbconvert==7.3.1
     # via
@@ -332,9 +334,9 @@ nodeenv==1.7.0
     # via pre-commit
 notebook==6.5.4
     # via jupyter
-notebook-shim==0.2.2
+notebook-shim==0.2.3
     # via nbclassic
-numpy==1.24.2
+numpy==1.24.3
     # via pandas
 odfpy==1.4.1
     # via tablib
@@ -357,7 +359,7 @@ packaging==23.1
     #   qtpy
     #   sphinx
     #   tox
-pandas==2.0.0
+pandas==2.0.1
     # via
     #   dallinger
     #   tablib
@@ -379,7 +381,7 @@ pickleshare==0.7.5
     # via ipython
 pip-tools==6.13.0
     # via dallinger
-platformdirs==3.2.0
+platformdirs==3.3.0
     # via
     #   black
     #   jupyter-core
@@ -490,7 +492,7 @@ redis==4.5.4
     # via
     #   dallinger
     #   rq
-requests==2.28.2
+requests==2.29.0
     # via
     #   dallinger
     #   docker
@@ -508,7 +510,7 @@ rq==1.13.0
     # via dallinger
 s3transfer==0.6.0
     # via boto3
-selenium==4.8.3
+selenium==4.9.0
     # via dallinger
 send2trash==1.8.0
     # via
@@ -534,7 +536,7 @@ sortedcontainers==2.4.0
     # via trio
 soupsieve==2.4.1
     # via beautifulsoup4
-sphinx==6.1.3
+sphinx==6.2.1
     # via
     #   dallinger
     #   myst-parser
@@ -595,7 +597,7 @@ tomli==2.0.1
     #   pyproject-hooks
     #   pytest
     #   tox
-tornado==6.3
+tornado==6.3.1
     # via
     #   ipykernel
     #   jupyter-client
@@ -603,7 +605,7 @@ tornado==6.3
     #   nbclassic
     #   notebook
     #   terminado
-tox==4.4.12
+tox==4.5.1
     # via dallinger
 traitlets==5.9.0
     # via
@@ -651,7 +653,7 @@ urllib3==1.26.15
     #   selenium
 user-agents==2.2.0
     # via dallinger
-virtualenv==20.21.0
+virtualenv==20.22.0
     # via
     #   pre-commit
     #   tox
@@ -667,7 +669,7 @@ websocket-client==1.5.1
     # via
     #   docker
     #   jupyter-server
-werkzeug==2.2.3
+werkzeug==2.3.0
     # via
     #   flask
     #   flask-login
