@@ -510,7 +510,7 @@ s3transfer==0.6.0
     # via boto3
 selenium==4.8.3
     # via dallinger
-send2trash==1.8.0
+send2trash==1.8.2
     # via
     #   jupyter-server
     #   nbclassic
