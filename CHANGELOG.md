@@ -2,6 +2,18 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.7.0](https://github.com/dallinger/dallinger/tree/v9.7.0) (2023-04-27)
+
+- Fixed: Fixed failure in `docker-ssh deploy` that occurred when the app existed already.
+- Fixed: Fixed a bug where config dashboard credentials weren't being propagated to Docker deployments.
+- Fixed: Fixed a bug where app name / ID (`app_name`) was not set appropriately in config during Docker deployment. Now when deploying with `docker-ssh` using a specified `--app` argument this is saved as expected in `config.heroku_app_id`.
+- Fixed: Fixed a bug where dollar signs weren't being escaped in docker-compose.yml.
+- Fixed: Fixed a bug where the dashboard tab was closed on `submitAssignment()`.
+- Fixed: Replace Heroku obsolete dyno type 'hobby' with 'basic'.
+- Enhancement: Added UI switch to the dashboard's experiment monitoring tab to toggle auto recruitment (`auto_recruit`) on/off.
+- Enhancement: Added new boolean config variable `activate_recruiter_on_start` (default: `True`). If the variable is set to `True`, then existing behavior is preserved; if set to `False`, then `open_recruitment()` is skipped when the experiment launches. This means that the user has to manually initialize recruitment (e.g. via the Prolific panel).
+- Infrastructure: Updated dependencies.
+
 ## [v9.6.0](https://github.com/dallinger/dallinger/tree/v9.6.0) (2023-04-18)
 
 - Fixed: Fixed GitHub CI builds by removing the codecov package from setup.py and migrating the codecov setup according to https://docs.codecov.com/docs/deprecated-uploader-migration-guide#python-uploader.
@@ -10,6 +22,7 @@
 - Fixed: The original `Bot` constructor assumed that the participant recruitment URL was specified in snake case. However the Docker CI tests use participant recruit URLs with camel case. This was causing Bot parameters (assignment ID, worker ID, participant ID) to be left unset, and seemed to have caused occasional CI errors in the Docker tests.
 - Fixed: Fixed bug in docker-ssh export caused by upgrade to docker compose v2.
 - Enhancement: Enhanced efficiency in dashboard monitor data loading. Previously the dashboard could take a very long time to load when the database contained many custom object classes. In such cases we are now running about 1000 times faster.
+- Infrastructure: Updated dependencies.
 
 ## [v9.5.0](https://github.com/dallinger/dallinger/tree/v9.5.0) (2023-03-29)
 
