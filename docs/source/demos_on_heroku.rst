@@ -20,6 +20,6 @@ their `Redis add-on <https://elements.heroku.com/addons/heroku-redis/>`__ offeri
 Also note that you may also need to set:
 ::
 
-    dyno_type = hobby
+    dyno_type = basic
 
 Read more about Heroku's `Dyno Types <https://devcenter.heroku.com/articles/dyno-types/>`__.

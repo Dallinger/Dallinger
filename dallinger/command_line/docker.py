@@ -212,6 +212,7 @@ def deploy_image(image_name, mode, config_options):
         "AWS_SECRET_ACCESS_KEY": config.get("aws_secret_access_key"),
         "AWS_DEFAULT_REGION": config.get("aws_region"),
         "prolific_api_token": config["prolific_api_token"],
+        "activate_recruiter_on_start": config.get("activate_recruiter_on_start"),
         "auto_recruit": config.get("auto_recruit"),
         "smtp_username": config.get("smtp_username"),
         "smtp_password": config.get("smtp_password"),
@@ -276,7 +277,7 @@ def deploy_image(image_name, mode, config_options):
             dict(
                 type=type,
                 quantity=config.get(f"num_dynos_{type}", 1),
-                size=config.get("dyno_type", "hobby"),
+                size=config.get("dyno_type", "basic"),
             )
             for type in services
         ]
@@ -375,6 +376,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
         "AWS_SECRET_ACCESS_KEY": config["aws_secret_access_key"],
         "AWS_DEFAULT_REGION": config["aws_region"],
         "prolific_api_token": config["prolific_api_token"],
+        "activate_recruiter_on_start": config.get("activate_recruiter_on_start"),
         "auto_recruit": config["auto_recruit"],
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],
