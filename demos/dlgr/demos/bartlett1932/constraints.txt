@@ -23,11 +23,15 @@ attrs==23.1.0
     #   -c ../../../../dev-requirements.txt
     #   outcome
     #   trio
-boto3==1.26.115
+blinker==1.6.2
+    # via
+    #   -c ../../../../dev-requirements.txt
+    #   flask
+boto3==1.26.121
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-botocore==1.29.115
+botocore==1.29.121
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
@@ -65,18 +69,18 @@ cryptography==40.0.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   pyopenssl
-dallinger==9.6.0
+dallinger==9.7.0
     # via -r requirements.txt
 exceptiongroup==1.1.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
     #   trio-websocket
-faker==18.4.0
+faker==18.5.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-flask==2.2.3
+flask==2.3.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -225,7 +229,7 @@ redis==4.5.4
     #   -c ../../../../dev-requirements.txt
     #   dallinger
     #   rq
-requests==2.28.2
+requests==2.29.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -238,7 +242,7 @@ s3transfer==0.6.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
-selenium==4.8.3
+selenium==4.9.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -316,7 +320,7 @@ user-agents==2.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-werkzeug==2.2.3
+werkzeug==2.3.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask
