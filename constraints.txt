@@ -48,9 +48,9 @@ bleach==6.0.0
     # via nbconvert
 blinker==1.6.2
     # via flask
-boto3==1.26.120
+boto3==1.26.121
     # via dallinger
-botocore==1.29.120
+botocore==1.29.121
     # via
     #   boto3
     #   s3transfer
@@ -381,7 +381,7 @@ pickleshare==0.7.5
     # via ipython
 pip-tools==6.13.0
     # via dallinger
-platformdirs==3.3.0
+platformdirs==3.4.0
     # via
     #   black
     #   jupyter-core
