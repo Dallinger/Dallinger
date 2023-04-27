@@ -70,7 +70,6 @@ def check_for_protected_routes():
         )
 
 
-@app.before_first_request
 def _config():
     app.secret_key = app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
     config = get_config()
@@ -86,6 +85,7 @@ def _config():
 
 
 def Experiment(args):
+    _config()
     klass = experiment.load()
     return klass(args)
 
