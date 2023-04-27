@@ -551,7 +551,7 @@ def advertisement():
 
 @app.route("/recruiter-exit", methods=["GET"])
 @nocache
-def recriter_exit():
+def recruiter_exit():
     """Display an exit page defined by the Participant's Recruiter.
     The Recruiter may in turn delegate to the Experiment for additional
     values to display.
