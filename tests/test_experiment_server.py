@@ -1568,7 +1568,7 @@ class TestLaunchRoute(object):
         data = json.loads(resp.get_data())
         assert "recruitment_msg" in data
 
-    def test_launch_with_recuitment(self, webapp, active_config):
+    def test_launch_with_recruitment(self, webapp, active_config):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
@@ -1584,7 +1584,7 @@ class TestLaunchRoute(object):
         assert resp.status_code == 200
         mock_exp.recruiter.open_recruitment.assert_called()
 
-    def test_launch_without_recuitment(self, webapp, active_config):
+    def test_launch_without_recruitment(self, webapp, active_config):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
