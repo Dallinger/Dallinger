@@ -141,7 +141,7 @@ pytz==2023.3
     # via apscheduler
 pytz-deprecation-shim==0.1.0.post0
     # via tzlocal
-redis==4.5.4
+redis==4.5.5
     # via
     #   dallinger
     #   rq
