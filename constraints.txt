@@ -510,7 +510,7 @@ rq==1.13.0
     # via dallinger
 s3transfer==0.6.0
     # via boto3
-selenium==4.9.0
+selenium==4.9.1
     # via dallinger
 send2trash==1.8.0
     # via
