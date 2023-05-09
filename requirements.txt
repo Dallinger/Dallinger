@@ -204,7 +204,7 @@ urllib3==1.26.15
     #   selenium
 user-agents==2.2.0
     # via dallinger
-werkzeug==2.3.0
+werkzeug==2.3.4
     # via
     #   flask
     #   flask-login
