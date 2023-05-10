@@ -1,6 +1,5 @@
 from __future__ import unicode_literals
 
-import distutils.util
 import io
 import json
 import logging
@@ -11,6 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import six
+from setuptools.dist import strtobool
 from six.moves import configparser
 
 logger = logging.getLogger(__file__)
@@ -154,7 +154,7 @@ class Configuration(object):
                         value = source_file.read()
                 try:
                     if expected_type == bool:
-                        value = distutils.util.strtobool(value)
+                        value = strtobool(value)
                     value = expected_type(value)
                 except ValueError:
                     pass
