@@ -12,7 +12,7 @@ logger.addHandler(logging.NullHandler())
 # Avoid PEP-8 warning, we want this to be importable from this location
 Experiment = Experiment
 
-for entry_point in entry_points().get("dallinger.experiments"):
+for entry_point in entry_points().select(group="dallinger.experiments"):
     try:
         globals()[entry_point.name] = entry_point.load()
     except ImportError:
