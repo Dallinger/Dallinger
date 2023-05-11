@@ -13,6 +13,7 @@ import sys
 import tempfile
 import webbrowser
 from hashlib import md5
+from importlib.metadata import files as files_metadata
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unicodedata import normalize
@@ -22,11 +23,6 @@ import requests
 from faker import Faker
 from flask import request
 from pkg_resources import get_distribution
-
-try:
-    from importlib.metadata import files as files_metadata
-except ImportError:
-    from importlib_metadata import files as files_metadata
 
 from dallinger import db
 from dallinger.compat import is_command
