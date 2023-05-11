@@ -4,6 +4,8 @@ with a ``setuptools`` ``entry_point`` for the ``dallinger.experiments`` group.
 import logging
 from importlib.metadata import entry_points
 
+from dallinger import experiments  # noqa: F401
+
 from ..experiment import Experiment
 
 logger = logging.getLogger(__name__)
