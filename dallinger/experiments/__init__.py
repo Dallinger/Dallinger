@@ -2,8 +2,7 @@
 with a ``setuptools`` ``entry_point`` for the ``dallinger.experiments`` group.
 """
 import logging
-
-from dallinger import experiments
+from importlib.metadata import entry_points
 
 from ..experiment import Experiment
 
@@ -13,7 +12,7 @@ logger.addHandler(logging.NullHandler())
 # Avoid PEP-8 warning, we want this to be importable from this location
 Experiment = Experiment
 
-for entry_point in experiments.entry_points().get("dallinger.experiments"):
+for entry_point in entry_points(group="dallinger.experiments"):
     try:
         globals()[entry_point.name] = entry_point.load()
     except ImportError:
