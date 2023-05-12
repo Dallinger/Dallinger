@@ -3,6 +3,8 @@ import io
 import json
 import logging
 import os
+import re
+import secrets
 import select
 import socket
 import sys
@@ -223,11 +225,15 @@ def build_and_push_image(f):
                     f"Could not find image {image_name} specified in experiment config as `docker_image_name`"
                 )
                 raise click.Abort
+        app_name = kwargs.get("app_name", None)
         _, tmp_dir = setup_experiment(
-            Output().log, exp_config=config.as_dict(), local_checks=False
+            Output().log,
+            exp_config=config.as_dict(),
+            local_checks=False,
+            app=app_name,
         )
         build_image(tmp_dir, config.get("docker_image_base_name"), out=Output())
-        image_name = push.callback(use_existing=True)
+        image_name = push.callback(use_existing=True, app_name=app_name)
         return f(image_name, *args, **kwargs)
 
     return wrapper
@@ -293,6 +299,13 @@ def deploy(
         BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
         "dallinger/Caddyfile",
     )
+
+    print("Removing any pre-existing app with the same name.")
+    app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
+    executor.run(
+        f"if [ -f {app_yml} ]; then docker compose -f {app_yml} down --remove-orphans; fi"
+    )
+
     print("Removing any pre-existing Redis volumes.")
     remove_redis_volumes(app_name, executor)
 
@@ -307,7 +320,9 @@ def deploy(
         experiment_id = get_experiment_id_from_archive(archive_path)
     else:
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
-    dashboard_password = token_urlsafe(8)
+
+    dashboard_user = config.get("dashboard_user", "admin")
+    dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
     cfg = config.as_dict()
     for key in "aws_access_key_id", "aws_secret_access_key":
@@ -322,7 +337,9 @@ def deploy(
             "smtp_username": config.get("smtp_username"),
             "smtp_password": config.get("smtp_password"),
             "prolific_api_token": config["prolific_api_token"],
+            "activate_recruiter_on_start": config["activate_recruiter_on_start"],
             "auto_recruit": config["auto_recruit"],
+            "dashboard_user": dashboard_user,
             "dashboard_password": dashboard_password,
             "mode": mode,
             "CREATOR": f"{USER}@{HOSTNAME}",
@@ -525,7 +542,7 @@ def remote_postgres(server_info, app):
         # on the remote docker container. First we need to find the IP of the
         # container running docker
         postgresql_remote_ip = executor.run(
-            "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' dallinger_postgresql_1"
+            "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' dallinger-postgresql-1"
         ).strip()
         # Now we start the tunnel
         tunnel = SSHTunnelForwarder(
@@ -570,10 +587,14 @@ def get_docker_compose_yml(
     postgresql_password: str,
 ) -> str:
     """Generate a docker-compose.yml file based on the given"""
+    docker_volumes = config.get("docker_volumes", "[]")
+    config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
+
     return DOCKER_COMPOSE_EXP_TPL.render(
         experiment_id=experiment_id,
         experiment_image=experiment_image,
-        config=config,
+        config=config_str,
+        docker_volumes=docker_volumes,
         postgresql_password=postgresql_password,
     )
 

@@ -149,6 +149,7 @@ def deploy_sandbox_shared_setup(
         "AWS_ACCESS_KEY_ID": config["aws_access_key_id"],
         "AWS_SECRET_ACCESS_KEY": config["aws_secret_access_key"],
         "AWS_DEFAULT_REGION": config["aws_region"],
+        "activate_recruiter_on_start": config["activate_recruiter_on_start"],
         "auto_recruit": config["auto_recruit"],
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],
