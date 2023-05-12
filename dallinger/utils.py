@@ -14,15 +14,14 @@ import tempfile
 import webbrowser
 from hashlib import md5
 from importlib.metadata import files as files_metadata
+from importlib.util import find_spec
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unicodedata import normalize
 
-import pkg_resources
 import requests
 from faker import Faker
 from flask import request
-from pkg_resources import get_distribution
 
 from dallinger import db
 from dallinger.compat import is_command
@@ -70,10 +69,7 @@ def dallinger_package_path():
     >>> utils.dallinger_package_location()
     '/Users/janedoe/projects/Dallinger3/dallinger'
     """
-    dist = get_distribution("dallinger")
-    src_base = os.path.join(dist.location, dist.project_name)
-
-    return src_base
+    return os.path.dirname(find_spec("dallinger").origin)
 
 
 def generate_random_id(size=6, chars=string.ascii_uppercase + string.digits):
@@ -393,10 +389,15 @@ def check_experiment_dependencies(requirement_file):
         return
     try:
         with open(requirement_file, "r") as f:
-            dependencies = [r for r in f.readlines() if r[:3] != "-e "]
+            dependencies = [r.rstrip() for r in f.readlines() if r[:3] != "-e "]
     except (OSError, IOError):
         dependencies = []
-    pkg_resources.require(dependencies)
+
+    for dep in dependencies:
+        if find_spec(dep) is None:
+            raise ValueError(
+                f"Please install the '{dep}' package to run this experiment."
+            )
 
 
 def develop_target_path(config):
