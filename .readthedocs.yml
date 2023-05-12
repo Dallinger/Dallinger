@@ -3,7 +3,7 @@ build:
   image: latest
 
 python:
-  version: 3.8
+  version: 3.10
   install:
       - requirements: dev-requirements.txt
       - method: pip
