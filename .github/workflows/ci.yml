@@ -35,7 +35,7 @@ jobs:
     needs: check_mturk_changes
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10"]
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
     services:
       redis:
         image: redis
@@ -113,7 +113,7 @@ jobs:
         run: |
           tox ${{ needs.check_mturk_changes.outputs.needs_mturk_tests == 'true' && '-- --mturkfull' || ''}}
           npm run test --coverage
-        if: matrix.python-version == 3.10
+        if: matrix.python-version == 3.10 || matrix.python-version == 3.11
       - name: Run Fast Tests Only
         env:
           DATABASE_URL: postgresql://dallinger:dallinger@localhost/dallinger
@@ -125,10 +125,10 @@ jobs:
         run: |
           tox -e fast
           npm run test --coverage
-        if: matrix.python-version != 3.10
+        if: matrix.python-version != 3.10 && matrix.python-version != 3.11
       - name: Codecov.io check
         uses: codecov/codecov-action@v3
-        if: matrix.python-version == 3.10
+        if: matrix.python-version == 3.11
 
   docker:
     runs-on: ubuntu-latest
@@ -174,10 +174,10 @@ jobs:
         run: docker run --rm ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }} python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
       - name: Make sure dallinger script entry point is working with dallinger source mounted as volume
         run: docker run -v $PWD/dallinger:/dallinger/dallinger --rm ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }} python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
-      - name: Set up Python 3.10
+      - name: Set up Python 3.11
         uses: actions/setup-python@v2
         with:
-          python-version: "3.10"
+          python-version: "3.11"
       - name: Cache pip
         uses: actions/cache@v2
         with:
