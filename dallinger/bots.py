@@ -117,7 +117,7 @@ class BotBase(object):
 
                     chrome_options = Options()
                     chrome_options.add_argument("--headless")
-                    kwargs = {"chrome_options": chrome_options}
+                    kwargs = {"options": chrome_options}
                 driver = driver_class(**kwargs)
 
         if driver is None:
