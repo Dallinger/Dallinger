@@ -635,7 +635,7 @@ tzdata==2023.3
     # via
     #   pandas
     #   pytz-deprecation-shim
-tzlocal==4.3
+tzlocal==5.0.1
     # via
     #   apscheduler
     #   dallinger
