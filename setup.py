@@ -61,6 +61,7 @@ setup_args = dict(
         "greenlet",
         "gunicorn",
         "heroku3",
+        "ipython < 8.13",
         "localconfig",
         "pexpect",
         "pip>=20",
