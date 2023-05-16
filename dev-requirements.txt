@@ -195,8 +195,9 @@ ipykernel==6.23.1
     #   nbclassic
     #   notebook
     #   qtconsole
-ipython==8.13.2
+ipython==8.12.2
     # via
+    #   dallinger
     #   ipykernel
     #   ipywidgets
     #   jupyter-console
