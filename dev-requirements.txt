@@ -303,7 +303,7 @@ mdurl==0.1.2
     # via markdown-it-py
 mistune==2.0.5
     # via nbconvert
-mock==5.0.0
+mock==5.0.2
     # via dallinger
 mypy-extensions==1.0.0
     # via black
