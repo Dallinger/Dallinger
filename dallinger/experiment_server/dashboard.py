@@ -219,7 +219,7 @@ def database_children():
 
 dashboard_tabs = DashboardTabs(
     [
-        DashboardTab("Home", "dashboard.index"),
+        DashboardTab("Config", "dashboard.index"),
         DashboardTab("Heroku", "dashboard.heroku"),
         DashboardTab("MTurk", "dashboard.mturk"),
         DashboardTab("Monitoring", "dashboard.monitoring"),
@@ -328,9 +328,16 @@ def logout():
 @login_required
 def index():
     """Displays active experiment configuation"""
-    config = sorted(get_config().as_dict().items())
+    config = get_config()
+    config.load()
+    config_dict = config.as_dict()
+    config_list = sorted(config_dict.items())
     return render_template(
-        "dashboard_home.html", title="Dashboard Home", configuration=config
+        "dashboard_home.html",
+        title="Config",
+        configuration=config_list,
+        configuration_dictionary=config_dict,
+        changeable_params=config.changeable_params,
     )
 
 
@@ -559,6 +566,17 @@ def mturk():
     }
 
     return render_template("dashboard_mturk.html", title="MTurk Dashboard", data=data)
+
+
+@dashboard.route("/auto_recruit/<bool_val>", methods=["POST"])
+@login_required
+def auto_recruit(bool_val):
+    from dallinger.db import redis_conn
+
+    num_val = int(bool_val)
+    assert num_val in [0, 1]
+    redis_conn.set("auto_recruit", num_val)
+    return success_response()
 
 
 @dashboard.route("/monitoring")
