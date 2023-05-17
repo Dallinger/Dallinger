@@ -71,7 +71,7 @@ def test_after_commit_hook(db_session):
         queue_message("test", "test")
         db_session.commit()
 
-        assert redis.called_once_with("test", "test")
+        redis.assert_called_once_with("test", "test")
 
 
 def test_create_db_engine_updates_postgresql_scheme():
