@@ -126,7 +126,7 @@ class TestHighPerformanceBot(object):
     @pytest.fixture
     def fake_uuid(self):
         with mock.patch("uuid.uuid4") as patch_uuid4:
-            patch_uuid4.hex.return_value = "fakehash"
+            patch_uuid4.return_value.hex = "fakehash"
             yield patch_uuid4
 
     def test_create_bot(self, bot):
@@ -149,8 +149,8 @@ class TestHighPerformanceBot(object):
         req_post.return_value = mock_return
 
         bot.sign_up()
-        assert bot.subscribe_to_quorum_channel.called_once_with()
-        assert req_post.called_once_with(
+        bot.subscribe_to_quorum_channel.assert_called_once_with()
+        req_post.assert_called_once_with(
             "https://dallinger.io/participant/worker1/hit1/assignment1/debug?"
             "fingerprint_hash=fakehash&recruiter=bots:HighPerformanceBotBase"
         )
@@ -158,8 +158,8 @@ class TestHighPerformanceBot(object):
 
     def test_sign_off(self, bot, req_post):
         value = bot.sign_off()
-        assert req_post.called_once_with(
-            "https://dallinger.io/question/participant1",
+        req_post.assert_called_once_with(
+            "https://dallinger.io/question/1",
             data={
                 "question": "questionnaire",
                 "number": 1,
@@ -174,7 +174,7 @@ class TestHighPerformanceBot(object):
         req_get.return_value = mock_return
 
         response = bot.complete_experiment("worker_complete")
-        assert req_get.called_once_with(
+        req_get.assert_called_once_with(
             "https://dallinger.io/worker_complete?participant_id=1"
         )
         # returns the response object
