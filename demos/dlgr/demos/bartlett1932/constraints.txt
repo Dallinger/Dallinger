@@ -18,16 +18,20 @@ async-timeout==4.0.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   redis
-attrs==22.2.0
+attrs==23.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   outcome
     #   trio
-boto3==1.26.94
+blinker==1.6.2
+    # via
+    #   -c ../../../../dev-requirements.txt
+    #   flask
+boto3==1.26.121
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-botocore==1.29.94
+botocore==1.29.121
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
@@ -61,22 +65,22 @@ click==8.1.3
     #   flask
     #   pip-tools
     #   rq
-cryptography==39.0.2
+cryptography==40.0.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   pyopenssl
-dallinger==9.5.0a1
+dallinger==9.7.0
     # via -r requirements.txt
 exceptiongroup==1.1.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
     #   trio-websocket
-faker==17.6.0
+faker==18.5.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-flask==2.1.3
+flask==2.3.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -128,7 +132,7 @@ h11==0.14.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   wsproto
-heroku3==5.2.0
+heroku3==5.2.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -155,16 +159,17 @@ localconfig==1.1.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-markupsafe==2.0.1
+markupsafe==2.1.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   jinja2
+    #   werkzeug
     #   wtforms
 outcome==1.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
-packaging==23.0
+packaging==23.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   build
@@ -172,15 +177,15 @@ pexpect==4.8.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-pip-tools==6.12.3
+pip-tools==6.13.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-psutil==5.9.4
+psutil==5.9.5
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-psycopg2==2.9.5
+psycopg2==2.9.6
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -193,7 +198,7 @@ pycparser==2.21
     # via
     #   -c ../../../../dev-requirements.txt
     #   cffi
-pyopenssl==23.0.0
+pyopenssl==23.1.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -211,7 +216,7 @@ python-dateutil==2.8.2
     #   botocore
     #   faker
     #   heroku3
-pytz==2022.7.1
+pytz==2023.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   apscheduler
@@ -219,12 +224,12 @@ pytz-deprecation-shim==0.1.0.post0
     # via
     #   -c ../../../../dev-requirements.txt
     #   tzlocal
-redis==4.5.1
+redis==4.5.4
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
     #   rq
-requests==2.28.2
+requests==2.29.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -237,7 +242,7 @@ s3transfer==0.6.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
-selenium==4.8.2
+selenium==4.9.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -256,7 +261,7 @@ sortedcontainers==2.4.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
-sqlalchemy==1.4.46
+sqlalchemy==1.4.47
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -287,15 +292,15 @@ trio==0.22.0
     #   -c ../../../../dev-requirements.txt
     #   selenium
     #   trio-websocket
-trio-websocket==0.10.0
+trio-websocket==0.10.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   selenium
-tzdata==2022.7
+tzdata==2023.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   pytz-deprecation-shim
-tzlocal==4.2
+tzlocal==4.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   apscheduler
@@ -315,7 +320,7 @@ user-agents==2.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-werkzeug==2.1.2
+werkzeug==2.3.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask

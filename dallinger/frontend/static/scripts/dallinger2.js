@@ -385,7 +385,7 @@ var dallinger = (function () {
     }).done(function () {
       deferred.resolve();
       dlgr.allowExit();
-      if (window.opener) {
+      if (window.opener && !window.opener.location.pathname.startsWith("/dashboard")) {
         // If the parent window is still around, redirect it to the exit route
         // and close the secondary window (this one) that held the main experiment:
         window.opener.location = exitRoute;

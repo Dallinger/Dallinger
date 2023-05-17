@@ -5,6 +5,7 @@
 
 from __future__ import print_function, unicode_literals
 
+import json
 import os
 import shutil
 import signal
@@ -14,6 +15,7 @@ import warnings
 import webbrowser
 from collections import Counter
 from functools import wraps
+from os.path import exists
 from pathlib import Path
 
 import click
@@ -515,6 +517,11 @@ def _current_hits(service, app):
     return service.get_hits()
 
 
+def prolific_check(recruiter, sandbox):
+    if recruiter == "prolific":
+        assert sandbox is False, "Prolific does not have a sandbox mode"
+
+
 @dallinger.command()
 @click.option("--app", default=None, help="Experiment id")
 @click.option(
@@ -523,49 +530,57 @@ def _current_hits(service, app):
     flag_value=True,
     help="Look for HITs in the MTurk sandbox rather than the live/production environment",
 )
-def hits(app, sandbox):
-    """List all HITs for the user's configured MTurk request account,
-    or for a specific experiment id.
-    """
+@click.option("--recruiter", default="mturk", help="Experiment id")
+def hits(app, sandbox, recruiter):
+    """List all HITs for the recruiter account or for a specific experiment id."""
     if app is not None:
         verify_id(None, "--app", app)
-    formatted_hit_list = []
-    dateformat = "%Y/%-m/%-d %I:%M:%S %p"
-    for h in _current_hits(_mturk_service_from_config(sandbox), app):
-        title = h["title"][:40] + "..." if len(h["title"]) > 40 else h["title"]
-        description = (
-            h["description"][:60] + "..."
-            if len(h["description"]) > 60
-            else h["description"]
-        )
-        formatted_hit_list.append(
-            [
-                h["id"],
-                title,
-                h["annotation"],
-                h["status"],
-                h["created"].strftime(dateformat),
-                h["expiration"].strftime(dateformat),
-                description,
-            ]
-        )
-    out = Output()
-    out.log("Found {} hit[s]:".format(len(formatted_hit_list)))
-    out.log(
-        tabulate.tabulate(
-            formatted_hit_list,
-            headers=[
-                "Hit ID",
-                "Title",
-                "Annotation (experiment ID)",
-                "Status",
-                "Created",
-                "Expiration",
-                "Description",
-            ],
-        ),
-        chevrons=False,
-    )
+    prolific_check(recruiter, sandbox)
+    rec = by_name(recruiter, skip_config_validation=True)
+    rec.hits(app, sandbox)
+
+
+@dallinger.command()
+@click.option("--hit_id", default=None, help="MTurk HIT ID")
+@click.option(
+    "--sandbox",
+    is_flag=True,
+    flag_value=True,
+    help="Look for HITs in the MTurk sandbox rather than the live/production environment",
+)
+@click.option("--recruiter", default="mturk", help="Experiment id")
+def hit_details(hit_id, sandbox, recruiter):
+    """Print the details of a specific HIT for a recruiter."""
+    prolific_check(recruiter, sandbox)
+    rec = by_name(recruiter, skip_config_validation=True)
+    details = rec.hit_details(hit_id, sandbox)
+    print(json.dumps(details, indent=4, default=str))
+
+
+@dallinger.command()
+@click.option("--hit_id", default=None, help="MTurk HIT ID")
+@click.option(
+    "--sandbox",
+    is_flag=True,
+    flag_value=True,
+    help="Look for HITs in the MTurk sandbox rather than the live/production environment",
+)
+@click.option("--recruiter", default="mturk", help="Experiment id")
+@click.option("--path", default=None, help="Filename/path for the qualification file")
+def copy_qualifications(hit_id, sandbox, recruiter, path):
+    """Copy qualifications from an existing HIT and save them to a JSON file."""
+    prolific_check(recruiter, sandbox)
+    rec = by_name(recruiter, skip_config_validation=True)
+    if path is None:
+        path = rec.default_qualification_name
+    assert path.endswith(".json"), "Qualification path must be a json file"
+    if exists(path):
+        if not click.confirm(f"Overwrite existing qualification file: {path}?"):
+            click.echo("Aborting...")
+            return
+    qualifications = rec.get_qualifications(hit_id, sandbox)
+    with open(path, "w") as f:
+        json.dump(qualifications, f, indent=4)
 
 
 @dallinger.command()

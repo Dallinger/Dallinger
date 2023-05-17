@@ -501,6 +501,7 @@ class TestDashboardNetworkInfo(object):
         info4 = a.info(origin=source2, contents="contents3")
         a.transformation(info_in=info1, info_out=info2)
         a.transformation(info_in=info3, info_out=info4)
+        db_session.commit()
         yield exp
 
     def test_network_structure(self, a, db_session):
@@ -681,10 +682,10 @@ class TestDashboardDatabase(object):
         assert webapp.get("/dashboard/database").status_code == 401
 
     def test_render(self, active_config, webapp_admin):
-        resp = webapp_admin.get("/dashboard/database?model_type=Network")
+        resp = webapp_admin.get("/dashboard/database?table=network")
 
         assert resp.status_code == 200
-        assert "<h1>Database View: Networks</h1>" in resp.data.decode("utf8")
+        assert "<h1>Database View: Network</h1>" in resp.data.decode("utf8")
 
     def test_table_data(self, a, db_session):
         from dallinger.experiment_server.experiment_server import Experiment
@@ -694,7 +695,7 @@ class TestDashboardDatabase(object):
 
         network = Network.query.all()[0]
 
-        table = exp.table_data(model_type=["Network"])
+        table = exp.table_data(table="network")
         assert len(table["data"]) == 1
         assert table["data"][0]["id"] == network.id
         assert table["data"][0]["role"] == network.role
@@ -708,7 +709,7 @@ class TestDashboardDatabase(object):
 
         source = a.source(network=network)
 
-        table = exp.table_data(model_type="Node")
+        table = exp.table_data(table="node")
         assert len(table["data"]) == 1
         assert table["data"][0]["id"] == source.id
         assert table["data"][0]["type"] == source.type
@@ -721,7 +722,7 @@ class TestDashboardDatabase(object):
             raise KeyError("'id' not in Node columns")
 
         p = a.participant()
-        table = exp.table_data(model_type="Participant")
+        table = exp.table_data(table="participant")
         assert len(table["data"]) == 1
         assert table["data"][0]["id"] == p.id
         assert table["data"][0]["type"] == p.type
@@ -882,7 +883,7 @@ class TestDashboardDatabase(object):
 
         webapp, renderer = mock_renderer
         p = a.participant()
-        webapp.get("/dashboard/database?model_type=Participant")
+        webapp.get("/dashboard/database?table=participant")
         renderer.assert_called_once()
         render_args = renderer.call_args[1]
         dt_options = json.loads(render_args["datatables_options"])
@@ -914,12 +915,12 @@ class TestDashboardDatabase(object):
     def test_actions_with_mturk(self, a, active_config, mock_renderer):
         webapp, renderer = mock_renderer
         active_config.extend({"mode": "live", "recruiter": "mturk"})
-        webapp.get("/dashboard/database?model_type=Participant")
+        webapp.get("/dashboard/database?table=participant")
         render_args = renderer.call_args[1]
         assert render_args["is_sandbox"] is False
 
         active_config.extend({"mode": "sandbox", "recruiter": "mturk"})
-        webapp.get("/dashboard/database?model_type=Participant")
+        webapp.get("/dashboard/database?table=participant")
         render_args = renderer.call_args[1]
         assert render_args["is_sandbox"] is True
 
@@ -933,7 +934,7 @@ class TestDashboardDatabase(object):
             actions.return_value = [
                 {"name": "special_action", "title": "Special Action"}
             ]
-            webapp.get("/dashboard/database?model_type=Participant")
+            webapp.get("/dashboard/database?table=participant")
             render_args = renderer.call_args[1]
             dt_options = json.loads(render_args["datatables_options"])
             actions = dt_options["buttons"][1]

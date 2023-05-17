@@ -22,6 +22,7 @@ enable_global_experiment_registry = False
 language = en
 
 [Recruiter]
+activate_recruiter_on_start = True
 auto_recruit = False
 assign_qualifications = False
 us_only = False

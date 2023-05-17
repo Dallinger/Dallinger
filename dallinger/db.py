@@ -7,10 +7,11 @@ import sys
 import time
 from contextlib import contextmanager
 from functools import wraps
+from typing import Union
 
 import psycopg2
 from psycopg2.extensions import TransactionRollbackError
-from sqlalchemy import create_engine, event
+from sqlalchemy import Table, create_engine, event
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.ext.declarative import declarative_base
@@ -152,6 +153,96 @@ def init_db(drop_all=False, bind=engine):
         raise
 
     return session
+
+
+def get_all_mapped_classes():
+    """
+    Lists the different classes that are mapped with SQLAlchemy.
+    Classes are only included if they have at least one row in the database.
+    Returns a dictionary, keyed by class names,
+    where each value is itself a dictionary with three values:
+    ``cls``, the class itself;
+    ``table``, the database table within which the class can be found,
+    and ``polymorphic_identity``, the string label with which the class is
+    identified in the table's ``type`` column. The ``polymorphic_identity`` field
+    takes a value of ``None`` if the table does not use polymorphic inheritance.
+    """
+    classes = {}
+    for table in Base.metadata.tables.values():
+        if "type" in table.columns:
+            # Most Dallinger tables (e.g. Node, Network) have a type column that specifies which class
+            # is associated with that database row.
+            observed_types = [
+                r.type for r in session.query(table.columns.type).distinct().all()
+            ]
+            mapping = get_polymorphic_mapping(table)
+            for type_ in observed_types:
+                cls = mapping[type_]
+                classes[cls.__name__] = {
+                    "cls": cls,
+                    "table": table.name,
+                    "polymorphic_identity": type_,
+                }
+        else:
+            # Some tables (e.g. Notification) don't have any such column, so we can assume
+            # that they have exactly one mapped class.
+            if session.query(table.columns.id).count() > 0:
+                cls = get_mapped_class(table)
+                classes[cls.__name__] = {
+                    "cls": cls,
+                    "table": table.name,
+                    "polymorphic_identity": None,
+                }
+    return classes
+
+
+def get_mappers(table: Union[str, Table]):
+    if isinstance(table, str):
+        table_name = table
+    else:
+        assert isinstance(table, Table)
+        table_name = table.name
+
+    return [
+        mapper
+        for mapper in Base.registry.mappers
+        if table_name in [table.name for table in mapper.tables]
+    ]
+
+
+def get_polymorphic_mapping(table: Union[str, Table]):
+    """
+    Gets the polymorphic mapping for a given table.
+    Returns a dictionary
+    where the dictionary keys correspond to polymorphic identities
+    (i.e. possible values of the table's ``type`` column)
+    and the dictionary values correspond to classes.
+    """
+    return {mapper.polymorphic_identity: mapper.class_ for mapper in get_mappers(table)}
+
+
+def get_mapped_classes(table: Union[str, Table]):
+    """
+    Returns a list of classes that map to the provided table.
+    """
+    return [
+        mapper.class_
+        for mapper in Base.registry.mappers
+        if mapper in get_mappers(table)
+    ]
+
+
+def get_mapped_class(table: Union[str, Table]):
+    """
+    Returns the single class that maps to the provided table.
+    Throws an ``AssertionError`` if there is not exactly one such class.
+    This function is therefore only intended for tables that do not implement
+    polymorphic identities, i.e. they do not include a ``type`` column.
+    An example is the Notification table.
+    """
+    mappers = get_mapped_classes(table)
+    assert len(mappers) == 1
+    return mappers[0]
 
 
 def serialized(func):

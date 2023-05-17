@@ -26,8 +26,8 @@ def is_valid_json(value):
 
 
 default_keys = (
-    # These are the keys allowed in a dallinger experiment
-    # config.txt file.
+    # These are the keys allowed in a dallinger experiment config.txt file.
+    ("activate_recruiter_on_start", bool, []),
     ("ad_group", six.text_type, []),
     ("approve_requirement", int, []),
     ("assign_qualifications", bool, []),
@@ -181,7 +181,17 @@ class Configuration(object):
         yield self
         self.data.popleft()
 
+    changeable_params = ["auto_recruit"]
+
     def get(self, key, default=marker):
+        # For now this is limited to "auto_recruit", but in the future it can be extended
+        # to other parameters as well
+        if key == "auto_recruit":
+            from dallinger.db import redis_conn
+
+            auto_recruit = redis_conn.get("auto_recruit")
+            if auto_recruit is not None:
+                return bool(int(auto_recruit))
         if not self.ready:
             raise RuntimeError("Config not loaded")
         for layer in self.data:
@@ -272,7 +282,8 @@ class Configuration(object):
     def load_defaults(self):
         """Load default configuration values"""
         # Apply extra parameters before loading the configs
-        if self.experiment_available():
+        if experiment_available():
+            # In practice, experiment_available should only return False in tests
             self.register_extra_parameters()
 
         global_config_name = ".dallingerconfig"
@@ -287,11 +298,8 @@ class Configuration(object):
         for config_file in [global_defaults_file, local_defaults_file, global_config]:
             self.load_from_file(config_file)
 
-        if self.experiment_available():
+        if experiment_available():
             self.load_experiment_config_defaults()
-
-    def experiment_available(self):
-        return Path("experiment.py").exists()
 
     def load(self):
         self.load_defaults()
@@ -345,7 +353,16 @@ def get_config():
     global config
 
     if config is None:
-        config = Configuration()
+        if experiment_available():
+            from dallinger.experiment import load
+
+            exp_klass = load()
+            config_class = exp_klass.config_class()
+        else:
+            config_class = Configuration
+
+        config = config_class()
+
         for registration in default_keys:
             config.register(*registration)
 
@@ -375,3 +392,7 @@ def initialize_experiment_package(path):
     package.__package__ = "dallinger_experiment"
     package.__name__ = "dallinger_experiment"
     sys.path.pop(0)
+
+
+def experiment_available():
+    return Path("experiment.py").exists()
