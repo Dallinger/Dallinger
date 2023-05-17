@@ -97,7 +97,7 @@ class TestDataS3Integration(object):
 
             # We should be able to check that the UUID is registered
             assert dallinger.data.is_registered(new_uuid) is False
-            assert s3_filter.called_once_with(Prefix=new_uuid)
+            s3_filter.assert_called_once_with(Prefix=new_uuid + ".reg")
 
 
 class TestDataLocally(object):

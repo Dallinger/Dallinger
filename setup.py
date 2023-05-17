@@ -101,7 +101,7 @@ setup_args = dict(
             "coverage_pth",
             "flake8",
             "isort",
-            "mock==5.0.0",
+            "mock",
             "myst-parser",
             "pre-commit",
             "pycodestyle",

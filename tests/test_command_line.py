@@ -985,8 +985,8 @@ class TestDestroy(object):
         )
         heroku.destroy.assert_called_once()
         mturk_instance = mturk.return_value
-        mturk_instance.get_hits.not_called()
-        mturk_instance.expire_hit.not_called()
+        mturk_instance.get_hits.assert_not_called()
+        mturk_instance.expire_hit.assert_not_called()
 
     def test_requires_confirmation(self, destroy, heroku):
         CliRunner().invoke(destroy, ["--app", "some-app-uid"])
