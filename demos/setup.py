@@ -1,7 +1,7 @@
 import os
 import sys
 
-from setuptools import find_packages, setup
+from setuptools import find_namespace_packages, setup
 
 if sys.argv[-1] == "publish":
     os.system("python setup.py sdist upload")
@@ -22,11 +22,11 @@ setup_args = dict(
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 2.7",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
     ],
-    packages=find_packages("."),
+    packages=find_namespace_packages("."),
     package_dir={"": "."},
     namespace_packages=["dlgr"],
     include_package_data=True,

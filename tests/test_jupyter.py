@@ -26,7 +26,7 @@ class TestExperimentWidget(object):
     def test_experiment_displays_widget(self, exp):
         with mock.patch("IPython.display.display") as display:
             exp._ipython_display_()
-            assert display.called_once_with(exp.widget)
+            display.assert_called_once_with(exp.widget)
 
     def test_widget_children_no_config(self, exp):
         assert exp.widget.children[1].children[0].value == "Not loaded."
