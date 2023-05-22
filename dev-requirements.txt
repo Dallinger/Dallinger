@@ -48,9 +48,9 @@ bleach==6.0.0
     # via nbconvert
 blinker==1.6.2
     # via flask
-boto3==1.26.134
+boto3==1.26.138
     # via dallinger
-botocore==1.29.134
+botocore==1.29.138
     # via
     #   boto3
     #   s3transfer
@@ -128,9 +128,9 @@ exceptiongroup==1.1.1
     #   trio-websocket
 executing==1.2.0
     # via stack-data
-faker==18.7.0
+faker==18.9.0
     # via dallinger
-fastjsonschema==2.16.3
+fastjsonschema==2.17.1
     # via nbformat
 filelock==3.12.0
     # via
@@ -311,7 +311,7 @@ myst-parser==1.0.0
     # via dallinger
 nbclassic==1.0.0
     # via notebook
-nbclient==0.7.4
+nbclient==0.8.0
     # via nbconvert
 nbconvert==7.4.0
     # via
@@ -392,7 +392,7 @@ pluggy==1.0.0
     # via
     #   pytest
     #   tox
-pre-commit==3.3.1
+pre-commit==3.3.2
     # via dallinger
 prometheus-client==0.16.0
     # via
@@ -491,7 +491,7 @@ redis==4.5.5
     # via
     #   dallinger
     #   rq
-requests==2.30.0
+requests==2.31.0
     # via
     #   dallinger
     #   docker
@@ -662,7 +662,7 @@ webencodings==0.5.1
     # via
     #   bleach
     #   tinycss2
-websocket-client==1.5.1
+websocket-client==1.5.2
     # via
     #   docker
     #   jupyter-server

@@ -22,9 +22,9 @@ backcall==0.2.0
     # via ipython
 blinker==1.6.2
     # via flask
-boto3==1.26.134
+boto3==1.26.138
     # via dallinger
-botocore==1.29.134
+botocore==1.29.138
     # via
     #   boto3
     #   s3transfer
@@ -58,7 +58,7 @@ exceptiongroup==1.1.1
     #   trio-websocket
 executing==1.2.0
     # via stack-data
-faker==18.7.0
+faker==18.9.0
     # via dallinger
 flask==2.3.2
     # via
@@ -169,7 +169,7 @@ redis==4.5.5
     # via
     #   dallinger
     #   rq
-requests==2.30.0
+requests==2.31.0
     # via
     #   dallinger
     #   heroku3
