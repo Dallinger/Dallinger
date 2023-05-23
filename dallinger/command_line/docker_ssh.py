@@ -587,7 +587,7 @@ def get_docker_compose_yml(
     postgresql_password: str,
 ) -> str:
     """Generate a docker-compose.yml file based on the given"""
-    docker_volumes = config.get("docker_volumes", "[]")
+    docker_volumes = config.get("docker_volumes", "")
     config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
 
     return DOCKER_COMPOSE_EXP_TPL.render(
@@ -600,11 +600,15 @@ def get_docker_compose_yml(
 
 
 def get_retrying_http_client():
+    parameter_name = "method_whitelist"
+    if hasattr(Retry.DEFAULT, "allowed_methods"):
+        parameter_name = "allowed_methods"
+
     retry_strategy = Retry(
         total=30,
         backoff_factor=0.2,
         status_forcelist=[429, 500, 502, 503, 504],
-        method_whitelist=["POST"],
+        **{parameter_name: ["POST"]},
     )
     adapter = HTTPAdapter(max_retries=retry_strategy)
     http = requests.Session()

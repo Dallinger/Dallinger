@@ -171,7 +171,7 @@ jobs:
       - name: Tag built image as latest
         run: docker tag ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }} ghcr.io/dallinger/dallinger
       - name: Make sure dallinger script entry point is working
-        run: docker run --rm ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }} python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
+        run: docker run --rm ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }} python3 -c "from importlib.metadata import entry_points; tuple(entry_points(group='console_scripts', name='dallinger_heroku_worker'))[0].load()"
       - name: Make sure dallinger script entry point is working with dallinger source mounted as volume
         run: docker run -v $PWD/dallinger:/dallinger/dallinger --rm ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }} python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
       - name: Set up Python 3.11

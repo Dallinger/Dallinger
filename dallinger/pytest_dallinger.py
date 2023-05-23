@@ -555,7 +555,7 @@ def selenium_recruits(request, recruitment_loop):
 
                 chrome_options = Options()
                 chrome_options.add_argument("--headless")
-                kwargs = {"chrome_options": chrome_options}
+                kwargs = {"options": chrome_options}
             driver = driver_class(**kwargs)
             driver.get(url)
             try:

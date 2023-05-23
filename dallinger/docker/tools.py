@@ -57,7 +57,7 @@ class DockerComposeWrapper(object):
         self._record = []
         self.needs_chrome = needs_chrome
 
-    def copy_docker_compse_files(self):
+    def copy_docker_compose_files(self):
         """Prepare a docker-compose.yml file and place it in the experiment tmp dir"""
         volumes = [
             f"{self.original_dir}:{self.original_dir}",
@@ -67,10 +67,13 @@ class DockerComposeWrapper(object):
         if editable_dallinger_path:
             volumes.append(f"{editable_dallinger_path}/dallinger:/dallinger/dallinger")
             volumes.append(
-                f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.8/dist-packages/dallinger/"
+                f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.10/dist-packages/dallinger/"
             )
             volumes.append(
                 f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.9/dist-packages/dallinger/"
+            )
+            volumes.append(
+                f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.8/dist-packages/dallinger/"
             )
         tag = get_experiment_image_tag(self.tmp_dir)
         with open(os.path.join(self.tmp_dir, "docker-compose.yml"), "w") as fh:
@@ -115,7 +118,7 @@ class DockerComposeWrapper(object):
         self.out.blather("Postgresql ready\n")
 
     def start(self):
-        self.copy_docker_compse_files()
+        self.copy_docker_compose_files()
         build_image(self.tmp_dir, self.experiment_name, self.out, self.needs_chrome)
         check_output("docker compose up -d".split())
         # Wait for postgres to complete initialization

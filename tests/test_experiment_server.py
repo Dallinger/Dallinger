@@ -56,7 +56,7 @@ class TestAppConfiguration(object):
                 "dallinger.experiment_server.gunicorn.ProxyFix"
             ) as ProxyFix:
                 StandaloneServer().load()
-                ProxyFix.called_once_with(webapp.application)
+                ProxyFix.assert_called_once_with(webapp.application)
 
     def test_load_sets_flask_secret_from_env(self, webapp, active_config, env):
         webapp.application.debug = False

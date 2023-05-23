@@ -60,7 +60,7 @@ class TestClockScheduler(object):
 
     def test_launch_loads_config(self, patched_scheduler):
         self.clock.launch()
-        assert patched_scheduler.start.called_once()
+        patched_scheduler.start.assert_called_once()
         assert get_config().ready
 
     def test_launch_registers_additional_tasks(
