@@ -1131,7 +1131,10 @@ class TestConstraints(object):
             constraints_file = Path(tmp_path) / "constraints.txt"
             # If not present a `constraints.txt` file will be generated
             assert constraints_file.exists()
-            assert "toml" in constraints_file.read_text()
+            if sys.version_info >= (3, 11):
+                assert "toml" not in constraints_file.read_text()
+            else:
+                assert "toml" in constraints_file.read_text()
 
             # An existing file will be left untouched
             constraints_file.write_text("foobar")

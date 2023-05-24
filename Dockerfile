@@ -1,6 +1,6 @@
 # syntax = docker/dockerfile:1.2
 ###################### Image with build tools to compile wheels ###############
-FROM python:3.10-bullseye as wheels
+FROM python:3.11-bullseye as wheels
 ENV DEBIAN_FRONTEND=noninteractive
 
 LABEL Description="Dallinger base docker image" Version="1.0"
@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 
 ###################### Dallinger base image ###################################
-FROM python:3.10-bullseye as dallinger
+FROM python:3.11-bullseye as dallinger
 ENV DEBIAN_FRONTEND=noninteractive
 LABEL org.opencontainers.image.source https://github.com/Dallinger/Dallinger
 
