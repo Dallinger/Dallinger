@@ -113,7 +113,7 @@ jobs:
         run: |
           tox ${{ needs.check_mturk_changes.outputs.needs_mturk_tests == 'true' && '-- --mturkfull' || ''}}
           npm run test --coverage
-        if: matrix.python-version == 3.10 || matrix.python-version == 3.11
+        if: matrix.python-version == 3.11
       - name: Run Fast Tests Only
         env:
           DATABASE_URL: postgresql://dallinger:dallinger@localhost/dallinger
@@ -125,7 +125,7 @@ jobs:
         run: |
           tox -e fast
           npm run test --coverage
-        if: matrix.python-version != 3.10 && matrix.python-version != 3.11
+        if: matrix.python-version != 3.11
       - name: Codecov.io check
         uses: codecov/codecov-action@v3
         if: matrix.python-version == 3.11
