@@ -101,7 +101,7 @@ describe('identity', function () {
 
   beforeEach(function () {
     window.history.pushState({}, 'Test Title',
-      'test.html?recruiter=hotair&hitId=HHH&assignmentId=AAA&workerId=WWW&mode=debug'
+      'test.html?recruiter=hotair&hitId=HHH&assignmentId=AAA&workerId=WWW&uniqueId=WWW:AAA&mode=debug'
     );
 
     dlgr = require('./dallinger2').dallinger;
@@ -112,6 +112,7 @@ describe('identity', function () {
     expect(dlgr.identity.assignmentId).toBe('AAA');
     expect(dlgr.identity.hitId).toBe('HHH');
     expect(dlgr.identity.workerId).toBe('WWW');
+    expect(dlgr.identity.uniqueId).toBe('WWW:AAA');
     expect(dlgr.identity.mode).toBe('debug');
   });
 
