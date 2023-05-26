@@ -101,7 +101,7 @@ describe('identity', function () {
 
   beforeEach(function () {
     window.history.pushState({}, 'Test Title',
-      'test.html?recruiter=hotair&hitId=HHH&assignmentId=AAA&workerId=WWW&uniqueId=WWW:AAA&mode=debug'
+      'test.html?recruiter=hotair&hitId=HHH&assignmentId=AAA&workerId=WWW&mode=debug'
     );
 
     dlgr = require('./dallinger2').dallinger;
