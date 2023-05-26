@@ -304,6 +304,9 @@ def test_check_experiment_dependencies_successful():
             "dallinger @ git+https://github.com/Dallinger/Dallinger",
             "dallinger[demos]",
             "dallinger [demos]",
+            "# dallinger",
+            "",
+            " # dallinger",
         ]
         lines = [f"{r}\n".encode("utf-8") for r in requirements]
         requirements_file.writelines(lines)

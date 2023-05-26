@@ -390,9 +390,9 @@ def check_experiment_dependencies(requirements_file):
     try:
         with open(requirements_file, "r") as f:
             dependencies = [
-                re.split("@|\\ |>|<|=|\\[", line)[0].rstrip()
+                re.split("@|\\ |>|<|=|\\[", line)[0].strip()
                 for line in f.readlines()
-                if line[:3] != "-e "
+                if line[:3] != "-e " and line[0].strip() not in ["#", ""]
             ]
     except (OSError, IOError):
         dependencies = []
