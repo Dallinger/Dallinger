@@ -2,11 +2,13 @@
 import io
 import locale
 from datetime import datetime, timedelta
+from tempfile import NamedTemporaryFile
 
 import mock
 import pytest
 
 from dallinger import config, utils
+from dallinger.utils import check_experiment_dependencies
 
 
 class TestSubprocessWrapper(object):
@@ -288,3 +290,36 @@ class TestIsolatedWebbrowser(object):
             patches["sys"].platform = 'anything but "darwin"'
             isolated = utils._new_webbrowser_profile()
         assert isolated == webbrowser
+
+
+def test_check_experiment_dependencies_successful():
+    with NamedTemporaryFile() as requirements_file:
+        requirements = [
+            "dallinger",
+            "dallinger==9.7.0",
+            "dallinger<=9.7.0",
+            "dallinger>=9.7.0",
+            "dallinger == 9.7.0",
+            "dallinger@git+https://github.com/Dallinger/Dallinger",
+            "dallinger @ git+https://github.com/Dallinger/Dallinger",
+            "dallinger[demos]",
+            "dallinger [demos]",
+        ]
+        lines = [f"{r}\n".encode("utf-8") for r in requirements]
+        requirements_file.writelines(lines)
+        requirements_file.flush()
+
+        check_experiment_dependencies(requirements_file.name)
+
+
+def test_check_experiment_dependencies_unsuccessful():
+    with NamedTemporaryFile() as requirements_file:
+        requirements_file.writelines(["NOTINSTALLED\n".encode("utf-8")])
+        requirements_file.flush()
+
+        with pytest.raises(ValueError) as e:
+            check_experiment_dependencies(requirements_file.name)
+        assert (
+            str(e.value)
+            == "Please install the 'NOTINSTALLED' package to run this experiment."
+        )
