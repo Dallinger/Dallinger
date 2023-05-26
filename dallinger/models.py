@@ -213,7 +213,7 @@ class Participant(Base, SharedMixin):
 
     #: A String, a concatenation of :attr:`~dallinger.models.Participant.worker_id`
     #: and :attr:`~dallinger.models.Participant.assignment_id`
-    unique_id = Column(String(75), nullable=False, index=True)
+    unique_id = Column(String(150), nullable=False, index=True)
 
     #: A String, the id of the hit the participant is working on
     hit_id = Column(String(50), nullable=False)

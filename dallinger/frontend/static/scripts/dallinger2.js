@@ -80,6 +80,8 @@ var dallinger = (function () {
    *
    * ``assignmentId``  - MTurk Assignment Id
    *
+   * ``uniqueId``      - MTurk Worker Id and Assignment Id
+   *
    * ``mode``          - Dallinger experiment mode
    *
    * ``participantId`` - Dallinger participant Id
@@ -95,6 +97,8 @@ var dallinger = (function () {
     set workerId(value) {  dlgr.storage.set('worker_id', value); },
     get assignmentId() { return  dlgr.storage.get('assignment_id'); },
     set assignmentId(value) {  dlgr.storage.set('assignment_id', value); },
+    get uniqueId() { return  dlgr.storage.get('unique_id'); },
+    set uniqueId(value) {  dlgr.storage.set('unique_id', value); },
     get mode() { return  dlgr.storage.get('mode'); },
     set mode(value) {  dlgr.storage.set('mode', value); },
     get participantId() { return dlgr.storage.get('participant_id'); },
@@ -109,6 +113,7 @@ var dallinger = (function () {
       this.hitId = dlgr.getUrlParameter('hitId');
       this.workerId = dlgr.getUrlParameter('workerId');
       this.assignmentId = dlgr.getUrlParameter('assignmentId');
+      this.uniqueId = dlgr.getUrlParameter('workerId') + ":" + dlgr.getUrlParameter('assignmentId');
       this.mode = dlgr.getUrlParameter('mode');
       // Store all url parameters as entry information.
       // This won't work in IE, but should work in Edge.
