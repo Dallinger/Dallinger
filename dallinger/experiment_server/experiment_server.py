@@ -54,9 +54,12 @@ app = Flask("Experiment_Server")
 
 
 @app.before_request
-def check_for_protected_routes():
+def _load_config():
     _config()
-    
+
+
+@app.before_request
+def check_for_protected_routes():
     if current_user.is_authenticated:
         return
 
@@ -70,11 +73,6 @@ def check_for_protected_routes():
         raise PermissionError(
             f'Unauthorized call to protected route "{active_rule}": {request}'
         )
-
-
-@app.before_request
-def _prep_config():
-    _config()
 
 
 def _config():
