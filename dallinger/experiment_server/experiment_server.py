@@ -70,6 +70,7 @@ def check_for_protected_routes():
         )
 
 
+@app.before_request
 def _config():
     app.secret_key = app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
     config = get_config()
