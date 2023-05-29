@@ -55,6 +55,8 @@ app = Flask("Experiment_Server")
 
 @app.before_request
 def check_for_protected_routes():
+    _config()
+    
     if current_user.is_authenticated:
         return
 
