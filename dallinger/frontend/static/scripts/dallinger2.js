@@ -447,6 +447,10 @@ var dallinger = (function () {
           console.log(resp);
           $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
+          dlgr.identity.assignmentId = resp.participant.assignment_id;
+          dlgr.identity.uniqueId = resp.participant.unique_id;
+          dlgr.identity.workerId = resp.participant.worker_id;
+          dlgr.identity.hitId = resp.participant.hit_id;
           if (! resp.quorum) {  // We're not using a waiting room.
             deferred.resolve();
             return;
