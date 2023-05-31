@@ -390,7 +390,18 @@ var dallinger = (function () {
     }).done(function () {
       deferred.resolve();
       dlgr.allowExit();
-      if (window.opener && !window.opener.location.pathname.startsWith("/dashboard")) {
+
+      let openedFromDashboard;
+      try {
+        openedFromDashboard = window.opener && !window.opener.location.pathname.startsWith("/dashboard")
+      } catch (error) {
+        // If the parent window was from a different origin (e.g. Prolific) then we see an error like this:
+        // Uncaught DOMException: Blocked a frame with origin XXX from accessing a cross-origin frame.
+        // We catch and ignore this error.
+        openedFromDashboard = false;
+      }
+
+      if (window.opener && !openedFromDashboard) {
         // If the parent window is still around, redirect it to the exit route
         // and close the secondary window (this one) that held the main experiment:
         window.opener.location = exitRoute;
