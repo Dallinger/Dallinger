@@ -437,14 +437,13 @@ var dallinger = (function () {
             "/" + dlgr.identity.assignmentId + "/" + dlgr.identity.mode + "?fingerprint_hash=" +
             (dlgr.identity.fingerprintHash) + '&recruiter=' + dlgr.identity.recruiter;
     }
-    debugger
+
     if (dlgr.identity.participantId !== undefined && dlgr.identity.participantId !== 'undefined') {
       deferred.resolve();
     } else {
       $(function () {
         $('.btn-success').prop('disabled', true);
         dlgr.post(url, data).done(function (resp) {
-          debugger
           console.log(resp);
           $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
