@@ -98,7 +98,7 @@ coverage==7.2.5
     #   dallinger
 coverage-pth==0.0.2
     # via dallinger
-cryptography==40.0.2
+cryptography==41.0.1
     # via
     #   paramiko
     #   pyopenssl
