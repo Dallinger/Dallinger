@@ -54,6 +54,11 @@ app = Flask("Experiment_Server")
 
 
 @app.before_request
+def _load_config():
+    _config()
+
+
+@app.before_request
 def check_for_protected_routes():
     if current_user.is_authenticated:
         return
@@ -878,7 +883,14 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
     if overrecruited:
         participant.status = "overrecruited"
 
-    result = {"participant": participant.__json__()}
+    result = {
+        "participant": {
+            **participant.__json__(),
+            # Add some extra information that is useful for initializing dallinger.identity
+            "unique_id": participant.unique_id,
+            "worker_id": participant.worker_id,
+        }
+    }
 
     # Queue notification to others in waiting room
     if exp.quorum:

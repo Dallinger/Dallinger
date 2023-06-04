@@ -390,7 +390,18 @@ var dallinger = (function () {
     }).done(function () {
       deferred.resolve();
       dlgr.allowExit();
-      if (window.opener && !window.opener.location.pathname.startsWith("/dashboard")) {
+
+      let openedFromDashboard;
+      try {
+        openedFromDashboard = window.opener && !window.opener.location.pathname.startsWith("/dashboard")
+      } catch (error) {
+        // If the parent window was from a different origin (e.g. Prolific) then we see an error like this:
+        // Uncaught DOMException: Blocked a frame with origin XXX from accessing a cross-origin frame.
+        // We catch and ignore this error.
+        openedFromDashboard = false;
+      }
+
+      if (window.opener && !openedFromDashboard) {
         // If the parent window is still around, redirect it to the exit route
         // and close the secondary window (this one) that held the main experiment:
         window.opener.location = exitRoute;
@@ -447,6 +458,10 @@ var dallinger = (function () {
           console.log(resp);
           $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
+          dlgr.identity.assignmentId = resp.participant.assignment_id;
+          dlgr.identity.uniqueId = resp.participant.unique_id;
+          dlgr.identity.workerId = resp.participant.worker_id;
+          dlgr.identity.hitId = resp.participant.hit_id;
           if (! resp.quorum) {  // We're not using a waiting room.
             deferred.resolve();
             return;
