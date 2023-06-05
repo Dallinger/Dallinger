@@ -303,7 +303,8 @@ def deploy(
     print("Removing any pre-existing app with the same name.")
     app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
     executor.run(
-        f"if [ -f {app_yml} ]; then docker compose -f {app_yml} down --remove-orphans; fi"
+        f"if [ -f {app_yml} ]; then docker compose -f {app_yml} down --remove-orphans; fi",
+        raise_=False,
     )
 
     print("Removing any pre-existing Redis volumes.")

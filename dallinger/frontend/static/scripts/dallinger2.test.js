@@ -112,6 +112,7 @@ describe('identity', function () {
     expect(dlgr.identity.assignmentId).toBe('AAA');
     expect(dlgr.identity.hitId).toBe('HHH');
     expect(dlgr.identity.workerId).toBe('WWW');
+    expect(dlgr.identity.uniqueId).toBe('WWW:AAA');
     expect(dlgr.identity.mode).toBe('debug');
   });
 

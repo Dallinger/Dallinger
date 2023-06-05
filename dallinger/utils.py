@@ -379,7 +379,7 @@ def check_local_db_connection(log):
         raise
 
 
-def check_experiment_dependencies(requirement_file):
+def check_experiment_dependencies(requirements_file):
     """Verify that the dependencies defined in a requirements file are
     in fact installed.
     If the environment variable SKIP_DEPENDENCY_CHECK is set, no check
@@ -388,8 +388,12 @@ def check_experiment_dependencies(requirement_file):
     if os.environ.get("SKIP_DEPENDENCY_CHECK"):
         return
     try:
-        with open(requirement_file, "r") as f:
-            dependencies = [r.rstrip() for r in f.readlines() if r[:3] != "-e "]
+        with open(requirements_file, "r") as f:
+            dependencies = [
+                re.split("@|\\ |>|<|=|\\[", line)[0].strip()
+                for line in f.readlines()
+                if line[:3] != "-e " and line[0].strip() not in ["#", ""]
+            ]
     except (OSError, IOError):
         dependencies = []
 
