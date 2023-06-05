@@ -31,7 +31,7 @@ services:
       - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
     {%- if docker_volumes | length > 0 %}
       {%- for volume in docker_volumes.split(",") %}
-        - {{ volume | string() | tojson }}
+      - {{ volume | string() }}
       {%- endfor %}
     {%- endif %}
 
@@ -52,7 +52,7 @@ services:
       - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
     {%- if docker_volumes | length > 0 %}
       {%- for volume in docker_volumes.split(",") %}
-        - {{ volume | string() | tojson }}
+      - {{ volume | string() }}
       {%- endfor %}
     {%- endif %}
 
