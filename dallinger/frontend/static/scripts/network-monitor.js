@@ -308,6 +308,8 @@ var draw_network = function () {
                 clr = participant.clr;
             }
 
+            node.object_type = 'Node';
+
             nodes.push({
                 id: list_of_node_indx[node.id],
                 label: msg + String(node.id),
@@ -329,6 +331,7 @@ var draw_network = function () {
             } else {
                 mclr = 'blue';
             }
+            vector.object_type = 'Vector';
             edges.push({
                 from: list_of_node_indx[from],
                 to: list_of_node_indx[to],
@@ -373,6 +376,7 @@ var draw_network = function () {
                 mgroup = 'good_infos';
                 clr = participant.clr;
             }
+            info.object_type = 'Info';
             nodes.push({
                 id: my_node_id,
                 label: info.type + ": " + String(info.id), dashes: true,
@@ -383,6 +387,7 @@ var draw_network = function () {
                 data: info
             });
 
+            participant.object_type = 'Participant';
             if (participant_id > 0) {
                 edges.push({
                     from: list_of_node_indx[from],
@@ -410,6 +415,8 @@ var draw_network = function () {
             to = tran.info_out_id;
             var from_n = map_infoid_to_infonum[from];
             var to_n = map_infoid_to_infonum[to];
+
+            tran.object_type = 'Transmission';
 
             if (tran.failed) {
                 rr = 200;
@@ -506,6 +513,7 @@ var draw_network = function () {
 
             father = group_fathers[networks_roles[net.id]]; // find father network
             clr = roles_colors[networks_roles[net.id]];
+            net.object_type = 'Network';
             nodes.push({
                 id: my_node_id,
                 label: "network:" + String(net.id),
@@ -578,13 +586,13 @@ var draw_network = function () {
                 if (node.options.data) {
                     var pre_el = document.createElement('pre');
                     pre_el.textContent = JSON.stringify(node.options.data, null, 2);
-                    stats.appendChild(pre_el);
                     if (node.options.data.id && node.options.data.object_type) {
                         var custom_node = document.createElement('div');
                         custom_node.classList.add('node-details');
                         stats.appendChild(custom_node);
                         $(custom_node).load('/dashboard/node_details/' + node.options.data.object_type + '/' + String(node.options.data.id));
                     }
+                    stats.appendChild(pre_el);
                 }
             }
         };
