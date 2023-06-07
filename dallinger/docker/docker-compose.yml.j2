@@ -46,7 +46,7 @@ services:
 {%- endfor %}
 {%- if config.get("docker_volumes", "") %}
 {%- for volume in config.get("docker_volumes", "").split(",") %}
-    - {{ volume | string() }}
+      - {{ volume | string() }}
 {%- endfor %}
 {%- endif %}
     environment: &commonenv
@@ -76,7 +76,7 @@ services:
 {%- endfor %}
 {%- if config.get("docker_volumes", "") %}
 {%- for volume in config.get("docker_volumes", "").split(",") %}
-    - {{ volume | string() }}
+      - {{ volume | string() }}
 {%- endfor %}
 {%- endif %}
     environment:
