@@ -545,7 +545,7 @@ sphinx==6.2.1
     #   sphinx-rtd-theme
     #   sphinxcontrib-jquery
     #   sphinxcontrib-spelling
-sphinx-rtd-theme==1.2.1
+sphinx-rtd-theme==1.2.2
     # via dallinger
 sphinxcontrib-applehelp==1.0.4
     # via sphinx
