@@ -216,7 +216,7 @@ trio==0.22.0
     # via
     #   selenium
     #   trio-websocket
-trio-websocket==0.10.2
+trio-websocket==0.10.3
     # via selenium
 tzlocal==5.0.1
     # via
