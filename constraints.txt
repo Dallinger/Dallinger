@@ -631,7 +631,7 @@ trio==0.22.0
     # via
     #   selenium
     #   trio-websocket
-trio-websocket==0.10.2
+trio-websocket==0.10.3
     # via selenium
 tzdata==2023.3
     # via pandas
