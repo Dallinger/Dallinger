@@ -308,7 +308,7 @@ mock==5.0.2
     # via dallinger
 mypy-extensions==1.0.0
     # via black
-myst-parser==1.0.0
+myst-parser==2.0.0
     # via dallinger
 nbclassic==1.0.0
     # via notebook
