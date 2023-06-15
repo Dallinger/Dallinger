@@ -2,6 +2,32 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.8.0](https://github.com/dallinger/dallinger/tree/v9.8.0) (2023-06-05)
+
+- Fixed several bugs that were manifesting on SSH deployments, some of which were specific to Prolific:
+  - Fixed wrong signature for `executor.run(`) call in docker_ssh.py.
+  - Ensured that config is loaded before every Flask request; previously config was not loading in advance of the serving of static files and this was causing server errors.
+  - Fixed a bug in parent window closing which was preventing Prolific experiments from completing.
+  - Ensured that all fields in `dallinger.identity` are set properly when calling `dallinger.createParticipant`.
+- Fixed bug in Docker SSH when removing a pre-existing app with the same name.
+- Fixed various deprecation warnings:
+  - Fixed 'DeprecationWarning: use options instead of chrome_options'.
+  - Removed `distutils`.
+  - Removed `pkg_resources` by replacing corresponding code using `importlib.metadata`.
+  - Removed leftovers of support for Python 3.7 (`importlib_metadata`).
+  - Migrated to `setuptools.find_namespace_package` for adding the `dlgr.demos` namespace.
+- Removed all mentions of Python 3.7; updated other Python version mentions consistently to 3.8, 3.9, and 3.10.
+- Fixed: Make sure `docker_volumes` is not empty when adding additional volumes to docker-compose.yml.
+- Fixed deprecation warning 'Rename method_whitelist to allowed_methods' (`urllib3.util.retry.Retry`) incl. compatibility for urllib3 < 1.26.0.
+- Fixed tests for mock 5.0.2.
+- Improvements to 'unique ID' storage:
+  - Save `uniqueId` in `dlgr.identity` JavaScript object
+  - Increase `unique_id` database column string size to 150
+- Infrastructure:
+   - Added Python 3.11 to list of supported programming languages
+   - Added Python 3.11 to CI workflow and updated Dockerfile to use Python 3.11
+- Infrastructure: Updated dependencies; require ipython < 8.13.
+
 ## [v9.7.0](https://github.com/dallinger/dallinger/tree/v9.7.0) (2023-04-27)
 
 - Fixed: Fixed failure in `docker-ssh deploy` that occurred when the app existed already.
