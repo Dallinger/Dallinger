@@ -234,7 +234,7 @@ jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-jsonpointer==2.3
+jsonpointer==2.4
     # via jsonschema
 jsonschema==4.17.3
     # via
