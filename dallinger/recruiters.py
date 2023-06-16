@@ -243,7 +243,7 @@ class Recruiter(object):
 
 
 def alphanumeric_code(seed: str, length: int = 8):
-    """Return and alphanumeric string of specified length based on a
+    """Return an alphanumeric string of specified length based on a
     seed value, so the same result will always be returned for a given
     seed.
     """
