@@ -166,7 +166,7 @@ class RogersEnvironment(Source):
         return State
 
     def _contents(self):
-        """Contents of created infos is either propirtion or 1-proportion by default."""
+        """Contents of created infos is either proportion or 1-proportion by default."""
         if random.random() < 0.5:
             return self.proportion
         else:
