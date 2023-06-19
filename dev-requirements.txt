@@ -391,7 +391,7 @@ platformdirs==3.5.1
     #   jupyter-core
     #   tox
     #   virtualenv
-pluggy==1.0.0
+pluggy==1.1.0
     # via
     #   pytest
     #   tox
