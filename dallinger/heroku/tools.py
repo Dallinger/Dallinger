@@ -164,7 +164,16 @@ class HerokuApp(HerokuCommandRunner):
 
     @property
     def url(self):
-        return "https://{}.herokuapp.com".format(self.name)
+        app_info = self._result(
+            [
+                "heroku",
+                "apps:info",
+                "--app",
+                self.name,
+                "--json",
+            ]
+        )
+        return json.loads(app_info)["app"]["web_url"]
 
     def addon(self, name):
         """Set up an addon"""

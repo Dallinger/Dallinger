@@ -95,7 +95,7 @@ Common Sandbox Error
       File "/Users/user/Dallinger/dallinger/command_line.py", line 550, in _deploy_in_mode
         deploy_sandbox_shared_setup(verbose=verbose, app=app)
       File "/Users/user/Dallinger/dallinger/command_line.py", line 518, in deploy_sandbox_shared_setup
-        launch_data = _handle_launch_data('{}/launch'.format(heroku_app.url))
+        launch_data = _handle_launch_data('{}launch'.format(heroku_app.url))
       File "/Users/user/Dallinger/dallinger/command_line.py", line 386, in _handle_launch_data
         launch_data = launch_request.json()
       File "/Users/user/.virtualenvs/dallinger/lib/python3.6/site-packages/requests/models.py", line 892, in json
