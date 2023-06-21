@@ -338,8 +338,10 @@ notebook==6.5.4
     # via jupyter
 notebook-shim==0.2.3
     # via nbclassic
-numpy==1.25.0
-    # via pandas
+numpy==1.24.3
+    # via
+    #   dallinger
+    #   pandas
 odfpy==1.4.1
     # via tablib
 openpyxl==3.1.2
