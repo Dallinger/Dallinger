@@ -370,7 +370,8 @@ class TestSummary(object):
             yield req
 
     def test_summary(self, summary, patched_summary_route):
-        result = CliRunner().invoke(summary, ["--app", "some app id"])
+        with mock.patch("dallinger.heroku.tools.HerokuApp.url"):
+            result = CliRunner().invoke(summary, ["--app", "some app id"])
         assert "Yield: 50.00%" in result.output
 
 
@@ -400,7 +401,8 @@ class TestBot(object):
         assert isinstance(bot, BotBase)
 
     def test_bot_no_debug_url(self, bot_command, mock_bot):
-        CliRunner().invoke(bot_command, ["--app", "some app id"])
+        with mock.patch("dallinger.heroku.tools.HerokuApp.url"):
+            CliRunner().invoke(bot_command, ["--app", "some app id"])
 
         assert mock_bot.run_experiment.called
 

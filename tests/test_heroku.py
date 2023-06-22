@@ -217,8 +217,20 @@ class TestHerokuApp(object):
     def test_name(self, app):
         assert app.name == "dlgr-fake-uid"
 
-    def test_url(self, app):
+    def test_url(self, app, check_call, check_output):
+        check_output.return_value = (
+            '{"app": {"web_url": "https://dlgr-fake-uid.herokuapp.com"}}'
+        )
         assert app.url == "https://dlgr-fake-uid.herokuapp.com"
+        check_output.assert_called_once_with(
+            [
+                "heroku",
+                "apps:info",
+                "--app",
+                app.name,
+                "--json",
+            ]
+        )
 
     def test_config_url(self, app):
         assert app.config_url == "https://api.heroku.com/apps/dlgr-fake-uid/config-vars"
@@ -233,6 +245,9 @@ class TestHerokuApp(object):
         )
 
     def test_bootstrap_creates_app_with_team(self, app, check_call, check_output):
+        check_output.return_value = (
+            '{"app": {"web_url": "https://dlgr-fake-uid.herokuapp.com"}}'
+        )
         app.team = "some-team"
         app.bootstrap()
         check_call.assert_has_calls(
@@ -253,6 +268,9 @@ class TestHerokuApp(object):
         )
 
     def test_bootstrap_sets_variables(self, app, check_call, check_output):
+        check_output.return_value = (
+            '{"app": {"web_url": "https://dlgr-fake-uid.herokuapp.com"}}'
+        )
         app.team = "some-team"
         app.bootstrap()
         check_call.assert_called_with(
