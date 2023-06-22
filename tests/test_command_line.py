@@ -401,7 +401,8 @@ class TestBot(object):
         assert isinstance(bot, BotBase)
 
     def test_bot_no_debug_url(self, bot_command, mock_bot):
-        CliRunner().invoke(bot_command, ["--app", "some app id"])
+        with mock.patch("dallinger.heroku.tools.HerokuApp.url"):
+            CliRunner().invoke(bot_command, ["--app", "some app id"])
 
         assert mock_bot.run_experiment.called
 
