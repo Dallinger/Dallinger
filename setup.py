@@ -64,6 +64,7 @@ setup_args = dict(
         "heroku3",
         "ipython < 8.13",
         "localconfig",
+        "numpy < 1.25",
         "pexpect",
         "pip>=20",
         "pip-tools",
