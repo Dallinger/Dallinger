@@ -508,7 +508,7 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
-rq==1.15.0
+rq==1.15.1
     # via dallinger
 s3transfer==0.6.1
     # via boto3
