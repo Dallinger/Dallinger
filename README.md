@@ -1,6 +1,6 @@
 Dallinger
 =======
-[![Build Status](https://github.com/dallinger/Dallinger/workflows/continuous-integration/badge.svg)](https://github.com/Dallinger/Dallinger/actions?query=workflow%3Acontinuous-integration)
+[![Build Status](https://github.com/dallinger/Dallinger/actions/workflows/deploy.yml/badge.svg)](https://github.com/dallinger/Dallinger/actions/workflows/deploy.yml/badge.svg)
 [![Demos](https://img.shields.io/badge/demos-11-edd172.svg)](http://dallinger.readthedocs.io/en/latest/#demos)
 [![codecov](https://codecov.io/gh/Dallinger/Dallinger/branch/master/graph/badge.svg)](https://codecov.io/gh/Dallinger/Dallinger)
 [![Code Climate](https://codeclimate.com/github/Dallinger/Dallinger/badges/gpa.svg)](https://codeclimate.com/github/Dallinger/Dallinger)
