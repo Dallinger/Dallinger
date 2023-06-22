@@ -370,8 +370,9 @@ class TestSummary(object):
             yield req
 
     def test_summary(self, summary, patched_summary_route):
-        result = CliRunner().invoke(summary, ["--app", "some app id"])
-        assert "Yield: 50.00%" in result.output
+        with mock.patch("dallinger.heroku.tools.HerokuApp.url"):
+            result = CliRunner().invoke(summary, ["--app", "some app id"])
+            assert "Yield: 50.00%" in result.output
 
 
 @pytest.mark.usefixtures("bartlett_dir")
