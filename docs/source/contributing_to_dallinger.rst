@@ -2,7 +2,7 @@ Releasing a new version of Dallinger
 ====================================
 
 1. After you've merged the changes you want into `master`, start a new branch on
-which to run the release version upgrade and update the CHANGELOG if that hasn't
+which to run the release version upgrade, e.g. ``release-9.8.1``. Update the CHANGELOG if that hasn't
 been done as part of feature branch work. The entry should link to the new version's
 tree using: `https://github.com/dallinger/dallinger/tree/vMAJOR.MINOR.PATCH.`
 
@@ -23,19 +23,17 @@ command::
 
     $ bumpversion major
     $ git commit -a -m "Switch to major release"
-    $ bumpversion release
-    $ git commit -a -m "Update versions for release"
 
 If you need to switch to a `patch` release, you will instead need to
-specify the version explicitly with the ``new-version`` option::
+specify the version explicitly with the ``new-version`` option:, e.g.
 
-    $ bumpversion --new-version 7.7.1
+    $ bumpversion --new-version 9.8.1 patch
     $ git commit -a -m "Switch to patch release"
-    $ bumpverion release
-    $ git commit -a -m "Update versions for release"
 
 2. Run `scripts/update_experiments_constraints.sh` to update the constraints.txt
-files in the demos.
+files in the demos and commit the changes with
+
+    $ git commit -m "Update demos' constraints"
 
 3.  Push your branch and create a PR with the `release` label.
 
@@ -53,12 +51,14 @@ version to the next `minor` alpha version::
     $ git checkout -b increment-master-version
     $ bumpversion minor
     $ git commit -a -m "Bump version on master branch post-release"
-    $ git push
+    $ git push --set-upstream origin increment-master-version
 
-In case the ``increment-master-version`` branch already exists locally from releasing Dallinger previously, you need to first delete it with
+.. note::
+
+    In case the ``increment-master-version`` branch already exists locally from a previous Dallinger release, you would first need to delete it with
 
     $ git br -d increment-master-version
 
 You'll then need to open a PR for approval and get the ``increment-master-version`` branch merged as soon as possible, e.g. before merging in new feature branches.
 
-The new Dalliniger release should now be published on PyPi (https://pypi.org/project/dallinger/).
+The new Dallinger release should now be published on PyPi (https://pypi.org/project/dallinger/).
