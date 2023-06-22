@@ -165,9 +165,6 @@ class HerokuApp(HerokuCommandRunner):
 
     @cached_property
     def url(self):
-        print(self.name)
-        print(self.name)
-        print(self.name)
         app_info = self._result(
             [
                 "heroku",
@@ -177,8 +174,7 @@ class HerokuApp(HerokuCommandRunner):
                 "--json",
             ]
         )
-        print(app_info)
-        return json.loads(app_info)["app"]["web_url"]
+        return json.loads(app_info)["app"]["web_url"].rstrip("/")
 
     def addon(self, name):
         """Set up an addon"""
