@@ -453,7 +453,7 @@ pyrsistent==0.19.3
     # via jsonschema
 pysocks==1.7.1
     # via urllib3
-pytest==7.3.2
+pytest==7.4.0
     # via
     #   dallinger
     #   pytest-rerunfailures
