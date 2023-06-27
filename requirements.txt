@@ -24,7 +24,7 @@ blinker==1.6.2
     # via flask
 boto3==1.26.158
     # via dallinger
-botocore==1.29.158
+botocore==1.29.162
     # via
     #   boto3
     #   s3transfer
