@@ -16,12 +16,12 @@ services:
     depends_on: &commondepends
       redis_{{ experiment_id }}:
         condition: service_healthy
-      pgbouncer_{{ experiment_id }}:
-        condition: service_healthy
+      pgbouncer:
+        condition: service_started
     user: "${UID}:${GID}"
     environment: &commonenv
       REDIS_URL: redis://redis_{{ experiment_id }}:6379
-      DATABASE_URL: postgresql://{{ experiment_id }}:{{ postgresql_password }}@pgbouncer_{{ experiment_id }}/{{ experiment_id }}
+      DATABASE_URL: postgresql://{{ experiment_id }}:{{ postgresql_password }}@pgbouncer/{{ experiment_id }}
       HOME: /tmp
       HOST: 0.0.0.0
     {%- for key, value in config.items() %}
@@ -37,12 +37,12 @@ services:
       {%- endfor %}
     {%- endif %}
 
-  pgbouncer_{{ experiment_id }}:
+  pgbouncer:
     image: docker.io/bitnami/pgbouncer:1.19.1
-    ports:
-      - 6432:6432
     networks:
       dallinger:
+        aliases:
+          - {{ experiment_id }}_pgbouncer
     environment:
       - POSTGRESQL_HOST=postgresql
       - PGBOUNCER_AUTH_TYPE=trust
@@ -50,11 +50,6 @@ services:
       - POSTGRESQL_PASSWORD={{ postgresql_password }}
       - PGBOUNCER_PORT=5432
       - PGBOUNCER_DATABASE={{ experiment_id }}
-    healthcheck:
-      test: ["CMD", "pgrep", "pgbouncer"]
-      interval: 1s
-      timeout: 3s
-      retries: 10
 
   web:
     image: {{ experiment_image }}
