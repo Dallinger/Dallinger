@@ -208,7 +208,7 @@ def build_and_push_image(f):
             try:
                 check_output(["docker", "manifest", "inspect", image_name])
                 print(f"Image {image_name} found on remote registry")
-                return f(*args, **kwargs)
+                return f(*args, **dict(kwargs, image_name=image_name))
             except CalledProcessError:
                 # The image is not on the registry. Check if it's available locally
                 # and push it if it is. If images.get succeeds it means the image is available locally
@@ -239,6 +239,22 @@ def build_and_push_image(f):
     return wrapper
 
 
+def validate_update(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if kwargs["update"] and not kwargs.get("app_name"):
+            raise click.UsageError(
+                "Please specify the id of the running app to update with --app-name"
+            )
+        if kwargs["update"] and kwargs.get("archive_path"):
+            raise click.UsageError(
+                "Can't update an existing experiment with an archive: --archive and --update are mutually exclusive"
+            )
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
 @docker_ssh.command()
 @click.option(
     "--sandbox",
@@ -265,9 +281,17 @@ def build_and_push_image(f):
     help="Path to a zip archive created with the `export` command to use as initial database state",
 )
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
+@click.option(
+    "--update",
+    "-u",
+    flag_value="update",
+    default=False,
+    help="Update an existing experiment",
+)
+@validate_update
 @build_and_push_image
 def deploy(
-    image_name, mode, server, dns_host, app_name, config_options, archive_path
+    image_name, mode, server, dns_host, app_name, config_options, archive_path, update
 ):  # pragma: no cover
     """Deploy a dallinger experiment docker image to a server using ssh."""
     config = get_config()
@@ -300,20 +324,24 @@ def deploy(
         "dallinger/Caddyfile",
     )
 
-    print("Removing any pre-existing app with the same name.")
-    app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
-    executor.run(
-        f"if [ -f {app_yml} ]; then docker compose -f {app_yml} down --remove-orphans; fi",
-        raise_=False,
-    )
+    if not update:
+        print("Removing any pre-existing app with the same name.")
+        app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
+        executor.run(
+            f"if [ -f {app_yml} ]; then docker compose -f {app_yml} down --remove-orphans; fi",
+            raise_=False,
+        )
 
-    print("Removing any pre-existing Redis volumes.")
-    remove_redis_volumes(app_name, executor)
+        print("Removing any pre-existing Redis volumes.")
+        remove_redis_volumes(app_name, executor)
 
     print("Launching http and postgresql servers.")
     executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
 
-    print("Starting experiment.")
+    if not update:
+        print("Starting experiment.")
+    else:
+        print("Restarting experiment.")
     experiment_uuid = str(uuid4())
     if app_name:
         experiment_id = app_name
@@ -367,36 +395,37 @@ def deploy(
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
     )
-    print("Cleaning up db/user")
-    executor.run(
-        rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
-    )
-    executor.run(
-        rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
-    )
-    print(f"Creating database {experiment_id}")
-    executor.run(
-        rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
-    )
-    create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
-    executor.run(
-        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
-    )
     grant_roles_script = (
         f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
     )
+    if not update:
+        print("Cleaning up db/user")
+        executor.run(
+            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
+        )
+        executor.run(
+            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
+        )
+        print(f"Creating database {experiment_id}")
+        executor.run(
+            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
+        )
+        create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
+        executor.run(
+            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
+        )
 
-    if archive_path is not None:
-        print(f"Loading database data from {archive_path}")
-        with remote_postgres(server_info, experiment_id) as db_uri:
-            engine = create_db_engine(db_uri)
-            bootstrap_db_from_zip(archive_path, engine)
-            with engine.connect() as conn:
-                conn.execute(grant_roles_script)
-                conn.execute(f'GRANT USAGE ON SCHEMA public TO "{experiment_id}"')
-                conn.execute(
-                    f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA PUBLIC TO "{experiment_id}"'
-                )
+        if archive_path is not None:
+            print(f"Loading database data from {archive_path}")
+            with remote_postgres(server_info, experiment_id) as db_uri:
+                engine = create_db_engine(db_uri)
+                bootstrap_db_from_zip(archive_path, engine)
+                with engine.connect() as conn:
+                    conn.execute(grant_roles_script)
+                    conn.execute(f'GRANT USAGE ON SCHEMA public TO "{experiment_id}"')
+                    conn.execute(
+                        f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA PUBLIC TO "{experiment_id}"'
+                    )
 
     executor.run(
         f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
@@ -405,7 +434,7 @@ def deploy(
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
     )
-    if archive_path is None:
+    if archive_path is None and not update:
         print(f"Experiment {experiment_id} started. Initializing database")
         executor.run(
             f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
@@ -422,16 +451,19 @@ def deploy(
     # Tell caddy we changed something in the configuration
     executor.reload_caddy()
 
-    print("Launching experiment")
-    response = get_retrying_http_client().post(
-        f"https://{experiment_id}.{dns_host}/launch", verify=HAS_TLS
-    )
-    print(response.json()["recruitment_msg"])
+    if update:
+        print("Skipping experiment launch (update mode)")
+    else:
+        print("Launching experiment")
+        response = get_retrying_http_client().post(
+            f"https://{experiment_id}.{dns_host}/launch", verify=HAS_TLS
+        )
+        print(response.json()["recruitment_msg"])
 
     dashboard_user = cfg["ADMIN_USER"]
     dashboard_password = cfg["dashboard_password"]
     dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
-    log_command = f"ssh {ssh_user}@{ssh_host} docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
+    log_command = f"ssh {ssh_user + '@' if ssh_user else ''}{ssh_host} docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
 
     deployment_infos = [
         f"Deployed Docker image name: {image_name}",
