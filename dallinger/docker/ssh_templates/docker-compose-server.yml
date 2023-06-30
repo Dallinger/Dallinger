@@ -25,13 +25,25 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - ./caddy.d:/etc/caddy/caddy.d
       - caddy_config:/config
+      - dallinger_certificates:/vault/certs
     networks:
       - dallinger
 
+  https-helper:
+    image: alpine
+    command: |
+      sh -c "cd /vault/certs &&
+        wget https://traefik.me/cert.pem &&
+        wget https://traefik.me/privkey.pem &&
+        wget https://traefik.me/chain.pem &&
+        wget https://traefik.me/fullchain.pem"
+    volumes:
+      - dallinger_certificates:/vault/certs
 
 volumes:
   dallinger_pg_data:
   caddy_config:
+  dallinger_certificates:
 
 networks:
   dallinger:

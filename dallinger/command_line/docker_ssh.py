@@ -287,7 +287,10 @@ def deploy(
             print(f"Email address absent or invalid. Value {email_addr} found")
             print("Run `dallinger email-test` to verify your configuration")
             raise click.Abort
-    tls = "tls internal" if not HAS_TLS else f"tls {email_addr}"
+    if HAS_TLS:
+        tls = "tls /vault/certs/cert.pem /vault/certs/privkey.pem"
+    else:
+        tls = "tls internal"
     if not dns_host:
         dns_host = get_dns_host(ssh_host)
     executor = Executor(ssh_host, user=ssh_user, app=app_name)
@@ -620,7 +623,7 @@ def get_retrying_http_client():
 
 def get_dns_host(ssh_host):
     ip_addr = gethostbyname_ex(ssh_host)[2][0]
-    return f"{ip_addr}.nip.io"
+    return f"{ip_addr}.traefik.me"
 
 
 class Executor:

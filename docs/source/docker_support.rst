@@ -204,14 +204,14 @@ The above command will output:
     Database initialized
     Launching experiment
     Initial recruitment list:
-    https://dlgr-d5543ddd.0.0.0.0.nip.io/ad?recruiter=hotair&assignmentId=F2Q19C&hitId=BE9BWB&workerId=YC30TJ&mode=debug
+    https://dlgr-d5543ddd.0.0.0.0.traefik.me/ad?recruiter=hotair&assignmentId=F2Q19C&hitId=BE9BWB&workerId=YC30TJ&mode=debug
     Additional details:
     Recruitment requests will open browser windows automatically.
     To display the logs for this experiment you can run:
     ssh debian@0.0.0.0 docker compose -f '~/dallinger/dlgr-d5543ddd/docker-compose.yml' logs -f
-    You can now log in to the console at https://dlgr-d5543ddd.0.0.0.0.nip.io/dashboard as user admin using password foobar
+    You can now log in to the console at https://dlgr-d5543ddd.0.0.0.0.traefik.me/dashboard as user admin using password foobar
 
-Dallinger uses the free service [nip.io](https://nip.io/) to provide a URL for the experiment to get an SSL certificate from Let's Encrypt.
+Dallinger uses the free service [traefik.me](https://traefik.me/) to provide a URL for the experiment to get an SSL certificate from Let's Encrypt.
 The experiment URL is a combination of the app id and the server IP. In this case the id of the deployed experiment is ``dlgr-d5543ddd``.
 
 If you need to run an experiment on Amazon Mechanical Turk in sandbox mode you can set the mode to ``sandbox`` using the `-c` option like this:
