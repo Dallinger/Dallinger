@@ -567,13 +567,9 @@ def destroy(server, app):
     ssh_user = server_info.get("user")
     executor = Executor(ssh_host, user=ssh_user, app=app)
     # Remove the caddy configuration file and reload caddy config
-    try:
-        executor.run(f"ls ~/dallinger/caddy.d/{app}")
-    except ExecuteException:
-        print(f"App {app} not found on server {server}")
-        raise click.Abort
-    executor.run(f"rm ~/dallinger/caddy.d/{app}")
+    executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
     executor.reload_caddy()
+
     executor.run(
         f"docker compose -f ~/dallinger/{app}/docker-compose.yml down", raise_=False
     )
