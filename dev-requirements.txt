@@ -629,7 +629,7 @@ traitlets==5.9.0
     #   nbformat
     #   notebook
     #   qtconsole
-trio==0.22.0
+trio==0.22.1
     # via
     #   selenium
     #   trio-websocket
