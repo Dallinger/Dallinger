@@ -2,6 +2,15 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.8.1](https://github.com/dallinger/dallinger/tree/v9.8.1) (2023-06-22)
+
+- Fixed deployment to Heroku due to Heroku now appending identifiers to subdomains.
+- Fixed indentation bug writing Docker volumes in docker-compose.yml.j2.
+- Fixed visualization bug in dashboard monitor.
+- Fixed previously skipped Redis message queue test.
+- Fixed some typos.
+- Infrastructure: Updated dependencies; require numpy < 1.25.
+
 ## [v9.8.0](https://github.com/dallinger/dallinger/tree/v9.8.0) (2023-06-05)
 
 - Fixed several bugs that were manifesting on SSH deployments, some of which were specific to Prolific:
