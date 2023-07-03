@@ -57,8 +57,6 @@ build==0.10.0
     #   dallinger
     #   pip-tools
 bump2version==1.0.1
-    # via bumpversion
-bumpversion==0.6.0
     # via dallinger
 cached-property==1.5.2
     # via dallinger
