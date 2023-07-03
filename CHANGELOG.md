@@ -2,6 +2,10 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.8.2](https://github.com/dallinger/dallinger/tree/v9.8.2) (2023-07-03)
+
+- Fixed a bug in dlgr.submitAssignment that was causing MTurk HIT submission to fail. This bug was introduced in v.9.8.0 when fixing another bug. The bug meant that `externalSubmit` was being called in the popup window, not the MTurk iframe, causing submission to fail.
+
 ## [v9.8.1](https://github.com/dallinger/dallinger/tree/v9.8.1) (2023-06-22)
 
 - Fixed deployment to Heroku due to Heroku now appending identifiers to subdomains.
