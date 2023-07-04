@@ -138,7 +138,7 @@ pickleshare==0.7.5
     # via ipython
 pip-tools==6.13.0
     # via dallinger
-prompt-toolkit==3.0.38
+prompt-toolkit==3.0.39
     # via ipython
 psutil==5.9.5
     # via dallinger
