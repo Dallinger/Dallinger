@@ -410,10 +410,6 @@ def deploy(
         executor.run(
             rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
         )
-        create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
-        executor.run(
-            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
-        )
 
         if archive_path is not None:
             print(f"Loading database data from {archive_path}")
@@ -426,6 +422,26 @@ def deploy(
                     conn.execute(
                         f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA PUBLIC TO "{experiment_id}"'
                     )
+
+    test_user_script = (
+        rf"""SELECT FROM pg_catalog.pg_roles WHERE rolname = '{experiment_id}'"""
+    )
+    query_user_result = executor.run(
+        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(test_user_script)}",
+        raise_=False,
+    )
+    if "0 rows" in query_user_result:
+        # Create the user: it doesn't exist yet
+        create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
+        executor.run(
+            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
+        )
+    else:
+        # Change the password of the existing user
+        change_password_script = f"""ALTER USER "{experiment_id}" WITH ENCRYPTED PASSWORD '{postgresql_password}'"""
+        executor.run(
+            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(change_password_script)}"
+        )
 
     executor.run(
         f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
@@ -452,7 +468,7 @@ def deploy(
     executor.reload_caddy()
 
     if update:
-        print("Skipping experiment launch (update mode)")
+        print("Skipping experiment launch logic because we are in update mode.")
     else:
         print("Launching experiment")
         response = get_retrying_http_client().post(
