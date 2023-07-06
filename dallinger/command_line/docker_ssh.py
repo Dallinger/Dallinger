@@ -219,7 +219,7 @@ def build_and_push_image(f):
                 # This is brittle, but it's an edge case not worth more effort
                 if not json.loads(raw_result.split("\r\n")[-2]).get("error"):
                     print(f"Image {image_name} pushed to remote registry")
-                    return f(*args, **kwargs)
+                    return f(*args, **dict(kwargs, image_name=image_name))
                 # The image is not available, neither locally nor on the remote registry
                 print(
                     f"Could not find image {image_name} specified in experiment config as `docker_image_name`"
