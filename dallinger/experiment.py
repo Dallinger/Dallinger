@@ -556,6 +556,72 @@ class Experiment(object):
         """
         return True
 
+    def on_assignment_submitted_to_recruiter(self, participant, event):
+        """Working title. Called when assignment has been submitted
+        to the recruitment platform (may be Dallinger itself) by the
+        participant.
+
+        Args:
+            participant (Participant): The Participant ORM object
+            event (dict): Info about the triggering event
+
+
+        XXX Should this take an ID instead of an object, so it's
+        easier to call asynchonously if we need to do that? This
+        method does wind up making an API call if we're using a
+        recruiter like MTurk.
+        """
+        eligible_statuses = ("working", "overrecruited", "returned", "abandoned")
+        if participant.status not in eligible_statuses:
+            return
+
+        config = get_config()
+        min_real_bonus = 0.01
+        participant.status = "submitted"
+        participant.end_time = event.timestamp
+        # commit?
+        participant.recruiter.approve_hit(participant.assignment_id)
+        participant.base_pay = config.get("base_payment")
+
+        # Data Check
+        if not self.data_check(participant=participant):
+            participant.status = "bad_data"
+            self.data_check_failed(participant=participant)
+            # commit?
+            # XXX should this instead be participant.recruiter.recruit(n=1) ?
+            self.recruiter.recruit(n=1)
+
+            # NOTE EARLY RETURN!!
+            return
+
+        bonus = self.bonus(participant=participant)
+        # XXX we assign the bonus even when we don't pay it??
+        participant.bonus = bonus
+        if bonus >= min_real_bonus:
+            self.log("Bonus = {}: paying bonus".format(bonus))
+            participant.recruiter.reward_bonus(
+                participant,
+                bonus,
+                self.bonus_reason(),
+            )
+        else:
+            self.log("Bonus = {}: NOT paying bonus".format(bonus))
+
+        # Attention Check
+        if self.attention_check(participant=participant):
+            self.log("Attention checks passed.")
+            participant.status = "approved"
+            self.submission_successful(participant=participant)
+            self.recruit()
+            # Commit?
+        else:
+            self.log("Attention checks failed.")
+            participant.status = "did_not_attend"
+            self.attention_check_failed(participant=participant)
+            # Commit?
+            # XXX should this instead be participant.recruiter.recruit(n=1) ?
+            self.recruiter.recruit(n=1)
+
     def participant_task_completed(self, participant):
         """Called when an experiment task is finished and submitted, and prior
         to data and attendance checks.
