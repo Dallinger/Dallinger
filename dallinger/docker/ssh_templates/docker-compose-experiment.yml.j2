@@ -45,11 +45,14 @@ services:
           - {{ experiment_id }}_pgbouncer
     environment:
       - POSTGRESQL_HOST=postgresql
-      - PGBOUNCER_AUTH_TYPE=trust
+      - PGBOUNCER_AUTH_TYPE=md5
+      - PGBOUNCER_SET_DATABASE_USER=yes
+      - PGBOUNCER_SET_DATABASE_PASSWORD=yes
       - POSTGRESQL_USERNAME={{ experiment_id }}
       - POSTGRESQL_PASSWORD={{ postgresql_password }}
       - PGBOUNCER_PORT=5432
       - PGBOUNCER_DATABASE={{ experiment_id }}
+      - PGBOUNCER_POOL_MODE=transaction
 
   web:
     image: {{ experiment_image }}
