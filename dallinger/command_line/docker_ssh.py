@@ -334,6 +334,14 @@ def deploy(
 
         print("Removing any pre-existing Redis volumes.")
         remove_redis_volumes(app_name, executor)
+    else:
+        app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
+        yml_file_exists = executor.run(f"ls -l {app_yml}", raise_=False)
+        if not yml_file_exists:
+            print(
+                f"{app_yml} file not found. App {app_name} does not exist on the server."
+            )
+            raise click.Abort
 
     print("Launching http and postgresql servers.")
     executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
