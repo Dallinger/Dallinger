@@ -641,7 +641,7 @@ tzlocal==5.0.1
     # via
     #   apscheduler
     #   dallinger
-ua-parser==0.16.1
+ua-parser==0.18.0
     # via
     #   dallinger
     #   user-agents
