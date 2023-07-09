@@ -338,7 +338,7 @@ notebook==6.5.4
     # via jupyter
 notebook-shim==0.2.3
     # via nbclassic
-numpy==1.24.3
+numpy==1.25.1
     # via
     #   dallinger
     #   pandas
