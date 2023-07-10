@@ -564,11 +564,6 @@ class Experiment(object):
         :param participant (Participant): the ``Participant`` who has
         submitted a HIT via their recruiter
         :param event: (dict): Info about the triggering event
-
-        XXX Should this take an ID instead of an object, so it's
-        easier to call asynchonously if we need to do that? This
-        method does wind up making an API call if we're using a
-        recruiter like MTurk.
         """
         eligible_statuses = ("working", "overrecruited", "returned", "abandoned")
         if participant.status not in eligible_statuses:
@@ -593,8 +588,8 @@ class Experiment(object):
             # NOTE EARLY RETURN!!
             return
 
+        # If they pass the data check, we might pay a bonus
         bonus = self.bonus(participant=participant)
-        # XXX we assign the bonus even when we don't pay it??
         participant.bonus = bonus
         if bonus >= min_real_bonus:
             self.log("Bonus = {}: paying bonus".format(bonus))
@@ -616,8 +611,8 @@ class Experiment(object):
             self.log("Attention checks failed.")
             participant.status = "did_not_attend"
             self.attention_check_failed(participant=participant)
-            # NB: if MultiRecruiter is in use, this may not be the same recruiter as
-            # provided the participant we're replacing
+            # NB: if MultiRecruiter is in use, this may not be the same recruiter
+            # that provided the participant we're replacing:
             self.recruiter.recruit(n=1)
 
     def participant_task_completed(self, participant):
