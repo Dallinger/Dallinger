@@ -578,7 +578,7 @@ class Experiment(object):
         config = get_config()
         min_real_bonus = 0.01
         participant.status = "submitted"
-        participant.end_time = event.timestamp
+        participant.end_time = event["timestamp"]
         # commit?
         participant.recruiter.approve_hit(participant.assignment_id)
         participant.base_pay = config.get("base_payment")
