@@ -317,13 +317,6 @@ def deploy(
     executor = Executor(ssh_host, user=ssh_user, app=app_name)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
-    sftp = get_sftp(ssh_host, user=ssh_user)
-    sftp.putfo(BytesIO(DOCKER_COMPOSE_SERVER), "dallinger/docker-compose.yml")
-    sftp.putfo(
-        BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
-        "dallinger/Caddyfile",
-    )
-
     if not update:
         print("Removing any pre-existing app with the same name.")
         app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
@@ -331,7 +324,6 @@ def deploy(
             f"if [ -f {app_yml} ]; then docker compose -f {app_yml} down --remove-orphans; fi",
             raise_=False,
         )
-
         print("Removing any pre-existing Redis volumes.")
         remove_redis_volumes(app_name, executor)
     else:
@@ -342,6 +334,13 @@ def deploy(
                 f"{app_yml} file not found. App {app_name} does not exist on the server."
             )
             raise click.Abort
+
+    sftp = get_sftp(ssh_host, user=ssh_user)
+    sftp.putfo(BytesIO(DOCKER_COMPOSE_SERVER), "dallinger/docker-compose.yml")
+    sftp.putfo(
+        BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
+        "dallinger/Caddyfile",
+    )
 
     print("Launching http and postgresql servers.")
     executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
