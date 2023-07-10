@@ -561,10 +561,9 @@ class Experiment(object):
         to the recruitment platform (may be Dallinger itself) by the
         participant.
 
-        Args:
-            participant (Participant): The Participant ORM object
-            event (dict): Info about the triggering event
-
+        :param participant (Participant): the ``Participant`` who has
+        submitted a HIT via their recruiter
+        :param event: (dict): Info about the triggering event
 
         XXX Should this take an ID instead of an object, so it's
         easier to call asynchonously if we need to do that? This
@@ -577,18 +576,18 @@ class Experiment(object):
 
         config = get_config()
         min_real_bonus = 0.01
+
         participant.status = "submitted"
         participant.end_time = event["timestamp"]
-        # commit?
-        participant.recruiter.approve_hit(participant.assignment_id)
         participant.base_pay = config.get("base_payment")
+        participant.recruiter.approve_hit(participant.assignment_id)
 
         # Data Check
         if not self.data_check(participant=participant):
             participant.status = "bad_data"
             self.data_check_failed(participant=participant)
-            # commit?
-            # XXX should this instead be participant.recruiter.recruit(n=1) ?
+            # NB: if MultiRecruiter is in use, this may not be the same recruiter as
+            # provided the participant we're replacing
             self.recruiter.recruit(n=1)
 
             # NOTE EARLY RETURN!!
@@ -613,13 +612,12 @@ class Experiment(object):
             participant.status = "approved"
             self.submission_successful(participant=participant)
             self.recruit()
-            # Commit?
         else:
             self.log("Attention checks failed.")
             participant.status = "did_not_attend"
             self.attention_check_failed(participant=participant)
-            # Commit?
-            # XXX should this instead be participant.recruiter.recruit(n=1) ?
+            # NB: if MultiRecruiter is in use, this may not be the same recruiter as
+            # provided the participant we're replacing
             self.recruiter.recruit(n=1)
 
     def participant_task_completed(self, participant):
@@ -664,7 +662,6 @@ class Experiment(object):
         experiment (participants who fail to finish successfully are
         automatically replaced). By default it recruits 1 participant at a time
         until all networks are full.
-
         """
         if not self.networks(full=False):
             self.log("All networks full: closing recruitment", "-----")
@@ -688,7 +685,6 @@ class Experiment(object):
         """Add all the objects to the session and commit them.
 
         This only needs to be done for networks and participants.
-
         """
         if len(objects) > 0:
             self.session.add_all(objects)
