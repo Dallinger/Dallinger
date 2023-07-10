@@ -399,7 +399,7 @@ pluggy==1.2.0
     #   tox
 pre-commit==3.3.3
     # via dallinger
-prometheus-client==0.17.0
+prometheus-client==0.17.1
     # via
     #   jupyter-server
     #   nbclassic
