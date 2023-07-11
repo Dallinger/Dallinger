@@ -129,7 +129,7 @@ exceptiongroup==1.1.1
     #   trio-websocket
 executing==1.2.0
     # via stack-data
-faker==18.11.1
+faker==19.0.0
     # via dallinger
 fastjsonschema==2.17.1
     # via nbformat
