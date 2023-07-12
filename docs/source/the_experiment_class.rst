@@ -45,6 +45,9 @@ what to do with the database when the server receives requests from outside.
   .. autoattribute:: hidden_dashboards
     :annotation:
 
+  .. autoattribute:: channel
+    :annotation:
+
   .. attribute:: public_properties
 
      dictionary, the properties of this experiment that are exposed
@@ -122,6 +125,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: participant_task_completed
 
+  .. automethod:: publish_to_subscribers
+
   .. automethod:: recruit
 
   .. automethod:: replay_event
@@ -135,6 +140,8 @@ what to do with the database when the server receives requests from outside.
   .. automethod:: run
 
   .. automethod:: save
+
+  .. automethod:: send
 
   .. automethod:: setup
 

@@ -684,7 +684,7 @@ var dallinger = (function () {
    */
   dlgr.waitForQuorum = function () {
     var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
-    var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat?channel=quorum");
+    var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat?channel=quorum&worker_id=" + dlgr.identity.workerId + '&participant_id=' + dlgr.identity.participantId);
     var deferred = $.Deferred();
     socket.onmessage = function (msg) {
       if (msg.data.indexOf('quorum:') !== 0) { return; }

@@ -77,12 +77,19 @@ class Experiment(object):
     """Define the structure of an experiment."""
 
     app_id = None
-    # Optional Redis channel to create and subscribe to on launch. Note that if
-    # you define a channel, you probably also want to override the send()
-    # method, since this is where messages from Redis will be sent.
-    channel = None
     exp_config = None
     replay_path = "/"
+
+    #: Optional Redis channel to subscribe to on launch. Note that
+    #: if you set the channel, you will probably also want to override the
+    #: :func:`~dallinger.experiment.Experiment.send` method, since this
+    #: is where messages from Redis will be consumed. Setting a value here
+    #: will also result in the experiment being subscribed to the
+    #: ``dallinger_control`` channel for messages related to
+    #: socket/subscription updates. This is also the default ``channel_name``
+    #: for messages sent using the
+    #: :func:`~dallinger.experiment.Experiment.publish_to_subscribers` method.
+    channel = None
 
     #: Constructor for Participant objects. Callable returning an instance of
     #: :attr:`~dallinger.models.Participant` or a sub-class. Used by
@@ -291,14 +298,51 @@ class Experiment(object):
         return waiting_count > self.quorum
 
     def send(self, raw_message):
-        """socket interface implementation, and point of entry for incoming
-        Redis messages.
+        """Stub implementation of the socket interface, and point of entry for
+        incoming Redis pub-sub messages. Sub-classes that wish to handle
+        incoming messages should override this method. This should always
+        be overridden when the ``Experiment``
+        :attr:`~dallinger.experiment.Experiment.channel` attribute is set.
 
-        param raw_message is a string with a channel prefix, for example:
+        ``raw_message`` is a string that includes a channel name prefix, for
+        example a JSON message for a ``shopping`` channel might look like:
 
-            'shopping:{"type":"buy","color":"blue","quantity":"2"}'
+            ``'shopping:{"type":"buy","color":"blue","quantity":"2"}'``
+
+        control messages about channel subscription and websocket
+        connect/disconnect events use the ``dallinger_control`` channel
+        name.
+
+        :param raw_message: a formatted message string ``'$channel_name:$data'``
+        :type raw_message: str
         """
         pass
+
+    def publish_to_subscribers(self, data, channel_name=None):
+        """Publish data to the given channel_name. Data will be sent to all
+        channel subscribers, potentially including the experiment instance
+        itself. If no ``channel_name`` is specified, then the ``Experiment``
+        :attr:`~dallinger.experiment.Experiment.channel` value will be used
+        (and the data will automatically be consumed by
+        :func:`~dallinger.experiment.Experiment.send`). The ``data`` must be
+        a string, it typically contains JSON.
+
+        :param data: the message data to be send
+        :type data: str
+        :param channel_name: the name of the channel to publish the data to
+        :type channel_name: str
+        """
+        if channel_name is None:
+            channel_name = self.channel
+        db.redis_conn.publish(channel_name, data)
+
+    def client_info(self):
+        """Returns a JSON compatible dictionary with data about this client to
+        be included in control channel messages.
+        """
+        return {
+            "class": self.__class__.__module__ + "." + self.__class__.__module__,
+        }
 
     def setup(self):
         """Create the networks if they don't already exist."""

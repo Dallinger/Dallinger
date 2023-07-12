@@ -3,6 +3,7 @@
 
 from __future__ import unicode_literals
 
+import json
 import os
 import socket
 
@@ -22,6 +23,8 @@ sock = Sock(app)
 
 # Send a ping on the websocket channel every 25 seconds
 app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
+
+CONTROL_CHANNEL = "dallinger_control"
 
 
 def log(msg, level="info"):
@@ -47,13 +50,41 @@ class Channel(object):
     def subscribe(self, client):
         """Subscribe a client to the channel."""
         self.clients.append(client)
-        log("Subscribed client {} to channel {}".format(client, self.name))
+        log(
+            "Subscribed client {} to channel {}".format(client, self.name),
+            level="debug",
+        )
+        redis_conn.publish(
+            CONTROL_CHANNEL,
+            json.dumps(
+                {
+                    "type": "channel",
+                    "event": "subscribe",
+                    "channel": self.name,
+                    "client": client.client_info(),
+                }
+            ),
+        )
 
     def unsubscribe(self, client):
         """Unsubscribe a client from the channel."""
         if client in self.clients:
             self.clients.remove(client)
-            log("Unsubscribed client {} from channel {}".format(client, self.name))
+            log(
+                "Unsubscribed client {} from channel {}".format(client, self.name),
+                level="debug",
+            )
+            redis_conn.publish(
+                CONTROL_CHANNEL,
+                json.dumps(
+                    {
+                        "type": "channel",
+                        "event": "unsubscribe",
+                        "channel": self.name,
+                        "client": client.client_info(),
+                    }
+                ),
+            )
 
     def listen(self):
         """Relay messages from a redis pubsub to all subscribed clients.
@@ -116,13 +147,22 @@ chat_backend = ChatBackend()
 class Client(object):
     """Represents a single websocket client."""
 
-    def __init__(self, ws, lag_tolerance_secs=0.1):
+    def __init__(self, ws, lag_tolerance_secs=0.1, worker_id=None, participant_id=None):
         self.ws = ws
         self.lag_tolerance_secs = lag_tolerance_secs
+        self.worker_id = worker_id
+        self.participant_id = participant_id
 
         # This lock is used to make sure that multiple greenlets
         # cannot send to the same socket concurrently.
         self.send_lock = Semaphore()
+
+    def client_info(self):
+        return {
+            "class": self.__class__.__module__ + "." + self.__class__.__module__,
+            "worker_id": self.worker_id,
+            "participant_id": self.participant_id,
+        }
 
     def send(self, message):
         """Send a single message to the websocket."""
@@ -133,6 +173,18 @@ class Client(object):
             try:
                 self.ws.send(message)
             except (socket.error, ConnectionClosed) as e:
+                redis_conn.publish(
+                    CONTROL_CHANNEL,
+                    json.dumps(
+                        {
+                            "type": "websocket",
+                            "event": "disconnected",
+                            "reason": self.ws.close_reason or "",
+                            "message": self.ws.close_message or "",
+                            "client": self.client_info(),
+                        }
+                    ),
+                )
                 chat_backend.unsubscribe(self)
                 if isinstance(e, ConnectionClosed):
                     raise
@@ -145,12 +197,34 @@ class Client(object):
 
     def publish(self):
         """Relay messages from client to redis."""
+        redis_conn.publish(
+            CONTROL_CHANNEL,
+            json.dumps(
+                {
+                    "type": "websocket",
+                    "event": "connected",
+                    "client": self.client_info(),
+                }
+            ),
+        )
         while self.ws.connected:
             # Sleep to prevent *constant* context-switches.
             gevent.sleep(self.lag_tolerance_secs)
             try:
                 message = self.ws.receive()
             except ConnectionClosed:
+                redis_conn.publish(
+                    CONTROL_CHANNEL,
+                    json.dumps(
+                        {
+                            "type": "websocket",
+                            "event": "disconnected",
+                            "reason": self.ws.close_reason or "",
+                            "message": self.ws.close_message or "",
+                            "client": self.client_info(),
+                        }
+                    ),
+                )
                 chat_backend.unsubscribe(self)
                 raise
             if message is not None:
@@ -161,7 +235,12 @@ class Client(object):
 def chat(ws):
     """Relay chat messages to and from clients."""
     lag_tolerance_secs = float(request.args.get("tolerance", 0.1))
-    client = Client(ws, lag_tolerance_secs=lag_tolerance_secs)
+    client = Client(
+        ws,
+        lag_tolerance_secs=lag_tolerance_secs,
+        worker_id=request.args.get("worker_id"),
+        participant_id=request.args.get("participant_id"),
+    )
     client.subscribe(request.args.get("channel"))
     client.publish()
 

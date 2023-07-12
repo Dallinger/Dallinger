@@ -441,9 +441,16 @@ def launch():
     # redis communication channel:
     if exp.channel is not None:
         try:
-            from dallinger.experiment_server.sockets import chat_backend
+            from dallinger.experiment_server.sockets import (
+                CONTROL_CHANNEL,
+                chat_backend,
+            )
 
             chat_backend.subscribe(exp, exp.channel)
+            # Additionally subscribe the experiment to the Dallinger Control
+            # channel for messages about websocket
+            # connect/disconnect/subscribe/unsubscribe events
+            chat_backend.subscribe(exp, CONTROL_CHANNEL)
         except Exception:
             return error_response(
                 error_text="Failed to subscribe to chat for channel on launch "

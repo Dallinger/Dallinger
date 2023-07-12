@@ -313,6 +313,19 @@ class TestExperimentBaseClass(object):
 
         participant.recruiter.assign_experiment_qualifications.assert_not_called()
 
+    def test_publish_to_subscribers(self, exp):
+        with mock.patch("dallinger.db.redis_conn") as mock_redis:
+            exp.publish_to_subscribers("A plain message!", "surprise")
+            mock_redis.publish.assert_called_once_with("surprise", "A plain message!")
+
+    def test_publish_to_subscribers_no_channel_name(self, exp):
+        with mock.patch("dallinger.db.redis_conn") as mock_redis:
+            exp.channel = "exp_default"
+            exp.publish_to_subscribers("A plain message!")
+            mock_redis.publish.assert_called_once_with(
+                "exp_default", "A plain message!"
+            )
+
 
 class TestTaskRegistration(object):
     def test_deferred_task_decorator(self, tasks_with_cleanup):

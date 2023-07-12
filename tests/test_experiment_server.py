@@ -1575,6 +1575,7 @@ class TestLaunchRoute(object):
             mock_exp = mock.Mock()
             mock_exp.protected_routes = []
             mock_exp.background_tasks = []
+            mock_exp.channel = None
             mock_exp.recruiter.open_recruitment.return_value = {
                 "items": ["item"],
                 "message": "a message",
@@ -1592,6 +1593,7 @@ class TestLaunchRoute(object):
             mock_exp = mock.Mock()
             mock_exp.protected_routes = []
             mock_exp.background_tasks = []
+            mock_exp.channel = None
             mock_class.return_value = mock_exp
             resp = webapp.post("/launch", data={})
         assert resp.status_code == 200
@@ -1604,6 +1606,7 @@ class TestLaunchRoute(object):
             bad_log = mock.Mock(side_effect=IOError)
             mock_exp = mock.Mock(log=bad_log)
             mock_exp.protected_routes = []
+            mock_exp.channel = None
             mock_class.return_value = mock_exp
             resp = webapp.post("/launch", data={})
 
@@ -1613,6 +1616,45 @@ class TestLaunchRoute(object):
             "message": "IOError writing to experiment log: ",
             "status": "error",
         }
+
+    def test_launch_establishes_channel_subscription(self, webapp, active_config):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as mock_class:
+            mock_exp = mock.Mock()
+            active_config.extend({"activate_recruiter_on_start": False})
+            mock_exp.protected_routes = []
+            mock_exp.background_tasks = []
+            mock_exp.channel = "special"
+            mock_class.return_value = mock_exp
+            with mock.patch(
+                "dallinger.experiment_server.sockets.chat_backend"
+            ) as mock_chat:
+                webapp.post("/launch", data={})
+                # We should have subscribed the experiment to the specified
+                # channel and the experiment control channel.
+                assert mock_chat.subscribe.call_count == 2
+                assert mock_chat.subscribe.mock_calls[0].args == (mock_exp, "special")
+                assert mock_chat.subscribe.mock_calls[1].args == (
+                    mock_exp,
+                    "dallinger_control",
+                )
+
+    def test_launch_without_channel_gets_no_subscriptions(self, webapp, active_config):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as mock_class:
+            mock_exp = mock.Mock()
+            active_config.extend({"activate_recruiter_on_start": False})
+            mock_exp.protected_routes = []
+            mock_exp.background_tasks = []
+            mock_exp.channel = None
+            mock_class.return_value = mock_exp
+            with mock.patch(
+                "dallinger.experiment_server.sockets.chat_backend"
+            ) as mock_chat:
+                webapp.post("/launch", data={})
+                assert mock_chat.subscribe.call_count == 0
 
 
 @pytest.mark.usefixtures("experiment_dir")
