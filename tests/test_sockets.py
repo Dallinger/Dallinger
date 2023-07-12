@@ -3,6 +3,7 @@ import socket
 import gevent
 import pytest
 from mock import Mock
+from simple_websocket import ConnectionClosed
 
 
 @pytest.fixture
@@ -126,8 +127,31 @@ class TestClient:
 
     def test_send_exception_unsubscribes_client(self, client, channel):
         client.ws.send.side_effect = socket.error()
+        client.ws.close_reason = "Socket Error"
+        client.ws.close_message = "SimulatedError"
         channel.subscribe(client)
-        client.send("message")
+        with pytest.raises(ConnectionClosed) as e:
+            client.send("message")
+            assert e.reason == "Socket Error"
+            assert e.message == "SimulatedError"
+        assert client not in channel.clients
+
+    def test_connection_closed_unsubscribes_client(self, client, channel):
+        closed_error = ConnectionClosed("Closed Error", "Closed")
+        client.ws.send.side_effect = closed_error
+        channel.subscribe(client)
+        with pytest.raises(ConnectionClosed) as e:
+            client.send("message")
+            assert e is closed_error
+        assert client not in channel.clients
+
+    def test_receive_exception_unsubscribes_client(self, client, channel):
+        closed_error = ConnectionClosed("Closed Error", "Closed")
+        client.ws.receive.side_effect = closed_error
+        channel.subscribe(client)
+        with pytest.raises(ConnectionClosed) as e:
+            client.publish()
+            assert e is closed_error
         assert client not in channel.clients
 
 

@@ -132,8 +132,10 @@ class Client(object):
         with self.send_lock:
             try:
                 self.ws.send(message)
-            except (socket.error, ConnectionClosed):
+            except (socket.error, ConnectionClosed) as e:
                 chat_backend.unsubscribe(self)
+                if isinstance(e, ConnectionClosed):
+                    raise
                 raise ConnectionClosed(self.ws.close_reason, self.ws.close_message)
             # log('Sent to {}: {}'.format(self, message), level='debug')
 
