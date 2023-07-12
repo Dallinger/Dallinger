@@ -146,7 +146,11 @@ class Client(object):
         while self.ws.connected:
             # Sleep to prevent *constant* context-switches.
             gevent.sleep(self.lag_tolerance_secs)
-            message = self.ws.receive()
+            try:
+                message = self.ws.receive()
+            except ConnectionClosed:
+                chat_backend.unsubscribe(self)
+                raise
             if message is not None:
                 channel_name, data = message.split(":", 1)
                 redis_conn.publish(channel_name, data)
