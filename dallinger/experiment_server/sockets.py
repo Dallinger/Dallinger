@@ -9,17 +9,19 @@ import socket
 import gevent
 import six
 from flask import request
-from flask_sockets import Sockets
+from flask_sock import Sock
 from gevent.lock import Semaphore
 from redis import ConnectionError
+from simple_websocket import ConnectionClosed
 
 from dallinger.db import redis_conn
 
 from .experiment_server import app
 
-sockets = Sockets(app)
+sock = Sock(app)
 
-HEARTBEAT_DELAY = 30
+# Send a ping on the websocket channel every 25 seconds
+app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
 
 
 def log(msg, level="info"):
@@ -130,19 +132,10 @@ class Client(object):
         with self.send_lock:
             try:
                 self.ws.send(message)
-            except socket.error:
+            except (socket.error, ConnectionClosed):
                 chat_backend.unsubscribe(self)
+                raise ConnectionClosed(self.ws.close_reason, self.ws.close_message)
             # log('Sent to {}: {}'.format(self, message), level='debug')
-
-    def heartbeat(self):
-        """Send a ping to the websocket periodically.
-
-        This is needed so that Heroku won't close the connection
-        from inactivity.
-        """
-        while not self.ws.closed:
-            gevent.sleep(HEARTBEAT_DELAY)
-            gevent.spawn(self.send, "ping")
 
     def subscribe(self, channel):
         """Start listening to messages on the specified channel."""
@@ -150,7 +143,7 @@ class Client(object):
 
     def publish(self):
         """Relay messages from client to redis."""
-        while not self.ws.closed:
+        while self.ws.connected:
             # Sleep to prevent *constant* context-switches.
             gevent.sleep(self.lag_tolerance_secs)
             message = self.ws.receive()
@@ -159,11 +152,14 @@ class Client(object):
                 redis_conn.publish(channel_name, data)
 
 
-@sockets.route("/chat")
 def chat(ws):
     """Relay chat messages to and from clients."""
     lag_tolerance_secs = float(request.args.get("tolerance", 0.1))
     client = Client(ws, lag_tolerance_secs=lag_tolerance_secs)
     client.subscribe(request.args.get("channel"))
-    gevent.spawn(client.heartbeat)
     client.publish()
+
+
+# We need to keep the function around for tests, so we apply the decorator
+# manually
+sock.route("/chat")(chat)

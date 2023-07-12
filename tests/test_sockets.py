@@ -55,18 +55,21 @@ def client(sockets):
 @pytest.fixture
 def mocksocket():
     class MockSocket(Mock):
-        """We need a property that returns False the first time
-        and True after that. Doesn't seem possible with Mock.
+        """We need a property that returns True the first time
+        and False after that. Doesn't seem possible with Mock.
         """
 
         calls = []
 
+        receive = Mock()
+        receive.return_value = None
+
         @property
-        def closed(self):
+        def connected(self):
             if self.calls:
-                return True
+                return False
             self.calls.append("called")
-            return False
+            return True
 
     return MockSocket()
 
@@ -127,22 +130,12 @@ class TestClient:
         client.send("message")
         assert client not in channel.clients
 
-    def test_heartbeat(self, sockets, client):
-        client.ws.closed = False
-        sockets.HEARTBEAT_DELAY = 1
-
-        gevent.spawn(client.heartbeat)
-        gevent.sleep(2)
-        client.ws.closed = True
-        gevent.wait()
-
-        client.ws.send.assert_called_with("ping")
-
 
 class TestChatEndpoint:
     def test_chat_subscribes_to_requested_channel(self, sockets):
         ws = Mock()
-        ws.closed = True
+        ws.connected = False
+        ws.receive.return_value = None
         sockets.request = Mock()
         sockets.request.args = {"channel": "special"}
         sockets.chat(ws)
