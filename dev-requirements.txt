@@ -161,13 +161,15 @@ fqdn==1.5.1
 future==0.18.3
     # via dallinger
 gevent==23.7.0
-    # via dallinger
+    # via
+    #   dallinger
+    #   gunicorn
 greenlet==2.0.2
     # via
     #   dallinger
     #   gevent
     #   sqlalchemy
-gunicorn==21.2.0
+gunicorn[gevent]==21.2.0
     # via dallinger
 h11==0.14.0
     # via wsproto

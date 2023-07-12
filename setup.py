@@ -60,7 +60,7 @@ setup_args = dict(
         "future",
         "gevent",
         "greenlet",
-        "gunicorn",
+        "gunicorn[gevent]",
         "heroku3",
         "ipython < 8.13",
         "localconfig",
