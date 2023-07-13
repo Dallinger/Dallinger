@@ -556,6 +556,65 @@ class Experiment(object):
         """
         return True
 
+    def on_assignment_submitted_to_recruiter(self, participant, event):
+        """Working title. Called when assignment has been submitted
+        to the recruitment platform (may be Dallinger itself) by the
+        participant.
+
+        :param participant (Participant): the ``Participant`` who has
+        submitted a HIT via their recruiter
+        :param event: (dict): Info about the triggering event
+        """
+        eligible_statuses = ("working", "overrecruited", "returned", "abandoned")
+        if participant.status not in eligible_statuses:
+            return
+
+        config = get_config()
+        min_real_bonus = 0.01
+
+        participant.status = "submitted"
+        participant.end_time = event["timestamp"]
+        participant.base_pay = config.get("base_payment")
+        participant.recruiter.approve_hit(participant.assignment_id)
+
+        # Data Check
+        if not self.data_check(participant=participant):
+            participant.status = "bad_data"
+            self.data_check_failed(participant=participant)
+            # NB: if MultiRecruiter is in use, this may not be the same recruiter as
+            # provided the participant we're replacing
+            self.recruiter.recruit(n=1)
+
+            # NOTE EARLY RETURN!!
+            return
+
+        # If they pass the data check, we might pay a bonus
+        bonus = self.bonus(participant=participant)
+        participant.bonus = bonus
+        if bonus >= min_real_bonus:
+            self.log("Bonus = {}: paying bonus".format(bonus))
+            participant.recruiter.reward_bonus(
+                participant,
+                bonus,
+                self.bonus_reason(),
+            )
+        else:
+            self.log("Bonus = {}: NOT paying bonus".format(bonus))
+
+        # Attention Check
+        if self.attention_check(participant=participant):
+            self.log("Attention checks passed.")
+            participant.status = "approved"
+            self.submission_successful(participant=participant)
+            self.recruit()
+        else:
+            self.log("Attention checks failed.")
+            participant.status = "did_not_attend"
+            self.attention_check_failed(participant=participant)
+            # NB: if MultiRecruiter is in use, this may not be the same recruiter
+            # that provided the participant we're replacing:
+            self.recruiter.recruit(n=1)
+
     def participant_task_completed(self, participant):
         """Called when an experiment task is finished and submitted, and prior
         to data and attendance checks.
@@ -598,7 +657,6 @@ class Experiment(object):
         experiment (participants who fail to finish successfully are
         automatically replaced). By default it recruits 1 participant at a time
         until all networks are full.
-
         """
         if not self.networks(full=False):
             self.log("All networks full: closing recruitment", "-----")
@@ -622,7 +680,6 @@ class Experiment(object):
         """Add all the objects to the session and commit them.
 
         This only needs to be done for networks and participants.
-
         """
         if len(objects) > 0:
             self.session.add_all(objects)
