@@ -1508,7 +1508,7 @@ class BotRecruiter(Recruiter):
         logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " bot")
 
     def assignment_submission_requested(self, experiment, participant):
-        """Run BotAssignmentSubmitted syncronously on submission."""
+        """Run BotAssignmentSubmitted synchronously on submission."""
         worker_function(
             event_type="BotAssignmentSubmitted",
             assignment_id=participant.assignment_id,

@@ -1747,9 +1747,9 @@ class TestAssignmentSubmitted(object):
 
         return AssignmentSubmitted(**standard_args)
 
-    def test_calls_on_assignment_submitted_to_recruiter(self, runner):
+    def test_calls_assignment_submitted(self, runner):
         runner()
-        runner.experiment.on_assignment_submitted_to_recruiter.assert_called_once_with(
+        runner.experiment.assignment_submitted.assert_called_once_with(
             participant=runner.participant,
             event={
                 "event_type": "AssignmentSubmitted",
