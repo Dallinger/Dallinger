@@ -578,15 +578,14 @@ class CLIRecruiter(Recruiter):
         """Delegate to the experiment for possible values to show to the
         participant.
         """
+        exit_info = sorted(experiment.exit_info_for(participant).items())
 
-        # We're syncronous
+        # Execute synchonously
         worker_function(
             event_type="AssignmentSubmitted",
             assignment_id=participant.assignment_id,
             participant_id=participant.id,
         )
-
-        exit_info = sorted(experiment.exit_info_for(participant).items())
 
         return flask.render_template(
             "exit_recruiter.html",

@@ -1704,14 +1704,14 @@ def _worker_complete(participant_id):
     participant.end_time = datetime.now()
     session.commit()
 
-    # Notify experiment that participant has been marked complete. Doing
-    # this here, rather than in the worker function, means that
-    # the experiment can request qualification assignment before the
-    # worker completes the HIT when using a recruiter like MTurk, where
-    # execution of the `worker_events.AssignmentSubmitted` command is
-    # deferred until they've submitted the HIT on the MTurk platform.
     exp = Experiment(session)
     exp.participant_task_completed(participant)
+
+    worker_function(
+        event_type="AssignmentCompleted",
+        assignment_id=participant.assignment_id,
+        participant_id=participant_id,
+    )
 
 
 @app.route("/worker_failed", methods=["GET"])
