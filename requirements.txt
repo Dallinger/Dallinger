@@ -56,7 +56,7 @@ exceptiongroup==1.1.2
     #   trio-websocket
 executing==1.2.0
     # via stack-data
-faker==19.0.0
+faker==19.1.0
     # via dallinger
 flask==2.3.2
     # via
@@ -213,7 +213,7 @@ traitlets==5.9.0
     # via
     #   ipython
     #   matplotlib-inline
-trio==0.22.1
+trio==0.22.2
     # via
     #   selenium
     #   trio-websocket
