@@ -565,8 +565,7 @@ class Experiment(object):
         submitted a HIT via their recruiter
         :param event: (dict): Info about the triggering event
         """
-        eligible_statuses = ("working", "overrecruited", "returned", "abandoned")
-        if participant.status not in eligible_statuses:
+        if participant.status not in recruiters.SUBMITTABLE_STATUSES:
             return
 
         config = get_config()

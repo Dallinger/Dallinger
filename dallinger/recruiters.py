@@ -47,6 +47,7 @@ def _get_queue(name="default"):
 # messages in logs:
 NEW_RECRUIT_LOG_PREFIX = "New participant requested:"
 CLOSE_RECRUITMENT_LOG_PREFIX = "Close recruitment."
+SUBMITTABLE_STATUSES = {"working", "overrecruited", "returned", "abandoned"}
 
 
 class Recruiter(object):
@@ -580,12 +581,19 @@ class CLIRecruiter(Recruiter):
         """
         exit_info = sorted(experiment.exit_info_for(participant).items())
 
-        # Execute synchonously
-        worker_function(
-            event_type="AssignmentSubmitted",
-            assignment_id=participant.assignment_id,
-            participant_id=participant.id,
-        )
+        if participant.status in SUBMITTABLE_STATUSES:
+            # Execute synchonously
+            worker_function(
+                event_type="AssignmentSubmitted",
+                assignment_id=participant.assignment_id,
+                participant_id=participant.id,
+            )
+        else:
+            logger.info(
+                "Participant status: '{}', so skipping approval process".format(
+                    participant.status
+                )
+            )
 
         return flask.render_template(
             "exit_recruiter.html",
@@ -1500,7 +1508,7 @@ class BotRecruiter(Recruiter):
         logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " bot")
 
     def assignment_submission_requested(self, experiment, participant):
-        """Run AssignmentSubmitted syncronously on submission."""
+        """Run BotAssignmentSubmitted syncronously on submission."""
         worker_function(
             event_type="BotAssignmentSubmitted",
             assignment_id=participant.assignment_id,

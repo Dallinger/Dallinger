@@ -326,11 +326,13 @@ class TestRecruiterExit(object):
         assert resp.status_code == 404
         assert b"no participant found for ID -1" in resp.data
 
-    def test_with_valid_participant_id_returns_success(self, a, webapp):
-        resp = webapp.get(
-            "/recruiter-exit?participant_id={}".format(a.participant().id)
-        )
+    def test_with_valid_participant_id_approves_assignment_and_returns_success(
+        self, a, webapp
+    ):
+        participant_id = a.participant().id
+        resp = webapp.get("/recruiter-exit?participant_id={}".format(participant_id))
 
+        assert models.Participant.query.get(participant_id).status == "approved"
         assert resp.status_code == 200
 
     def test_debug_mode_renders_exit_page_for_hotair_recruiter(self, a, webapp):
