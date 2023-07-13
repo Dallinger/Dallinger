@@ -152,10 +152,11 @@ class Recruiter(object):
         """
         return None
 
-    def submitted_event(self):
-        """Return the appropriate event type to trigger when
-        an assignment is submitted. If no event should be processed,
-        return None.
+    def on_completion_event(self):
+        """Return the name of the appropriate WorkerEvent command to run
+        when a participant completes an experiment.
+
+        If no event should be processed, return None.
         """
         return "AssignmentSubmitted"
 
@@ -442,7 +443,7 @@ class ProlificRecruiter(Recruiter):
         except ProlificServiceException as ex:
             logger.exception(str(ex))
 
-    def submitted_event(self):
+    def on_completion_event(self):
         """We cannot perform post-submission actions (approval, bonus payment)
         until after the participant has submitted their study via the Prolific
         UI, which we redirect them to from the exit page. This means that we
@@ -1202,7 +1203,7 @@ class MTurkRecruiter(Recruiter):
                 "on MTurk and can no longer submit the questionnaire"
             )
 
-    def submitted_event(self):
+    def on_completion_event(self):
         """MTurk will send its own notification when the worker
         completes the HIT on that service.
         """
@@ -1526,7 +1527,7 @@ class BotRecruiter(Recruiter):
         """Logging only. These are bots."""
         logger.info("Bots don't get bonuses. Sorry, bots.")
 
-    def submitted_event(self):
+    def on_completion_event(self):
         return "BotAssignmentSubmitted"
 
     def _get_bot_factory(self):
