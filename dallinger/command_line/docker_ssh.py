@@ -621,14 +621,23 @@ def destroy(server, app):
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
     executor = Executor(ssh_host, user=ssh_user, app=app)
+
+    # Check if either the caddy config or the docker compose exist
+    # If not, the app is not deployed
+    caddy_config_exists = executor.run(
+        f"test -f ~/dallinger/caddy.d/{app} && echo Yes", raise_=False
+    )
+    docker_compose_exists = executor.run(
+        f"test -f ~/dallinger/{app}/docker-compose.yml && echo Yes", raise_=False
+    )
+    if not caddy_config_exists and not docker_compose_exists:
+        print(f"App {app} is not deployed")
+        raise click.Abort()
+
     # Remove the caddy configuration file and reload caddy config
-    try:
-        executor.run(f"ls ~/dallinger/caddy.d/{app}")
-    except ExecuteException:
-        print(f"App {app} not found on server {server}")
-        raise click.Abort
-    executor.run(f"rm ~/dallinger/caddy.d/{app}")
+    executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
     executor.reload_caddy()
+
     executor.run(
         f"docker compose -f ~/dallinger/{app}/docker-compose.yml down", raise_=False
     )
