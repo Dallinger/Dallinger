@@ -1711,7 +1711,8 @@ def _worker_complete(participant_id):
     exp = Experiment(session)
     exp.participant_task_completed(participant)
 
-    event_type = participant.recruiter.submitted_event()
+    # Does the recruiter want us to execute some command on worker completion?
+    event_type = participant.recruiter.on_completion_event()
 
     if event_type is None:
         return

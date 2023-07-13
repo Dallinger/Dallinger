@@ -1745,6 +1745,7 @@ def standard_args(experiment):
 
     participant = mock.Mock(
         spec_set=Participant,
+        id="42",
         status="working",
         worker_id="123",
         assignment_id="some assignment id",
@@ -1774,97 +1775,16 @@ class TestAssignmentSubmitted(object):
 
         return AssignmentSubmitted(**standard_args)
 
-    def test_calls_reward_bonus_if_experiment_returns_bonus_more_than_one_cent(
-        self, runner
-    ):
-        runner.experiment.bonus.return_value = 0.02
+    def test_calls_on_assignment_submitted_to_recruiter(self, runner):
         runner()
-        runner.participant.recruiter.reward_bonus.assert_called_once_with(
-            runner.participant, 0.02, "You rock."
-        )
-
-    def test_no_reward_bonus_if_experiment_returns_bonus_less_than_one_cent(
-        self, runner
-    ):
-        runner()
-        runner.participant.recruiter.reward_bonus.assert_not_called()
-        assert "NOT paying bonus" in str(runner.experiment.log.call_args_list)
-
-    def test_sets_participant_bonus_regardless(self, runner):
-        runner.experiment.bonus.return_value = 0.005
-        runner()
-        assert runner.participant.bonus == 0.005
-
-    def test_approve_hit_called_on_recruiter(self, runner):
-        runner()
-        runner.participant.recruiter.approve_hit.assert_called_once_with(
-            "some assignment id"
-        )
-
-    def test_participant_base_pay_set(self, runner):
-        runner()
-        assert runner.participant.base_pay == 1.0
-
-    def test_participant_status_set(self, runner):
-        runner()
-        assert runner.participant.status == "approved"
-
-    def test_approves_overrecruited_participants(self, runner):
-        runner.participant.status = "overrecruited"
-        runner()
-        assert runner.participant.status == "approved"
-
-    def test_participant_end_time_set(self, runner):
-        runner()
-        assert runner.participant.end_time == end_time
-
-    def test_submission_successful_called_on_experiment(self, runner):
-        runner()
-        runner.experiment.submission_successful.assert_called_once_with(
-            participant=runner.participant
-        )
-
-    def test_recruit_called_on_experiment(self, runner):
-        runner()
-        runner.experiment.recruit.assert_called_once()
-
-    def test_does_nothing_if_already_approved_worker(self, runner):
-        runner.participant.status = "approved"
-        runner()
-        runner.session.assert_not_called()
-
-    def test_sets_participant_status_on_failed_data_check(self, runner):
-        runner.experiment.data_check.return_value = False
-        runner()
-        assert runner.participant.status == "bad_data"
-
-    def test_calls_data_check_failed_on_failed_data_check(self, runner):
-        runner.experiment.data_check.return_value = False
-        runner()
-        runner.experiment.data_check_failed.assert_called_once_with(
-            participant=runner.participant
-        )
-
-    def test_recruits_another_on_failed_data_check(self, runner):
-        runner.experiment.data_check.return_value = False
-        runner()
-        runner.experiment.recruiter.recruit.assert_called_once_with(n=1)
-
-    def test_no_bonus_inquiry_on_failed_data_check(self, runner):
-        runner.experiment.data_check.return_value = False
-        runner()
-        runner.experiment.bonus.assert_not_called()
-
-    def test_sets_participant_status_on_failed_attention_check(self, runner):
-        runner.experiment.attention_check.return_value = False
-        runner()
-        assert runner.participant.status == "did_not_attend"
-
-    def test_calls_attention_check_failed_on_failed_attention_check(self, runner):
-        runner.experiment.attention_check.return_value = False
-        runner()
-        runner.experiment.attention_check_failed.assert_called_once_with(
-            participant=runner.participant
+        runner.experiment.on_assignment_submitted_to_recruiter.assert_called_once_with(
+            participant=runner.participant,
+            event={
+                "event_type": "AssignmentSubmitted",
+                "participant_id": "42",
+                "assignment_id": "some assignment id",
+                "timestamp": end_time,
+            },
         )
 
 

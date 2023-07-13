@@ -98,7 +98,7 @@ setup_args = dict(
         "dev": [
             "alabaster",
             "black",
-            "bumpversion",
+            "bump2version",
             "coverage",
             "coverage_pth",
             "flake8",

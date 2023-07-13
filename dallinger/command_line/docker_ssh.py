@@ -219,7 +219,7 @@ def build_and_push_image(f):
                 # This is brittle, but it's an edge case not worth more effort
                 if not json.loads(raw_result.split("\r\n")[-2]).get("error"):
                     print(f"Image {image_name} pushed to remote registry")
-                    return f(*args, **kwargs)
+                    return f(*args, **dict(kwargs, image_name=image_name))
                 # The image is not available, neither locally nor on the remote registry
                 print(
                     f"Could not find image {image_name} specified in experiment config as `docker_image_name`"
@@ -324,27 +324,22 @@ def deploy(
         "dallinger/Caddyfile",
     )
 
-    if not update:
-        # Check if there's an existing app with the same name
-        app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
-        app_yml_exists = executor.run(f"ls {app_yml}", raise_=False)
-        messages = []
-        if app_yml_exists:
-            messages.append(
-                f"App with name {app_name} already exists: found {app_yml} file. Aborting."
-            )
-        caddy_yml = f"~/dallinger/caddy.d/{app_name}"
-        caddy_yml_exists = executor.run(f"ls {caddy_yml}", raise_=False)
-        if caddy_yml_exists:
-            print(
-                f"App with name {app_name} already exists: found {app_yml} file. Aborting."
-            )
-        if app_yml_exists or caddy_yml_exists:
-            messages.append(
-                "Use a different name, destroy the current app or add --update"
-            )
-            print("\n".join(messages))
-            raise click.Abort
+    # Check if there's an existing app with the same name
+    app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
+    app_yml_exists = executor.run(f"ls {app_yml}", raise_=False)
+    messages = []
+    caddy_yml = f"~/dallinger/caddy.d/{app_name}"
+    caddy_yml_exists = executor.run(f"ls {caddy_yml}", raise_=False)
+    if (app_yml_exists or caddy_yml_exists) and not update:
+        messages.append("Use a different name, destroy the current app or add --update")
+        print("\n".join(messages))
+        raise click.Abort
+    elif update and not (app_yml_exists and caddy_yml_exists):
+        messages.append(
+            f"App with name {app_name} not found: missing {app_yml} or {caddy_yml} file. Aborting."
+        )
+        print("\n".join(messages))
+        raise click.Abort
 
     print("Launching http and postgresql servers.")
     executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
@@ -412,14 +407,14 @@ def deploy(
     if not update:
         print("Cleaning up db/user")
         executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
+            f"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
         )
         executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
+            f"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
         )
         print(f"Creating database {experiment_id}")
         executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
+            f"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
         )
         create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
         executor.run(
@@ -437,6 +432,26 @@ def deploy(
                     conn.execute(
                         f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA PUBLIC TO "{experiment_id}"'
                     )
+
+    test_user_script = (
+        rf"""SELECT FROM pg_catalog.pg_roles WHERE rolname = '{experiment_id}'"""
+    )
+    query_user_result = executor.run(
+        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(test_user_script)}",
+        raise_=False,
+    )
+    if "0 rows" in query_user_result:
+        # Create the user: it doesn't exist yet
+        create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
+        executor.run(
+            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
+        )
+    else:
+        # Change the password of the existing user
+        change_password_script = f"""ALTER USER "{experiment_id}" WITH ENCRYPTED PASSWORD '{postgresql_password}'"""
+        executor.run(
+            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(change_password_script)}"
+        )
 
     executor.run(
         f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
@@ -463,7 +478,7 @@ def deploy(
     executor.reload_caddy()
 
     if update:
-        print("Skipping experiment launch (update mode)")
+        print("Skipping experiment launch logic because we are in update mode.")
     else:
         print("Launching experiment")
         response = get_retrying_http_client().post(
@@ -609,14 +624,23 @@ def destroy(server, app):
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
     executor = Executor(ssh_host, user=ssh_user, app=app)
+
+    # Check if either the caddy config or the docker compose exist
+    # If not, the app is not deployed
+    caddy_config_exists = executor.run(
+        f"test -f ~/dallinger/caddy.d/{app} && echo Yes", raise_=False
+    )
+    docker_compose_exists = executor.run(
+        f"test -f ~/dallinger/{app}/docker-compose.yml && echo Yes", raise_=False
+    )
+    if not caddy_config_exists and not docker_compose_exists:
+        print(f"App {app} is not deployed")
+        raise click.Abort()
+
     # Remove the caddy configuration file and reload caddy config
-    try:
-        executor.run(f"ls ~/dallinger/caddy.d/{app}")
-    except ExecuteException:
-        print(f"App {app} not found on server {server}")
-        raise click.Abort
-    executor.run(f"rm ~/dallinger/caddy.d/{app}")
+    executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
     executor.reload_caddy()
+
     executor.run(
         f"docker compose -f ~/dallinger/{app}/docker-compose.yml down", raise_=False
     )
