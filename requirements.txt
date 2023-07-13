@@ -213,7 +213,7 @@ traitlets==5.9.0
     # via
     #   ipython
     #   matplotlib-inline
-trio==0.22.1
+trio==0.22.2
     # via
     #   selenium
     #   trio-websocket
