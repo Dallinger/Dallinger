@@ -125,8 +125,8 @@ class Recruiter(object):
         raise NotImplementedError
 
     def assignment_submission_requested(self, experiment, participant):
-        """The recruiter returns an appropriate page on experiment/questionnaire
-        submission.
+        """The recruiter returns an appropriate page when the participant is
+        ready to submit their assignment with their recruiter.
         """
         raise NotImplementedError
 
@@ -576,8 +576,11 @@ class CLIRecruiter(Recruiter):
         self.config = get_config()
 
     def assignment_submission_requested(self, experiment, participant):
-        """Delegate to the experiment for possible values to show to the
-        participant.
+        """Run assignment submission process if eligible, then return a rendered
+        exit page template.
+
+        We delegate to the experiment for possible values to show to the
+        participant on the exit page.
         """
         exit_info = sorted(experiment.exit_info_for(participant).items())
 
@@ -590,7 +593,7 @@ class CLIRecruiter(Recruiter):
             )
         else:
             logger.info(
-                "Participant status: '{}', so skipping approval process".format(
+                "Participant status: '{}'. Skipping submission process...".format(
                     participant.status
                 )
             )
@@ -947,7 +950,9 @@ class RedisStore(object):
 
 
 def _run_mturk_qualification_assignment(worker_id, qualifications):
-    """Provides a way to run qualification assignment asynchronously."""
+    """Wrap the MTurkRecruiter method call so we can run qualification
+    assignment asynchronously.
+    """
     recruiter = MTurkRecruiter()
     recruiter._assign_experiment_qualifications(worker_id, qualifications)
 
@@ -990,6 +995,12 @@ class MTurkRecruiter(Recruiter):
             )
 
     def assignment_submission_requested(self, experiment, participant):
+        """Return a template with a form for submitting the participant's
+        MTurk Assignment.
+
+        Actual processing of the submission will be triggered by an SNS
+        notification once the form is submitted.
+        """
         return flask.render_template(
             "exit_recruiter_mturk.html",
             hitid=participant.hit_id,
