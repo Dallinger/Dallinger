@@ -159,7 +159,7 @@ class Client(object):
 
     def client_info(self):
         return {
-            "class": self.__class__.__module__ + "." + self.__class__.__module__,
+            "class": self.__class__.__module__ + "." + self.__class__.__name__,
             "worker_id": self.worker_id,
             "participant_id": self.participant_id,
         }
