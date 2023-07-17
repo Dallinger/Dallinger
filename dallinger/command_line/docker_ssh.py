@@ -333,7 +333,7 @@ def deploy(
         print(
             f"{RED}Using {dns_host} as hostname. This might cause problems:{END} some browsers"
         )
-        print("mightt tell users this name is suspicious")
+        print("might tell users this name is suspicious")
         print("You can override this by creating a DNS A record pointing to")
         print(
             f"{GREEN}{ssh_host}{END} and using option --dns-host to deploy the experiment."
@@ -356,7 +356,7 @@ def deploy(
             print(
                 f"The dns name for the experiment ({experiment_id}.{dns_host}) should resolve to {ipaddr_server}"
             )
-            print(f"It should resolve to {ipaddr_server}")
+            print(f"It currently resolves to {ipaddr_experiment}")
             raise click.Abort
     executor = Executor(ssh_host, user=ssh_user, app=app_name)
     executor.run("mkdir -p ~/dallinger/caddy.d")
