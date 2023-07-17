@@ -20,9 +20,9 @@ backcall==0.2.0
     # via ipython
 blinker==1.6.2
     # via flask
-boto3==1.28.2
+boto3==1.28.3
     # via dallinger
-botocore==1.31.2
+botocore==1.31.3
     # via
     #   boto3
     #   s3transfer
@@ -40,7 +40,7 @@ cffi==1.15.1
     # via cryptography
 charset-normalizer==3.2.0
     # via requests
-click==8.1.4
+click==8.1.5
     # via
     #   dallinger
     #   flask
@@ -56,7 +56,7 @@ exceptiongroup==1.1.2
     #   trio-websocket
 executing==1.2.0
     # via stack-data
-faker==19.0.0
+faker==19.1.0
     # via dallinger
 flask==2.3.2
     # via
@@ -134,7 +134,7 @@ pexpect==4.8.0
     #   ipython
 pickleshare==0.7.5
     # via ipython
-pip-tools==6.14.0
+pip-tools==7.0.0
     # via dallinger
 prompt-toolkit==3.0.39
     # via ipython
@@ -213,7 +213,7 @@ traitlets==5.9.0
     # via
     #   ipython
     #   matplotlib-inline
-trio==0.22.1
+trio==0.22.2
     # via
     #   selenium
     #   trio-websocket
