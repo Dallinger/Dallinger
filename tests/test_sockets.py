@@ -117,7 +117,7 @@ class TestChannel:
         assert sockets.redis_conn.publish.mock_calls[0].args[0] == "dallinger_control"
         msg_data = json.loads(sockets.redis_conn.publish.mock_calls[0].args[1])
         assert msg_data["type"] == "channel"
-        assert msg_data["event"] == "subscribe"
+        assert msg_data["event"] == "subscribed"
         assert msg_data["channel"] == "custom"
 
     def test_unsubscribe_sends_control_message(self, sockets, mockclient):
@@ -130,7 +130,7 @@ class TestChannel:
         assert sockets.redis_conn.publish.mock_calls[1].args[0] == "dallinger_control"
         msg_data = json.loads(sockets.redis_conn.publish.mock_calls[1].args[1])
         assert msg_data["type"] == "channel"
-        assert msg_data["event"] == "unsubscribe"
+        assert msg_data["event"] == "unsubscribed"
         assert msg_data["channel"] == "custom"
 
 
@@ -203,16 +203,16 @@ class TestClient:
         #
         # 1. The subscribe message on the control channel from
         #    ``TestChannel.test_subscribe_sends_control_message``
-        # 2. A websocket disconnect message on the control channel resulting
-        #    from the error raised in `ws.send()`
-        # 3. The unsubscribe mesage on the control channel from
+        # 2. The unsubscribe mesage on the control channel from
         #    ``TestChannel.test_unsubscribe_sends_control_message``
+        # 3. A websocket disconnect message on the control channel resulting
+        #    from the error raised in `ws.send()`
 
         assert sockets.redis_conn.publish.call_count == 3
 
         # Let's look at that second one
-        assert sockets.redis_conn.publish.mock_calls[1].args[0] == "dallinger_control"
-        msg_data = json.loads(sockets.redis_conn.publish.mock_calls[1].args[1])
+        assert sockets.redis_conn.publish.mock_calls[2].args[0] == "dallinger_control"
+        msg_data = json.loads(sockets.redis_conn.publish.mock_calls[2].args[1])
         assert msg_data["type"] == "websocket"
         assert msg_data["event"] == "disconnected"
 
@@ -240,17 +240,17 @@ class TestClient:
         # 2. A websocket connected message on the control channel sent before
         #    entering the receive loop in `client.publish()`.
         #    See `TestClient.test_publish_control_messages`
-        # 3. A websocket disconnected message on the control channel resulting
-        #    from the error raised during `ws.receive()`.
-        # 4. The unsubscribe mesage on the control channel from
+        # 3. The unsubscribe mesage on the control channel from
         #    ``TestChannel.test_unsubscribe_sends_control_message``
+        # 4. A websocket disconnected message on the control channel resulting
+        #    from the error raised during `ws.receive()`.
 
         assert sockets.redis_conn.publish.call_count == 4
 
         # Let's check the third message with the websocket client disonnection
         # resulting from the error raised in `ws.receive()`
-        assert sockets.redis_conn.publish.mock_calls[2].args[0] == "dallinger_control"
-        msg_data = json.loads(sockets.redis_conn.publish.mock_calls[2].args[1])
+        assert sockets.redis_conn.publish.mock_calls[3].args[0] == "dallinger_control"
+        msg_data = json.loads(sockets.redis_conn.publish.mock_calls[3].args[1])
         assert msg_data["type"] == "websocket"
         assert msg_data["event"] == "disconnected"
 

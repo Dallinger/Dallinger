@@ -123,6 +123,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: normalize_entry_information
 
+  .. automethod:: on_launch
+
   .. automethod:: participant_task_completed
 
   .. automethod:: publish_to_subscribers

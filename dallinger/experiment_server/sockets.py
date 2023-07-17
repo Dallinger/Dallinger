@@ -59,7 +59,7 @@ class Channel(object):
             json.dumps(
                 {
                     "type": "channel",
-                    "event": "subscribe",
+                    "event": "subscribed",
                     "channel": self.name,
                     "client": client.client_info(),
                 }
@@ -79,7 +79,7 @@ class Channel(object):
                 json.dumps(
                     {
                         "type": "channel",
-                        "event": "unsubscribe",
+                        "event": "unsubscribed",
                         "channel": self.name,
                         "client": client.client_info(),
                     }
@@ -173,6 +173,7 @@ class Client(object):
             try:
                 self.ws.send(message)
             except (socket.error, ConnectionClosed) as e:
+                chat_backend.unsubscribe(self)
                 redis_conn.publish(
                     CONTROL_CHANNEL,
                     json.dumps(
@@ -185,7 +186,6 @@ class Client(object):
                         }
                     ),
                 )
-                chat_backend.unsubscribe(self)
                 if isinstance(e, ConnectionClosed):
                     raise
                 raise ConnectionClosed(self.ws.close_reason, self.ws.close_message)
@@ -213,6 +213,7 @@ class Client(object):
             try:
                 message = self.ws.receive()
             except ConnectionClosed:
+                chat_backend.unsubscribe(self)
                 redis_conn.publish(
                     CONTROL_CHANNEL,
                     json.dumps(
@@ -225,7 +226,6 @@ class Client(object):
                         }
                     ),
                 )
-                chat_backend.unsubscribe(self)
                 raise
             if message is not None:
                 channel_name, data = message.split(":", 1)
