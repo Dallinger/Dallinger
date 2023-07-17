@@ -511,7 +511,7 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
-rpds-py==0.8.10
+rpds-py==0.8.11
     # via
     #   jsonschema
     #   referencing
