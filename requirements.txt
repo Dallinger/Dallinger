@@ -87,7 +87,7 @@ greenlet==2.0.2
     #   dallinger
     #   gevent
     #   sqlalchemy
-gunicorn==20.1.0
+gunicorn==21.1.0
     # via dallinger
 h11==0.14.0
     # via wsproto
