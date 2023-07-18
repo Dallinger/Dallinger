@@ -237,7 +237,7 @@ jsonschema==4.18.3
     # via
     #   jupyter-events
     #   nbformat
-jsonschema-specifications==2023.6.1
+jsonschema-specifications==2023.7.1
     # via jsonschema
 jupyter==1.0.0
     # via dallinger
