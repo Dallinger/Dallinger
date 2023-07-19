@@ -129,6 +129,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: publish_to_subscribers
 
+  .. automethod:: receive_message
+
   .. automethod:: recruit
 
   .. automethod:: replay_event

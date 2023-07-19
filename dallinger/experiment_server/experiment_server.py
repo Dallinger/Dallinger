@@ -47,7 +47,7 @@ session = db.session
 redis_conn = db.redis_conn
 
 # Connect to the Redis queue for notifications.
-q = Queue(connection=redis_conn)
+q = Queue("default", connection=redis_conn)
 WAITING_ROOM_CHANNEL = "quorum"
 
 app = Flask("Experiment_Server")

@@ -38,7 +38,7 @@ var open_chatroom = function () {
       'type': 'log',
       'content': dallinger.identity.participantId + ' has joined the chat.',
       'sender': dallinger.identity.participantId,
-      'node': my_node_id,
+      'node_id': my_node_id,
     }));
   });
   chatroom_socket.onmessage = function (msg) {
@@ -70,7 +70,7 @@ var send_message = function() {
     'type': 'message',
     'content': response,
     'sender': dallinger.identity.participantId,
-    'node': my_node_id,
+    'node_id': my_node_id,
   }));
   response = $("#reproduction").val('');
 };
@@ -80,7 +80,7 @@ var leave_chatroom = function() {
     'type': 'log',
     'content': 'Participant ' + dallinger.identity.participantId + ' has left the chat.',
     'sender': dallinger.identity.participantId,
-    'node': my_node_id,
+    'node_id': my_node_id,
   }));
   chatroom_socket.onclose = function () {
     dallinger.goToPage("questionnaire");

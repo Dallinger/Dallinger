@@ -7,7 +7,7 @@ from dallinger import db, networks
 from dallinger.compat import unicode
 from dallinger.config import get_config
 from dallinger.experiment import Experiment
-from dallinger.models import Info, Participant
+from dallinger.models import Info
 from dallinger.nodes import Agent
 
 try:
@@ -75,7 +75,9 @@ class WebSocketChatroom(Experiment):
             return False
         return waiting_count > self.max_recruits
 
-    def send(self, raw_message):
+    def receive_message(
+        self, message, channel_name=None, participant=None, node=None, receive_time=None
+    ):
         """We recieve all messages coming into the ``chatroom`` channel along with
         the ``dallinger_control`` channel. We store all user messages as
         transmissions, but let the broadcast happen in the websocket channel.
@@ -83,38 +85,32 @@ class WebSocketChatroom(Experiment):
         We send control messages back to the ``chatroom`` channel as log message
         so that clients can display them separate from chat messages.
         """
-        channel, message = raw_message.split(":", 1)
         message = json.loads(message)
-
-        participant = node = None
-        participant_id = (
-            message.get("sender")
-            or message.get("participant_id")
-            or message.get("client", {}).get("participant_id")
-        )
-        if participant_id:
-            participant = self.session.query(Participant).get(participant_id)
-
         # Get the node if we can
-        if message.get("node"):
-            node = self.session.query(Agent).get(message["node"])
-        elif participant:
+        if participant and not node:
             nodes = participant.nodes()
             if len(nodes):
                 node = participant.nodes()[-1]
 
         # Create an info for the message with details stored
+        connected_neighbors = []
         if node:
             content = message.get("content", "")
             info = Info(origin=node, contents=content, details=message)
+            if receive_time:
+                info.creation_time = receive_time
+
+            connected_neighbors = [
+                a for a in node.neighbors() if a.details.get("subscribed", True)
+            ]
 
         # Handle control messages by marking nodes as connected/subscribed and
-        # seding log info to clients via the chatroom channel
-        if channel == "dallinger_control":
+        # sending log info to clients via the chatroom channel
+        if channel_name == "dallinger_control":
             log_output = None
-            if participant_id and message.get("event"):
+            if participant and message.get("event"):
                 log_output = "Participant {} {}.".format(
-                    participant_id, message["event"]
+                    participant.id, message["event"]
                 )
                 db.redis_conn.publish(
                     "chatroom",
@@ -143,12 +139,7 @@ class WebSocketChatroom(Experiment):
                 # If we get an unsubscribe from the last connected member, we
                 # send a specific message suggest ending the chat.
                 if message["event"] == "unsubscribed":
-                    connected_count = 0
-                    for agent in node.neighbors():
-                        if agent.details.get("subscribed", True):
-                            # We found a connection
-                            connected_count += 1
-                    if connected_count <= 1:
+                    if len(connected_neighbors) <= 1:
                         # No connections remaining, notify
                         db.redis_conn.publish(
                             "chatroom",
@@ -168,12 +159,11 @@ class WebSocketChatroom(Experiment):
                         self.recruiter.close_recruitment()
 
         # If the message was sent to the chatroom we create transmissions to all
-        # connected nodes.
-        if node and channel == "chatroom":
-            for agent in node.neighbors():
-                # Don't save transmissions to nodes that are disconnected or unsubscribed
-                if not agent.details.get("subscribed", True):
-                    continue
-                node.transmit(what=info, to_whom=agent)
+        # subcribed nodes.
+        if channel_name == "chatroom" and connected_neighbors:
+            transmissions = node.transmit(what=info, to_whom=connected_neighbors)
+            if receive_time:
+                for transmission in transmissions:
+                    transmission.created_time = receive_time
 
         self.session.commit()

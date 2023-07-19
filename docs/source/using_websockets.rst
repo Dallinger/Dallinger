@@ -11,10 +11,14 @@ The integration consists of a web API route `GET /chat?channel=<channel>` (see
 Additionally, Experiment classes can implement a
 :attr:`~dallinger.experiment.Experiment.channel` attribute which will subscribe
 the experiment class to a the named channel. Such experiments should implement a
-:func:`~dallinger.experiment.Experiment.send` to recieve and process any
-messages on the specifed channel as well as the control channel named
-`"dallinger_control"`. They may also send messages to client subscribed to a
-channel using the
+:func:`~dallinger.experiment.Experiment.receive_message` method to recieve and
+process any messages on the specifed channel as well as the control channel
+named `"dallinger_control"`. This function will be called asynchronously by a
+worker when the message contains JSON data that includes a ``sender`` or
+``participant_id`` property containing the sender's Participant id or a
+``node_id`` containing a Node id.
+
+Experiments may also send messages to clients subscribed to a channel using the
 :func:`~dallinger.experiment.Experiment.publish_to_subscribers` method.
 
 If you would like your experiment class to receive messages published on

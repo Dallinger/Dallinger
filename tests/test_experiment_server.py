@@ -1749,6 +1749,23 @@ class TestWorkerFunctionIntegration(object):
         assert event.origin.participant_id == participant_id
         assert event.details["test"] is True
 
+    def test_converts_timestamp_and_sets_time(self, a, worker_func):
+        participant = a.participant()
+        receive_time = datetime.now()
+
+        with mock.patch(self.dispatcher) as mock_baseclass:
+            runner = mock.Mock()
+            mock_baseclass.for_name = mock.Mock(return_value=runner)
+            worker_func(
+                event_type="MockEvent",
+                assignment_id=None,
+                participant_id=participant.id,
+                receive_timestamp=receive_time.timestamp(),
+            )
+            mock_baseclass.for_name.assert_called_once_with("MockEvent")
+            assert runner.call_args[1]["receive_time"] == receive_time
+            assert isinstance(runner.call_args[1]["now"], datetime)
+
 
 class TestWorkerEvents(object):
     def test_dispatch(self):
@@ -1765,6 +1782,15 @@ class TestWorkerEvents(object):
         from dallinger.experiment_server.worker_events import WorkerEvent
 
         assert WorkerEvent.for_name("nonsense") is None
+
+    def test_event_subclass_registered(self):
+        from dallinger.experiment_server.worker_events import WorkerEvent
+
+        class MyCustomEventClass(WorkerEvent):
+            pass
+
+        # The meta class automatically registers new classes by name
+        assert WorkerEvent.for_name("MyCustomEventClass") is MyCustomEventClass
 
 
 end_time = datetime(2000, 1, 1)
@@ -1800,6 +1826,7 @@ def standard_args(experiment):
         "session": mock.Mock(spec_set=scoped_session),
         "config": {},
         "now": end_time,
+        "receive_time": end_time,
     }.copy()
 
 
@@ -1995,3 +2022,22 @@ class TestNotificationMissing(object):
         runner.participant.end_time = marker
         runner()
         assert runner.participant.end_time is marker
+
+
+class TestWebSocketMessage(object):
+    @pytest.fixture
+    def runner(self, standard_args):
+        from dallinger.experiment_server.worker_events import WebSocketMessage
+
+        return WebSocketMessage(**standard_args)
+
+    def test_calls_experiment_recieve(self, runner):
+        runner.details = {"message": '{"key":"value"}', "channel_name": "exp_channel"}
+        runner()
+        runner.experiment.receive_message.assert_called_once_with(
+            '{"key":"value"}',
+            channel_name="exp_channel",
+            participant=runner.participant,
+            node=runner.node,
+            receive_time=end_time,
+        )
