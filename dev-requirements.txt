@@ -384,7 +384,7 @@ pexpect==4.8.0
     #   ipython
 pickleshare==0.7.5
     # via ipython
-pip-tools==7.0.0
+pip-tools==7.1.0
     # via dallinger
 platformdirs==3.9.1
     # via
