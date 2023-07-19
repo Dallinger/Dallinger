@@ -333,7 +333,7 @@ nest-asyncio==1.5.6
     #   notebook
 nodeenv==1.8.0
     # via pre-commit
-notebook==6.5.4
+notebook==7.0.0
     # via jupyter
 notebook-shim==0.2.3
     # via nbclassic
