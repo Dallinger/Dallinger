@@ -19,6 +19,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unicodedata import normalize
 
+import pkg_resources
 import requests
 from faker import Faker
 from flask import request
@@ -399,9 +400,12 @@ def check_experiment_dependencies(requirements_file):
 
     for dep in dependencies:
         if find_spec(dep) is None:
-            raise ValueError(
-                f"Please install the '{dep}' package to run this experiment."
-            )
+            try:
+                pkg_resources.get_distribution(dep)
+            except pkg_resources.DistributionNotFound:
+                raise ValueError(
+                    f"Please install the '{dep}' package to run this experiment."
+                )
 
 
 def develop_target_path(config):
