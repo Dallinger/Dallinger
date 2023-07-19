@@ -313,7 +313,7 @@ nbclassic==1.0.0
     # via notebook
 nbclient==0.8.0
     # via nbconvert
-nbconvert==7.7.1
+nbconvert==7.7.2
     # via
     #   jupyter
     #   jupyter-server
