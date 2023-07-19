@@ -341,7 +341,7 @@ class Experiment(object):
         be included in control channel messages.
         """
         return {
-            "class": self.__class__.__module__ + "." + self.__class__.__module__,
+            "class": self.__class__.__module__ + "." + self.__class__.__name__,
         }
 
     def setup(self):
