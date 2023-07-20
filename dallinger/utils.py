@@ -19,7 +19,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unicodedata import normalize
 
-import pkg_resources
 import requests
 from faker import Faker
 from flask import request
@@ -28,6 +27,11 @@ from dallinger import db
 from dallinger.compat import is_command
 from dallinger.config import get_config
 from dallinger.version import __version__
+
+try:
+    from pip._vendor import pkg_resources
+except ImportError:
+    pkg_resources = None
 
 fake = Faker()
 
@@ -402,7 +406,7 @@ def check_experiment_dependencies(requirements_file):
         if find_spec(dep) is None:
             try:
                 pkg_resources.get_distribution(dep)
-            except pkg_resources.DistributionNotFound:
+            except (pkg_resources.DistributionNotFound, AttributeError):
                 raise ValueError(
                     f"Please install the '{dep}' package to run this experiment."
                 )
