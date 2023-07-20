@@ -339,6 +339,7 @@ class Experiment(object):
             message.get("sender")
             or message.get("participant_id")
             or message.get("client", {}).get("participant_id")
+            or message.get("player_id")
         )
         node_id = message.get("node_id")
         if not participant_id and not node_id:
