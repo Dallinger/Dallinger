@@ -796,7 +796,10 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         config.load()
 
     if config.get("lock_table_when_creating_participant"):
-        # Lock the table, triggering multiple simultaneous accesses to fail
+        # Historically we have locked the participant table when creating participants
+        # to avoid database inconsistency problems. However some experimenters have experienced
+        # some deadlocking problems associated with this locking, so we have made
+        # it an opt-out behavior.
         try:
             session.connection().execute(
                 "LOCK TABLE participant IN EXCLUSIVE MODE NOWAIT"
