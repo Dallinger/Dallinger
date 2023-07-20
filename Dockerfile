@@ -84,7 +84,6 @@ RUN --mount=type=cache,target=/chromedownload \
     rm -rf /var/lib/apt/lists/*
 
 RUN OUR_CHROME_VERSION=$(google-chrome --version |sed "s/Google Chrome //") && \
-    chrome-for-testing/${OUR_CHROME_VERSION}/linux64/chrome-linux64.zip) && \
     echo Installing chromedriver $OUR_CHROME_VERSION && \
     busybox wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${OUR_CHROME_VERSION}/linux64/chromedriver-linux64.zip -O /tmp/chromedriver_linux64.zip && \
     busybox unzip /tmp/chromedriver_linux64.zip -d /usr/local/bin/ && \
