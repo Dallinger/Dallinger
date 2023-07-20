@@ -20,7 +20,7 @@ backcall==0.2.0
     # via ipython
 blinker==1.6.2
     # via flask
-boto3==1.28.3
+boto3==1.28.8
     # via dallinger
 botocore==1.31.3
     # via
