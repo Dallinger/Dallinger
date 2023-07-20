@@ -791,12 +791,19 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
     defined in reference to the participant object. You must specify the
     worker_id, hit_id, assignment_id, and mode in the url.
     """
-    # Lock the table, triggering multiple simultaneous accesses to fail
-    try:
-        session.connection().execute("LOCK TABLE participant IN EXCLUSIVE MODE NOWAIT")
-    except exc.OperationalError as e:
-        e.orig = TransactionRollbackError()
-        raise e
+    config = get_config()
+    if not config.ready:
+        config.load()
+
+    if config.get("lock_table_when_creating_participant"):
+        # Lock the table, triggering multiple simultaneous accesses to fail
+        try:
+            session.connection().execute(
+                "LOCK TABLE participant IN EXCLUSIVE MODE NOWAIT"
+            )
+        except exc.OperationalError as e:
+            e.orig = TransactionRollbackError()
+            raise e
 
     missing = [p for p in (worker_id, hit_id, assignment_id) if p == "undefined"]
     if missing:

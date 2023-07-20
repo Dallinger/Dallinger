@@ -71,6 +71,7 @@ default_keys = (
     ("keywords", six.text_type, []),
     ("language", six.text_type, []),
     ("lifetime", int, []),
+    ("lock_table_when_creating_participant", bool, []),
     ("logfile", six.text_type, []),
     ("loglevel", int, []),
     ("mode", six.text_type, []),
