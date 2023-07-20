@@ -315,7 +315,13 @@ class Experiment(object):
         connect/disconnect events use the ``dallinger_control`` channel name.
 
         Experiments can override this method if they want to process all
-        messages synchronously in a single application instance.
+        messages synchronously in a single application instance by default. For
+        example if an experiment retains non-persisted state in an attribute of
+        the experiment class that it uses for message responses then it's best
+        to override this method instead of
+        :func:`~dallinger.experiment.Experiment.receive_message`, and explicitly
+        hand off state synchronization and other database writes to async worker
+        events.
 
         :param raw_message: a formatted message string ``'$channel_name:$data'``
         :type raw_message: str
@@ -387,7 +393,7 @@ class Experiment(object):
         :param message: a websocket message
         :type message: str
 
-        :param channel_name: The name of the channel the message was recieved on.
+        :param channel_name: The name of the channel the message was received on.
         :type channel_name: str
 
         :param participant: the experiment participant object responsible for the message
@@ -396,7 +402,7 @@ class Experiment(object):
         :param node: the experiment node the message corresponds to
         :type node: :attr:`~dallinger.models.Node` instance
 
-        :param receive_time: The time the message was recieved by the experiment
+        :param receive_time: The time the message was received by the experiment
         :type receive_time: datetime.datetime
         """
         pass
