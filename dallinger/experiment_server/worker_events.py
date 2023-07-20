@@ -31,6 +31,20 @@ def _get_queue(name="default"):
     return Queue(name, connection=db.redis_conn)
 
 
+LOG_EVENT_TYPES = frozenset(
+    (
+        "AssignmentAccepted",
+        "AssignmentAbandoned",
+        "AssignmentReassigned",
+        "AssignmentReturned",
+        "AssignmentSubmitted",
+        "BotAssignmentSubmitted",
+        "BotAssignmentRejected",
+        "NotificationMissing",
+    )
+)
+
+
 @db.scoped_session_decorator
 def worker_function(
     event_type,
@@ -59,12 +73,14 @@ def worker_function(
     exp = _loaded_experiment(db.session)
     key = "-----"
 
-    exp.log(
-        "Received an {} notification for assignment {}, participant {}".format(
-            event_type, assignment_id, participant_id
-        ),
-        key,
-    )
+    # Logging every event is a bit verbose for experiment driven events
+    if event_type in LOG_EVENT_TYPES:
+        exp.log(
+            "Received an {} notification for assignment {}, participant {}".format(
+                event_type, assignment_id, participant_id
+            ),
+            key,
+        )
 
     receive_time = (
         datetime.fromtimestamp(receive_timestamp)
@@ -140,7 +156,7 @@ def worker_function(
                 key,
             )
             return
-    elif not participant:
+    elif not participant and not node:
         raise ValueError(
             "Error: worker_function needs either an assignment_id or a "
             "participant_id, they cannot both be None"
@@ -179,10 +195,10 @@ class WorkerEvent(metaclass=_WorkerMeta):
 
     def __init__(
         self,
-        participant,
-        assignment_id,
-        experiment,
-        session,
+        participant=None,
+        assignment_id=None,
+        experiment=None,
+        session=None,
         config=None,
         now=None,
         receive_time=None,

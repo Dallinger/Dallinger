@@ -22,7 +22,6 @@ from typing import List, Optional, Union
 import requests
 from cached_property import cached_property
 from flask import Blueprint
-from rq import Queue
 from sqlalchemy import Table, and_, create_engine, func
 from sqlalchemy.orm import scoped_session, sessionmaker, undefer
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
@@ -321,7 +320,10 @@ class Experiment(object):
         :param raw_message: a formatted message string ``'$channel_name:$data'``
         :type raw_message: str
         """
-        from dallinger.experiment_server.worker_events import worker_function
+        from dallinger.experiment_server.worker_events import (
+            _get_queue,
+            worker_function,
+        )
 
         receive_time = datetime.datetime.now()
         channel_name, message_string = raw_message.split(":", 1)
@@ -347,7 +349,7 @@ class Experiment(object):
             )
             return
 
-        q = Queue("high", connection=db.redis_conn)
+        q = _get_queue("high")
         q.enqueue(
             worker_function,
             "WebSocketMessage",
