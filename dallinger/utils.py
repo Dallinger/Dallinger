@@ -28,6 +28,11 @@ from dallinger.compat import is_command
 from dallinger.config import get_config
 from dallinger.version import __version__
 
+try:
+    from pip._vendor import pkg_resources
+except ImportError:
+    pkg_resources = None
+
 fake = Faker()
 
 
@@ -399,9 +404,12 @@ def check_experiment_dependencies(requirements_file):
 
     for dep in dependencies:
         if find_spec(dep) is None:
-            raise ValueError(
-                f"Please install the '{dep}' package to run this experiment."
-            )
+            try:
+                pkg_resources.get_distribution(dep)
+            except (pkg_resources.DistributionNotFound, AttributeError):
+                raise ValueError(
+                    f"Please install the '{dep}' package to run this experiment."
+                )
 
 
 def develop_target_path(config):
