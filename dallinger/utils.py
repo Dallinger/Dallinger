@@ -603,7 +603,6 @@ cp requirements.txt constraints.txt"""
             check_output(
                 [
                     "pip-compile",
-                    "--resolver=backtracking",
                     "-v",
                     str(tmpfile),
                     "-o",
