@@ -242,7 +242,7 @@ werkzeug==2.3.6
     # via
     #   flask
     #   flask-login
-wheel==0.40.0
+wheel==0.41.0
     # via pip-tools
 wsproto==1.2.0
     # via trio-websocket
