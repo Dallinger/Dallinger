@@ -65,7 +65,7 @@ jobs:
       - name: Install Ubuntu packages
         run: sudo apt-get --yes install pandoc enchant-2 curl
       - name: Chromedriver setup
-        uses: nanasess/setup-chromedriver@v1.0.5
+        uses: nanasess/setup-chromedriver@v2.1.0
       - name: Install snap packages
         run: curl https://cli-assets.heroku.com/install.sh | sh
       - name: Set up Node.js
@@ -191,7 +191,7 @@ jobs:
       - name: Install and upgrade wheel, pip and tox
         run: pip install --upgrade pip wheel tox
       - name: Chromedriver setup
-        uses: nanasess/setup-chromedriver@v1.0.5
+        uses: nanasess/setup-chromedriver@v2.1.0
       - name: Change dallinger version required by bartlett1932 to match current version
         run: |
           VERSION=$(grep __version__ dallinger/version.py |sed -e 's/__version__ = "//;s/"//')
