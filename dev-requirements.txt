@@ -48,9 +48,9 @@ bleach==6.0.0
     # via nbconvert
 blinker==1.6.2
     # via flask
-boto3==1.28.8
+boto3==1.28.11
     # via dallinger
-botocore==1.31.8
+botocore==1.31.11
     # via
     #   boto3
     #   s3transfer
@@ -64,7 +64,7 @@ cached-property==1.5.2
     # via dallinger
 cachetools==5.3.1
     # via tox
-certifi==2023.5.7
+certifi==2023.7.22
     # via
     #   requests
     #   selenium
@@ -129,7 +129,7 @@ executing==1.2.0
     # via stack-data
 faker==19.2.0
     # via dallinger
-fastjsonschema==2.17.1
+fastjsonschema==2.18.0
     # via nbformat
 filelock==3.12.2
     # via
@@ -174,7 +174,7 @@ h11==0.14.0
     # via wsproto
 heroku3==5.2.1
     # via dallinger
-identify==2.5.25
+identify==2.5.26
     # via pre-commit
 idna==3.4
     # via
@@ -186,7 +186,7 @@ imagesize==1.4.1
     # via sphinx
 iniconfig==2.0.0
     # via pytest
-ipykernel==6.24.0
+ipykernel==6.25.0
     # via
     #   ipywidgets
     #   jupyter
@@ -279,7 +279,7 @@ jupyterlab==4.0.3
     # via notebook
 jupyterlab-pygments==0.2.2
     # via nbconvert
-jupyterlab-server==2.23.0
+jupyterlab-server==2.24.0
     # via
     #   jupyterlab
     #   notebook
@@ -319,7 +319,7 @@ myst-parser==2.0.0
     # via dallinger
 nbclient==0.8.0
     # via nbconvert
-nbconvert==7.7.2
+nbconvert==7.7.3
     # via
     #   jupyter
     #   jupyter-server
@@ -658,7 +658,7 @@ urllib3==1.26.16
     #   selenium
 user-agents==2.2.0
     # via dallinger
-virtualenv==20.24.1
+virtualenv==20.24.2
     # via
     #   pre-commit
     #   tox
@@ -678,7 +678,7 @@ werkzeug==2.3.6
     # via
     #   flask
     #   flask-login
-wheel==0.40.0
+wheel==0.41.0
     # via pip-tools
 widgetsnbextension==4.0.8
     # via ipywidgets

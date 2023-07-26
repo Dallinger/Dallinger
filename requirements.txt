@@ -20,9 +20,9 @@ backcall==0.2.0
     # via ipython
 blinker==1.6.2
     # via flask
-boto3==1.28.8
+boto3==1.28.11
     # via dallinger
-botocore==1.31.8
+botocore==1.31.11
     # via
     #   boto3
     #   s3transfer
@@ -32,7 +32,7 @@ build==0.10.0
     #   pip-tools
 cached-property==1.5.2
     # via dallinger
-certifi==2023.5.7
+certifi==2023.7.22
     # via
     #   requests
     #   selenium
@@ -242,7 +242,7 @@ werkzeug==2.3.6
     # via
     #   flask
     #   flask-login
-wheel==0.40.0
+wheel==0.41.0
     # via pip-tools
 wsproto==1.2.0
     # via trio-websocket
