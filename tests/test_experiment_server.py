@@ -1853,6 +1853,8 @@ class TestAssignmentSubmitted(object):
                 "participant_id": "42",
                 "assignment_id": "some assignment id",
                 "timestamp": end_time,
+                "receive_time": end_time,
+                "details": None,
             },
         )
 
