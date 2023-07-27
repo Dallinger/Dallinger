@@ -2,9 +2,22 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.9.0](https://github.com/dallinger/dallinger/tree/v9.9.0) (2023-07-27)
+
+- Fixed: Added check for dependencies using `pkg_resources`.
+- Fixed: Fixed issues where CI jobs were failing due to changes of how ChromeDriver needs to be downloaded for Chrome versions >= 115.
+- Enhancement: Added new `Experiment` method `on_assignment_submitted_to_recruiter` to allow experiment authors to override the behavior when a participant finishes an experiment.
+- Enhancement: Added `--update` option to `dallinger docker-ssh deploy`.
+- Enhancement: Make it possible to destroy a partially deployed app.
+- Enhancement: Added new config variable `lock_table_when_creating_participant` to prevent possible deadlocks on the `Participant` table.
+- Enhancement: Added sanity checks for `dallinger docker-ssh deploy` to fail early in case the option `--dns-host` doesn't refer to a properly configured name and issue a warning that some browsers might deem the domain insecure.
+- Removed: Removed `--resolver=backtracking` from `pip-compile` commands as it became the default in pip-tools 7.0.0.
+- Documentation: Updated section on releasing a new version of Dallinger.
+- Infrastructure: Updated dependencies; replaced bumpversion with bump2version.
+
 ## [v9.8.2](https://github.com/dallinger/dallinger/tree/v9.8.2) (2023-07-03)
 
-- Fixed a bug in dlgr.submitAssignment that was causing MTurk HIT submission to fail. This bug was introduced in v.9.8.0 when fixing another bug. The bug meant that `externalSubmit` was being called in the popup window, not the MTurk iframe, causing submission to fail.
+- Fixed a bug in `dlgr.submitAssignment` that was causing MTurk HIT submission to fail. This bug was introduced in v9.8.0 when fixing another bug. The bug meant that `externalSubmit` was being called in the popup window, not the MTurk iframe, causing submission to fail.
 
 ## [v9.8.1](https://github.com/dallinger/dallinger/tree/v9.8.1) (2023-06-22)
 
