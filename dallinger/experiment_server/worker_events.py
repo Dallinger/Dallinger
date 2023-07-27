@@ -222,6 +222,8 @@ class WorkerEvent(metaclass=_WorkerMeta):
             "participant_id": self.participant.id,
             "assignment_id": self.assignment_id,
             "timestamp": self.now,
+            "receive_time": self.receive_time,
+            "details": self.details,
         }
 
     def commit(self):
