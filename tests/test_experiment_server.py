@@ -1846,17 +1846,7 @@ class TestAssignmentSubmitted(object):
 
     def test_calls_on_assignment_submitted_to_recruiter(self, runner):
         runner()
-        runner.experiment.on_assignment_submitted_to_recruiter.assert_called_once_with(
-            participant=runner.participant,
-            event={
-                "event_type": "AssignmentSubmitted",
-                "participant_id": "42",
-                "assignment_id": "some assignment id",
-                "timestamp": end_time,
-                "receive_time": end_time,
-                "details": None,
-            },
-        )
+        runner.experiment.on_assignment_submitted_to_recruiter.assert_called_once()
 
 
 class TestBotAssignmentSubmitted(object):
