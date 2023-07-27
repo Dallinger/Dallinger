@@ -22,7 +22,7 @@ arrow==1.2.3
     # via isoduration
 asttokens==2.2.1
     # via stack-data
-async-lru==2.0.3
+async-lru==2.0.4
     # via jupyterlab
 async-timeout==4.0.2
     # via redis
