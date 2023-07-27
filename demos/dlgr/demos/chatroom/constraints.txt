@@ -14,10 +14,6 @@ asttokens==2.2.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   stack-data
-async-generator==1.10
-    # via
-    #   -c ../../../../dev-requirements.txt
-    #   trio
 async-timeout==4.0.2
     # via
     #   -c ../../../../dev-requirements.txt
@@ -35,11 +31,11 @@ blinker==1.6.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask
-boto3==1.26.158
+boto3==1.28.11
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-botocore==1.29.158
+botocore==1.31.11
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
@@ -53,7 +49,7 @@ cached-property==1.5.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-certifi==2023.5.7
+certifi==2023.7.22
     # via
     #   -c ../../../../dev-requirements.txt
     #   requests
@@ -62,11 +58,11 @@ cffi==1.15.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   cryptography
-charset-normalizer==3.1.0
+charset-normalizer==3.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   requests
-click==8.1.3
+click==8.1.6
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -74,17 +70,17 @@ click==8.1.3
     #   nltk
     #   pip-tools
     #   rq
-cryptography==41.0.1
+cryptography==41.0.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   pyopenssl
-dallinger==9.8.2
+dallinger==9.9.0
     # via -r requirements.txt
 decorator==5.1.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   ipython
-exceptiongroup==1.1.1
+exceptiongroup==1.1.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
@@ -93,7 +89,7 @@ executing==1.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   stack-data
-faker==18.11.1
+faker==19.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -125,7 +121,7 @@ future==0.18.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-gevent==22.10.2
+gevent==23.7.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -141,7 +137,7 @@ greenlet==2.0.2
     #   dallinger
     #   gevent
     #   sqlalchemy
-gunicorn==20.1.0
+gunicorn==21.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -198,6 +194,10 @@ matplotlib-inline==0.1.6
     #   ipython
 nltk==3.6.3
     # via -r requirements.txt
+numpy==1.24.4
+    # via
+    #   -c ../../../../dev-requirements.txt
+    #   dallinger
 outcome==1.2.0
     # via
     #   -c ../../../../dev-requirements.txt
@@ -206,6 +206,7 @@ packaging==23.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   build
+    #   gunicorn
 parso==0.8.3
     # via
     #   -c ../../../../dev-requirements.txt
@@ -219,11 +220,11 @@ pickleshare==0.7.5
     # via
     #   -c ../../../../dev-requirements.txt
     #   ipython
-pip-tools==6.13.0
+pip-tools==7.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-prompt-toolkit==3.0.38
+prompt-toolkit==3.0.39
     # via
     #   -c ../../../../dev-requirements.txt
     #   ipython
@@ -274,7 +275,7 @@ pytz==2023.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   apscheduler
-redis==4.5.5
+redis==4.6.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -314,7 +315,7 @@ sortedcontainers==2.4.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
-sqlalchemy==1.4.48
+sqlalchemy==1.4.49
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -343,6 +344,7 @@ tomli==2.0.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   build
+    #   pip-tools
     #   pyproject-hooks
 tqdm==4.62.3
     # via nltk
@@ -351,7 +353,7 @@ traitlets==5.9.0
     #   -c ../../../../dev-requirements.txt
     #   ipython
     #   matplotlib-inline
-trio==0.22.0
+trio==0.22.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   selenium
@@ -365,7 +367,7 @@ tzlocal==5.0.1
     #   -c ../../../../dev-requirements.txt
     #   apscheduler
     #   dallinger
-ua-parser==0.16.1
+ua-parser==0.18.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -389,7 +391,7 @@ werkzeug==2.3.6
     #   -c ../../../../dev-requirements.txt
     #   flask
     #   flask-login
-wheel==0.40.0
+wheel==0.41.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   pip-tools
@@ -401,7 +403,7 @@ wtforms==3.0.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask-wtf
-zope-event==4.6
+zope-event==5.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   gevent
