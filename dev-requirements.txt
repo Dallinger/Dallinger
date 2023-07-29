@@ -380,7 +380,7 @@ paramiko==3.2.0
     #   sshtunnel
 parso==0.8.3
     # via jedi
-pathspec==0.11.1
+pathspec==0.11.2
     # via black
 pexpect==4.8.0
     # via
