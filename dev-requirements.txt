@@ -261,7 +261,7 @@ jupyter-core==5.3.1
     #   nbconvert
     #   nbformat
     #   qtconsole
-jupyter-events==0.6.3
+jupyter-events==0.7.0
     # via jupyter-server
 jupyter-lsp==2.2.0
     # via jupyterlab
