@@ -201,7 +201,7 @@ ipython==8.12.2
     #   jupyter-console
 ipython-genutils==0.2.0
     # via qtconsole
-ipywidgets==8.0.7
+ipywidgets==8.1.0
     # via
     #   dallinger
     #   jupyter
