@@ -232,7 +232,7 @@ json5==0.9.14
     # via jupyterlab-server
 jsonpointer==2.4
     # via jsonschema
-jsonschema==4.18.4
+jsonschema==4.18.6
     # via
     #   jupyter-events
     #   jupyterlab-server
