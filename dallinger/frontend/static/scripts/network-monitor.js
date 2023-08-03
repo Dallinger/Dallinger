@@ -353,7 +353,7 @@ var draw_network = function () {
             from = info.origin_id;
             from_node = list_of_nodes[from];
             node_viz = nodes[list_of_node_indx[from] - 1];
-            participant_id = from_node.participant_id || info.participant_id || null;
+            participant_id = info.participant_id || from_node.participant_id || null;
             if (participant_id === null) {
                 participant = {};
                 participant_id = 0;
