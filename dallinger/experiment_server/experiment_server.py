@@ -1055,7 +1055,7 @@ def node_neighbors(node_id):
     connection = request_parameter(parameter="connection", default="to")
     failed = request_parameter(parameter="failed", parameter_type="bool", optional=True)
     for x in [node_type, connection]:
-        if type(x) == Response:
+        if isinstance(x, Response):
             return x
 
     # make sure the node exists
@@ -1140,7 +1140,7 @@ def node_vectors(node_id):
     direction = request_parameter(parameter="direction", default="all")
     failed = request_parameter(parameter="failed", parameter_type="bool", default=False)
     for x in [direction, failed]:
-        if type(x) == Response:
+        if isinstance(x, Response):
             return x
 
     # execute the request
@@ -1265,7 +1265,7 @@ def node_infos(node_id):
     info_type = request_parameter(
         parameter="info_type", parameter_type="known_class", default=models.Info
     )
-    if type(info_type) == Response:
+    if isinstance(info_type, Response):
         return info_type
 
     # check the node exists
@@ -1304,7 +1304,7 @@ def node_received_infos(node_id):
     info_type = request_parameter(
         parameter="info_type", parameter_type="known_class", default=models.Info
     )
-    if type(info_type) == Response:
+    if isinstance(info_type, Response):
         return info_type
 
     # check the node exists
@@ -1377,7 +1377,7 @@ def info_post(node_id):
     failed = request_parameter(parameter="failed", parameter_type="bool", default=False)
 
     for x in [contents, info_type]:
-        if type(x) == Response:
+        if isinstance(x, Response):
             return x
     # check the node exists
     node = models.Node.query.get(node_id)
@@ -1422,7 +1422,7 @@ def node_transmissions(node_id):
     direction = request_parameter(parameter="direction", default="incoming")
     status = request_parameter(parameter="status", default="all")
     for x in [direction, status]:
-        if type(x) == Response:
+        if isinstance(x, Response):
             return x
 
     # check the node exists
@@ -1559,7 +1559,7 @@ def transformation_get(node_id):
         parameter_type="known_class",
         default=models.Transformation,
     )
-    if type(transformation_type) == Response:
+    if isinstance(transformation_type, Response):
         return transformation_type
 
     # check the node exists
@@ -1602,7 +1602,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
         parameter_type="known_class",
         default=models.Transformation,
     )
-    if type(transformation_type) == Response:
+    if isinstance(transformation_type, Response):
         return transformation_type
 
     # Check that the node etc. exists.
