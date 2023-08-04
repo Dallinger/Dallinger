@@ -20,9 +20,9 @@ backcall==0.2.0
     # via ipython
 blinker==1.6.2
     # via flask
-boto3==1.28.11
+boto3==1.28.19
     # via dallinger
-botocore==1.31.11
+botocore==1.31.19
     # via
     #   boto3
     #   s3transfer
@@ -46,7 +46,7 @@ click==8.1.6
     #   flask
     #   pip-tools
     #   rq
-cryptography==41.0.2
+cryptography==41.0.3
     # via pyopenssl
 decorator==5.1.1
     # via ipython
@@ -103,7 +103,7 @@ itsdangerous==2.1.2
     # via
     #   flask
     #   flask-wtf
-jedi==0.18.2
+jedi==0.19.0
     # via ipython
 jinja2==3.1.2
     # via flask
@@ -136,7 +136,7 @@ pexpect==4.8.0
     #   ipython
 pickleshare==0.7.5
     # via ipython
-pip-tools==7.1.0
+pip-tools==7.2.0
     # via dallinger
 prompt-toolkit==3.0.39
     # via ipython
@@ -179,7 +179,7 @@ rq==1.15.1
     # via dallinger
 s3transfer==0.6.1
     # via boto3
-selenium==4.10.0
+selenium==4.11.2
     # via dallinger
 six==1.16.0
     # via
