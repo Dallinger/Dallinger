@@ -152,7 +152,7 @@ pure-eval==0.2.2
     # via stack-data
 pycparser==2.21
     # via cffi
-pygments==2.15.1
+pygments==2.16.0
     # via ipython
 pyopenssl==23.2.0
     # via dallinger
