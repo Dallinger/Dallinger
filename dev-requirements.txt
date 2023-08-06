@@ -349,7 +349,7 @@ openpyxl==3.1.2
     # via tablib
 outcome==1.2.0
     # via trio
-overrides==7.3.1
+overrides==7.4.0
     # via jupyter-server
 packaging==23.1
     # via
