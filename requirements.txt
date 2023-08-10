@@ -10,7 +10,7 @@ apscheduler==3.10.1
     # via dallinger
 asttokens==2.2.1
     # via stack-data
-async-timeout==4.0.2
+async-timeout==4.0.3
     # via redis
 attrs==23.1.0
     # via
