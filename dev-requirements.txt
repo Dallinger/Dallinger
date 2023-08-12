@@ -92,7 +92,7 @@ comm==0.1.4
     # via
     #   ipykernel
     #   ipywidgets
-coverage==7.2.7
+coverage==7.3.0
     # via
     #   coverage-pth
     #   dallinger
