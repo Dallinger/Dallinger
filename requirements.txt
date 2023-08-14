@@ -238,7 +238,7 @@ user-agents==2.2.0
     # via dallinger
 wcwidth==0.2.6
     # via prompt-toolkit
-werkzeug==2.3.6
+werkzeug==2.3.7
     # via
     #   flask
     #   flask-login
