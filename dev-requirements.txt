@@ -14,7 +14,7 @@ anyio==3.7.1
     # via jupyter-server
 apscheduler==3.10.1
     # via dallinger
-argon2-cffi==21.3.0
+argon2-cffi==23.1.0
     # via jupyter-server
 argon2-cffi-bindings==21.2.0
     # via argon2-cffi
