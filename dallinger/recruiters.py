@@ -47,6 +47,7 @@ def _get_queue(name="default"):
 # messages in logs:
 NEW_RECRUIT_LOG_PREFIX = "New participant requested:"
 CLOSE_RECRUITMENT_LOG_PREFIX = "Close recruitment."
+SUBMITTABLE_STATUSES = {"working", "overrecruited", "returned", "abandoned"}
 
 
 class Recruiter(object):
@@ -123,9 +124,9 @@ class Recruiter(object):
         """A recruiter may provide a means to directly compensate a worker."""
         raise NotImplementedError
 
-    def exit_response(self, experiment, participant):
-        """The recruiter returns an appropriate page on experiment/questionnaire
-        submission.
+    def assignment_submission_requested(self, experiment, participant):
+        """The recruiter returns an appropriate page when the participant is
+        ready to submit their assignment with their recruiter.
         """
         raise NotImplementedError
 
@@ -151,14 +152,6 @@ class Recruiter(object):
         By default, they are accepted, so we return None.
         """
         return None
-
-    def on_completion_event(self):
-        """Return the name of the appropriate WorkerEvent command to run
-        when a participant completes an experiment.
-
-        If no event should be processed, return None.
-        """
-        return "AssignmentSubmitted"
 
     def load_service(self, sandbox):
         """Load the appropriate service for this recruiter."""
@@ -418,7 +411,7 @@ class ProlificRecruiter(Recruiter):
         """
         return f"https://app.prolific.co/submissions/complete?cc={self.completion_code}"
 
-    def exit_response(self, experiment, participant):
+    def assignment_submission_requested(self, experiment, participant):
         """Return our custom particpant exit template.
 
         This includes the button which will:
@@ -442,15 +435,6 @@ class ProlificRecruiter(Recruiter):
             )
         except ProlificServiceException as ex:
             logger.exception(str(ex))
-
-    def on_completion_event(self):
-        """We cannot perform post-submission actions (approval, bonus payment)
-        until after the participant has submitted their study via the Prolific
-        UI, which we redirect them to from the exit page. This means that we
-        can't do anything when the questionnaire is submitted, so we return None
-        to signal this.
-        """
-        return None
 
     @property
     def current_study_id(self):
@@ -591,11 +575,28 @@ class CLIRecruiter(Recruiter):
         super(CLIRecruiter, self).__init__()
         self.config = get_config()
 
-    def exit_response(self, experiment, participant):
-        """Delegate to the experiment for possible values to show to the
-        participant.
+    def assignment_submission_requested(self, experiment, participant):
+        """Run assignment submission process if eligible, then return a rendered
+        exit page template.
+
+        We delegate to the experiment for possible values to show to the
+        participant on the exit page.
         """
         exit_info = sorted(experiment.exit_info_for(participant).items())
+
+        if participant.status in SUBMITTABLE_STATUSES:
+            # Execute synchonously
+            worker_function(
+                event_type="AssignmentSubmitted",
+                assignment_id=participant.assignment_id,
+                participant_id=participant.id,
+            )
+        else:
+            logger.info(
+                "Participant status: '{}'. Skipping submission process...".format(
+                    participant.status
+                )
+            )
 
         return flask.render_template(
             "exit_recruiter.html",
@@ -949,7 +950,9 @@ class RedisStore(object):
 
 
 def _run_mturk_qualification_assignment(worker_id, qualifications):
-    """Provides a way to run qualification assignment asynchronously."""
+    """Wrap the MTurkRecruiter method call so we can run qualification
+    assignment asynchronously.
+    """
     recruiter = MTurkRecruiter()
     recruiter._assign_experiment_qualifications(worker_id, qualifications)
 
@@ -991,7 +994,13 @@ class MTurkRecruiter(Recruiter):
                 'The value of "mode" must be either "sandbox" or "live"'.format(mode)
             )
 
-    def exit_response(self, experiment, participant):
+    def assignment_submission_requested(self, experiment, participant):
+        """Return a template with a form for submitting the participant's
+        MTurk Assignment.
+
+        Actual processing of the submission will be triggered by an SNS
+        notification once the form is submitted.
+        """
         return flask.render_template(
             "exit_recruiter_mturk.html",
             hitid=participant.hit_id,
@@ -1202,12 +1211,6 @@ class MTurkRecruiter(Recruiter):
                 "This participant has already sumbitted their HIT "
                 "on MTurk and can no longer submit the questionnaire"
             )
-
-    def on_completion_event(self):
-        """MTurk will send its own notification when the worker
-        completes the HIT on that service.
-        """
-        return None
 
     def reward_bonus(self, participant, amount, reason):
         """Reward the Turker for a specified assignment with a bonus."""
@@ -1515,6 +1518,14 @@ class BotRecruiter(Recruiter):
         """
         logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " bot")
 
+    def assignment_submission_requested(self, experiment, participant):
+        """Run BotAssignmentSubmitted synchronously on submission."""
+        worker_function(
+            event_type="BotAssignmentSubmitted",
+            assignment_id=participant.assignment_id,
+            participant_id=participant.id,
+        )
+
     def notify_duration_exceeded(self, participants, reference_time):
         """The bot participant has been working longer than the time defined in
         the "duration" config value.
@@ -1526,9 +1537,6 @@ class BotRecruiter(Recruiter):
     def reward_bonus(self, participant, amount, reason):
         """Logging only. These are bots."""
         logger.info("Bots don't get bonuses. Sorry, bots.")
-
-    def on_completion_event(self):
-        return "BotAssignmentSubmitted"
 
     def _get_bot_factory(self):
         # Must be imported at run-time

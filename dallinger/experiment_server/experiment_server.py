@@ -581,7 +581,9 @@ def recruiter_exit():
     recruiter = recruiters.by_name(participant.recruiter_id)
     exp = Experiment(session)
 
-    return recruiter.exit_response(experiment=exp, participant=participant)
+    return recruiter.assignment_submission_requested(
+        experiment=exp, participant=participant
+    )
 
 
 @app.route("/summary", methods=["GET"])
@@ -1712,25 +1714,11 @@ def _worker_complete(participant_id):
     participant.end_time = datetime.now()
     session.commit()
 
-    # Notify experiment that participant has been marked complete. Doing
-    # this here, rather than in the worker function, means that
-    # the experiment can request qualification assignment before the
-    # worker completes the HIT when using a recruiter like MTurk, where
-    # execution of the `worker_events.AssignmentSubmitted` command is
-    # deferred until they've submitted the HIT on the MTurk platform.
     exp = Experiment(session)
     exp.participant_task_completed(participant)
 
-    # Does the recruiter want us to execute some command on worker completion?
-    event_type = participant.recruiter.on_completion_event()
-
-    if event_type is None:
-        return
-
-    # Currently we execute this function synchronously, regardless of the
-    # event type:
     worker_function(
-        event_type=event_type,
+        event_type="AssignmentCompleted",
         assignment_id=participant.assignment_id,
         participant_id=participant_id,
     )

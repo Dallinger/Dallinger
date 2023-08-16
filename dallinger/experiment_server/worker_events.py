@@ -149,6 +149,7 @@ class WorkerEvent(object):
     supported_event_types = (
         "AssignmentAccepted",
         "AssignmentAbandoned",
+        "AssignmentCompleted",
         "AssignmentReassigned",
         "AssignmentReturned",
         "AssignmentSubmitted",
@@ -202,6 +203,11 @@ class AssignmentAbandoned(WorkerEvent):
             self.experiment.assignment_abandoned(participant=self.participant)
 
 
+class AssignmentCompleted(WorkerEvent):
+    def __call__(self):
+        pass
+
+
 class AssignmentReturned(WorkerEvent):
     def __call__(self):
         if self.participant.status == "working":
@@ -212,7 +218,7 @@ class AssignmentReturned(WorkerEvent):
 
 class AssignmentSubmitted(WorkerEvent):
     def __call__(self):
-        self.experiment.on_assignment_submitted_to_recruiter(
+        self.experiment.assignment_submitted(
             participant=self.participant, event=self.data
         )
 

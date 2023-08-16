@@ -292,41 +292,11 @@ class TestWorkerComplete(object):
         webapp.post("/worker_complete", data={"participant_id": participant.id})
         assert db_session.merge(participant).end_time is not None
 
-    def test_records_notification_if_debug_mode(self, a, webapp):
+    def test_records_notification(self, a, webapp):
         webapp.post("/worker_complete", data={"participant_id": a.participant().id})
-        assert models.Notification.query.one().event_type == "AssignmentSubmitted"
+        assert models.Notification.query.one().event_type == "AssignmentCompleted"
 
-    def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
-        webapp.post(
-            "/worker_complete",
-            data={"participant_id": a.participant(recruiter_id="bots").id},
-        )
-
-        assert models.Notification.query.one().event_type == "BotAssignmentSubmitted"
-
-    def test_records_notification_for_non_mturk_recruiter(
-        self, a, webapp, active_config
-    ):
-        active_config.extend({"mode": "sandbox", "recruiter": "CLIRecruiter"})
-        webapp.post(
-            "/worker_complete",
-            data={"participant_id": a.participant(recruiter_id="cli").id},
-        )
-
-        assert models.Notification.query.one().event_type == "AssignmentSubmitted"
-
-    def test_records_no_notification_mturk_recruiter_and_nondebug(
-        self, a, webapp, active_config
-    ):
-        active_config.extend({"mode": "sandbox", "assign_qualifications": False})
-        webapp.post(
-            "/worker_complete",
-            data={"participant_id": a.participant(recruiter_id="mturk").id},
-        )
-
-        assert models.Notification.query.all() == []
-
-    def test_notifies_recruiter_when_participant_completes(self, a, webapp):
+    def test_notifies_experiment_when_participant_completes(self, a, webapp):
         participant = a.participant()
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
@@ -356,11 +326,13 @@ class TestRecruiterExit(object):
         assert resp.status_code == 404
         assert b"no participant found for ID -1" in resp.data
 
-    def test_with_valid_participant_id_returns_success(self, a, webapp):
-        resp = webapp.get(
-            "/recruiter-exit?participant_id={}".format(a.participant().id)
-        )
+    def test_with_valid_participant_id_approves_assignment_and_returns_success(
+        self, a, webapp
+    ):
+        participant_id = a.participant().id
+        resp = webapp.get("/recruiter-exit?participant_id={}".format(participant_id))
 
+        assert models.Participant.query.get(participant_id).status == "approved"
         assert resp.status_code == 200
 
     def test_debug_mode_renders_exit_page_for_hotair_recruiter(self, a, webapp):
@@ -381,7 +353,7 @@ class TestRecruiterExit(object):
         participant = a.participant(assignment_id="some distinctive ID")
         resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
 
-        assert participant.assignment_id in str(resp.data)
+        assert "some distinctive ID" in str(resp.data)
 
     def test_mturk_recruiter_renders_hit_submission_form(
         self, a, webapp, active_config
@@ -416,7 +388,7 @@ class TestHandleError(object):
         assert resp.status_code == 200
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
-        assert notifications[0].event_type == "AssignmentSubmitted"
+        assert notifications[0].event_type == "AssignmentCompleted"
         assert notifications[1].event_type == "ExperimentError"
 
     def test_saves_error_without_participant(self, a, webapp):
@@ -441,7 +413,7 @@ class TestHandleError(object):
 
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
-        assert notifications[0].event_type == "AssignmentSubmitted"
+        assert notifications[0].event_type == "AssignmentCompleted"
         assert notifications[1].event_type == "ExperimentError"
         assert notifications[1].assignment_id == assignment_id
         assert (
@@ -456,7 +428,7 @@ class TestHandleError(object):
 
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
-        assert notifications[0].event_type == "AssignmentSubmitted"
+        assert notifications[0].event_type == "AssignmentCompleted"
         assert notifications[1].event_type == "ExperimentError"
         assert notifications[1].assignment_id == assignment_id
         assert (
@@ -484,7 +456,7 @@ class TestHandleError(object):
 
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
-        assert notifications[0].event_type == "AssignmentSubmitted"
+        assert notifications[0].event_type == "AssignmentCompleted"
         assert notifications[1].event_type == "ExperimentError"
         assert notifications[1].assignment_id == assignment_id
         assert (
@@ -517,7 +489,7 @@ class TestHandleError(object):
 
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
-        assert notifications[0].event_type == "AssignmentSubmitted"
+        assert notifications[0].event_type == "AssignmentCompleted"
         assert notifications[1].event_type == "ExperimentError"
         assert notifications[1].assignment_id == assignment_id
         assert (
@@ -1775,9 +1747,9 @@ class TestAssignmentSubmitted(object):
 
         return AssignmentSubmitted(**standard_args)
 
-    def test_calls_on_assignment_submitted_to_recruiter(self, runner):
+    def test_calls_assignment_submitted(self, runner):
         runner()
-        runner.experiment.on_assignment_submitted_to_recruiter.assert_called_once_with(
+        runner.experiment.assignment_submitted.assert_called_once_with(
             participant=runner.participant,
             event={
                 "event_type": "AssignmentSubmitted",
