@@ -397,7 +397,7 @@ def deploy(
     dashboard_user = config.get("dashboard_user", "admin")
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
-    cfg = config.as_dict()
+    cfg = config.as_dict(include_sensitive=True)
     for key in "aws_access_key_id", "aws_secret_access_key":
         # AWS credentials are not included by default in to_dict() result
         # but can be extracted explicitly from a config object

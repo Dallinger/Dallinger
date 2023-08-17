@@ -222,10 +222,10 @@ class Configuration(object):
         except KeyError:
             raise AttributeError
 
-    def as_dict(self):
+    def as_dict(self, include_sensitive=False):
         d = {}
         for key in self.types:
-            if key not in self.sensitive:
+            if key not in self.sensitive or include_sensitive:
                 try:
                     d[key] = self.get(key)
                 except KeyError:
