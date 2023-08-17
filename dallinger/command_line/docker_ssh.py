@@ -398,9 +398,14 @@ def deploy(
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
     cfg = config.as_dict(include_sensitive=True)
+
+    # AWS credential keys need to be converted to upper case
     for key in "aws_access_key_id", "aws_secret_access_key":
-        # AWS credential keys need to be converted to upper case
         cfg[key.upper()] = cfg.pop(key, None)
+
+    # Remove unneeded sensitive keys
+    for key in "database_url", "heroku_auth_token":
+        cfg.pop(key, None)
 
     cfg.update(
         {
