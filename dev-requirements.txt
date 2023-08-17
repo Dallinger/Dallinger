@@ -544,7 +544,7 @@ sortedcontainers==2.4.0
     # via trio
 soupsieve==2.4.1
     # via beautifulsoup4
-sphinx==6.2.1
+sphinx==7.2.1
     # via
     #   dallinger
     #   myst-parser
