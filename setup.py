@@ -112,6 +112,7 @@ setup_args = dict(
             "pytest-rerunfailures",
             "sphinx",
             "sphinx_rtd_theme",
+            "sphinxcontrib-applehelp <= 1.0.4",
             "sphinxcontrib-spelling",
             "tox",
         ],
