@@ -549,11 +549,7 @@ sphinx==6.2.1
     #   dallinger
     #   myst-parser
     #   sphinx-rtd-theme
-    #   sphinxcontrib-devhelp
-    #   sphinxcontrib-htmlhelp
     #   sphinxcontrib-jquery
-    #   sphinxcontrib-qthelp
-    #   sphinxcontrib-serializinghtml
     #   sphinxcontrib-spelling
 sphinx-rtd-theme==1.2.2
     # via dallinger
@@ -561,18 +557,26 @@ sphinxcontrib-applehelp==1.0.4
     # via
     #   dallinger
     #   sphinx
-sphinxcontrib-devhelp==1.0.5
-    # via sphinx
-sphinxcontrib-htmlhelp==2.0.4
-    # via sphinx
+sphinxcontrib-devhelp==1.0.2
+    # via
+    #   dallinger
+    #   sphinx
+sphinxcontrib-htmlhelp==2.0.1
+    # via
+    #   dallinger
+    #   sphinx
 sphinxcontrib-jquery==4.1
     # via sphinx-rtd-theme
 sphinxcontrib-jsmath==1.0.1
     # via sphinx
-sphinxcontrib-qthelp==1.0.6
-    # via sphinx
-sphinxcontrib-serializinghtml==1.1.8
-    # via sphinx
+sphinxcontrib-qthelp==1.0.3
+    # via
+    #   dallinger
+    #   sphinx
+sphinxcontrib-serializinghtml==1.1.5
+    # via
+    #   dallinger
+    #   sphinx
 sphinxcontrib-spelling==8.0.0
     # via dallinger
 sqlalchemy==1.4.49
