@@ -6,8 +6,6 @@
 #
 
     # via -r requirements.in
-appnope==0.1.3
-    # via ipython
 apscheduler==3.10.3
     # via dallinger
 asttokens==2.2.1
@@ -22,9 +20,9 @@ backcall==0.2.0
     # via ipython
 blinker==1.6.2
     # via flask
-boto3==1.28.28
+boto3==1.28.29
     # via dallinger
-botocore==1.31.28
+botocore==1.31.29
     # via
     #   boto3
     #   s3transfer
@@ -42,7 +40,7 @@ cffi==1.15.1
     # via cryptography
 charset-normalizer==3.2.0
     # via requests
-click==8.1.6
+click==8.1.7
     # via
     #   dallinger
     #   flask
