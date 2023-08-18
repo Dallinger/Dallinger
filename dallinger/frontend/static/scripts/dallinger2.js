@@ -117,7 +117,12 @@ var dallinger = (function () {
       this.mode = dlgr.getUrlParameter('mode');
       // Store all url parameters as entry information.
       // This won't work in IE, but should work in Edge.
-      var entry_info = {};
+      var entry_info = {
+        assignmentId: this.assignmentId,
+        hitId: this.hitId,
+        workerId: this.workerId,
+        mode: this.mode
+      };
       var query_params = new URLSearchParams(location.search);
       for (const [k, v] of query_params) {
         entry_info[k] = v;
@@ -242,7 +247,11 @@ var dallinger = (function () {
    * should not be included.
    */
   dlgr.goToPage = function(page) {
-    window.location = "/" + page + "?participant_id=" + dlgr.identity.participantId;
+    if (dlgr.identity.participantId) {
+      window.location = "/" + page + "?participant_id=" + dlgr.identity.participantId;
+    } else {
+      window.location = "/" + page + '?assignmentId=' + dlgr.identity.assignmentId + "&hitId=" + dlgr.identity.hitId + "&workerId=" + dlgr.identity.workerId + "&mode=" + dlgr.identity.mode;
+    }
   };
 
   var add_hidden_input = function ($form, name, val) {
@@ -684,7 +693,7 @@ var dallinger = (function () {
    */
   dlgr.waitForQuorum = function () {
     var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
-    var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat?channel=quorum");
+    var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat?channel=quorum&worker_id=" + dlgr.identity.workerId + '&participant_id=' + dlgr.identity.participantId);
     var deferred = $.Deferred();
     socket.onmessage = function (msg) {
       if (msg.data.indexOf('quorum:') !== 0) { return; }

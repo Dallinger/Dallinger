@@ -397,23 +397,23 @@ def deploy(
     dashboard_user = config.get("dashboard_user", "admin")
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
-    cfg = config.as_dict()
+    cfg = config.as_dict(include_sensitive=True)
+
+    # AWS credential keys need to be converted to upper case
     for key in "aws_access_key_id", "aws_secret_access_key":
-        # AWS credentials are not included by default in to_dict() result
-        # but can be extracted explicitly from a config object
-        cfg[key.upper()] = config[key]
+        cfg[key.upper()] = cfg.pop(key, None)
+
+    # Remove unneeded sensitive keys
+    for key in "database_url", "heroku_auth_token":
+        cfg.pop(key, None)
 
     cfg.update(
         {
             "FLASK_SECRET_KEY": token_urlsafe(16),
             "AWS_DEFAULT_REGION": config["aws_region"],
             "smtp_username": config.get("smtp_username"),
-            "smtp_password": config.get("smtp_password"),
-            "prolific_api_token": config["prolific_api_token"],
             "activate_recruiter_on_start": config["activate_recruiter_on_start"],
             "auto_recruit": config["auto_recruit"],
-            "dashboard_user": dashboard_user,
-            "dashboard_password": dashboard_password,
             "mode": mode,
             "CREATOR": f"{USER}@{HOSTNAME}",
             "DALLINGER_UID": experiment_uuid,

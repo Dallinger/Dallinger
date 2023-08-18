@@ -77,12 +77,19 @@ class Experiment(object):
     """Define the structure of an experiment."""
 
     app_id = None
-    # Optional Redis channel to create and subscribe to on launch. Note that if
-    # you define a channel, you probably also want to override the send()
-    # method, since this is where messages from Redis will be sent.
-    channel = None
     exp_config = None
     replay_path = "/"
+
+    #: Optional Redis channel to subscribe to on launch. Note that
+    #: if you set the channel, you will probably also want to override the
+    #: :func:`~dallinger.experiment.Experiment.send` method, since this
+    #: is where messages from Redis will be consumed. Setting a value here
+    #: will also result in the experiment being subscribed to the
+    #: ``dallinger_control`` channel for messages related to
+    #: socket/subscription updates. This is also the default ``channel_name``
+    #: for messages sent using the
+    #: :func:`~dallinger.experiment.Experiment.publish_to_subscribers` method.
+    channel = None
 
     #: Constructor for Participant objects. Callable returning an instance of
     #: :attr:`~dallinger.models.Participant` or a sub-class. Used by
@@ -291,14 +298,140 @@ class Experiment(object):
         return waiting_count > self.quorum
 
     def send(self, raw_message):
-        """socket interface implementation, and point of entry for incoming
-        Redis messages.
+        """Async implementation of websocket message processing. Attempts to
+        extract a participant id or node id from the message, and send the
+        message to be processed asynchronously by
+        :func:`~dallinger.experiment.Experiment.receive_message` If it fails to
+        find a participant or node id in the message, then the message is
+        processed synchronously using
+        :func:`~dallinger.experiment.Experiment.receive_message`.
 
-        param raw_message is a string with a channel prefix, for example:
+        ``raw_message`` is a string that includes a channel name prefix, for
+        example a JSON message for a ``shopping`` channel might look like:
 
-            'shopping:{"type":"buy","color":"blue","quantity":"2"}'
+            ``'shopping:{"type":"buy","color":"blue","quantity":"2"}'``
+
+        Control messages about channel subscription and websocket
+        connect/disconnect events use the ``dallinger_control`` channel name.
+
+        Experiments can override this method if they want to process all
+        messages synchronously in a single application instance by default. For
+        example if an experiment retains non-persisted state in an attribute of
+        the experiment class that it uses for message responses then it's best
+        to override this method instead of
+        :func:`~dallinger.experiment.Experiment.receive_message`, and explicitly
+        hand off state synchronization and other database writes to async worker
+        events.
+
+        :param raw_message: a formatted message string ``'$channel_name:$data'``
+        :type raw_message: str
+        """
+        from dallinger.experiment_server.worker_events import (
+            _get_queue,
+            worker_function,
+        )
+
+        receive_time = datetime.datetime.now()
+        channel_name, message_string = raw_message.split(":", 1)
+        try:
+            message = json.loads(message_string)
+        except Exception:
+            # Not JSON we have no information about the participant/node and
+            # will run synchonously
+            self.receive_message(
+                message_string, channel_name=channel_name, receive_time=receive_time
+            )
+            return
+
+        participant_id = (
+            message.get("sender")
+            or message.get("participant_id")
+            or message.get("client", {}).get("participant_id")
+        )
+        node_id = message.get("node_id")
+        if not participant_id and not node_id:
+            self.receive_message(
+                message_string, channel_name=channel_name, receive_time=receive_time
+            )
+            return
+
+        q = _get_queue("high")
+        q.enqueue(
+            worker_function,
+            "WebSocketMessage",
+            None,
+            participant_id,
+            node_id=node_id,
+            receive_timestamp=receive_time.timestamp(),
+            details={
+                "message": message_string,
+                "channel_name": channel_name,
+            },
+            queue_name="high",
+        )
+
+    def receive_message(
+        self, message, channel_name=None, participant=None, node=None, receive_time=None
+    ):
+        """Stub implementation of a websocket message processor. Messages
+        are are queued to be processed asynchronously by
+        :func:`~dallinger.experiment.Experiment.send` and the worker runs this
+         method to process those messages. Sub-classes that wish to handle
+        incoming messages asynchronously should override this method. Generally
+        this method should always be overridden whenever the ``Experiment``
+        :attr:`~dallinger.experiment.Experiment.channel` attribute is set.
+
+        ``message`` is a string, e.g. containing JSON formatted data.
+
+        Control messages about channel subscription and websocket
+        connect/disconnect events are sent over the ``"dallinger_control"``
+        channel.
+
+        This method is called synchronously when no participant or node
+        id can be determined from the message.
+
+        :param message: a websocket message
+        :type message: str
+
+        :param channel_name: The name of the channel the message was received on.
+        :type channel_name: str
+
+        :param participant: the experiment participant object responsible for the message
+        :type participant: :attr:`~dallinger.models.Participant` instance
+
+        :param node: the experiment node the message corresponds to
+        :type node: :attr:`~dallinger.models.Node` instance
+
+        :param receive_time: The time the message was received by the experiment
+        :type receive_time: datetime.datetime
         """
         pass
+
+    def publish_to_subscribers(self, data, channel_name=None):
+        """Publish data to the given channel_name. Data will be sent to all
+        channel subscribers, potentially including the experiment instance
+        itself. If no ``channel_name`` is specified, then the ``Experiment``
+        :attr:`~dallinger.experiment.Experiment.channel` value will be used
+        (and the data will automatically be consumed by
+        :func:`~dallinger.experiment.Experiment.send`). The ``data`` must be
+        a string, it typically contains JSON.
+
+        :param data: the message data to be send
+        :type data: str
+        :param channel_name: the name of the channel to publish the data to
+        :type channel_name: str
+        """
+        if channel_name is None:
+            channel_name = self.channel
+        db.redis_conn.publish(channel_name, data)
+
+    def client_info(self):
+        """Returns a JSON compatible dictionary with data about this client to
+        be included in control channel messages.
+        """
+        return {
+            "class": self.__class__.__module__ + "." + self.__class__.__name__,
+        }
 
     def setup(self):
         """Create the networks if they don't already exist."""

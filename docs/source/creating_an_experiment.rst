@@ -1645,3 +1645,4 @@ that should prove to be very useful while you develop your experiment further:
 - :doc:`The Database API <classes>`
 - :doc:`The Experiment Class <the_experiment_class>`
 - :doc:`Writing Bots <writing_bots>`
+- :doc:`Using WebSockets in Dallinger Experiments <using_websockets>`
