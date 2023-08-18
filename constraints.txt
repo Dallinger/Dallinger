@@ -12,10 +12,6 @@ alabaster==0.7.13
     #   sphinx
 anyio==3.7.1
     # via jupyter-server
-appnope==0.1.3
-    # via
-    #   ipykernel
-    #   ipython
 apscheduler==3.10.3
     # via dallinger
 argon2-cffi==23.1.0
@@ -52,9 +48,9 @@ bleach==6.0.0
     # via nbconvert
 blinker==1.6.2
     # via flask
-boto3==1.28.28
+boto3==1.28.29
     # via dallinger
-botocore==1.31.28
+botocore==1.31.29
     # via
     #   boto3
     #   s3transfer
@@ -83,7 +79,7 @@ chardet==5.2.0
     # via tox
 charset-normalizer==3.2.0
     # via requests
-click==8.1.6
+click==8.1.7
     # via
     #   black
     #   dallinger
@@ -267,7 +263,7 @@ jupyter-events==0.7.0
     # via jupyter-server
 jupyter-lsp==2.2.0
     # via jupyterlab
-jupyter-server==2.7.1
+jupyter-server==2.7.2
     # via
     #   dallinger
     #   jupyter-lsp
@@ -447,7 +443,7 @@ pyopenssl==23.2.0
     # via dallinger
 pypandoc==1.11
     # via dallinger
-pyproject-api==1.5.3
+pyproject-api==1.5.4
     # via tox
 pyproject-hooks==1.0.0
     # via build
