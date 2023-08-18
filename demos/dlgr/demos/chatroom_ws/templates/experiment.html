@@ -1,0 +1,30 @@
+{% extends "layout.html" %}
+
+{% block body %}
+    <div class="main_div">
+        <h1>Welcome to the chat</h1>
+        <h2>You are "Participant <span id="participant-number"></span>"</h2>
+        <br />
+        <p>Chat log:</p>
+        <div id="stimulus">
+            <div><blockquote id="story"></blockquote></div>
+        </div>
+        <div id="response-form">
+            <input type="text" id="reproduction" class="form-control" />
+            <p></p>
+            <button id="send-message" type="button" class="btn btn-primary">Send</button>
+            <button id="leave-chat" type="button" class="btn">Leave chat</button>
+        </div>
+        <br />
+        <div>
+            <p>Event log:</p>
+            <pre id="log" style="background-color: lightgray; height: 10em; overflow: scroll;"></pre>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        create_agent();
+    </script>
+{% endblock %}

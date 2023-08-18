@@ -86,6 +86,7 @@ designing new experiments for others to use.
     recruitment
     scheduled_tasks
     private_repo
+    using_websockets
 
 Alternative Environments Documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

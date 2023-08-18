@@ -2,6 +2,15 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+- Enhancement: Added support for custom WorkerEvents allowing experiments to run
+  tasks asynchronously on worker processes.
+- Fixed: Migrated `experiment_server/sockets.py` to use the `Flask-Sock` library.
+- Enhancement: Added a control channel that all socket enabled experiments will
+  listen on for "administrative" messages (e.g. connect/disconnect).
+- Enhancement: Updated WebSocket experiment integraton to use Async processing
+  by default and update documentation.
+- Fixed: Corrected waiting room url issue.
+
 ## [v9.9.0](https://github.com/dallinger/dallinger/tree/v9.9.0) (2023-07-27)
 
 - Fixed: Added check for dependencies using `pkg_resources`.

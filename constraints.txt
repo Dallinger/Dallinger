@@ -12,6 +12,10 @@ alabaster==0.7.13
     #   sphinx
 anyio==3.7.1
     # via jupyter-server
+appnope==0.1.3
+    # via
+    #   ipykernel
+    #   ipython
 apscheduler==3.10.3
     # via dallinger
 argon2-cffi==23.1.0
@@ -144,13 +148,13 @@ flask==2.3.2
     #   dallinger
     #   flask-crossdomain
     #   flask-login
-    #   flask-sockets
+    #   flask-sock
     #   flask-wtf
 flask-crossdomain==0.1
     # via dallinger
 flask-login==0.6.2
     # via dallinger
-flask-sockets==0.2.1
+flask-sock==0.6.0
     # via dallinger
 flask-wtf==1.1.1
     # via dallinger
@@ -161,10 +165,7 @@ future==0.18.3
 gevent==23.7.0
     # via
     #   dallinger
-    #   flask-sockets
-    #   gevent-websocket
-gevent-websocket==0.10.1
-    # via flask-sockets
+    #   gunicorn
 greenlet==2.0.2
     # via
     #   dallinger
@@ -525,6 +526,8 @@ selenium==4.11.2
     # via dallinger
 send2trash==1.8.2
     # via jupyter-server
+simple-websocket==0.10.1
+    # via flask-sock
 six==1.16.0
     # via
     #   apscheduler
@@ -695,7 +698,9 @@ wheel==0.41.1
 widgetsnbextension==4.0.8
     # via ipywidgets
 wsproto==1.2.0
-    # via trio-websocket
+    # via
+    #   simple-websocket
+    #   trio-websocket
 wtforms==3.0.1
     # via flask-wtf
 xlrd==2.0.1

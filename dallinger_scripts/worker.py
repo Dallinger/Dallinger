@@ -24,7 +24,11 @@ def main():
 
     initialize_experiment_package(os.getcwd())
 
-    logging.basicConfig(format="%(asctime)s %(message)s", level=logging.DEBUG)
+    log_level = os.environ.get("loglevel", "WARN")
+    logging.basicConfig(
+        format="%(asctime)s %(message)s",
+        level=getattr(logging, log_level, logging.WARN),
+    )
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
     # Specify queue class for improved performance with gevent.
     # see http://carsonip.me/posts/10x-faster-python-gevent-redis-connection-pool/
@@ -41,8 +45,12 @@ def main():
     redis_conn = StrictRedis(connection_pool=redis_pool)
 
     with Connection(redis_conn):
-        worker = Worker(list(map(Queue, listen)))
-        worker.work()
+        worker = Worker(list(map(Queue, listen)), log_job_description=False)
+        worker.log_result_lifespan = False
+        # Default to log.warn because rq logs extremely verbosely at the info
+        # level
+        worker.log.info = worker.log.debug
+        worker.work(logging_level=log_level)
 
 
 if __name__ == "__main__":  # pragma: nocover
