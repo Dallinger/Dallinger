@@ -2,6 +2,8 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.10.0](https://github.com/dallinger/dallinger/tree/v9.10.0) (2023-08-18)
+
 - Enhancement: Added support for custom WorkerEvents allowing experiments to run
   tasks asynchronously on worker processes.
 - Fixed: Migrated `experiment_server/sockets.py` to use the `Flask-Sock` library.
@@ -9,7 +11,12 @@
   listen on for "administrative" messages (e.g. connect/disconnect).
 - Enhancement: Updated WebSocket experiment integraton to use Async processing
   by default and update documentation.
+- Enhancement: Added boolean `include_sensitive` param to `Config.as_dict`.
 - Fixed: Corrected waiting room url issue.
+- Fixed: Fixed the display of participant IDs in the dashboard monitor.
+- Infrastructure: Updated `setup-chromedriver` to v2.1.2.
+- Infrastructure: Updated dependencies; pinned versions of `sphinxcontrib-*` packages
+  in order to be compatible with Python 3.8.
 
 ## [v9.9.0](https://github.com/dallinger/dallinger/tree/v9.9.0) (2023-07-27)
 
