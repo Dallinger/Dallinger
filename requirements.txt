@@ -6,7 +6,7 @@
 #
 
     # via -r requirements.in
-apscheduler==3.10.3
+apscheduler==3.10.4
     # via dallinger
 asttokens==2.2.1
     # via stack-data
