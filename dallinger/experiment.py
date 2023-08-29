@@ -376,7 +376,7 @@ class Experiment(object):
         """Stub implementation of a websocket message processor. Messages
         are are queued to be processed asynchronously by
         :func:`~dallinger.experiment.Experiment.send` and the worker runs this
-         method to process those messages. Sub-classes that wish to handle
+        method to process those messages. Sub-classes that wish to handle
         incoming messages asynchronously should override this method. Generally
         this method should always be overridden whenever the ``Experiment``
         :attr:`~dallinger.experiment.Experiment.channel` attribute is set.
