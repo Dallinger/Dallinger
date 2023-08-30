@@ -98,6 +98,7 @@ Recruitment (General)
 ``browser_exclude_rule`` *unicode - comma separated*
     A set of rules you can apply to prevent participants with unsupported web
     browsers from participating in your experiment. Valid exclustion values are:
+
         * mobile
         * tablet
         * touchcapable
@@ -276,11 +277,13 @@ Prolific Recruitment
 
 
     You can also specify the devices you expect the participants to have, e.g.::
+
         {
             "eligibility_requirements": […],
             "device_compatibility": ["desktop"],
             "peripheral_requirements": ["audio", "microphone"]
         }
+
     Supported devices are ``desktop``, ``tablet``, and ``mobile``. Supported peripherals are ``audio``, ``camera``, ``download`` (download additional software to run the experiment), and ``microphone``.
 
     You would then include this file in your overall configuration by adding the following

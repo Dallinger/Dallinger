@@ -26,3 +26,12 @@ div.wy-nav-content {
     list-style: none;
     margin-left: 0px;
 }
+
+.support-slack-channel-box.admonition {
+    background-color: #fff4a8;
+    border: solid 2px black;
+}
+
+.support-slack-channel-box.admonition .admonition-title {
+    background-color: #3e8144;
+}
