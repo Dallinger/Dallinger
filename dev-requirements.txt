@@ -10,7 +10,7 @@ alabaster==0.7.13
     # via
     #   dallinger
     #   sphinx
-anyio==3.7.1
+anyio==4.0.0
     # via jupyter-server
 apscheduler==3.10.3
     # via dallinger
