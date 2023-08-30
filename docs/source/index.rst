@@ -10,7 +10,7 @@ The Dallinger technology stack consists of: Python, Redis, Web Sockets, Heroku, 
 .. admonition:: Subscribe to our Slack channel
     :class: support-slack-channel-box
 
-    To help users with technical issues and experiment creation, the Dallinger team maintains a **Dallinger support Slack channel**. Access to the Dallinger support Slack requires a **$10 per month per user subscription**, with proceeds supporting the future development of Dallinger. Users are free to subscribe for as many or as few months as they wish.
+    Dallinger is *open-source*, and is *completely free* to use in your experiments. However, to help users with technical issues and experiment creation, the Dallinger team maintains a **Dallinger support Slack channel**. Access to the Dallinger support Slack requires a **$10 per month per user subscription**, with proceeds supporting the future development of Dallinger. Users are free to subscribe for as many or as few months as they wish.
 
     To subscribe and gain access to the Slack support channel, please `download <_static/download/IHO_Dallinger_invoice_TM__1_.docx>`__ and complete this invoice. Completed invoices, along with a check for the appropriate amount, should be sent to the address on the invoice. Upon the invoice being processed, the listed users will be added to the Slack channel. If you are from a developing nation and are unable to afford a subscription, please contact us directly.
 
