@@ -191,7 +191,7 @@ ipykernel==6.25.1
     #   jupyter-console
     #   jupyterlab
     #   qtconsole
-ipython==8.12.2
+ipython==8.15.0
     # via
     #   dallinger
     #   ipykernel
