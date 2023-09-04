@@ -185,7 +185,7 @@ imagesize==1.4.1
     # via sphinx
 iniconfig==2.0.0
     # via pytest
-ipykernel==6.25.1
+ipykernel==6.25.2
     # via
     #   jupyter
     #   jupyter-console
