@@ -56,7 +56,7 @@ exceptiongroup==1.1.3
     #   trio-websocket
 executing==1.2.0
     # via stack-data
-faker==19.3.0
+faker==19.4.0
     # via dallinger
 flask==2.3.2
     # via
