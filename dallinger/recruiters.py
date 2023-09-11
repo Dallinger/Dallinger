@@ -1099,7 +1099,7 @@ class MTurkRecruiter(Recruiter):
             "experiment_id": "(compensation only)",
             "max_assignments": 1,
             "title": "Dallinger Compensation HIT",
-            "description": "For compenation only; no task required.",
+            "description": "For compensation only; no task required.",
             "keywords": [],
             "reward": float(dollars),
             "duration_hours": 1,
