@@ -46,9 +46,9 @@ bleach==6.0.0
     # via nbconvert
 blinker==1.6.2
     # via flask
-boto3==1.28.44
+boto3==1.28.45
     # via dallinger
-botocore==1.31.44
+botocore==1.31.45
     # via
     #   boto3
     #   s3transfer
@@ -537,7 +537,7 @@ sortedcontainers==2.4.0
     # via trio
 soupsieve==2.5
     # via beautifulsoup4
-sphinx==7.2.2
+sphinx==7.1.2
     # via
     #   dallinger
     #   myst-parser

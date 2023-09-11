@@ -111,7 +111,7 @@ setup_args = dict(
             "pypandoc",
             "pytest",
             "pytest-rerunfailures",
-            "sphinx",
+            "sphinx < 7.2",
             "sphinx_rtd_theme",
             "sphinxcontrib-applehelp <= 1.0.4",
             "sphinxcontrib-devhelp <= 1.0.2",
