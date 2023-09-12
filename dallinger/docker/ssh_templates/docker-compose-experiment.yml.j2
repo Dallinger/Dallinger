@@ -21,7 +21,7 @@ services:
     user: "${UID}:${GID}"
     environment: &commonenv
       REDIS_URL: redis://redis_{{ experiment_id }}:6379
-      DATABASE_URL: postgresql://{{ experiment_id }}:{{ postgresql_password }}@pgbouncer/{{ experiment_id }}
+      DATABASE_URL: postgresql://{{ experiment_id }}:{{ postgresql_password }}@{{ experiment_id }}_pgbouncer/{{ experiment_id }}
       HOME: /tmp
       HOST: 0.0.0.0
     {%- for key, value in config.items() %}
@@ -39,10 +39,9 @@ services:
 
   pgbouncer:
     image: docker.io/bitnami/pgbouncer:1.19.1
+    container_name: {{ experiment_id }}_pgbouncer
     networks:
       dallinger:
-        aliases:
-          - {{ experiment_id }}_pgbouncer
     environment:
       - POSTGRESQL_HOST=postgresql
       - PGBOUNCER_AUTH_TYPE=md5
