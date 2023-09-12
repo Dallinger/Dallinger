@@ -173,7 +173,7 @@ h11==0.14.0
     # via wsproto
 heroku3==5.2.1
     # via dallinger
-identify==2.5.26
+identify==2.5.28
     # via pre-commit
 idna==3.4
     # via
