@@ -46,9 +46,9 @@ bleach==6.0.0
     # via nbconvert
 blinker==1.6.2
     # via flask
-boto3==1.28.45
+boto3==1.28.46
     # via dallinger
-botocore==1.31.45
+botocore==1.31.46
     # via
     #   boto3
     #   s3transfer
@@ -100,7 +100,7 @@ cryptography==41.0.3
     # via
     #   paramiko
     #   pyopenssl
-debugpy==1.7.0
+debugpy==1.8.0
     # via ipykernel
 decorator==5.1.1
     # via ipython
@@ -152,11 +152,11 @@ fqdn==1.5.1
     # via jsonschema
 future==0.18.3
     # via dallinger
-gevent==23.9.0.post1
+gevent==23.9.1
     # via
     #   dallinger
     #   gunicorn
-greenlet==2.0.2
+greenlet==3.0.0rc3
     # via
     #   dallinger
     #   gevent
@@ -167,7 +167,7 @@ h11==0.14.0
     # via wsproto
 heroku3==5.2.1
     # via dallinger
-identify==2.5.27
+identify==2.5.28
     # via pre-commit
 idna==3.4
     # via
@@ -271,7 +271,7 @@ jupyterlab==4.0.5
     # via notebook
 jupyterlab-pygments==0.2.2
     # via nbconvert
-jupyterlab-server==2.24.0
+jupyterlab-server==2.25.0
     # via
     #   jupyterlab
     #   notebook

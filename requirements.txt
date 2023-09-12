@@ -18,9 +18,9 @@ backcall==0.2.0
     # via ipython
 blinker==1.6.2
     # via flask
-boto3==1.28.45
+boto3==1.28.46
     # via dallinger
-botocore==1.31.45
+botocore==1.31.46
     # via
     #   boto3
     #   s3transfer
@@ -71,11 +71,11 @@ flask-wtf==1.1.1
     # via dallinger
 future==0.18.3
     # via dallinger
-gevent==23.9.0.post1
+gevent==23.9.1
     # via
     #   dallinger
     #   gunicorn
-greenlet==2.0.2
+greenlet==3.0.0rc3
     # via
     #   dallinger
     #   gevent
