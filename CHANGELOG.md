@@ -47,7 +47,7 @@
 ## [v9.8.0](https://github.com/dallinger/dallinger/tree/v9.8.0) (2023-06-05)
 
 - Fixed several bugs that were manifesting on SSH deployments, some of which were specific to Prolific:
-  - Fixed wrong signature for `executor.run(`) call in docker_ssh.py.
+  - Fixed wrong signature for `executor.run()` call in docker_ssh.py.
   - Ensured that config is loaded before every Flask request; previously config was not loading in advance of the serving of static files and this was causing server errors.
   - Fixed a bug in parent window closing which was preventing Prolific experiments from completing.
   - Ensured that all fields in `dallinger.identity` are set properly when calling `dallinger.createParticipant`.
