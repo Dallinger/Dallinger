@@ -51,7 +51,7 @@ Common Sandbox Error
 
     ❯❯ Launching the experiment on MTurk...
 
-    ❯❯ Error parsing response from /launch, check web dyno logs for details: <!DOCTYPE html>
+    ❯❯ Error parsing response from /launch, check logs for details: <!DOCTYPE html>
         <html>
           <head>
             <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -95,8 +95,8 @@ Common Sandbox Error
       File "/Users/user/Dallinger/dallinger/command_line.py", line 550, in _deploy_in_mode
         deploy_sandbox_shared_setup(verbose=verbose, app=app)
       File "/Users/user/Dallinger/dallinger/command_line.py", line 518, in deploy_sandbox_shared_setup
-        launch_data = _handle_launch_data('{}/launch'.format(heroku_app.url))
-      File "/Users/user/Dallinger/dallinger/command_line.py", line 386, in _handle_launch_data
+        launch_data = handle_launch_data('{}/launch'.format(heroku_app.url))
+      File "/Users/user/Dallinger/dallinger/command_line.py", line 386, in handle_launch_data
         launch_data = launch_request.json()
       File "/Users/user/.virtualenvs/dallinger/lib/python3.6/site-packages/requests/models.py", line 892, in json
         return complexjson.loads(self.text, **kwargs)
