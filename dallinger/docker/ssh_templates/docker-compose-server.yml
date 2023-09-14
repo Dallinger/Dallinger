@@ -27,6 +27,16 @@ services:
       - caddy_config:/config
     networks:
       - dallinger
+  dozzle:
+    container_name: dozzle
+    image: amir20/dozzle:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - dallinger
+    environment:
+      DOZZLE_USERNAME: dallinger
+      DOZZLE_PASSWORD: secret
 
 
 volumes:

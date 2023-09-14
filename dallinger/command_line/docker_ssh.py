@@ -75,6 +75,11 @@ CADDYFILE = """
     {tls}
 }}
 
+http://logs.{host} {{
+    reverse_proxy dozzle:8080
+    {tls}
+}}
+
 import caddy.d/*
 """
 
@@ -535,6 +540,7 @@ def deploy(
         f"Deployed Docker image name: {image_name}",
         "To display the logs for this experiment you can run:",
         log_command,
+        f"Or you can head to http://logs.{dns_host} with user dallinger and password secret",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
     ]
     for line in deployment_infos:
