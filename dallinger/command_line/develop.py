@@ -13,7 +13,7 @@ from dallinger.command_line.utils import (
 )
 from dallinger.config import get_config
 from dallinger.db import redis_conn
-from dallinger.deployment import DevelopmentDeployment, _handle_launch_data
+from dallinger.deployment import DevelopmentDeployment, handle_launch_data
 from dallinger.utils import develop_target_path, open_browser
 
 BASE_URL = "http://127.0.0.1:{}/"
@@ -87,7 +87,7 @@ def launch_app_and_open_dashboard(port):
 
 def _launch_app(port):
     url = BASE_URL.format(port) + "launch"
-    _handle_launch_data(url, error=log, delay=1.0)
+    handle_launch_data(url, error=log, delay=1.0)
 
 
 def _open_dashboard(port):
