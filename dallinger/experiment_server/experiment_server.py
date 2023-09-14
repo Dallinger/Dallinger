@@ -378,6 +378,7 @@ def handle_error():
 @app.route("/launch", methods=["POST"])
 def launch():
     """Launch the experiment."""
+    assert False
     try:
         exp = Experiment(db.init_db(drop_all=False))
     except Exception as ex:
