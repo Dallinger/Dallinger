@@ -313,6 +313,66 @@ class TestExperimentBaseClass(object):
 
         participant.recruiter.assign_experiment_qualifications.assert_not_called()
 
+    def test_publish_to_subscribers(self, exp):
+        with mock.patch("dallinger.db.redis_conn") as mock_redis:
+            exp.publish_to_subscribers("A plain message!", "surprise")
+            mock_redis.publish.assert_called_once_with("surprise", "A plain message!")
+
+    def test_publish_to_subscribers_no_channel_name(self, exp):
+        with mock.patch("dallinger.db.redis_conn") as mock_redis:
+            exp.channel = "exp_default"
+            exp.publish_to_subscribers("A plain message!")
+            mock_redis.publish.assert_called_once_with(
+                "exp_default", "A plain message!"
+            )
+
+    def test_send_enqueues_worker_function(self, exp):
+        from dallinger.db import redis_conn
+        from dallinger.experiment_server.worker_events import worker_function
+
+        with mock.patch(
+            "dallinger.experiment_server.worker_events.Queue"
+        ) as mock_queue_class:
+            mock_queue = mock_queue_class.return_value = mock.Mock()
+            exp.channel = "exp_default"
+            exp.send('exp_default:{"key":"value","sender":1}')
+            mock_queue_class.assert_called_once_with("high", connection=redis_conn)
+            mock_queue.enqueue.assert_called_once_with(
+                worker_function,
+                "WebSocketMessage",
+                None,
+                1,
+                node_id=None,
+                receive_timestamp=mock.ANY,
+                details={
+                    "message": '{"key":"value","sender":1}',
+                    "channel_name": "exp_default",
+                },
+                queue_name="high",
+            )
+
+    def test_send_non_json_calls_synchronously(self, exp):
+        with mock.patch(
+            "dallinger.experiment.Experiment.receive_message"
+        ) as mock_receive:
+            exp.channel = "exp_default"
+            exp.send("exp_default:value!")
+            mock_receive.assert_called_once_with(
+                "value!", channel_name="exp_default", receive_time=mock.ANY
+            )
+
+    def test_send_no_participant_calls_synchronously(self, exp):
+        # In order to make an async call we need to be able to get a
+        # participant_id or a node_id from the message
+        with mock.patch(
+            "dallinger.experiment.Experiment.receive_message"
+        ) as mock_receive:
+            exp.channel = "exp_default"
+            exp.send('exp_default:{"key":"value"}')
+            mock_receive.assert_called_once_with(
+                '{"key":"value"}', channel_name="exp_default", receive_time=mock.ANY
+            )
+
 
 class TestTaskRegistration(object):
     def test_deferred_task_decorator(self, tasks_with_cleanup):

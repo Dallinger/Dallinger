@@ -36,6 +36,13 @@ from dallinger.db import create_db_engine
 from dallinger.deployment import setup_experiment
 from dallinger.utils import abspath_from_egg, check_output
 
+# A couple of constants to colour console output
+RED = "\033[31m"
+END = "\033[0m"
+GREEN = "\033[32m"
+BLUE = "\033[34m"
+
+
 # Find an identifier for the current user to use as CREATOR of the experiment
 HOSTNAME = gethostname()
 try:
@@ -312,8 +319,45 @@ def deploy(
             print("Run `dallinger email-test` to verify your configuration")
             raise click.Abort
     tls = "tls internal" if not HAS_TLS else f"tls {email_addr}"
+
+    experiment_uuid = str(uuid4())
+    if app_name:
+        experiment_id = app_name
+    elif archive_path:
+        experiment_id = get_experiment_id_from_archive(archive_path)
+    else:
+        experiment_id = f"dlgr-{experiment_uuid[:8]}"
+
     if not dns_host:
         dns_host = get_dns_host(ssh_host)
+        print(
+            f"{RED}Using {dns_host} as hostname. This might cause problems:{END} some browsers"
+        )
+        print("might tell users this name is suspicious")
+        print("You can override this by creating a DNS A record pointing to")
+        print(
+            f"{GREEN}{ssh_host}{END} and using option --dns-host to deploy the experiment."
+        )
+        print(
+            f"{BLUE}For instance to use the name experiment1.my-custom-domain.example.com"
+        )
+        print(
+            f"you can pass options --app-name experiment1 --dns-host my-custom-domain.example.com{END}"
+        )
+    else:
+        # Check dns_host: make sure that {experiment_id}.{dns_host} resolves to the remote host
+        dns_ok = ipaddr_experiment = ipaddr_server = True
+        try:
+            ipaddr_server = gethostbyname_ex(f"{ssh_host}")[2][0]
+            ipaddr_experiment = gethostbyname_ex(f"{experiment_id}.{dns_host}")[2][0]
+        except Exception:
+            dns_ok = False
+        if not dns_ok or (ipaddr_experiment != ipaddr_server):
+            print(
+                f"The dns name for the experiment ({experiment_id}.{dns_host}) should resolve to {ipaddr_server}"
+            )
+            print(f"It currently resolves to {ipaddr_experiment}")
+            raise click.Abort
     executor = Executor(ssh_host, user=ssh_user, app=app_name)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
@@ -349,34 +393,27 @@ def deploy(
         print("Starting experiment.")
     else:
         print("Restarting experiment.")
-    experiment_uuid = str(uuid4())
-    if app_name:
-        experiment_id = app_name
-    elif archive_path:
-        experiment_id = get_experiment_id_from_archive(archive_path)
-    else:
-        experiment_id = f"dlgr-{experiment_uuid[:8]}"
 
     dashboard_user = config.get("dashboard_user", "admin")
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
-    cfg = config.as_dict()
+    cfg = config.as_dict(include_sensitive=True)
+
+    # AWS credential keys need to be converted to upper case
     for key in "aws_access_key_id", "aws_secret_access_key":
-        # AWS credentials are not included by default in to_dict() result
-        # but can be extracted explicitly from a config object
-        cfg[key.upper()] = config[key]
+        cfg[key.upper()] = cfg.pop(key, None)
+
+    # Remove unneeded sensitive keys
+    for key in "database_url", "heroku_auth_token":
+        cfg.pop(key, None)
 
     cfg.update(
         {
             "FLASK_SECRET_KEY": token_urlsafe(16),
             "AWS_DEFAULT_REGION": config["aws_region"],
             "smtp_username": config.get("smtp_username"),
-            "smtp_password": config.get("smtp_password"),
-            "prolific_api_token": config["prolific_api_token"],
             "activate_recruiter_on_start": config["activate_recruiter_on_start"],
             "auto_recruit": config["auto_recruit"],
-            "dashboard_user": dashboard_user,
-            "dashboard_password": dashboard_password,
             "mode": mode,
             "CREATOR": f"{USER}@{HOSTNAME}",
             "DALLINGER_UID": experiment_uuid,

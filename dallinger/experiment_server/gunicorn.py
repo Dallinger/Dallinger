@@ -12,7 +12,7 @@ from dallinger.config import get_config
 
 logger = logging.getLogger(__file__)
 
-WORKER_CLASS = "geventwebsocket.gunicorn.workers.GeventWebSocketWorker"
+WORKER_CLASS = "gevent"
 
 
 def when_ready(arbiter):

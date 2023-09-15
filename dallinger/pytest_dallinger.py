@@ -159,6 +159,7 @@ def stub_config():
         "id": "TEST_EXPERIMENT_UID",  # This is a significant value; change with caution.
         "keywords": "kw1, kw2, kw3",
         "lifetime": 1,
+        "lock_table_when_creating_participant": True,
         "logfile": "-",
         "loglevel": 0,
         "mode": "debug",
@@ -420,9 +421,8 @@ def webapp(active_config, reset_sys_modules, env):
     not caching the Flask template search path, and clearing out sys.modules
     before loading the Flask app.
     """
-    from dallinger.experiment_server import sockets
+    from dallinger.experiment_server.experiment_server import app
 
-    app = sockets.app
     # look in the cwd for test's templates, and make sure the template loader
     # uses that directory to search for them.
     app.root_path = os.getcwd()

@@ -2,9 +2,38 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.10.0](https://github.com/dallinger/dallinger/tree/v9.10.0) (2023-08-18)
+
+- Enhancement: Added support for custom WorkerEvents allowing experiments to run
+  tasks asynchronously on worker processes.
+- Fixed: Migrated `experiment_server/sockets.py` to use the `Flask-Sock` library.
+- Enhancement: Added a control channel that all socket enabled experiments will
+  listen on for "administrative" messages (e.g. connect/disconnect).
+- Enhancement: Updated WebSocket experiment integraton to use Async processing
+  by default and update documentation.
+- Enhancement: Added boolean `include_sensitive` param to `Config.as_dict`.
+- Fixed: Corrected waiting room url issue.
+- Fixed: Fixed the display of participant IDs in the dashboard monitor.
+- Infrastructure: Updated `setup-chromedriver` to v2.1.2.
+- Infrastructure: Updated dependencies; pinned versions of `sphinxcontrib-*` packages
+  in order to be compatible with Python 3.8.
+
+## [v9.9.0](https://github.com/dallinger/dallinger/tree/v9.9.0) (2023-07-27)
+
+- Fixed: Added check for dependencies using `pkg_resources`.
+- Fixed: Fixed issues where CI jobs were failing due to changes of how ChromeDriver needs to be downloaded for Chrome versions >= 115.
+- Enhancement: Added new `Experiment` method `on_assignment_submitted_to_recruiter` to allow experiment authors to override the behavior when a participant finishes an experiment.
+- Enhancement: Added `--update` option to `dallinger docker-ssh deploy`.
+- Enhancement: Make it possible to destroy a partially deployed app.
+- Enhancement: Added new config variable `lock_table_when_creating_participant` to prevent possible deadlocks on the `Participant` table.
+- Enhancement: Added sanity checks for `dallinger docker-ssh deploy` to fail early in case the option `--dns-host` doesn't refer to a properly configured name and issue a warning that some browsers might deem the domain insecure.
+- Removed: Removed `--resolver=backtracking` from `pip-compile` commands as it became the default in pip-tools 7.0.0.
+- Documentation: Updated section on releasing a new version of Dallinger.
+- Infrastructure: Updated dependencies; replaced bumpversion with bump2version.
+
 ## [v9.8.2](https://github.com/dallinger/dallinger/tree/v9.8.2) (2023-07-03)
 
-- Fixed a bug in dlgr.submitAssignment that was causing MTurk HIT submission to fail. This bug was introduced in v.9.8.0 when fixing another bug. The bug meant that `externalSubmit` was being called in the popup window, not the MTurk iframe, causing submission to fail.
+- Fixed a bug in `dlgr.submitAssignment` that was causing MTurk HIT submission to fail. This bug was introduced in v9.8.0 when fixing another bug. The bug meant that `externalSubmit` was being called in the popup window, not the MTurk iframe, causing submission to fail.
 
 ## [v9.8.1](https://github.com/dallinger/dallinger/tree/v9.8.1) (2023-06-22)
 
@@ -18,7 +47,7 @@
 ## [v9.8.0](https://github.com/dallinger/dallinger/tree/v9.8.0) (2023-06-05)
 
 - Fixed several bugs that were manifesting on SSH deployments, some of which were specific to Prolific:
-  - Fixed wrong signature for `executor.run(`) call in docker_ssh.py.
+  - Fixed wrong signature for `executor.run()` call in docker_ssh.py.
   - Ensured that config is loaded before every Flask request; previously config was not loading in advance of the serving of static files and this was causing server errors.
   - Fixed a bug in parent window closing which was preventing Prolific experiments from completing.
   - Ensured that all fields in `dallinger.identity` are set properly when calling `dallinger.createParticipant`.

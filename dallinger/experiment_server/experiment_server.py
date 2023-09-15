@@ -47,7 +47,7 @@ session = db.session
 redis_conn = db.redis_conn
 
 # Connect to the Redis queue for notifications.
-q = Queue(connection=redis_conn)
+q = Queue("default", connection=redis_conn)
 WAITING_ROOM_CHANNEL = "quorum"
 
 app = Flask("Experiment_Server")
@@ -103,6 +103,12 @@ except ImportError:
 else:
     app.register_blueprint(extra_routes)
 
+# Enable the websocket route. This needs to be imported after app is defined to
+# avoid an import loop.
+# XXX: It would be nice to not do this at import time and
+# avoid this circularity, but doing so seems to cause tests in `test_deployment`
+# to deadlock.
+from dallinger.experiment_server import sockets  # noqa: E402
 
 # Skipping coverage testing on this for now because it only runs at import time
 # and cannot be exercised within tests
@@ -441,9 +447,11 @@ def launch():
     # redis communication channel:
     if exp.channel is not None:
         try:
-            from dallinger.experiment_server.sockets import chat_backend
-
-            chat_backend.subscribe(exp, exp.channel)
+            sockets.chat_backend.subscribe(exp, exp.channel)
+            # Additionally subscribe the experiment to the Dallinger Control
+            # channel for messages about websocket
+            # connect/disconnect/subscribe/unsubscribe events
+            sockets.chat_backend.subscribe(exp, sockets.CONTROL_CHANNEL)
         except Exception:
             return error_response(
                 error_text="Failed to subscribe to chat for channel on launch "
@@ -791,12 +799,22 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
     defined in reference to the participant object. You must specify the
     worker_id, hit_id, assignment_id, and mode in the url.
     """
-    # Lock the table, triggering multiple simultaneous accesses to fail
-    try:
-        session.connection().execute("LOCK TABLE participant IN EXCLUSIVE MODE NOWAIT")
-    except exc.OperationalError as e:
-        e.orig = TransactionRollbackError()
-        raise e
+    config = get_config()
+    if not config.ready:
+        config.load()
+
+    if config.get("lock_table_when_creating_participant"):
+        # Historically we have locked the participant table when creating participants
+        # to avoid database inconsistency problems. However some experimenters have experienced
+        # some deadlocking problems associated with this locking, so we have made
+        # it an opt-out behavior.
+        try:
+            session.connection().execute(
+                "LOCK TABLE participant IN EXCLUSIVE MODE NOWAIT"
+            )
+        except exc.OperationalError as e:
+            e.orig = TransactionRollbackError()
+            raise e
 
     missing = [p for p in (worker_id, hit_id, assignment_id) if p == "undefined"]
     if missing:
@@ -1045,7 +1063,7 @@ def node_neighbors(node_id):
     connection = request_parameter(parameter="connection", default="to")
     failed = request_parameter(parameter="failed", parameter_type="bool", optional=True)
     for x in [node_type, connection]:
-        if type(x) == Response:
+        if isinstance(x, Response):
             return x
 
     # make sure the node exists
@@ -1130,7 +1148,7 @@ def node_vectors(node_id):
     direction = request_parameter(parameter="direction", default="all")
     failed = request_parameter(parameter="failed", parameter_type="bool", default=False)
     for x in [direction, failed]:
-        if type(x) == Response:
+        if isinstance(x, Response):
             return x
 
     # execute the request
@@ -1255,7 +1273,7 @@ def node_infos(node_id):
     info_type = request_parameter(
         parameter="info_type", parameter_type="known_class", default=models.Info
     )
-    if type(info_type) == Response:
+    if isinstance(info_type, Response):
         return info_type
 
     # check the node exists
@@ -1294,7 +1312,7 @@ def node_received_infos(node_id):
     info_type = request_parameter(
         parameter="info_type", parameter_type="known_class", default=models.Info
     )
-    if type(info_type) == Response:
+    if isinstance(info_type, Response):
         return info_type
 
     # check the node exists
@@ -1367,7 +1385,7 @@ def info_post(node_id):
     failed = request_parameter(parameter="failed", parameter_type="bool", default=False)
 
     for x in [contents, info_type]:
-        if type(x) == Response:
+        if isinstance(x, Response):
             return x
     # check the node exists
     node = models.Node.query.get(node_id)
@@ -1412,7 +1430,7 @@ def node_transmissions(node_id):
     direction = request_parameter(parameter="direction", default="incoming")
     status = request_parameter(parameter="status", default="all")
     for x in [direction, status]:
-        if type(x) == Response:
+        if isinstance(x, Response):
             return x
 
     # check the node exists
@@ -1549,7 +1567,7 @@ def transformation_get(node_id):
         parameter_type="known_class",
         default=models.Transformation,
     )
-    if type(transformation_type) == Response:
+    if isinstance(transformation_type, Response):
         return transformation_type
 
     # check the node exists
@@ -1592,7 +1610,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
         parameter_type="known_class",
         default=models.Transformation,
     )
-    if type(transformation_type) == Response:
+    if isinstance(transformation_type, Response):
         return transformation_type
 
     # Check that the node etc. exists.

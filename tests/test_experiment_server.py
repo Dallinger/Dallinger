@@ -1575,6 +1575,7 @@ class TestLaunchRoute(object):
             mock_exp = mock.Mock()
             mock_exp.protected_routes = []
             mock_exp.background_tasks = []
+            mock_exp.channel = None
             mock_exp.recruiter.open_recruitment.return_value = {
                 "items": ["item"],
                 "message": "a message",
@@ -1592,6 +1593,7 @@ class TestLaunchRoute(object):
             mock_exp = mock.Mock()
             mock_exp.protected_routes = []
             mock_exp.background_tasks = []
+            mock_exp.channel = None
             mock_class.return_value = mock_exp
             resp = webapp.post("/launch", data={})
         assert resp.status_code == 200
@@ -1604,6 +1606,7 @@ class TestLaunchRoute(object):
             bad_log = mock.Mock(side_effect=IOError)
             mock_exp = mock.Mock(log=bad_log)
             mock_exp.protected_routes = []
+            mock_exp.channel = None
             mock_class.return_value = mock_exp
             resp = webapp.post("/launch", data={})
 
@@ -1613,6 +1616,45 @@ class TestLaunchRoute(object):
             "message": "IOError writing to experiment log: ",
             "status": "error",
         }
+
+    def test_launch_establishes_channel_subscription(self, webapp, active_config):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as mock_class:
+            mock_exp = mock.Mock()
+            active_config.extend({"activate_recruiter_on_start": False})
+            mock_exp.protected_routes = []
+            mock_exp.background_tasks = []
+            mock_exp.channel = "special"
+            mock_class.return_value = mock_exp
+            with mock.patch(
+                "dallinger.experiment_server.sockets.chat_backend"
+            ) as mock_chat:
+                webapp.post("/launch", data={})
+                # We should have subscribed the experiment to the specified
+                # channel and the experiment control channel.
+                assert mock_chat.subscribe.call_count == 2
+                assert mock_chat.subscribe.mock_calls[0].args == (mock_exp, "special")
+                assert mock_chat.subscribe.mock_calls[1].args == (
+                    mock_exp,
+                    "dallinger_control",
+                )
+
+    def test_launch_without_channel_gets_no_subscriptions(self, webapp, active_config):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as mock_class:
+            mock_exp = mock.Mock()
+            active_config.extend({"activate_recruiter_on_start": False})
+            mock_exp.protected_routes = []
+            mock_exp.background_tasks = []
+            mock_exp.channel = None
+            mock_class.return_value = mock_exp
+            with mock.patch(
+                "dallinger.experiment_server.sockets.chat_backend"
+            ) as mock_chat:
+                webapp.post("/launch", data={})
+                assert mock_chat.subscribe.call_count == 0
 
 
 @pytest.mark.usefixtures("experiment_dir")
@@ -1707,6 +1749,23 @@ class TestWorkerFunctionIntegration(object):
         assert event.origin.participant_id == participant_id
         assert event.details["test"] is True
 
+    def test_converts_timestamp_and_sets_time(self, a, worker_func):
+        participant = a.participant()
+        receive_time = datetime.now()
+
+        with mock.patch(self.dispatcher) as mock_baseclass:
+            runner = mock.Mock()
+            mock_baseclass.for_name = mock.Mock(return_value=runner)
+            worker_func(
+                event_type="MockEvent",
+                assignment_id=None,
+                participant_id=participant.id,
+                receive_timestamp=receive_time.timestamp(),
+            )
+            mock_baseclass.for_name.assert_called_once_with("MockEvent")
+            assert runner.call_args[1]["receive_time"] == receive_time
+            assert isinstance(runner.call_args[1]["now"], datetime)
+
 
 class TestWorkerEvents(object):
     def test_dispatch(self):
@@ -1723,6 +1782,15 @@ class TestWorkerEvents(object):
         from dallinger.experiment_server.worker_events import WorkerEvent
 
         assert WorkerEvent.for_name("nonsense") is None
+
+    def test_event_subclass_registered(self):
+        from dallinger.experiment_server.worker_events import WorkerEvent
+
+        class MyCustomEventClass(WorkerEvent):
+            pass
+
+        # The meta class automatically registers new classes by name
+        assert WorkerEvent.for_name("MyCustomEventClass") is MyCustomEventClass
 
 
 end_time = datetime(2000, 1, 1)
@@ -1758,6 +1826,7 @@ def standard_args(experiment):
         "session": mock.Mock(spec_set=scoped_session),
         "config": {},
         "now": end_time,
+        "receive_time": end_time,
     }.copy()
 
 
@@ -1777,15 +1846,7 @@ class TestAssignmentSubmitted(object):
 
     def test_calls_on_assignment_submitted_to_recruiter(self, runner):
         runner()
-        runner.experiment.on_assignment_submitted_to_recruiter.assert_called_once_with(
-            participant=runner.participant,
-            event={
-                "event_type": "AssignmentSubmitted",
-                "participant_id": "42",
-                "assignment_id": "some assignment id",
-                "timestamp": end_time,
-            },
-        )
+        runner.experiment.on_assignment_submitted_to_recruiter.assert_called_once()
 
 
 class TestBotAssignmentSubmitted(object):
@@ -1953,3 +2014,22 @@ class TestNotificationMissing(object):
         runner.participant.end_time = marker
         runner()
         assert runner.participant.end_time is marker
+
+
+class TestWebSocketMessage(object):
+    @pytest.fixture
+    def runner(self, standard_args):
+        from dallinger.experiment_server.worker_events import WebSocketMessage
+
+        return WebSocketMessage(**standard_args)
+
+    def test_calls_experiment_recieve(self, runner):
+        runner.details = {"message": '{"key":"value"}', "channel_name": "exp_channel"}
+        runner()
+        runner.experiment.receive_message.assert_called_once_with(
+            '{"key":"value"}',
+            channel_name="exp_channel",
+            participant=runner.participant,
+            node=runner.node,
+            receive_time=end_time,
+        )

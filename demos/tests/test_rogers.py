@@ -216,17 +216,17 @@ class TestRogers(object):
             source = network.nodes(type=RogersSource)
             assert len(source) == 1
             source = source[0]
-            assert type(source) == RogersSource
+            assert isinstance(source, RogersSource)
 
             environment = network.nodes(type=RogersEnvironment)
             assert len(environment) == 1
             environment = environment[0]
-            assert type(environment) == RogersEnvironment
+            assert isinstance(environment, RogersEnvironment)
 
             vectors = network.vectors()
 
             for agent in agents:
-                assert type(agent) == RogersAgent
+                assert isinstance(agent, RogersAgent)
 
             for agent in agents:
                 if agent.generation == 0:
