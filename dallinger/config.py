@@ -1,6 +1,5 @@
 from __future__ import unicode_literals
 
-import distutils.util
 import io
 import json
 import logging
@@ -11,6 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import six
+from setuptools.dist import strtobool
 from six.moves import configparser
 
 logger = logging.getLogger(__file__)
@@ -71,6 +71,7 @@ default_keys = (
     ("keywords", six.text_type, []),
     ("language", six.text_type, []),
     ("lifetime", int, []),
+    ("lock_table_when_creating_participant", bool, []),
     ("logfile", six.text_type, []),
     ("loglevel", int, []),
     ("mode", six.text_type, []),
@@ -154,7 +155,7 @@ class Configuration(object):
                         value = source_file.read()
                 try:
                     if expected_type == bool:
-                        value = distutils.util.strtobool(value)
+                        value = strtobool(value)
                     value = expected_type(value)
                 except ValueError:
                     pass
@@ -221,10 +222,10 @@ class Configuration(object):
         except KeyError:
             raise AttributeError
 
-    def as_dict(self):
+    def as_dict(self, include_sensitive=False):
         d = {}
         for key in self.types:
-            if key not in self.sensitive:
+            if key not in self.sensitive or include_sensitive:
                 try:
                     d[key] = self.get(key)
                 except KeyError:

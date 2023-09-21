@@ -156,7 +156,7 @@ class TestModels(object):
         assert len(net.transformations(failed="all", type=models.Transformation)) == 1
 
         for t in net.transformations(failed="all"):
-            assert type(t.node) == Agent
+            assert isinstance(t.node, Agent)
 
         # test latest_transmission_recipient
         assert net.latest_transmission_recipient() == agent

@@ -13,25 +13,25 @@ import sys
 import tempfile
 import webbrowser
 from hashlib import md5
+from importlib.metadata import files as files_metadata
+from importlib.util import find_spec
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unicodedata import normalize
 
-import pkg_resources
 import requests
 from faker import Faker
 from flask import request
-from pkg_resources import get_distribution
-
-try:
-    from importlib.metadata import files as files_metadata
-except ImportError:
-    from importlib_metadata import files as files_metadata
 
 from dallinger import db
 from dallinger.compat import is_command
 from dallinger.config import get_config
 from dallinger.version import __version__
+
+try:
+    from pip._vendor import pkg_resources
+except ImportError:
+    pkg_resources = None
 
 fake = Faker()
 
@@ -74,10 +74,7 @@ def dallinger_package_path():
     >>> utils.dallinger_package_location()
     '/Users/janedoe/projects/Dallinger3/dallinger'
     """
-    dist = get_distribution("dallinger")
-    src_base = os.path.join(dist.location, dist.project_name)
-
-    return src_base
+    return os.path.dirname(find_spec("dallinger").origin)
 
 
 def generate_random_id(size=6, chars=string.ascii_uppercase + string.digits):
@@ -387,7 +384,7 @@ def check_local_db_connection(log):
         raise
 
 
-def check_experiment_dependencies(requirement_file):
+def check_experiment_dependencies(requirements_file):
     """Verify that the dependencies defined in a requirements file are
     in fact installed.
     If the environment variable SKIP_DEPENDENCY_CHECK is set, no check
@@ -396,11 +393,23 @@ def check_experiment_dependencies(requirement_file):
     if os.environ.get("SKIP_DEPENDENCY_CHECK"):
         return
     try:
-        with open(requirement_file, "r") as f:
-            dependencies = [r for r in f.readlines() if r[:3] != "-e "]
+        with open(requirements_file, "r") as f:
+            dependencies = [
+                re.split("@|\\ |>|<|=|\\[", line)[0].strip()
+                for line in f.readlines()
+                if line[:3] != "-e " and line[0].strip() not in ["#", ""]
+            ]
     except (OSError, IOError):
         dependencies = []
-    pkg_resources.require(dependencies)
+
+    for dep in dependencies:
+        if find_spec(dep) is None:
+            try:
+                pkg_resources.get_distribution(dep)
+            except (pkg_resources.DistributionNotFound, AttributeError):
+                raise ValueError(
+                    f"Please install the '{dep}' package to run this experiment."
+                )
 
 
 def develop_target_path(config):
@@ -594,7 +603,6 @@ cp requirements.txt constraints.txt"""
             check_output(
                 [
                     "pip-compile",
-                    "--resolver=backtracking",
                     "-v",
                     str(tmpfile),
                     "-o",

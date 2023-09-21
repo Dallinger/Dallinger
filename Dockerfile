@@ -1,6 +1,6 @@
 # syntax = docker/dockerfile:1.2
 ###################### Image with build tools to compile wheels ###############
-FROM python:3.10-bullseye as wheels
+FROM python:3.11-bullseye as wheels
 ENV DEBIAN_FRONTEND=noninteractive
 
 LABEL Description="Dallinger base docker image" Version="1.0"
@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 
 ###################### Dallinger base image ###################################
-FROM python:3.10-bullseye as dallinger
+FROM python:3.11-bullseye as dallinger
 ENV DEBIAN_FRONTEND=noninteractive
 LABEL org.opencontainers.image.source https://github.com/Dallinger/Dallinger
 
@@ -83,10 +83,8 @@ RUN --mount=type=cache,target=/chromedownload \
     apt install -y --no-install-recommends /chromedownload/google-chrome-stable_current_amd64.deb && \
     rm -rf /var/lib/apt/lists/*
 
-RUN OUR_CHROME_VERSION=$(google-chrome --version |sed "s/Google Chrome //;s/ //;s/\.[^.]*$//") && \
-    echo Finding the chromedriver version to install for chrome $OUR_CHROME_VERSION && \
-    CHROMEDRIVER_VERSION=$(busybox wget -O - https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${OUR_CHROME_VERSION}) && \
-    echo Installing chromedriver $CHROMEDRIVER_VERSION && \
-    busybox wget https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip -O /tmp/chromedriver_linux64.zip && \
+RUN OUR_CHROME_VERSION=$(google-chrome --version |sed "s/Google Chrome //;s/ //") && \
+    echo Installing chromedriver $OUR_CHROME_VERSION && \
+    busybox wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${OUR_CHROME_VERSION}/linux64/chromedriver-linux64.zip -O /tmp/chromedriver_linux64.zip && \
     busybox unzip /tmp/chromedriver_linux64.zip -d /usr/local/bin/ && \
     rm /tmp/chromedriver_linux64.zip

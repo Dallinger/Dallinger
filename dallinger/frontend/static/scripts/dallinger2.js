@@ -80,6 +80,8 @@ var dallinger = (function () {
    *
    * ``assignmentId``  - MTurk Assignment Id
    *
+   * ``uniqueId``      - MTurk Worker Id and Assignment Id
+   *
    * ``mode``          - Dallinger experiment mode
    *
    * ``participantId`` - Dallinger participant Id
@@ -95,6 +97,8 @@ var dallinger = (function () {
     set workerId(value) {  dlgr.storage.set('worker_id', value); },
     get assignmentId() { return  dlgr.storage.get('assignment_id'); },
     set assignmentId(value) {  dlgr.storage.set('assignment_id', value); },
+    get uniqueId() { return  dlgr.storage.get('unique_id'); },
+    set uniqueId(value) {  dlgr.storage.set('unique_id', value); },
     get mode() { return  dlgr.storage.get('mode'); },
     set mode(value) {  dlgr.storage.set('mode', value); },
     get participantId() { return dlgr.storage.get('participant_id'); },
@@ -109,10 +113,16 @@ var dallinger = (function () {
       this.hitId = dlgr.getUrlParameter('hitId');
       this.workerId = dlgr.getUrlParameter('workerId');
       this.assignmentId = dlgr.getUrlParameter('assignmentId');
+      this.uniqueId = dlgr.getUrlParameter('workerId') + ":" + dlgr.getUrlParameter('assignmentId');
       this.mode = dlgr.getUrlParameter('mode');
       // Store all url parameters as entry information.
       // This won't work in IE, but should work in Edge.
-      var entry_info = {};
+      var entry_info = {
+        assignmentId: this.assignmentId,
+        hitId: this.hitId,
+        workerId: this.workerId,
+        mode: this.mode
+      };
       var query_params = new URLSearchParams(location.search);
       for (const [k, v] of query_params) {
         entry_info[k] = v;
@@ -237,7 +247,11 @@ var dallinger = (function () {
    * should not be included.
    */
   dlgr.goToPage = function(page) {
-    window.location = "/" + page + "?participant_id=" + dlgr.identity.participantId;
+    if (dlgr.identity.participantId) {
+      window.location = "/" + page + "?participant_id=" + dlgr.identity.participantId;
+    } else {
+      window.location = "/" + page + '?assignmentId=' + dlgr.identity.assignmentId + "&hitId=" + dlgr.identity.hitId + "&workerId=" + dlgr.identity.workerId + "&mode=" + dlgr.identity.mode;
+    }
   };
 
   var add_hidden_input = function ($form, name, val) {
@@ -385,7 +399,18 @@ var dallinger = (function () {
     }).done(function () {
       deferred.resolve();
       dlgr.allowExit();
-      if (window.opener && !window.opener.location.pathname.startsWith("/dashboard")) {
+
+      let openedFromDashboard;
+      try {
+        openedFromDashboard = window.opener && window.opener.location.pathname.startsWith("/dashboard");
+      } catch (error) {
+        // If the parent window was from a different origin (e.g. Prolific) then we see an error like this:
+        // Uncaught DOMException: Blocked a frame with origin XXX from accessing a cross-origin frame.
+        // We catch and ignore this error.
+        openedFromDashboard = false;
+      }
+
+      if (window.opener && !openedFromDashboard) {
         // If the parent window is still around, redirect it to the exit route
         // and close the secondary window (this one) that held the main experiment:
         window.opener.location = exitRoute;
@@ -442,6 +467,10 @@ var dallinger = (function () {
           console.log(resp);
           $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
+          dlgr.identity.assignmentId = resp.participant.assignment_id;
+          dlgr.identity.uniqueId = resp.participant.unique_id;
+          dlgr.identity.workerId = resp.participant.worker_id;
+          dlgr.identity.hitId = resp.participant.hit_id;
           if (! resp.quorum) {  // We're not using a waiting room.
             deferred.resolve();
             return;
@@ -664,7 +693,7 @@ var dallinger = (function () {
    */
   dlgr.waitForQuorum = function () {
     var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
-    var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat?channel=quorum");
+    var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat?channel=quorum&worker_id=" + dlgr.identity.workerId + '&participant_id=' + dlgr.identity.participantId);
     var deferred = $.Deferred();
     socket.onmessage = function (msg) {
       if (msg.data.indexOf('quorum:') !== 0) { return; }

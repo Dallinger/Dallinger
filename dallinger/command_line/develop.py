@@ -1,4 +1,3 @@
-import logging
 import subprocess
 
 import click
@@ -17,7 +16,6 @@ from dallinger.db import redis_conn
 from dallinger.deployment import DevelopmentDeployment, _handle_launch_data
 from dallinger.utils import develop_target_path, open_browser
 
-logger = logging.getLogger(__name__)
 BASE_URL = "http://127.0.0.1:{}/"
 
 
@@ -114,7 +112,7 @@ def _browser(route=None, port=5000):
     url_factory = valid_routes.get(route)
     if url_factory is not None:
         url = url_factory(config, port)
-        logger.info("Experiment dashboard: %s", url)
+        log(f"Experiment dashboard: {url}")
         open_browser(url)
     else:
         click.echo(

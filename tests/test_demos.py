@@ -43,7 +43,7 @@ class TestDemos(object):
 
     def test_instantiation_via_entry_points(self):
         failures = []
-        for entry in experiments.iter_entry_points(group="dallinger.experiments"):
+        for entry in experiments.entry_points().get("dallinger.experiments"):
             try:
                 entry.load()()
             except Exception as ex:

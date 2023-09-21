@@ -14,6 +14,7 @@ import traceback
 
 import psutil
 import six
+from cached_property import cached_property
 from six.moves import shlex_quote as quote
 
 from dallinger.config import SENSITIVE_KEY_NAMES
@@ -162,9 +163,18 @@ class HerokuApp(HerokuCommandRunner):
     def name(self):
         return app_name(self.dallinger_uid)
 
-    @property
+    @cached_property
     def url(self):
-        return "https://{}.herokuapp.com".format(self.name)
+        app_info = self._result(
+            [
+                "heroku",
+                "apps:info",
+                "--app",
+                self.name,
+                "--json",
+            ]
+        )
+        return json.loads(app_info)["app"]["web_url"].rstrip("/")
 
     def addon(self, name):
         """Set up an addon"""

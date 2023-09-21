@@ -3,6 +3,7 @@ from datetime import datetime
 from operator import attrgetter
 
 from rq import Queue, get_current_job
+from sqlalchemy.exc import DataError, InternalError
 
 from dallinger import db, information, models
 from dallinger.config import get_config
@@ -30,13 +31,33 @@ def _get_queue(name="default"):
     return Queue(name, connection=db.redis_conn)
 
 
+LOG_EVENT_TYPES = frozenset(
+    (
+        "AssignmentAccepted",
+        "AssignmentAbandoned",
+        "AssignmentReassigned",
+        "AssignmentReturned",
+        "AssignmentSubmitted",
+        "BotAssignmentSubmitted",
+        "BotAssignmentRejected",
+        "NotificationMissing",
+    )
+)
+
+
 @db.scoped_session_decorator
 def worker_function(
-    event_type, assignment_id, participant_id, node_id=None, details=None
+    event_type,
+    assignment_id,
+    participant_id,
+    node_id=None,
+    receive_timestamp=None,
+    details=None,
+    queue_name="default",
 ):
     """Process the notification."""
     _config()
-    q = _get_queue()
+    q = _get_queue(name=queue_name)
     try:
         db.logger.debug(
             "rq: worker_function working on job id: %s", get_current_job().id
@@ -45,42 +66,61 @@ def worker_function(
             "rq: Received Queue Length: %d (%s)", len(q), ", ".join(q.job_ids)
         )
     except AttributeError:
-        db.logger.debug("Debug worker_function called synchronously")
+        db.logger.debug(
+            "Debug worker_function called synchronously or queue not specified"
+        )
 
     exp = _loaded_experiment(db.session)
     key = "-----"
 
-    exp.log(
-        "Received an {} notification for assignment {}, participant {}".format(
-            event_type, assignment_id, participant_id
-        ),
-        key,
+    # Logging every event is a bit verbose for experiment driven events
+    if event_type in LOG_EVENT_TYPES:
+        exp.log(
+            "Received an {} notification for assignment {}, participant {}".format(
+                event_type, assignment_id, participant_id
+            ),
+            key,
+        )
+
+    receive_time = (
+        datetime.fromtimestamp(receive_timestamp)
+        if receive_timestamp
+        else datetime.now()
     )
+    node = None
+    if node_id:
+        try:
+            node = models.Node.query.get(node_id)
+        except DataError:
+            pass
+
+    participant = None
+    if participant_id is not None:
+        try:
+            participant = models.Participant.query.get(participant_id)
+        except DataError:
+            pass
+
+    if assignment_id and not participant:
+        try:
+            participants = models.Participant.query.filter_by(
+                assignment_id=assignment_id
+            ).all()
+        except (DataError, InternalError):
+            participants = []
+        # if there are one or more participants select the most recent
+        if participants:
+            participant = max(participants, key=attrgetter("creation_time"))
 
     if event_type == "TrackingEvent":
-        node = None
-        if node_id:
-            node = models.Node.query.get(node_id)
-        if not node:
-            participant = None
-            if participant_id:
-                # Lookup assignment_id to create notifications
-                participant = models.Participant.query.get(participant_id)
-            elif assignment_id:
-                participants = models.Participant.query.filter_by(
-                    assignment_id=assignment_id
-                ).all()
-                # if there are one or more participants select the most recent
-                if participants:
-                    participant = max(participants, key=attrgetter("creation_time"))
-                    participant_id = participant.id
-            if not participant:
-                exp.log(
-                    "Warning: No participant associated with this "
-                    "TrackingEvent notification.",
-                    key,
-                )
-                return
+        if not node and not participant:
+            exp.log(
+                "Warning: No participant associated with this "
+                "TrackingEvent notification.",
+                key,
+            )
+            return
+        if participant:
             nodes = participant.nodes()
             if not nodes:
                 exp.log(
@@ -109,67 +149,82 @@ def worker_function(
         db.session.add(notif)
         db.session.commit()
 
-        # try to identify the participant
-        participants = models.Participant.query.filter_by(
-            assignment_id=assignment_id
-        ).all()
-
-        # if there are one or more participants select the most recent
-        if participants:
-            participant = max(participants, key=attrgetter("creation_time"))
-
-        # if there are none print an error
-        else:
+        if not participant:
             exp.log(
                 "Warning: No participants associated with this "
                 "assignment_id. Notification will not be processed.",
                 key,
             )
-            return None
-
-    elif participant_id is not None:
-        participant = models.Participant.query.filter_by(id=participant_id).all()[0]
-    else:
+            return
+    elif not participant and not node:
         raise ValueError(
             "Error: worker_function needs either an assignment_id or a "
             "participant_id, they cannot both be None"
         )
 
-    participant_id = participant.id
-
+    # Distinguish between the time of the event and the time it was pulled off
+    # the queue for processing
     runner = runner_cls(
-        participant, assignment_id, exp, db.session, _config(), datetime.now()
+        participant,
+        assignment_id,
+        exp,
+        db.session,
+        config=_config(),
+        now=datetime.now(),
+        receive_time=receive_time,
+        node=node,
+        details=details,
     )
     runner()
     db.session.commit()
 
 
-class WorkerEvent(object):
+class _WorkerMeta(type):
+    _WORKER_EVENTS = {}
+
+    def __init__(cls, name, bases, dct):
+        """Register subclasses with a name registry"""
+        cls._WORKER_EVENTS[name] = cls
+
+    def for_name(cls, name):
+        return cls._WORKER_EVENTS.get(name)
+
+
+class WorkerEvent(metaclass=_WorkerMeta):
     key = "-----"
 
-    supported_event_types = (
-        "AssignmentAccepted",
-        "AssignmentAbandoned",
-        "AssignmentReassigned",
-        "AssignmentReturned",
-        "AssignmentSubmitted",
-        "BotAssignmentSubmitted",
-        "BotAssignmentRejected",
-        "NotificationMissing",
-    )
-
-    @classmethod
-    def for_name(cls, name):
-        if name in cls.supported_event_types:
-            return globals()[name]
-
-    def __init__(self, participant, assignment_id, experiment, session, config, now):
+    def __init__(
+        self,
+        participant=None,
+        assignment_id=None,
+        experiment=None,
+        session=None,
+        config=None,
+        now=None,
+        receive_time=None,
+        node=None,
+        details=None,
+    ):
         self.participant = participant
         self.assignment_id = assignment_id
         self.experiment = experiment
         self.session = session
         self.config = config
         self.now = now
+        self.receive_time = receive_time
+        self.node = node
+        self.details = details
+
+    @property
+    def data(self):
+        return {
+            "event_type": self.__class__.__name__,
+            "participant_id": self.participant.id,
+            "assignment_id": self.assignment_id,
+            "timestamp": self.now,
+            "receive_time": self.receive_time,
+            "details": self.details,
+        }
 
     def commit(self):
         self.session.commit()
@@ -203,79 +258,10 @@ class AssignmentReturned(WorkerEvent):
 
 
 class AssignmentSubmitted(WorkerEvent):
-    min_real_bonus = 0.01
-
     def __call__(self):
-        if not self.is_eligible(self.participant):
-            return
-
-        self.update_participant_end_time()
-        self.participant.status = "submitted"
-        self.commit()
-
-        self.approve_assignment()
-
-        if not self.data_is_ok():
-            self.fail_data_check()
-            self.experiment.recruiter.recruit(n=1)
-
-            return
-
-        # If their data is ok, pay them a bonus.
-        # Note that the bonus is paid before the attention check.
-        bonus = self.experiment.bonus(participant=self.participant)
-        self.participant.bonus = bonus
-        if bonus >= self.min_real_bonus:
-            self.award_bonus(bonus)
-        else:
-            self.log("Bonus = {}: NOT paying bonus".format(bonus))
-
-        if self.did_attend():
-            self.approve_submission()
-            self.experiment.recruit()
-        else:
-            self.fail_submission()
-            self.experiment.recruiter.recruit(n=1)
-
-    def is_eligible(self, particpant):
-        eligible_statuses = ("working", "overrecruited", "returned", "abandoned")
-        return particpant.status in eligible_statuses
-
-    def data_is_ok(self):
-        """Run a check on our participant's data"""
-        return self.experiment.data_check(participant=self.participant)
-
-    def did_attend(self):
-        return self.experiment.attention_check(participant=self.participant)
-
-    def approve_assignment(self):
-        self.participant.recruiter.approve_hit(self.assignment_id)
-        self.participant.base_pay = self.config.get("base_payment")
-
-    def award_bonus(self, bonus):
-        self.log("Bonus = {}: paying bonus".format(bonus))
-        self.participant.recruiter.reward_bonus(
-            self.participant,
-            bonus,
-            self.experiment.bonus_reason(),
+        self.experiment.on_assignment_submitted_to_recruiter(
+            participant=self.participant, event=self.data
         )
-
-    def fail_data_check(self):
-        self.participant.status = "bad_data"
-        self.experiment.data_check_failed(participant=self.participant)
-        self.commit()
-
-    def approve_submission(self):
-        self.log("All checks passed.")
-        self.participant.status = "approved"
-        self.experiment.submission_successful(participant=self.participant)
-        self.commit()
-
-    def fail_submission(self):
-        self.log("Attention check failed.")
-        self.participant.status = "did_not_attend"
-        self.experiment.attention_check_failed(participant=self.participant)
-        self.commit()
 
 
 class BotAssignmentSubmitted(WorkerEvent):
@@ -314,3 +300,14 @@ class AssignmentReassigned(WorkerEvent):
         self.update_participant_end_time()
         self.participant.status = "replaced"
         self.experiment.assignment_reassigned(participant=self.participant)
+
+
+class WebSocketMessage(WorkerEvent):
+    def __call__(self):
+        self.experiment.receive_message(
+            self.details["message"],
+            channel_name=self.details["channel_name"],
+            participant=self.participant,
+            node=self.node,
+            receive_time=self.receive_time,
+        )

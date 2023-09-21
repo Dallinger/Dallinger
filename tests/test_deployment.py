@@ -926,20 +926,15 @@ class TestDebugServer(object):
         from requests.exceptions import HTTPError
 
         with mock.patch("dallinger.deployment.HerokuLocalDeployment.WRAPPER_CLASS"):
-            # For some reason this test alone triggers a failure in the line in
-            # deployment.py that invokes `pkg_resources.require`.
-            # Monkey patching it here makes it work.
-            # It would be interesting to get to the root cause.
-            with mock.patch("dallinger.utils.pkg_resources"):
-                with mock.patch("dallinger.deployment.requests.post") as mock_post:
-                    mock_post.return_value = mock.Mock(
-                        ok=False,
-                        json=mock.Mock(return_value={"message": "msg!"}),
-                        raise_for_status=mock.Mock(side_effect=HTTPError),
-                        status_code=500,
-                        text="Failure",
-                    )
-                    debugger.run()
+            with mock.patch("dallinger.deployment.requests.post") as mock_post:
+                mock_post.return_value = mock.Mock(
+                    ok=False,
+                    json=mock.Mock(return_value={"message": "msg!"}),
+                    raise_for_status=mock.Mock(side_effect=HTTPError),
+                    status_code=500,
+                    text="Failure",
+                )
+                debugger.run()
 
         # Only one launch attempt should be made in debug mode
         debugger.out.error.assert_has_calls(
@@ -1136,7 +1131,10 @@ class TestConstraints(object):
             constraints_file = Path(tmp_path) / "constraints.txt"
             # If not present a `constraints.txt` file will be generated
             assert constraints_file.exists()
-            assert "toml" in constraints_file.read_text()
+            if sys.version_info >= (3, 11):
+                assert "toml" not in constraints_file.read_text()
+            else:
+                assert "toml" in constraints_file.read_text()
 
             # An existing file will be left untouched
             constraints_file.write_text("foobar")

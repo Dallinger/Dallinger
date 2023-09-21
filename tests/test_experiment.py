@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import mock
 import pytest
 
@@ -129,6 +131,114 @@ class TestExperimentBaseClass(object):
             exp.normalize_entry_information({"foo": "bar"})
             normalizer.assert_called_once_with({"foo": "bar"})
 
+    def test_on_assignment_submitted_to_recruiter__approves_and_records_base_payment(
+        self, a, active_config, exp
+    ):
+        participant = a.participant()
+        exp.bonus = mock.Mock(return_value=0.01)
+        end_time = datetime(2000, 1, 1)
+
+        exp.on_assignment_submitted_to_recruiter(
+            participant=participant,
+            event={
+                "event_type": "AssignmentSubmitted",
+                "participant_id": participant.id,
+                "assignment_id": participant.assignment_id,
+                "timestamp": end_time,
+            },
+        )
+
+        assert participant.base_pay == active_config.get("base_payment")
+        assert participant.status == "approved"
+        assert participant.bonus == 0.01
+
+    def test_on_assignment_submitted_to_recruiter__pays_no_bonus_if_less_than_one_cent(
+        self, a, exp
+    ):
+        participant = a.participant()
+        end_time = datetime(2000, 1, 1)
+
+        exp.on_assignment_submitted_to_recruiter(
+            participant=participant,
+            event={
+                "event_type": "AssignmentSubmitted",
+                "participant_id": participant.id,
+                "assignment_id": participant.assignment_id,
+                "timestamp": end_time,
+            },
+        )
+
+        assert participant.bonus == 0
+
+    def test_on_assignment_submitted_to_recruiter__sets_end_time(self, a, exp):
+        participant = a.participant()
+        end_time = datetime(2000, 1, 1)
+
+        exp.on_assignment_submitted_to_recruiter(
+            participant=participant,
+            event={
+                "event_type": "AssignmentSubmitted",
+                "participant_id": participant.id,
+                "assignment_id": participant.assignment_id,
+                "timestamp": end_time,
+            },
+        )
+
+        assert participant.end_time == end_time
+
+    def test_on_assignment_submitted_to_recruiter__noop_if_already_approved_worker(
+        self, a, exp
+    ):
+        participant = a.participant()
+        participant.status = "approved"
+        end_time = datetime(2000, 1, 1)
+
+        exp.on_assignment_submitted_to_recruiter(
+            participant=participant,
+            event={
+                "event_type": "AssignmentSubmitted",
+                "participant_id": participant.id,
+                "assignment_id": participant.assignment_id,
+                "timestamp": end_time,
+            },
+        )
+
+        assert participant.base_pay is None
+
+    def test_on_assignment_submitted_to_recruiter__failed_data_check(self, a, exp):
+        participant = a.participant()
+        exp.data_check = mock.Mock(return_value=False)
+        end_time = datetime(2000, 1, 1)
+
+        exp.on_assignment_submitted_to_recruiter(
+            participant=participant,
+            event={
+                "event_type": "AssignmentSubmitted",
+                "participant_id": participant.id,
+                "assignment_id": participant.assignment_id,
+                "timestamp": end_time,
+            },
+        )
+
+        assert participant.status == "bad_data"
+
+    def test_on_assignment_submitted_to_recruiter__failed_attention_check(self, a, exp):
+        participant = a.participant()
+        exp.attention_check = mock.Mock(return_value=False)
+        end_time = datetime(2000, 1, 1)
+
+        exp.on_assignment_submitted_to_recruiter(
+            participant=participant,
+            event={
+                "event_type": "AssignmentSubmitted",
+                "participant_id": participant.id,
+                "assignment_id": participant.assignment_id,
+                "timestamp": end_time,
+            },
+        )
+
+        assert participant.status == "did_not_attend"
+
     def test_participant_task_completed_grants_qualification_for_experiment_id(
         self, exp
     ):
@@ -202,6 +312,66 @@ class TestExperimentBaseClass(object):
         exp.participant_task_completed(participant)
 
         participant.recruiter.assign_experiment_qualifications.assert_not_called()
+
+    def test_publish_to_subscribers(self, exp):
+        with mock.patch("dallinger.db.redis_conn") as mock_redis:
+            exp.publish_to_subscribers("A plain message!", "surprise")
+            mock_redis.publish.assert_called_once_with("surprise", "A plain message!")
+
+    def test_publish_to_subscribers_no_channel_name(self, exp):
+        with mock.patch("dallinger.db.redis_conn") as mock_redis:
+            exp.channel = "exp_default"
+            exp.publish_to_subscribers("A plain message!")
+            mock_redis.publish.assert_called_once_with(
+                "exp_default", "A plain message!"
+            )
+
+    def test_send_enqueues_worker_function(self, exp):
+        from dallinger.db import redis_conn
+        from dallinger.experiment_server.worker_events import worker_function
+
+        with mock.patch(
+            "dallinger.experiment_server.worker_events.Queue"
+        ) as mock_queue_class:
+            mock_queue = mock_queue_class.return_value = mock.Mock()
+            exp.channel = "exp_default"
+            exp.send('exp_default:{"key":"value","sender":1}')
+            mock_queue_class.assert_called_once_with("high", connection=redis_conn)
+            mock_queue.enqueue.assert_called_once_with(
+                worker_function,
+                "WebSocketMessage",
+                None,
+                1,
+                node_id=None,
+                receive_timestamp=mock.ANY,
+                details={
+                    "message": '{"key":"value","sender":1}',
+                    "channel_name": "exp_default",
+                },
+                queue_name="high",
+            )
+
+    def test_send_non_json_calls_synchronously(self, exp):
+        with mock.patch(
+            "dallinger.experiment.Experiment.receive_message"
+        ) as mock_receive:
+            exp.channel = "exp_default"
+            exp.send("exp_default:value!")
+            mock_receive.assert_called_once_with(
+                "value!", channel_name="exp_default", receive_time=mock.ANY
+            )
+
+    def test_send_no_participant_calls_synchronously(self, exp):
+        # In order to make an async call we need to be able to get a
+        # participant_id or a node_id from the message
+        with mock.patch(
+            "dallinger.experiment.Experiment.receive_message"
+        ) as mock_receive:
+            exp.channel = "exp_default"
+            exp.send('exp_default:{"key":"value"}')
+            mock_receive.assert_called_once_with(
+                '{"key":"value"}', channel_name="exp_default", receive_time=mock.ANY
+            )
 
 
 class TestTaskRegistration(object):

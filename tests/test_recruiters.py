@@ -188,7 +188,7 @@ class TestCLIRecruiter(object):
         assert "mode=new_mode" in result["items"][0]
 
     def test_returns_standard_submission_event_type(self, recruiter):
-        assert recruiter.submitted_event() == "AssignmentSubmitted"
+        assert recruiter.on_completion_event() == "AssignmentSubmitted"
 
 
 @pytest.mark.usefixtures("active_config")
@@ -240,7 +240,7 @@ class TestHotAirRecruiter(object):
         assert "mode=debug" in result["items"][0]
 
     def test_returns_standard_submission_event_type(self, recruiter):
-        assert recruiter.submitted_event() == "AssignmentSubmitted"
+        assert recruiter.on_completion_event() == "AssignmentSubmitted"
 
 
 class TestSimulatedRecruiter(object):
@@ -263,7 +263,7 @@ class TestSimulatedRecruiter(object):
         assert recruiter.open_recruitment(n=3)["items"] == []
 
     def test_returns_standard_submission_event_type(self, recruiter):
-        assert recruiter.submitted_event() == "AssignmentSubmitted"
+        assert recruiter.on_completion_event() == "AssignmentSubmitted"
 
     def test_close_recruitment(self, recruiter):
         assert recruiter.close_recruitment() is None
@@ -312,7 +312,7 @@ class TestBotRecruiter(object):
         recruiter.reward_bonus(a.participant(), 0.01, "You're great!")
 
     def test_returns_specific_submission_event_type(self, recruiter):
-        assert recruiter.submitted_event() == "BotAssignmentSubmitted"
+        assert recruiter.on_completion_event() == "BotAssignmentSubmitted"
 
     def test_notify_duration_exceeded_rejects_participants(self, a, recruiter):
         bot = a.participant(recruiter_id="bots")
@@ -424,8 +424,8 @@ class TestProlificRecruiter(object):
             "entry_information": prolific_format,
         }
 
-    def test_defers_assignment_submission_via_null_submitted_event(self, recruiter):
-        assert recruiter.submitted_event() is None
+    def test_defers_assignment_submission_via_null_on_completion_event(self, recruiter):
+        assert recruiter.on_completion_event() is None
 
     @pytest.mark.usefixtures("experiment_dir_merged")
     def test_exit_page_includes_submission_prolific_button(self, a, webapp, recruiter):
@@ -957,7 +957,7 @@ class TestMTurkRecruiter(object):
             recruiter.open_recruitment()
 
     def test_supresses_assignment_submitted(self, recruiter):
-        assert recruiter.submitted_event() is None
+        assert recruiter.on_completion_event() is None
 
     def test_current_hit_id_with_active_experiment(self, recruiter, fake_parsed_hit):
         recruiter.open_recruitment()

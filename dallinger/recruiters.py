@@ -152,10 +152,11 @@ class Recruiter(object):
         """
         return None
 
-    def submitted_event(self):
-        """Return the appropriate event type to trigger when
-        an assignment is submitted. If no event should be processed,
-        return None.
+    def on_completion_event(self):
+        """Return the name of the appropriate WorkerEvent command to run
+        when a participant completes an experiment.
+
+        If no event should be processed, return None.
         """
         return "AssignmentSubmitted"
 
@@ -243,7 +244,7 @@ class Recruiter(object):
 
 
 def alphanumeric_code(seed: str, length: int = 8):
-    """Return and alphanumeric string of specified length based on a
+    """Return an alphanumeric string of specified length based on a
     seed value, so the same result will always be returned for a given
     seed.
     """
@@ -442,7 +443,7 @@ class ProlificRecruiter(Recruiter):
         except ProlificServiceException as ex:
             logger.exception(str(ex))
 
-    def submitted_event(self):
+    def on_completion_event(self):
         """We cannot perform post-submission actions (approval, bonus payment)
         until after the participant has submitted their study via the Prolific
         UI, which we redirect them to from the exit page. This means that we
@@ -1098,7 +1099,7 @@ class MTurkRecruiter(Recruiter):
             "experiment_id": "(compensation only)",
             "max_assignments": 1,
             "title": "Dallinger Compensation HIT",
-            "description": "For compenation only; no task required.",
+            "description": "For compensation only; no task required.",
             "keywords": [],
             "reward": float(dollars),
             "duration_hours": 1,
@@ -1202,7 +1203,7 @@ class MTurkRecruiter(Recruiter):
                 "on MTurk and can no longer submit the questionnaire"
             )
 
-    def submitted_event(self):
+    def on_completion_event(self):
         """MTurk will send its own notification when the worker
         completes the HIT on that service.
         """
@@ -1526,7 +1527,7 @@ class BotRecruiter(Recruiter):
         """Logging only. These are bots."""
         logger.info("Bots don't get bonuses. Sorry, bots.")
 
-    def submitted_event(self):
+    def on_completion_event(self):
         return "BotAssignmentSubmitted"
 
     def _get_bot_factory(self):
