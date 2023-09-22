@@ -56,12 +56,12 @@ def handle_launch_data(url, error, delay=DEFAULT_DELAY, attempts=MAX_ATTEMPTS):
                 request_happened = False
                 error(
                     f"Error parsing response from {url}, "
-                    f"check logs for details.\n{launch_request.text}"
+                    f"check server logs for details.\n{launch_request.text}"
                 )
             except ValueError as err:
                 error(
                     f"Error parsing response from {url}, "
-                    f"check logs for details.\n{err}\n{launch_request.text}"
+                    f"check server logs for details.\n{err}\n{launch_request.text}"
                 )
                 raise
 
@@ -87,7 +87,7 @@ def handle_launch_data(url, error, delay=DEFAULT_DELAY, attempts=MAX_ATTEMPTS):
             )
         time.sleep(delay)
 
-    error("Experiment launch failed, check logs for details.")
+    error("Experiment launch failed, check server logs for details.")
     if launch_data and launch_data.get("message"):
         error(launch_data["message"])
     if launch_request is not None:
