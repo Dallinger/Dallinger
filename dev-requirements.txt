@@ -480,7 +480,7 @@ qtconsole==5.4.4
     # via jupyter
 qtpy==2.4.0
     # via qtconsole
-redis==5.0.0
+redis==5.0.1
     # via
     #   dallinger
     #   rq
