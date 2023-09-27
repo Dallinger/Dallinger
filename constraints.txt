@@ -629,7 +629,7 @@ trio==0.22.2
     # via
     #   selenium
     #   trio-websocket
-trio-websocket==0.10.4
+trio-websocket==0.11.1
     # via selenium
 tzdata==2023.3
     # via pandas
