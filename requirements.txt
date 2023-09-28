@@ -139,7 +139,7 @@ prompt-toolkit==3.0.39
     # via ipython
 psutil==5.9.5
     # via dallinger
-psycopg2==2.9.7
+psycopg2==2.9.8
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
