@@ -404,7 +404,7 @@ psutil==5.9.5
     # via
     #   dallinger
     #   ipykernel
-psycopg2==2.9.7
+psycopg2==2.9.8
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
