@@ -90,7 +90,7 @@ idna==3.4
     # via
     #   requests
     #   trio
-ipython==8.12.2
+ipython==8.16.0
     # via dallinger
 itsdangerous==2.1.2
     # via
