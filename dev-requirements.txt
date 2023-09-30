@@ -667,7 +667,7 @@ websocket-client==1.6.3
     # via
     #   docker
     #   jupyter-server
-werkzeug==2.3.7
+werkzeug==3.0.0
     # via
     #   flask
     #   flask-login
