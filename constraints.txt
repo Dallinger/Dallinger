@@ -146,7 +146,7 @@ flask-login==0.6.2
     # via dallinger
 flask-sock==0.6.0
     # via dallinger
-flask-wtf==1.1.1
+flask-wtf==1.2.0
     # via dallinger
 fqdn==1.5.1
     # via jsonschema
