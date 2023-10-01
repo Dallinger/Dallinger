@@ -67,7 +67,7 @@ flask-login==0.6.2
     # via dallinger
 flask-sock==0.6.0
     # via dallinger
-flask-wtf==1.1.1
+flask-wtf==1.2.0
     # via dallinger
 future==0.18.3
     # via dallinger
