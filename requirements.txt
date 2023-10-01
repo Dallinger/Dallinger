@@ -119,7 +119,7 @@ numpy==1.24.4
     #   pandas
 outcome==1.2.0
     # via trio
-packaging==23.1
+packaging==23.2
     # via
     #   build
     #   gunicorn
