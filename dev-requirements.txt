@@ -144,7 +144,7 @@ flask-crossdomain==0.1
     # via dallinger
 flask-login==0.6.2
     # via dallinger
-flask-sock==0.6.0
+flask-sock==0.7.0
     # via dallinger
 flask-wtf==1.1.1
     # via dallinger
