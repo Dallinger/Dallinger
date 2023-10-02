@@ -382,7 +382,7 @@ pickleshare==0.7.5
     # via ipython
 pip-tools==7.3.0
     # via dallinger
-platformdirs==3.10.0
+platformdirs==3.11.0
     # via
     #   black
     #   jupyter-core
