@@ -30,7 +30,7 @@ attrs==23.1.0
     #   outcome
     #   referencing
     #   trio
-babel==2.12.1
+babel==2.13.0
     # via
     #   jupyterlab-server
     #   sphinx
