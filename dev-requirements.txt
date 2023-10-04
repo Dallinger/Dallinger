@@ -633,7 +633,7 @@ trio-websocket==0.10.4
     # via selenium
 tzdata==2023.3
     # via pandas
-tzlocal==5.0.1
+tzlocal==5.1
     # via
     #   apscheduler
     #   dallinger
