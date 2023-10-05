@@ -8,7 +8,7 @@ jobs:
       needs_mturk_tests: ${{ steps.check_files.outputs.mturk_changed }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
@@ -60,8 +60,8 @@ jobs:
           POSTGRES_PASSWORD: dallinger
           POSTGRES_DB: dallinger
     steps:
-      - name: Check out Dallinger repository
-        uses: actions/checkout@v3
+      - name: Checkout Dallinger repository
+        uses: actions/checkout@v4
       - name: Install Ubuntu packages
         run: sudo apt-get --yes install pandoc enchant-2 curl
       - name: Chromedriver setup
@@ -133,7 +133,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get version
         id: vars
         run: echo ::set-output name=version::$(grep __version__\ = dallinger/version.py|sed -e 's/.*= //;s/"//g')
@@ -207,6 +207,6 @@ jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
       - uses: pre-commit/action@v3.0.0
