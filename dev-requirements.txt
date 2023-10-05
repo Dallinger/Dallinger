@@ -516,7 +516,7 @@ selenium==4.12.0
     # via dallinger
 send2trash==1.8.2
     # via jupyter-server
-simple-websocket==0.10.1
+simple-websocket==1.0.0
     # via flask-sock
 six==1.16.0
     # via
