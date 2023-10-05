@@ -83,7 +83,7 @@ jobs:
       - name: Yarn
         run: yarn --frozen-lockfile --ignore-engines
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Cache pip
@@ -175,7 +175,7 @@ jobs:
       - name: Make sure dallinger script entry point is working with dallinger source mounted as volume
         run: docker run -v $PWD/dallinger:/dallinger/dallinger --rm ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }} python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
       - name: Set up Python 3.11
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           python-version: "3.11"
       - name: Cache pip
@@ -208,5 +208,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
       - uses: pre-commit/action@v3.0.0
