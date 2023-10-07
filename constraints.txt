@@ -42,7 +42,7 @@ beautifulsoup4==4.12.2
     # via nbconvert
 black==23.9.1
     # via dallinger
-bleach==6.0.0
+bleach==6.1.0
     # via nbconvert
 blinker==1.6.2
     # via flask
