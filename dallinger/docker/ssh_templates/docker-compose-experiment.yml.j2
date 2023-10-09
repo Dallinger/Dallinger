@@ -52,6 +52,8 @@ services:
       - PGBOUNCER_PORT=5432
       - PGBOUNCER_DATABASE={{ experiment_id }}
       - PGBOUNCER_POOL_MODE=transaction
+      # Connections to postgres will be closed after 60 seconds of inactivity
+      - PGBOUNCER_SERVER_IDLE_TIMEOUT=60
 
   web:
     image: {{ experiment_image }}
