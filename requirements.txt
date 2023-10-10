@@ -247,7 +247,7 @@ wsproto==1.2.0
     # via
     #   simple-websocket
     #   trio-websocket
-wtforms==3.0.1
+wtforms==3.1.0
     # via flask-wtf
 zope-event==5.0
     # via gevent
