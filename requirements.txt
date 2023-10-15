@@ -137,7 +137,7 @@ pip-tools==7.3.0
     # via dallinger
 prompt-toolkit==3.0.39
     # via ipython
-psutil==5.9.5
+psutil==5.9.6
     # via dallinger
 psycopg2==2.9.7
     # via
