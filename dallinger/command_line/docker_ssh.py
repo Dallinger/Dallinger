@@ -97,14 +97,15 @@ def list_servers():
     "--host", required=True, help="IP address or dns name of the remote server"
 )
 @click.option("--user", help="User to use when connecting to remote host")
-def add(host, user):
+@click.option("--key", default=None, help="Optional ssh key to use for authentication")
+def add(host, user, key):
     """Add a server to deploy experiments through ssh using docker.
     The server needs `docker` and `docker compose` usable by the current user.
     Port 80 and 443 must be free for dallinger to use.
     In case `docker` and/or `docker compose` are missing, dallinger will try to
     install them using `sudo`. The given user must have passwordless sudo rights.
     """
-    prepare_server(host, user)
+    prepare_server(host, user, key)
     store_host(dict(host=host, user=user))
 
 
@@ -119,11 +120,11 @@ def remove(host):
     remove_host(host)
 
 
-def prepare_server(host, user):
+def prepare_server(host, user, key_filename=None):
     import paramiko.ssh_exception
 
     try:
-        executor = Executor(host, user)
+        executor = Executor(host, user, key_filename=key_filename)
     except paramiko.ssh_exception.AuthenticationException as exc:
         if user is None:
             raise paramiko.ssh_exception.AuthenticationException(
@@ -727,7 +728,7 @@ def get_dns_host(ssh_host):
 class Executor:
     """Execute remote commands using paramiko"""
 
-    def __init__(self, host, user=None, app=None):
+    def __init__(self, host, user=None, app=None, key_filename=None):
         import paramiko
 
         self.app = app
@@ -737,7 +738,7 @@ class Executor:
         self.client.load_system_host_keys()
         self.host = host
         print(f"Connecting to {host}")
-        self.client.connect(host, username=user)
+        self.client.connect(host, username=user, key_filename=key_filename)
         print("Connected.")
 
     def run(self, cmd, raise_=True):
