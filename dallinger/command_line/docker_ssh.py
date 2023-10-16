@@ -72,6 +72,10 @@ CADDYFILE = """
 import caddy.d/*
 """
 
+key_option = click.option(
+    "--key", default=None, help="Optional ssh key to use for authentication"
+)
+
 
 @click.group()
 @click.pass_context
@@ -97,7 +101,7 @@ def list_servers():
     "--host", required=True, help="IP address or dns name of the remote server"
 )
 @click.option("--user", help="User to use when connecting to remote host")
-@click.option("--key", default=None, help="Optional ssh key to use for authentication")
+@key_option
 def add(host, user, key):
     """Add a server to deploy experiments through ssh using docker.
     The server needs `docker` and `docker compose` usable by the current user.
@@ -296,10 +300,19 @@ def validate_update(f):
     default=False,
     help="Update an existing experiment",
 )
+@key_option
 @validate_update
 @build_and_push_image
 def deploy(
-    image_name, mode, server, dns_host, app_name, config_options, archive_path, update
+    image_name,
+    mode,
+    server,
+    dns_host,
+    app_name,
+    config_options,
+    archive_path,
+    update,
+    key_filename,
 ):  # pragma: no cover
     """Deploy a dallinger experiment docker image to a server using ssh."""
     config = get_config()
@@ -458,7 +471,7 @@ def deploy(
 
         if archive_path is not None:
             print(f"Loading database data from {archive_path}")
-            with remote_postgres(server_info, experiment_id) as db_uri:
+            with remote_postgres(server_info, experiment_id, key_filename) as db_uri:
                 engine = create_db_engine(db_uri)
                 bootstrap_db_from_zip(archive_path, engine)
                 with engine.connect() as conn:
@@ -609,10 +622,11 @@ def stats(server):
     help="Don't scrub PII (Personally Identifiable Information) - if not specified PII will be scrubbed",
 )
 @server_option
-def export(app, local, no_scrub, server):
+@key_option
+def export(app, local, no_scrub, server, key):
     """Export database to a local file."""
     server_info = CONFIGURED_HOSTS[server]
-    with remote_postgres(server_info, app) as db_uri:
+    with remote_postgres(server_info, app, key) as db_uri:
         export_db_uri(
             app,
             db_uri=db_uri,
@@ -622,7 +636,7 @@ def export(app, local, no_scrub, server):
 
 
 @contextmanager
-def remote_postgres(server_info, app):
+def remote_postgres(server_info, app, key=None):
     """A context manager that opens an ssh tunnel to the remote host and
     returns a database URI to connect to it.
     """
@@ -631,7 +645,7 @@ def remote_postgres(server_info, app):
     try:
         ssh_host = server_info["host"]
         ssh_user = server_info.get("user")
-        executor = Executor(ssh_host, user=ssh_user, app=app)
+        executor = Executor(ssh_host, user=ssh_user, app=app, key_filename=key)
         # Prepare a tunnel to be able to pass a postgresql URL to the databse
         # on the remote docker container. First we need to find the IP of the
         # container running docker
