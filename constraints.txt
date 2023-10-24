@@ -443,7 +443,7 @@ pyproject-hooks==1.0.0
     # via build
 pysocks==1.7.1
     # via urllib3
-pytest==7.4.2
+pytest==7.4.3
     # via
     #   dallinger
     #   pytest-rerunfailures
