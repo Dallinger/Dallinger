@@ -257,7 +257,7 @@ jupyter-events==0.7.0
     # via jupyter-server
 jupyter-lsp==2.2.0
     # via jupyterlab
-jupyter-server==2.7.3
+jupyter-server==2.9.0
     # via
     #   dallinger
     #   jupyter-lsp
