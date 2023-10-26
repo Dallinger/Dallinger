@@ -10,18 +10,22 @@ from dallinger.config import get_config
 from dallinger.experiment_server.utils import crossdomain, success_response
 from dallinger.experiment_server.worker_events import worker_function
 from dallinger.notifications import admin_notifier, get_mailer
-from dallinger.recruiters import CLOSE_RECRUITMENT_LOG_PREFIX, Recruiter, RedisStore
-from dallinger.recruiters.prolific import prolific_routes
 from dallinger.recruiters.prolific.service import (
     ProlificService,
     ProlificServiceException,
 )
-from dallinger.recruiters.recruiter import RecruiterException
-from dallinger.redis_utils import _get_queue
+from dallinger.recruiters.recruiter import (
+    CLOSE_RECRUITMENT_LOG_PREFIX,
+    Recruiter,
+    RecruiterException,
+)
+from dallinger.redis_utils import RedisStore, _get_queue
 from dallinger.utils import get_base_url
 from dallinger.version import __version__
 
 logger = logging.getLogger(__file__)
+
+prolific_routes = flask.Blueprint("prolific_recruiter", __name__)
 
 
 class ProlificRecruiterException(RecruiterException):

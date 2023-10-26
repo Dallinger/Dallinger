@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session, scoped_session, sessionmaker
 from sqlalchemy.schema import DropTable
 
 from dallinger.config import initialize_experiment_package
-from dallinger.redis_utils import connect_to_redis
+from dallinger.redis_utils import redis_conn
 
 logger = logging.getLogger("dallinger.db")
 
@@ -45,7 +45,6 @@ session = scoped_session(session_factory)
 
 Base = declarative_base()
 Base.query = session.query_property()
-redis_conn = connect_to_redis()
 
 db_user_warning = """
 *********************************************************

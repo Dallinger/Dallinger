@@ -6,8 +6,9 @@ import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 from cached_property import cached_property
 
-from dallinger.recruiters.mturk import MAX_SUPPORTED_BATCH_SIZE
 from dallinger.recruiters.service import ServiceException
+
+MAX_SUPPORTED_BATCH_SIZE = 100
 
 logger = logging.getLogger(__file__)
 

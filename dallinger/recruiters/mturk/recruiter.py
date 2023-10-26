@@ -18,13 +18,6 @@ from dallinger.experiment_server.worker_events import worker_function
 from dallinger.heroku import tools as heroku_tools
 from dallinger.models import Recruitment
 from dallinger.notifications import MessengerError, admin_notifier, get_mailer
-from dallinger.recruiters import (
-    CLOSE_RECRUITMENT_LOG_PREFIX,
-    Recruiter,
-    RedisTally,
-    by_name,
-)
-from dallinger.recruiters.mturk import mturk_routes
 from dallinger.recruiters.mturk.messages import MTurkHITMessages, MTurkQuestions
 from dallinger.recruiters.mturk.qualifications import MTurkQualificationRequirements
 from dallinger.recruiters.mturk.service import (
@@ -33,10 +26,18 @@ from dallinger.recruiters.mturk.service import (
     MTurkServiceException,
     QualificationNotFoundException,
 )
+from dallinger.recruiters.recruiter import (
+    CLOSE_RECRUITMENT_LOG_PREFIX,
+    Recruiter,
+    by_name,
+)
+from dallinger.recruiters.redis import RedisTally
 from dallinger.redis_utils import RedisStore, _get_queue
 from dallinger.utils import ParticipationTime, generate_random_id, get_base_url
 
 logger = logging.getLogger(__file__)
+
+mturk_routes = flask.Blueprint("mturk_recruiter", __name__)
 
 
 class MTurkRecruiterException(Exception):

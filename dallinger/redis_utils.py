@@ -4,8 +4,6 @@ from urllib.parse import urlparse
 import redis
 from rq import Queue
 
-from dallinger.db import redis_conn
-
 
 def connect_to_redis(url=None):
     """Return a connection to Redis.
@@ -22,6 +20,9 @@ def connect_to_redis(url=None):
         connection_args["ssl_cert_reqs"] = None
 
     return redis.from_url(**connection_args)
+
+
+redis_conn = connect_to_redis()
 
 
 def _get_queue(name="default"):

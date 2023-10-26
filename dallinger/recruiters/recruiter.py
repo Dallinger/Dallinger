@@ -9,15 +9,6 @@ import tabulate
 from dallinger.command_line.utils import Output
 from dallinger.config import get_config
 from dallinger.db import session
-from dallinger.recruiters.mturk.recruiter import MTurkRecruiter, MultiRecruiter
-from dallinger.recruiters.prolific.recruiter import (  # noqa # pylint: disable=unused-import
-    ProlificRecruiter,
-    ProlificRecruiterException,
-)
-from dallinger.recruiters.prolific.service import (  # noqa # pylint: disable=unused-import
-    ProlificService,
-    ProlificServiceException,
-)
 from dallinger.redis_utils import _get_queue
 from dallinger.utils import generate_random_id, get_base_url
 
@@ -459,6 +450,8 @@ def from_config(config):
     the bot recruiter, which can be used in debug mode)
     and the MTurkRecruiter in other modes.
     """
+    from dallinger.recruiters.mturk.recruiter import MTurkRecruiter, MultiRecruiter
+
     debug_mode = config.get("mode") == "debug"
     name = config.get("recruiter", None)
     recruiter = None
