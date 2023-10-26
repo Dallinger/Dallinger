@@ -403,7 +403,7 @@ class MTurkDataSource(object):
 
     @property
     def account_balance(self):
-        return self._mturk.account_balance()
+        return self._mturk.get_account_balance()
 
     @property
     def ad_url(self):
