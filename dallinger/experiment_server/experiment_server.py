@@ -175,7 +175,7 @@ if exp_klass is not None:  # pragma: no cover
 # it turns out this is complicated, so for now we always register our
 # primary recruiters' routes:
 app.register_blueprint(recruiters.mturk_routes)
-app.register_blueprint(recruiters.prolific_routes)
+app.register_blueprint(recruiters.prolific.prolific_routes)
 
 # Load dashboard routes and login setup
 app.register_blueprint(dashboard.dashboard)

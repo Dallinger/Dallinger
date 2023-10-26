@@ -374,7 +374,7 @@ def prolificservice(prolific_config, fake_parsed_prolific_study):
 class TestProlificRecruiter(object):
     @pytest.fixture
     def recruiter(self, mailer, notifies_admin, prolificservice, hit_id_store):
-        from dallinger.recruiters import ProlificRecruiter
+        from dallinger.recruiters.prolific import ProlificRecruiter
 
         with mock.patch.multiple(
             "dallinger.recruiters", os=mock.DEFAULT, get_base_url=mock.DEFAULT
@@ -393,14 +393,14 @@ class TestProlificRecruiter(object):
         assert result["message"] == "Study now published on Prolific"
 
     def test_open_recruitment_raises_if_study_already_in_progress(self, recruiter):
-        from dallinger.recruiters import ProlificRecruiterException
+        from dallinger.recruiters.prolific import ProlificRecruiterException
 
         recruiter.open_recruitment()
         with pytest.raises(ProlificRecruiterException):
             recruiter.open_recruitment()
 
     def test_open_recruitment_raises_if_running_on_localhost(self, recruiter):
-        from dallinger.recruiters import ProlificRecruiterException
+        from dallinger.recruiters.prolific import ProlificRecruiterException
 
         recruiter.study_domain = None
         with pytest.raises(ProlificRecruiterException) as ex_info:
