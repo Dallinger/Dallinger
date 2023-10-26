@@ -45,7 +45,7 @@ private_study_request = {
 
 @pytest.fixture
 def subject(prolific_creds):
-    from dallinger.recruiters.prolific import ProlificService
+    from dallinger.recruiters.prolific.service import ProlificService
     from dallinger.version import __version__
 
     referer = f"https://github.com/Dallinger/Dallinger/tests/v{__version__}"
@@ -65,7 +65,7 @@ def test_make_quick_study(subject):
 @pytest.mark.usefixtures("check_prolific")
 @pytest.mark.slow
 def test_all_methods_give_informative_error_messages(subject):
-    from dallinger.recruiters.prolific import ProlificServiceException
+    from dallinger.recruiters.prolific.service import ProlificServiceException
 
     subject.api_version = "junk"
 

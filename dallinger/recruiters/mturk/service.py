@@ -6,13 +6,13 @@ import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 from cached_property import cached_property
 
+from dallinger.recruiters.mturk import MAX_SUPPORTED_BATCH_SIZE
+from dallinger.recruiters.service import ServiceException
+
 logger = logging.getLogger(__file__)
-PERCENTAGE_APPROVED_REQUIREMENT_ID = "000000000000000000L0"
-LOCALE_REQUIREMENT_ID = "00000000000000000071"
-MAX_SUPPORTED_BATCH_SIZE = 100
 
 
-class MTurkServiceException(Exception):
+class MTurkServiceException(ServiceException):
     """Custom exception type"""
 
 
@@ -139,91 +139,6 @@ class SNSService(object):
                 next_token = response["NextToken"]
             else:
                 done = True
-
-
-class MTurkQuestions(object):
-    """Creates MTurk HIT Question definitions:
-    https://docs.aws.amazon.com/AWSMechTurk/latest/AWSMturkAPI/ApiReference_QuestionAnswerDataArticle.html
-    """
-
-    @staticmethod
-    def external(ad_url, frame_height=600):
-        q = (
-            '<ExternalQuestion xmlns="http://mechanicalturk.amazonaws.com/'
-            'AWSMechanicalTurkDataSchemas/2006-07-14/ExternalQuestion.xsd">'
-            "<ExternalURL>{}</ExternalURL>"
-            "<FrameHeight>{}</FrameHeight></ExternalQuestion>"
-        )
-        return q.format(ad_url, frame_height)
-
-    @staticmethod
-    def compensation(title="Compensation HIT", sandbox=False, frame_height=600):
-        if sandbox:
-            action = "https://workersandbox.mturk.com/mturk/externalSubmit"
-        else:
-            action = "https://www.mturk.com/mturk/externalSubmit"
-
-        q = (
-            '<HTMLQuestion xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2011-11-11/HTMLQuestion.xsd">'
-            "<HTMLContent><![CDATA[<!DOCTYPE html><html>"
-            "<head>"
-            '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>'
-            '<script type="text/javascript" src="https://s3.amazonaws.com/mturk-public/externalHIT_v1.js"></script>'
-            "</head>"
-            "<body>"
-            '<form name="mturk_form" method="post" id="mturk_form" action="{}">'
-            '<input type="hidden" value="" name="assignmentId" id="assignmentId"/>'
-            "<h1>{}</h1>"
-            "<p>We are sorry that you encountered difficulties with our experiment. "
-            "We will compensate you immediately upon submission of this HIT.</p>"
-            '<input type="hidden" name="some-input-required" value="anything" ></input>'
-            '<input type="submit" id="submitButton" value="Submit" /></p></form>'
-            '<script language="Javascript">turkSetAssignmentID();</script>'
-            "</body></html>]]>"
-            "</HTMLContent>"
-            "<FrameHeight>{}</FrameHeight>"
-            "</HTMLQuestion>"
-        )
-
-        return q.format(action, title, frame_height)
-
-
-class MTurkQualificationRequirements(object):
-    """Syntactic correctness for MTurk QualificationRequirements"""
-
-    @staticmethod
-    def min_approval(percentage):
-        return {
-            "QualificationTypeId": PERCENTAGE_APPROVED_REQUIREMENT_ID,
-            "Comparator": "GreaterThanOrEqualTo",
-            "IntegerValues": [percentage],
-            "RequiredToPreview": True,
-        }
-
-    @staticmethod
-    def restrict_to_countries(countries):
-        return {
-            "QualificationTypeId": LOCALE_REQUIREMENT_ID,
-            "Comparator": "EqualTo",
-            "LocaleValues": [{"Country": country} for country in countries],
-            "RequiredToPreview": True,
-        }
-
-    @staticmethod
-    def must_have(qualification_id):
-        return {
-            "QualificationTypeId": qualification_id,
-            "Comparator": "Exists",
-            "RequiredToPreview": True,
-        }
-
-    @staticmethod
-    def must_not_have(qualification_id):
-        return {
-            "QualificationTypeId": qualification_id,
-            "Comparator": "DoesNotExist",
-            "RequiredToPreview": True,
-        }
 
 
 class MTurkService(object):

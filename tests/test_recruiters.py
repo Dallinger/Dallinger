@@ -356,7 +356,7 @@ def prolific_config(active_config):
 
 @pytest.fixture
 def prolificservice(prolific_config, fake_parsed_prolific_study):
-    from dallinger.recruiters.prolific import ProlificService
+    from dallinger.recruiters.prolific.service import ProlificService
 
     service = mock.create_autospec(
         ProlificService,
@@ -374,7 +374,7 @@ def prolificservice(prolific_config, fake_parsed_prolific_study):
 class TestProlificRecruiter(object):
     @pytest.fixture
     def recruiter(self, mailer, notifies_admin, prolificservice, hit_id_store):
-        from dallinger.recruiters.prolific import ProlificRecruiter
+        from dallinger.recruiters.prolific.recruiter import ProlificRecruiter
 
         with mock.patch.multiple(
             "dallinger.recruiters", os=mock.DEFAULT, get_base_url=mock.DEFAULT
@@ -393,14 +393,14 @@ class TestProlificRecruiter(object):
         assert result["message"] == "Study now published on Prolific"
 
     def test_open_recruitment_raises_if_study_already_in_progress(self, recruiter):
-        from dallinger.recruiters.prolific import ProlificRecruiterException
+        from dallinger.recruiters.prolific.recruiter import ProlificRecruiterException
 
         recruiter.open_recruitment()
         with pytest.raises(ProlificRecruiterException):
             recruiter.open_recruitment()
 
     def test_open_recruitment_raises_if_running_on_localhost(self, recruiter):
-        from dallinger.recruiters.prolific import ProlificRecruiterException
+        from dallinger.recruiters.prolific.recruiter import ProlificRecruiterException
 
         recruiter.study_domain = None
         with pytest.raises(ProlificRecruiterException) as ex_info:
@@ -450,7 +450,7 @@ class TestProlificRecruiter(object):
         )
 
     def test_reward_bonus_logs_exception(self, a, recruiter):
-        from dallinger.recruiters.prolific import ProlificServiceException
+        from dallinger.recruiters.prolific.service import ProlificServiceException
 
         recruiter.prolificservice.pay_session_bonus.side_effect = (
             ProlificServiceException("Boom!")
@@ -473,7 +473,7 @@ class TestProlificRecruiter(object):
         )
 
     def test_approve_hit_logs_exception(self, recruiter):
-        from dallinger.recruiters.prolific import ProlificServiceException
+        from dallinger.recruiters.prolific.service import ProlificServiceException
 
         recruiter.prolificservice.approve_participant_session.side_effect = (
             ProlificServiceException("Boom!")
@@ -721,7 +721,7 @@ def queue():
     from rq import Queue
 
     instance = mock.Mock(spec=Queue)
-    with mock.patch("dallinger.recruiters._get_queue") as mock_q:
+    with mock.patch("dallinger.redis_utils._get_queue") as mock_q:
         mock_q.return_value = instance
 
         yield instance
