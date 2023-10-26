@@ -6,7 +6,7 @@ import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 from cached_property import cached_property
 
-from dallinger.recruiters.service import ServiceException
+from dallinger.recruiters.service import Service, ServiceException
 
 MAX_SUPPORTED_BATCH_SIZE = 100
 
@@ -142,7 +142,7 @@ class SNSService(object):
                 done = True
 
 
-class MTurkService(object):
+class MTurkService(Service):
     """Facade for Amazon Mechanical Turk services provided via the boto3
     library.
     """

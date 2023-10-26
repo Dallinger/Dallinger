@@ -6,7 +6,7 @@ import requests
 import tenacity
 from dateutil import parser
 
-from dallinger.recruiters.service import ServiceException
+from dallinger.recruiters.service import Service, ServiceException
 
 logger = logging.getLogger(__file__)
 
@@ -17,7 +17,7 @@ class ProlificServiceException(ServiceException):
     pass
 
 
-class ProlificService:
+class ProlificService(Service):
     """
     Wrapper for Prolific REST API
 
