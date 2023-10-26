@@ -28,6 +28,9 @@ from dallinger import data, db
 from dallinger.command_line.develop import develop
 from dallinger.command_line.docker import docker
 from dallinger.command_line.docker_ssh import docker_ssh
+from dallinger.command_line.heroku import heroku
+from dallinger.command_line.mturk import mturk
+from dallinger.command_line.prolific import prolific
 from dallinger.command_line.utils import (
     Output,
     header,
@@ -128,6 +131,9 @@ def dallinger():
 dallinger.add_command(develop)
 dallinger.add_command(docker)
 dallinger.add_command(docker_ssh)
+dallinger.add_command(heroku)
+dallinger.add_command(mturk)
+dallinger.add_command(prolific)
 
 
 @dallinger.command()
