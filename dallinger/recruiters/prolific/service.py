@@ -37,7 +37,7 @@ class ProlificService:
     @property
     def api_root(self):
         """The root URL for API calls."""
-        return f"https://api.prolific.co/api/{self.api_version}"
+        return f"https://api.prolific.com/api/{self.api_version}"
 
     def add_participants_to_study(self, study_id: int, number_to_add: int) -> dict:
         """Add additional slots to a running Study."""
