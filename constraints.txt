@@ -360,7 +360,7 @@ packaging==23.1
     #   qtpy
     #   sphinx
     #   tox
-pandas==2.0.3
+pandas==2.1.2
     # via
     #   dallinger
     #   tablib
