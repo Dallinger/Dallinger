@@ -44,7 +44,6 @@ from dallinger.deployment import (
     setup_experiment,
 )
 from dallinger.heroku.tools import HerokuApp, HerokuInfo
-from dallinger.mturk import MTurkService, MTurkServiceException
 from dallinger.notifications import (
     EmailConfig,
     MessengerError,
@@ -52,6 +51,7 @@ from dallinger.notifications import (
     admin_notifier,
 )
 from dallinger.recruiters import by_name
+from dallinger.recruiters.mturk import MTurkService, MTurkServiceException
 from dallinger.utils import (
     check_call,
     ensure_constraints_file_presence,

@@ -22,7 +22,8 @@ from dallinger.experiment_server.utils import crossdomain, success_response
 from dallinger.experiment_server.worker_events import worker_function
 from dallinger.heroku import tools as heroku_tools
 from dallinger.models import Recruitment
-from dallinger.mturk import (
+from dallinger.notifications import MessengerError, admin_notifier, get_mailer
+from dallinger.recruiters.mturk import (
     DuplicateQualificationNameError,
     MTurkQualificationRequirements,
     MTurkQuestions,
@@ -30,8 +31,7 @@ from dallinger.mturk import (
     MTurkServiceException,
     QualificationNotFoundException,
 )
-from dallinger.notifications import MessengerError, admin_notifier, get_mailer
-from dallinger.prolific import ProlificService, ProlificServiceException
+from dallinger.recruiters.prolific import ProlificService, ProlificServiceException
 from dallinger.utils import ParticipationTime, generate_random_id, get_base_url
 from dallinger.version import __version__
 

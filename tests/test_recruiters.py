@@ -7,7 +7,7 @@ import pytest
 
 from dallinger.experiment import Experiment
 from dallinger.models import Participant
-from dallinger.mturk import MTurkQualificationRequirements, MTurkQuestions
+from dallinger.recruiters.mturk import MTurkQualificationRequirements, MTurkQuestions
 
 
 class TestModuleFunctions(object):
@@ -356,7 +356,7 @@ def prolific_config(active_config):
 
 @pytest.fixture
 def prolificservice(prolific_config, fake_parsed_prolific_study):
-    from dallinger.prolific import ProlificService
+    from dallinger.recruiters.prolific import ProlificService
 
     service = mock.create_autospec(
         ProlificService,
@@ -450,7 +450,7 @@ class TestProlificRecruiter(object):
         )
 
     def test_reward_bonus_logs_exception(self, a, recruiter):
-        from dallinger.prolific import ProlificServiceException
+        from dallinger.recruiters.prolific import ProlificServiceException
 
         recruiter.prolificservice.pay_session_bonus.side_effect = (
             ProlificServiceException("Boom!")
@@ -473,7 +473,7 @@ class TestProlificRecruiter(object):
         )
 
     def test_approve_hit_logs_exception(self, recruiter):
-        from dallinger.prolific import ProlificServiceException
+        from dallinger.recruiters.prolific import ProlificServiceException
 
         recruiter.prolificservice.approve_participant_session.side_effect = (
             ProlificServiceException("Boom!")
@@ -735,7 +735,7 @@ def requests():
 
 @pytest.fixture
 def mturkservice(active_config, fake_parsed_hit):
-    from dallinger.mturk import MTurkService
+    from dallinger.recruiters.mturk import MTurkService
 
     mturk = mock.create_autospec(
         MTurkService,
@@ -871,7 +871,7 @@ class TestMTurkRecruiter(object):
         recruiter.mturkservice.create_qualification_type.assert_not_called()
 
     def test_open_recruitment_when_qualification_already_exists(self, recruiter):
-        from dallinger.mturk import DuplicateQualificationNameError
+        from dallinger.recruiters.mturk import DuplicateQualificationNameError
 
         mturk = recruiter.mturkservice
         mturk.create_qualification_type.side_effect = DuplicateQualificationNameError
@@ -991,7 +991,7 @@ class TestMTurkRecruiter(object):
         assert not recruiter.mturkservice.extend_hit.called
 
     def test_recruit_extend_hit_error_is_logged_politely(self, recruiter):
-        from dallinger.mturk import MTurkServiceException
+        from dallinger.recruiters.mturk import MTurkServiceException
 
         recruiter.open_recruitment()
         recruiter.mturkservice.extend_hit.side_effect = MTurkServiceException("Boom!")
@@ -1013,7 +1013,7 @@ class TestMTurkRecruiter(object):
         )
 
     def test_reward_bonus_logs_exception(self, a, recruiter):
-        from dallinger.mturk import MTurkServiceException
+        from dallinger.recruiters.mturk import MTurkServiceException
 
         participant = a.participant()
         recruiter.mturkservice.grant_bonus.side_effect = MTurkServiceException("Boom!")
@@ -1029,7 +1029,7 @@ class TestMTurkRecruiter(object):
         recruiter.mturkservice.approve_assignment.assert_called_once_with(fake_id)
 
     def test_approve_hit_logs_exception(self, recruiter):
-        from dallinger.mturk import MTurkServiceException
+        from dallinger.recruiters.mturk import MTurkServiceException
 
         recruiter.mturkservice.approve_assignment.side_effect = MTurkServiceException(
             "Boom!"
@@ -1101,7 +1101,7 @@ class TestMTurkRecruiter(object):
     ):
         # Rationale for testing a "private" method is that it does all the actual
         # work behind an async call from the public method.
-        from dallinger.mturk import DuplicateQualificationNameError
+        from dallinger.recruiters.mturk import DuplicateQualificationNameError
 
         recruiter.mturkservice.create_qualification_type.side_effect = (
             DuplicateQualificationNameError

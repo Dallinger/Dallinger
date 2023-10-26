@@ -1152,7 +1152,7 @@ class TestHits(object):
         mturk_instance = mturk.return_value
 
         def mturk_raiser(*args, **kwargs):
-            from dallinger.mturk import MTurkServiceException
+            from dallinger.recruiters.mturk import MTurkServiceException
 
             raise MTurkServiceException()
 

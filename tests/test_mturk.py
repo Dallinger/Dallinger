@@ -12,7 +12,7 @@ from botocore.exceptions import ClientError
 from six.moves import input
 from tzlocal import get_localzone
 
-from dallinger.mturk import (
+from dallinger.recruiters.mturk import (
     DuplicateQualificationNameError,
     MTurkQualificationRequirements,
     MTurkQuestions,
@@ -384,7 +384,7 @@ class TestSNSService(object):
         assert sns.cancel_subscription("some-exp")
 
     def test_cancel_nonexistent_subscription_raises(self, sns):
-        from dallinger.mturk import NonExistentSubscription
+        from dallinger.recruiters.mturk import NonExistentSubscription
 
         with pytest.raises(NonExistentSubscription):
             sns.cancel_subscription("some-exp")
