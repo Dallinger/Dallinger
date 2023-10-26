@@ -55,12 +55,6 @@ class Recruiter(object):
     nickname = None
     external_submission_url = None  # MTurkRecruiter, for one, overides this
 
-    def __init__(self):
-        """For now, the contract of a Recruiter is that it takes no
-        arguments.
-        """
-        logger.info("Initializing {}...".format(self.__class__.__name__))
-
     def __call__(self):
         """For backward compatibility with experiments invoking recruiter()
         as a method rather than a property.
