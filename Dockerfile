@@ -84,7 +84,8 @@ RUN --mount=type=cache,target=/chromedownload \
     echo Installing Chrome $CHROME_VERSION && \
     CHROME_FILENAME=chrome-stable_${CHROME_VERSION}_amd64.deb && \
     ([ -f /chromedownload/${CHROME_FILENAME} ] || busybox wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chrome-linux64.zip -O /chromedownload/${CHROME_FILENAME}) && \
-    apt install -y --no-install-recommends /chromedownload/${CHROME_FILENAME} && \
+    busybox unzip /chromedownload/${CHROME_FILENAME} -d /opt && \
+    busybox ln -s /opt/chrome-linux64/chrome /usr/local/bin/chrome && \
     echo Installing ChromeDriver $CHROME_VERSION && \
     CHROMEDRIVER_FILENAME=chromedriver-stable_${CHROME_VERSION}_amd64.deb && \
     ([ -f /chromedownload/${CHROMEDRIVER_FILENAME} ] || busybox wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chromedriver-linux64.zip -O /chromedownload/${CHROMEDRIVER_FILENAME}) && \
