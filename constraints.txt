@@ -671,7 +671,7 @@ werkzeug==2.3.7
     # via
     #   flask
     #   flask-login
-wheel==0.41.2
+wheel==0.41.3
     # via pip-tools
 widgetsnbextension==4.0.8
     # via ipywidgets
