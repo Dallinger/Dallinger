@@ -85,9 +85,6 @@ setup_args = dict(
         "tzlocal",
         "ua-parser",
         "user-agents",
-        # Newer versions of Werkzeug are not compatible with the current
-        # Flask-Login release
-        "Werkzeug < 3.0.0",
     ],
     extras_require={
         "jupyter": [
