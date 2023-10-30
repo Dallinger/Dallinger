@@ -78,13 +78,14 @@ LABEL org.opencontainers.image.source https://github.com/Dallinger/Dallinger
 RUN --mount=type=cache,target=/chromedownload \
     apt update && \
     `# We install busybox to be able to use wget and later unzip, and to minimize image size` \
-    apt install -y busybox && \
-    ([ -f /chromedownload/google-chrome-stable_current_amd64.deb ] || busybox wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O /chromedownload/google-chrome-stable_current_amd64.deb) &&  \
-    apt install -y --no-install-recommends /chromedownload/google-chrome-stable_current_amd64.deb && \
+    apt install -y busybox jq && \
     rm -rf /var/lib/apt/lists/*
-
-RUN OUR_CHROME_VERSION=$(google-chrome --version |sed "s/Google Chrome //;s/ //") && \
-    echo Installing chromedriver $OUR_CHROME_VERSION && \
-    busybox wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${OUR_CHROME_VERSION}/linux64/chromedriver-linux64.zip -O /tmp/chromedriver_linux64.zip && \
-    busybox unzip /tmp/chromedriver_linux64.zip -d /usr/local/bin/ && \
-    rm /tmp/chromedriver_linux64.zip
+    CHROME_VERSION=$(curl https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json | jq .channels.Stable.version | tr -d '"') && \
+    echo Installing Chrome $CHROME_VERSION && \
+    CHROME_FILENAME=chrome-stable_${CHROME_VERSION}_amd64.deb && \
+    ([ -f /chromedownload/$(CHROME_FILENAME} ] || busybox wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chrome-linux64.zip -O /chromedownload/${CHROME_FILENAME}) && \
+    apt install -y --no-install-recommends /chromedownload/${CHROME_FILENAME} && \
+    echo Installing ChromeDriver $CHROME_VERSION && \
+    CHROMEDRIVER_FILENAME=chromedriver-stable_${CHROME_VERSION}_amd64.deb && \
+    ([ -f /chromedownload/${CHROMEDRIVER_FILENAME} ] || busybox wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chromedriver-linux64.zip -O /chromedownload/${CHROMEDRIVER_FILENAME} && \
+    busybox unzip /chromedownload/${CHROMEDRIVER_FILENAME} -d /usr/local/bin/
