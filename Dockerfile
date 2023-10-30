@@ -87,6 +87,6 @@ RUN --mount=type=cache,target=/chromedownload \
     busybox unzip $CHROME_FILEPATH -d /opt/ && \
     busybox ln -s /opt/chrome-linux64/chrome /usr/local/bin/chrome && \
     echo Installing ChromeDriver $CHROME_VERSION && \
-    CHROMEDRIVER_FILEPATH=/chromedownload/chromedriver-stable_${CHROME_VERSION}_amd64.deb && \
+    CHROMEDRIVER_FILEPATH=/chromedownload/chromedriver-stable_${CHROME_VERSION}_linux64.zip && \
     ([ -f $CHROMEDRIVER_FILEPATH ] || busybox wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chromedriver-linux64.zip -O $CHROMEDRIVER_FILEPATH) && \
     busybox unzip $CHROMEDRIVER_FILEPATH -d /usr/local/bin/
