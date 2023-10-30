@@ -62,6 +62,7 @@ setup_args = dict(
         "greenlet",
         "gunicorn[gevent]",
         "heroku3",
+        "ipython < 8.13",
         "localconfig",
         "numpy < 1.25",
         "pandas < 2.1",

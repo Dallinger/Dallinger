@@ -34,6 +34,8 @@ babel==2.13.1
     # via
     #   jupyterlab-server
     #   sphinx
+backcall==0.2.0
+    # via ipython
 bcrypt==4.0.1
     # via paramiko
 beautifulsoup4==4.12.2
@@ -44,9 +46,9 @@ bleach==6.1.0
     # via nbconvert
 blinker==1.6.3
     # via flask
-boto3==1.28.74
+boto3==1.28.73
     # via dallinger
-botocore==1.31.74
+botocore==1.31.73
     # via
     #   boto3
     #   s3transfer
@@ -181,8 +183,9 @@ ipykernel==6.26.0
     #   jupyter-console
     #   jupyterlab
     #   qtconsole
-ipython==8.17.1
+ipython==8.12.3
     # via
+    #   dallinger
     #   ipykernel
     #   ipywidgets
     #   jupyter-console
@@ -373,6 +376,8 @@ pexpect==4.8.0
     # via
     #   dallinger
     #   ipython
+pickleshare==0.7.5
+    # via ipython
 pip-tools==7.3.0
     # via dallinger
 platformdirs==3.11.0
@@ -651,7 +656,7 @@ virtualenv==20.24.6
     # via
     #   pre-commit
     #   tox
-wcwidth==0.2.9
+wcwidth==0.2.8
     # via prompt-toolkit
 webcolors==1.13
     # via jsonschema
