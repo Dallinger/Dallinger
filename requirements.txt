@@ -208,7 +208,7 @@ tenacity==8.2.3
     # via dallinger
 timeago==1.0.16
     # via dallinger
-traitlets==5.9.0
+traitlets==5.13.0
     # via
     #   ipython
     #   matplotlib-inline
