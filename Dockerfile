@@ -79,7 +79,7 @@ RUN --mount=type=cache,target=/chromedownload \
     apt update && \
     `# We install busybox to be able to use wget and later unzip, and to minimize image size` \
     apt install -y busybox jq && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
     CHROME_VERSION=$(curl https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json | jq .channels.Stable.version | tr -d '"') && \
     echo Installing Chrome $CHROME_VERSION && \
     CHROME_FILENAME=chrome-stable_${CHROME_VERSION}_amd64.deb && \
