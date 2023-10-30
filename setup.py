@@ -84,6 +84,7 @@ setup_args = dict(
         "timeago",
         "tzlocal",
         "ua-parser",
+        "urllib3 < 2",
         "user-agents",
     ],
     extras_require={
