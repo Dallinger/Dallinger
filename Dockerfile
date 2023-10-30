@@ -82,11 +82,11 @@ RUN --mount=type=cache,target=/chromedownload \
     rm -rf /var/lib/apt/lists/* && \
     CHROME_VERSION=$(curl https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json | jq .channels.Stable.version | tr -d '"') && \
     echo Installing Chrome $CHROME_VERSION && \
-    CHROME_FILENAME=chrome-stable_${CHROME_VERSION}_amd64.deb && \
-    ([ -f /chromedownload/${CHROME_FILENAME} ] || busybox wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chrome-linux64.zip -O /chromedownload/${CHROME_FILENAME}) && \
-    busybox unzip /chromedownload/${CHROME_FILENAME} -d /opt && \
+    CHROME_FILEPATH=/chromedownload/chrome-stable_${CHROME_VERSION}_linux64.zip && \
+    ([ -f $CHROME_FILEPATH ] || busybox wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chrome-linux64.zip -O $CHROME_FILEPATH) && \
+    busybox unzip $CHROME_FILEPATH -d /opt/ && \
     busybox ln -s /opt/chrome-linux64/chrome /usr/local/bin/chrome && \
     echo Installing ChromeDriver $CHROME_VERSION && \
-    CHROMEDRIVER_FILENAME=chromedriver-stable_${CHROME_VERSION}_amd64.deb && \
-    ([ -f /chromedownload/${CHROMEDRIVER_FILENAME} ] || busybox wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chromedriver-linux64.zip -O /chromedownload/${CHROMEDRIVER_FILENAME}) && \
-    busybox unzip /chromedownload/${CHROMEDRIVER_FILENAME} -d /usr/local/bin/
+    CHROMEDRIVER_FILEPATH=/chromedownload/chromedriver-stable_${CHROME_VERSION}_amd64.deb && \
+    ([ -f $CHROMEDRIVER_FILEPATH ] || busybox wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chromedriver-linux64.zip -O $CHROMEDRIVER_FILEPATH) && \
+    busybox unzip $CHROMEDRIVER_FILEPATH -d /usr/local/bin/
