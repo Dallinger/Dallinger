@@ -49,25 +49,17 @@ app = Flask("Experiment_Server")
 
 @app.before_request
 def before_request():
-    flask_app_globals.start = time.time()
+    flask_app_globals.start = time.monotonic()
 
 
 @app.after_request
 def after_request(response):
-    diff = time.time() - flask_app_globals.start
-    loggable_response = (
-        response.response
-        and 200 <= response.status_code < 300
-        and response.content_type.startswith("text/html")
-    )
-    if loggable_response:
-        path = request.path
-        # add GET params to path if present
-        if request.query_string:
-            path += "?" + request.query_string.decode("utf-8")
-
-        log = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] \"{request.method} {path}\" {response.status_code} {response.content_length} {diff}"
-        app.logger.info(log)
+    diff = time.monotonic() - flask_app_globals.start
+    path = request.path
+    if request.query_string:
+        path += "?" + request.query_string.decode("utf-8")
+    log = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Request \"{request.method} {path}\" {response.status_code} took {diff} seconds to load"
+    app.logger.info(log)
     return response
 
 
