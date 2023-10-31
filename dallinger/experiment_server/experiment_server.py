@@ -61,7 +61,12 @@ def after_request(response):
         and response.content_type.startswith("text/html")
     )
     if loggable_response:
-        log = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] \"{request.method} {request.path}\" {response.status_code} {response.content_length} {diff}"
+        path = request.path
+        # add GET params to path if present
+        if request.query_string:
+            path += "?" + request.query_string.decode("utf-8")
+
+        log = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] \"{request.method} {path}\" {response.status_code} {response.content_length} {diff}"
         app.logger.info(log)
     return response
 
