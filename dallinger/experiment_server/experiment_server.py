@@ -2,20 +2,14 @@
 
 import os
 import re
+import time
 from datetime import datetime
 from json import dumps, loads
 
 import gevent
-from flask import (
-    Flask,
-    Response,
-    abort,
-    redirect,
-    render_template,
-    request,
-    send_from_directory,
-    url_for,
-)
+from flask import Flask, Response, abort
+from flask import g as flask_app_globals
+from flask import redirect, render_template, request, send_from_directory, url_for
 from flask_login import LoginManager, current_user, login_required
 from jinja2 import TemplateNotFound
 from psycopg2.extensions import TransactionRollbackError
@@ -51,6 +45,25 @@ q = Queue("default", connection=redis_conn)
 WAITING_ROOM_CHANNEL = "quorum"
 
 app = Flask("Experiment_Server")
+
+
+@app.before_request
+def before_request():
+    flask_app_globals.start = time.time()
+
+
+@app.after_request
+def after_request(response):
+    diff = time.time() - flask_app_globals.start
+    loggable_response = (
+        response.response
+        and 200 <= response.status_code < 300
+        and response.content_type.startswith("text/html")
+    )
+    if loggable_response:
+        log = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] \"{request.method} {request.path}\" {response.status_code} {response.content_length} {diff}"
+        app.logger.info(log)
+    return response
 
 
 @app.before_request
