@@ -16,7 +16,7 @@ attrs==23.1.0
     #   trio
 backcall==0.2.0
     # via ipython
-blinker==1.6.2
+blinker==1.7.0
     # via flask
 boto3==1.28.46
     # via dallinger
