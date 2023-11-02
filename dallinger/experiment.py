@@ -188,6 +188,13 @@ class Experiment(object):
             self.widget = module.ExperimentWidget(self)
 
     @classmethod
+    def get_app(cls):
+        """Return the Flask app for this experiment."""
+        from dallinger.experiment_server.experiment_server import app
+
+        return app
+
+    @classmethod
     def before_request(cls, app):
         return None
 
