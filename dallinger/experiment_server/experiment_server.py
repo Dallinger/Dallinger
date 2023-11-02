@@ -2,14 +2,20 @@
 
 import os
 import re
-import time
 from datetime import datetime
 from json import dumps, loads
 
 import gevent
-from flask import Flask, Response, abort
-from flask import g as flask_app_globals
-from flask import redirect, render_template, request, send_from_directory, url_for
+from flask import (
+    Flask,
+    Response,
+    abort,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    url_for,
+)
 from flask_login import LoginManager, current_user, login_required
 from jinja2 import TemplateNotFound
 from psycopg2.extensions import TransactionRollbackError
@@ -49,18 +55,16 @@ app = Flask("Experiment_Server")
 
 @app.before_request
 def before_request():
-    flask_app_globals.start = time.monotonic()
+    from dallinger.experiment import Experiment
+
+    return Experiment.before_request(app)
 
 
 @app.after_request
 def after_request(response):
-    diff = time.monotonic() - flask_app_globals.start
-    path = request.path
-    if request.query_string:
-        path += "?" + request.query_string.decode("utf-8")
-    log = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Request \"{request.method} {path}\" {response.status_code} took {diff} seconds to load"
-    app.logger.info(log)
-    return response
+    from dallinger.experiment import Experiment
+
+    return Experiment.after_request(app, request, response)
 
 
 @app.before_request

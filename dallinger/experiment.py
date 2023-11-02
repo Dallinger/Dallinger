@@ -188,6 +188,14 @@ class Experiment(object):
             self.widget = module.ExperimentWidget(self)
 
     @classmethod
+    def before_request(cls, app):
+        return None
+
+    @classmethod
+    def after_request(cls, app, request, response):
+        return response
+
+    @classmethod
     def config_class(cls):
         """
         Override this method in order to define a custom Configuration class
