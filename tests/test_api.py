@@ -36,6 +36,11 @@ class TestAPI(object):
         assert exp_uuid1 != exp_uuid2
         assert exp_uuid1 == exp_uuid3
 
+    def test_get_app(self, exp):
+        from dallinger.experiment_server.experiment_server import app
+
+        assert exp.get_app() == app
+
 
 class TestDataCollection(object):
     def test_collect_from_existing_local_file(self, exp, experiment_dir):
