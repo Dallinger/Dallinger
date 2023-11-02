@@ -86,7 +86,6 @@ default_keys = (
     ("prolific_estimated_completion_minutes", int, []),
     ("prolific_maximum_allowed_minutes", int, []),
     ("prolific_recruitment_config", six.text_type, [], False, [is_valid_json]),
-    ("prolific_reward_cents", int, []),
     ("protected_routes", six.text_type, [], False, [is_valid_json]),
     ("recruiter", six.text_type, []),
     ("recruiters", six.text_type, []),

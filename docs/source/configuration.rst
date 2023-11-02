@@ -298,11 +298,10 @@ Prolific Recruitment
     key = value format of ``config.txt`` whenever possible, and leave ``prolific_recruitment_config``
     for complex requirements which can't be configured in this simpler way.
 
-``prolific_reward_cents`` *int*
-    Base compensation to pay your participants, in cents
+    .. note::
 
-    Prolific will use the currency of your researcher account, and convert automatically
-    to the participant's currency.
+        Prolific will use the currency of your researcher account, and convert automatically
+        to the participant's currency.
 
 
 Email Notifications
