@@ -194,12 +194,10 @@ class Experiment(object):
 
         return app
 
-    @classmethod
-    def before_request(cls, app):
+    def before_request(self):
         return None
 
-    @classmethod
-    def after_request(cls, app, request, response):
+    def after_request(self, request, response):
         return response
 
     @classmethod
