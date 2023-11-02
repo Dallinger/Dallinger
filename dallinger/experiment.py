@@ -14,7 +14,7 @@ import uuid
 import warnings
 from collections import Counter, OrderedDict
 from contextlib import contextmanager
-from functools import wraps
+from functools import cache, wraps
 from importlib import import_module
 from operator import itemgetter
 from typing import List, Optional, Union
@@ -1722,6 +1722,7 @@ def is_experiment_class(cls):
     )
 
 
+@cache
 def load():
     """Load the active experiment."""
     first_err = second_err = None
