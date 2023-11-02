@@ -14,7 +14,7 @@ import uuid
 import warnings
 from collections import Counter, OrderedDict
 from contextlib import contextmanager
-from functools import cache, wraps
+from functools import wraps
 from importlib import import_module
 from operator import itemgetter
 from typing import List, Optional, Union
@@ -49,7 +49,7 @@ from dallinger.models import Info, Network, Node, Participant, Transformation
 from dallinger.networks import Empty
 from dallinger.nodes import Agent, Environment, Source
 from dallinger.transformations import Compression, Mutation, Replication, Response
-from dallinger.utils import deferred_route_decorator, struct_to_html
+from dallinger.utils import cache, deferred_route_decorator, struct_to_html
 
 logger = logging.getLogger(__file__)
 

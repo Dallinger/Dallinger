@@ -36,6 +36,12 @@ except ImportError:
 fake = Faker()
 
 
+# Backported from Python 3.9
+def cache(user_function, /):
+    'Simple lightweight unbounded cache.  Sometimes called "memoize".'
+    return functools.lru_cache(maxsize=None)(user_function)
+
+
 def get_base_url():
     """Returns the base url for the experiment.
     Looks into environment variable HOST first, then in the
