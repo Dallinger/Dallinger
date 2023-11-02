@@ -58,7 +58,7 @@ def before_request():
     from dallinger.experiment import load
 
     exp = load()
-    return exp.before_request(exp)
+    return exp.before_request()
 
 
 @app.after_request
@@ -66,7 +66,7 @@ def after_request(response):
     from dallinger.experiment import load
 
     exp = load()
-    return exp.after_request(exp, request, response)
+    return exp.after_request(request, response)
 
 
 @app.before_request

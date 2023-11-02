@@ -194,10 +194,12 @@ class Experiment(object):
 
         return app
 
-    def before_request(self):
+    @staticmethod
+    def before_request():
         return None
 
-    def after_request(self, request, response):
+    @staticmethod
+    def after_request(request, response):
         return response
 
     @classmethod
