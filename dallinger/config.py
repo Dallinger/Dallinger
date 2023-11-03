@@ -143,7 +143,7 @@ class Configuration(object):
             if key not in self.types:
                 # This key hasn't been registered, we ignore it
                 if strict:
-                    raise KeyError("{} is not a valid configuration key".format(key))
+                    raise_invalid_key_error(key)
                 continue
             expected_type = self.types.get(key)
             if cast_types:
@@ -396,3 +396,14 @@ def initialize_experiment_package(path):
 
 def experiment_available():
     return Path("experiment.py").exists()
+
+
+def raise_invalid_key_error(key):
+    error_text = "{} is not a valid configuration key".format(key)
+    if key == "prolific_reward_cents":
+        error_text = (
+            "The 'prolific_reward_cents' config variable has been removed. "
+            + "Use 'base_payment' instead to set base compensation for participants. "
+            + "It is given in the base unit of the currency, which is why division by 100 may be necessary."
+        )
+    raise KeyError(error_text)
