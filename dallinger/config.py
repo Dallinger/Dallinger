@@ -404,6 +404,8 @@ def raise_invalid_key_error(key):
         error_text = (
             "The 'prolific_reward_cents' config variable has been removed. "
             + "Use 'base_payment' instead to set base compensation for participants. "
-            + "It is given in the base unit of the currency, which is why division by 100 may be necessary."
+            + "Note that base_payment is written in terms of the base unit for the currency, "
+            + "not in cents. So, if your prolific_reward_cents was originally set to 50, "
+            + "then you should set your base_payment to 0.5."
         )
     raise KeyError(error_text)
