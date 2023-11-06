@@ -476,7 +476,7 @@ pyzmq==25.1.1
     #   jupyter-console
     #   jupyter-server
     #   qtconsole
-qtconsole==5.4.4
+qtconsole==5.5.0
     # via jupyter
 qtpy==2.4.0
     # via qtconsole
