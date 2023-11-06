@@ -140,6 +140,7 @@ class Configuration(object):
         normalized_mapping = {}
         for key, value in mapping.items():
             key = self.synonyms.get(key, key)
+            show_deprecation_warning(key)
             if key not in self.types:
                 # This key hasn't been registered, we ignore it
                 if strict:
@@ -409,3 +410,15 @@ def raise_invalid_key_error(key):
             + "then you should set your base_payment to 0.5."
         )
     raise KeyError(error_text)
+
+
+def show_deprecation_warning(key):
+    if key == "prolific_maximum_allowed_minutes":
+        import warnings
+
+        warnings.simplefilter("always", DeprecationWarning)
+        warnings.warn(
+            "The 'prolific_maximum_allowed_minutes' config variable has no effect "
+            + "as it is ignored by the Prolific API.",
+            DeprecationWarning,
+        )

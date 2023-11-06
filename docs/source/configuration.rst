@@ -231,13 +231,6 @@ Prolific Recruitment
 ``prolific_estimated_completion_minutes`` *int*
     Estimated duration in minutes of the experiment or survey
 
-``prolific_maximum_allowed_minutes`` *int*
-    Max time in minutes for a participant to finish the submission
-
-    Submissions are timed out if it takes longer, so make sure it is not too low.
-    The default is 3 times the ``prolific_estimated_completion_minutes``, plus two
-    minutes.
-
 ``prolific_recruitment_config`` *unicode - JSON formatted*
     JSON data to add additional recruitment parameters
 
@@ -297,6 +290,13 @@ Prolific Recruitment
     (for example, ``{"title": "My Experiment Title"}``), we recommend that you stick to the standard
     key = value format of ``config.txt`` whenever possible, and leave ``prolific_recruitment_config``
     for complex requirements which can't be configured in this simpler way.
+
+.. deprecated:: 10.0.0
+
+    ``prolific_maximum_allowed_minutes`` *int*
+        Max time in minutes for a participant to finish the submission
+
+        Has no effect as it is ignored by the Prolific API.
 
 .. note::
 
