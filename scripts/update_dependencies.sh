@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 compat=""
 if [[ "$OSTYPE" == "darwin"* ]]; then
     compat=" "
