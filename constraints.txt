@@ -86,7 +86,7 @@ click==8.1.7
     #   rq
 colorama==0.4.6
     # via tox
-comm==0.1.4
+comm==0.2.0
     # via
     #   ipykernel
     #   ipywidgets
