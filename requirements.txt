@@ -16,11 +16,11 @@ attrs==23.1.0
     #   trio
 backcall==0.2.0
     # via ipython
-blinker==1.6.3
+blinker==1.7.0
     # via flask
-boto3==1.28.73
+boto3==1.28.79
     # via dallinger
-botocore==1.31.73
+botocore==1.31.79
     # via
     #   boto3
     #   s3transfer
@@ -36,7 +36,7 @@ certifi==2023.7.22
     #   selenium
 cffi==1.16.0
     # via cryptography
-charset-normalizer==3.3.1
+charset-normalizer==3.3.2
     # via requests
 click==8.1.7
     # via
@@ -50,7 +50,7 @@ decorator==5.1.1
     # via ipython
 executing==2.0.1
     # via stack-data
-faker==19.12.0
+faker==19.13.0
     # via dallinger
 flask==3.0.0
     # via
@@ -177,7 +177,7 @@ rq==1.15.1
     # via dallinger
 s3transfer==0.7.0
     # via boto3
-selenium==4.14.0
+selenium==4.15.2
     # via dallinger
 simple-websocket==1.0.0
     # via flask-sock
@@ -210,7 +210,7 @@ traitlets==5.13.0
     # via
     #   ipython
     #   matplotlib-inline
-trio==0.22.2
+trio==0.23.1
     # via
     #   selenium
     #   trio-websocket
@@ -234,7 +234,7 @@ urllib3==1.26.18
     #   selenium
 user-agents==2.2.0
     # via dallinger
-wcwidth==0.2.8
+wcwidth==0.2.9
     # via prompt-toolkit
 werkzeug==3.0.1
     # via
@@ -246,7 +246,7 @@ wsproto==1.2.0
     # via
     #   simple-websocket
     #   trio-websocket
-wtforms==3.1.0
+wtforms==3.1.1
     # via flask-wtf
 zope-event==5.0
     # via gevent

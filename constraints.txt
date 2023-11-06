@@ -44,11 +44,11 @@ black==23.10.1
     # via dallinger
 bleach==6.1.0
     # via nbconvert
-blinker==1.6.3
+blinker==1.7.0
     # via flask
-boto3==1.28.73
+boto3==1.28.79
     # via dallinger
-botocore==1.31.73
+botocore==1.31.79
     # via
     #   boto3
     #   s3transfer
@@ -75,7 +75,7 @@ cfgv==3.4.0
     # via pre-commit
 chardet==5.2.0
     # via tox
-charset-normalizer==3.3.1
+charset-normalizer==3.3.2
     # via requests
 click==8.1.7
     # via
@@ -86,7 +86,7 @@ click==8.1.7
     #   rq
 colorama==0.4.6
     # via tox
-comm==0.1.4
+comm==0.2.0
     # via
     #   ipykernel
     #   ipywidgets
@@ -121,7 +121,7 @@ et-xmlfile==1.1.0
     # via openpyxl
 executing==2.0.1
     # via stack-data
-faker==19.12.0
+faker==19.13.0
     # via dallinger
 fastjsonschema==2.18.1
     # via nbformat
@@ -189,8 +189,6 @@ ipython==8.12.3
     #   ipykernel
     #   ipywidgets
     #   jupyter-console
-ipython-genutils==0.2.0
-    # via qtconsole
 ipywidgets==8.1.1
     # via
     #   dallinger
@@ -231,7 +229,7 @@ jsonschema-specifications==2023.7.1
     # via jsonschema
 jupyter==1.0.0
     # via dallinger
-jupyter-client==8.5.0
+jupyter-client==8.6.0
     # via
     #   ipykernel
     #   jupyter-console
@@ -251,11 +249,11 @@ jupyter-core==5.5.0
     #   nbconvert
     #   nbformat
     #   qtconsole
-jupyter-events==0.8.0
+jupyter-events==0.9.0
     # via jupyter-server
 jupyter-lsp==2.2.0
     # via jupyterlab
-jupyter-server==2.9.1
+jupyter-server==2.10.0
     # via
     #   dallinger
     #   jupyter-lsp
@@ -265,7 +263,7 @@ jupyter-server==2.9.1
     #   notebook-shim
 jupyter-server-terminals==0.4.4
     # via jupyter-server
-jupyterlab==4.0.7
+jupyterlab==4.0.8
     # via notebook
 jupyterlab-pygments==0.2.2
     # via nbconvert
@@ -309,7 +307,7 @@ myst-parser==2.0.0
     # via dallinger
 nbclient==0.8.0
     # via nbconvert
-nbconvert==7.10.0
+nbconvert==7.11.0
     # via
     #   jupyter
     #   jupyter-server
@@ -474,7 +472,7 @@ pyzmq==25.1.1
     #   jupyter-console
     #   jupyter-server
     #   qtconsole
-qtconsole==5.4.4
+qtconsole==5.5.0
     # via jupyter
 qtpy==2.4.1
     # via qtconsole
@@ -502,7 +500,7 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
-rpds-py==0.10.6
+rpds-py==0.12.0
     # via
     #   jsonschema
     #   referencing
@@ -510,7 +508,7 @@ rq==1.15.1
     # via dallinger
 s3transfer==0.7.0
     # via boto3
-selenium==4.14.0
+selenium==4.15.2
     # via dallinger
 send2trash==1.8.2
     # via jupyter-server
@@ -623,7 +621,7 @@ traitlets==5.13.0
     #   nbconvert
     #   nbformat
     #   qtconsole
-trio==0.22.2
+trio==0.23.1
     # via
     #   selenium
     #   trio-websocket
@@ -656,7 +654,7 @@ virtualenv==20.24.6
     # via
     #   pre-commit
     #   tox
-wcwidth==0.2.8
+wcwidth==0.2.9
     # via prompt-toolkit
 webcolors==1.13
     # via jsonschema
@@ -680,7 +678,7 @@ wsproto==1.2.0
     # via
     #   simple-websocket
     #   trio-websocket
-wtforms==3.1.0
+wtforms==3.1.1
     # via flask-wtf
 xlrd==2.0.1
     # via tablib
