@@ -69,7 +69,7 @@ jobs:
       - name: Install snap packages
         run: curl https://cli-assets.heroku.com/install.sh | sh
       - name: Set up Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v4
         with:
           node-version: "10"
       - name: Set up Ruby
