@@ -115,6 +115,7 @@ setup_args = dict(
             "pytest",
             "pytest-rerunfailures",
             "sphinx < 7.2",
+            "sphinx-js==3.2.2",
             "sphinx_rtd_theme",
             "sphinxcontrib-applehelp <= 1.0.4",
             "sphinxcontrib-devhelp <= 1.0.2",
