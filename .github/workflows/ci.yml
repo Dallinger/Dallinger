@@ -73,9 +73,9 @@ jobs:
         with:
           node-version: "16"
       - name: Set up Ruby
-        uses: actions/setup-ruby@v1
+        uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 3.1
+          ruby-version: 3.2
       - name: Ruby dependencies
         run: |
           gem install danger
