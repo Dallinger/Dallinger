@@ -296,7 +296,7 @@ Prolific Recruitment
     ``prolific_maximum_allowed_minutes`` *int*
         Max time in minutes for a participant to finish the submission
 
-        Has no effect as it is ignored by the Prolific API.
+        Has no effect as it is currently ignored by the Prolific API.
 
 .. note::
 

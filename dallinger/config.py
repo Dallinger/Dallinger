@@ -419,6 +419,6 @@ def test_deprecation(key):
         warnings.simplefilter("always", DeprecationWarning)
         warnings.warn(
             "The 'prolific_maximum_allowed_minutes' config variable has no effect "
-            + "as it is ignored by the Prolific API.",
+            + "as it is currently ignored by the Prolific API.",
             DeprecationWarning,
         )
