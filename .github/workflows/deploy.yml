@@ -59,14 +59,14 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Build ghcr.io/dallinger/dallinger docker image
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v5
         with:
           push: true
           load: false
           target: dallinger
           tags: ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }}
       - name: Build ghcr.io/dallinger/dallinger-bot docker image
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v5
         with:
           push: true
           load: false
