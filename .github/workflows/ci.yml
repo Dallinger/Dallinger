@@ -138,7 +138,7 @@ jobs:
         id: vars
         run: echo "version=$(grep __version__\ = dallinger/version.py|sed -e 's/.*= //;s/"//g')" >> $GITHUB_OUTPUT
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v3
       - name: Cache Docker layers
         uses: actions/cache@v3
         with:
