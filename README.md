@@ -37,6 +37,8 @@ Support
 If you are having issues, please [let us know](http://github.com/Dallinger/Dallinger/issues).
 
 **Subscribe to our Slack channel**
+
+```html
 <div style="background-color: #fff4a8; border: solid 2px black;">
 Dallinger is
 <i>open-source</i>, and is <i>completely free</i> to use in
@@ -54,6 +56,7 @@ Upon the invoice being processed, the listed users will be added to the
 Slack channel. If you are from a developing nation and are unable to
 afford a subscription, please contact us directly.
 </div>
+```
 
 License
 -------
