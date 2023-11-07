@@ -22,11 +22,11 @@ jobs:
             echo $file
             if [[ $file == *mturk.py ]]; then
               echo "This modified file is MTurk related."
-              echo "::set-output name=mturk_changed::true"
+              echo "mturk_changed=true" >> $GITHUB_OUTPUT
               break
             else
               echo "This modified file is not MTurk related."
-              echo "::set-output name=mturk_changed::false"
+              echo "mturk_changed=false" >> $GITHUB_OUTPUT
             fi
           done < files.txt
 
@@ -136,7 +136,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Get version
         id: vars
-        run: echo ::set-output name=version::$(grep __version__\ = dallinger/version.py|sed -e 's/.*= //;s/"//g')
+        run: echo "version=$(grep __version__\ = dallinger/version.py|sed -e 's/.*= //;s/"//g')" >> $GITHUB_OUTPUT
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
       - name: Cache Docker layers

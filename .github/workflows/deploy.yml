@@ -48,7 +48,7 @@ jobs:
     steps:
       - name: Get version
         id: vars
-        run: echo ::set-output name=version::${GITHUB_REF#refs/*/v}
+        run: echo "version=${GITHUB_REF#refs/*/v}" >> $GITHUB_OUTPUT
       - name: Login to Github ghcr
         uses: docker/login-action@v1
         with:
