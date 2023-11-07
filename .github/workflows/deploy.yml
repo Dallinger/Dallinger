@@ -50,7 +50,7 @@ jobs:
         id: vars
         run: echo "version=${GITHUB_REF#refs/*/v}" >> $GITHUB_OUTPUT
       - name: Login to Github ghcr
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3
         with:
           # The GHCR_TOKEN in Dallinger's ghcr environment was created by user silviot
           username: silviot
