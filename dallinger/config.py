@@ -140,7 +140,7 @@ class Configuration(object):
         normalized_mapping = {}
         for key, value in mapping.items():
             key = self.synonyms.get(key, key)
-            show_deprecation_warning(key)
+            test_deprecation(key)
             if key not in self.types:
                 # This key hasn't been registered, we ignore it
                 if strict:
@@ -412,7 +412,7 @@ def raise_invalid_key_error(key):
     raise KeyError(error_text)
 
 
-def show_deprecation_warning(key):
+def test_deprecation(key):
     if key == "prolific_maximum_allowed_minutes":
         import warnings
 
