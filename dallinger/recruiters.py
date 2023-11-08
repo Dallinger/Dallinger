@@ -352,7 +352,7 @@ class ProlificRecruiter(Recruiter):
             ),
             "name": self.config.get("title"),
             "prolific_id_option": "url_parameters",
-            "reward": self.config.get("prolific_reward_cents"),
+            "reward": int(self.config.get("base_payment") * 100),
             "total_available_places": n,
             "mode": self.config.get("mode"),
         }
