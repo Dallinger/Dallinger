@@ -46,7 +46,7 @@ bleach==6.1.0
     # via nbconvert
 blinker==1.7.0
     # via flask
-boto3==1.28.79
+boto3==1.28.83
     # via dallinger
 botocore==1.31.79
     # via
