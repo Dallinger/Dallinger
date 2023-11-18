@@ -62,7 +62,7 @@ cached-property==1.5.2
     # via dallinger
 cachetools==5.3.2
     # via tox
-certifi==2023.7.22
+certifi==2023.11.17
     # via
     #   requests
     #   selenium
