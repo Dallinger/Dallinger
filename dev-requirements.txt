@@ -121,7 +121,7 @@ et-xmlfile==1.1.0
     # via openpyxl
 executing==2.0.1
     # via stack-data
-faker==19.13.0
+faker==20.1.0
     # via dallinger
 fastjsonschema==2.18.1
     # via nbformat
