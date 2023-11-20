@@ -35,7 +35,23 @@ Contribute
 Support
 -------
 If you are having issues, please [let us know](http://github.com/Dallinger/Dallinger/issues).
-We run a users group at https://groups.google.com/d/forum/dallinger.
+
+**Subscribe to our Slack channel**
+
+Dallinger is *open-source*, and is *completely free* to use in
+your experiments. However, to help users with technical issues and
+experiment creation, the Dallinger team maintains a **Dallinger
+support Slack channel**. Access to the Dallinger support Slack
+requires a **$10 per month per user subscription**,
+with proceeds supporting the future development of Dallinger. Users are
+free to subscribe for as many or as few months as they wish.
+
+To subscribe and gain access to the Slack support channel,
+please [download](https://github.com//Dallinger/Dallinger/blob/fb5aeda9a54de7ccc2c3c6d50e2e8c43e9b0366d/docs/source/_static/download/IHO_Dallinger_invoice_TM__1_.docx) and complete this invoice. Completed invoices, along with a check for
+the appropriate amount, should be sent to the address on the invoice.
+Upon the invoice being processed, the listed users will be added to the
+Slack channel. If you are from a developing nation and are unable to
+afford a subscription, please contact us directly.
 
 License
 -------
