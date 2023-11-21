@@ -100,6 +100,7 @@ jobs:
       - name: Before Tox
         run: |
           bundle exec danger
+          pip install --upgrade setuptools
       - name: Run Full Tox
         env:
           DATABASE_URL: postgresql://dallinger:dallinger@localhost/dallinger
