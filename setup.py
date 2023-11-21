@@ -77,7 +77,6 @@ setup_args = dict(
         "requests",
         "rq",
         "selenium",
-        "setuptools",
         "six",
         "SQLAlchemy < 2",
         "sqlalchemy-postgres-copy",
