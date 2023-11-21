@@ -40,15 +40,15 @@ bcrypt==4.0.1
     # via paramiko
 beautifulsoup4==4.12.2
     # via nbconvert
-black==23.10.1
+black==23.11.0
     # via dallinger
 bleach==6.1.0
     # via nbconvert
 blinker==1.7.0
     # via flask
-boto3==1.28.79
+boto3==1.29.4
     # via dallinger
-botocore==1.31.79
+botocore==1.32.4
     # via
     #   boto3
     #   s3transfer
@@ -62,7 +62,7 @@ cached-property==1.5.2
     # via dallinger
 cachetools==5.3.2
     # via tox
-certifi==2023.7.22
+certifi==2023.11.17
     # via
     #   requests
     #   selenium
@@ -121,9 +121,9 @@ et-xmlfile==1.1.0
     # via openpyxl
 executing==2.0.1
     # via stack-data
-faker==19.13.0
+faker==20.1.0
     # via dallinger
-fastjsonschema==2.18.1
+fastjsonschema==2.19.0
     # via nbformat
 filelock==3.13.1
     # via
@@ -165,7 +165,7 @@ h11==0.14.0
     # via wsproto
 heroku3==5.2.1
     # via dallinger
-identify==2.5.31
+identify==2.5.32
     # via pre-commit
 idna==3.4
     # via
@@ -220,12 +220,12 @@ json5==0.9.14
     # via jupyterlab-server
 jsonpointer==2.4
     # via jsonschema
-jsonschema==4.19.2
+jsonschema==4.20.0
     # via
     #   jupyter-events
     #   jupyterlab-server
     #   nbformat
-jsonschema-specifications==2023.7.1
+jsonschema-specifications==2023.11.1
     # via jsonschema
 jupyter==1.0.0
     # via dallinger
@@ -253,7 +253,7 @@ jupyter-events==0.9.0
     # via jupyter-server
 jupyter-lsp==2.2.0
     # via jupyterlab
-jupyter-server==2.10.0
+jupyter-server==2.10.1
     # via
     #   dallinger
     #   jupyter-lsp
@@ -263,11 +263,11 @@ jupyter-server==2.10.0
     #   notebook-shim
 jupyter-server-terminals==0.4.4
     # via jupyter-server
-jupyterlab==4.0.8
+jupyterlab==4.0.9
     # via notebook
 jupyterlab-pygments==0.2.2
     # via nbconvert
-jupyterlab-server==2.25.0
+jupyterlab-server==2.25.2
     # via
     #   jupyterlab
     #   notebook
@@ -305,7 +305,7 @@ mypy-extensions==1.0.0
     # via black
 myst-parser==2.0.0
     # via dallinger
-nbclient==0.8.0
+nbclient==0.9.0
     # via nbconvert
 nbconvert==7.11.0
     # via
@@ -390,9 +390,9 @@ pluggy==1.3.0
     #   tox
 pre-commit==3.5.0
     # via dallinger
-prometheus-client==0.18.0
+prometheus-client==0.19.0
     # via jupyter-server
-prompt-toolkit==3.0.39
+prompt-toolkit==3.0.41
     # via
     #   ipython
     #   jupyter-console
@@ -420,7 +420,7 @@ pyenchant==3.2.2
     # via sphinxcontrib-spelling
 pyflakes==3.1.0
     # via flake8
-pygments==2.16.1
+pygments==2.17.1
     # via
     #   ipython
     #   jupyter-console
@@ -472,7 +472,7 @@ pyzmq==25.1.1
     #   jupyter-console
     #   jupyter-server
     #   qtconsole
-qtconsole==5.5.0
+qtconsole==5.5.1
     # via jupyter
 qtpy==2.4.1
     # via qtconsole
@@ -480,7 +480,7 @@ redis==5.0.1
     # via
     #   dallinger
     #   rq
-referencing==0.30.2
+referencing==0.31.0
     # via
     #   jsonschema
     #   jsonschema-specifications
@@ -500,7 +500,7 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
-rpds-py==0.12.0
+rpds-py==0.13.1
     # via
     #   jsonschema
     #   referencing
@@ -586,7 +586,7 @@ tabulate==0.9.0
     #   tablib
 tenacity==8.2.3
     # via dallinger
-terminado==0.17.1
+terminado==0.18.0
     # via
     #   jupyter-server
     #   jupyter-server-terminals
@@ -654,7 +654,7 @@ virtualenv==20.24.6
     # via
     #   pre-commit
     #   tox
-wcwidth==0.2.9
+wcwidth==0.2.10
     # via prompt-toolkit
 webcolors==1.13
     # via jsonschema

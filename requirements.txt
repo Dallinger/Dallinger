@@ -18,9 +18,9 @@ backcall==0.2.0
     # via ipython
 blinker==1.7.0
     # via flask
-boto3==1.28.79
+boto3==1.29.4
     # via dallinger
-botocore==1.31.79
+botocore==1.32.4
     # via
     #   boto3
     #   s3transfer
@@ -30,7 +30,7 @@ build==1.0.3
     #   pip-tools
 cached-property==1.5.2
     # via dallinger
-certifi==2023.7.22
+certifi==2023.11.17
     # via
     #   requests
     #   selenium
@@ -50,7 +50,7 @@ decorator==5.1.1
     # via ipython
 executing==2.0.1
     # via stack-data
-faker==19.13.0
+faker==20.1.0
     # via dallinger
 flask==3.0.0
     # via
@@ -133,7 +133,7 @@ pickleshare==0.7.5
     # via ipython
 pip-tools==7.3.0
     # via dallinger
-prompt-toolkit==3.0.39
+prompt-toolkit==3.0.41
     # via ipython
 psutil==5.9.6
     # via dallinger
@@ -147,7 +147,7 @@ pure-eval==0.2.2
     # via stack-data
 pycparser==2.21
     # via cffi
-pygments==2.16.1
+pygments==2.17.1
     # via ipython
 pyopenssl==23.3.0
     # via dallinger
@@ -234,7 +234,7 @@ urllib3==1.26.18
     #   selenium
 user-agents==2.2.0
     # via dallinger
-wcwidth==0.2.9
+wcwidth==0.2.10
     # via prompt-toolkit
 werkzeug==3.0.1
     # via
