@@ -113,7 +113,7 @@ jupyter = [
 [project.entry-points.pytest11]
 pytest_dallinger = "dallinger.pytest_dallinger"
 
-[project.entry-points.dallinger.experiments]
+# [project.entry-points.dallinger.experiments]
 
 [project.scripts]
 dallinger = "dallinger.command_line:dallinger"
