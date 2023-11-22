@@ -13,6 +13,7 @@ import sys
 import tempfile
 import webbrowser
 from hashlib import md5
+from importlib.metadata import PackagePath
 from importlib.metadata import files as files_metadata
 from importlib.util import find_spec
 from pathlib import Path
@@ -358,8 +359,8 @@ def abspath_from_egg(egg, path):
     """
     print("EGG ->")
     print(path)
-    print(Path(path).locate())
-    return Path(path).locate()
+    print(PackagePath(Path(path)).locate())
+    return PackagePath(Path(path)).locate()
     for file in files_metadata(egg):
         if str(file) == path:
             return file.locate()
