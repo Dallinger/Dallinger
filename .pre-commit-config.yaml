@@ -4,7 +4,7 @@ repos:
   rev: 23.10.1 # update with `pre-commit autoupdate`
   hooks:
     - id: black
-      language_version: python3 # Should be a command that runs python3.6+
+      language_version: python3 # Should be a command that runs python3.8+
       files: ^(tests|dallinger|dallinger_scripts|demos)/|setup.py
 
 - repo: https://github.com/PyCQA/flake8
