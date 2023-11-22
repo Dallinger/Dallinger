@@ -358,6 +358,7 @@ def abspath_from_egg(egg, path):
     """
     print("EGG ->")
     print(files_metadata(egg))
+    return path.locate()
     for file in files_metadata(egg):
         print(file)
         print(path)
