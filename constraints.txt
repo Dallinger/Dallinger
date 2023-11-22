@@ -443,7 +443,7 @@ pytest==7.4.3
     # via
     #   dallinger
     #   pytest-rerunfailures
-pytest-rerunfailures==12.0
+pytest-rerunfailures==13.0
     # via dallinger
 python-dateutil==2.8.2
     # via
