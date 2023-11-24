@@ -129,8 +129,8 @@ Homepage = "https://github.com/Dallinger/Dallinger"
 Issues = "http://github.com/Dallinger/Dallinger/issues"
 Repository = "https://github.com/Dallinger/Dallinger"
 
-# [tool.setuptools.packages]
-# find = {}
+[tool.setuptools.packages]
+find = {}
 
 [tool.hatch.build.targets.sdist]
 exclude = [
