@@ -357,8 +357,8 @@ def abspath_from_egg(egg, path):
     Returns a `pathlib.Path` object or None if the path was not found.
     """
     for file in files_metadata(egg):
-        print()
         print(file)
+        print(path)
         if str(file) == path:
             return file.locate()
     return None
