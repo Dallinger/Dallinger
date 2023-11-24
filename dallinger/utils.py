@@ -356,9 +356,7 @@ def abspath_from_egg(egg, path):
     `abspath_from_egg("dallinger", "dallinger/utils.py")`.
     Returns a `pathlib.Path` object or None if the path was not found.
     """
-    print(path)
     for file in files_metadata(egg):
-        print(file)
         if str(file) == path:
             return file.locate()
     return None
