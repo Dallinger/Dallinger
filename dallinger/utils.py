@@ -13,7 +13,6 @@ import sys
 import tempfile
 import webbrowser
 from hashlib import md5
-from importlib.metadata import PackagePath
 from importlib.metadata import files as files_metadata
 from importlib.util import find_spec
 from pathlib import Path
@@ -357,10 +356,6 @@ def abspath_from_egg(egg, path):
     `abspath_from_egg("dallinger", "dallinger/utils.py")`.
     Returns a `pathlib.Path` object or None if the path was not found.
     """
-    print("EGG ->")
-    print(path)
-    print(PackagePath(Path(path)).locate())
-    return PackagePath(Path(path)).locate()
     for file in files_metadata(egg):
         if str(file) == path:
             return file.locate()
