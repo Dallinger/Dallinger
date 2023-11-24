@@ -10,7 +10,7 @@ alabaster==0.7.13
     # via
     #   dallinger
     #   sphinx
-anyio==4.0.0
+anyio==4.1.0
     # via jupyter-server
 apscheduler==3.10.4
     # via dallinger
@@ -46,9 +46,9 @@ bleach==6.1.0
     # via nbconvert
 blinker==1.7.0
     # via flask
-boto3==1.29.5
+boto3==1.29.6
     # via dallinger
-botocore==1.32.5
+botocore==1.32.6
     # via
     #   boto3
     #   s3transfer
@@ -167,7 +167,7 @@ heroku3==5.2.1
     # via dallinger
 identify==2.5.32
     # via pre-commit
-idna==3.4
+idna==3.5
     # via
     #   anyio
     #   jsonschema
@@ -177,7 +177,7 @@ imagesize==1.4.1
     # via sphinx
 iniconfig==2.0.0
     # via pytest
-ipykernel==6.27.0
+ipykernel==6.26.0
     # via
     #   jupyter
     #   jupyter-console
@@ -185,6 +185,7 @@ ipykernel==6.27.0
     #   qtconsole
 ipython==8.12.3
     # via
+    #   black
     #   dallinger
     #   ipykernel
     #   ipywidgets
@@ -253,7 +254,7 @@ jupyter-events==0.9.0
     # via jupyter-server
 jupyter-lsp==2.2.0
     # via jupyterlab
-jupyter-server==2.11.0
+jupyter-server==2.10.1
     # via
     #   dallinger
     #   jupyter-lsp
@@ -265,7 +266,7 @@ jupyter-server-terminals==0.4.4
     # via jupyter-server
 jupyterlab==4.0.9
     # via notebook
-jupyterlab-pygments==0.2.2
+jupyterlab-pygments==0.3.0
     # via nbconvert
 jupyterlab-server==2.25.2
     # via
@@ -594,6 +595,8 @@ timeago==1.0.16
     # via dallinger
 tinycss2==1.2.1
     # via nbconvert
+tokenize-rt==5.2.0
+    # via black
 tornado==6.3.3
     # via
     #   ipykernel

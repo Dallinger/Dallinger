@@ -18,9 +18,9 @@ backcall==0.2.0
     # via ipython
 blinker==1.7.0
     # via flask
-boto3==1.29.5
+boto3==1.29.6
     # via dallinger
-botocore==1.32.5
+botocore==1.32.6
     # via
     #   boto3
     #   s3transfer
@@ -84,7 +84,7 @@ h11==0.14.0
     # via wsproto
 heroku3==5.2.1
     # via dallinger
-idna==3.4
+idna==3.5
     # via
     #   requests
     #   trio
