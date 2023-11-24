@@ -14,10 +14,6 @@ from pip._internal.req import parse_requirements
 from dallinger.docker.wheel_filename import parse_wheel_filename
 from dallinger.utils import abspath_from_egg, get_editable_dallinger_path
 
-docker_compose_template = Template(
-    abspath_from_egg("dallinger", "dallinger/docker/docker-compose.yml.j2").read_text()
-)
-
 
 class DockerComposeWrapper(object):
     """Wrapper around a docker compose local daemon, modeled after HerokuLocalWrapper.
@@ -77,6 +73,11 @@ class DockerComposeWrapper(object):
             )
         tag = get_experiment_image_tag(self.tmp_dir)
         with open(os.path.join(self.tmp_dir, "docker-compose.yml"), "w") as fh:
+            docker_compose_template = Template(
+                abspath_from_egg(
+                    "dallinger", "dallinger/docker/docker-compose.yml.j2"
+                ).read_text()
+            )
             fh.write(
                 docker_compose_template.render(
                     volumes=volumes,
