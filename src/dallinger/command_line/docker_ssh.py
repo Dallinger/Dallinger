@@ -370,10 +370,10 @@ def deploy(
             raise click.Abort
 
     sftp = get_sftp(ssh_host, user=ssh_user)
-    DOCKER_COMPOSE_SERVER = abspath_from_egg(
+    docker_compose_server = abspath_from_egg(
         "dallinger", "dallinger/docker/ssh_templates/docker-compose-server.yml"
     ).read_bytes()
-    sftp.putfo(BytesIO(DOCKER_COMPOSE_SERVER), "dallinger/docker-compose.yml")
+    sftp.putfo(BytesIO(docker_compose_server), "dallinger/docker-compose.yml")
     sftp.putfo(
         BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
         "dallinger/Caddyfile",
@@ -684,13 +684,13 @@ def get_docker_compose_yml(
     """Generate a docker-compose.yml file based on the given"""
     docker_volumes = config.get("docker_volumes", "")
     config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
-    DOCKER_COMPOSE_EXP_TPL = Template(
+    docker_compose_exp_tpl = Template(
         abspath_from_egg(
             "dallinger",
             "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2",
         ).read_text()
     )
-    return DOCKER_COMPOSE_EXP_TPL.render(
+    return docker_compose_exp_tpl.render(
         experiment_id=experiment_id,
         experiment_image=experiment_image,
         config=config_str,
