@@ -28,8 +28,6 @@ from dallinger.deployment import _handle_launch_data
 from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import GitClient, abspath_from_egg, setup_experiment
 
-HEROKU_YML = abspath_from_egg("dallinger", "dallinger/docker/heroku.yml").read_text()
-
 
 @click.group()
 def docker():
@@ -244,7 +242,9 @@ def deploy_image(image_name, mode, config_options):
     tmp = tempfile.mkdtemp()
     os.chdir(tmp)
     Path("Dockerfile").write_text(f"FROM {image_name}")
-    Path("heroku.yml").write_text(HEROKU_YML)
+    Path("heroku.yml").write_text(
+        abspath_from_egg("dallinger", "dallinger/docker/heroku.yml").read_text()
+    )
     git = GitClient()
     git.init()
     git.add("--all")
