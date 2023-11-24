@@ -113,8 +113,6 @@ jupyter = [
 [project.entry-points.pytest11]
 pytest_dallinger = "dallinger.pytest_dallinger"
 
-# [project.entry-points.dallinger.experiments]
-
 [project.scripts]
 dallinger = "dallinger.command_line:dallinger"
 dallinger-housekeeper = "dallinger.command_line:dallinger_housekeeper"
@@ -129,17 +127,13 @@ Homepage = "https://github.com/Dallinger/Dallinger"
 Issues = "http://github.com/Dallinger/Dallinger/issues"
 Repository = "https://github.com/Dallinger/Dallinger"
 
-[tool.setuptools.packages]
-find = {}
+[tool.hatch.build.targets.wheel.force-include]
+"dev-requirements.txt" = "dev-requirements.txt"
+"dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2" = "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2"
 
 [tool.hatch.build.targets.sdist]
 exclude = [
-    "/.gitlab",
-    "/.postgres_setup.sql",
-    "/.run-ci-tests-locally-v2.sh",
-    "/.run-ci-tests-locally.sh",
-    "/ci",
-    "/demos",
+    "/.github",
     "/docs",
     "/tests",
 ]
@@ -150,10 +144,7 @@ target-version = ["py311"]
 include = '\.pyi?$'
 exclude = '''
 /(
-    \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
+    \.git
   | \.tox
   | \.venv
   | docs/_build
