@@ -129,6 +129,7 @@ Repository = "https://github.com/Dallinger/Dallinger"
 
 [tool.hatch.build.targets.wheel.force-include]
 "dev-requirements.txt" = "dev-requirements.txt"
+"dallinger/docker/docker-compose.yml.j2" = "dallinger/docker/docker-compose.yml.j2"
 "dallinger/docker/heroku.yml" = "dallinger/docker/heroku.yml"
 "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2" = "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2"
 "dallinger/docker/ssh_templates/docker-compose-server.yml" = "dallinger/docker/ssh_templates/docker-compose-server.yml"
