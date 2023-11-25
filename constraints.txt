@@ -167,7 +167,7 @@ heroku3==5.2.1
     # via dallinger
 identify==2.5.31
     # via pre-commit
-idna==3.4
+idna==3.6
     # via
     #   anyio
     #   jsonschema
