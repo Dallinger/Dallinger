@@ -131,6 +131,7 @@ Repository = "https://github.com/Dallinger/Dallinger"
 "dev-requirements.txt" = "dev-requirements.txt"
 "dallinger/docker/heroku.yml" = "dallinger/docker/heroku.yml"
 "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2" = "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2"
+"dallinger/docker/ssh_templates/docker-compose-server.yml" = "dallinger/docker/ssh_templates/docker-compose-server.yml"
 
 [tool.hatch.build.targets.sdist]
 exclude = [
