@@ -60,7 +60,7 @@ def launch():
                 task,
                 trigger=args["trigger"],
                 replace_existing=True,
-                **dict(args["kwargs"]),
+                **dict(args["kwargs"])
             )
 
     scheduler.start()
