@@ -251,7 +251,7 @@ jupyter-core==5.5.0
     #   qtconsole
 jupyter-events==0.9.0
     # via jupyter-server
-jupyter-lsp==2.2.0
+jupyter-lsp==2.2.1
     # via jupyterlab
 jupyter-server==2.10.0
     # via
