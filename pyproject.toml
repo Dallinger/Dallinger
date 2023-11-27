@@ -135,16 +135,21 @@ Repository = "https://github.com/Dallinger/Dallinger"
 "dallinger/docker/ssh_templates/docker-compose-server.yml" = "dallinger/docker/ssh_templates/docker-compose-server.yml"
 
 [tool.hatch.build.targets.wheel]
-exclude = [
-    "/.github",
-    "/docs",
-    "/tests",
-    "/demos",
-    # "/dev-requirements.txt",
-]
 include = [
     "/dallinger",
     "/dallinger_scripts"
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/dallinger",
+    "/dallinger_scripts",
+    "/docs",
+    "/tests",
+    "/constraints.txt",
+    "/dev-requirements.txt",
+    "/incubator.png",
+    "/requirements.txt",
 ]
 
 [tool.black]
