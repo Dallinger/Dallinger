@@ -46,9 +46,9 @@ bleach==6.1.0
     # via nbconvert
 blinker==1.7.0
     # via flask
-boto3==1.29.6
+boto3==1.33.0
     # via dallinger
-botocore==1.32.6
+botocore==1.33.0
     # via
     #   boto3
     #   s3transfer
@@ -96,7 +96,7 @@ coverage==7.3.2
     #   dallinger
 coverage-pth==0.0.2
     # via dallinger
-cryptography==41.0.5
+cryptography==41.0.7
     # via
     #   paramiko
     #   pyopenssl
@@ -167,7 +167,7 @@ heroku3==5.2.1
     # via dallinger
 identify==2.5.32
     # via pre-commit
-idna==3.5
+idna==3.6
     # via
     #   anyio
     #   jsonschema
@@ -177,7 +177,7 @@ imagesize==1.4.1
     # via sphinx
 iniconfig==2.0.0
     # via pytest
-ipykernel==6.26.0
+ipykernel==6.27.1
     # via
     #   jupyter
     #   jupyter-console
@@ -252,9 +252,9 @@ jupyter-core==5.5.0
     #   qtconsole
 jupyter-events==0.9.0
     # via jupyter-server
-jupyter-lsp==2.2.0
+jupyter-lsp==2.2.1
     # via jupyterlab
-jupyter-server==2.10.1
+jupyter-server==2.11.1
     # via
     #   dallinger
     #   jupyter-lsp
@@ -371,7 +371,7 @@ parso==0.8.3
     # via jedi
 pathspec==0.11.2
     # via black
-pexpect==4.8.0
+pexpect==4.9.0
     # via
     #   dallinger
     #   ipython
@@ -507,7 +507,7 @@ rpds-py==0.13.1
     #   referencing
 rq==1.15.1
     # via dallinger
-s3transfer==0.7.0
+s3transfer==0.8.0
     # via boto3
 selenium==4.15.2
     # via dallinger
@@ -607,7 +607,7 @@ tornado==6.3.3
     #   terminado
 tox==4.11.3
     # via dallinger
-traitlets==5.13.0
+traitlets==5.14.0
     # via
     #   comm
     #   ipykernel
@@ -673,7 +673,7 @@ werkzeug==3.0.1
     # via
     #   flask
     #   flask-login
-wheel==0.41.3
+wheel==0.42.0
     # via pip-tools
 widgetsnbextension==4.0.9
     # via ipywidgets
