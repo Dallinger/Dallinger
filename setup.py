@@ -100,6 +100,7 @@ setup_args = dict(
         "dev": [
             "alabaster",
             "black",
+            "black[jupyter]",
             "bump2version",
             "coverage",
             "coverage_pth",
