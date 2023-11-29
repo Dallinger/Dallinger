@@ -481,7 +481,7 @@ redis==5.0.1
     # via
     #   dallinger
     #   rq
-referencing==0.31.0
+referencing==0.31.1
     # via
     #   jsonschema
     #   jsonschema-specifications
