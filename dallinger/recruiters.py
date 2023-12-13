@@ -312,7 +312,10 @@ class ProlificRecruiter(Recruiter):
             self.config.load()
         base_url = get_base_url()
         self.ad_url = f"{base_url}/ad?recruiter={self.nickname}"
-        self.completion_code = alphanumeric_code(self.config.get("id"))
+        try:
+            self.completion_code = alphanumeric_code(self.config.get("id"))
+        except KeyError:
+            self.completion_code = None
         self.study_domain = os.getenv("HOST")
         self.prolificservice = _prolific_service_from_config()
         self.notifies_admin = admin_notifier(self.config)
