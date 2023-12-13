@@ -312,15 +312,14 @@ class ProlificRecruiter(Recruiter):
             self.config.load()
         base_url = get_base_url()
         self.ad_url = f"{base_url}/ad?recruiter={self.nickname}"
-        try:
-            self.completion_code = alphanumeric_code(self.config.get("id"))
-        except KeyError:
-            self.completion_code = None
         self.study_domain = os.getenv("HOST")
         self.prolificservice = _prolific_service_from_config()
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
+
+    def completion_code(self):
+        return alphanumeric_code(self.config.get("id"))
 
     def open_recruitment(self, n: int = 1) -> dict:
         """Create a Study on Prolific."""
