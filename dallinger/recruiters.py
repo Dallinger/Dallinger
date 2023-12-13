@@ -318,6 +318,7 @@ class ProlificRecruiter(Recruiter):
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
 
+    @property
     def completion_code(self):
         return alphanumeric_code(self.config.get("id"))
 
