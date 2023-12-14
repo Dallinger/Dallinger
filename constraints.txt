@@ -624,7 +624,7 @@ traitlets==5.14.0
     #   nbconvert
     #   nbformat
     #   qtconsole
-trio==0.23.1
+trio==0.23.2
     # via
     #   selenium
     #   trio-websocket
