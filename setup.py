@@ -108,7 +108,7 @@ setup_args = dict(
             "isort",
             "mock",
             "myst-parser",
-            "pre-commit",
+            "pre-commit < 3.6",
             "pycodestyle",
             "pypandoc",
             "pytest",
