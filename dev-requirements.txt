@@ -236,7 +236,7 @@ jsonschema==4.20.0
     #   jupyter-events
     #   jupyterlab-server
     #   nbformat
-jsonschema-specifications==2023.11.2
+jsonschema-specifications==2023.12.1
     # via jsonschema
 jupyter==1.0.0
     # via dallinger
