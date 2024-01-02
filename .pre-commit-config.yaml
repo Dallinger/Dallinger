@@ -1,7 +1,7 @@
 repos:
 
 - repo: https://github.com/psf/black
-  rev: 23.7.0 # update with `pre-commit autoupdate`
+  rev: 23.11.0 # update with `pre-commit autoupdate`
   hooks:
     - id: black
       language_version: python3 # Should be a command that runs python3.6+

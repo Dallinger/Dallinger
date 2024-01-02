@@ -98,6 +98,7 @@ Recruitment (General)
 ``browser_exclude_rule`` *unicode - comma separated*
     A set of rules you can apply to prevent participants with unsupported web
     browsers from participating in your experiment. Valid exclustion values are:
+
         * mobile
         * tablet
         * touchcapable
@@ -230,13 +231,6 @@ Prolific Recruitment
 ``prolific_estimated_completion_minutes`` *int*
     Estimated duration in minutes of the experiment or survey
 
-``prolific_maximum_allowed_minutes`` *int*
-    Max time in minutes for a participant to finish the submission
-
-    Submissions are timed out if it takes longer, so make sure it is not too low.
-    The default is 3 times the ``prolific_estimated_completion_minutes``, plus two
-    minutes.
-
 ``prolific_recruitment_config`` *unicode - JSON formatted*
     JSON data to add additional recruitment parameters
 
@@ -276,11 +270,13 @@ Prolific Recruitment
 
 
     You can also specify the devices you expect the participants to have, e.g.::
+
         {
             "eligibility_requirements": […],
             "device_compatibility": ["desktop"],
             "peripheral_requirements": ["audio", "microphone"]
         }
+
     Supported devices are ``desktop``, ``tablet``, and ``mobile``. Supported peripherals are ``audio``, ``camera``, ``download`` (download additional software to run the experiment), and ``microphone``.
 
     You would then include this file in your overall configuration by adding the following
@@ -295,8 +291,14 @@ Prolific Recruitment
     key = value format of ``config.txt`` whenever possible, and leave ``prolific_recruitment_config``
     for complex requirements which can't be configured in this simpler way.
 
-``prolific_reward_cents`` *int*
-    Base compensation to pay your participants, in cents
+.. deprecated:: 10.0.0
+
+    ``prolific_maximum_allowed_minutes`` *int*
+        Max time in minutes for a participant to finish the submission
+
+        Has no effect as it is currently ignored by the Prolific API.
+
+.. note::
 
     Prolific will use the currency of your researcher account, and convert automatically
     to the participant's currency.

@@ -16,10 +16,12 @@ services:
     depends_on: &commondepends
       redis_{{ experiment_id }}:
         condition: service_healthy
+      pgbouncer:
+        condition: service_started
     user: "${UID}:${GID}"
     environment: &commonenv
       REDIS_URL: redis://redis_{{ experiment_id }}:6379
-      DATABASE_URL: postgresql://{{ experiment_id }}:{{ postgresql_password }}@postgresql/{{ experiment_id }}
+      DATABASE_URL: postgresql://{{ experiment_id }}:{{ postgresql_password }}@{{ experiment_id }}_pgbouncer/{{ experiment_id }}
       HOME: /tmp
       HOST: 0.0.0.0
     {%- for key, value in config.items() %}
@@ -34,6 +36,24 @@ services:
       - {{ volume | string() }}
       {%- endfor %}
     {%- endif %}
+
+  pgbouncer:
+    image: docker.io/bitnami/pgbouncer:1.19.1
+    container_name: {{ experiment_id }}_pgbouncer
+    networks:
+      dallinger:
+    environment:
+      - POSTGRESQL_HOST=postgresql
+      - PGBOUNCER_AUTH_TYPE=md5
+      - PGBOUNCER_SET_DATABASE_USER=yes
+      - PGBOUNCER_SET_DATABASE_PASSWORD=yes
+      - POSTGRESQL_USERNAME={{ experiment_id }}
+      - POSTGRESQL_PASSWORD={{ postgresql_password }}
+      - PGBOUNCER_PORT=5432
+      - PGBOUNCER_DATABASE={{ experiment_id }}
+      - PGBOUNCER_POOL_MODE=transaction
+      # Connections to postgres will be closed after 60 seconds of inactivity
+      - PGBOUNCER_SERVER_IDLE_TIMEOUT=60
 
   web:
     image: {{ experiment_image }}

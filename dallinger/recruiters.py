@@ -312,12 +312,15 @@ class ProlificRecruiter(Recruiter):
             self.config.load()
         base_url = get_base_url()
         self.ad_url = f"{base_url}/ad?recruiter={self.nickname}"
-        self.completion_code = alphanumeric_code(self.config.get("id"))
         self.study_domain = os.getenv("HOST")
         self.prolificservice = _prolific_service_from_config()
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
+
+    @property
+    def completion_code(self):
+        return alphanumeric_code(self.config.get("id"))
 
     def open_recruitment(self, n: int = 1) -> dict:
         """Create a Study on Prolific."""
@@ -352,7 +355,7 @@ class ProlificRecruiter(Recruiter):
             ),
             "name": self.config.get("title"),
             "prolific_id_option": "url_parameters",
-            "reward": self.config.get("prolific_reward_cents"),
+            "reward": int(self.config.get("base_payment") * 100),
             "total_available_places": n,
             "mode": self.config.get("mode"),
         }
@@ -1099,7 +1102,7 @@ class MTurkRecruiter(Recruiter):
             "experiment_id": "(compensation only)",
             "max_assignments": 1,
             "title": "Dallinger Compensation HIT",
-            "description": "For compenation only; no task required.",
+            "description": "For compensation only; no task required.",
             "keywords": [],
             "reward": float(dollars),
             "duration_hours": 1,

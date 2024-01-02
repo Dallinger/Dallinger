@@ -12,7 +12,7 @@ README = (HERE / "README.md").read_text(encoding="utf-8")
 setup_args = dict(
     name="dallinger",
     packages=["dallinger", "dallinger_scripts"],
-    version="9.11.0a1",
+    version="9.12.0a1",
     description="Laboratory automation for the behavioral and social sciences",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -65,7 +65,7 @@ setup_args = dict(
         "localconfig",
         "numpy",
         "pexpect",
-        "pip>=20",
+        "pip",
         "pip-tools",
         "psycopg2",
         "psutil",
@@ -82,6 +82,7 @@ setup_args = dict(
         "timeago",
         "tzlocal",
         "ua-parser",
+        "urllib3 < 2",
         "user-agents",
     ],
     extras_require={

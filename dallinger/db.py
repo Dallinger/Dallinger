@@ -218,7 +218,17 @@ def get_polymorphic_mapping(table: Union[str, Table]):
     (i.e. possible values of the table's ``type`` column)
     and the dictionary values correspond to classes.
     """
-    return {mapper.polymorphic_identity: mapper.class_ for mapper in get_mappers(table)}
+    mapping = {}
+    for mapper in get_mappers(table):
+        name = mapper.polymorphic_identity
+
+        # If we encounter two mappers with the same name, prioritize the one that is defined
+        # in the loaded Dallinger experiment
+        if name in mapping and mapping[name].__module__ == "dallinger_experiment":
+            continue
+
+        mapping[name] = mapper.class_
+    return mapping
 
 
 def get_mapped_classes(table: Union[str, Table]):
