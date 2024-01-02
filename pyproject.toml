@@ -6,7 +6,9 @@ build-backend = "hatchling.build"
 name = "dallinger"
 version = "9.11.0a1"
 maintainers = [
-  {name = "Jordan Suchow", email = "suchow@berkeley.edu"}
+  {name = "Jordan Suchow", email = "suchow@berkeley.edu"},
+  {name = "Peter Harrison", email = "pmch2@cam.ac.uk"},
+  {name = "Frank Höger", email="frank.hoeger@ae.mpg.de"},
 ]
 license = {file = "LICENSE"}
 description = "Laboratory automation for the behavioral and social sciences"
