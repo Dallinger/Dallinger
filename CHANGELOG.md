@@ -2,6 +2,19 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.11.0](https://github.com/dallinger/dallinger/tree/v9.11.0) (2023-12-18)
+
+- Fixed bug where the dashboard URL was no longer printed in the `dallinger develop` command.
+- Fixed bug where participant IDs weren't always displaying properly in the dashboard network visualization. In particular, this fix concerns the labelling of edges between nodes and infos.
+- Fixed bug in `get_polymorphic_mapping` which was causing the experiment dashboard to fail when two classes of the same name were registered both in the local experiment and in another package.
+- Fixed and refactored Chrome/ChromeDriver download and installation to resolve failing docker CI job.
+- Removed the `prolific_reward_cents` config variable. Use `base_payment` instead to set base compensation for participants. Note that `base_payment` is written in terms of the base unit for the currency, not in cents. So, if your `prolific_reward_cents` was originally set to 50, then you should set your `base_payment` to 0.5.
+- Enhancement: Added a pgbouncer container/proxy that will pool postgresql connections to solve problems with too many PostgreSQL connections in docker-ssh deployments.
+- Enhancement: Added 'Support Slack channel' advert to documentation index page and README.
+- Enhancement: Allow recruiters to be instantiated outside active experiments by making `completion_code` a property of class `Recruiter`.
+- Infrastructure: Updated the packages used in GitHub workflow configurations (ci.yml, deploy.yml) to their latest versions.
+- Deprecated the `prolific_maximum_allowed_minutes` config variable.
+
 ## [v9.10.0](https://github.com/dallinger/dallinger/tree/v9.10.0) (2023-08-18)
 
 - Enhancement: Added support for custom WorkerEvents allowing experiments to run
