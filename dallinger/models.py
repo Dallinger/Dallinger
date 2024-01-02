@@ -196,7 +196,7 @@ class Participant(Base, SharedMixin):
 
     #: a String giving the name of the class. Defaults to
     #: "participant". This allows subclassing.
-    type = Column(String(50))
+    type = Column(String)
     __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "participant"}
 
     #: A String, the fingerprint hash of the participant.
@@ -390,7 +390,7 @@ class Question(Base, SharedMixin):
 
     #: a String giving the name of the class. Defaults to
     #: "question". This allows subclassing.
-    type = Column(String(50))
+    type = Column(String)
     __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "question"}
 
     #: the participant who made the response
@@ -444,7 +444,7 @@ class Network(Base, SharedMixin):
 
     #: A String giving the name of the class. Defaults to
     #: "network". This allows subclassing.
-    type = Column(String(50))
+    type = Column(String)
 
     __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "network"}
 
@@ -681,7 +681,7 @@ class Node(Base, SharedMixin):
 
     #: A String giving the name of the class. Defaults to
     #: ``node``. This allows subclassing.
-    type = Column(String(50))
+    type = Column(String)
     __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "node"}
 
     #: the id of the network that this node is a part of
@@ -1399,7 +1399,7 @@ class Vector(Base, SharedMixin):
     #: Note: The type column was added in 9/2022, 7+ years after the Vector ORM class was introduced. To support
     #: importing datasets which don't include this column we define a default value which will be used when deploying
     #: experiments from zip files.
-    type = Column(String(50), default="vector", server_default="vector")
+    type = Column(String, default="vector", server_default="vector")
     __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "vector"}
 
     #: the id of the Node at which the vector originates
@@ -1520,7 +1520,7 @@ class Info(Base, SharedMixin):
 
     #: a String giving the name of the class. Defaults to "info".
     #: This allows subclassing.
-    type = Column(String(50))
+    type = Column(String)
     __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "info"}
 
     #: the id of the Node that created the info
@@ -1778,7 +1778,7 @@ class Transformation(Base, SharedMixin):
 
     #: a String giving the name of the class. Defaults to
     #: "transformation". This allows subclassing.
-    type = Column(String(50))
+    type = Column(String)
     __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "transformation"}
 
     #: the id of the info that was transformed.
