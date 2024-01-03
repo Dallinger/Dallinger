@@ -2,6 +2,12 @@
 
 ## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
 
+## [v9.12.0](https://github.com/dallinger/dallinger/tree/v9.12.0) (2024-01-03)
+
+- Changed: Removed the character limit for the 'type' attribute on SQLAlchemy classes.
+- Infrastructure: Migrated project configuration/metadata to `pyproject.toml` and removed the `setup.py` and `setup.cfg` files. Also moved flake8 config to new `.flake8` file.
+- Infrastructure: Updated dependencies; pinned version of `pre-commit` package in order to be compatible with Python 3.8.
+
 ## [v9.11.0](https://github.com/dallinger/dallinger/tree/v9.11.0) (2023-12-18)
 
 - Fixed bug where the dashboard URL was no longer printed in the `dallinger develop` command.
