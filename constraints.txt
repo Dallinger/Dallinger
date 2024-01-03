@@ -185,6 +185,7 @@ ipykernel==6.28.0
     #   qtconsole
 ipython==8.12.3
     # via
+    #   black
     #   dallinger
     #   ipykernel
     #   ipywidgets
@@ -388,7 +389,7 @@ pluggy==1.3.0
     # via
     #   pytest
     #   tox
-pre-commit==3.6.0
+pre-commit==3.5.0
     # via dallinger
 prometheus-client==0.19.0
     # via jupyter-server
@@ -594,6 +595,8 @@ timeago==1.0.16
     # via dallinger
 tinycss2==1.2.1
     # via nbconvert
+tokenize-rt==5.2.0
+    # via black
 tornado==6.4
     # via
     #   ipykernel

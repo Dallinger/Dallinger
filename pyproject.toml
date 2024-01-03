@@ -79,6 +79,7 @@ data = [
 dev = [
     "alabaster",
     "black",
+    "black[jupyter]",
     "bump2version",
     "coverage",
     "coverage_pth",
@@ -86,7 +87,7 @@ dev = [
     "isort",
     "mock",
     "myst-parser",
-    "pre-commit",
+    "pre-commit < 3.6",
     "pycodestyle",
     "pypandoc",
     "pytest",
