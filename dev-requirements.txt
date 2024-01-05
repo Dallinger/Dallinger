@@ -34,8 +34,6 @@ babel==2.14.0
     # via
     #   jupyterlab-server
     #   sphinx
-backcall==0.2.0
-    # via ipython
 bcrypt==4.1.2
     # via paramiko
 beautifulsoup4==4.12.2
@@ -183,7 +181,7 @@ ipykernel==6.28.0
     #   jupyter-console
     #   jupyterlab
     #   qtconsole
-ipython==8.12.3
+ipython==8.18.1
     # via
     #   black
     #   dallinger
@@ -375,8 +373,6 @@ pexpect==4.9.0
     # via
     #   dallinger
     #   ipython
-pickleshare==0.7.5
-    # via ipython
 pip-tools==7.3.0
     # via dallinger
 platformdirs==4.1.0

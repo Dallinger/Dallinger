@@ -14,8 +14,6 @@ attrs==23.2.0
     # via
     #   outcome
     #   trio
-backcall==0.2.0
-    # via ipython
 blinker==1.7.0
     # via flask
 boto3==1.34.13
@@ -88,7 +86,7 @@ idna==3.6
     # via
     #   requests
     #   trio
-ipython==8.12.3
+ipython==8.18.1
     # via dallinger
 itsdangerous==2.1.2
     # via
@@ -129,8 +127,6 @@ pexpect==4.9.0
     # via
     #   dallinger
     #   ipython
-pickleshare==0.7.5
-    # via ipython
 pip-tools==7.3.0
     # via dallinger
 prompt-toolkit==3.0.43
