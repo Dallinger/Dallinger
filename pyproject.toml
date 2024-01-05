@@ -47,7 +47,7 @@ dependencies = [
     "heroku3",
     "ipython < 8.13",
     "localconfig",
-    "numpy < 1.25",
+    "numpy",
     "pandas < 2.1",
     "pexpect",
     "pip >= 20",
