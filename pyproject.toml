@@ -48,7 +48,7 @@ dependencies = [
     "ipython < 8.13",
     "localconfig",
     "numpy",
-    "pandas < 2.1",
+    "pandas",
     "pexpect",
     "pip >= 20",
     "pip-tools",
