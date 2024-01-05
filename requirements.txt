@@ -18,9 +18,9 @@ backcall==0.2.0
     # via ipython
 blinker==1.7.0
     # via flask
-boto3==1.34.11
+boto3==1.34.13
     # via dallinger
-botocore==1.34.11
+botocore==1.34.13
     # via
     #   boto3
     #   s3transfer
@@ -111,7 +111,7 @@ markupsafe==2.1.3
     #   wtforms
 matplotlib-inline==0.1.6
     # via ipython
-numpy==1.24.4
+numpy==1.26.3
     # via
     #   dallinger
     #   pandas
