@@ -14,14 +14,14 @@ license = {file = "LICENSE"}
 description = "Laboratory automation for the behavioral and social sciences"
 keywords = ["science", "cultural evolution", "experiments", "psychology"]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Framework :: Flask",
     "Topic :: Scientific/Engineering",
     "Intended Audience :: Science/Research",
@@ -152,7 +152,7 @@ include = [
 
 [tool.black]
 line-length = 88
-target-version = ["py311"]
+target-version = ["py312"]
 include = '\.pyi?$'
 exclude = '''
 /(
