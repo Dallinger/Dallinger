@@ -389,7 +389,7 @@ class TestProlificRecruiter(object):
 
     def test_open_recruitment_with_valid_request(self, recruiter):
         result = recruiter.open_recruitment(n=5)
-        assert result["message"] == "Study now published on Prolific"
+        assert result["message"] == "Study created on Prolific"
 
     def test_open_recruitment_raises_if_study_already_in_progress(self, recruiter):
         from dallinger.recruiters import ProlificRecruiterException

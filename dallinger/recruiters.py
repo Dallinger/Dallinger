@@ -369,7 +369,7 @@ class ProlificRecruiter(Recruiter):
 
         return {
             "items": [study_info["external_study_url"]],
-            "message": "Study now published on Prolific",
+            "message": "Study created on Prolific",
         }
 
     def normalize_entry_information(self, entry_information: dict):
