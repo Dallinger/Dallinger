@@ -6,7 +6,7 @@
 #
 
     # via -r dev-requirements.in
-alabaster==0.7.13
+alabaster==0.7.16
     # via
     #   dallinger
     #   sphinx
