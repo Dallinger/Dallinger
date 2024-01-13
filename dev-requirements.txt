@@ -563,7 +563,7 @@ sphinxcontrib-qthelp==1.0.3
     # via
     #   dallinger
     #   sphinx
-sphinxcontrib-serializinghtml==1.1.5
+sphinxcontrib-serializinghtml==1.1.10
     # via
     #   dallinger
     #   sphinx
