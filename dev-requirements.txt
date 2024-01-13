@@ -551,7 +551,7 @@ sphinxcontrib-devhelp==1.0.2
     # via
     #   dallinger
     #   sphinx
-sphinxcontrib-htmlhelp==2.0.1
+sphinxcontrib-htmlhelp==2.0.5
     # via
     #   dallinger
     #   sphinx
