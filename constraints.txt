@@ -547,7 +547,7 @@ sphinxcontrib-applehelp==1.0.4
     # via
     #   dallinger
     #   sphinx
-sphinxcontrib-devhelp==1.0.2
+sphinxcontrib-devhelp==1.0.6
     # via
     #   dallinger
     #   sphinx
