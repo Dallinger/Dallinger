@@ -10,7 +10,9 @@ services:
         timeout: 1s
     networks:
       - dallinger
-  worker:
+  {% set num_dynos = config["num_dynos_worker"]  | int %}
+  {%- for number in range(num_dynos) %}
+  worker_{{ number + 1 }}:
     image: {{ experiment_image }}
     command: dallinger_heroku_worker
     depends_on: &commondepends
@@ -36,6 +38,7 @@ services:
       - {{ volume | string() }}
       {%- endfor %}
     {%- endif %}
+  {%- endfor %}
 
   pgbouncer:
     image: docker.io/bitnami/pgbouncer:1.19.1
