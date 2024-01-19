@@ -25,6 +25,10 @@ services:
       DATABASE_URL: postgresql://{{ experiment_id }}:{{ postgresql_password }}@{{ experiment_id }}_pgbouncer/{{ experiment_id }}
       HOME: /tmp
       HOST: 0.0.0.0
+      PORT: 5000
+    {%- for key, value in config.items() %}
+      {{ key }}: {{ value | string() | tojson }}
+    {%- endfor %}
     networks:
       dallinger:
         aliases:
@@ -47,9 +51,6 @@ services:
     user: "${UID}:${GID}"
     environment:
       <<: *commonenv
-    {%- for key, value in config.items() %}
-      {{ key }}: {{ value | string() | tojson }}
-    {%- endfor %}
     networks:
       - dallinger
     volumes:
