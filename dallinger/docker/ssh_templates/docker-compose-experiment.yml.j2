@@ -37,7 +37,7 @@ services:
       {%- endfor %}
     {%- endif %}
 
-  {% set num_dynos = config["num_dynos_worker"]  | int %}
+  {% set num_dynos = config["num_dynos_worker"] | default('1') | int %}
   {%- for number in range(num_dynos) %}
   worker_{{ number + 1 }}:
     image: {{ experiment_image }}
