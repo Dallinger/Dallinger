@@ -81,7 +81,7 @@ def get_yaml(config):
 
 
 def test_num_dynos():
-    """Make sure worker and web services have the necessary variables to run"""
+    """Make sure the correct number of worker services is created"""
     n = 3
     result = get_yaml({"num_dynos_worker": n})
     for i in range(n):
