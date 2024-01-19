@@ -78,3 +78,11 @@ def get_yaml(config):
         config, "dlgr-8c43a887", "ghcr.io/dallinger/dallinger/bartlett1932", "foobar"
     )
     return yaml.safe_load(yaml_contents)
+
+
+def test_num_dynos():
+    """Make sure worker and web services have the necessary variables to run"""
+    n = 3
+    result = get_yaml({"num_dynos_worker": n})
+    for i in range(n):
+        assert f"worker_{i+1}" in result["services"]
