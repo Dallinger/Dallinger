@@ -21,6 +21,7 @@ mode = debug
 enable_global_experiment_registry = False
 language = en
 lock_table_when_creating_participant = True
+num_dynos_worker = 1
 
 [Recruiter]
 activate_recruiter_on_start = True
@@ -39,7 +40,6 @@ sentry = False
 redis_size = premium-0
 worker_multiplier = 1.5
 num_dynos_web = 1
-num_dynos_worker = 1
 
 [Prolific]
 prolific_api_token = Set your Prolific API token in ~/.dallingerconfig!
