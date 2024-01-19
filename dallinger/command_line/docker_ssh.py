@@ -27,6 +27,7 @@ import requests
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from yaspin import yaspin
 
 from dallinger.command_line.config import get_configured_hosts, remove_host, store_host
 from dallinger.command_line.utils import Output
@@ -789,10 +790,11 @@ class Executor:
             raise click.Abort
 
     def reload_caddy(self):
-        self.run(
-            "docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
-            "caddy reload --config /etc/caddy/Caddyfile"
-        )
+        with yaspin(text="Reloading Caddy config file", color="green"):
+            self.run(
+                "docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
+                "caddy reload --config /etc/caddy/Caddyfile"
+            )
 
     def run_and_echo(self, cmd):  # pragma: no cover
         """Execute the given command on the remote host and prints its output
