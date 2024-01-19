@@ -64,6 +64,11 @@ DOCKER_COMPOSE_EXP_TPL = Template(
 CADDYFILE = """
 # This is a configuration file for the Caddy http Server
 # Documentation can be found at https://caddyserver.com/docs
+{{
+    grace_period 30s
+}}
+
+
 {host} {{
     respond /health-check 200
     {tls}
