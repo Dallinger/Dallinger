@@ -282,7 +282,7 @@ markdown-it-py==3.0.0
     #   myst-parser
 markuppy==1.14
     # via tablib
-markupsafe==2.1.3
+markupsafe==2.1.4
     # via
     #   jinja2
     #   nbconvert
