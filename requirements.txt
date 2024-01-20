@@ -121,7 +121,7 @@ packaging==23.2
     # via
     #   build
     #   gunicorn
-pandas==2.0.3
+pandas==2.2.0
     # via dallinger
 parso==0.8.3
     # via jedi
