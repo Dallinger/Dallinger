@@ -10,23 +10,47 @@ services:
         timeout: 1s
     networks:
       - dallinger
-  worker:
+
+  web:
     image: {{ experiment_image }}
-    command: dallinger_heroku_worker
+    user: "${UID}:${GID}"
+    command: dallinger_heroku_web
     depends_on: &commondepends
       redis_{{ experiment_id }}:
         condition: service_healthy
       pgbouncer:
         condition: service_started
-    user: "${UID}:${GID}"
     environment: &commonenv
       REDIS_URL: redis://redis_{{ experiment_id }}:6379
       DATABASE_URL: postgresql://{{ experiment_id }}:{{ postgresql_password }}@{{ experiment_id }}_pgbouncer/{{ experiment_id }}
       HOME: /tmp
       HOST: 0.0.0.0
+      PORT: 5000
     {%- for key, value in config.items() %}
       {{ key }}: {{ value | string() | tojson }}
     {%- endfor %}
+    networks:
+      dallinger:
+        aliases:
+          - {{ experiment_id }}_web
+    volumes:
+      - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
+    {%- if docker_volumes | length > 0 %}
+      {%- for volume in docker_volumes.split(",") %}
+      - {{ volume | string() }}
+      {%- endfor %}
+    {%- endif %}
+
+  {% set num_dynos = config["num_dynos_worker"] | default('1') | int %}
+  {%- for number in range(num_dynos) %}
+  worker_{{ number + 1 }}:
+    image: {{ experiment_image }}
+    command: dallinger_heroku_worker
+    depends_on:
+      <<: *commondepends
+    user: "${UID}:${GID}"
+    environment:
+      <<: *commonenv
     networks:
       - dallinger
     volumes:
@@ -36,6 +60,7 @@ services:
       - {{ volume | string() }}
       {%- endfor %}
     {%- endif %}
+  {%- endfor %}
 
   pgbouncer:
     image: docker.io/bitnami/pgbouncer:1.19.1
@@ -54,27 +79,6 @@ services:
       - PGBOUNCER_POOL_MODE=transaction
       # Connections to postgres will be closed after 60 seconds of inactivity
       - PGBOUNCER_SERVER_IDLE_TIMEOUT=60
-
-  web:
-    image: {{ experiment_image }}
-    user: "${UID}:${GID}"
-    command: dallinger_heroku_web
-    depends_on:
-      <<: *commondepends
-    environment:
-      <<: *commonenv
-      PORT: 5000
-    networks:
-      dallinger:
-        aliases:
-          - {{ experiment_id }}_web
-    volumes:
-      - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
-    {%- if docker_volumes | length > 0 %}
-      {%- for volume in docker_volumes.split(",") %}
-      - {{ volume | string() }}
-      {%- endfor %}
-    {%- endif %}
 
 {%- if config["clock_on"] %}
   clock:
