@@ -114,6 +114,8 @@ jobs:
         run: |
           tox ${{ needs.check_mturk_changes.outputs.needs_mturk_tests == 'true' && '-- --mturkfull' || ''}}
           npm run test --coverage
+        # We want to run Full Tox tests for the two latest Python versions in order to cover possible
+        # issues with code changes that had to be made in order to support a new Python version
         if: matrix.python-version >= 3.11
       - name: Run Fast Tests Only
         env:
