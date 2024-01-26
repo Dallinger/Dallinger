@@ -1,4 +1,5 @@
 """Configure tests to use `pytest_dallinger` plugin"""
+
 import pytest
 
 pytest_plugins = ["pytest_dallinger"]

@@ -1,6 +1,7 @@
 """This module includes utilities to store and retrieve dallinger
 configuration for the command line in the current user directory.
 """
+
 import json
 from pathlib import Path
 from typing import Dict
