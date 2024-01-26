@@ -43,7 +43,14 @@ class TestDemos(object):
 
     def test_instantiation_via_entry_points(self):
         failures = []
-        for entry in experiments.entry_points().get("dallinger.experiments"):
+
+        group = "dallinger.experiments"
+        if sys.version_info >= (3, 10):
+            entry_points = experiments.entry_points(group=group)
+        else:
+            entry_points = experiments.entry_points().get(group)
+
+        for entry in entry_points:
             try:
                 entry.load()()
             except Exception as ex:

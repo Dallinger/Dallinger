@@ -35,7 +35,7 @@ jobs:
     needs: check_mturk_changes
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
     services:
       redis:
         image: redis
@@ -100,6 +100,7 @@ jobs:
       - name: Before Tox
         run: |
           bundle exec danger
+          pip install --upgrade setuptools
       - name: Run Full Tox
         env:
           DATABASE_URL: postgresql://dallinger:dallinger@localhost/dallinger
@@ -113,7 +114,9 @@ jobs:
         run: |
           tox ${{ needs.check_mturk_changes.outputs.needs_mturk_tests == 'true' && '-- --mturkfull' || ''}}
           npm run test --coverage
-        if: matrix.python-version == 3.11
+        # We want to run Full Tox tests for the two latest Python versions in order to cover possible
+        # issues with code changes that had to be made in order to support a new Python version
+        if: matrix.python-version >= 3.11
       - name: Run Fast Tests Only
         env:
           DATABASE_URL: postgresql://dallinger:dallinger@localhost/dallinger
@@ -125,10 +128,10 @@ jobs:
         run: |
           tox -e fast
           npm run test --coverage
-        if: matrix.python-version != 3.11
+        if: matrix.python-version <= 3.10
       - name: Codecov.io check
         uses: codecov/codecov-action@v3
-        if: matrix.python-version == 3.11
+        if: matrix.python-version == 3.12
 
   docker:
     runs-on: ubuntu-latest
@@ -174,10 +177,10 @@ jobs:
         run: docker run --rm ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }} python3 -c "from importlib.metadata import entry_points; tuple(entry_points(group='console_scripts', name='dallinger_heroku_worker'))[0].load()"
       - name: Make sure dallinger script entry point is working with dallinger source mounted as volume
         run: docker run -v $PWD/dallinger:/dallinger/dallinger --rm ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }} python3 -c "from pkg_resources import load_entry_point; load_entry_point('dallinger', 'console_scripts', 'dallinger_heroku_worker')"
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Cache pip
         uses: actions/cache@v3
         with:
@@ -210,6 +213,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           check-latest: true
       - uses: pre-commit/action@v3.0.0
