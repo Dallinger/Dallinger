@@ -85,4 +85,4 @@ def test_num_dynos():
     n = 3
     result = get_yaml({"num_dynos_worker": n})
     for i in range(n):
-        assert f"worker_{i+1}" in result["services"]
+        assert f"worker_{i + 1}" in result["services"]
