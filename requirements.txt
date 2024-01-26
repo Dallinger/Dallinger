@@ -200,6 +200,8 @@ tabulate==0.9.0
     # via dallinger
 tenacity==8.2.3
     # via dallinger
+termcolor==2.4.0
+    # via yaspin
 timeago==1.0.16
     # via dallinger
 traitlets==5.14.1
@@ -246,6 +248,8 @@ wsproto==1.2.0
     #   trio-websocket
 wtforms==3.1.2
     # via flask-wtf
+yaspin==3.0.1
+    # via dallinger
 zope-event==5.0
     # via gevent
 zope-interface==6.1
