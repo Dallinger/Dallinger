@@ -7,7 +7,6 @@ from dallinger.information import Gene, Meme
 
 
 class TestAgents(object):
-
     """The agent test class."""
 
     def test_create_agent_generic(self, a):
