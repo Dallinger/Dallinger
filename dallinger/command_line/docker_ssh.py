@@ -27,13 +27,14 @@ import requests
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from yaspin import yaspin
 
 from dallinger.command_line.config import get_configured_hosts, remove_host, store_host
 from dallinger.command_line.utils import Output
 from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
-from dallinger.deployment import setup_experiment
+from dallinger.deployment import handle_launch_data, setup_experiment
 from dallinger.utils import abspath_from_egg, check_output
 
 # A couple of constants to colour console output
@@ -64,6 +65,11 @@ DOCKER_COMPOSE_EXP_TPL = Template(
 CADDYFILE = """
 # This is a configuration file for the Caddy http Server
 # Documentation can be found at https://caddyserver.com/docs
+{{
+    grace_period 30s
+}}
+
+
 {host} {{
     respond /health-check 200
     {tls}
@@ -515,10 +521,10 @@ def deploy(
         print("Skipping experiment launch logic because we are in update mode.")
     else:
         print("Launching experiment")
-        response = get_retrying_http_client().post(
-            f"https://{experiment_id}.{dns_host}/launch", verify=HAS_TLS
+        launch_data = handle_launch_data(
+            "https://{experiment_id}.{dns_host}/launch", print
         )
-        print(response.json()["recruitment_msg"])
+        print(launch_data.get("recruitment_msg"))
 
     dashboard_user = cfg["ADMIN_USER"]
     dashboard_password = cfg["dashboard_password"]
@@ -784,10 +790,11 @@ class Executor:
             raise click.Abort
 
     def reload_caddy(self):
-        self.run(
-            "docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
-            "caddy reload --config /etc/caddy/Caddyfile"
-        )
+        with yaspin(text="Reloading Caddy config file", color="green"):
+            self.run(
+                "docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
+                "caddy reload --config /etc/caddy/Caddyfile"
+            )
 
     def run_and_echo(self, cmd):  # pragma: no cover
         """Execute the given command on the remote host and prints its output

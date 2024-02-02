@@ -69,6 +69,7 @@ dependencies = [
     "ua-parser",
     "urllib3 < 2",
     "user-agents",
+    "yaspin",
 ]
 
 [project.optional-dependencies]
