@@ -388,6 +388,9 @@ def deploy(
             )
             print("\n".join(messages))
             raise click.Abort
+
+        print("Removing any pre-existing Redis volumes.")
+        remove_redis_volumes(app_name, executor)
     else:
         app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
         yml_file_exists = executor.run(f"ls -l {app_yml}", raise_=False)
