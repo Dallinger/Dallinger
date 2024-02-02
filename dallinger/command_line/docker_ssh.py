@@ -317,6 +317,10 @@ def deploy(
     executor = Executor(ssh_host, user=ssh_user, app=app_name)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
+    if not update:
+        print("Removing any pre-existing Redis volumes.")
+        remove_redis_volumes(app_name, executor)
+
     sftp = get_sftp(ssh_host, user=ssh_user)
     sftp.putfo(BytesIO(DOCKER_COMPOSE_SERVER), "dallinger/docker-compose.yml")
     sftp.putfo(
