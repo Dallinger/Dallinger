@@ -50,7 +50,7 @@ executing==2.0.1
     # via stack-data
 faker==22.5.1
     # via dallinger
-flask==3.0.1
+flask==3.0.2
     # via
     #   dallinger
     #   flask-crossdomain
