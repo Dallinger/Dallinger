@@ -16,7 +16,7 @@ attrs==23.2.0
     #   trio
 blinker==1.7.0
     # via flask
-boto3==1.34.28
+boto3==1.34.36
     # via dallinger
 botocore==1.34.28
     # via
