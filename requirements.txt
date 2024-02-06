@@ -109,7 +109,7 @@ markupsafe==2.1.4
     #   wtforms
 matplotlib-inline==0.1.6
     # via ipython
-numpy==1.26.3
+numpy==1.26.4
     # via
     #   dallinger
     #   pandas
