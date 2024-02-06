@@ -24,6 +24,8 @@ from uuid import uuid4
 
 import click
 import requests
+import yaml
+from dotenv import load_dotenv
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -36,6 +38,8 @@ from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import handle_launch_data, setup_experiment
 from dallinger.utils import abspath_from_egg, check_output
+
+load_dotenv()
 
 # A couple of constants to colour console output
 RED = "\033[31m"
@@ -273,6 +277,34 @@ def validate_update(f):
     return wrapper
 
 
+def set_dozzle_password(executor, sftp, new_password):
+    dozzle_users = {
+        "users": {
+            "dallinger": {
+                "name": "Dallinger",
+                "password": hashlib.sha256(new_password.encode("utf-8")).hexdigest(),
+                "email": "dallinger@example.com",
+            }
+        }
+    }
+    sftp.putfo(BytesIO(yaml.dump(dozzle_users).encode()), "dallinger/dozzle-users.yml")
+    executor.restart_dozzle()
+
+
+@docker_ssh.command("set-dozzle-password")
+@server_option
+@click.password_option()
+def set_dozzle_password_cmd(server, password):
+    server_info = CONFIGURED_HOSTS[server]
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
+
+    executor = Executor(ssh_host, user=ssh_user)
+    sftp = get_sftp(ssh_host, user=ssh_user)
+
+    set_dozzle_password(executor, sftp, password)
+
+
 @docker_ssh.command()
 @click.option(
     "--sandbox",
@@ -502,6 +534,15 @@ def deploy(
         f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
     )
 
+    dashboard_user = cfg["ADMIN_USER"]
+    dashboard_password = cfg["dashboard_password"]
+    dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
+
+    if update:
+        env_dozzle_password = os.getenv("DOZZLE_PASSWORD")
+        dozzle_password = env_dozzle_password or dashboard_password
+        set_dozzle_password(executor, sftp, dozzle_password)
+
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
     )
@@ -531,16 +572,13 @@ def deploy(
         )
         print(launch_data.get("recruitment_msg"))
 
-    dashboard_user = cfg["ADMIN_USER"]
-    dashboard_password = cfg["dashboard_password"]
-    dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
     log_command = f"ssh {ssh_user + '@' if ssh_user else ''}{ssh_host} docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
 
     deployment_infos = [
         f"Deployed Docker image name: {image_name}",
         "To display the logs for this experiment you can run:",
         log_command,
-        f"Or you can head to http://logs.{dns_host} with user dallinger and password secret",
+        f"Or you can head to http://logs.{dns_host} (user = dallinger, password = {dozzle_password})",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
     ]
     for line in deployment_infos:
@@ -801,6 +839,10 @@ class Executor:
                 "docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
                 "caddy reload --config /etc/caddy/Caddyfile"
             )
+
+    def restart_dozzle(self):
+        with yaspin(text="Restarting Dozzle", color="green"):
+            self.run("docker compose -f ~/dallinger/docker-compose.yml restart dozzle")
 
     def run_and_echo(self, cmd):  # pragma: no cover
         """Execute the given command on the remote host and prints its output

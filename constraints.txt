@@ -11,7 +11,9 @@ alabaster==0.7.16
     #   dallinger
     #   sphinx
 anyio==4.2.0
-    # via jupyter-server
+    # via
+    #   httpx
+    #   jupyter-server
 apscheduler==3.10.4
     # via dallinger
 argon2-cffi==23.1.0
@@ -38,15 +40,15 @@ bcrypt==4.1.2
     # via paramiko
 beautifulsoup4==4.12.3
     # via nbconvert
-black==24.1.0
+black==24.1.1
     # via dallinger
 bleach==6.1.0
     # via nbconvert
 blinker==1.7.0
     # via flask
-boto3==1.34.28
+boto3==1.34.35
     # via dallinger
-botocore==1.34.28
+botocore==1.34.35
     # via
     #   boto3
     #   s3transfer
@@ -60,8 +62,10 @@ cached-property==1.5.2
     # via dallinger
 cachetools==5.3.2
     # via tox
-certifi==2023.11.17
+certifi==2024.2.2
     # via
+    #   httpcore
+    #   httpx
     #   requests
     #   selenium
 cffi==1.16.0
@@ -88,13 +92,13 @@ comm==0.2.1
     # via
     #   ipykernel
     #   ipywidgets
-coverage==7.4.0
+coverage==7.4.1
     # via
     #   coverage-pth
     #   dallinger
 coverage-pth==0.0.2
     # via dallinger
-cryptography==42.0.1
+cryptography==42.0.2
     # via
     #   paramiko
     #   pyopenssl
@@ -119,7 +123,7 @@ et-xmlfile==1.1.0
     # via openpyxl
 executing==2.0.1
     # via stack-data
-faker==22.5.1
+faker==22.7.0
     # via dallinger
 fastjsonschema==2.19.1
     # via nbformat
@@ -129,7 +133,7 @@ filelock==3.13.1
     #   virtualenv
 flake8==7.0.0
     # via dallinger
-flask==3.0.1
+flask==3.0.2
     # via
     #   dallinger
     #   flask-crossdomain
@@ -160,14 +164,21 @@ greenlet==3.0.3
 gunicorn==21.2.0
     # via dallinger
 h11==0.14.0
-    # via wsproto
+    # via
+    #   httpcore
+    #   wsproto
 heroku3==5.2.1
     # via dallinger
+httpcore==1.0.2
+    # via httpx
+httpx==0.26.0
+    # via jupyterlab
 identify==2.5.33
     # via pre-commit
 idna==3.6
     # via
     #   anyio
+    #   httpx
     #   jsonschema
     #   requests
     #   trio
@@ -175,7 +186,7 @@ imagesize==1.4.1
     # via sphinx
 iniconfig==2.0.0
     # via pytest
-ipykernel==6.29.0
+ipykernel==6.29.1
     # via
     #   jupyter
     #   jupyter-console
@@ -221,7 +232,6 @@ jsonpointer==2.4
     # via jsonschema
 jsonschema==4.21.1
     # via
-    #   jsonschema
     #   jupyter-events
     #   jupyterlab-server
     #   nbformat
@@ -263,7 +273,7 @@ jupyter-server==2.12.5
     #   notebook-shim
 jupyter-server-terminals==0.5.2
     # via jupyter-server
-jupyterlab==4.0.11
+jupyterlab==4.1.0
     # via notebook
 jupyterlab-pygments==0.3.0
     # via nbconvert
@@ -281,7 +291,7 @@ markdown-it-py==3.0.0
     #   myst-parser
 markuppy==1.14
     # via tablib
-markupsafe==2.1.4
+markupsafe==2.1.5
     # via
     #   jinja2
     #   nbconvert
@@ -307,7 +317,7 @@ myst-parser==2.0.0
     # via dallinger
 nbclient==0.9.0
     # via nbconvert
-nbconvert==7.14.2
+nbconvert==7.15.0
     # via
     #   jupyter
     #   jupyter-server
@@ -326,7 +336,7 @@ notebook-shim==0.2.3
     # via
     #   jupyterlab
     #   notebook
-numpy==1.26.3
+numpy==1.26.4
     # via
     #   dallinger
     #   pandas
@@ -336,7 +346,7 @@ openpyxl==3.1.2
     # via tablib
 outcome==1.3.0.post0
     # via trio
-overrides==7.6.0
+overrides==7.7.0
     # via jupyter-server
 packaging==23.2
     # via
@@ -376,7 +386,7 @@ pexpect==4.9.0
     #   ipython
 pip-tools==7.3.0
     # via dallinger
-platformdirs==4.1.0
+platformdirs==4.2.0
     # via
     #   black
     #   jupyter-core
@@ -437,7 +447,7 @@ pyproject-hooks==1.0.0
     # via build
 pysocks==1.7.1
     # via urllib3
-pytest==7.4.4
+pytest==8.0.0
     # via
     #   dallinger
     #   pytest-rerunfailures
@@ -451,14 +461,17 @@ python-dateutil==2.8.2
     #   heroku3
     #   jupyter-client
     #   pandas
+python-dotenv==1.0.1
+    # via dallinger
 python-json-logger==2.0.7
     # via jupyter-events
-pytz==2023.3.post1
+pytz==2024.1
     # via
     #   apscheduler
     #   pandas
 pyyaml==6.0.1
     # via
+    #   dallinger
     #   jupyter-events
     #   myst-parser
     #   pre-commit
@@ -478,7 +491,7 @@ redis==5.0.1
     # via
     #   dallinger
     #   rq
-referencing==0.32.1
+referencing==0.33.0
     # via
     #   jsonschema
     #   jsonschema-specifications
@@ -524,6 +537,7 @@ six==1.16.0
 sniffio==1.3.0
     # via
     #   anyio
+    #   httpx
     #   trio
 snowballstemmer==2.2.0
     # via sphinx

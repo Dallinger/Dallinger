@@ -32,12 +32,11 @@ services:
     image: amir20/dozzle:latest
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./dozzle-users.yml:/data/users.yml
+    environment:
+      - DOZZLE_AUTH_PROVIDER=simple
     networks:
       - dallinger
-    environment:
-      DOZZLE_USERNAME: dallinger
-      DOZZLE_PASSWORD: secret
-
 
 volumes:
   dallinger_pg_data:
@@ -46,4 +45,3 @@ volumes:
 networks:
   dallinger:
     name: dallinger
-    
