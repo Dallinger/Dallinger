@@ -25,7 +25,7 @@ from uuid import uuid4
 import click
 import requests
 import yaml
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -38,8 +38,6 @@ from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import handle_launch_data, setup_experiment
 from dallinger.utils import abspath_from_egg, check_output
-
-load_dotenv()
 
 # A couple of constants to colour console output
 RED = "\033[31m"
@@ -277,7 +275,26 @@ def validate_update(f):
     return wrapper
 
 
+def get_dotenv_values(executor):
+    dotenv_content = executor.run(
+        "test -f ~/dallinger/.env && cat ~/dallinger/.env", raise_=False
+    )
+    if dotenv_content:
+        return dotenv_values(stream=io.StringIO(dotenv_content))
+    return {}
+
+
+def dict_to_env_string(env_dict):
+    env_string = ""
+    for key, value in env_dict.items():
+        env_string += f"{key}={value}\n"
+    return env_string
+
+
 def set_dozzle_password(executor, sftp, new_password):
+    dotenv_values = get_dotenv_values(executor)
+    dotenv_values["DOZZLE_PASSWORD"] = new_password
+    sftp.putfo(BytesIO(dict_to_env_string(dotenv_values).encode()), "dallinger/.env")
     dozzle_users = {
         "users": {
             "dallinger": {
@@ -534,13 +551,15 @@ def deploy(
         f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
     )
 
-    dashboard_user = cfg["ADMIN_USER"]
-    dashboard_password = cfg["dashboard_password"]
-    dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
-
-    if update:
-        env_dozzle_password = os.getenv("DOZZLE_PASSWORD")
-        dozzle_password = env_dozzle_password or dashboard_password
+    dotenv_values = get_dotenv_values(executor)
+    if dotenv_values:
+        if dotenv_values.get("DOZZLE_PASSWORD"):
+            dozzle_password = dotenv_values.get("DOZZLE_PASSWORD")
+        else:
+            dozzle_password = secrets.token_urlsafe(8)
+        set_dozzle_password(executor, sftp, dozzle_password)
+    else:
+        dozzle_password = dashboard_password
         set_dozzle_password(executor, sftp, dozzle_password)
 
     executor.run(
@@ -572,6 +591,7 @@ def deploy(
         )
         print(launch_data.get("recruitment_msg"))
 
+    dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
     log_command = f"ssh {ssh_user + '@' if ssh_user else ''}{ssh_host} docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
 
     deployment_infos = [
