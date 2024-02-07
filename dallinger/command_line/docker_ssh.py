@@ -439,16 +439,10 @@ def deploy(
         "dallinger/Caddyfile",
     )
 
-    dotenv_values = get_dotenv_values(executor)
-    if dotenv_values:
-        if dotenv_values.get("DOZZLE_PASSWORD"):
-            dozzle_password = dotenv_values.get("DOZZLE_PASSWORD")
-        else:
-            dozzle_password = secrets.token_urlsafe(8)
-        set_dozzle_password(executor, sftp, dozzle_password)
-    else:
-        dozzle_password = dashboard_password
-        set_dozzle_password(executor, sftp, dozzle_password)
+    dozzle_password = get_dotenv_values(executor).get(
+        "DOZZLE_PASSWORD", dashboard_password
+    )
+    set_dozzle_password(executor, sftp, dozzle_password)
 
     print("Launching http, postgresql and dozzle servers.")
     executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
