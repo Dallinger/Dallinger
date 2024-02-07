@@ -537,7 +537,7 @@ def deploy(
     else:
         print("Launching experiment")
         launch_data = handle_launch_data(
-            "https://{experiment_id}.{dns_host}/launch", print
+            f"https://{experiment_id}.{dns_host}/launch", print
         )
         print(launch_data.get("recruitment_msg"))
 
