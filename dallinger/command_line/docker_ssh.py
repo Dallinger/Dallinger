@@ -75,7 +75,7 @@ CADDYFILE = """
     {tls}
 }}
 
-http://logs.{host} {{
+logs.{host} {{
     reverse_proxy dozzle:8080
     {tls}
 }}
