@@ -48,7 +48,7 @@ decorator==5.1.1
     # via ipython
 executing==2.0.1
     # via stack-data
-faker==22.5.1
+faker==23.0.0
     # via dallinger
 flask==3.0.1
     # via
