@@ -368,12 +368,27 @@ def deploy(
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
     if not update:
-        print("Removing any pre-existing app with the same name.")
+        # Check if there's an existing app with the same name
         app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
-        executor.run(
-            f"if [ -f {app_yml} ]; then docker compose -f {app_yml} down --remove-orphans; fi",
-            raise_=False,
-        )
+        app_yml_exists = executor.run(f"ls {app_yml}", raise_=False)
+        messages = []
+        if app_yml_exists:
+            messages.append(
+                f"App with name {app_name} already exists: found {app_yml} file. Aborting."
+            )
+        caddy_yml = f"~/dallinger/caddy.d/{app_name}"
+        caddy_yml_exists = executor.run(f"ls {caddy_yml}", raise_=False)
+        if caddy_yml_exists:
+            print(
+                f"App with name {app_name} already exists: found {app_yml} file. Aborting."
+            )
+        if app_yml_exists or caddy_yml_exists:
+            messages.append(
+                "Use a different name, destroy the current app or add --update"
+            )
+            print("\n".join(messages))
+            raise click.Abort
+
         print("Removing any pre-existing Redis volumes.")
         remove_redis_volumes(app_name, executor)
     else:
