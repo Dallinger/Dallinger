@@ -16,9 +16,9 @@ attrs==23.2.0
     #   trio
 blinker==1.7.0
     # via flask
-boto3==1.34.35
+boto3==1.34.28
     # via dallinger
-botocore==1.34.35
+botocore==1.34.28
     # via
     #   boto3
     #   s3transfer
@@ -28,7 +28,7 @@ build==1.0.3
     #   pip-tools
 cached-property==1.5.2
     # via dallinger
-certifi==2024.2.2
+certifi==2023.11.17
     # via
     #   requests
     #   selenium
@@ -42,15 +42,15 @@ click==8.1.7
     #   flask
     #   pip-tools
     #   rq
-cryptography==42.0.2
+cryptography==42.0.1
     # via pyopenssl
 decorator==5.1.1
     # via ipython
 executing==2.0.1
     # via stack-data
-faker==22.7.0
+faker==22.5.1
     # via dallinger
-flask==3.0.2
+flask==3.0.1
     # via
     #   dallinger
     #   flask-crossdomain
@@ -102,14 +102,14 @@ jmespath==1.0.1
     #   botocore
 localconfig==1.1.3
     # via dallinger
-markupsafe==2.1.5
+markupsafe==2.1.4
     # via
     #   jinja2
     #   werkzeug
     #   wtforms
 matplotlib-inline==0.1.6
     # via ipython
-numpy==1.26.4
+numpy==1.26.3
     # via
     #   dallinger
     #   pandas
@@ -157,14 +157,10 @@ python-dateutil==2.8.2
     #   faker
     #   heroku3
     #   pandas
-python-dotenv==1.0.1
-    # via dallinger
-pytz==2024.1
+pytz==2023.3.post1
     # via
     #   apscheduler
     #   pandas
-pyyaml==6.0.1
-    # via dallinger
 redis==5.0.1
     # via
     #   dallinger

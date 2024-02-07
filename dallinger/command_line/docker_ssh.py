@@ -24,8 +24,6 @@ from uuid import uuid4
 
 import click
 import requests
-import yaml
-from dotenv import dotenv_values
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -277,24 +275,17 @@ def validate_update(f):
 
 def get_dotenv_values(executor):
     dotenv_content = executor.run(
-        "test -f ~/dallinger/.env && cat ~/dallinger/.env", raise_=False
+        "test -f ~/dallinger/.env.json && cat ~/dallinger/.env.json", raise_=False
     )
     if dotenv_content:
-        return dotenv_values(stream=io.StringIO(dotenv_content))
+        return json.loads(dotenv_content)
     return {}
-
-
-def dict_to_env_string(env_dict):
-    env_string = ""
-    for key, value in env_dict.items():
-        env_string += f"{key}={value}\n"
-    return env_string
 
 
 def set_dozzle_password(executor, sftp, new_password):
     dotenv_values = get_dotenv_values(executor)
     dotenv_values["DOZZLE_PASSWORD"] = new_password
-    sftp.putfo(BytesIO(dict_to_env_string(dotenv_values).encode()), "dallinger/.env")
+    sftp.putfo(BytesIO(json.dumps(dotenv_values).encode()), "dallinger/.env.json")
     dozzle_users = {
         "users": {
             "dallinger": {
@@ -304,7 +295,7 @@ def set_dozzle_password(executor, sftp, new_password):
             }
         }
     }
-    sftp.putfo(BytesIO(yaml.dump(dozzle_users).encode()), "dallinger/dozzle-users.yml")
+    sftp.putfo(BytesIO(json.dumps(dozzle_users).encode()), "dallinger/dozzle-users.yml")
     executor.restart_dozzle()
 
 
@@ -366,6 +357,8 @@ def deploy(
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
+    dashboard_user = config.get("dashboard_user", "admin")
+    dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
     # We deleted this because synchronizing configs between local and remote can cause problems especially when using
     # different credential managers
@@ -446,16 +439,24 @@ def deploy(
         "dallinger/Caddyfile",
     )
 
-    print("Launching http and postgresql servers.")
+    dotenv_values = get_dotenv_values(executor)
+    if dotenv_values:
+        if dotenv_values.get("DOZZLE_PASSWORD"):
+            dozzle_password = dotenv_values.get("DOZZLE_PASSWORD")
+        else:
+            dozzle_password = secrets.token_urlsafe(8)
+        set_dozzle_password(executor, sftp, dozzle_password)
+    else:
+        dozzle_password = dashboard_password
+        set_dozzle_password(executor, sftp, dozzle_password)
+
+    print("Launching http, postgresql and dozzle servers.")
     executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
 
     if not update:
         print("Starting experiment.")
     else:
         print("Restarting experiment.")
-
-    dashboard_user = config.get("dashboard_user", "admin")
-    dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
     cfg = config.as_dict(include_sensitive=True)
 
@@ -550,17 +551,6 @@ def deploy(
     executor.run(
         f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
     )
-
-    dotenv_values = get_dotenv_values(executor)
-    if dotenv_values:
-        if dotenv_values.get("DOZZLE_PASSWORD"):
-            dozzle_password = dotenv_values.get("DOZZLE_PASSWORD")
-        else:
-            dozzle_password = secrets.token_urlsafe(8)
-        set_dozzle_password(executor, sftp, dozzle_password)
-    else:
-        dozzle_password = dashboard_password
-        set_dozzle_password(executor, sftp, dozzle_password)
 
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
