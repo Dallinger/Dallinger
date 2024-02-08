@@ -188,7 +188,7 @@ ipython==8.18.1
     #   ipykernel
     #   ipywidgets
     #   jupyter-console
-ipywidgets==8.1.1
+ipywidgets==8.1.2
     # via
     #   dallinger
     #   jupyter
