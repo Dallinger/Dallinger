@@ -75,6 +75,11 @@ CADDYFILE = """
     {tls}
 }}
 
+logs.{host} {{
+    reverse_proxy dozzle:8080
+    {tls}
+}}
+
 import caddy.d/*
 """
 
@@ -268,6 +273,46 @@ def validate_update(f):
     return wrapper
 
 
+def get_dotenv_values(executor):
+    dotenv_content = executor.run(
+        "test -f ~/dallinger/.env.json && cat ~/dallinger/.env.json", raise_=False
+    )
+    if dotenv_content:
+        return json.loads(dotenv_content)
+    return {}
+
+
+def set_dozzle_password(executor, sftp, new_password):
+    dotenv_values = get_dotenv_values(executor)
+    dotenv_values["DOZZLE_PASSWORD"] = new_password
+    sftp.putfo(BytesIO(json.dumps(dotenv_values).encode()), "dallinger/.env.json")
+    dozzle_users = {
+        "users": {
+            "dallinger": {
+                "name": "Dallinger",
+                "password": hashlib.sha256(new_password.encode("utf-8")).hexdigest(),
+                "email": "dallinger@example.com",
+            }
+        }
+    }
+    sftp.putfo(BytesIO(json.dumps(dozzle_users).encode()), "dallinger/dozzle-users.yml")
+    executor.restart_dozzle()
+
+
+@docker_ssh.command("set-dozzle-password")
+@server_option
+@click.password_option()
+def set_dozzle_password_cmd(server, password):
+    server_info = CONFIGURED_HOSTS[server]
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
+
+    executor = Executor(ssh_host, user=ssh_user)
+    sftp = get_sftp(ssh_host, user=ssh_user)
+
+    set_dozzle_password(executor, sftp, password)
+
+
 @docker_ssh.command()
 @click.option(
     "--sandbox",
@@ -312,6 +357,8 @@ def deploy(
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
+    dashboard_user = config.get("dashboard_user", "admin")
+    dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
     # We deleted this because synchronizing configs between local and remote can cause problems especially when using
     # different credential managers
@@ -407,16 +454,18 @@ def deploy(
         "dallinger/Caddyfile",
     )
 
-    print("Launching http and postgresql servers.")
+    dozzle_password = get_dotenv_values(executor).get(
+        "DOZZLE_PASSWORD", dashboard_password
+    )
+    set_dozzle_password(executor, sftp, dozzle_password)
+
+    print("Launching http, postgresql and dozzle servers.")
     executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
 
     if not update:
         print("Starting experiment.")
     else:
         print("Restarting experiment.")
-
-    dashboard_user = config.get("dashboard_user", "admin")
-    dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
     cfg = config.as_dict(include_sensitive=True)
 
@@ -541,8 +590,6 @@ def deploy(
         )
         print(launch_data.get("recruitment_msg"))
 
-    dashboard_user = cfg["ADMIN_USER"]
-    dashboard_password = cfg["dashboard_password"]
     dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
     log_command = f"ssh {ssh_user + '@' if ssh_user else ''}{ssh_host} docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
 
@@ -550,6 +597,7 @@ def deploy(
         f"Deployed Docker image name: {image_name}",
         "To display the logs for this experiment you can run:",
         log_command,
+        f"Or you can head to http://logs.{dns_host} (user = dallinger, password = {dozzle_password})",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
     ]
     for line in deployment_infos:
@@ -810,6 +858,10 @@ class Executor:
                 "docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
                 "caddy reload --config /etc/caddy/Caddyfile"
             )
+
+    def restart_dozzle(self):
+        with yaspin(text="Restarting Dozzle", color="green"):
+            self.run("docker compose -f ~/dallinger/docker-compose.yml restart dozzle")
 
     def run_and_echo(self, cmd):  # pragma: no cover
         """Execute the given command on the remote host and prints its output
