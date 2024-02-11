@@ -623,7 +623,7 @@ types-python-dateutil==2.8.19.20240106
     # via arrow
 typing-extensions==4.9.0
     # via selenium
-tzdata==2023.4
+tzdata==2024.1
     # via pandas
 tzlocal==5.2
     # via
