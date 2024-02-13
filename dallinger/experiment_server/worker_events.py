@@ -37,8 +37,8 @@ LOG_EVENT_TYPES = frozenset(
         "AssignmentAbandoned",
         "AssignmentReassigned",
         "AssignmentReturned",
-        "AssignmentSubmitted",
-        "BotAssignmentSubmitted",
+        "RecruiterSubmissionComplete",
+        "BotRecruiterSubmissionComplete",
         "BotAssignmentRejected",
         "NotificationMissing",
     )
@@ -103,6 +103,7 @@ def worker_function(
 
     if assignment_id and not participant:
         try:
+            # TODO first() here, and skip the max() call below?
             participants = models.Participant.query.filter_by(
                 assignment_id=assignment_id
             ).all()
@@ -112,6 +113,9 @@ def worker_function(
         if participants:
             participant = max(participants, key=attrgetter("creation_time"))
 
+    # TODO: could this just be a separate function, instead of a very standalone
+    # path  through worker_function? Avoid the commit below would allow
+    # us to lock the participant row for the full execution time.
     if event_type == "TrackingEvent":
         if not node and not participant:
             exp.log(
@@ -257,14 +261,14 @@ class AssignmentReturned(WorkerEvent):
             self.experiment.assignment_returned(participant=self.participant)
 
 
-class AssignmentSubmitted(WorkerEvent):
+class RecruiterSubmissionComplete(WorkerEvent):
     def __call__(self):
         self.experiment.on_recruiter_submission_complete(
             participant=self.participant, event=self.data
         )
 
 
-class BotAssignmentSubmitted(WorkerEvent):
+class BotRecruiterSubmissionComplete(WorkerEvent):
     def __call__(self):
         self.log("Received bot submission.")
         self.update_participant_end_time()
