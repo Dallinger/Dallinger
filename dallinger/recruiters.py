@@ -155,11 +155,12 @@ class Recruiter(object):
 
     def on_completion_event(self):
         """Return the name of the appropriate WorkerEvent command to run
-        when a participant completes an experiment.
+        when a participant's recruiter finishes processing their assignment
+        submission.
 
         If no event should be processed, return None.
         """
-        return "AssignmentSubmitted"
+        return "RecruiterSubmissionComplete"
 
     def load_service(self, sandbox):
         """Load the appropriate service for this recruiter."""
@@ -273,7 +274,7 @@ def prolific_submission_listener():
 
     When the participant submits their assignment/study to Prolific,
     we are then ready to handle experiment completion task (approval, bonus)
-    via the `AssignmentSubmitted` async worker function.
+    via the `RecruiterSubmissionComplete` async worker function.
     """
     identity_info = flask.request.form.to_dict()
     logger.warning(
@@ -482,7 +483,12 @@ class ProlificRecruiter(Recruiter):
 
     def _handle_exit_form_submission(self, assignment_id: str, participant_id: str):
         q = _get_queue()
-        q.enqueue(worker_function, "AssignmentSubmitted", assignment_id, participant_id)
+        q.enqueue(
+            worker_function,
+            "RecruiterSubmissionComplete",
+            assignment_id,
+            participant_id,
+        )
 
     def load_service(self, sandbox):
         return _prolific_service_from_config()
@@ -1318,7 +1324,10 @@ class MTurkRecruiter(Recruiter):
     def _resend_submitted_rest_notification_for(self, participant):
         q = _get_queue()
         q.enqueue(
-            worker_function, "AssignmentSubmitted", participant.assignment_id, None
+            worker_function,
+            "RecruiterSubmissionComplete",
+            participant.assignment_id,
+            None,
         )
 
     def _send_notification_missing_rest_notification_for(self, participant):
@@ -1536,7 +1545,7 @@ class BotRecruiter(Recruiter):
         logger.info("Bots don't get bonuses. Sorry, bots.")
 
     def on_completion_event(self):
-        return "BotAssignmentSubmitted"
+        return "BotRecruiterSubmissionComplete"
 
     def _get_bot_factory(self):
         # Must be imported at run-time

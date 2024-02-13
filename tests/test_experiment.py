@@ -141,7 +141,7 @@ class TestExperimentBaseClass(object):
         exp.on_recruiter_submission_complete(
             participant=participant,
             event={
-                "event_type": "AssignmentSubmitted",
+                "event_type": "RecruiterSubmissionComplete",
                 "participant_id": participant.id,
                 "assignment_id": participant.assignment_id,
                 "timestamp": end_time,
@@ -161,7 +161,7 @@ class TestExperimentBaseClass(object):
         exp.on_recruiter_submission_complete(
             participant=participant,
             event={
-                "event_type": "AssignmentSubmitted",
+                "event_type": "RecruiterSubmissionComplete",
                 "participant_id": participant.id,
                 "assignment_id": participant.assignment_id,
                 "timestamp": end_time,
@@ -177,7 +177,7 @@ class TestExperimentBaseClass(object):
         exp.on_recruiter_submission_complete(
             participant=participant,
             event={
-                "event_type": "AssignmentSubmitted",
+                "event_type": "RecruiterSubmissionComplete",
                 "participant_id": participant.id,
                 "assignment_id": participant.assignment_id,
                 "timestamp": end_time,
@@ -196,7 +196,7 @@ class TestExperimentBaseClass(object):
         exp.on_recruiter_submission_complete(
             participant=participant,
             event={
-                "event_type": "AssignmentSubmitted",
+                "event_type": "RecruiterSubmissionComplete",
                 "participant_id": participant.id,
                 "assignment_id": participant.assignment_id,
                 "timestamp": end_time,
@@ -213,7 +213,7 @@ class TestExperimentBaseClass(object):
         exp.on_recruiter_submission_complete(
             participant=participant,
             event={
-                "event_type": "AssignmentSubmitted",
+                "event_type": "RecruiterSubmissionComplete",
                 "participant_id": participant.id,
                 "assignment_id": participant.assignment_id,
                 "timestamp": end_time,
@@ -230,7 +230,7 @@ class TestExperimentBaseClass(object):
         exp.on_recruiter_submission_complete(
             participant=participant,
             event={
-                "event_type": "AssignmentSubmitted",
+                "event_type": "RecruiterSubmissionComplete",
                 "participant_id": participant.id,
                 "assignment_id": participant.assignment_id,
                 "timestamp": end_time,
