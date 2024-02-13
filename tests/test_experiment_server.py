@@ -294,7 +294,9 @@ class TestWorkerComplete(object):
 
     def test_records_notification_if_debug_mode(self, a, webapp):
         webapp.post("/worker_complete", data={"participant_id": a.participant().id})
-        assert models.Notification.query.one().event_type == "AssignmentSubmitted"
+        assert (
+            models.Notification.query.one().event_type == "RecruiterSubmissionComplete"
+        )
 
     def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
         webapp.post(
@@ -302,7 +304,10 @@ class TestWorkerComplete(object):
             data={"participant_id": a.participant(recruiter_id="bots").id},
         )
 
-        assert models.Notification.query.one().event_type == "BotAssignmentSubmitted"
+        assert (
+            models.Notification.query.one().event_type
+            == "BotRecruiterSubmissionComplete"
+        )
 
     def test_records_notification_for_non_mturk_recruiter(
         self, a, webapp, active_config
@@ -313,7 +318,9 @@ class TestWorkerComplete(object):
             data={"participant_id": a.participant(recruiter_id="cli").id},
         )
 
-        assert models.Notification.query.one().event_type == "AssignmentSubmitted"
+        assert (
+            models.Notification.query.one().event_type == "RecruiterSubmissionComplete"
+        )
 
     def test_records_no_notification_mturk_recruiter_and_nondebug(
         self, a, webapp, active_config
@@ -416,7 +423,7 @@ class TestHandleError(object):
         assert resp.status_code == 200
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
-        assert notifications[0].event_type == "AssignmentSubmitted"
+        assert notifications[0].event_type == "RecruiterSubmissionComplete"
         assert notifications[1].event_type == "ExperimentError"
 
     def test_saves_error_without_participant(self, a, webapp):
@@ -441,7 +448,7 @@ class TestHandleError(object):
 
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
-        assert notifications[0].event_type == "AssignmentSubmitted"
+        assert notifications[0].event_type == "RecruiterSubmissionComplete"
         assert notifications[1].event_type == "ExperimentError"
         assert notifications[1].assignment_id == assignment_id
         assert (
@@ -456,7 +463,7 @@ class TestHandleError(object):
 
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
-        assert notifications[0].event_type == "AssignmentSubmitted"
+        assert notifications[0].event_type == "RecruiterSubmissionComplete"
         assert notifications[1].event_type == "ExperimentError"
         assert notifications[1].assignment_id == assignment_id
         assert (
@@ -484,7 +491,7 @@ class TestHandleError(object):
 
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
-        assert notifications[0].event_type == "AssignmentSubmitted"
+        assert notifications[0].event_type == "RecruiterSubmissionComplete"
         assert notifications[1].event_type == "ExperimentError"
         assert notifications[1].assignment_id == assignment_id
         assert (
@@ -517,7 +524,7 @@ class TestHandleError(object):
 
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
-        assert notifications[0].event_type == "AssignmentSubmitted"
+        assert notifications[0].event_type == "RecruiterSubmissionComplete"
         assert notifications[1].event_type == "ExperimentError"
         assert notifications[1].assignment_id == assignment_id
         assert (
@@ -1770,13 +1777,13 @@ class TestWorkerFunctionIntegration(object):
 class TestWorkerEvents(object):
     def test_dispatch(self):
         from dallinger.experiment_server.worker_events import (
-            AssignmentSubmitted,
+            RecruiterSubmissionComplete,
             WorkerEvent,
         )
 
-        cls = WorkerEvent.for_name("AssignmentSubmitted")
+        cls = WorkerEvent.for_name("RecruiterSubmissionComplete")
 
-        assert cls is AssignmentSubmitted
+        assert cls is RecruiterSubmissionComplete
 
     def test_dispatch_with_unsupported_event_type(self):
         from dallinger.experiment_server.worker_events import WorkerEvent
@@ -1830,10 +1837,12 @@ def standard_args(experiment):
     }.copy()
 
 
-class TestAssignmentSubmitted(object):
+class TestRecruiterSubmissionComplete(object):
     @pytest.fixture
     def runner(self, standard_args):
-        from dallinger.experiment_server.worker_events import AssignmentSubmitted
+        from dallinger.experiment_server.worker_events import (
+            RecruiterSubmissionComplete,
+        )
 
         experiment = standard_args["experiment"]
         experiment.attention_check.return_value = True
@@ -1842,19 +1851,21 @@ class TestAssignmentSubmitted(object):
         experiment.bonus_reason.return_value = "You rock."
         standard_args["config"].update({"base_payment": 1.00})
 
-        return AssignmentSubmitted(**standard_args)
+        return RecruiterSubmissionComplete(**standard_args)
 
     def test_calls_on_recruiter_submission_complete(self, runner):
         runner()
         runner.experiment.on_recruiter_submission_complete.assert_called_once()
 
 
-class TestBotAssignmentSubmitted(object):
+class TestBotRecruiterSubmissionComplete(object):
     @pytest.fixture
     def runner(self, standard_args):
-        from dallinger.experiment_server.worker_events import BotAssignmentSubmitted
+        from dallinger.experiment_server.worker_events import (
+            BotRecruiterSubmissionComplete,
+        )
 
-        return BotAssignmentSubmitted(**standard_args)
+        return BotRecruiterSubmissionComplete(**standard_args)
 
     def test_participant_status_set(self, runner):
         runner()

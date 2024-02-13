@@ -4,7 +4,7 @@ A mermaid syntax diagram of task completion and subsequent triggered execution p
 
 ```mermaid
 sequenceDiagram
-title Dallinger AssignmentSubmitted (Recruiter owns worker_function call)
+title Dallinger Assignment Submission
 
 actor hw as HIT win
 actor ew as EXP win
@@ -16,7 +16,7 @@ participant ex as Experiment
 participant rec as Recruiter
 participant wf as worker_function
 participant nt as Notification
-participant sub as AssignmentSubmitted
+participant sub as RecruiterSubmissionComplete
 
 
 ew->>d2: submitQuestionnaire()
@@ -34,21 +34,21 @@ d2-->>hw: location=/recruiter-exit
 hw->>es: /recruiter-exit
 es->>rec: exit_response(experiment=exp, participant=participant)
 alt synchronous recruiters
-rec->>wf: __call__("AssignmentSubmitted", args...)
+rec->>wf: __call__("RecruiterSubmissionComplete", args...)
 rec-->>es: <rendered template specific to Recruiter>
 es-->>hw: <rendered template specific to Recruiter>
 else asynchronous recruiters
 rec-->>es: <rendered template specific to Recruiter>
 es-->>hw: <rendered template specific to Recruiter>
 hw->>rec: /prolific-submission-listener (Recruiter-specific route)
-rec->>wf: ASYNC __call__("AssignmentSubmitted", args...) (see below)
+rec->>wf: ASYNC __call__("RecruiterSubmissionComplete", args...) (see below)
 
 rec-->>d2: HTTP Response
 d2->>hw: location=prolificStudySubmissionURL
 end
 
 note over rec: Later, resuming call from Recruiter...
-rec->>wf: __call__("AssignmentSubmitted", args...)
+rec->>wf: __call__("RecruiterSubmissionComplete", args...)
 wf->>nt: (add Note to DB)
 note over wf: COMMIT
 wf->>sub: __call__()

@@ -198,7 +198,7 @@ class TestCLIRecruiter(object):
         assert "mode=new_mode" in result["items"][0]
 
     def test_returns_standard_submission_event_type(self, recruiter):
-        assert recruiter.on_completion_event() == "AssignmentSubmitted"
+        assert recruiter.on_completion_event() == "RecruiterSubmissionComplete"
 
 
 @pytest.mark.usefixtures("active_config")
@@ -250,7 +250,7 @@ class TestHotAirRecruiter(object):
         assert "mode=debug" in result["items"][0]
 
     def test_returns_standard_submission_event_type(self, recruiter):
-        assert recruiter.on_completion_event() == "AssignmentSubmitted"
+        assert recruiter.on_completion_event() == "RecruiterSubmissionComplete"
 
 
 class TestSimulatedRecruiter(object):
@@ -273,7 +273,7 @@ class TestSimulatedRecruiter(object):
         assert recruiter.open_recruitment(n=3)["items"] == []
 
     def test_returns_standard_submission_event_type(self, recruiter):
-        assert recruiter.on_completion_event() == "AssignmentSubmitted"
+        assert recruiter.on_completion_event() == "RecruiterSubmissionComplete"
 
     def test_close_recruitment(self, recruiter):
         assert recruiter.close_recruitment() is None
@@ -322,7 +322,7 @@ class TestBotRecruiter(object):
         recruiter.reward_bonus(a.participant(), 0.01, "You're great!")
 
     def test_returns_specific_submission_event_type(self, recruiter):
-        assert recruiter.on_completion_event() == "BotAssignmentSubmitted"
+        assert recruiter.on_completion_event() == "BotRecruiterSubmissionComplete"
 
     def test_notify_duration_exceeded_rejects_participants(self, a, recruiter):
         bot = a.participant(recruiter_id="bots")
@@ -515,7 +515,10 @@ class TestProlificRecruiter(object):
 
         assert response.status_code == 200
         queue.enqueue.assert_called_once_with(
-            mock.ANY, "AssignmentSubmitted", "some assignment ID", "some participant ID"
+            mock.ANY,
+            "RecruiterSubmissionComplete",
+            "some assignment ID",
+            "some participant ID",
         ),
 
     def test_clean_qualification_attributes(self, recruiter):
@@ -1185,7 +1188,10 @@ class TestMTurkRecruiter(object):
         recruiter.notify_duration_exceeded(participants, datetime.now())
 
         queue.enqueue.assert_called_once_with(
-            worker_function, "AssignmentSubmitted", participants[0].assignment_id, None
+            worker_function,
+            "RecruiterSubmissionComplete",
+            participants[0].assignment_id,
+            None,
         )
         recruiter.notifies_admin.send.assert_called_once()
 
