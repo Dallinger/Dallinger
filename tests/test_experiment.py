@@ -131,14 +131,14 @@ class TestExperimentBaseClass(object):
             exp.normalize_entry_information({"foo": "bar"})
             normalizer.assert_called_once_with({"foo": "bar"})
 
-    def test_on_assignment_submitted_to_recruiter__approves_and_records_base_payment(
+    def test_on_recruiter_submission_complete__approves_and_records_base_payment(
         self, a, active_config, exp
     ):
         participant = a.participant()
         exp.bonus = mock.Mock(return_value=0.01)
         end_time = datetime(2000, 1, 1)
 
-        exp.on_assignment_submitted_to_recruiter(
+        exp.on_recruiter_submission_complete(
             participant=participant,
             event={
                 "event_type": "AssignmentSubmitted",
@@ -152,13 +152,13 @@ class TestExperimentBaseClass(object):
         assert participant.status == "approved"
         assert participant.bonus == 0.01
 
-    def test_on_assignment_submitted_to_recruiter__pays_no_bonus_if_less_than_one_cent(
+    def test_on_recruiter_submission_complete__pays_no_bonus_if_less_than_one_cent(
         self, a, exp
     ):
         participant = a.participant()
         end_time = datetime(2000, 1, 1)
 
-        exp.on_assignment_submitted_to_recruiter(
+        exp.on_recruiter_submission_complete(
             participant=participant,
             event={
                 "event_type": "AssignmentSubmitted",
@@ -170,11 +170,11 @@ class TestExperimentBaseClass(object):
 
         assert participant.bonus == 0
 
-    def test_on_assignment_submitted_to_recruiter__sets_end_time(self, a, exp):
+    def test_on_recruiter_submission_complete__sets_end_time(self, a, exp):
         participant = a.participant()
         end_time = datetime(2000, 1, 1)
 
-        exp.on_assignment_submitted_to_recruiter(
+        exp.on_recruiter_submission_complete(
             participant=participant,
             event={
                 "event_type": "AssignmentSubmitted",
@@ -186,14 +186,14 @@ class TestExperimentBaseClass(object):
 
         assert participant.end_time == end_time
 
-    def test_on_assignment_submitted_to_recruiter__noop_if_already_approved_worker(
+    def test_on_recruiter_submission_complete__noop_if_already_approved_worker(
         self, a, exp
     ):
         participant = a.participant()
         participant.status = "approved"
         end_time = datetime(2000, 1, 1)
 
-        exp.on_assignment_submitted_to_recruiter(
+        exp.on_recruiter_submission_complete(
             participant=participant,
             event={
                 "event_type": "AssignmentSubmitted",
@@ -205,12 +205,12 @@ class TestExperimentBaseClass(object):
 
         assert participant.base_pay is None
 
-    def test_on_assignment_submitted_to_recruiter__failed_data_check(self, a, exp):
+    def test_on_recruiter_submission_complete__failed_data_check(self, a, exp):
         participant = a.participant()
         exp.data_check = mock.Mock(return_value=False)
         end_time = datetime(2000, 1, 1)
 
-        exp.on_assignment_submitted_to_recruiter(
+        exp.on_recruiter_submission_complete(
             participant=participant,
             event={
                 "event_type": "AssignmentSubmitted",
@@ -222,12 +222,12 @@ class TestExperimentBaseClass(object):
 
         assert participant.status == "bad_data"
 
-    def test_on_assignment_submitted_to_recruiter__failed_attention_check(self, a, exp):
+    def test_on_recruiter_submission_complete__failed_attention_check(self, a, exp):
         participant = a.participant()
         exp.attention_check = mock.Mock(return_value=False)
         end_time = datetime(2000, 1, 1)
 
-        exp.on_assignment_submitted_to_recruiter(
+        exp.on_recruiter_submission_complete(
             participant=participant,
             event={
                 "event_type": "AssignmentSubmitted",
