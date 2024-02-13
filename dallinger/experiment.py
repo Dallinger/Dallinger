@@ -709,13 +709,12 @@ class Experiment(object):
         """
         return True
 
-    def on_assignment_submitted_to_recruiter(self, participant, event):
-        """Working title. Called when assignment has been submitted
-        to the recruitment platform (may be Dallinger itself) by the
-        participant.
+    def on_recruiter_submission_complete(self, participant, event):
+        """Called after assignment submission has been processed by
+        the recruitment platform (may be Dallinger itself).
 
         :param participant (Participant): the ``Participant`` who has
-        submitted a HIT via their recruiter
+        submitted an assignment via their recruiter
         :param event: (dict): Info about the triggering event
         """
         eligible_statuses = ("working", "overrecruited", "returned", "abandoned")

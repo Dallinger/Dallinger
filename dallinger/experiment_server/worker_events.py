@@ -259,7 +259,7 @@ class AssignmentReturned(WorkerEvent):
 
 class AssignmentSubmitted(WorkerEvent):
     def __call__(self):
-        self.experiment.on_assignment_submitted_to_recruiter(
+        self.experiment.on_recruiter_submission_complete(
             participant=self.participant, event=self.data
         )
 

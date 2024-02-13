@@ -52,7 +52,7 @@ rec->>wf: __call__("AssignmentSubmitted", args...)
 wf->>nt: (add Note to DB)
 note over wf: COMMIT
 wf->>sub: __call__()
-sub->>ex: on_assignment_submitted_to_recruiter(participant)
+sub->>ex: on_recruiter_submission_complete(participant)
 note over ex: Most of what follows becomes potentially private to the Experiment:
 ex->>part: end_time
 ex->>part: status="submitted"
