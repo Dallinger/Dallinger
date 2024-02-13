@@ -22,7 +22,7 @@ from dallinger.db import redis_conn, session
 from dallinger.experiment_server.utils import crossdomain, success_response
 from dallinger.experiment_server.worker_events import worker_function
 from dallinger.heroku import tools as heroku_tools
-from dallinger.models import Recruitment
+from dallinger.models import Participant, Recruitment
 from dallinger.mturk import (
     DuplicateQualificationNameError,
     MTurkQualificationRequirements,
@@ -282,6 +282,10 @@ def prolific_submission_listener():
     )
     assignment_id = identity_info.get("assignmentId")
     participant_id = identity_info.get("participantId")
+
+    # participant = Participant.query.get(participant_id)
+    # participant.status = "the new status"
+    # session.commit()
 
     recruiter = ProlificRecruiter()
     recruiter._handle_exit_form_submission(
@@ -963,7 +967,14 @@ class RedisStore(object):
 
 
 def _run_mturk_qualification_assignment(worker_id, qualifications):
-    """Provides a way to run qualification assignment asynchronously."""
+    """Provides a way to run qualification assignment asynchronously.
+
+    TODO: could be made general:
+        1. pass in recruiter nickname
+        2. instantiate recruiter
+        3. recruiter._assign_experiment_qualifications(worker_id, qualifications)
+
+    """
     recruiter = MTurkRecruiter()
     recruiter._assign_experiment_qualifications(worker_id, qualifications)
 
