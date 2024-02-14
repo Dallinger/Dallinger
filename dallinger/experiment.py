@@ -724,8 +724,11 @@ class Experiment(object):
         config = get_config()
         min_real_bonus = 0.01
 
-        participant.status = "submitted"
-        participant.end_time = event["timestamp"]
+        # Usually, end_time will be set when the participant first exits
+        # the experiment via /worker_complete, but in case that hasn't
+        # happened, we set it here:
+        if participant.end_time is None:
+            participant.end_time = event["timestamp"]
         participant.base_pay = config.get("base_payment")
         participant.recruiter.approve_hit(participant.assignment_id)
 
