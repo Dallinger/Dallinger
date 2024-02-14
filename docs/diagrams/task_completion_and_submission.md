@@ -23,38 +23,49 @@ ew->>d2: submitQuestionnaire()
 d2->>es: /question/<participant ID>
 es-->>d2: HTTP Response
 d2->>d2: submitAssignment()
-d2->>es: /worker_complete
+d2->>es: /worker_complete POST
 es->>part: end_time
+es->>rec: on_completion_event(participant)
+rec->>part: status=["submitted"|"recruiter_submission_started"]
+rec-->>es: event type string or None
 note over es: COMMIT
-es->>ex: participant_task_complete()
+es->>ex: participant_task_completed()
 ex->>rec: assign_experiment_qualifications()
+
+
+opt event type not None (synchronous recruiters)
+es->>wf: __call__("RecruiterSubmissionComplete", args...)
+end
 
 es-->>d2: HTTP Response
 d2-->>hw: location=/recruiter-exit
-hw->>es: /recruiter-exit
+hw->>es: /recruiter-exit GET
 es->>rec: exit_response(experiment=exp, participant=participant)
 alt synchronous recruiters
-rec->>wf: __call__("RecruiterSubmissionComplete", args...)
 rec-->>es: <rendered template specific to Recruiter>
 es-->>hw: <rendered template specific to Recruiter>
 else asynchronous recruiters
 rec-->>es: <rendered template specific to Recruiter>
 es-->>hw: <rendered template specific to Recruiter>
-hw->>rec: /prolific-submission-listener (Recruiter-specific route)
-rec->>wf: ASYNC __call__("RecruiterSubmissionComplete", args...) (see below)
+hw->>rec: /prolific-submission-listener POST (Recruiter-specific route)
+rec->>part: status="submitted"
+note over rec: COMMIT
+rec-)wf: ASYNC __call__("RecruiterSubmissionComplete", args...) (see below)
 
 rec-->>d2: HTTP Response
 d2->>hw: location=prolificStudySubmissionURL
 end
 
 note over rec: Later, resuming call from Recruiter...
-rec->>wf: __call__("RecruiterSubmissionComplete", args...)
+rec-)wf: __call__("RecruiterSubmissionComplete", args...)
 wf->>nt: (add Note to DB)
 note over wf: COMMIT
 wf->>sub: __call__()
 sub->>ex: on_recruiter_submission_complete(participant)
 note over ex: Most of what follows becomes potentially private to the Experiment:
+opt if not set already
 ex->>part: end_time
+end
 ex->>part: status="submitted"
 
 ex->>rec: approve_hit(assignment_id)
