@@ -186,6 +186,25 @@ class TestExperimentBaseClass(object):
 
         assert participant.end_time == end_time
 
+    def test_on_recruiter_submission_complete__wont_overwrite_end_time(self, a, exp):
+        participant = a.participant()
+        participant.status = "submitted"
+        old_time = datetime(2000, 1, 1)
+        new_time = datetime(2000, 2, 2)
+        participant.end_time = old_time
+
+        exp.on_recruiter_submission_complete(
+            participant=participant,
+            event={
+                "event_type": "RecruiterSubmissionComplete",
+                "participant_id": participant.id,
+                "assignment_id": participant.assignment_id,
+                "timestamp": new_time,
+            },
+        )
+
+        assert participant.end_time == old_time
+
     def test_on_recruiter_submission_complete__noop_if_already_approved_worker(
         self, a, exp
     ):
