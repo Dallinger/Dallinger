@@ -46,9 +46,9 @@ bleach==6.1.0
     # via nbconvert
 blinker==1.7.0
     # via flask
-boto3==1.34.41
+boto3==1.34.42
     # via dallinger
-botocore==1.34.41
+botocore==1.34.42
     # via
     #   boto3
     #   s3transfer
@@ -169,7 +169,7 @@ h11==0.14.0
     #   wsproto
 heroku3==5.2.1
     # via dallinger
-httpcore==1.0.2
+httpcore==1.0.3
     # via httpx
 httpx==0.26.0
     # via jupyterlab
