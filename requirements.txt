@@ -67,7 +67,7 @@ flask-wtf==1.2.1
     # via dallinger
 future==0.18.3
     # via dallinger
-gevent==23.9.1
+gevent==24.2.1
     # via
     #   dallinger
     #   gunicorn
