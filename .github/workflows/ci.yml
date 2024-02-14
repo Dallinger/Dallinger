@@ -116,7 +116,7 @@ jobs:
           npm run test --coverage
         # We want to run Full Tox tests for the two latest Python versions in order to cover possible
         # issues with code changes that had to be made in order to support a new Python version
-        if: matrix.python-version >= "3.11"
+        if: ${{ matrix.python-version >= 3.11 }}
       - name: Run Fast Tests Only
         env:
           DATABASE_URL: postgresql://dallinger:dallinger@localhost/dallinger
@@ -128,10 +128,10 @@ jobs:
         run: |
           tox -e fast
           npm run test --coverage
-        if: matrix.python-version <= "3.10"
+        if: ${{ matrix.python-version <= 3.10 }}
       - name: Codecov.io check
         uses: codecov/codecov-action@v3
-        if: matrix.python-version == "3.12"
+        if: ${{ matrix.python-version == 3.12 }}
 
   docker:
     runs-on: ubuntu-latest
