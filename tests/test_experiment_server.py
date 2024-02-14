@@ -290,7 +290,20 @@ class TestWorkerComplete(object):
     def test_sets_end_time(self, a, webapp, db_session):
         participant = a.participant()
         webapp.post("/worker_complete", data={"participant_id": participant.id})
-        assert db_session.merge(participant).end_time is not None
+        participant = db_session.merge(participant)
+        assert participant.end_time is not None
+
+    def test_immune_to_double_submission(self, a, webapp, db_session):
+        participant = a.participant()
+        webapp.post("/worker_complete", data={"participant_id": participant.id})
+        participant = db_session.merge(participant)
+        end_time_after_first_submission = participant.end_time
+
+        # re-submit
+        webapp.post("/worker_complete", data={"participant_id": participant.id})
+
+        participant = db_session.merge(participant)
+        assert participant.end_time == end_time_after_first_submission
 
     def test_records_notification_if_debug_mode(self, a, webapp):
         webapp.post("/worker_complete", data={"participant_id": a.participant().id})

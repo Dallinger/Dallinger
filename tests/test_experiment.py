@@ -135,6 +135,7 @@ class TestExperimentBaseClass(object):
         self, a, active_config, exp
     ):
         participant = a.participant()
+        participant.status = "submitted"
         exp.bonus = mock.Mock(return_value=0.01)
         end_time = datetime(2000, 1, 1)
 
@@ -168,10 +169,11 @@ class TestExperimentBaseClass(object):
             },
         )
 
-        assert participant.bonus == 0
+        assert participant.bonus is None
 
-    def test_on_recruiter_submission_complete__sets_end_time(self, a, exp):
+    def test_on_recruiter_submission_complete__sets_end_time_if_not_set(self, a, exp):
         participant = a.participant()
+        participant.status = "submitted"
         end_time = datetime(2000, 1, 1)
 
         exp.on_recruiter_submission_complete(
@@ -226,6 +228,7 @@ class TestExperimentBaseClass(object):
 
     def test_on_recruiter_submission_complete__failed_data_check(self, a, exp):
         participant = a.participant()
+        participant.status = "submitted"
         exp.data_check = mock.Mock(return_value=False)
         end_time = datetime(2000, 1, 1)
 
@@ -243,6 +246,7 @@ class TestExperimentBaseClass(object):
 
     def test_on_recruiter_submission_complete__failed_attention_check(self, a, exp):
         participant = a.participant()
+        participant.status = "submitted"
         exp.attention_check = mock.Mock(return_value=False)
         end_time = datetime(2000, 1, 1)
 

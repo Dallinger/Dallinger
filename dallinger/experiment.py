@@ -717,8 +717,9 @@ class Experiment(object):
         submitted an assignment via their recruiter
         :param event: (dict): Info about the triggering event
         """
-        eligible_statuses = ("working", "overrecruited", "returned", "abandoned")
-        if participant.status not in eligible_statuses:
+        # Check that the participant has completed task submission with
+        # their recruiter:
+        if participant.status != "submitted":
             return
 
         config = get_config()
@@ -745,14 +746,15 @@ class Experiment(object):
 
         # If they pass the data check, we might pay a bonus
         bonus = self.bonus(participant=participant)
-        participant.bonus = bonus
-        if bonus >= min_real_bonus:
+        has_already_received_bonus = participant.bonus is not None
+        if not has_already_received_bonus and bonus >= min_real_bonus:
             self.log("Bonus = {}: paying bonus".format(bonus))
             participant.recruiter.reward_bonus(
                 participant,
                 bonus,
                 self.bonus_reason(),
             )
+            participant.bonus = bonus
         else:
             self.log("Bonus = {}: NOT paying bonus".format(bonus))
 
@@ -771,8 +773,8 @@ class Experiment(object):
             self.recruiter.recruit(n=1)
 
     def participant_task_completed(self, participant):
-        """Called when an experiment task is finished and submitted, and prior
-        to data and attendance checks.
+        """Called when an experiment task is first finished, and prior
+        to recruiter submission, data and attendance checks.
 
         Assigns the qualifications to the Participant, via their recruiter.
         These will include one Qualification for the experiment

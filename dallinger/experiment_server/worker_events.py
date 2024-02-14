@@ -113,8 +113,8 @@ def worker_function(
         if participants:
             participant = max(participants, key=attrgetter("creation_time"))
 
-    # TODO: could this just be a separate function, instead of a very standalone
-    # path  through worker_function? Avoid the commit below would allow
+    # TODO: should this just be a separate function, instead of a very standalone
+    # path through worker_function? Avoiding the commit below would allow
     # us to lock the participant row for the full execution time.
     if event_type == "TrackingEvent":
         if not node and not participant:
