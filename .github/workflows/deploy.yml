@@ -23,7 +23,7 @@ jobs:
       - name: Install node packages
         run: yarn --frozen-lockfile --ignore-engines
       - name: Cache pip
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('*.txt') }}
