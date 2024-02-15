@@ -91,7 +91,7 @@ dev = [
     "pre-commit",
     "pycodestyle",
     "pypandoc",
-    "pytest < 8",
+    "pytest",
     "pytest-rerunfailures",
     "sphinx",
     "sphinx_rtd_theme",
