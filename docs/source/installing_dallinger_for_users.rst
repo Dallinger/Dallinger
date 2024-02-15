@@ -48,7 +48,7 @@ Install Python
 ~~~~~~~~~~~~~~
 
 Dallinger is written in the language Python. For it to work, you will need
-to have Python 3.8 or higher. You can check what version of Python you have
+to have Python 3.9 or higher. You can check what version of Python you have
 by running:
 ::
 
@@ -307,7 +307,7 @@ Install Python
 ~~~~~~~~~~~~~~
 
 Dallinger is written in the language Python. For it to work, you will need
-to have Python 3.8 or higher. You can check what version of Python you have
+to have Python 3.9 or higher. You can check what version of Python you have
 by running:
 ::
 
