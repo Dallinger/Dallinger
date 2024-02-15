@@ -1,6 +1,26 @@
 # Change Log
 
-## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
+## [v10.0.0](https://github.com/dallinger/dallinger/tree/v10.0.0) (2024-02-15)
+
+#### Breaking
+- Removed support for Python 3.8.
+
+#### Added
+- Added support for Python 3.12.
+  - Remove version pinning for numpy, panda, pre-commit, sphinx, and sphinx-related packages.
+  - CI: Added Python 3.12 to GitHub workflow matrix and run Full tox tests for both Python 3.11 and 3.12.
+  - CI: Use Docker image python:3.12-bullseye.
+- The config parameter `num_dynos_worker` (default: `1`) which allows for the configuration of the number of workers can now also be used in SSH deployments. This change is beneficial for parallellizing heavy background worker processes. Previously, this config parameter only worked for Heroku deployments.
+- Added `grace_period 30s` to Caddy HTTP server configuration to prevent the Caddy server from 'getting stuck' sometimes.
+- Added better checks in `dallinger docker-ssh` for pre-existing apps with the same name.
+- Added Dozzle service to `dallinger docker-ssh` deployments.
+
+#### Changed
+- Revised logging text for Prolific.
+- Improve `handle_launch_data` error reporting and use it also for docker-ssh deployments.
+
+#### Updated
+- Infrastructure: Updated dependencies; pin ipython < 8.19.
 
 ## [v9.12.0](https://github.com/dallinger/dallinger/tree/v9.12.0) (2024-01-03)
 
