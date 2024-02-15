@@ -371,14 +371,14 @@ class TestSetupExperiment(object):
         assert copy == orig
 
     def test_setup_uses_specified_python_version(self, active_config, setup_experiment):
-        active_config.extend({"heroku_python_version": "3.8.7"})
+        active_config.extend({"heroku_python_version": "3.12.1"})
 
         exp_id, dst = setup_experiment(log=mock.Mock())
 
         with open(os.path.join(dst, "runtime.txt"), "r") as file:
             version = file.read()
 
-        assert version == "python-3.8.7"
+        assert version == "python-3.12.1"
 
     def test_setup_copies_docker_script(self, setup_experiment):
         exp_id, dst = setup_experiment(log=mock.Mock())
