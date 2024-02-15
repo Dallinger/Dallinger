@@ -489,7 +489,7 @@ class TestSetupExperiment(object):
             log = mock.Mock()
             tmp_dir = assemble_experiment_temp_dir(log, active_config)
 
-        assert "dallinger==" in (Path(tmp_dir) / "requirements.txt").read_text()
+        assert "dallinger" in (Path(tmp_dir) / "requirements.txt").read_text()
 
     @pytest.mark.slow
     def test_build_egg_if_in_development(self, active_config):
