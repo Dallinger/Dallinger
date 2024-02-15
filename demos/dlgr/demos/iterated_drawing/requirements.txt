@@ -1,1 +1,1 @@
-dallinger@git+https://github.com/Dallinger/Dallinger@release-v10.0.0
+dallinger
