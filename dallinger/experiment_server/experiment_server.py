@@ -1708,7 +1708,15 @@ def check_for_duplicate_assignments(participant):
 @app.route("/worker_complete", methods=["POST"])
 @db.scoped_session_decorator
 def worker_complete():
-    """Complete worker."""
+    """Called when a participant completes their task.
+
+    1. Loads participant row, with a lock
+    2. Checks participant status, to avoid double-submits
+    3. Updates end_time and status of participant
+    4. Asks recruiter if an event should be run
+    5. Calls exp.participant_task_completed(participant)
+    6. Runs any event requested by recruiter (synchronously)
+    """
     participant_id = request.values.get("participant_id")
     if not participant_id:
         return error_response(
