@@ -792,6 +792,11 @@ class Experiment(object):
             return
 
         if participant.status == "overrecruited":
+            logger.info(
+                "Skipping qualification assignment for overrecruited participant {}.".format(
+                    participant.id
+                )
+            )
             return
 
         quals = self.calculate_qualifications(participant)

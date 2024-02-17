@@ -1734,7 +1734,8 @@ def worker_complete():
 
 
 def _worker_complete(participant_id):
-    # Lock the participant row, then check and update status to avoid double-submits:
+    # Lock the participant row, then check and update status to avoid
+    # double-submits:
     participant = (
         models.Participant.query.populate_existing()
         .with_for_update()
@@ -1743,26 +1744,27 @@ def _worker_complete(participant_id):
     if participant is None:
         raise KeyError()
 
-    if participant.status not in {"working", "overrecruited"}:
+    if participant.end_time is not None:
         return  # Provide idempotence
 
     participant.end_time = datetime.now()
+    # NB: commit releases lock.
+    session.commit()
+
+    # First, notify experiment that participant has been marked complete. This
+    # is done first so that the experiment can request qualification assignment
+    # before the worker completes the HIT when using a recruiter like MTurk,
+    # where execution of the `worker_events.RecruiterSubmissionComplete` command
+    # is deferred until they've submitted the HIT on the MTurk platform.
+    exp = Experiment(session)
+    exp.participant_task_completed(participant)
+
     # Recruiter will mark participant with a different status depending
     # on whether asynchronous submission is necessary (Mturk, Prolific),
     # and will optionally return an event type to request immediate
     # further processing
     event_type = participant.recruiter.on_task_completion(participant)
-    # NB: commit releases lock
     session.commit()
-
-    # Notify experiment that participant has been marked complete. Doing
-    # this here, rather than in the worker function, means that
-    # the experiment can request qualification assignment before the
-    # worker completes the HIT when using a recruiter like MTurk, where
-    # execution of the `worker_events.RecruiterSubmissionComplete` command is
-    # deferred until they've submitted the HIT on the MTurk platform.
-    exp = Experiment(session)
-    exp.participant_task_completed(participant)
 
     if event_type is None:
         return
