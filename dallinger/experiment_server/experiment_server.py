@@ -1748,14 +1748,12 @@ def _worker_complete(participant_id):
         return  # Provide idempotence
 
     participant.end_time = datetime.now()
-    # NB: commit releases lock.
-    session.commit()
 
-    # First, notify experiment that participant has been marked complete. This
-    # is done first so that the experiment can request qualification assignment
-    # before the worker completes the HIT when using a recruiter like MTurk,
-    # where execution of the `worker_events.RecruiterSubmissionComplete` command
-    # is deferred until they've submitted the HIT on the MTurk platform.
+    # Immediately notify experiment that participant has been marked complete.
+    # This is done first so that the experiment can request qualification
+    # assignment before the worker submits their task on asynchronous
+    # recruitment platforms like MTurk. This prevents them from possibly being
+    # offered another task which they may no longer be qualified for.
     exp = Experiment(session)
     exp.participant_task_completed(participant)
 
@@ -1764,18 +1762,17 @@ def _worker_complete(participant_id):
     # and will optionally return an event type to request immediate
     # further processing
     event_type = participant.recruiter.on_task_completion(participant)
+    # NB: commit releases lock.
     session.commit()
 
-    if event_type is None:
-        return
-
-    # Currently we execute this function synchronously, regardless of the
-    # event type:
-    worker_function(
-        event_type=event_type,
-        assignment_id=participant.assignment_id,
-        participant_id=participant_id,
-    )
+    if event_type is not None:
+        # Currently we execute this function synchronously, regardless of the
+        # event type:
+        worker_function(
+            event_type=event_type,
+            assignment_id=participant.assignment_id,
+            participant_id=participant_id,
+        )
 
 
 @app.route("/worker_failed", methods=["GET"])
