@@ -1712,10 +1712,10 @@ def worker_complete():
 
     1. Loads participant row, with a lock
     2. Checks participant status, to avoid double-submits
-    3. Updates end_time and status of participant
-    4. Asks recruiter if an event should be run
-    5. Calls exp.participant_task_completed(participant)
-    6. Runs any event requested by recruiter (synchronously)
+    3. Updates end_time of participant
+    4. Calls exp.participant_task_completed(participant)
+    5. Asks recruiter for new participant status and possible action to run
+    6. Runs any action requested by recruiter (synchronously)
     """
     participant_id = request.values.get("participant_id")
     if not participant_id:
@@ -1744,8 +1744,9 @@ def _worker_complete(participant_id):
     if participant is None:
         raise KeyError()
 
+    # Provide idempotence
     if participant.end_time is not None:
-        return  # Provide idempotence
+        return
 
     participant.end_time = datetime.now()
 
@@ -1757,19 +1758,19 @@ def _worker_complete(participant_id):
     exp = Experiment(session)
     exp.participant_task_completed(participant)
 
-    # Recruiter will mark participant with a different status depending
-    # on whether asynchronous submission is necessary (Mturk, Prolific),
-    # and will optionally return an event type to request immediate
-    # further processing
-    event_type = participant.recruiter.on_task_completion(participant)
+    # The recruiter tells us which status to assign the participant,
+    # and synchronous recruiters also return the name of an event
+    # command to run immediately (and synchronously)
+    status_and_action = participant.recruiter.on_task_completion()
+    participant.status = status_and_action["new_status"]
     # NB: commit releases lock.
     session.commit()
 
-    if event_type is not None:
+    if "action" in status_and_action:
         # Currently we execute this function synchronously, regardless of the
         # event type:
         worker_function(
-            event_type=event_type,
+            event_type=status_and_action["action"],
             assignment_id=participant.assignment_id,
             participant_id=participant_id,
         )
