@@ -153,14 +153,10 @@ class Recruiter(object):
         """
         return None
 
-    def on_task_completion(self, participant):
-        """Return the name of the appropriate WorkerEvent command to run
-        when a participant's recruiter finishes processing their assignment
-        submission.
-
-        May also update participant status.
-
-        If no event should be processed, return None.
+    def on_task_completion(self):
+        """Return the new status to assign the particpant, and optionally,
+        the name of the appropriate WorkerEvent command to run when a
+        participant first completes their assignment.
         """
         raise NotImplementedError
 
@@ -469,15 +465,16 @@ class ProlificRecruiter(Recruiter):
         except ProlificServiceException as ex:
             logger.exception(str(ex))
 
-    def on_task_completion(self, participant):
+    def on_task_completion(self):
         """We cannot perform post-submission actions (approval, bonus payment)
         until after the participant has submitted their study via the Prolific
         UI, which we redirect them to from the exit page. This means that we
         can't do anything when the questionnaire is submitted, so we return None
         to signal this.
         """
-        participant.status = "recruiter_submission_started"
-        return None
+        return {
+            "new_status": "recruiter_submission_started",
+        }
 
     @property
     def current_study_id(self):
@@ -614,12 +611,14 @@ class CLIRecruiter(Recruiter):
         super(CLIRecruiter, self).__init__()
         self.config = get_config()
 
-    def on_task_completion(self, participant):
+    def on_task_completion(self):
         """In our case, the task submission is implicitly complete, since we
         have nothing to do.
         """
-        participant.status = "submitted"
-        return "RecruiterSubmissionComplete"
+        return {
+            "new_status": "submitted",
+            "action": "RecruiterSubmissionComplete",
+        }
 
     def exit_response(self, experiment, participant):
         """Delegate to the experiment for possible values to show to the
@@ -742,12 +741,14 @@ class SimulatedRecruiter(Recruiter):
 
     nickname = "sim"
 
-    def on_task_completion(self, participant):
+    def on_task_completion(self):
         """In our case, the task submission is implicitly complete, since we
         have nothing to do.
         """
-        participant.status = "submitted"
-        return "RecruiterSubmissionComplete"
+        return {
+            "new_status": "submitted",
+            "action": "RecruiterSubmissionComplete",
+        }
 
     def open_recruitment(self, n=1):
         """Open recruitment."""
@@ -1247,12 +1248,13 @@ class MTurkRecruiter(Recruiter):
                 "on MTurk and can no longer submit the questionnaire"
             )
 
-    def on_task_completion(self, participant):
+    def on_task_completion(self):
         """MTurk will send its own notification when the worker
         completes the HIT on that service.
         """
-        participant.status = "recruiter_submission_started"
-        return None
+        return {
+            "new_status": "recruiter_submission_started",
+        }
 
     def reward_bonus(self, participant, amount, reason):
         """Reward the Turker for a specified assignment with a bonus."""
@@ -1365,8 +1367,7 @@ class MTurkRecruiter(Recruiter):
                 session.commit()
 
             dlgr_event_type = self._translate_event_type(mturk_type)
-            participant_id = None
-            q.enqueue(worker_function, dlgr_event_type, assignment_id, participant_id)
+            q.enqueue(worker_function, dlgr_event_type, assignment_id, participant.id)
 
     def _mturk_status_for(self, participant):
         try:
@@ -1605,9 +1606,11 @@ class BotRecruiter(Recruiter):
         """Logging only. These are bots."""
         logger.info("Bots don't get bonuses. Sorry, bots.")
 
-    def on_task_completion(self, participant):
-        participant.status = "submitted"
-        return "BotRecruiterSubmissionComplete"
+    def on_task_completion(self):
+        return {
+            "new_status": "submitted",
+            "action": "BotRecruiterSubmissionComplete",
+        }
 
     def _get_bot_factory(self):
         # Must be imported at run-time
