@@ -25,15 +25,13 @@ es-->>d2: HTTP Response
 d2->>d2: submitAssignment()
 d2->>es: /worker_complete POST
 es->>part: end_time
-es->>rec: on_completion_event(participant)
-rec->>part: status=["submitted"|"recruiter_submission_started"]
-rec-->>es: event type string or None
-note over es: COMMIT
 es->>ex: participant_task_completed()
 ex->>rec: assign_experiment_qualifications()
-
-
-opt event type not None (synchronous recruiters)
+es->>rec: on_task_completion()
+rec-->>es: {"new_status": (status), "action": (event name)}
+es->>part: status
+note over es: COMMIT
+opt "action" requested by recruiter (synchronous recruiters)
 es->>wf: __call__("RecruiterSubmissionComplete", args...)
 end
 
@@ -66,7 +64,6 @@ note over ex: Most of what follows becomes potentially private to the Experiment
 opt if not set already
 ex->>part: end_time
 end
-ex->>part: status="submitted"
 
 ex->>rec: approve_hit(assignment_id)
 ex->>part: base_pay
@@ -79,7 +76,7 @@ ex->>ex: bonus
 ex-->>ex: $2.99
 ex->>part: bonus=2.99
 ex->>ex: bonus_reason()
-ex-->>ex: \"Great work"
+ex-->>ex: "Great work"
 ex->>rec: award_bonus()
 else sad path
 ex->>part: status="bad_data"

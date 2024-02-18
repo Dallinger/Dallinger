@@ -720,6 +720,12 @@ class Experiment(object):
         # Check that the participant has completed task submission with
         # their recruiter:
         if participant.status != "submitted":
+            self.log(
+                "Called with unexpected participant status! "
+                "participant ID: {}, status: {}, recruiter: {}".format(
+                    participant.id, participant.status, participant.recruiter.nickname
+                )
+            )
             return
 
         config = get_config()
