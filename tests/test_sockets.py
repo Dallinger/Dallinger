@@ -282,7 +282,7 @@ class TestChatEndpoint:
         #    ``TestChannel.test_subscribe_sends_control_message``
         # 2. A websocket connected message on the control channel sent before
         #    entering the receive loop in `client.publish()`
-        # 3. The plain text message recieved from `ws.recieve()` on the
+        # 3. The plain text message received from `ws.receive()` on the
         #    `special` channel.
 
         assert sockets.redis_conn.publish.call_count == 3
