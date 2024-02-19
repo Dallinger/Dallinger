@@ -1738,7 +1738,7 @@ def _worker_complete(participant_id):
     # double-submits:
     participant = (
         models.Participant.query.populate_existing()
-        .with_for_update()
+        .with_for_update(of=models.Participant)
         .get(participant_id)
     )
     if participant is None:

@@ -286,7 +286,9 @@ def prolific_submission_listener():
 
     # Lock the participant row, then check and update status to avoid double-submits:
     participant = (
-        Participant.query.populate_existing().with_for_update().get(participant_id)
+        Participant.query.populate_existing()
+        .with_for_update(of=Participant)
+        .get(participant_id)
     )
     if participant is not None and participant.status != "submitted":
         participant.status = "submitted"
