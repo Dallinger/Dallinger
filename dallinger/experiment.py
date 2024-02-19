@@ -720,7 +720,7 @@ class Experiment(object):
         # Check that the participant has completed task submission with
         # their recruiter:
         if participant.status != "submitted":
-            self.log(
+            logger.warning(
                 "Called with unexpected participant status! "
                 "participant ID: {}, status: {}, recruiter: {}".format(
                     participant.id, participant.status, participant.recruiter.nickname
@@ -753,16 +753,26 @@ class Experiment(object):
         # If they pass the data check, we might pay a bonus
         bonus = self.bonus(participant=participant)
         has_already_received_bonus = participant.bonus is not None
-        if not has_already_received_bonus and bonus >= min_real_bonus:
-            self.log("Bonus = {}: paying bonus".format(bonus))
+        if has_already_received_bonus:
+            self.log(
+                "Bonus of {} will NOT be paid, since participant {} "
+                "has already received a bonus of {}".format(
+                    bonus, participant.id, participant.bonus
+                )
+            )
+        elif bonus < min_real_bonus:
+            self.log(
+                "Bonus of {} will NOT be paid to participant {} as it is "
+                "less than {}.".format(bonus, participant.id, min_real_bonus)
+            )
+        else:
+            self.log("Paying bonus of {} to {}".format(bonus, participant.id))
             participant.recruiter.reward_bonus(
                 participant,
                 bonus,
                 self.bonus_reason(),
             )
             participant.bonus = bonus
-        else:
-            self.log("Bonus = {}: NOT paying bonus".format(bonus))
 
         # Attention Check
         if self.attention_check(participant=participant):
