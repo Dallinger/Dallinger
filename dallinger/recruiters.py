@@ -1215,7 +1215,7 @@ class MTurkRecruiter(Recruiter):
                     "but proceed with caution.".format(participant.id)
                 )
             else:
-                self._send_notification_missing_rest_notification_for(participant)
+                self._report_NotificationMissing_for(participant)
                 unsubmitted.append(summary)
 
         disable_hit = self.config.get("disable_when_duration_exceeded")
@@ -1390,7 +1390,7 @@ class MTurkRecruiter(Recruiter):
             None,
         )
 
-    def _send_notification_missing_rest_notification_for(self, participant):
+    def _report_NotificationMissing_for(self, participant):
         q = _get_queue()
         q.enqueue(
             worker_function, "NotificationMissing", participant.assignment_id, None
