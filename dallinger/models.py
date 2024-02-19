@@ -242,7 +242,7 @@ class Participant(Base, SharedMixin):
     #:    - ``working`` - participant is working
     #:    - ``overrecruited`` - number of recruited participants exceed number required for the experiment, so this participant will not be used
     #:    - ``recruiter_submission_started`` - participant has submitted their assignment to their recruiter, but the recruiter is still processing it
-    #:    - ``submitted`` - participant's assignment submission processing has been completed by their recruiterl
+    #:    - ``submitted`` - participant's assignment submission processing has been completed by their recruiter
     #:    - ``approved`` - their work has been approved and they have been paid
     #:    - ``rejected`` - their work has been rejected
     #:    - ``returned`` - they returned the hit before finishing
