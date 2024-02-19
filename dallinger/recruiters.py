@@ -478,6 +478,34 @@ class ProlificRecruiter(Recruiter):
             "new_status": "recruiter_submission_started",
         }
 
+    def notify_duration_exceeded(self, participants, reference_time):
+        """The participant has exceed the maximum time for the activity,
+        defined in the "duration" config value. We need find out the Submission
+        status on Prolific and act based on this.
+        """
+        q = _get_queue()
+
+        for participant in participants:
+            assignment_id = participant.assignment_id
+            participant_id = participant.id
+            submission = self.prolificservice.get_participant_submission(assignment_id)
+            status = submission["status"]
+
+            if status == "ACTIVE":
+                q.enqueue(
+                    worker_function,
+                    "AssignmentAbandoned",
+                    assignment_id,
+                    participant_id,
+                )
+            elif status == "RETURNED":
+                q.enqueue(
+                    worker_function,
+                    "AssignmentReturned",
+                    assignment_id,
+                    participant_id,
+                )
+
     @property
     def current_study_id(self):
         """Return the ID of the Study associated with the active experiment ID
