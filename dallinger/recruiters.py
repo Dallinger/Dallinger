@@ -1354,7 +1354,7 @@ class MTurkRecruiter(Recruiter):
                 )
                 if participant is None:
                     logger.error(
-                        "Recieved an AssignmentSubmitted notification from MTurk for assignment ID {}, "
+                        "Received an AssignmentSubmitted notification from MTurk for assignment ID {}, "
                         "which is not related to any participant.".format(assignment_id)
                     )
                     return
@@ -1432,7 +1432,7 @@ class MTurkRecruiter(Recruiter):
                 try:
                     self.mturkservice.get_qualification_type_by_name(new["name"])
                 except QualificationNotFoundException:
-                    logger.warn(
+                    logger.warning(
                         "Did not find qualification {}. Trying again...".format(
                             new["name"]
                         )
@@ -1445,7 +1445,7 @@ class MTurkRecruiter(Recruiter):
 
         unavailable = [q for q in result["new_qualifications"] if not q["available"]]
         if unavailable:
-            logger.warn(
+            logger.warning(
                 "After several attempts, some qualifications are still not ready "
                 "for assignment: {}".format(", ".join(unavailable))
             )
