@@ -54,7 +54,7 @@ class ProlificService:
         stop=tenacity.stop_after_attempt(5),
         reraise=True,
     )
-    def approve_participant_session(self, session_id: str) -> dict:
+    def approve_participant_submission(self, submission_id: str) -> dict:
         """Mark an assignment as approved.
 
         We do some retrying here, because our first attempt to approve will
@@ -62,19 +62,21 @@ class ProlificService:
         the study on Prolific. If we get there first, there will be an error
         because the submission hasn't happened yet.
         """
-        status = self.get_participant_session(session_id)["status"]
+        status = self.get_participant_submission(submission_id)["status"]
         if status != "AWAITING REVIEW":
             # This will trigger a retry from the decorator
             raise ProlificServiceException("Prolific session not yet submitted.")
 
         return self._req(
             method="POST",
-            endpoint=f"/submissions/{session_id}/transition/",
+            endpoint=f"/submissions/{submission_id}/transition/",
             json={"action": "APPROVE"},
         )
 
-    def get_participant_session(self, session_id: str) -> dict:
-        """Retrieve details of a participant Session
+    def get_participant_submission(self, submission_id: str) -> dict:
+        """Retrieve details of a participant Submission
+
+        See: https://docs.prolific.com/docs/api-docs/public/#tag/Submissions/Submission-object
 
         This is roughly equivalent to an Assignment on MTurk.
 
@@ -88,7 +90,7 @@ class ProlificService:
             "status": "ACTIVE"
         }
         """
-        return self._req(method="GET", endpoint=f"/submissions/{session_id}/")
+        return self._req(method="GET", endpoint=f"/submissions/{submission_id}/")
 
     def published_study(
         self,
