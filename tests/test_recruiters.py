@@ -481,14 +481,14 @@ class TestProlificRecruiter(object):
         fake_id = "fake assignment id"
         recruiter.approve_hit(fake_id)
 
-        recruiter.prolificservice.approve_participant_session.assert_called_once_with(
-            session_id=fake_id
+        recruiter.prolificservice.approve_participant_submission.assert_called_once_with(
+            submission_id=fake_id
         )
 
     def test_approve_hit_logs_exception(self, recruiter):
         from dallinger.prolific import ProlificServiceException
 
-        recruiter.prolificservice.approve_participant_session.side_effect = (
+        recruiter.prolificservice.approve_participant_submission.side_effect = (
             ProlificServiceException("Boom!")
         )
         with mock.patch("dallinger.recruiters.logger") as mock_logger:

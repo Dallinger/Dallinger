@@ -418,8 +418,8 @@ class ProlificRecruiter(Recruiter):
     def approve_hit(self, assignment_id: str):
         """Approve a participant's assignment/submission on Prolific"""
         try:
-            return self.prolificservice.approve_participant_session(
-                session_id=assignment_id
+            return self.prolificservice.approve_participant_submission(
+                submission_id=assignment_id
             )
         except ProlificServiceException as ex:
             logger.exception(str(ex))
