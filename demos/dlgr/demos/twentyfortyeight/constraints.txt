@@ -65,7 +65,7 @@ cryptography==42.0.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   pyopenssl
-dallinger @ git+https://github.com/Dallinger/Dallinger@release-v10.0.0
+dallinger==10.0.0
     # via -r requirements.txt
 decorator==5.1.1
     # via
@@ -407,4 +407,4 @@ zope-interface==6.1
 # The following packages are considered to be unsafe in a requirements file:
 # pip
 # setuptools
-# generate from file with hash  a0b6547b6f27818ab8aea36d8b63a692
+# generate from file with hash  0cab82a0f71a21f46d5e1123cd7483ee
