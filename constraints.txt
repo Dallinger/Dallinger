@@ -226,7 +226,7 @@ jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-json5==0.9.14
+json5==0.9.17
     # via jupyterlab-server
 jsonpointer==2.4
     # via jsonschema
