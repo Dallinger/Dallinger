@@ -86,7 +86,6 @@ default_keys = (
     ("prolific_estimated_completion_minutes", int, []),
     ("prolific_maximum_allowed_minutes", int, []),
     ("prolific_recruitment_config", six.text_type, [], False, [is_valid_json]),
-    ("prolific_reward_cents", int, []),
     ("protected_routes", six.text_type, [], False, [is_valid_json]),
     ("recruiter", six.text_type, []),
     ("recruiters", six.text_type, []),
@@ -141,10 +140,11 @@ class Configuration(object):
         normalized_mapping = {}
         for key, value in mapping.items():
             key = self.synonyms.get(key, key)
+            test_deprecation(key)
             if key not in self.types:
                 # This key hasn't been registered, we ignore it
                 if strict:
-                    raise KeyError("{} is not a valid configuration key".format(key))
+                    raise_invalid_key_error(key)
                 continue
             expected_type = self.types.get(key)
             if cast_types:
@@ -397,3 +397,28 @@ def initialize_experiment_package(path):
 
 def experiment_available():
     return Path("experiment.py").exists()
+
+
+def raise_invalid_key_error(key):
+    error_text = "{} is not a valid configuration key".format(key)
+    if key == "prolific_reward_cents":
+        error_text = (
+            "The 'prolific_reward_cents' config variable has been removed. "
+            + "Use 'base_payment' instead to set base compensation for participants. "
+            + "Note that base_payment is written in terms of the base unit for the currency, "
+            + "not in cents. So, if your prolific_reward_cents was originally set to 50, "
+            + "then you should set your base_payment to 0.5."
+        )
+    raise KeyError(error_text)
+
+
+def test_deprecation(key):
+    if key == "prolific_maximum_allowed_minutes":
+        import warnings
+
+        warnings.simplefilter("always", DeprecationWarning)
+        warnings.warn(
+            "The 'prolific_maximum_allowed_minutes' config variable has no effect "
+            + "as it is currently ignored by the Prolific API.",
+            DeprecationWarning,
+        )

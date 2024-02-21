@@ -1,0 +1,170 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dallinger"
+version = "9.12.0"
+maintainers = [
+  {name = "Jordan Suchow", email = "suchow@berkeley.edu"},
+  {name = "Peter Harrison", email = "pmch2@cam.ac.uk"},
+  {name = "Frank Höger", email="frank.hoeger@ae.mpg.de"},
+]
+license = {file = "LICENSE"}
+description = "Laboratory automation for the behavioral and social sciences"
+keywords = ["science", "cultural evolution", "experiments", "psychology"]
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Framework :: Flask",
+    "Topic :: Scientific/Engineering",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+]
+
+dependencies = [
+    "apscheduler",
+    "boto3",
+    "build",
+    "cached-property",
+    "click",
+    "faker",
+    "flask-sock",
+    "flask",
+    "flask-crossdomain",
+    "flask-login",
+    "flask-wtf",
+    "future",
+    "gevent",
+    "greenlet",
+    "gunicorn[gevent]",
+    "heroku3",
+    "ipython < 8.13",
+    "localconfig",
+    "numpy < 1.25",
+    "pandas < 2.1",
+    "pexpect",
+    "pip >= 20",
+    "pip-tools",
+    "psycopg2",
+    "psutil",
+    "pyopenssl",
+    "redis",
+    "requests",
+    "rq",
+    "selenium",
+    "six",
+    "sqlalchemy < 2",
+    "sqlalchemy-postgres-copy",
+    "tabulate",
+    "tenacity",
+    "timeago",
+    "tzlocal",
+    "ua-parser",
+    "urllib3 < 2",
+    "user-agents",
+]
+
+[project.optional-dependencies]
+data = [
+    "pandas",
+    "tablib[all]",
+]
+dev = [
+    "alabaster",
+    "black",
+    "black[jupyter]",
+    "bump2version",
+    "coverage",
+    "coverage_pth",
+    "flake8",
+    "isort",
+    "mock",
+    "myst-parser",
+    "pre-commit < 3.6",
+    "pycodestyle",
+    "pypandoc",
+    "pytest",
+    "pytest-rerunfailures",
+    "sphinx < 7.2",
+    "sphinx_rtd_theme",
+    "sphinxcontrib-applehelp <= 1.0.4",
+    "sphinxcontrib-devhelp <= 1.0.2",
+    "sphinxcontrib-htmlhelp <= 2.0.1",
+    "sphinxcontrib-qthelp <= 1.0.3",
+    "sphinxcontrib-serializinghtml <= 1.1.5",
+    "sphinxcontrib-spelling",
+    "tox",
+]
+docker = [
+    "docker",
+    "paramiko",
+    "sshtunnel",
+]
+jupyter = [
+    "ipywidgets",
+    "jupyter",
+    "jupyter-server",
+]
+
+[project.entry-points.pytest11]
+pytest_dallinger = "dallinger.pytest_dallinger"
+
+[project.scripts]
+dallinger = "dallinger.command_line:dallinger"
+dallinger-housekeeper = "dallinger.command_line:dallinger_housekeeper"
+dallinger_heroku_web = "dallinger_scripts.web:main"
+dallinger_heroku_worker = "dallinger_scripts.worker:main"
+dallinger_heroku_clock = "dallinger_scripts.clock:main"
+
+[project.urls]
+Changelog = "https://github.com/Dallinger/Dallinger/blob/master/CHANGELOG.md"
+Documentation = "https://dallinger.readthedocs.io"
+Homepage = "https://github.com/Dallinger/Dallinger"
+Issues = "http://github.com/Dallinger/Dallinger/issues"
+Repository = "https://github.com/Dallinger/Dallinger"
+
+[tool.hatch.build.targets.wheel.force-include]
+"dev-requirements.txt" = "dev-requirements.txt"
+"dallinger/docker/docker-compose.yml.j2" = "dallinger/docker/docker-compose.yml.j2"
+"dallinger/docker/heroku.yml" = "dallinger/docker/heroku.yml"
+"dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2" = "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2"
+"dallinger/docker/ssh_templates/docker-compose-server.yml" = "dallinger/docker/ssh_templates/docker-compose-server.yml"
+
+[tool.hatch.build.targets.wheel]
+include = [
+    "/dallinger",
+    "/dallinger_scripts"
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/dallinger",
+    "/dallinger_scripts",
+    "/docs",
+    "/tests",
+    "/constraints.txt",
+    "/dev-requirements.txt",
+    "/incubator.png",
+    "/requirements.txt",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.tox
+  | \.venv
+  | docs/_build
+  | dist
+)/
+'''
