@@ -65,7 +65,7 @@ flask-sock==0.7.0
     # via dallinger
 flask-wtf==1.2.1
     # via dallinger
-future==0.18.3
+future==1.0.0
     # via dallinger
 gevent==24.2.1
     # via
