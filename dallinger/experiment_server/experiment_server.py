@@ -55,18 +55,24 @@ app = Flask("Experiment_Server")
 
 @app.before_request
 def before_request():
-    from dallinger.experiment import load
+    try:
+        from dallinger.experiment import load
 
-    exp = load()
-    return exp.before_request()
+        exp = load()
+        return exp.before_request()
+    except ImportError:
+        return
 
 
 @app.after_request
 def after_request(response):
-    from dallinger.experiment import load
+    try:
+        from dallinger.experiment import load
 
-    exp = load()
-    return exp.after_request(request, response)
+        exp = load()
+        return exp.after_request(request, response)
+    except ImportError:
+        return response
 
 
 @app.before_request
