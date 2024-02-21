@@ -203,6 +203,18 @@ class Experiment(object):
         return response
 
     @classmethod
+    def get_status(cls):
+        """
+        Return the status of the experiment as a dictionary.
+        """
+        total_working = (
+            db.session.query(func.count(Participant.id))
+            .filter_by(status="working")
+            .scalar()
+        )
+        return {"total_working": total_working}
+
+    @classmethod
     def config_class(cls):
         """
         Override this method in order to define a custom Configuration class
