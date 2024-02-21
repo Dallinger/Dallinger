@@ -54,28 +54,6 @@ app = Flask("Experiment_Server")
 
 
 @app.before_request
-def before_request():
-    try:
-        from dallinger.experiment import load
-
-        exp = load()
-        return exp.before_request()
-    except ImportError:
-        return
-
-
-@app.after_request
-def after_request(response):
-    try:
-        from dallinger.experiment import load
-
-        exp = load()
-        return exp.after_request(request, response)
-    except ImportError:
-        return response
-
-
-@app.before_request
 def _load_config():
     _config()
 
@@ -191,6 +169,18 @@ if exp_klass is not None:  # pragma: no cover
     hidden_dashboards = getattr(exp_klass, "hidden_dashboards", ())
     for route_name in hidden_dashboards:
         dashboard.dashboard_tabs.remove(route_name)
+
+
+@app.before_request
+def before_request():
+    if exp_klass is not None:
+        return exp_klass.before_request()
+
+
+@app.after_request
+def after_request(response):
+    if exp_klass is not None:
+        return exp_klass.after_request(request, response)
 
 
 # Ideally, we'd only load recruiter routes if the recruiter is active, but
