@@ -117,6 +117,20 @@ try:
 except ImportError:
     exp_klass = None  # pragma: no cover
 
+
+@app.before_request
+def before_request():
+    if exp_klass is not None:
+        return exp_klass.before_request()
+
+
+@app.after_request
+def after_request(response):
+    if exp_klass is not None:
+        return exp_klass.after_request(request, response)
+    return response
+
+
 if exp_klass is not None:  # pragma: no cover
     bp = exp_klass.experiment_routes
     routes = experiment.EXPERIMENT_ROUTE_REGISTRATIONS
@@ -169,18 +183,6 @@ if exp_klass is not None:  # pragma: no cover
     hidden_dashboards = getattr(exp_klass, "hidden_dashboards", ())
     for route_name in hidden_dashboards:
         dashboard.dashboard_tabs.remove(route_name)
-
-
-@app.before_request
-def before_request():
-    if exp_klass is not None:
-        return exp_klass.before_request()
-
-
-@app.after_request
-def after_request(response):
-    if exp_klass is not None:
-        return exp_klass.after_request(request, response)
 
 
 # Ideally, we'd only load recruiter routes if the recruiter is active, but
