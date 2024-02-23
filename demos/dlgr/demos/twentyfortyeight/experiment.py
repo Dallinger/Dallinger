@@ -1,4 +1,5 @@
 """The game 2048."""
+
 from dallinger.config import get_config
 from dallinger.experiment import Experiment
 from dallinger.networks import Empty

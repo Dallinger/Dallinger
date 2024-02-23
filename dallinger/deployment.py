@@ -26,37 +26,44 @@ from dallinger.utils import (
     setup_experiment,
 )
 
-INITIAL_DELAY = 1
+DEFAULT_DELAY = 1
 BACKOFF_FACTOR = 2
 MAX_ATTEMPTS = 6
 
 
-def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
+def handle_launch_data(url, error, delay=DEFAULT_DELAY, attempts=MAX_ATTEMPTS):
+    """Sends a POST request to te given `url`, retrying it with exponential backoff.
+    The passed `error` function is invoked to give feedback as each error occurs,
+    possibly multiple times.
+    """
     launch_data = None
     launch_request = None
     for remaining_attempt in sorted(range(attempts), reverse=True):  # [3, 2, 1, 0]
-        time.sleep(delay)
         try:
             launch_request = requests.post(url)
             request_happened = True
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as err:
             request_happened = False
-            error(f"Error accessing {url}")
+            error(f"Error accessing {url}:\n{err}")
 
-        try:
-            if request_happened:
+        if request_happened:
+            try:
                 launch_data = launch_request.json()
-        except ValueError:
-            error(
-                "Error parsing response from {}, "
-                "check web dyno logs for details: {}".format(url, launch_request.text)
-            )
-            raise
-        except json.decoder.JSONDecodeError:
-            # The Heroku backend did not return JSON. It means our dallinger instance
-            # was not (yet) running at the time of the request.
-            # We treat this similarly to a RequestException: we'll try again after waiting.
-            request_happened = False
+            except json.decoder.JSONDecodeError:
+                # The backend did not return JSON. It means our dallinger instance
+                # was not (yet) running at the time of the request.
+                # We treat this similarly to a RequestException: we'll try again after waiting.
+                request_happened = False
+                error(
+                    f"Error parsing response from {url}, "
+                    f"check server logs for details.\n{launch_request.text}"
+                )
+            except ValueError as err:
+                error(
+                    f"Error parsing response from {url}, "
+                    f"check server logs for details.\n{err}\n{launch_request.text}"
+                )
+                raise
 
         # Early return if successful
         if request_happened and launch_request.ok:
@@ -78,8 +85,9 @@ def _handle_launch_data(url, error, delay=INITIAL_DELAY, attempts=MAX_ATTEMPTS):
                     next_attempt_count, attempts, delay
                 )
             )
+        time.sleep(delay)
 
-    error("Experiment launch failed, check web dyno logs for details.")
+    error("Experiment launch failed, check server logs for details.")
     if launch_data and launch_data.get("message"):
         error(launch_data["message"])
     if launch_request is not None:
@@ -216,7 +224,7 @@ def deploy_sandbox_shared_setup(
     log("Launching the experiment on the remote server and starting recruitment...")
     launch_url = "{}/launch".format(heroku_app.url)
     log("Calling {}".format(launch_url), chevrons=False)
-    launch_data = _handle_launch_data(launch_url, error=log)
+    launch_data = handle_launch_data(launch_url, error=log)
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,
@@ -390,7 +398,7 @@ class DebugDeployment(HerokuLocalDeployment):
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
         self.out.log("Launching the experiment...")
         try:
-            result = _handle_launch_data(
+            result = handle_launch_data(
                 "{}/launch".format(base_url), error=self.out.error, attempts=1
             )
         except Exception:
@@ -545,7 +553,7 @@ class LoaderDeployment(HerokuLocalDeployment):
         if self.exp_config.get("replay"):
             self.out.log("Launching the experiment...")
             time.sleep(4)
-            _handle_launch_data("{}/launch".format(base_url), error=self.out.error)
+            handle_launch_data("{}/launch".format(base_url), error=self.out.error)
             heroku.monitor(listener=self.notify)
 
         # Just run until interrupted:

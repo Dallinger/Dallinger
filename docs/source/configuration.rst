@@ -346,7 +346,8 @@ Deployment Configuration
     recommended that you use at least two.
 
 ``num_dynos_worker`` *integer*
-    Number of Heroku dynos to use for performing other computations.
+    Number of Heroku dynos to use for performing other computations,
+    or (when deploying via Docker SSH) the number of worker Docker containers.
 
 ``host`` *unicode*
     IP address of the host.

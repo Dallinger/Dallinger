@@ -14,9 +14,9 @@ def test_get_docker_compose_yml_extra_config():
 def test_get_docker_compose_yml_core_config():
     """Make sure worker and web services have the necessary variables to run"""
     result = get_yaml({})
-    assert "REDIS_URL" in result["services"]["worker"]["environment"]
-    assert "DATABASE_URL" in result["services"]["worker"]["environment"]
-    assert "HOME" in result["services"]["worker"]["environment"]
+    assert "REDIS_URL" in result["services"]["worker_1"]["environment"]
+    assert "DATABASE_URL" in result["services"]["worker_1"]["environment"]
+    assert "HOME" in result["services"]["worker_1"]["environment"]
 
 
 def test_get_docker_compose_yml_env_vars_always_strings():
@@ -24,8 +24,8 @@ def test_get_docker_compose_yml_env_vars_always_strings():
     values in the `environment` section of each service.
     """
     result = get_yaml({"foo": True, "bar": 2})
-    assert result["services"]["worker"]["environment"]["foo"] == "True"
-    assert result["services"]["worker"]["environment"]["bar"] == "2"
+    assert result["services"]["worker_1"]["environment"]["foo"] == "True"
+    assert result["services"]["worker_1"]["environment"]["bar"] == "2"
 
 
 def test_get_docker_compose_yml_env_vars_escaping():
@@ -37,12 +37,12 @@ def test_get_docker_compose_yml_env_vars_escaping():
         }
     )
     assert (
-        result["services"]["worker"]["environment"]["foo"]
+        result["services"]["worker_1"]["environment"]["foo"]
         == r'" a quote and a \ backslash '
     )
 
     assert (
-        result["services"]["worker"]["environment"]["bar"]
+        result["services"]["worker_1"]["environment"]["bar"]
         == "Dollar signs should be escaped with another dollar sign: $$1.50"
     )
 
@@ -78,3 +78,11 @@ def get_yaml(config):
         config, "dlgr-8c43a887", "ghcr.io/dallinger/dallinger/bartlett1932", "foobar"
     )
     return yaml.safe_load(yaml_contents)
+
+
+def test_num_dynos():
+    """Make sure the correct number of worker services is created"""
+    n = 3
+    result = get_yaml({"num_dynos_worker": n})
+    for i in range(n):
+        assert f"worker_{i + 1}" in result["services"]

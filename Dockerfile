@@ -1,6 +1,6 @@
 # syntax = docker/dockerfile:1.2
 ###################### Image with build tools to compile wheels ###############
-FROM python:3.11-bullseye as wheels
+FROM python:3.12-bullseye as wheels
 ENV DEBIAN_FRONTEND=noninteractive
 
 LABEL Description="Dallinger base docker image" Version="1.0"
@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 
 ###################### Dallinger base image ###################################
-FROM python:3.11-bullseye as dallinger
+FROM python:3.12-bullseye as dallinger
 ENV DEBIAN_FRONTEND=noninteractive
 LABEL org.opencontainers.image.source https://github.com/Dallinger/Dallinger
 
@@ -83,10 +83,10 @@ RUN --mount=type=cache,target=/chromedownload \
     CHROME_VERSION=$(curl https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json | jq .channels.Stable.version | tr -d '"') && \
     echo Installing Chrome $CHROME_VERSION && \
     CHROME_FILEPATH=/chromedownload/chrome-stable_${CHROME_VERSION}_linux64.zip && \
-    ([ -f $CHROME_FILEPATH ] || busybox wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chrome-linux64.zip -O $CHROME_FILEPATH) && \
+    ([ -f $CHROME_FILEPATH ] || busybox wget https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chrome-linux64.zip -O $CHROME_FILEPATH) && \
     busybox unzip $CHROME_FILEPATH -d /opt/ && \
     busybox ln -s /opt/chrome-linux64/chrome /usr/local/bin/chrome && \
     echo Installing ChromeDriver $CHROME_VERSION && \
     CHROMEDRIVER_FILEPATH=/chromedownload/chromedriver-stable_${CHROME_VERSION}_linux64.zip && \
-    ([ -f $CHROMEDRIVER_FILEPATH ] || busybox wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chromedriver-linux64.zip -O $CHROMEDRIVER_FILEPATH) && \
+    ([ -f $CHROMEDRIVER_FILEPATH ] || busybox wget https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip -O $CHROMEDRIVER_FILEPATH) && \
     busybox unzip $CHROMEDRIVER_FILEPATH -d /usr/local/bin/

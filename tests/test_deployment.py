@@ -14,6 +14,7 @@ from pathlib import Path
 import mock
 import pexpect
 import pytest
+import requests
 import six
 from pytest import raises
 from six.moves import configparser
@@ -57,7 +58,7 @@ def faster(tempdir, active_config):
 
 @pytest.fixture
 def launch():
-    with mock.patch("dallinger.deployment._handle_launch_data") as hld:
+    with mock.patch("dallinger.deployment.handle_launch_data") as hld:
         hld.return_value = {"recruitment_msg": "fake\nrecruitment\nlist"}
         yield hld
 
@@ -370,14 +371,14 @@ class TestSetupExperiment(object):
         assert copy == orig
 
     def test_setup_uses_specified_python_version(self, active_config, setup_experiment):
-        active_config.extend({"heroku_python_version": "3.8.7"})
+        active_config.extend({"heroku_python_version": "3.12.1"})
 
         exp_id, dst = setup_experiment(log=mock.Mock())
 
         with open(os.path.join(dst, "runtime.txt"), "r") as file:
             version = file.read()
 
-        assert version == "python-3.8.7"
+        assert version == "python-3.12.1"
 
     def test_setup_copies_docker_script(self, setup_experiment):
         exp_id, dst = setup_experiment(log=mock.Mock())
@@ -488,7 +489,7 @@ class TestSetupExperiment(object):
             log = mock.Mock()
             tmp_dir = assemble_experiment_temp_dir(log, active_config)
 
-        assert "dallinger==" in (Path(tmp_dir) / "requirements.txt").read_text()
+        assert "dallinger" in (Path(tmp_dir) / "requirements.txt").read_text()
 
     @pytest.mark.slow
     def test_build_egg_if_in_development(self, active_config):
@@ -734,13 +735,12 @@ class TestDeploySandboxSharedSetupFullSystem(object):
 
 
 @pytest.mark.usefixtures("bartlett_dir")
-@pytest.mark.slow
-class Test_handle_launch_data(object):
+class Testhandle_launch_data(object):
     @pytest.fixture
     def handler(self):
-        from dallinger.deployment import _handle_launch_data
+        from dallinger.deployment import handle_launch_data
 
-        return _handle_launch_data
+        return handle_launch_data
 
     def test_success(self, handler):
         log = mock.Mock()
@@ -751,19 +751,17 @@ class Test_handle_launch_data(object):
             mock_post.return_value = result
             assert handler("/some-launch-url", error=log) == {"message": "msg!"}
 
-    def test_failure(self, handler):
-        from requests.exceptions import HTTPError
-
+    def test_failure_mock(self, handler):
         log = mock.Mock()
         with mock.patch("dallinger.deployment.requests.post") as mock_post:
             mock_post.return_value = mock.Mock(
                 ok=False,
                 json=mock.Mock(return_value={"message": "msg!"}),
-                raise_for_status=mock.Mock(side_effect=HTTPError),
+                raise_for_status=mock.Mock(side_effect=requests.exceptions.HTTPError),
                 status_code=500,
                 text="Failure",
             )
-            with pytest.raises(HTTPError):
+            with pytest.raises(requests.exceptions.HTTPError):
                 handler("/some-launch-url", error=log, delay=0.05, attempts=3)
 
         log.assert_has_calls(
@@ -777,10 +775,30 @@ class Test_handle_launch_data(object):
                     "Experiment launch failed. Trying again (attempt 3 of 3) in 0.2 seconds ..."
                 ),
                 mock.call("Error accessing /some-launch-url (500):\nFailure"),
-                mock.call("Experiment launch failed, check web dyno logs for details."),
+                mock.call("Experiment launch failed, check server logs for details."),
                 mock.call("msg!"),
             ]
         )
+
+    def test_failure_real(self, handler):
+        log = mock.Mock()
+
+        try:
+            handler("https://httpbin.org/status/500", log, attempts=1)
+        except requests.exceptions.HTTPError:
+            pass
+        log.assert_has_calls(
+            [
+                mock.call(
+                    "Error parsing response from https://httpbin.org/status/500, check server logs for details.\n"
+                ),
+                mock.call("Experiment launch failed, check server logs for details."),
+            ]
+        )
+
+        log.reset_mock()
+        handler("https://nonexistent.example.com/", log, attempts=1)
+        assert "Name or service not known" in log.call_args_list[0][0][0]
 
     def test_non_json_response_error(self, handler):
         log = mock.Mock()
@@ -792,7 +810,7 @@ class Test_handle_launch_data(object):
                 handler("/some-launch-url", error=log)
 
         log.assert_called_once_with(
-            "Error parsing response from /some-launch-url, check web dyno logs for details: "
+            "Error parsing response from /some-launch-url, check server logs for details.\n\n"
             "Big, unexpected problem."
         )
 
@@ -923,14 +941,14 @@ class TestDebugServer(object):
                 pass
 
     def test_failure(self, debugger):
-        from requests.exceptions import HTTPError
-
         with mock.patch("dallinger.deployment.HerokuLocalDeployment.WRAPPER_CLASS"):
             with mock.patch("dallinger.deployment.requests.post") as mock_post:
                 mock_post.return_value = mock.Mock(
                     ok=False,
                     json=mock.Mock(return_value={"message": "msg!"}),
-                    raise_for_status=mock.Mock(side_effect=HTTPError),
+                    raise_for_status=mock.Mock(
+                        side_effect=requests.exceptions.HTTPError
+                    ),
                     status_code=500,
                     text="Failure",
                 )
@@ -942,7 +960,7 @@ class TestDebugServer(object):
                 mock.call(
                     "Error accessing http://localhost:5000/launch (500):\nFailure"
                 ),
-                mock.call("Experiment launch failed, check web dyno logs for details."),
+                mock.call("Experiment launch failed, check server logs for details."),
                 mock.call("msg!"),
             ]
         )

@@ -1,4 +1,5 @@
 """Monte Carlo Markov Chains with people."""
+
 import random
 import time
 from operator import attrgetter

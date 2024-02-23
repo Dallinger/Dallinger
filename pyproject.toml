@@ -4,9 +4,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dallinger"
-version = "9.12.0"
+version = "10.1.0a1"
 maintainers = [
-  {name = "Jordan Suchow", email = "suchow@berkeley.edu"},
+  {name = "Jordan Suchow", email = "jws@stevens.edu"},
   {name = "Peter Harrison", email = "pmch2@cam.ac.uk"},
   {name = "Frank Höger", email="frank.hoeger@ae.mpg.de"},
 ]
@@ -14,14 +14,14 @@ license = {file = "LICENSE"}
 description = "Laboratory automation for the behavioral and social sciences"
 keywords = ["science", "cultural evolution", "experiments", "psychology"]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Framework :: Flask",
     "Topic :: Scientific/Engineering",
     "Intended Audience :: Science/Research",
@@ -45,12 +45,12 @@ dependencies = [
     "greenlet",
     "gunicorn[gevent]",
     "heroku3",
-    "ipython < 8.13",
+    "ipython < 8.19",
     "localconfig",
-    "numpy < 1.25",
-    "pandas < 2.1",
+    "numpy",
+    "pandas",
     "pexpect",
-    "pip >= 20",
+    "pip",
     "pip-tools",
     "psycopg2",
     "psutil",
@@ -69,6 +69,7 @@ dependencies = [
     "ua-parser",
     "urllib3 < 2",
     "user-agents",
+    "yaspin",
 ]
 
 [project.optional-dependencies]
@@ -87,18 +88,13 @@ dev = [
     "isort",
     "mock",
     "myst-parser",
-    "pre-commit < 3.6",
+    "pre-commit",
     "pycodestyle",
     "pypandoc",
     "pytest",
     "pytest-rerunfailures",
-    "sphinx < 7.2",
+    "sphinx",
     "sphinx_rtd_theme",
-    "sphinxcontrib-applehelp <= 1.0.4",
-    "sphinxcontrib-devhelp <= 1.0.2",
-    "sphinxcontrib-htmlhelp <= 2.0.1",
-    "sphinxcontrib-qthelp <= 1.0.3",
-    "sphinxcontrib-serializinghtml <= 1.1.5",
     "sphinxcontrib-spelling",
     "tox",
 ]
@@ -157,7 +153,7 @@ include = [
 
 [tool.black]
 line-length = 88
-target-version = ["py311"]
+target-version = ["py312"]
 include = '\.pyi?$'
 exclude = '''
 /(

@@ -27,13 +27,14 @@ import requests
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from yaspin import yaspin
 
 from dallinger.command_line.config import get_configured_hosts, remove_host, store_host
 from dallinger.command_line.utils import Output
 from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
-from dallinger.deployment import setup_experiment
+from dallinger.deployment import handle_launch_data, setup_experiment
 from dallinger.utils import abspath_from_egg, check_output
 
 # A couple of constants to colour console output
@@ -64,8 +65,18 @@ DOCKER_COMPOSE_EXP_TPL = Template(
 CADDYFILE = """
 # This is a configuration file for the Caddy http Server
 # Documentation can be found at https://caddyserver.com/docs
+{{
+    grace_period 30s
+}}
+
+
 {host} {{
     respond /health-check 200
+    {tls}
+}}
+
+logs.{host} {{
+    reverse_proxy dozzle:8080
     {tls}
 }}
 
@@ -262,6 +273,46 @@ def validate_update(f):
     return wrapper
 
 
+def get_dotenv_values(executor):
+    dotenv_content = executor.run(
+        "test -f ~/dallinger/.env.json && cat ~/dallinger/.env.json", raise_=False
+    )
+    if dotenv_content:
+        return json.loads(dotenv_content)
+    return {}
+
+
+def set_dozzle_password(executor, sftp, new_password):
+    dotenv_values = get_dotenv_values(executor)
+    dotenv_values["DOZZLE_PASSWORD"] = new_password
+    sftp.putfo(BytesIO(json.dumps(dotenv_values).encode()), "dallinger/.env.json")
+    dozzle_users = {
+        "users": {
+            "dallinger": {
+                "name": "Dallinger",
+                "password": hashlib.sha256(new_password.encode("utf-8")).hexdigest(),
+                "email": "dallinger@example.com",
+            }
+        }
+    }
+    sftp.putfo(BytesIO(json.dumps(dozzle_users).encode()), "dallinger/dozzle-users.yml")
+    executor.restart_dozzle()
+
+
+@docker_ssh.command("set-dozzle-password")
+@server_option
+@click.password_option()
+def set_dozzle_password_cmd(server, password):
+    server_info = CONFIGURED_HOSTS[server]
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
+
+    executor = Executor(ssh_host, user=ssh_user)
+    sftp = get_sftp(ssh_host, user=ssh_user)
+
+    set_dozzle_password(executor, sftp, password)
+
+
 @docker_ssh.command()
 @click.option(
     "--sandbox",
@@ -306,6 +357,8 @@ def deploy(
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
+    dashboard_user = config.get("dashboard_user", "admin")
+    dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
     # We deleted this because synchronizing configs between local and remote can cause problems especially when using
     # different credential managers
@@ -362,12 +415,27 @@ def deploy(
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
     if not update:
-        print("Removing any pre-existing app with the same name.")
+        # Check if there's an existing app with the same name
         app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
-        executor.run(
-            f"if [ -f {app_yml} ]; then docker compose -f {app_yml} down --remove-orphans; fi",
-            raise_=False,
-        )
+        app_yml_exists = executor.run(f"ls {app_yml}", raise_=False)
+        messages = []
+        if app_yml_exists:
+            messages.append(
+                f"App with name {app_name} already exists: found {app_yml} file. Aborting."
+            )
+        caddy_yml = f"~/dallinger/caddy.d/{app_name}"
+        caddy_yml_exists = executor.run(f"ls {caddy_yml}", raise_=False)
+        if caddy_yml_exists:
+            print(
+                f"App with name {app_name} already exists: found {app_yml} file. Aborting."
+            )
+        if app_yml_exists or caddy_yml_exists:
+            messages.append(
+                "Use a different name, destroy the current app or add --update"
+            )
+            print("\n".join(messages))
+            raise click.Abort
+
         print("Removing any pre-existing Redis volumes.")
         remove_redis_volumes(app_name, executor)
     else:
@@ -386,16 +454,18 @@ def deploy(
         "dallinger/Caddyfile",
     )
 
-    print("Launching http and postgresql servers.")
+    dozzle_password = get_dotenv_values(executor).get(
+        "DOZZLE_PASSWORD", dashboard_password
+    )
+    set_dozzle_password(executor, sftp, dozzle_password)
+
+    print("Launching http, postgresql and dozzle servers.")
     executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
 
     if not update:
         print("Starting experiment.")
     else:
         print("Restarting experiment.")
-
-    dashboard_user = config.get("dashboard_user", "admin")
-    dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
     cfg = config.as_dict(include_sensitive=True)
 
@@ -515,13 +585,11 @@ def deploy(
         print("Skipping experiment launch logic because we are in update mode.")
     else:
         print("Launching experiment")
-        response = get_retrying_http_client().post(
-            f"https://{experiment_id}.{dns_host}/launch", verify=HAS_TLS
+        launch_data = handle_launch_data(
+            f"https://{experiment_id}.{dns_host}/launch", print
         )
-        print(response.json()["recruitment_msg"])
+        print(launch_data.get("recruitment_msg"))
 
-    dashboard_user = cfg["ADMIN_USER"]
-    dashboard_password = cfg["dashboard_password"]
     dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
     log_command = f"ssh {ssh_user + '@' if ssh_user else ''}{ssh_host} docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
 
@@ -529,6 +597,7 @@ def deploy(
         f"Deployed Docker image name: {image_name}",
         "To display the logs for this experiment you can run:",
         log_command,
+        f"Or you can head to http://logs.{dns_host} (user = dallinger, password = {dozzle_password})",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
     ]
     for line in deployment_infos:
@@ -784,10 +853,15 @@ class Executor:
             raise click.Abort
 
     def reload_caddy(self):
-        self.run(
-            "docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
-            "caddy reload --config /etc/caddy/Caddyfile"
-        )
+        with yaspin(text="Reloading Caddy config file", color="green"):
+            self.run(
+                "docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
+                "caddy reload --config /etc/caddy/Caddyfile"
+            )
+
+    def restart_dozzle(self):
+        with yaspin(text="Restarting Dozzle", color="green"):
+            self.run("docker compose -f ~/dallinger/docker-compose.yml restart dozzle")
 
     def run_and_echo(self, cmd):  # pragma: no cover
         """Execute the given command on the remote host and prints its output

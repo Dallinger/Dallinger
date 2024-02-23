@@ -1,4 +1,5 @@
 """Heroku web worker."""
+
 listen = ["high", "default", "low"]
 
 
