@@ -200,12 +200,12 @@ class Experiment(object):
         """
         Return the status of the experiment as a dictionary.
         """
-        total_working = (
+        n_working_participants = (
             db.session.query(func.count(Participant.id))
             .filter_by(status="working")
             .scalar()
         )
-        return {"total_working": total_working}
+        return {"n_working_participants": n_working_participants}
 
     @classmethod
     def config_class(cls):
