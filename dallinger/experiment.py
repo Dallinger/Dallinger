@@ -49,7 +49,7 @@ from dallinger.models import Info, Network, Node, Participant, Transformation
 from dallinger.networks import Empty
 from dallinger.nodes import Agent, Environment, Source
 from dallinger.transformations import Compression, Mutation, Replication, Response
-from dallinger.utils import cache, deferred_route_decorator, struct_to_html
+from dallinger.utils import deferred_route_decorator, struct_to_html
 
 logger = logging.getLogger(__file__)
 
@@ -186,13 +186,6 @@ class Experiment(object):
                 self.widget = None
         else:
             self.widget = module.ExperimentWidget(self)
-
-    @classmethod
-    def get_app(cls):
-        """Return the Flask app for this experiment."""
-        from dallinger.experiment_server.experiment_server import app
-
-        return app
 
     @staticmethod
     def before_request():
@@ -1734,7 +1727,6 @@ def is_experiment_class(cls):
     )
 
 
-@cache
 def load():
     """Load the active experiment."""
     first_err = second_err = None
