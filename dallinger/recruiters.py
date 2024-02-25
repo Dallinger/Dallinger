@@ -243,6 +243,10 @@ class Recruiter(object):
         """Return the JSON file containing rules to filter participants."""
         raise NotImplementedError
 
+    def get_status(self):
+        """Return the status of the recruiter as a dictionary."""
+        return {}
+
 
 def alphanumeric_code(seed: str, length: int = 8):
     """Return an alphanumeric string of specified length based on a

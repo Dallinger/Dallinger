@@ -187,6 +187,26 @@ class Experiment(object):
         else:
             self.widget = module.ExperimentWidget(self)
 
+    @staticmethod
+    def before_request():
+        return None
+
+    @staticmethod
+    def after_request(request, response):
+        return response
+
+    @classmethod
+    def get_status(cls):
+        """
+        Return the status of the experiment as a dictionary.
+        """
+        n_working_participants = (
+            db.session.query(func.count(Participant.id))
+            .filter_by(status="working")
+            .scalar()
+        )
+        return {"n_working_participants": n_working_participants}
+
     @classmethod
     def config_class(cls):
         """
