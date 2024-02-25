@@ -214,7 +214,7 @@ trio==0.24.0
     #   trio-websocket
 trio-websocket==0.11.1
     # via selenium
-typing-extensions==4.9.0
+typing-extensions==4.10.0
     # via selenium
 tzdata==2024.1
     # via pandas
