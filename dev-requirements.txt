@@ -338,9 +338,7 @@ notebook-shim==0.2.4
     #   jupyterlab
     #   notebook
 numpy==1.26.4
-    # via
-    #   dallinger
-    #   pandas
+    # via pandas
 odfpy==1.4.1
     # via tablib
 openpyxl==3.1.2
