@@ -161,7 +161,7 @@ pytz==2024.1
     # via
     #   apscheduler
     #   pandas
-redis==5.0.1
+redis==5.0.2
     # via
     #   dallinger
     #   rq
