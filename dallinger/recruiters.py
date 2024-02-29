@@ -9,11 +9,11 @@ import random
 import re
 import string
 import time
+from collections import defaultdict
 
 import flask
 import requests
 import tabulate
-from collections import defaultdict
 from rq import Queue
 from sqlalchemy import func
 

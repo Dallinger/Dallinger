@@ -2,9 +2,9 @@
 
 from collections import defaultdict
 from datetime import datetime
-from rq import Queue
 
 from apscheduler.schedulers.blocking import BlockingScheduler
+from rq import Queue
 
 import dallinger
 from dallinger import db, recruiters

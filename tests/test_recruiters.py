@@ -1366,6 +1366,11 @@ class TestMTurkRecruiter(object):
 
         recruiter.mturkservice.expire_hit.assert_not_called()
 
+    def test_verify_status_of_is_harmless_noop(self, a, recruiter):
+        p = a.participant()
+        p.recruiter_id = "mturk"
+        recruiter.verify_status_of([p])
+
 
 class TestRedisTally(object):
     @pytest.fixture
