@@ -72,6 +72,16 @@ class TestModuleFunctions(object):
         with pytest.raises(NotImplementedError):
             mod.from_config(stub_config)
 
+    @pytest.mark.usefixtures("db_session")
+    def test_run_status_check_calls_recruiters_with_their_participants(self, a, mod):
+        mock_recruiter = mock.Mock(spec=mod.Recruiter)
+        participant = a.participant()
+
+        with mock.patch("dallinger.recruiters.by_name") as mock_by_name:
+            mock_by_name.return_value = mock_recruiter
+            mod.run_status_check()
+            mock_recruiter.verify_status_of.assert_called_once_with([participant])
+
 
 class TestRecruiter(object):
     @pytest.fixture
