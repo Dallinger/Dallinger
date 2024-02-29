@@ -110,6 +110,10 @@ class TestRecruiter(object):
         with pytest.raises(NotImplementedError):
             recruiter.reward_bonus(None, 0.01, "You're great!")
 
+    def test_verify_status_of(self, recruiter):
+        with pytest.raises(NotImplementedError):
+            recruiter.verify_status_of([])
+
     def test_external_submission_url(self, recruiter):
         assert recruiter.external_submission_url is None
 
@@ -203,6 +207,11 @@ class TestCLIRecruiter(object):
             "action": "RecruiterSubmissionComplete",
         }
 
+    def test_verify_status_of_is_harmless_noop(self, a, recruiter):
+        p = a.participant()
+        p.recruiter_id = "cli"
+        recruiter.verify_status_of([p])
+
 
 @pytest.mark.usefixtures("active_config")
 class TestHotAirRecruiter(object):
@@ -258,6 +267,11 @@ class TestHotAirRecruiter(object):
             "action": "RecruiterSubmissionComplete",
         }
 
+    def test_verify_status_of_is_harmless_noop(self, a, recruiter):
+        p = a.participant()
+        p.recruiter_id = "hotair"
+        recruiter.verify_status_of([p])
+
 
 class TestSimulatedRecruiter(object):
     @pytest.fixture
@@ -286,6 +300,11 @@ class TestSimulatedRecruiter(object):
 
     def test_close_recruitment(self, recruiter):
         assert recruiter.close_recruitment() is None
+
+    def test_verify_status_of_is_harmless_noop(self, a, recruiter):
+        p = a.participant()
+        p.recruiter_id = "sim"
+        recruiter.verify_status_of([p])
 
 
 class TestBotRecruiter(object):
@@ -342,6 +361,11 @@ class TestBotRecruiter(object):
         recruiter.notify_duration_exceeded([bot], datetime.now())
 
         assert bot.status == "rejected"
+
+    def test_verify_status_of_is_harmless_noop(self, a, recruiter):
+        p = a.participant()
+        p.recruiter_id = "bots"
+        recruiter.verify_status_of([p])
 
 
 @pytest.fixture
@@ -626,6 +650,39 @@ class TestProlificRecruiter(object):
                 "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
             },
         ]
+
+    def test_verify_status_triggers_corrections(self, a, recruiter, queue):
+        p1 = a.participant(assignment_id="aaa111")
+        p1.recruiter_id = "prolific"
+        p2 = a.participant(assignment_id="bbb222")
+        p2.recruiter_id = "prolific"
+
+        # Set up mock response from Prolific regarding these participants:
+        recruiter.prolificservice.get_assignments_for_study.return_value = {
+            p1.assignment_id: {
+                "id": p1.assignment_id,
+                "study_id": "some-study-id",
+                "participant": "some-prolific-worker-id-1",
+                "started_at": "2021-05-20T11:23:00.457Z",
+                "status": "RETURNED",
+            },
+            p2.assignment_id: {
+                "id": p2.assignment_id,
+                "study_id": "some-study-id",
+                "participant": "some-prolific-worker-id-2",
+                "started_at": "2021-05-20T11:24:00.457Z",
+                "status": "TIMED-OUT",
+            },
+        }
+
+        recruiter.verify_status_of([p1, p2])
+
+        queue.enqueue.assert_has_calls(
+            [
+                mock.call(mock.ANY, "AssignmentReturned", "aaa111", p1.id),
+                mock.call(mock.ANY, "AssignmentAbandoned", "bbb222", p2.id),
+            ]
+        )
 
 
 class TestMTurkRecruiterMessages(object):

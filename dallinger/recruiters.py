@@ -883,6 +883,10 @@ class SimulatedRecruiter(Recruiter):
         """Do nothing."""
         pass
 
+    def verify_status_of(self, participants: list[Participant]):
+        """Do nothing."""
+        pass
+
 
 mturk_resubmit_whimsical = """Dearest Friend,
 
