@@ -13,6 +13,7 @@ import time
 import flask
 import requests
 import tabulate
+from collections import defaultdict
 from rq import Queue
 from sqlalchemy import func
 
@@ -48,6 +49,31 @@ def _get_queue(name="default"):
 # messages in logs:
 NEW_RECRUIT_LOG_PREFIX = "New participant requested:"
 CLOSE_RECRUITMENT_LOG_PREFIX = "Close recruitment."
+
+
+def run_status_check():
+    """Update participant status via all active recruiters.
+
+    Queries database for all working participants and asks owning recruiter to
+    verify that the status we have for them matches the status on the
+    recruitment platform.
+
+    If a recruiter finds discrepancies, it will enqueue a command to correct the
+    status for each participant with a problem.
+    """
+    logger.warning("Running status check in {}...".format(__name__))
+    participants_by_recruiter_nick = defaultdict(list)
+    for participant in Participant.query.all():
+        participants_by_recruiter_nick[participant.recruiter_id].append(participant)
+
+    logger.warning(
+        "Current recruiters and their participants: {}".format(
+            participants_by_recruiter_nick
+        )
+    )
+    for nick, participants in participants_by_recruiter_nick.items():
+        recruiter = by_name(nick)
+        recruiter.verify_status_of(participants)
 
 
 class Recruiter(object):
@@ -246,6 +272,17 @@ class Recruiter(object):
         """Return the status of the recruiter as a dictionary."""
         return {}
 
+    def verify_status_of(self, participants: list[Participant]):
+        """Check locally recorded status of participants against the status
+        reported from external service (if such service is used), and enqueue
+        updates when necessary.
+
+        Args:
+            participants (list[Participant]): A list of participants for which
+            to verify the status.
+        """
+        raise NotImplementedError
+
 
 def alphanumeric_code(seed: str, length: int = 8):
     """Return an alphanumeric string of specified length based on a
@@ -319,6 +356,22 @@ def _prolific_service_from_config():
         api_version=config.get("prolific_api_version"),
         referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
     )
+
+
+def check_for_prolific_worker_status_discrepancy(local_status, prolific_status):
+    """Return an action/command name to correct a local vs. remote status
+    discrepancy, if there is one.
+
+    Currently we only make corrections for assignments we have marked as
+    "working" locally.
+    """
+    actions = {
+        # (local status, remote Prolific status): action to take
+        ("working", "TIMED-OUT"): "AssignmentAbandoned",
+        ("working", "RETURNED"): "AssignmentReturned",
+    }
+
+    return actions.get((local_status, prolific_status))
 
 
 class ProlificRecruiter(Recruiter):
@@ -517,6 +570,33 @@ class ProlificRecruiter(Recruiter):
     def is_in_progress(self):
         """Does an Study for the current experiment ID already exist?"""
         return self.current_study_id is not None
+
+    def verify_status_of(self, participants: list[Participant]):
+        """We have lots to do"""
+        q = _get_queue()
+        assignments_by_id = self.prolificservice.get_assignments_for_study(
+            self.current_study_id
+        )
+
+        for participant in participants:
+            latest_data = assignments_by_id.get(participant.assignment_id)
+            if latest_data is None:
+                raise ProlificRecruiterException(
+                    "We found no assignment data for participant {} with assignment ID {} on Prolific:".format(
+                        participant.id, participant.assignment_id
+                    )
+                )
+
+            corrective_action = check_for_prolific_worker_status_discrepancy(
+                local_status=participant.status, prolific_status=latest_data["status"]
+            )
+            if corrective_action:
+                q.enqueue(
+                    worker_function,
+                    corrective_action,
+                    participant.assignment_id,
+                    participant.id,
+                )
 
     @property
     def study_id_storage_key(self):
@@ -724,6 +804,15 @@ class CLIRecruiter(Recruiter):
             'Award ${} for assignment {}, with reason "{}"'.format(
                 amount, participant.assignment_id, reason
             )
+        )
+
+    def verify_status_of(self, participants: list[Participant]):
+        """We only track participants locally, so we have nothing to do."""
+        for p in participants:
+            logger.warning("{} -> {}".format(p.id, p.status))
+        logger.warning(
+            f"{self.__class__.__name__} implicitly verifying status "
+            "of all its participants. 👍"
         )
 
     def _get_mode(self):
@@ -1286,6 +1375,13 @@ class MTurkRecruiter(Recruiter):
             "new_status": "recruiter_submission_started",
         }
 
+    def verify_status_of(self, participants: list[Participant]):
+        """We trust that locally recorded status is kept up to date,
+        because MTurk sends prompt SNS notifications when participants
+        submit, return, or abandon HITs.
+        """
+        logger.info("MTurkRecruiter assuming all is well with participant status...")
+
     def reward_bonus(self, participant, amount, reason):
         """Reward the Turker for a specified assignment with a bonus."""
         try:
@@ -1641,6 +1737,10 @@ class BotRecruiter(Recruiter):
             "new_status": "submitted",
             "action": "BotRecruiterSubmissionComplete",
         }
+
+    def verify_status_of(self, participants: list[Participant]):
+        """All our bots are belong to us, so we don't need to do anything."""
+        logger.info("BotRecruiter assuming all is well with participant status...")
 
     def _get_bot_factory(self):
         # Must be imported at run-time
