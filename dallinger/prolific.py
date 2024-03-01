@@ -54,7 +54,7 @@ class ProlificService:
         stop=tenacity.stop_after_attempt(5),
         reraise=True,
     )
-    def approve_participant_session(self, session_id: str) -> dict:
+    def approve_participant_submission(self, submission_id: str) -> dict:
         """Mark an assignment as approved.
 
         We do some retrying here, because our first attempt to approve will
@@ -62,19 +62,21 @@ class ProlificService:
         the study on Prolific. If we get there first, there will be an error
         because the submission hasn't happened yet.
         """
-        status = self.get_participant_session(session_id)["status"]
+        status = self.get_participant_submission(submission_id)["status"]
         if status != "AWAITING REVIEW":
             # This will trigger a retry from the decorator
             raise ProlificServiceException("Prolific session not yet submitted.")
 
         return self._req(
             method="POST",
-            endpoint=f"/submissions/{session_id}/transition/",
+            endpoint=f"/submissions/{submission_id}/transition/",
             json={"action": "APPROVE"},
         )
 
-    def get_participant_session(self, session_id: str) -> dict:
-        """Retrieve details of a participant Session
+    def get_participant_submission(self, submission_id: str) -> dict:
+        """Retrieve details of a participant Submission
+
+        See: https://docs.prolific.com/docs/api-docs/public/#tag/Submissions/Submission-object
 
         This is roughly equivalent to an Assignment on MTurk.
 
@@ -88,7 +90,37 @@ class ProlificService:
             "status": "ACTIVE"
         }
         """
-        return self._req(method="GET", endpoint=f"/submissions/{session_id}/")
+        return self._req(method="GET", endpoint=f"/submissions/{submission_id}/")
+
+    def get_assignments_for_study(self, study_id: str) -> dict:
+        """Return all submissions for the current Prolific study, keyed by
+        assignment ("submission") ID.
+
+        Example return value:
+
+        {
+            "60d9aadeb86739de712faee0": {
+                "id": "60d9aadeb86739de712faee0",
+                "study_id": "60aca280709ee40ec37d4885",
+                "participant": "60bf9310e8dec401be6e9615",
+                "started_at": "2021-05-20T11:03:00.457Z",
+                "status": "ACTIVE",
+            },
+            "78g9aadeb86739de712fabb4": {
+                "id": "78g9aadeb86739de712fabb4",
+                "study_id": "60aca280709ee40ec37d4885",
+                "participant": "703f9310g8dec401be6e4123",
+                "started_at": "2021-05-20T11:23:00.457Z",
+                "status": "RETURNED",
+            },
+        }
+        """
+        query_params = {"study": study_id}
+        response = self._req(
+            method="GET", endpoint="/submissions/", params=query_params
+        )
+
+        return {s["participant"]: s for s in response["results"]}
 
     def published_study(
         self,
