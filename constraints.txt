@@ -454,7 +454,7 @@ pytest==8.0.0
     #   pytest-rerunfailures
 pytest-rerunfailures==13.0
     # via dallinger
-python-dateutil==2.8.2
+python-dateutil==2.9.0
     # via
     #   arrow
     #   botocore
