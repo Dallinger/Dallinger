@@ -17,11 +17,6 @@ class TestModuleFunctions(object):
 
         return recruiters
 
-    def test__get_queue(self, mod):
-        from rq import Queue
-
-        assert isinstance(mod._get_queue(), Queue)
-
     def test_for_experiment(self, mod):
         mock_exp = mock.MagicMock(spec=Experiment)
         mock_exp.recruiter = mock.sentinel.some_object
@@ -313,7 +308,7 @@ class TestBotRecruiter(object):
         from dallinger.recruiters import BotRecruiter
 
         with mock.patch.multiple(
-            "dallinger.recruiters", _get_queue=mock.DEFAULT, get_base_url=mock.DEFAULT
+            "dallinger.recruiters", get_queue=mock.DEFAULT, get_base_url=mock.DEFAULT
         ) as mocks:
             mocks["get_base_url"].return_value = "fake_base_url"
             r = BotRecruiter()
@@ -829,7 +824,7 @@ def queue():
     from rq import Queue
 
     instance = mock.Mock(spec=Queue)
-    with mock.patch("dallinger.recruiters._get_queue") as mock_q:
+    with mock.patch("dallinger.recruiters.get_queue") as mock_q:
         mock_q.return_value = instance
 
         yield instance
