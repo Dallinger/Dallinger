@@ -14,12 +14,11 @@ from collections import defaultdict
 import flask
 import requests
 import tabulate
-from rq import Queue
 from sqlalchemy import func
 
 from dallinger.command_line.utils import Output
 from dallinger.config import get_config
-from dallinger.db import redis_conn, session
+from dallinger.db import get_queue, redis_conn, session
 from dallinger.experiment_server.utils import crossdomain, success_response
 from dallinger.experiment_server.worker_events import worker_function
 from dallinger.heroku import tools as heroku_tools
@@ -38,11 +37,6 @@ from dallinger.utils import ParticipationTime, generate_random_id, get_base_url
 from dallinger.version import __version__
 
 logger = logging.getLogger(__file__)
-
-
-def _get_queue(name="default"):
-    # Connect to Redis Queue
-    return Queue(name, connection=redis_conn)
 
 
 # These are constants because other components may listen for these
@@ -330,7 +324,7 @@ def prolific_submission_listener():
     if participant is not None and participant.status != "submitted":
         participant.status = "submitted"
         session.commit()  # NB: commit releases lock
-        q = _get_queue()
+        q = get_queue()
         # Here we assume the participant has submitted on Prolific by now
         # and we express this by firing off the corresponding event:
         q.enqueue(
@@ -536,7 +530,7 @@ class ProlificRecruiter(Recruiter):
         defined in the "duration" config value. We need find out the Submission
         status on Prolific and act based on this.
         """
-        q = _get_queue()
+        q = get_queue()
 
         for participant in participants:
             assignment_id = participant.assignment_id
@@ -573,7 +567,7 @@ class ProlificRecruiter(Recruiter):
 
     def verify_status_of(self, participants: list[Participant]):
         """We have lots to do"""
-        q = _get_queue()
+        q = get_queue()
         assignments_by_id = self.prolificservice.get_assignments_for_study(
             self.current_study_id
         )
@@ -1228,7 +1222,7 @@ class MTurkRecruiter(Recruiter):
         @param qualifications  list of dict w/   `name`, `description` and
                                (optional) `score` keys
         """
-        q = _get_queue()
+        q = get_queue()
         q.enqueue(_run_mturk_qualification_assignment, worker_id, qualifications)
 
     def _assign_experiment_qualifications(self, worker_id, qualifications):
@@ -1475,7 +1469,7 @@ class MTurkRecruiter(Recruiter):
         #
         # Note: this is an entry-point, so it's a reasonable place to commit a
         # transaction before passing off the async worker task.
-        q = _get_queue()
+        q = get_queue()
         for event in events:
             mturk_type = event.get("EventType")
             assignment_id = event.get("AssignmentId")
@@ -1514,7 +1508,7 @@ class MTurkRecruiter(Recruiter):
         requests.patch(heroku_app.config_url, data=args, headers=headers)
 
     def _resend_submitted_rest_notification_for(self, participant):
-        q = _get_queue()
+        q = get_queue()
         q.enqueue(
             worker_function,
             "RecruiterSubmissionComplete",
@@ -1523,7 +1517,7 @@ class MTurkRecruiter(Recruiter):
         )
 
     def _report_NotificationMissing_for(self, participant):
-        q = _get_queue()
+        q = get_queue()
         q.enqueue(
             worker_function, "NotificationMissing", participant.assignment_id, None
         )
@@ -1696,7 +1690,7 @@ class BotRecruiter(Recruiter):
         logger.info("Recruiting {} Bot participants".format(n))
         factory = self._get_bot_factory()
         urls = []
-        q = _get_queue(name="low")
+        q = get_queue(name="low")
         for _ in range(n):
             base_url = get_base_url()
             worker = generate_random_id()

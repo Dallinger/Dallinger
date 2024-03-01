@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from operator import attrgetter
 
-from rq import Queue, get_current_job
+from rq import get_current_job
 from sqlalchemy.exc import DataError, InternalError
 
 from dallinger import db, information, models
@@ -24,11 +24,6 @@ def _loaded_experiment(args):
 
     klass = experiment.load()
     return klass(args)
-
-
-def _get_queue(name="default"):
-    # Connect to Redis Queue
-    return Queue(name, connection=db.redis_conn)
 
 
 LOG_EVENT_TYPES = frozenset(
@@ -57,7 +52,7 @@ def worker_function(
 ):
     """Process the notification."""
     _config()
-    q = _get_queue(name=queue_name)
+    q = db.get_queue(name=queue_name)
     try:
         db.logger.debug(
             "rq: worker_function working on job id: %s", get_current_job().id

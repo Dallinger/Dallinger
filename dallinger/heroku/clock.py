@@ -4,7 +4,6 @@ from collections import defaultdict
 from datetime import datetime
 
 from apscheduler.schedulers.blocking import BlockingScheduler
-from rq import Queue
 
 import dallinger
 from dallinger import db, recruiters
@@ -13,11 +12,6 @@ from dallinger.models import Participant
 from dallinger.utils import ParticipationTime
 
 scheduler = BlockingScheduler()
-
-
-def _get_queue(name="default"):
-    # Connect to Redis Queue
-    return Queue(name, connection=db.redis_conn)
 
 
 def run_check(participants, config, reference_time):
@@ -53,7 +47,7 @@ def check_db_for_missing_notifications():
 @scheduler.scheduled_job("interval", minutes=0.5)
 def async_recruiter_status_check():
     """Ask recruiters to check the status of their participants"""
-    q = _get_queue()
+    q = db.get_queue()
     q.enqueue(recruiters.run_status_check)
 
 
