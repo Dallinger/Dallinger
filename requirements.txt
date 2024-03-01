@@ -151,7 +151,7 @@ pyproject-hooks==1.0.0
     # via build
 pysocks==1.7.1
     # via urllib3
-python-dateutil==2.8.2
+python-dateutil==2.9.0
     # via
     #   botocore
     #   faker
