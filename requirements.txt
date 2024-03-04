@@ -10,19 +10,21 @@ apscheduler==3.10.4
     # via dallinger
 asttokens==2.4.1
     # via stack-data
+async-timeout==4.0.3
+    # via redis
 attrs==23.2.0
     # via
     #   outcome
     #   trio
 blinker==1.7.0
     # via flask
-boto3==1.34.50
+boto3==1.34.54
     # via dallinger
-botocore==1.34.50
+botocore==1.34.54
     # via
     #   boto3
     #   s3transfer
-build==1.0.3
+build==1.1.1
     # via
     #   dallinger
     #   pip-tools
@@ -48,7 +50,7 @@ decorator==5.1.1
     # via ipython
 executing==2.0.1
     # via stack-data
-faker==23.2.1
+faker==23.3.0
     # via dallinger
 flask==3.0.2
     # via
@@ -147,14 +149,14 @@ pyproject-hooks==1.0.0
     #   pip-tools
 pysocks==1.7.1
     # via urllib3
-python-dateutil==2.8.2
+python-dateutil==2.9.0.post0
     # via
     #   botocore
     #   faker
     #   heroku3
 pytz==2024.1
     # via apscheduler
-redis==5.0.1
+redis==5.0.2
     # via
     #   dallinger
     #   rq

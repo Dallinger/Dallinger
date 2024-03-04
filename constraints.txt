@@ -26,6 +26,8 @@ asttokens==2.4.1
     # via stack-data
 async-lru==2.0.4
     # via jupyterlab
+async-timeout==4.0.3
+    # via redis
 attrs==23.2.0
     # via
     #   jsonschema
@@ -46,13 +48,13 @@ bleach==6.1.0
     # via nbconvert
 blinker==1.7.0
     # via flask
-boto3==1.34.50
+boto3==1.34.54
     # via dallinger
-botocore==1.34.50
+botocore==1.34.54
     # via
     #   boto3
     #   s3transfer
-build==1.0.3
+build==1.1.1
     # via
     #   dallinger
     #   pip-tools
@@ -123,7 +125,7 @@ et-xmlfile==1.1.0
     # via openpyxl
 executing==2.0.1
     # via stack-data
-faker==23.2.1
+faker==23.3.0
     # via dallinger
 fastjsonschema==2.19.1
     # via nbformat
@@ -226,7 +228,7 @@ jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-json5==0.9.17
+json5==0.9.20
     # via jupyterlab-server
 jsonpointer==2.4
     # via jsonschema
@@ -264,7 +266,7 @@ jupyter-events==0.9.0
     # via jupyter-server
 jupyter-lsp==2.2.3
     # via jupyterlab
-jupyter-server==2.12.5
+jupyter-server==2.13.0
     # via
     #   dallinger
     #   jupyter-lsp
@@ -448,13 +450,13 @@ pyproject-hooks==1.0.0
     #   pip-tools
 pysocks==1.7.1
     # via urllib3
-pytest==8.0.2
+pytest==8.1.0
     # via
     #   dallinger
     #   pytest-rerunfailures
 pytest-rerunfailures==13.0
     # via dallinger
-python-dateutil==2.8.2
+python-dateutil==2.9.0.post0
     # via
     #   arrow
     #   botocore
@@ -485,7 +487,7 @@ qtconsole==5.5.1
     # via jupyter
 qtpy==2.4.1
     # via qtconsole
-redis==5.0.1
+redis==5.0.2
     # via
     #   dallinger
     #   rq
