@@ -5,7 +5,7 @@
 #    ./scripts/update_dependencies.sh
 #
 
-    # via file:///home/frank/projects/dallinger
+    # via -r dev-requirements.in
 alabaster==0.7.16
     # via
     #   dallinger
