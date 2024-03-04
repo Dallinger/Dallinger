@@ -1,5 +1,21 @@
 # Change Log
 
+## [v10.0.1](https://github.com/dallinger/dallinger/tree/v10.0.1) (2024-03-04)
+
+#### Added
+- Implemented `Experiment.get_status`, a customizable method that reports the current status of the experiment.
+- Implemented `Experiment.before_request` and `Experiment.after_request`, customizable hooks for running code before and after HTTP requests.
+
+#### Fixed
+- Fixed Chrome and ChromeDriver download link in Dockerfile.
+- Fixed dallinger requirement in demos and updated demos' constraints.
+
+#### Removed
+- Removed unused numpy and pandas dependencies.
+
+#### Updated
+- Infrastructure: Updated dependencies; pin pytest == 8.0.0.
+
 ## [v10.0.0](https://github.com/dallinger/dallinger/tree/v10.0.0) (2024-02-15)
 
 #### Breaking
@@ -7,7 +23,7 @@
 
 #### Added
 - Added support for Python 3.12.
-  - Remove version pinning for numpy, panda, pre-commit, sphinx, and sphinx-related packages.
+  - Remove version pinning for numpy, pandas, pre-commit, sphinx, and sphinx-related packages.
   - CI: Added Python 3.12 to GitHub workflow matrix and run Full tox tests for both Python 3.11 and 3.12.
   - CI: Use Docker image python:3.12-bullseye.
 - The config parameter `num_dynos_worker` (default: `1`) which allows for the configuration of the number of workers can now also be used in SSH deployments. This change is beneficial for parallellizing heavy background worker processes. Previously, this config parameter only worked for Heroku deployments.
