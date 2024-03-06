@@ -798,7 +798,10 @@ class Testhandle_launch_data(object):
 
         log.reset_mock()
         handler("https://nonexistent.example.com/", log, attempts=1)
-        assert "Name or service not known" in log.call_args_list[0][0][0]
+        assert (
+            "Error accessing https://nonexistent.example.com/"
+            in log.call_args_list[0][0][0]
+        )
 
     def test_non_json_response_error(self, handler):
         log = mock.Mock()

@@ -709,24 +709,33 @@ class Experiment(object):
         """
         return True
 
-    def on_assignment_submitted_to_recruiter(self, participant, event):
-        """Working title. Called when assignment has been submitted
-        to the recruitment platform (may be Dallinger itself) by the
-        participant.
+    def on_recruiter_submission_complete(self, participant, event):
+        """Called after assignment submission has been processed by
+        the recruitment platform (may be Dallinger itself).
 
         :param participant (Participant): the ``Participant`` who has
-        submitted a HIT via their recruiter
+        submitted an assignment via their recruiter
         :param event: (dict): Info about the triggering event
         """
-        eligible_statuses = ("working", "overrecruited", "returned", "abandoned")
-        if participant.status not in eligible_statuses:
+        # Check that the participant has completed task submission with
+        # their recruiter:
+        if participant.status != "submitted":
+            logger.warning(
+                "Called with unexpected participant status! "
+                "participant ID: {}, status: {}, recruiter: {}".format(
+                    participant.id, participant.status, participant.recruiter.nickname
+                )
+            )
             return
 
         config = get_config()
         min_real_bonus = 0.01
 
-        participant.status = "submitted"
-        participant.end_time = event["timestamp"]
+        # Usually, end_time will be set when the participant first exits
+        # the experiment via /worker_complete, but in case that hasn't
+        # happened, we set it here:
+        if participant.end_time is None:
+            participant.end_time = event["timestamp"]
         participant.base_pay = config.get("base_payment")
         participant.recruiter.approve_hit(participant.assignment_id)
 
@@ -743,16 +752,27 @@ class Experiment(object):
 
         # If they pass the data check, we might pay a bonus
         bonus = self.bonus(participant=participant)
-        participant.bonus = bonus
-        if bonus >= min_real_bonus:
-            self.log("Bonus = {}: paying bonus".format(bonus))
+        has_already_received_bonus = participant.bonus is not None
+        if has_already_received_bonus:
+            self.log(
+                "Bonus of {} will NOT be paid, since participant {} "
+                "has already received a bonus of {}".format(
+                    bonus, participant.id, participant.bonus
+                )
+            )
+        elif bonus < min_real_bonus:
+            self.log(
+                "Bonus of {} will NOT be paid to participant {} as it is "
+                "less than {}.".format(bonus, participant.id, min_real_bonus)
+            )
+        else:
+            self.log("Paying bonus of {} to {}".format(bonus, participant.id))
             participant.recruiter.reward_bonus(
                 participant,
                 bonus,
                 self.bonus_reason(),
             )
-        else:
-            self.log("Bonus = {}: NOT paying bonus".format(bonus))
+            participant.bonus = bonus
 
         # Attention Check
         if self.attention_check(participant=participant):
@@ -769,8 +789,8 @@ class Experiment(object):
             self.recruiter.recruit(n=1)
 
     def participant_task_completed(self, participant):
-        """Called when an experiment task is finished and submitted, and prior
-        to data and attendance checks.
+        """Called when an experiment task is first finished, and prior
+        to recruiter submission, data and attendance checks.
 
         Assigns the qualifications to the Participant, via their recruiter.
         These will include one Qualification for the experiment
@@ -788,6 +808,11 @@ class Experiment(object):
             return
 
         if participant.status == "overrecruited":
+            logger.info(
+                "Skipping qualification assignment for overrecruited participant {}.".format(
+                    participant.id
+                )
+            )
             return
 
         quals = self.calculate_qualifications(participant)

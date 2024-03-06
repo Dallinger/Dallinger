@@ -176,6 +176,27 @@ def verify_experiment_module(verbose):
         )
         ok = False
 
+    # Check for overrides of methods with name changes:
+    api_breakages = {
+        # "old name": "new name"
+        "on_assignment_submitted_to_recruiter": "on_recruiter_submission_complete",
+    }
+    try:
+        exp_class = exps[0][1]
+    except IndexError:
+        pass
+    else:
+        for old, new in api_breakages.items():
+            if hasattr(exp_class, old):
+                log(
+                    "✗ experiment.py overrides a method that has been renamed!\n"
+                    "\tOld name: {}\n\tNew name: {}\n"
+                    "Please rename your method accordingly.".format(old, new),
+                    chevrons=False,
+                    verbose=verbose,
+                )
+                ok = False
+
     return ok
 
 
