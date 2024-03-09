@@ -450,7 +450,7 @@ pyproject-hooks==1.0.0
     #   pip-tools
 pysocks==1.7.1
     # via urllib3
-pytest==8.0.0
+pytest==8.1.1
     # via
     #   dallinger
     #   pytest-rerunfailures
