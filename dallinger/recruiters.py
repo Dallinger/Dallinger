@@ -1711,6 +1711,13 @@ def by_name(name, **kwargs):
     """
     by_name = {}
     for cls in _descendent_classes(Recruiter):
+        previous_registered_cls = by_name.get(
+            cls.nickname, by_name.get(cls.nickname, None)
+        )
+        if previous_registered_cls:
+            should_overwrite = issubclass(cls, previous_registered_cls)
+            if not should_overwrite:
+                continue
         by_name[cls.__name__] = by_name[cls.nickname] = cls
 
     klass = by_name.get(name)
