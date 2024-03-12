@@ -274,7 +274,7 @@ jupyter-server==2.13.0
     #   jupyterlab-server
     #   notebook
     #   notebook-shim
-jupyter-server-terminals==0.5.2
+jupyter-server-terminals==0.5.3
     # via jupyter-server
 jupyterlab==4.1.2
     # via notebook
