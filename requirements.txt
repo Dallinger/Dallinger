@@ -199,7 +199,7 @@ termcolor==2.4.0
     # via yaspin
 timeago==1.0.16
     # via dallinger
-traitlets==5.14.1
+traitlets==5.14.2
     # via
     #   ipython
     #   matplotlib-inline
