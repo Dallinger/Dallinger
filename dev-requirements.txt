@@ -590,7 +590,7 @@ tenacity==8.2.3
     # via dallinger
 termcolor==2.4.0
     # via yaspin
-terminado==0.18.0
+terminado==0.18.1
     # via
     #   jupyter-server
     #   jupyter-server-terminals
