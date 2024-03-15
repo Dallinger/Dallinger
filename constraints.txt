@@ -324,7 +324,7 @@ nbconvert==7.16.1
     # via
     #   jupyter
     #   jupyter-server
-nbformat==5.9.2
+nbformat==5.10.3
     # via
     #   jupyter-server
     #   nbclient
