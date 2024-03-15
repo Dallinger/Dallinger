@@ -633,7 +633,7 @@ trio==0.24.0
     #   trio-websocket
 trio-websocket==0.11.1
     # via selenium
-types-python-dateutil==2.8.19.20240106
+types-python-dateutil==2.9.0.20240315
     # via arrow
 typing-extensions==4.10.0
     # via selenium
