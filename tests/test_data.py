@@ -8,9 +8,9 @@ import tempfile
 import uuid
 from collections import OrderedDict
 from datetime import datetime
+from unittest import mock
 from zipfile import ZipFile
 
-import mock
 import pandas as pd
 import psycopg2
 import pytest

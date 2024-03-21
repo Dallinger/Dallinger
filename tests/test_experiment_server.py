@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
+from unittest import mock
 
-import mock
 import pytest
 
 from dallinger import models

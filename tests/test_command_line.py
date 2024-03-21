@@ -4,10 +4,10 @@ import os
 import re
 import subprocess
 from time import sleep
+from unittest import mock
 from uuid import UUID
 
 import click
-import mock
 import pytest
 import six
 from click.testing import CliRunner

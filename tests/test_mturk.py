@@ -4,8 +4,8 @@ import os
 import socket
 import time
 from hashlib import sha1
+from unittest import mock
 
-import mock
 import pytest
 import six
 from botocore.exceptions import ClientError
