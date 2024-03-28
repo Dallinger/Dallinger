@@ -1,5 +1,6 @@
 import inspect
 import os
+import re
 import sys
 import tempfile
 from functools import wraps
@@ -268,5 +269,9 @@ def verify_id(ctx, param, app):
         raise click.BadParameter(
             "The --app parameter requires the full "
             "UUID beginning with {}-...".format(app[5:23])
+        )
+    elif not bool(re.match(r"^[a-z0-9-]+$", app)):
+        raise click.BadParameter(
+            "The --app parameter contains invalid characters. The only characters allowed are: a-z, 0-9, and '-'."
         )
     return app
