@@ -28,8 +28,9 @@
 
     <div class="dev-tools-section">
         <button id="new-participant" class="btn btn-primary" onclick="handleNewParticipant()">New participant</button>
-
-        <button id="init-db" class="btn btn-danger" onclick="handleInitDB()">Reset database</button>
+        {% if mode == "debug" %}
+            <button id="init-db" class="btn btn-danger" onclick="handleInitDB()">Reset database</button>
+        {% endif %}
     </div>
 
     <div class="dev-tools-section">
