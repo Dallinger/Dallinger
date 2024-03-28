@@ -286,9 +286,9 @@ class TestSandboxAndDeploy(object):
         assert "directory is not a valid Dallinger experiment" in result.output
 
     def test_uses_specified_app_id(self, sandbox, dsss):
-        CliRunner().invoke(sandbox, ["--verbose", "--app", "some app id"])
+        CliRunner().invoke(sandbox, ["--verbose", "--app", "some-app-id"])
         dsss.assert_called_once_with(
-            app="some app id", verbose=True, log=mock.ANY, prelaunch_actions=[]
+            app="some-app-id", verbose=True, log=mock.ANY, prelaunch_actions=[]
         )
 
     def test_works_with_no_app_id(self, sandbox, dsss):
@@ -310,10 +310,21 @@ class TestSandboxAndDeploy(object):
         assert active_config.get("logfile") == "-"
 
     def test_rejects_invalid_app_id(self, sandbox, dsss):
-        result = CliRunner().invoke(sandbox, ["--verbose", "--app", "dlgr-some app id"])
+        result = CliRunner().invoke(sandbox, ["--verbose", "--app", "dlgr-some-app-id"])
         dsss.assert_not_called()
         assert result.exit_code == 2
         assert "The --app parameter requires the full UUID" in result.output
+
+    def test_rejects_invalid_symbols_in_app_id(self, sandbox, dsss):
+        result = CliRunner().invoke(
+            sandbox, ["--verbose", "--app", "some-app-id_with_underscores"]
+        )
+        dsss.assert_not_called()
+        assert result.exit_code == 2
+        assert (
+            "The --app parameter contains invalid characters. The only characters allowed are: a-z, 0-9, and '-'."
+            in result.output
+        )
 
     def test_accepts_valid_archive_path(self, sandbox, tempdir, dsss):
         CliRunner().invoke(sandbox, ["--verbose", "--archive", tempdir])
@@ -341,9 +352,9 @@ class TestLoad(object):
             yield dep
 
     def test_load_with_app_id(self, load, deployment):
-        CliRunner().invoke(load, ["--app", "some app id", "--replay", "--verbose"])
+        CliRunner().invoke(load, ["--app", "some-app-id", "--replay", "--verbose"])
         deployment.assert_called_once_with(
-            "some app id", mock.ANY, True, {"replay": True}
+            "some-app-id", mock.ANY, True, {"replay": True}
         )
 
 
@@ -371,7 +382,7 @@ class TestSummary(object):
 
     def test_summary(self, summary, patched_summary_route):
         with mock.patch("dallinger.heroku.tools.HerokuApp.url"):
-            result = CliRunner().invoke(summary, ["--app", "some app id"])
+            result = CliRunner().invoke(summary, ["--app", "some-app-id"])
         assert "Yield: 50.00%" in result.output
 
 
@@ -402,12 +413,12 @@ class TestBot(object):
 
     def test_bot_no_debug_url(self, bot_command, mock_bot):
         with mock.patch("dallinger.heroku.tools.HerokuApp.url"):
-            CliRunner().invoke(bot_command, ["--app", "some app id"])
+            CliRunner().invoke(bot_command, ["--app", "some-app-id"])
 
         assert mock_bot.run_experiment.called
 
     def test_bot_with_debug_url(self, bot_command, mock_bot):
-        CliRunner().invoke(bot_command, ["--app", "some app id", "--debug", "some url"])
+        CliRunner().invoke(bot_command, ["--app", "some-app-id", "--debug", "some url"])
 
         assert mock_bot.run_experiment.called
 
