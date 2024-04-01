@@ -672,7 +672,7 @@ webencodings==0.5.1
     #   tinycss2
 websocket-client==1.7.0
     # via jupyter-server
-werkzeug==3.0.1
+werkzeug==3.0.2
     # via
     #   flask
     #   flask-login
