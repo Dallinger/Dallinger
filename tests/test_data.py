@@ -6,7 +6,6 @@ import os
 import shutil
 import tempfile
 import uuid
-from collections import OrderedDict
 from datetime import datetime
 from unittest import mock
 from zipfile import ZipFile
@@ -148,7 +147,7 @@ class TestDataLocally(object):
 
     def test_dict_conversion(self):
         data = dallinger.data.Data(self.data_path)
-        assert type(data.networks.dict) is OrderedDict
+        assert type(data.networks.dict) is dict
 
     def test_df_conversion(self):
         data = dallinger.data.Data(self.data_path)
