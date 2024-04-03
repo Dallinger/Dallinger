@@ -33,6 +33,16 @@ class TestModuleFunctions(object):
     def test_by_name_with_valid_nickname(self, mod):
         assert isinstance(mod.by_name("bots"), mod.BotRecruiter)
 
+    def test_by_name_with_custom_recruiter_valid_name(self, mod):
+        class CustomProlificRecruiter(mod.ProlificRecruiter):
+            def custom_method(self):
+                return "return value"
+
+        assert isinstance(mod.by_name("prolific"), CustomProlificRecruiter)
+        with pytest.raises(AttributeError) as e:
+            mod.ProlificRecruiter().custom_method()
+        assert e.match("'ProlificRecruiter' object has no attribute 'custom_method'")
+
     def test_by_name_with_invalid_name(self, mod):
         assert mod.by_name("blah") is None
 
