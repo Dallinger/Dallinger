@@ -117,7 +117,7 @@ packaging==23.2
     # via
     #   build
     #   gunicorn
-parso==0.8.3
+parso==0.8.4
     # via jedi
 pexpect==4.9.0
     # via
