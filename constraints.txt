@@ -377,7 +377,7 @@ paramiko==3.4.0
     # via
     #   dallinger
     #   sshtunnel
-parso==0.8.3
+parso==0.8.4
     # via jedi
 pathspec==0.12.1
     # via black
