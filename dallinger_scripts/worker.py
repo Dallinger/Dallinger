@@ -1,4 +1,4 @@
-"""Heroku web worker."""
+from dallinger.config import get_config
 
 listen = ["high", "default", "low"]
 
@@ -25,10 +25,13 @@ def main():
 
     initialize_experiment_package(os.getcwd())
 
-    log_level = os.environ.get("loglevel", "WARN")
+    loglevels = ["DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"]
+    loglevel = os.environ.get(
+        "loglevel", loglevels[get_config().get("loglevel_worker")]
+    )
     logging.basicConfig(
         format="%(asctime)s %(message)s",
-        level=getattr(logging, log_level, logging.WARN),
+        level=getattr(logging, loglevel, logging.WARN),
     )
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
     # Specify queue class for improved performance with gevent.
@@ -51,7 +54,7 @@ def main():
         # Default to log.warn because rq logs extremely verbosely at the info
         # level
         worker.log.info = worker.log.debug
-        worker.work(logging_level=log_level)
+        worker.work(logging_level=loglevel)
 
 
 if __name__ == "__main__":  # pragma: nocover

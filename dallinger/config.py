@@ -76,6 +76,7 @@ default_keys = (
     ("lock_table_when_creating_participant", bool, []),
     ("logfile", six.text_type, []),
     ("loglevel", int, []),
+    ("loglevel_worker", int, []),
     ("mode", six.text_type, []),
     ("mturk_qualification_blocklist", six.text_type, ["qualification_blacklist"]),
     ("mturk_qualification_requirements", six.text_type, [], False, [is_valid_json]),
