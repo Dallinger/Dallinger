@@ -50,7 +50,7 @@ General
 
 ``loglevel_worker`` *unicode*
     A number between 0 and 4 that controls the verbosity of worker logs, from ``debug``
-    to ``critical``. Default is 2 `WARN`.
+    to ``critical``. Default is 2 `warn`.
 
 ``whimsical`` *boolean*
     What's life without whimsy? Controls whether email notifications sent
