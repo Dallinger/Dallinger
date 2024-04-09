@@ -116,7 +116,7 @@ distlib==0.3.8
     # via virtualenv
 docker==7.0.0
     # via dallinger
-docutils==0.20.1
+docutils==0.21
     # via
     #   myst-parser
     #   sphinx
