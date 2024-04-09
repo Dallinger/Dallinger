@@ -48,6 +48,10 @@ General
     to ``critical``. Note that ``dallinger debug`` ignores this setting and always
     runs at 0 (``debug``).
 
+``loglevel_worker`` *unicode*
+    A number between 0 and 4 that controls the verbosity of worker logs, from ``debug``
+    to ``critical``. Default is 2 `WARN`.
+
 ``whimsical`` *boolean*
     What's life without whimsy? Controls whether email notifications sent
     regarding various experiment errors are whimsical in tone, or more

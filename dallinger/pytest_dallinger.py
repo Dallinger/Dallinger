@@ -162,6 +162,7 @@ def stub_config():
         "lock_table_when_creating_participant": True,
         "logfile": "-",
         "loglevel": 0,
+        "loglevel_worker": 2,
         "mode": "debug",
         "num_dynos_web": 1,
         "num_dynos_worker": 1,
