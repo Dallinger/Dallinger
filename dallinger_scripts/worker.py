@@ -25,10 +25,12 @@ def main():
 
     initialize_experiment_package(os.getcwd())
 
+    config = get_config()
+    if not config.ready:
+        config.load()
+
     loglevels = ["DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"]
-    loglevel = os.environ.get(
-        "loglevel", loglevels[get_config().get("loglevel_worker")]
-    )
+    loglevel = os.environ.get("loglevel", loglevels[config.get("loglevel_worker")])
     logging.basicConfig(
         format="%(asctime)s %(message)s",
         level=getattr(logging, loglevel, logging.WARN),
