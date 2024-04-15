@@ -14,4 +14,3 @@ loglevel = 0
 threads = auto
 whimsical = true
 dashboard_user = admin
-dashboard_password = dallinger
