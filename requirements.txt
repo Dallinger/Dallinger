@@ -90,7 +90,7 @@ idna==3.6
     #   trio
 ipython==8.18.1
     # via dallinger
-itsdangerous==2.1.2
+itsdangerous==2.2.0
     # via
     #   flask
     #   flask-wtf
