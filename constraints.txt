@@ -209,7 +209,7 @@ isoduration==20.11.0
     # via jsonschema
 isort==5.13.2
     # via dallinger
-itsdangerous==2.1.2
+itsdangerous==2.2.0
     # via
     #   flask
     #   flask-wtf
