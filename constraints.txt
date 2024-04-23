@@ -316,7 +316,7 @@ mock==5.1.0
     # via dallinger
 mypy-extensions==1.0.0
     # via black
-myst-parser==2.0.0
+myst-parser==3.0.0
     # via dallinger
 nbclient==0.9.0
     # via nbconvert
