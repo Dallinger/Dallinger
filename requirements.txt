@@ -16,7 +16,7 @@ attrs==23.2.0
     # via
     #   outcome
     #   trio
-blinker==1.7.0
+blinker==1.8.1
     # via flask
 boto3==1.34.54
     # via dallinger
