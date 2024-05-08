@@ -1,5 +1,22 @@
 # Change Log
 
+## [v10.1.0](https://github.com/dallinger/dallinger/tree/v10.1.0) (2024-05-08)
+
+#### Added
+- Added check to prevent underscores in `app` names. Allowed characters are `a-z`, `0-9` , and `-`.
+- Added logic for customizing `Recruiter` classes.
+
+#### Fixed
+- Fixed `SyntaxWarning: invalid escape sequence '\*'` in Python 3.12.
+
+#### Changed
+- The database reset button in the dashboard is now only displayed in debug mode.
+
+#### Updated
+- Infrastructure: Updated dependencies
+  - Removed `mock` package; updated tests.
+  - Removed pinning for `pytest`; updated tests.
+
 ## [v10.0.1](https://github.com/dallinger/dallinger/tree/v10.0.1) (2024-03-04)
 
 #### Added
