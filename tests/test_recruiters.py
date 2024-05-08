@@ -1,8 +1,8 @@
 import json
 import os
 from datetime import datetime
+from unittest import mock
 
-import mock
 import pytest
 
 from dallinger.experiment import Experiment

@@ -1,9 +1,9 @@
 import json
 import socket
+from unittest.mock import Mock
 
 import gevent
 import pytest
-from mock import Mock
 from simple_websocket import ConnectionClosed
 
 

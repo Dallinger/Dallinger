@@ -1,6 +1,6 @@
 import json
+from unittest import mock
 
-import mock
 import pytest
 from selenium import webdriver
 

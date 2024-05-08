@@ -1,9 +1,9 @@
 """Test python experiment API"""
 
 import random
+from unittest import mock
 from uuid import UUID
 
-import mock
 import pytest
 
 import dallinger

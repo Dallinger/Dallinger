@@ -131,6 +131,8 @@ jobs:
         if: ${{ matrix.python-version == '3.9' || matrix.python-version == '3.10' }}
       - name: Codecov.io check
         uses: codecov/codecov-action@v4
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         if: ${{ matrix.python-version == '3.12' }}
 
   docker:

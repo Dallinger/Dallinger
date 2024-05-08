@@ -4,8 +4,8 @@ import shutil
 import sys
 import tempfile
 import time
+from unittest import mock
 
-import mock
 import pexpect
 import pytest
 from jinja2 import FileSystemLoader

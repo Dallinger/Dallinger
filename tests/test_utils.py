@@ -3,8 +3,8 @@ import io
 import locale
 from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
+from unittest import mock
 
-import mock
 import pytest
 
 from dallinger import config, utils
