@@ -1,5 +1,10 @@
 # Change Log
 
+## [master](https://github.com/dallinger/dallinger/tree/master) (xxxx-xx-xx)
+- Changed: rename experiment method `on_assignment_submitted_to_recruiter` to
+`on_recruiter_submission_complete` to better reflect the context in which it's
+called.
+
 ## [v10.0.1](https://github.com/dallinger/dallinger/tree/v10.0.1) (2024-03-04)
 
 #### Added
