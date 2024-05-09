@@ -1,5 +1,10 @@
 # Change Log
 
+## [v10.1.1](https://github.com/dallinger/dallinger/tree/v10.1.1) (2024-05-09)
+
+#### Updated
+- Infrastructure: Updated Docker images to Debian bookworm
+
 ## [v10.1.0](https://github.com/dallinger/dallinger/tree/v10.1.0) (2024-05-08)
 
 #### Added
