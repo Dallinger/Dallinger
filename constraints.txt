@@ -489,7 +489,7 @@ referencing==0.35.1
     #   jsonschema
     #   jsonschema-specifications
     #   jupyter-events
-requests==2.31.0
+requests==2.32.1
     # via
     #   dallinger
     #   docker
