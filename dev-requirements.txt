@@ -112,7 +112,7 @@ defusedxml==0.7.1
     #   odfpy
 distlib==0.3.8
     # via virtualenv
-docker==7.0.0
+docker==7.1.0
     # via dallinger
 docutils==0.20.1
     # via
