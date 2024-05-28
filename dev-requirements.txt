@@ -281,7 +281,7 @@ jupyterlab-server==2.27.1
     # via
     #   jupyterlab
     #   notebook
-jupyterlab-widgets==3.0.10
+jupyterlab-widgets==3.0.11
     # via ipywidgets
 localconfig==1.1.4
     # via dallinger
