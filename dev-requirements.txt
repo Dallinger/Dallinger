@@ -657,7 +657,7 @@ virtualenv==20.26.1
     #   tox
 wcwidth==0.2.13
     # via prompt-toolkit
-webcolors==1.13
+webcolors==24.6.0
     # via jsonschema
 webencodings==0.5.1
     # via
