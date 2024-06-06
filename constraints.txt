@@ -593,7 +593,7 @@ tinycss2==1.3.0
     # via nbconvert
 tokenize-rt==5.2.0
     # via black
-tornado==6.4
+tornado==6.4.1
     # via
     #   ipykernel
     #   jupyter-client
