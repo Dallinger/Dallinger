@@ -306,7 +306,7 @@ def _prolific_service_from_config():
 
 
 class ProlificRecruiter(Recruiter):
-    """A recruiter for [Prolific](https://app.prolific.co/)"""
+    """A recruiter for [Prolific](https://app.prolific.com/)"""
 
     nickname = "prolific"
 
@@ -424,7 +424,9 @@ class ProlificRecruiter(Recruiter):
         the Prolific site with a HIT (Study) specific link, which will
         trigger payment of their base pay.
         """
-        return f"https://app.prolific.co/submissions/complete?cc={self.completion_code}"
+        return (
+            f"https://app.prolific.com/submissions/complete?cc={self.completion_code}"
+        )
 
     def exit_response(self, experiment, participant):
         """Return our custom particpant exit template.
@@ -498,7 +500,7 @@ class ProlificRecruiter(Recruiter):
             "question": "In what country do you currently reside?",
             "description": "",
             "title": "Current Country of Residence",
-            "help_text": "Please note that Prolific is currently only available for participants who live in OECD countries. <a href='https://researcher-help.prolific.co/hc/en-gb/articles/360009220833-Who-are-the-people-in-your-participant-pool' target='_blank'>Read more about this</a>",
+            "help_text": "Please note that Prolific is currently only available for participants who live in OECD countries. <a href='https://researcher-help.prolific.com/hc/en-gb/articles/360009220833-Who-are-the-people-in-your-participant-pool' target='_blank'>Read more about this</a>",
             "participant_help_text": "",
             "researcher_help_text": "",
             "is_new": false,
