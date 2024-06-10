@@ -111,7 +111,7 @@ matplotlib-inline==0.1.7
     # via ipython
 outcome==1.3.0.post0
     # via trio
-packaging==24.0
+packaging==24.1
     # via
     #   build
     #   gunicorn
