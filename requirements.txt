@@ -123,7 +123,7 @@ pexpect==4.9.0
     #   ipython
 pip-tools==7.4.1
     # via dallinger
-prompt-toolkit==3.0.46
+prompt-toolkit==3.0.47
     # via ipython
 psutil==5.9.8
     # via dallinger
