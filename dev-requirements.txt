@@ -393,7 +393,7 @@ pre-commit==3.7.1
     # via dallinger
 prometheus-client==0.20.0
     # via jupyter-server
-prompt-toolkit==3.0.46
+prompt-toolkit==3.0.47
     # via
     #   ipython
     #   jupyter-console
