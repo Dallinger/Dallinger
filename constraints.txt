@@ -397,7 +397,7 @@ prompt-toolkit==3.0.46
     # via
     #   ipython
     #   jupyter-console
-psutil==5.9.8
+psutil==6.0.0
     # via
     #   dallinger
     #   ipykernel
