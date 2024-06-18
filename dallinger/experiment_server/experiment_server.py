@@ -499,12 +499,23 @@ def prepare_advertisement():
     if not browser.is_supported(request.user_agent.string):
         raise ExperimentError("browser_type_not_allowed")
 
+    recruiter_name = request.args.get("recruiter")
+    if not recruiter_name:
+        recruiter = recruiters.from_config(config)
+        recruiter_name = recruiter.nickname
+
     entry_information = request.args.to_dict()
 
     if entry_information.get("generate_tokens", None) in ("1", "true", "yes"):
         redirect_params = entry_information.copy()
         del redirect_params["generate_tokens"]
-        for entry_param in ("hitId", "assignmentId", "workerId"):
+
+        if recruiter_name == "prolific":
+            entry_params = ("PROLIFIC_PID", "STUDY_ID", "SESSION_ID")
+        else:
+            entry_params = ("hitId", "assignmentId", "workerId")
+
+        for entry_param in entry_params:
             if not redirect_params.get(entry_param):
                 redirect_params[entry_param] = generate_random_id()
         return True, {"redirect": redirect(url_for("advertisement", **redirect_params))}
@@ -516,6 +527,14 @@ def prepare_advertisement():
     hit_id = entry_data.get("hit_id")
     assignment_id = entry_data.get("assignment_id")
     worker_id = entry_data.get("worker_id")
+    prolific_pid = entry_data.get("PROLIFIC_PID")
+    study_id = entry_data.get("STUDY_ID")
+    session_id = entry_data.get("SESSION_ID")
+
+    if recruiter_name == "prolific":
+        assignment_id = session_id
+        hit_id = study_id
+        worker_id = prolific_pid
 
     if not (hit_id and assignment_id):
         raise ExperimentError("hit_assign_worker_id_not_set_by_recruiter")
@@ -531,11 +550,6 @@ def prepare_advertisement():
 
         if already_participated:
             raise ExperimentError("already_did_exp_hit")
-
-    recruiter_name = request.args.get("recruiter")
-    if not recruiter_name:
-        recruiter = recruiters.from_config(config)
-        recruiter_name = recruiter.nickname
 
     kwargs = {
         "recruiter": recruiter_name,

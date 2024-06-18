@@ -381,9 +381,9 @@ class ProlificRecruiter(Recruiter):
         """Map Prolific Study URL params to our internal keys."""
 
         participant_data = {
-            "hit_id": entry_information["STUDY_ID"],
-            "worker_id": entry_information["PROLIFIC_PID"],
-            "assignment_id": entry_information["SESSION_ID"],
+            "hit_id": entry_information.pop("STUDY_ID", None),
+            "worker_id": entry_information.pop("PROLIFIC_PID", None),
+            "assignment_id": entry_information.pop("SESSION_ID", None),
             "entry_information": entry_information,
         }
 
