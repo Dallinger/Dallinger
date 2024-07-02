@@ -1,5 +1,15 @@
 # Change Log
 
+## [v10.1.2](https://github.com/dallinger/dallinger/tree/v10.1.2) (2024-07-02)
+
+#### Fixed
+- Removed `check-latest: true` from `setup-python` action in ci.yml.
+- Renamed `prolific.co` to `prolific.com` for API calls to `api.prolific.com` and for various other subdomains.
+- Fixed value for `recruiter` in the 'New participant' link in the dashboard's "Development" tab. It is now set dynamically, e.g. when deploying with Prolific as recruitment method `recruiter` is set to "prolific", whereas when debugging the same experiment locally, `recruiter` is assigned "hotair" as value.
+
+#### Updated
+- Infrastructure: Updated dependencies.
+
 ## [v10.1.1](https://github.com/dallinger/dallinger/tree/v10.1.1) (2024-05-09)
 
 #### Updated
