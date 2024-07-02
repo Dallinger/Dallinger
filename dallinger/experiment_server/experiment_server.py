@@ -527,14 +527,6 @@ def prepare_advertisement():
     hit_id = entry_data.get("hit_id")
     assignment_id = entry_data.get("assignment_id")
     worker_id = entry_data.get("worker_id")
-    prolific_pid = entry_data.get("PROLIFIC_PID")
-    study_id = entry_data.get("STUDY_ID")
-    session_id = entry_data.get("SESSION_ID")
-
-    if recruiter_name == "prolific":
-        assignment_id = session_id
-        hit_id = study_id
-        worker_id = prolific_pid
 
     if not (hit_id and assignment_id):
         raise ExperimentError("hit_assign_worker_id_not_set_by_recruiter")
