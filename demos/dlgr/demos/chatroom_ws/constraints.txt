@@ -66,7 +66,7 @@ cryptography==42.0.8
     # via
     #   -c ../../../../dev-requirements.txt
     #   pyopenssl
-dallinger==10.1.2
+dallinger==10.1.3
     # via -r requirements.txt
 decorator==5.1.1
     # via
