@@ -1,5 +1,10 @@
 # Change Log
 
+## [v10.1.3](https://github.com/dallinger/dallinger/tree/v10.1.3) (2024-07-04)
+
+#### Fixed
+- Fixed a new bug whereby participants could not begin the experiment in Prolific.
+
 ## [v10.1.2](https://github.com/dallinger/dallinger/tree/v10.1.2) (2024-07-02)
 
 #### Fixed
