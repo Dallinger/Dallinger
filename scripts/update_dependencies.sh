@@ -24,6 +24,11 @@ sed -e 's/\[.*==/==/' -i$compat'' requirements.txt
 # Constraints are only allowed to take the form of a package name and a version specifier.
 # Other forms were originally permitted as an accident of the implementation, but were undocumented.
 # The new implementation of the resolver no longer supports these forms.
-# A possible replacement is replacing the constraint with a requirement. 
+# A possible replacement is replacing the constraint with a requirement.
 # You can find discussion regarding this at https://github.com/pypa/pip/issues/8210.
 # ERROR: Constraints cannot have extras
+
+# Post-process the constraints.txt and dev-requirements.txt files to replace "via file://..."
+# with "via constraints.in" and " via dev-requirements.in", respectively.
+sed -i.bak 's|via file://.*|via -r constraints.in|' constraints.txt
+sed -i.bak 's|via file://.*|via -r dev-requirements.in|' dev-requirements.txt
