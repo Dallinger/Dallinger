@@ -422,6 +422,7 @@ def launch():
     recruitment_details = None
     if _config().get("activate_recruiter_on_start"):
         try:
+            print(exp.recruiter)
             recruitment_details = exp.recruiter.open_recruitment(
                 n=exp.initial_recruitment_size
             )
@@ -510,7 +511,7 @@ def prepare_advertisement():
         redirect_params = entry_information.copy()
         del redirect_params["generate_tokens"]
 
-        if recruiter_name == "prolific":
+        if "prolific" in recruiter_name:
             entry_params = ("PROLIFIC_PID", "STUDY_ID", "SESSION_ID")
         else:
             entry_params = ("hitId", "assignmentId", "workerId")
