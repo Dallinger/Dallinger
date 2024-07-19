@@ -604,6 +604,21 @@ class ProlificRecruiter(Recruiter):
         }
 
 
+class DevProlificRecruiter(ProlificRecruiter):
+    """A debug recruiter for [Prolific](https://app.prolific.com/)"""
+
+    nickname = "devprolific"
+
+    def open_recruitment(self, n: int = 1) -> dict:
+        """Mock a study for Prolific."""
+
+        logger.info("Opening Prolific recruitment debug session")
+        return {
+            "items": ["external-study-url"],
+            "message": "Mocked study for Prolific",
+        }
+
+
 class CLIRecruiter(Recruiter):
     """A recruiter which prints out /ad URLs to the console for direct
     assigment.
