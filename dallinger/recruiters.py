@@ -321,6 +321,18 @@ def _prolific_service_from_config():
     )
 
 
+def _dev_prolific_service_from_config():
+    from dallinger.prolific import DevProlificService
+
+    config = get_config()
+    config.load()
+    return DevProlificService(
+        api_token="prolific_api_token",
+        api_version="prolific_api_version",
+        referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
+    )
+
+
 class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.com/)"""
 
@@ -609,6 +621,19 @@ class DevProlificRecruiter(ProlificRecruiter):
 
     nickname = "devprolific"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.config = get_config()
+        if not self.config.ready:
+            self.config.load()
+        base_url = get_base_url()
+        self.ad_url = f"{base_url}/ad?recruiter={self.nickname}"
+        self.study_domain = os.getenv("HOST")
+        self.prolificservice = _dev_prolific_service_from_config()
+        self.notifies_admin = admin_notifier(self.config)
+        self.mailer = get_mailer(self.config)
+        self.store = kwargs.get("store") or RedisStore()
+
     def open_recruitment(self, n: int = 1) -> dict:
         """Mock a study for Prolific."""
 
@@ -617,6 +642,14 @@ class DevProlificRecruiter(ProlificRecruiter):
             "items": ["external-study-url"],
             "message": "Mocked study for Prolific",
         }
+
+    @property
+    def external_submission_url(self):
+        """On experiment completion, participants are returned to
+        the Prolific site with a HIT (Study) specific link, which will
+        trigger payment of their base pay.
+        """
+        return ""
 
 
 class CLIRecruiter(Recruiter):
