@@ -240,7 +240,7 @@ class ProlificService:
 
     def _req(self, method: str, endpoint: str, **kw) -> dict:
         """Runs the actual request/response cycle:
-        * Adds auth header
+        * Adds Authorization header
         * Adds Referer header to help Prolific identify our requests
           when troubleshooting
         * Logs all requests (we might want to stop doing this when we're
@@ -281,3 +281,44 @@ class ProlificService:
             raise ProlificServiceException(json.dumps(error))
 
         return parsed
+
+
+class DevProlificService(ProlificService):
+    """
+    Wrapper that mocks the Prolific REST API and instead write to the log.
+
+    params:
+        api_token: Prolific API token
+        api_version: Prolific API version
+        referer_header: Referer header to help Prolific identify our requests when troubleshooting
+    """
+
+    def __init__(self, api_token: str, api_version: str, referer_header: str):
+        super().__init__(api_token, api_version, referer_header)
+        self.api_token = "dev-api_token"
+        self.api_token_fragment = f"{api_token[:3]}...{api_token[-3:]}"
+        self.api_version = "api_version"
+        self.referer_header = "referer_header"
+
+    def approve_participant_session(self, session_id: str) -> dict:
+        """DEVELOPMENT ONLY: Mark an assignment as approved."""
+        return self._req(
+            method="POST",
+            endpoint="/submissions/dev-session-id/transition/",
+            json={"action": "APPROVE"},
+        )
+
+    def _req(self, method: str, endpoint: str, **kw) -> dict:
+        """Does NOT run the request/response cycle but instead writes to the log."""
+        url = f"{self.api_root}{endpoint}"
+        summary = {
+            "URL": url,
+            "method": method,
+            "args": kw,
+        }
+        logger.warning(">>>>>>>>>>>>>>>>>>>>>>>>")
+        logger.warning(
+            f">>> Prolific API request would have been: {json.dumps(summary)} <<<"
+        )
+        logger.warning(">>>>>>>>>>>>>>>>>>>>>>>>")
+        return {}
