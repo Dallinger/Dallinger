@@ -657,6 +657,7 @@ def summary():
     # to counter missed messages at the end of the waiting room
     nonfailed_count = models.Participant.query.filter(
         (models.Participant.status == "working")
+        | (models.Participant.status == "recruiter_submission_started")
         | (models.Participant.status == "overrecruited")
         | (models.Participant.status == "submitted")
         | (models.Participant.status == "approved")
@@ -823,6 +824,11 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
     if not config.ready:
         config.load()
 
+    recruiter_name = request.args.get("recruiter")
+    fingerprint_hash = request.args.get("fingerprint_hash") or request.form.get(
+        "fingerprint_hash"
+    )
+
     if config.get("lock_table_when_creating_participant"):
         # Historically we have locked the participant table when creating participants
         # to avoid database inconsistency problems. However some experimenters have experienced
@@ -841,9 +847,6 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         msg = "/participant POST: required values were 'undefined'"
         return error_response(error_type=msg, status=403)
 
-    fingerprint_hash = request.args.get("fingerprint_hash") or request.form.get(
-        "fingerprint_hash"
-    )
     fingerprint_found = False
     if fingerprint_hash:
         try:
@@ -877,24 +880,23 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
 
     if duplicate:
         msg = """
-            AWS has reused assignment_id while existing participant is
+            {} has reused assignment_id while existing participant is
             working. Replacing older participant {}.
         """
-        app.logger.warning(msg.format(duplicate.id))
+        app.logger.warning(msg.format(recruiter_name, duplicate.id))
         q.enqueue(worker_function, "AssignmentReassigned", None, duplicate.id)
 
     # Count working or beyond participants.
     nonfailed_count = (
         models.Participant.query.filter(
             (models.Participant.status == "working")
+            | (models.Participant.status == "recruiter_submission_started")
             | (models.Participant.status == "overrecruited")
             | (models.Participant.status == "submitted")
             | (models.Participant.status == "approved")
         ).count()
         + 1
     )
-
-    recruiter_name = request.args.get("recruiter")
 
     # Create the new participant.
     exp = Experiment(session)
@@ -1712,7 +1714,15 @@ def check_for_duplicate_assignments(participant):
 @app.route("/worker_complete", methods=["POST"])
 @db.scoped_session_decorator
 def worker_complete():
-    """Complete worker."""
+    """Called when a participant completes their task.
+
+    1. Loads participant row, with a lock
+    2. Checks participant status, to avoid double-submits
+    3. Updates end_time of participant
+    4. Calls exp.participant_task_completed(participant)
+    5. Asks recruiter for new participant status and possible action to run
+    6. Runs any action requested by recruiter (synchronously)
+    """
     participant_id = request.values.get("participant_id")
     if not participant_id:
         return error_response(
@@ -1730,38 +1740,46 @@ def worker_complete():
 
 
 def _worker_complete(participant_id):
-    participant = models.Participant.query.get(participant_id)
+    # Lock the participant row, then check and update status to avoid
+    # double-submits:
+    participant = (
+        models.Participant.query.populate_existing()
+        .with_for_update(of=models.Participant)
+        .get(participant_id)
+    )
     if participant is None:
         raise KeyError()
 
-    if participant.end_time is not None:  # Provide idempotence
+    # Provide idempotence
+    if participant.end_time is not None:
         return
 
     participant.end_time = datetime.now()
-    session.commit()
 
-    # Notify experiment that participant has been marked complete. Doing
-    # this here, rather than in the worker function, means that
-    # the experiment can request qualification assignment before the
-    # worker completes the HIT when using a recruiter like MTurk, where
-    # execution of the `worker_events.AssignmentSubmitted` command is
-    # deferred until they've submitted the HIT on the MTurk platform.
+    # Immediately notify experiment that participant has been marked complete.
+    # This is done first so that the experiment can request qualification
+    # assignment before the worker submits their task on asynchronous
+    # recruitment platforms like MTurk. This prevents them from possibly being
+    # offered another task which they may no longer be qualified for.
     exp = Experiment(session)
     exp.participant_task_completed(participant)
 
-    # Does the recruiter want us to execute some command on worker completion?
-    event_type = participant.recruiter.on_completion_event()
+    # The recruiter tells us which status to assign the participant,
+    # and synchronous recruiters also return the name of an event
+    # command to run immediately (and synchronously)
+    status_and_action = participant.recruiter.on_task_completion()
+    participant.status = status_and_action["new_status"]
+    # NB: commit releases lock.
+    session.commit()
 
-    if event_type is None:
-        return
-
-    # Currently we execute this function synchronously, regardless of the
-    # event type:
-    worker_function(
-        event_type=event_type,
-        assignment_id=participant.assignment_id,
-        participant_id=participant_id,
-    )
+    if "action" in status_and_action:
+        # Currently we execute this function synchronously, regardless of the
+        # event type:
+        worker_function(
+            event_type=status_and_action["action"],
+            assignment_id=participant.assignment_id,
+            participant_id=participant_id,
+        )
 
 
 @app.route("/worker_failed", methods=["GET"])

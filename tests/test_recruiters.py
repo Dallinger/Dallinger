@@ -197,8 +197,11 @@ class TestCLIRecruiter(object):
         result = recruiter.open_recruitment()
         assert "mode=new_mode" in result["items"][0]
 
-    def test_returns_standard_submission_event_type(self, recruiter):
-        assert recruiter.on_completion_event() == "AssignmentSubmitted"
+    def test_on_task_completion__returns_event_type_and_new_status(self, recruiter):
+        assert recruiter.on_task_completion() == {
+            "new_status": "submitted",
+            "action": "RecruiterSubmissionComplete",
+        }
 
 
 @pytest.mark.usefixtures("active_config")
@@ -249,8 +252,11 @@ class TestHotAirRecruiter(object):
         result = recruiter.open_recruitment()
         assert "mode=debug" in result["items"][0]
 
-    def test_returns_standard_submission_event_type(self, recruiter):
-        assert recruiter.on_completion_event() == "AssignmentSubmitted"
+    def test_on_task_completion__returns_event_type_and_new_status(self, recruiter):
+        assert recruiter.on_task_completion() == {
+            "new_status": "submitted",
+            "action": "RecruiterSubmissionComplete",
+        }
 
 
 class TestSimulatedRecruiter(object):
@@ -272,8 +278,11 @@ class TestSimulatedRecruiter(object):
     def test_open_recruitment_multiple_returns_empty_result(self, recruiter):
         assert recruiter.open_recruitment(n=3)["items"] == []
 
-    def test_returns_standard_submission_event_type(self, recruiter):
-        assert recruiter.on_completion_event() == "AssignmentSubmitted"
+    def test_on_task_completion__returns_event_type_and_new_status(self, recruiter):
+        assert recruiter.on_task_completion() == {
+            "new_status": "submitted",
+            "action": "RecruiterSubmissionComplete",
+        }
 
     def test_close_recruitment(self, recruiter):
         assert recruiter.close_recruitment() is None
@@ -321,8 +330,11 @@ class TestBotRecruiter(object):
     def test_reward_bonus(self, a, recruiter):
         recruiter.reward_bonus(a.participant(), 0.01, "You're great!")
 
-    def test_returns_specific_submission_event_type(self, recruiter):
-        assert recruiter.on_completion_event() == "BotAssignmentSubmitted"
+    def test_on_task_completion__returns_event_type_and_new_status(self, recruiter):
+        assert recruiter.on_task_completion() == {
+            "new_status": "submitted",
+            "action": "BotRecruiterSubmissionComplete",
+        }
 
     def test_notify_duration_exceeded_rejects_participants(self, a, recruiter):
         bot = a.participant(recruiter_id="bots")
@@ -433,8 +445,10 @@ class TestProlificRecruiter(object):
             "entry_information": prolific_format,
         }
 
-    def test_defers_assignment_submission_via_null_on_completion_event(self, recruiter):
-        assert recruiter.on_completion_event() is None
+    def test_on_task_completion__returns_no_event_and_new_status(self, recruiter):
+        assert recruiter.on_task_completion() == {
+            "new_status": "recruiter_submission_started",
+        }
 
     @pytest.mark.usefixtures("experiment_dir_merged")
     def test_exit_page_includes_submission_prolific_button(self, a, webapp, recruiter):
@@ -500,12 +514,14 @@ class TestProlificRecruiter(object):
             study_id="abcdefghijklmnopqrstuvwx", number_to_add=1
         )
 
-    def test_submission_listener_enqueues_assignment_submitted_notification(
-        self, queue, webapp
+    def test_submission_listener_updates_status_and_enqueues_notification(
+        self, a, queue, webapp, db_session
     ):
+        participant = a.participant(assignment_id="some assignment ID")
+        participant_id = participant.id
         exit_form_submission = {
-            "assignmentId": "some assignment ID",
-            "participantId": "some participant ID",
+            "assignmentId": participant.assignment_id,
+            "participantId": f"{participant_id}",
             "somethingElse": "blah... whatever",
         }
 
@@ -513,10 +529,36 @@ class TestProlificRecruiter(object):
             "/prolific-submission-listener", data=exit_form_submission
         )
 
+        participant = db_session.merge(participant)
         assert response.status_code == 200
+        assert participant.status == "submitted"
         queue.enqueue.assert_called_once_with(
-            mock.ANY, "AssignmentSubmitted", "some assignment ID", "some participant ID"
-        ),
+            mock.ANY,
+            "RecruiterSubmissionComplete",
+            "some assignment ID",
+            f"{participant_id}",
+        )
+
+    def test_submission_listener_prevents_double_processing(self, a, queue, webapp):
+        participant = a.participant(assignment_id="some assignment ID")
+        participant_id = participant.id
+        exit_form_submission = {
+            "assignmentId": "some assignment ID",
+            "participantId": f"{participant_id}",
+            "somethingElse": "blah... whatever",
+        }
+
+        # Call twice
+        webapp.post("/prolific-submission-listener", data=exit_form_submission)
+        webapp.post("/prolific-submission-listener", data=exit_form_submission)
+
+        # Just one job added to queue
+        queue.enqueue.assert_called_once_with(
+            mock.ANY,
+            "RecruiterSubmissionComplete",
+            "some assignment ID",
+            f"{participant_id}",
+        )
 
     def test_clean_qualification_attributes(self, recruiter):
         json_path = os.path.join(
@@ -965,8 +1007,10 @@ class TestMTurkRecruiter(object):
         with pytest.raises(MTurkRecruiterException):
             recruiter.open_recruitment()
 
-    def test_supresses_assignment_submitted(self, recruiter):
-        assert recruiter.on_completion_event() is None
+    def test_on_task_completion__returns_no_event_and_new_status(self, recruiter):
+        assert recruiter.on_task_completion() == {
+            "new_status": "recruiter_submission_started",
+        }
 
     def test_current_hit_id_with_active_experiment(self, recruiter, fake_parsed_hit):
         recruiter.open_recruitment()
@@ -1185,7 +1229,10 @@ class TestMTurkRecruiter(object):
         recruiter.notify_duration_exceeded(participants, datetime.now())
 
         queue.enqueue.assert_called_once_with(
-            worker_function, "AssignmentSubmitted", participants[0].assignment_id, None
+            worker_function,
+            "RecruiterSubmissionComplete",
+            participants[0].assignment_id,
+            None,
         )
         recruiter.notifies_admin.send.assert_called_once()
 

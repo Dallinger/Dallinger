@@ -22,7 +22,7 @@ from dallinger.db import redis_conn, session
 from dallinger.experiment_server.utils import crossdomain, success_response
 from dallinger.experiment_server.worker_events import worker_function
 from dallinger.heroku import tools as heroku_tools
-from dallinger.models import Recruitment
+from dallinger.models import Participant, Recruitment
 from dallinger.mturk import (
     DuplicateQualificationNameError,
     MTurkQualificationRequirements,
@@ -153,13 +153,12 @@ class Recruiter(object):
         """
         return None
 
-    def on_completion_event(self):
-        """Return the name of the appropriate WorkerEvent command to run
-        when a participant completes an experiment.
-
-        If no event should be processed, return None.
+    def on_task_completion(self):
+        """Return the new status to assign the particpant, and optionally,
+        the name of the appropriate WorkerEvent command to run when a
+        participant first completes their assignment.
         """
-        return "AssignmentSubmitted"
+        raise NotImplementedError
 
     def load_service(self, sandbox):
         """Load the appropriate service for this recruiter."""
@@ -273,7 +272,10 @@ def prolific_submission_listener():
 
     When the participant submits their assignment/study to Prolific,
     we are then ready to handle experiment completion task (approval, bonus)
-    via the `AssignmentSubmitted` async worker function.
+    via the `RecruiterSubmissionComplete` async worker function.
+
+    We are forced to take a small leap of faith that their redirect to the
+    Prolific submission page happens successfully.
     """
     identity_info = flask.request.form.to_dict()
     logger.warning(
@@ -282,10 +284,24 @@ def prolific_submission_listener():
     assignment_id = identity_info.get("assignmentId")
     participant_id = identity_info.get("participantId")
 
-    recruiter = ProlificRecruiter()
-    recruiter._handle_exit_form_submission(
-        assignment_id=assignment_id, participant_id=participant_id
+    # Lock the participant row, then check and update status to avoid double-submits:
+    participant = (
+        Participant.query.populate_existing()
+        .with_for_update(of=Participant)
+        .get(participant_id)
     )
+    if participant is not None and participant.status != "submitted":
+        participant.status = "submitted"
+        session.commit()  # NB: commit releases lock
+        q = _get_queue()
+        # Here we assume the participant has submitted on Prolific by now
+        # and we express this by firing off the corresponding event:
+        q.enqueue(
+            worker_function,
+            "RecruiterSubmissionComplete",
+            assignment_id,
+            participant_id,
+        )
 
     return success_response()
 
@@ -453,14 +469,16 @@ class ProlificRecruiter(Recruiter):
         except ProlificServiceException as ex:
             logger.exception(str(ex))
 
-    def on_completion_event(self):
+    def on_task_completion(self):
         """We cannot perform post-submission actions (approval, bonus payment)
         until after the participant has submitted their study via the Prolific
         UI, which we redirect them to from the exit page. This means that we
         can't do anything when the questionnaire is submitted, so we return None
         to signal this.
         """
-        return None
+        return {
+            "new_status": "recruiter_submission_started",
+        }
 
     @property
     def current_study_id(self):
@@ -481,10 +499,6 @@ class ProlificRecruiter(Recruiter):
 
     def _record_current_study_id(self, study_id):
         self.store.set(self.study_id_storage_key, study_id)
-
-    def _handle_exit_form_submission(self, assignment_id: str, participant_id: str):
-        q = _get_queue()
-        q.enqueue(worker_function, "AssignmentSubmitted", assignment_id, participant_id)
 
     def load_service(self, sandbox):
         return _prolific_service_from_config()
@@ -600,6 +614,15 @@ class CLIRecruiter(Recruiter):
     def __init__(self):
         super(CLIRecruiter, self).__init__()
         self.config = get_config()
+
+    def on_task_completion(self):
+        """In our case, the task submission is implicitly complete, since we
+        have nothing to do.
+        """
+        return {
+            "new_status": "submitted",
+            "action": "RecruiterSubmissionComplete",
+        }
 
     def exit_response(self, experiment, participant):
         """Delegate to the experiment for possible values to show to the
@@ -721,6 +744,15 @@ class SimulatedRecruiter(Recruiter):
     """A recruiter that recruits simulated participants."""
 
     nickname = "sim"
+
+    def on_task_completion(self):
+        """In our case, the task submission is implicitly complete, since we
+        have nothing to do.
+        """
+        return {
+            "new_status": "submitted",
+            "action": "RecruiterSubmissionComplete",
+        }
 
     def open_recruitment(self, n=1):
         """Open recruitment."""
@@ -959,7 +991,14 @@ class RedisStore(object):
 
 
 def _run_mturk_qualification_assignment(worker_id, qualifications):
-    """Provides a way to run qualification assignment asynchronously."""
+    """Provides a way to run qualification assignment asynchronously.
+
+    TODO: could be made general:
+        1. pass in recruiter nickname
+        2. instantiate recruiter
+        3. recruiter._assign_experiment_qualifications(worker_id, qualifications)
+
+    """
     recruiter = MTurkRecruiter()
     recruiter._assign_experiment_qualifications(worker_id, qualifications)
 
@@ -1213,11 +1252,13 @@ class MTurkRecruiter(Recruiter):
                 "on MTurk and can no longer submit the questionnaire"
             )
 
-    def on_completion_event(self):
+    def on_task_completion(self):
         """MTurk will send its own notification when the worker
         completes the HIT on that service.
         """
-        return None
+        return {
+            "new_status": "recruiter_submission_started",
+        }
 
     def reward_bonus(self, participant, amount, reason):
         """Reward the Turker for a specified assignment with a bonus."""
@@ -1295,13 +1336,42 @@ class MTurkRecruiter(Recruiter):
     def _confirm_sns_subscription(self, token, topic):
         self.mturkservice.confirm_subscription(token=token, topic=topic)
 
+    def _translate_event_type(mturk_event_type):
+        # If a translation exists, return it, otherwise return what we were given
+        mturk_to_dallinger = {"AssignmentSubmitted": "RecruiterSubmissionComplete"}
+
+        return mturk_to_dallinger.get(mturk_event_type, mturk_event_type)
+
     def _report_event_notification(self, events):
+        # Historically (and regrettably) we have adopted MTurk's event names
+        # internally. The one (new) exception to this is MTurk's "AssigmentSubmitted",
+        # which is now represented internally as "RecruiterSubmissionComplete"
+        #
+        # Note: this is an entry-point, so it's a reasonable place to commit a
+        # transaction before passing off the async worker task.
         q = _get_queue()
         for event in events:
-            event_type = event.get("EventType")
+            mturk_type = event.get("EventType")
             assignment_id = event.get("AssignmentId")
-            participant_id = None
-            q.enqueue(worker_function, event_type, assignment_id, participant_id)
+
+            if mturk_type == "AssignmentSubmitted":
+                participant = (
+                    Participant.query.filter_by(assignment_id=assignment_id)
+                    .order_by(Participant.creation_time.desc())
+                    .first()
+                )
+                if participant is None:
+                    logger.error(
+                        "Received an AssignmentSubmitted notification from MTurk for assignment ID {}, "
+                        "which is not related to any participant.".format(assignment_id)
+                    )
+                    return
+
+                participant.status = "submitted"
+                session.commit()
+
+            dlgr_event_type = self._translate_event_type(mturk_type)
+            q.enqueue(worker_function, dlgr_event_type, assignment_id, participant.id)
 
     def _mturk_status_for(self, participant):
         try:
@@ -1320,7 +1390,10 @@ class MTurkRecruiter(Recruiter):
     def _resend_submitted_rest_notification_for(self, participant):
         q = _get_queue()
         q.enqueue(
-            worker_function, "AssignmentSubmitted", participant.assignment_id, None
+            worker_function,
+            "RecruiterSubmissionComplete",
+            participant.assignment_id,
+            None,
         )
 
     def _send_notification_missing_rest_notification_for(self, participant):
@@ -1367,7 +1440,7 @@ class MTurkRecruiter(Recruiter):
                 try:
                     self.mturkservice.get_qualification_type_by_name(new["name"])
                 except QualificationNotFoundException:
-                    logger.warn(
+                    logger.warning(
                         "Did not find qualification {}. Trying again...".format(
                             new["name"]
                         )
@@ -1380,7 +1453,7 @@ class MTurkRecruiter(Recruiter):
 
         unavailable = [q for q in result["new_qualifications"] if not q["available"]]
         if unavailable:
-            logger.warn(
+            logger.warning(
                 "After several attempts, some qualifications are still not ready "
                 "for assignment: {}".format(", ".join(unavailable))
             )
@@ -1537,8 +1610,11 @@ class BotRecruiter(Recruiter):
         """Logging only. These are bots."""
         logger.info("Bots don't get bonuses. Sorry, bots.")
 
-    def on_completion_event(self):
-        return "BotAssignmentSubmitted"
+    def on_task_completion(self):
+        return {
+            "new_status": "submitted",
+            "action": "BotRecruiterSubmissionComplete",
+        }
 
     def _get_bot_factory(self):
         # Must be imported at run-time
