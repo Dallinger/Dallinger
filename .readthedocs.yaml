@@ -1,0 +1,12 @@
+version: 2
+build:
+  os: ubuntu-lts-latest
+  tools:
+    python: "3.12"
+
+python:
+  install:
+      - requirements: dev-requirements.txt
+
+sphinx:
+  configuration: docs/source/conf.py
