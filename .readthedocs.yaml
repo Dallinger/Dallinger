@@ -6,7 +6,11 @@ build:
 
 python:
   install:
-      - requirements: dev-requirements.txt
+    - requirements: dev-requirements.txt
+    - method: pip
+      path: .
+      extra_requirements:
+        - dev
 
 sphinx:
   configuration: docs/source/conf.py
