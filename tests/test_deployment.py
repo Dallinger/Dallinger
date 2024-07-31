@@ -10,8 +10,8 @@ import tempfile
 import textwrap
 import uuid
 from pathlib import Path
+from unittest import mock
 
-import mock
 import pexpect
 import pytest
 import requests

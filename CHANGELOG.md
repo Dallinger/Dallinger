@@ -1,27 +1,78 @@
 # Change Log
 
+## [v10.1.3](https://github.com/dallinger/dallinger/tree/v10.1.3) (2024-07-04)
+
+#### Fixed
+
+- Fixed a new bug whereby participants could not begin the experiment in Prolific.
+
+## [v10.1.2](https://github.com/dallinger/dallinger/tree/v10.1.2) (2024-07-02)
+
+#### Fixed
+
+- Removed `check-latest: true` from `setup-python` action in ci.yml.
+- Renamed `prolific.co` to `prolific.com` for API calls to `api.prolific.com` and for various other subdomains.
+- Fixed value for `recruiter` in the 'New participant' link in the dashboard's "Development" tab. It is now set dynamically, e.g. when deploying with Prolific as recruitment method `recruiter` is set to "prolific", whereas when debugging the same experiment locally, `recruiter` is assigned "hotair" as value.
+
+#### Updated
+
+- Infrastructure: Updated dependencies.
+
+## [v10.1.1](https://github.com/dallinger/dallinger/tree/v10.1.1) (2024-05-09)
+
+#### Updated
+
+- Infrastructure: Updated Docker images to Debian bookworm
+
+## [v10.1.0](https://github.com/dallinger/dallinger/tree/v10.1.0) (2024-05-08)
+
+#### Added
+
+- Added check to prevent underscores in `app` names. Allowed characters are `a-z`, `0-9` , and `-`.
+- Added logic for customizing `Recruiter` classes.
+
+#### Fixed
+
+- Fixed `SyntaxWarning: invalid escape sequence '\*'` in Python 3.12.
+
+#### Changed
+
+- The database reset button in the dashboard is now only displayed in debug mode.
+
+#### Updated
+
+- Infrastructure: Updated dependencies
+  - Removed `mock` package; updated tests.
+  - Removed pinning for `pytest`; updated tests.
+
 ## [v10.0.1](https://github.com/dallinger/dallinger/tree/v10.0.1) (2024-03-04)
 
 #### Added
+
 - Implemented `Experiment.get_status`, a customizable method that reports the current status of the experiment.
 - Implemented `Experiment.before_request` and `Experiment.after_request`, customizable hooks for running code before and after HTTP requests.
 
 #### Fixed
+
 - Fixed Chrome and ChromeDriver download link in Dockerfile.
 - Fixed dallinger requirement in demos and updated demos' constraints.
 
 #### Removed
+
 - Removed unused numpy and pandas dependencies.
 
 #### Updated
+
 - Infrastructure: Updated dependencies; pin pytest == 8.0.0.
 
 ## [v10.0.0](https://github.com/dallinger/dallinger/tree/v10.0.0) (2024-02-15)
 
 #### Breaking
+
 - Removed support for Python 3.8.
 
 #### Added
+
 - Added support for Python 3.12.
   - Remove version pinning for numpy, pandas, pre-commit, sphinx, and sphinx-related packages.
   - CI: Added Python 3.12 to GitHub workflow matrix and run Full tox tests for both Python 3.11 and 3.12.
@@ -32,10 +83,12 @@
 - Added Dozzle service to `dallinger docker-ssh` deployments.
 
 #### Changed
+
 - Revised logging text for Prolific.
 - Improve `handle_launch_data` error reporting and use it also for docker-ssh deployments.
 
 #### Updated
+
 - Infrastructure: Updated dependencies; pin ipython < 8.19.
 
 ## [v9.12.0](https://github.com/dallinger/dallinger/tree/v9.12.0) (2024-01-03)
@@ -121,8 +174,8 @@
   - Save `uniqueId` in `dlgr.identity` JavaScript object
   - Increase `unique_id` database column string size to 150
 - Infrastructure:
-   - Added Python 3.11 to list of supported programming languages
-   - Added Python 3.11 to CI workflow and updated Dockerfile to use Python 3.11
+  - Added Python 3.11 to list of supported programming languages
+  - Added Python 3.11 to CI workflow and updated Dockerfile to use Python 3.11
 - Infrastructure: Updated dependencies; require ipython < 8.13.
 
 ## [v9.7.0](https://github.com/dallinger/dallinger/tree/v9.7.0) (2023-04-27)
@@ -163,8 +216,8 @@
 - Enhancements to Prolific recruitment:
   - Extended `dallinger hits [--recruiter=prolific|mturk] [--sandbox]` to work with Prolific as well.
   - Addition of two new command line tools:
-    - `dallinger hit-details --hit_id  XYZ [--recruiter=prolific|mturk] [--sandbox]` which pastes all the HIT details in the console window.
-    - `dallinger copy-qualifications --hit_id  XYZ [--recruiter=prolific|mturk] [--sandbox]` which copies the requirements to participate in an experiment (e.g country or the number of completed tasks) from an existing HIT and saves it into a JSON file.
+    - `dallinger hit-details --hit_id XYZ [--recruiter=prolific|mturk] [--sandbox]` which pastes all the HIT details in the console window.
+    - `dallinger copy-qualifications --hit_id XYZ [--recruiter=prolific|mturk] [--sandbox]` which copies the requirements to participate in an experiment (e.g country or the number of completed tasks) from an existing HIT and saves it into a JSON file.
 - Enhancement: Added `Experiment.config_class`, a hook for customizing the Configuration class.
 - Infrastructure: Update dependencies.
 - Infrastructure: Upgrade to Docker Compose v2.
@@ -217,6 +270,7 @@
 - Infrastructure: Update dependencies
 
 ## [v9.3.0](https://github.com/dallinger/dallinger/tree/v9.3.0) (2022-12-16)
+
 - Enhancement: Docker quality of life improvements
   - Major
     - Disabled the behavior where the built image name is written to config.txt. This behavior was inconsistent with the other Dallinger deployment patterns, because it meant that if you deployed once, changed code in experiment.py, then redeployed, then the experiment would launch in the former version unless you remembered to delete the image name from config.txt.
@@ -584,7 +638,7 @@
   variable `heroku_python_version`. If not overriddent the default version of 3.6.10 will
   be used.
 - If files in the custom experiment directory are excluded by Git (by a local or global
-  .gitignore file, $GIT_DIR/info/exclude, etc.), they will not be copied for use in deployment
+  .gitignore file, \$GIT_DIR/info/exclude, etc.), they will not be copied for use in deployment
   or `dallinger debug` runs. They will also be excluded from file size checks performed
   automatically during `debug` and deployment, and by `dallinger verify`.
 - Add `failed` parameter to the add info route. This requires that all custom `Info` classes respect a `failed` keyword argument.

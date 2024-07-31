@@ -242,7 +242,7 @@ Prolific Recruitment
         - ``peripheral_requirements``
         - ``eligibility_requirements``
 
-    See the `Prolific API Documentation <https://docs.prolific.co/docs/api-docs/public/#tag/Studies/paths/~1api~1v1~1studies~1/post>`__
+    See the `Prolific API Documentation <https://docs.prolific.com/docs/api-docs/public/#tag/Studies/paths/~1api~1v1~1studies~1/post>`__
     for details.
 
     Configuration can also be stored in a separate JSON file, and included by using the

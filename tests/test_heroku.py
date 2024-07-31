@@ -4,8 +4,8 @@ import datetime
 import os
 import signal
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from dallinger.config import get_config
@@ -31,9 +31,11 @@ def check_output():
 
 
 class TestClockScheduler(object):
+    @pytest.fixture
     def setup(self):
         """Set up the environment by moving to the demos directory."""
-        os.chdir("tests/experiment")
+        root_dir = os.path.dirname(__file__)
+        os.chdir(f"{root_dir}/experiment")
         config = get_config()
         config.ready = False
         from dallinger.heroku import clock
@@ -41,7 +43,7 @@ class TestClockScheduler(object):
         self.clock = clock
 
     @pytest.fixture
-    def patched_scheduler(self):
+    def patched_scheduler(self, setup):
         from dallinger import heroku
 
         with mock.patch("apscheduler.schedulers.blocking.BlockingScheduler.start"):
@@ -50,7 +52,7 @@ class TestClockScheduler(object):
     def teardown(self):
         os.chdir("../..")
 
-    def test_scheduler_has_job(self):
+    def test_scheduler_has_job(self, setup):
         jobs = self.clock.scheduler.get_jobs()
         assert len(jobs) == 2
         assert (

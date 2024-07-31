@@ -797,8 +797,11 @@ def database():
 @login_required
 def develop():
     """Dashboard for working with ``dallinger develop`` Flask server."""
-
-    return render_template("dashboard_develop.html")
+    return render_template(
+        "dashboard_develop.html",
+        mode=get_config().get("mode"),
+        recruiter=recruiters.from_config(get_config()).nickname,
+    )
 
 
 @dashboard.route("/database/action/<route_name>", methods=["POST"])

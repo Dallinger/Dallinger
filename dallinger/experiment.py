@@ -1145,7 +1145,7 @@ class Experiment(object):
     def monitoring_panels(self, **kw):
         """Provides monitoring dashboard sidebar panels.
 
-        :param \**kw: arguments passed in from the request
+        :param \\**kw: arguments passed in from the request
         :returns: An ``OrderedDict()`` mapping panel titles to HTML strings
                   to render in the dashboard sidebar.
         """  # noqa
@@ -1158,7 +1158,7 @@ class Experiment(object):
     def monitoring_statistics(self, **kw):
         """The default data used for the monitoring panels
 
-        :param \**kw: arguments passed in from the request
+        :param \\**kw: arguments passed in from the request
         :returns: An ``OrderedDict()`` mapping panel titles to data structures
                   describing the experiment state.
         """  # noqa
@@ -1836,7 +1836,7 @@ def scheduled_task(trigger, **kwargs):
 
     :param trigger: an ``apscheduler`` trigger type. One of "interval", "cron",
                     or "date"
-    :param \**kwargs: other arguments for `apscheduler.schedulers.base.BaseSchedule.scheduled_job`
+    :param \\**kwargs: other arguments for `apscheduler.schedulers.base.BaseSchedule.scheduled_job`
                       generally used for trigger arguments to determine
                       the run interval.
 

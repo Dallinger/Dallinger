@@ -369,7 +369,7 @@ def check_for_prolific_worker_status_discrepancy(local_status, prolific_status):
 
 
 class ProlificRecruiter(Recruiter):
-    """A recruiter for [Prolific](https://app.prolific.co/)"""
+    """A recruiter for [Prolific](https://app.prolific.com/)"""
 
     nickname = "prolific"
 
@@ -444,9 +444,9 @@ class ProlificRecruiter(Recruiter):
         """Map Prolific Study URL params to our internal keys."""
 
         participant_data = {
-            "hit_id": entry_information["STUDY_ID"],
-            "worker_id": entry_information["PROLIFIC_PID"],
-            "assignment_id": entry_information["SESSION_ID"],
+            "hit_id": entry_information.pop("STUDY_ID", None),
+            "worker_id": entry_information.pop("PROLIFIC_PID", None),
+            "assignment_id": entry_information.pop("SESSION_ID", None),
             "entry_information": entry_information,
         }
 
@@ -487,7 +487,9 @@ class ProlificRecruiter(Recruiter):
         the Prolific site with a HIT (Study) specific link, which will
         trigger payment of their base pay.
         """
-        return f"https://app.prolific.co/submissions/complete?cc={self.completion_code}"
+        return (
+            f"https://app.prolific.com/submissions/complete?cc={self.completion_code}"
+        )
 
     def exit_response(self, experiment, participant):
         """Return our custom particpant exit template.
@@ -614,7 +616,7 @@ class ProlificRecruiter(Recruiter):
             "question": "In what country do you currently reside?",
             "description": "",
             "title": "Current Country of Residence",
-            "help_text": "Please note that Prolific is currently only available for participants who live in OECD countries. <a href='https://researcher-help.prolific.co/hc/en-gb/articles/360009220833-Who-are-the-people-in-your-participant-pool' target='_blank'>Read more about this</a>",
+            "help_text": "Please note that Prolific is currently only available for participants who live in OECD countries. <a href='https://researcher-help.prolific.com/hc/en-gb/articles/360009220833-Who-are-the-people-in-your-participant-pool' target='_blank'>Read more about this</a>",
             "participant_help_text": "",
             "researcher_help_text": "",
             "is_new": false,
@@ -1913,7 +1915,15 @@ def by_name(name, **kwargs):
     """
     by_name = {}
     for cls in _descendent_classes(Recruiter):
-        by_name[cls.__name__] = by_name[cls.nickname] = cls
+        ids = [cls.nickname, cls.__name__]
+        for id_ in ids:
+            previous_registered_cls = by_name.get(id_, None)
+            if previous_registered_cls:
+                should_overwrite = issubclass(cls, previous_registered_cls)
+            else:
+                should_overwrite = True
+            if should_overwrite:
+                by_name[id_] = cls
 
     klass = by_name.get(name)
     if klass is not None:

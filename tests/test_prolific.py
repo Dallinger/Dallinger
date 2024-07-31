@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pytest
 
 study_request = {
@@ -72,7 +73,7 @@ def test_all_methods_give_informative_error_messages(subject):
     with pytest.raises(ProlificServiceException) as ex_info:
         subject.who_am_i()
 
-    assert ex_info.match('"URL": "https://api.prolific.co/api/junk/users/me/"')
+    assert ex_info.match('"URL": "https://api.prolific.com/api/junk/users/me/"')
 
 
 @pytest.mark.usefixtures("check_prolific")
@@ -90,7 +91,7 @@ def test_requests_are_logged(subject):
         subject.who_am_i()
 
     logger.warning.assert_called_once_with(
-        'Prolific API request: {"URL": "https://api.prolific.co/api/v1/users/me/", "method": "GET", "args": {}}'
+        'Prolific API request: {"URL": "https://api.prolific.com/api/v1/users/me/", "method": "GET", "args": {}}'
     )
 
 
