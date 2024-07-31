@@ -21,6 +21,7 @@ mode = debug
 enable_global_experiment_registry = False
 language = en
 lock_table_when_creating_participant = True
+worker_cpu_shares = 1024
 
 [Recruiter]
 activate_recruiter_on_start = True
