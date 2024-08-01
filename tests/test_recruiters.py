@@ -712,6 +712,27 @@ class TestProlificRecruiter(object):
             ]
         )
 
+    def test_notify_duration_exceeded_triggers_worker_events(self, a, recruiter, queue):
+        p1 = a.participant(assignment_id="aaa111", recruiter_id="prolific")
+
+        # Set up mock response from Prolific where only the first participant is included:
+        recruiter.prolificservice.get_participant_submission.return_value = {
+            "participant_id": p1.assignment_id,
+            "hit_id": "some-study-id",
+            "worker_id": "some-prolific-worker-id-1",
+            "started_at": "2021-05-20T11:23:00.457Z",
+            "status": "RETURNED",
+        }
+        reference_time = datetime.now()
+
+        recruiter.notify_duration_exceeded([p1], reference_time)
+
+        queue.enqueue.assert_has_calls(
+            [
+                mock.call(mock.ANY, "AssignmentReturned", "aaa111", p1.id),
+            ]
+        )
+
 
 class TestMTurkRecruiterMessages(object):
     @pytest.fixture
