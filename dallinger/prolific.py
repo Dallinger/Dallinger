@@ -374,8 +374,5 @@ class DevProlificService(ProlificService):
             "args": kw,
         }
         logger.info("########## PROLIFIC API DEBUG LOG START ###########")
-        logger.info(
-            f"########## PROLIFIC API request would have been: {json.dumps(summary)} <<<"
-        )
+        logger.info(f"PROLIFIC API request would have been: {json.dumps(summary)} <<<")
         logger.info("########## PROLIFIC API DEBUG LOG END #############")
-        return {}
