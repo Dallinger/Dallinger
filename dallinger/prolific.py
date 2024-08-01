@@ -284,21 +284,10 @@ class ProlificService:
 
 
 class DevProlificService(ProlificService):
-    """
-    Wrapper that mocks the Prolific REST API and instead write to the log.
-
-    params:
-        api_token: Prolific API token
-        api_version: Prolific API version
-        referer_header: Referer header to help Prolific identify our requests when troubleshooting
-    """
+    """Wrapper that mocks the Prolific REST API and instead write to the log."""
 
     def __init__(self, api_token: str, api_version: str, referer_header: str):
         super().__init__(api_token, api_version, referer_header)
-        self.api_token = "dev-api_token"
-        self.api_token_fragment = f"{api_token[:3]}...{api_token[-3:]}"
-        self.api_version = "api_version"
-        self.referer_header = "referer_header"
 
     def approve_participant_session(self, session_id: str) -> dict:
         self._req(
