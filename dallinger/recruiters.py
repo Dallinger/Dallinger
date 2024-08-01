@@ -324,7 +324,6 @@ def _prolific_service_from_config():
 def _dev_prolific_service_from_config():
     from dallinger.prolific import DevProlificService
 
-    logger.info("PROLIFIC RECRUITER LOG: Getting DevProlificService")
     config = get_config()
     config.load()
     return DevProlificService(
@@ -635,9 +634,9 @@ class DevProlificRecruiter(ProlificRecruiter):
         the Prolific site with a HIT (Study) specific link, which will
         trigger payment of their base pay.
         """
-        logger.info(
-            "PROLIFIC DEBUG MODE: Exiting by sending browser to dashboard on localhost."
-        )
+        logger.info("########## PROLIFIC API DEBUG LOG START ###########")
+        logger.info("Exiting by sending browser to dashboard on localhost.")
+        logger.info("########## PROLIFIC API DEBUG LOG END #############")
         return "http://127.0.0.1:5000/dashboard/develop"
 
 
