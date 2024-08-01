@@ -634,12 +634,10 @@ class DevProlificRecruiter(ProlificRecruiter):
         the Prolific site with a HIT (Study) specific link, which will
         trigger payment of their base pay.
         """
-        logger.info(
-            "########## PROLIFIC API DEBUG LOG START ###########\n"
-            "PROLIFIC external submission URL would have been:\n"
+        self.prolificservice.debug_log(
+            "PROLIFIC external submission URL would have been: "
             f"https://app.prolific.com/submissions/complete?cc={self.completion_code}\n"
             "Exiting by sending browser to dashboard on localhost.\n"
-            "########## PROLIFIC API DEBUG LOG END #############"
         )
         return "http://127.0.0.1:5000/dashboard/develop"
 
