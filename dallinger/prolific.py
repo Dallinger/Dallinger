@@ -301,24 +301,81 @@ class DevProlificService(ProlificService):
         self.referer_header = "referer_header"
 
     def approve_participant_session(self, session_id: str) -> dict:
-        """DEVELOPMENT ONLY: Mark an assignment as approved."""
-        return self._req(
+        self._req(
             method="POST",
-            endpoint="/submissions/dev-session-id/transition/",
+            endpoint=f"/submissions/{session_id}/transition/",
             json={"action": "APPROVE"},
         )
+        return True
+
+    def draft_study(
+        self,
+        completion_code: str,
+        completion_option: str,
+        description: str,
+        eligibility_requirements: List[dict],
+        estimated_completion_time: int,
+        external_study_url: str,
+        internal_name: str,
+        maximum_allowed_time: int,
+        name: str,
+        prolific_id_option: str,
+        reward: int,
+        total_available_places: int,
+        device_compatibility: Optional[List[str]] = None,
+        peripheral_requirements: Optional[List[str]] = None,
+    ) -> dict:
+        """Create a draft Study on Prolific, and return its properties."""
+
+        payload = {
+            "name": name,
+            "internal_name": internal_name,
+            "description": description,
+            "external_study_url": external_study_url,
+            "prolific_id_option": prolific_id_option,
+            "completion_code": completion_code,
+            "completion_option": completion_option,
+            "total_available_places": total_available_places,
+            "estimated_completion_time": estimated_completion_time,
+            "maximum_allowed_time": maximum_allowed_time,
+            "reward": reward,
+            "eligibility_requirements": eligibility_requirements,
+            "status": "UNPUBLISHED",
+        }
+
+        if device_compatibility is not None:
+            payload["device_compatibility"] = device_compatibility
+        if peripheral_requirements is not None:
+            payload["peripheral_requirements"] = peripheral_requirements
+
+        self._req(method="POST", endpoint="/studies/", json=payload)
+        return {"id": "prolific-user-id", "external_study_url": "external-study-url"}
+
+    def publish_study(self, study_id: str) -> dict:
+        self._req(
+            method="POST",
+            endpoint=f"/studies/{study_id}/transition/",
+            json={"action": "PUBLISH"},
+        )
+        return {"id": "prolific-user-id", "external_study_url": "external-study-url"}
+
+    def who_am_i(self) -> dict:
+        """For testing authorization, primarily, but does return all the
+        details for your user.
+        """
+        return {"id": "prolific-user-id"}
 
     def _req(self, method: str, endpoint: str, **kw) -> dict:
-        """Does NOT run the request/response cycle but instead writes to the log."""
+        """Does NOT make any requests but instead writes to the log."""
         url = f"{self.api_root}{endpoint}"
         summary = {
             "URL": url,
             "method": method,
             "args": kw,
         }
-        logger.warning(">>>>>>>>>>>>>>>>>>>>>>>>")
-        logger.warning(
-            f">>> Prolific API request would have been: {json.dumps(summary)} <<<"
+        logger.info("########## PROLIFIC API DEBUG LOG START ###########")
+        logger.info(
+            f"########## PROLIFIC API request would have been: {json.dumps(summary)} <<<"
         )
-        logger.warning(">>>>>>>>>>>>>>>>>>>>>>>>")
+        logger.info("########## PROLIFIC API DEBUG LOG END #############")
         return {}
