@@ -324,6 +324,7 @@ def _prolific_service_from_config():
 def _dev_prolific_service_from_config():
     from dallinger.prolific import DevProlificService
 
+    logger.info("PROLIFIC RECRUITER LOG: Getting DevProlificService")
     config = get_config()
     config.load()
     return DevProlificService(
@@ -365,7 +366,7 @@ class ProlificRecruiter(Recruiter):
                 f"(ID {self.current_study_id}) is already running for this experiment"
             )
 
-        if self.study_domain is None:
+        if self.study_domain is None and self.config.get("mode") != "debug":
             raise ProlificRecruiterException(
                 "Can't run a Prolific Study from localhost"
             )
@@ -634,21 +635,13 @@ class DevProlificRecruiter(ProlificRecruiter):
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
 
-    def open_recruitment(self, n: int = 1) -> dict:
-        """Mock a study for Prolific."""
-
-        logger.info("Opening Prolific recruitment debug session")
-        return {
-            "items": ["external-study-url"],
-            "message": "Mocked study for Prolific",
-        }
-
     @property
     def external_submission_url(self):
         """On experiment completion, participants are returned to
         the Prolific site with a HIT (Study) specific link, which will
         trigger payment of their base pay.
         """
+        # TODO
         return ""
 
 
