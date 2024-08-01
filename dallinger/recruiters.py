@@ -627,16 +627,7 @@ class DevProlificRecruiter(ProlificRecruiter):
 
     def __init__(self, *args, **kwargs):
         super().__init__()
-        self.config = get_config()
-        if not self.config.ready:
-            self.config.load()
-        base_url = get_base_url()
-        self.ad_url = f"{base_url}/ad?recruiter={self.nickname}"
-        self.study_domain = os.getenv("HOST")
         self.prolificservice = _dev_prolific_service_from_config()
-        self.notifies_admin = admin_notifier(self.config)
-        self.mailer = get_mailer(self.config)
-        self.store = kwargs.get("store") or RedisStore()
 
     @property
     def external_submission_url(self):
@@ -644,7 +635,9 @@ class DevProlificRecruiter(ProlificRecruiter):
         the Prolific site with a HIT (Study) specific link, which will
         trigger payment of their base pay.
         """
-        # TODO
+        logger.info(
+            "PROLIFIC DEBUG MODE: Exiting by sending browser to dashboard on localhost."
+        )
         return "http://127.0.0.1:5000/dashboard/develop"
 
 
