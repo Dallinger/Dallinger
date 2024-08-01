@@ -327,8 +327,8 @@ def _dev_prolific_service_from_config():
     config = get_config()
     config.load()
     return DevProlificService(
-        api_token="prolific_api_token",
-        api_version="prolific_api_version",
+        api_token="prolific-api-token",
+        api_version="prolific-api-version",
         referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
     )
 
