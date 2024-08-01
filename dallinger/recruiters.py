@@ -366,7 +366,7 @@ class ProlificRecruiter(Recruiter):
                 f"(ID {self.current_study_id}) is already running for this experiment"
             )
 
-        if self.study_domain is None and self.config.get("mode") != "debug":
+        if self.study_domain is None:
             raise ProlificRecruiterException(
                 "Can't run a Prolific Study from localhost"
             )
