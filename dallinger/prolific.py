@@ -349,9 +349,6 @@ class DevProlificService(ProlificService):
         return {"id": "prolific-user-id", "external_study_url": "external-study-url"}
 
     def who_am_i(self) -> dict:
-        """For testing authorization, primarily, but does return all the
-        details for your user.
-        """
         return {"id": "prolific-user-id"}
 
     def _req(self, method: str, endpoint: str, **kw) -> dict:
@@ -362,6 +359,9 @@ class DevProlificService(ProlificService):
             "method": method,
             "args": kw,
         }
-        logger.info("########## PROLIFIC API DEBUG LOG START ###########")
-        logger.info(f"PROLIFIC API request would have been: {json.dumps(summary)}")
-        logger.info("########## PROLIFIC API DEBUG LOG END #############")
+        self.debug_log(f"PROLIFIC API request would have been: {json.dumps(summary)}")
+
+    def debug_log(self, msg):
+        logger.info("########## PROLIFIC DEBUG LOG START ###########")
+        logger.info(msg)
+        logger.info("########## PROLIFIC DEBUG LOG END #############")
