@@ -657,10 +657,8 @@ class TestProlificRecruiter(object):
         ]
 
     def test_verify_status_triggers_corrections(self, a, recruiter, queue):
-        p1 = a.participant(assignment_id="aaa111")
-        p1.recruiter_id = "prolific"
-        p2 = a.participant(assignment_id="bbb222")
-        p2.recruiter_id = "prolific"
+        p1 = a.participant(assignment_id="aaa111", recruiter_id="prolific")
+        p2 = a.participant(assignment_id="bbb222", recruiter_id="prolific")
 
         # Set up mock response from Prolific regarding these participants:
         recruiter.prolificservice.get_assignments_for_study.return_value = {
@@ -686,6 +684,31 @@ class TestProlificRecruiter(object):
             [
                 mock.call(mock.ANY, "AssignmentReturned", "aaa111", p1.id),
                 mock.call(mock.ANY, "AssignmentAbandoned", "bbb222", p2.id),
+            ]
+        )
+
+    def test_verify_status_copes_with_assignments_not_in_prolific(
+        self, a, recruiter, queue
+    ):
+        p1 = a.participant(assignment_id="aaa111", recruiter_id="prolific")
+        p2 = a.participant(assignment_id="bbb222", recruiter_id="prolific")
+
+        # Set up mock response from Prolific where only the first participant is included:
+        recruiter.prolificservice.get_assignments_for_study.return_value = {
+            p1.assignment_id: {
+                "id": p1.assignment_id,
+                "study_id": "some-study-id",
+                "participant": "some-prolific-worker-id-1",
+                "started_at": "2021-05-20T11:23:00.457Z",
+                "status": "RETURNED",
+            },
+        }
+
+        recruiter.verify_status_of([p1, p2])
+
+        queue.enqueue.assert_has_calls(
+            [
+                mock.call(mock.ANY, "AssignmentReturned", "aaa111", p1.id),
             ]
         )
 

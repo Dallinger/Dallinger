@@ -568,7 +568,10 @@ class ProlificRecruiter(Recruiter):
         return self.current_study_id is not None
 
     def verify_status_of(self, participants: list[Participant]):
-        """We have lots to do"""
+        """Compare local participant status against Prolific, and for any
+        discrepancies found, correct the local status by enqueuing an
+        asynchronous worker event.
+        """
         q = get_queue()
         assignments_by_id = self.prolificservice.get_assignments_for_study(
             self.current_study_id
@@ -578,19 +581,17 @@ class ProlificRecruiter(Recruiter):
             latest_data = assignments_by_id.get(participant.assignment_id)
             if latest_data is None:
                 logger.warning(
-                    "We found no assignment data for participant {} with assignment ID {} on Prolific:".format(
-                        participant.id, participant.assignment_id
-                    )
+                    f"We found no assignment data for participant {participant.id} "
+                    f"with assignment ID {participant.assignment_id} on Prolific!"
                 )
+                continue
 
             corrective_action = check_for_prolific_worker_status_discrepancy(
                 local_status=participant.status, prolific_status=latest_data["status"]
             )
             if corrective_action:
                 logger.warning(
-                    "Taking corrective action on participant {}: {}".format(
-                        participant.id, corrective_action
-                    )
+                    f"Taking corrective action on participant {participant.id}: {corrective_action}"
                 )
                 q.enqueue(
                     worker_function,
@@ -599,7 +600,7 @@ class ProlificRecruiter(Recruiter):
                     participant.id,
                 )
             else:
-                logger.warning("Status already in sync for {}".format(participant.id))
+                logger.warning(f"Status already in sync for {participant.id}")
 
     @property
     def study_id_storage_key(self):
