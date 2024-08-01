@@ -324,8 +324,6 @@ def _prolific_service_from_config():
 def _dev_prolific_service_from_config():
     from dallinger.prolific import DevProlificService
 
-    config = get_config()
-    config.load()
     return DevProlificService(
         api_token="prolific-api-token",
         api_version="prolific-api-version",
@@ -630,10 +628,6 @@ class DevProlificRecruiter(ProlificRecruiter):
 
     @property
     def external_submission_url(self):
-        """On experiment completion, participants are returned to
-        the Prolific site with a HIT (Study) specific link, which will
-        trigger payment of their base pay.
-        """
         self.prolificservice.debug_log(
             "PROLIFIC external submission URL would have been: "
             f"https://app.prolific.com/submissions/complete?cc={self.completion_code}\n"
