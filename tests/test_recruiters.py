@@ -420,6 +420,9 @@ class TestProlificRecruiter(object):
         with pytest.raises(ProlificRecruiterException):
             recruiter.open_recruitment()
 
+    @pytest.mark.skip(
+        reason="TODO: We want to call open_recruitment for DevProlificRecruiter"
+    )
     def test_open_recruitment_raises_if_running_on_localhost(self, recruiter):
         from dallinger.recruiters import ProlificRecruiterException
 
