@@ -321,6 +321,16 @@ def _prolific_service_from_config():
     )
 
 
+def _dev_prolific_service_from_config():
+    from dallinger.prolific import DevProlificService
+
+    return DevProlificService(
+        api_token="prolific-api-token",
+        api_version="prolific-api-version",
+        referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
+    )
+
+
 class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.com/)"""
 
@@ -353,7 +363,10 @@ class ProlificRecruiter(Recruiter):
                 f"(ID {self.current_study_id}) is already running for this experiment"
             )
 
-        if self.study_domain is None:
+        if (
+            self.study_domain is None
+            and self.config.get("debug_recruiter") != "DevProlificRecruiter"
+        ):
             raise ProlificRecruiterException(
                 "Can't run a Prolific Study from localhost"
             )
@@ -602,6 +615,25 @@ class ProlificRecruiter(Recruiter):
             "eligibility_requirements": details["eligibility_requirements"],
             "peripheral_requirements": details["peripheral_requirements"],
         }
+
+
+class DevProlificRecruiter(ProlificRecruiter):
+    """A debug recruiter for [Prolific](https://app.prolific.com/)"""
+
+    nickname = "devprolific"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.prolificservice = _dev_prolific_service_from_config()
+
+    @property
+    def external_submission_url(self):
+        self.prolificservice.debug_log(
+            "PROLIFIC external submission URL would have been: "
+            f"https://app.prolific.com/submissions/complete?cc={self.completion_code}\n"
+            "Exiting by sending browser to dashboard on localhost.\n"
+        )
+        return "http://127.0.0.1:5000/dashboard/develop"
 
 
 class CLIRecruiter(Recruiter):

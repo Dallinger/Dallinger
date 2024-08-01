@@ -240,7 +240,7 @@ class ProlificService:
 
     def _req(self, method: str, endpoint: str, **kw) -> dict:
         """Runs the actual request/response cycle:
-        * Adds auth header
+        * Adds Authorization header
         * Adds Referer header to help Prolific identify our requests
           when troubleshooting
         * Logs all requests (we might want to stop doing this when we're
@@ -281,3 +281,87 @@ class ProlificService:
             raise ProlificServiceException(json.dumps(error))
 
         return parsed
+
+
+class DevProlificService(ProlificService):
+    """Wrapper that mocks the Prolific REST API and instead write to the log."""
+
+    def __init__(self, api_token: str, api_version: str, referer_header: str):
+        super().__init__(api_token, api_version, referer_header)
+
+    def approve_participant_session(self, session_id: str) -> dict:
+        self._req(
+            method="POST",
+            endpoint=f"/submissions/{session_id}/transition/",
+            json={"action": "APPROVE"},
+        )
+        return True
+
+    def draft_study(
+        self,
+        completion_code: str,
+        completion_option: str,
+        description: str,
+        eligibility_requirements: List[dict],
+        estimated_completion_time: int,
+        external_study_url: str,
+        internal_name: str,
+        maximum_allowed_time: int,
+        name: str,
+        prolific_id_option: str,
+        reward: int,
+        total_available_places: int,
+        device_compatibility: Optional[List[str]] = None,
+        peripheral_requirements: Optional[List[str]] = None,
+    ) -> dict:
+        """Create a draft Study on Prolific, and return its properties."""
+
+        payload = {
+            "name": name,
+            "internal_name": internal_name,
+            "description": description,
+            "external_study_url": external_study_url,
+            "prolific_id_option": prolific_id_option,
+            "completion_code": completion_code,
+            "completion_option": completion_option,
+            "total_available_places": total_available_places,
+            "estimated_completion_time": estimated_completion_time,
+            "maximum_allowed_time": maximum_allowed_time,
+            "reward": reward,
+            "eligibility_requirements": eligibility_requirements,
+            "status": "UNPUBLISHED",
+        }
+
+        if device_compatibility is not None:
+            payload["device_compatibility"] = device_compatibility
+        if peripheral_requirements is not None:
+            payload["peripheral_requirements"] = peripheral_requirements
+
+        self._req(method="POST", endpoint="/studies/", json=payload)
+        return {"id": "prolific-user-id", "external_study_url": "external-study-url"}
+
+    def publish_study(self, study_id: str) -> dict:
+        self._req(
+            method="POST",
+            endpoint=f"/studies/{study_id}/transition/",
+            json={"action": "PUBLISH"},
+        )
+        return {"id": "prolific-user-id", "external_study_url": "external-study-url"}
+
+    def who_am_i(self) -> dict:
+        return {"id": "prolific-user-id"}
+
+    def _req(self, method: str, endpoint: str, **kw) -> dict:
+        """Does NOT make any requests but instead writes to the log."""
+        url = f"{self.api_root}{endpoint}"
+        summary = {
+            "URL": url,
+            "method": method,
+            "args": kw,
+        }
+        self.debug_log(f"PROLIFIC API request would have been: {json.dumps(summary)}")
+
+    def debug_log(self, msg):
+        logger.info("########## PROLIFIC DEBUG LOG START ###########")
+        logger.info(msg)
+        logger.info("########## PROLIFIC DEBUG LOG END #############")

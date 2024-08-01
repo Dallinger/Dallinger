@@ -394,7 +394,10 @@ def prolificservice(prolific_config, fake_parsed_prolific_study):
 @pytest.mark.usefixtures("prolific_config")
 class TestProlificRecruiter(object):
     @pytest.fixture
-    def recruiter(self, mailer, notifies_admin, prolificservice, hit_id_store):
+    def recruiter(
+        self, mailer, notifies_admin, prolificservice, hit_id_store, active_config
+    ):
+        active_config.extend({"debug_recruiter": ""})
         from dallinger.recruiters import ProlificRecruiter
 
         with mock.patch.multiple(
