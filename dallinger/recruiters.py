@@ -577,7 +577,7 @@ class ProlificRecruiter(Recruiter):
         for participant in participants:
             latest_data = assignments_by_id.get(participant.assignment_id)
             if latest_data is None:
-                raise ProlificRecruiterException(
+                logger.warning(
                     "We found no assignment data for participant {} with assignment ID {} on Prolific:".format(
                         participant.id, participant.assignment_id
                     )
@@ -587,12 +587,19 @@ class ProlificRecruiter(Recruiter):
                 local_status=participant.status, prolific_status=latest_data["status"]
             )
             if corrective_action:
+                logger.warning(
+                    "Taking corrective action on participant {}: {}".format(
+                        participant.id, corrective_action
+                    )
+                )
                 q.enqueue(
                     worker_function,
                     corrective_action,
                     participant.assignment_id,
                     participant.id,
                 )
+            else:
+                logger.warning("Status already in sync for {}".format(participant.id))
 
     @property
     def study_id_storage_key(self):
