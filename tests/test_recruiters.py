@@ -663,16 +663,16 @@ class TestProlificRecruiter(object):
         # Set up mock response from Prolific regarding these participants:
         recruiter.prolificservice.get_assignments_for_study.return_value = {
             p1.assignment_id: {
-                "id": p1.assignment_id,
-                "study_id": "some-study-id",
-                "participant": "some-prolific-worker-id-1",
+                "participant_id": p1.assignment_id,
+                "hit_id": "some-study-id",
+                "worker_id": "some-prolific-worker-id-1",
                 "started_at": "2021-05-20T11:23:00.457Z",
                 "status": "RETURNED",
             },
             p2.assignment_id: {
-                "id": p2.assignment_id,
-                "study_id": "some-study-id",
-                "participant": "some-prolific-worker-id-2",
+                "participant_id": p2.assignment_id,
+                "hit_id": "some-study-id",
+                "worker_id": "some-prolific-worker-id-2",
                 "started_at": "2021-05-20T11:24:00.457Z",
                 "status": "TIMED-OUT",
             },
@@ -696,9 +696,9 @@ class TestProlificRecruiter(object):
         # Set up mock response from Prolific where only the first participant is included:
         recruiter.prolificservice.get_assignments_for_study.return_value = {
             p1.assignment_id: {
-                "id": p1.assignment_id,
-                "study_id": "some-study-id",
-                "participant": "some-prolific-worker-id-1",
+                "participant_id": p1.assignment_id,
+                "hit_id": "some-study-id",
+                "worker_id": "some-prolific-worker-id-1",
                 "started_at": "2021-05-20T11:23:00.457Z",
                 "status": "RETURNED",
             },

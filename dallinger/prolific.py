@@ -83,44 +83,47 @@ class ProlificService:
         Example return value:
 
         {
-            "id": "60d9aadeb86739de712faee0",
-            "study_id": "60aca280709ee40ec37d4885",
-            "participant": "60bf9310e8dec401be6e9615",
+            "assignment_id": "60d9aadeb86739de712faee0",
+            "hit_id": "60aca280709ee40ec37d4885",
+            "worker_id": "60bf9310e8dec401be6e9615",
             "started_at": "2021-05-20T11:03:00.457Z",
-            "status": "ACTIVE"
+            "status": "ACTIVE",
         }
         """
-        return self._req(method="GET", endpoint=f"/submissions/{submission_id}/")
+        response = self._req(method="GET", endpoint=f"/submissions/{submission_id}/")
+        if response:
+            return _translate_submission(response)
 
     def get_assignments_for_study(self, study_id: str) -> dict:
         """Return all submissions for the current Prolific study, keyed by
-        assignment ("submission") ID.
+        assignment (Prolific "submission") ID.
 
         Example return value:
 
         {
             "60d9aadeb86739de712faee0": {
-                "id": "60d9aadeb86739de712faee0",
-                "study_id": "60aca280709ee40ec37d4885",
-                "participant": "60bf9310e8dec401be6e9615",
+                "assignment_id": "60d9aadeb86739de712faee0",
+                "hit_id": "60aca280709ee40ec37d4885",
+                "worker_id": "60bf9310e8dec401be6e9615",
                 "started_at": "2021-05-20T11:03:00.457Z",
                 "status": "ACTIVE",
             },
             "78g9aadeb86739de712fabb4": {
-                "id": "78g9aadeb86739de712fabb4",
-                "study_id": "60aca280709ee40ec37d4885",
-                "participant": "703f9310g8dec401be6e4123",
+                "assignment_id": "78g9aadeb86739de712fabb4",
+                "hit_id": "60aca280709ee40ec37d4885",
+                "worker_id": "703f9310g8dec401be6e4123",
                 "started_at": "2021-05-20T11:23:00.457Z",
                 "status": "RETURNED",
             },
         }
         """
+
         query_params = {"study": study_id}
         response = self._req(
             method="GET", endpoint="/submissions/", params=query_params
         )
 
-        return {s["participant"]: s for s in response["results"]}
+        return {s["participant"]: _translate_submission(s) for s in response["results"]}
 
     def published_study(
         self,
@@ -313,3 +316,15 @@ class ProlificService:
             raise ProlificServiceException(json.dumps(error))
 
         return parsed
+
+
+def _translate_submission(prolific_assignment_info):
+    # Convert from Prolific to Dallinger terminology
+    p = prolific_assignment_info
+    return {
+        "assignment_id": p["id"],
+        "hit_id": p["study_id"],
+        "worker_id": p["participant"],
+        "started_at": p["started_at"],
+        "status": p["status"],
+    }
