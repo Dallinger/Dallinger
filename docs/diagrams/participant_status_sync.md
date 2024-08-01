@@ -19,7 +19,7 @@ seconds based on a clock task:
 
 ```mermaid
 sequenceDiagram
-title Dallinger Clock Ping V2: Recruiter Runs the Show
+title Clock-triggered sync
 
 participant c as clock
 participant rec_mod as recruiters
@@ -53,7 +53,7 @@ experimentor's choosing:
 
 ```mermaid
 sequenceDiagram
-title Dallinger Clock Ping V2: Recruiter Runs the Show
+title Experiment requests participant status sync
 
 participant ex as Experiment
 participant rec_mod as recruiters
@@ -62,7 +62,7 @@ participant w as worker_events
 participant evt as SomeEventType
 participant part as Participant
 
-ex->>rec_mod: run_status_check (async)
+ex-)rec_mod: run_status_check (async)
 
 Note over rec_mod: build dict of recruiter nicknames to particpants
 loop for each recruiter
