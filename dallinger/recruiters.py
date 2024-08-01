@@ -642,7 +642,7 @@ class DevProlificRecruiter(ProlificRecruiter):
         trigger payment of their base pay.
         """
         # TODO
-        return ""
+        return "http://127.0.0.1:5000/dashboard/develop"
 
 
 class CLIRecruiter(Recruiter):
