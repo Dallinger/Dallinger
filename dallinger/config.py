@@ -58,6 +58,8 @@ default_keys = (
     ("dyno_type", six.text_type, []),
     ("dyno_type_web", six.text_type, []),
     ("dyno_type_worker", six.text_type, []),
+    ("ec2_default_pem", six.text_type, []),
+    ("ec2_default_security_group", six.text_type, []),
     ("enable_global_experiment_registry", bool, []),
     ("EXPERIMENT_CLASS_NAME", six.text_type, []),
     ("group_name", six.text_type, []),

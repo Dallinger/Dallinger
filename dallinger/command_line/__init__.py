@@ -28,6 +28,7 @@ from dallinger import data, db
 from dallinger.command_line.develop import develop
 from dallinger.command_line.docker import docker
 from dallinger.command_line.docker_ssh import docker_ssh
+from dallinger.command_line.ec2 import ec2
 from dallinger.command_line.utils import (
     Output,
     header,
@@ -128,6 +129,7 @@ def dallinger():
 dallinger.add_command(develop)
 dallinger.add_command(docker)
 dallinger.add_command(docker_ssh)
+dallinger.add_command(ec2)
 
 
 @dallinger.command()

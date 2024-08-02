@@ -296,3 +296,12 @@ def verify_id(ctx, param, app):
             "The --app parameter contains invalid characters. The only characters allowed are: a-z, 0-9, and '-'."
         )
     return app
+
+
+# Ported from PsyNet
+def user_confirms(question, default=False):
+    """
+    Like click.confirm but safe for using within our wrapped Docker commands.
+    """
+    print(question + " Enter 'y' for yes, 'n' for no.")
+    return click.confirm("", default=default)
