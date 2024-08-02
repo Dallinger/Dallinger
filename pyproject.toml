@@ -91,6 +91,7 @@ dev = [
     "pytest",
     "pytest-rerunfailures",
     "sphinx",
+    "sphinx-js @ https://github.com/Dallinger/sphinx-js/archive/refs/tags/3.2.2-markupsafe-fix.zip",
     "sphinx_rtd_theme",
     "sphinxcontrib-spelling",
     "tox",
@@ -153,6 +154,9 @@ include = [
     "/incubator.png",
     "/requirements.txt",
 ]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.black]
 line-length = 88
