@@ -55,16 +55,14 @@ def run_status_check():
     If a recruiter finds discrepancies, it will enqueue a command to correct the
     status for each participant with a problem.
     """
-    logger.warning("Running status check in {}...".format(__name__))
     participants_by_recruiter_nick = defaultdict(list)
     for participant in Participant.query.all():
         participants_by_recruiter_nick[participant.recruiter_id].append(participant)
 
     logger.warning(
-        "Current recruiters and their participants: {}".format(
-            participants_by_recruiter_nick
-        )
+        "Checking status of all participants: {}".format(participants_by_recruiter_nick)
     )
+
     for nick, participants in participants_by_recruiter_nick.items():
         recruiter = by_name(nick)
         recruiter.verify_status_of(participants)
