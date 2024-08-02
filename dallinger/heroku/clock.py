@@ -33,7 +33,7 @@ def run_check(participants, config, reference_time):
         recruiter.notify_duration_exceeded(participants, reference_time)
 
 
-@scheduler.scheduled_job("interval", minutes=0.5)
+# @scheduler.scheduled_job("interval", minutes=0.5)
 def check_db_for_missing_notifications():
     """Check the database for missing notifications."""
     config = dallinger.config.get_config()
@@ -44,12 +44,11 @@ def check_db_for_missing_notifications():
     db.session.commit()
 
 
-@scheduler.scheduled_job("interval", minutes=0.5)
+@scheduler.scheduled_job("interval", minutes=0.1)
 def async_recruiter_status_check():
     """Ask recruiters to check the status of their participants"""
-
-    q = db.get_queue()
-    q.enqueue(recruiters.run_status_check)
+    print("Running async_recruiter_status_check()...")
+    db.run_async(recruiters.run_status_check)
 
 
 def launch():

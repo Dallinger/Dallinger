@@ -68,6 +68,28 @@ Consult the developer guide for more information.
 """
 
 
+def runner(func, *args, **kw):
+    from dallinger import experiment
+
+    experiment.load()
+    print("LOading experiment and running!")
+    func(*args, **kw)
+
+
+def run_async(func, name="default", *args, **kw):
+    """Run a function asynchronously via the rq Queue.
+
+    Enqueing this way ensures that the experiment is loaded inside the
+    async worker's context before the target function is executed.
+    """
+    logger.info(
+        f"Enqueuing function {func.__name__} with args: {args} and kwargs: {kw}"
+    )
+
+    q = get_queue(name)
+    q.enqueue(runner, func, *args, **kw)
+
+
 def get_queue(name="default"):
     """Return an rq.Queue with a connection to redis.
 

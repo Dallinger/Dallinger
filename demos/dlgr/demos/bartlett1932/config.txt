@@ -28,7 +28,7 @@ num_dynos_web = 1
 num_dynos_worker = 1
 redis_size = premium-0
 host = 0.0.0.0
-clock_on = false
+clock_on = true
 logfile = -
 
 [Docker]

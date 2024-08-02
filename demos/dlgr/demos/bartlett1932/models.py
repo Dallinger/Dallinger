@@ -1,5 +1,6 @@
 import random
 
+from dallinger.models import Participant
 from dallinger.nodes import Source
 
 
@@ -26,3 +27,7 @@ class WarOfTheGhostsSource(Source):
         story = random.choice(stories)
         with open("static/stimuli/{}".format(story), "r") as f:
             return f.read()
+
+
+class ParticipantSpecial(Participant):
+    __mapper_args__ = {"polymorphic_identity": "participant_special"}

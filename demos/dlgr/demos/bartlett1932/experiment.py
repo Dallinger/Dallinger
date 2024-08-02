@@ -51,11 +51,15 @@ class Bartlett1932(Experiment):
         function in the super (see experiments.py in dallinger). Then it adds a
         source to each network.
         """
+        special = self.models.ParticipantSpecial(
+            "hotair", "worker id", "assign id", "hit id", "debug"
+        )
+        self.session.add(special)
         if not self.networks():
             super(Bartlett1932, self).setup()
             for net in self.networks():
                 self.models.WarOfTheGhostsSource(network=net)
-            self.session.commit()
+        self.session.commit()
 
     def create_network(self):
         """Return a new network."""
