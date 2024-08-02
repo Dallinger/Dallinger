@@ -47,6 +47,9 @@ def check_db_for_missing_notifications():
 @scheduler.scheduled_job("interval", minutes=0.5)
 def async_recruiter_status_check():
     """Ask recruiters to check the status of their participants"""
+    from dallinger import experiment
+
+    experiment.load()
     q = db.get_queue()
     q.enqueue(recruiters.run_status_check)
 
