@@ -71,8 +71,9 @@ Consult the developer guide for more information.
 def runner(func, *args, **kw):
     from dallinger import experiment
 
-    experiment.load()
     print("LOading experiment and running!")
+    klass = experiment.load()
+    klass(session)
     func(*args, **kw)
 
 
