@@ -479,3 +479,8 @@ Docker Deployment Configuration
     Additional list of volumes to mount when deploying using docker.
 
     Example: ``/host/path:/container_path,/another-path:/another-container-path``
+
+``docker_worker_cpu_shares``
+    An integer value which specify `Docker --cpu-shares option <https://docs.docker.com/config/containers/resource_constraints/#configure-the-default-cfs-scheduler>`_ for worker containers.
+
+    Defaults to ``1024``, lower this value to limit worker containers CPU usage when CPU cycles are constrained.
