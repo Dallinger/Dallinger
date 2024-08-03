@@ -36,19 +36,19 @@ babel==2.15.0
     # via
     #   jupyterlab-server
     #   sphinx
-bcrypt==4.1.3
+bcrypt==4.2.0
     # via paramiko
 beautifulsoup4==4.12.3
     # via nbconvert
-black==24.4.2
+black==24.8.0
     # via dallinger
 bleach==6.1.0
     # via nbconvert
 blinker==1.8.2
     # via flask
-boto3==1.34.144
+boto3==1.34.153
     # via dallinger
-botocore==1.34.144
+botocore==1.34.153
     # via
     #   boto3
     #   s3transfer
@@ -98,11 +98,11 @@ coverage==7.6.0
     #   dallinger
 coverage-pth==0.0.2
     # via dallinger
-cryptography==42.0.8
+cryptography==43.0.0
     # via
     #   paramiko
     #   pyopenssl
-debugpy==1.8.2
+debugpy==1.8.3
     # via ipykernel
 decorator==5.1.1
     # via ipython
@@ -123,7 +123,7 @@ et-xmlfile==1.1.0
     # via openpyxl
 executing==2.0.1
     # via stack-data
-faker==26.0.0
+faker==26.1.0
     # via dallinger
 fastjsonschema==2.20.0
     # via nbformat
@@ -273,7 +273,7 @@ jupyter-server==2.14.2
     #   notebook-shim
 jupyter-server-terminals==0.5.3
     # via jupyter-server
-jupyterlab==4.2.3
+jupyterlab==4.2.4
     # via notebook
 jupyterlab-pygments==0.3.0
     # via nbconvert
@@ -332,7 +332,7 @@ notebook-shim==0.2.4
     # via
     #   jupyterlab
     #   notebook
-numpy==2.0.0
+numpy==2.0.1
     # via pandas
 odfpy==1.4.1
     # via tablib
@@ -389,7 +389,7 @@ pluggy==1.5.0
     # via
     #   pytest
     #   tox
-pre-commit==3.7.1
+pre-commit==3.8.0
     # via dallinger
 prometheus-client==0.20.0
     # via jupyter-server
@@ -409,7 +409,7 @@ ptyprocess==0.7.0
     # via
     #   pexpect
     #   terminado
-pure-eval==0.2.2
+pure-eval==0.2.3
     # via stack-data
 pycodestyle==2.12.0
     # via
@@ -430,7 +430,7 @@ pygments==2.18.0
     #   sphinx
 pynacl==1.5.0
     # via paramiko
-pyopenssl==24.1.0
+pyopenssl==24.2.1
     # via dallinger
 pypandoc==1.13
     # via dallinger
@@ -442,7 +442,7 @@ pyproject-hooks==1.1.0
     #   pip-tools
 pysocks==1.7.1
     # via urllib3
-pytest==8.2.2
+pytest==8.3.2
     # via
     #   dallinger
     #   pytest-rerunfailures
@@ -479,7 +479,7 @@ qtconsole==5.5.2
     # via jupyter
 qtpy==2.4.1
     # via qtconsole
-redis==5.0.7
+redis==5.0.8
     # via
     #   dallinger
     #   rq
@@ -503,7 +503,7 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
-rpds-py==0.19.0
+rpds-py==0.19.1
     # via
     #   jsonschema
     #   referencing
@@ -511,7 +511,7 @@ rq==1.16.2
     # via dallinger
 s3transfer==0.10.2
     # via boto3
-selenium==4.22.0
+selenium==4.23.1
     # via dallinger
 send2trash==1.8.3
     # via jupyter-server
@@ -537,7 +537,7 @@ sortedcontainers==2.4.0
     # via trio
 soupsieve==2.5
     # via beautifulsoup4
-sphinx==7.4.5
+sphinx==7.4.7
     # via
     #   dallinger
     #   myst-parser
@@ -546,23 +546,23 @@ sphinx==7.4.5
     #   sphinxcontrib-spelling
 sphinx-rtd-theme==2.0.0
     # via dallinger
-sphinxcontrib-applehelp==1.0.8
+sphinxcontrib-applehelp==2.0.0
     # via sphinx
-sphinxcontrib-devhelp==1.0.6
+sphinxcontrib-devhelp==2.0.0
     # via sphinx
-sphinxcontrib-htmlhelp==2.0.5
+sphinxcontrib-htmlhelp==2.1.0
     # via sphinx
 sphinxcontrib-jquery==4.1
     # via sphinx-rtd-theme
 sphinxcontrib-jsmath==1.0.1
     # via sphinx
-sphinxcontrib-qthelp==1.0.7
+sphinxcontrib-qthelp==2.0.0
     # via sphinx
-sphinxcontrib-serializinghtml==1.1.10
+sphinxcontrib-serializinghtml==2.0.0
     # via sphinx
 sphinxcontrib-spelling==8.0.0
     # via dallinger
-sqlalchemy==1.4.52
+sqlalchemy==1.4.53
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
@@ -578,7 +578,7 @@ tabulate==0.9.0
     # via
     #   dallinger
     #   tablib
-tenacity==8.5.0
+tenacity==9.0.0
     # via dallinger
 termcolor==2.3.0
     # via yaspin
