@@ -411,7 +411,7 @@ ptyprocess==0.7.0
     #   terminado
 pure-eval==0.2.2
     # via stack-data
-pycodestyle==2.12.0
+pycodestyle==2.12.1
     # via
     #   dallinger
     #   flake8
