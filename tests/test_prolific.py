@@ -1,6 +1,11 @@
+"""Prolific module tests."""
+
 from unittest import mock
 
 import pytest
+
+from dallinger.config import LOCAL_CONFIG, get_config
+from dallinger.prolific import ProlificServiceNoSuchWorkspace
 
 study_request = {
     "completion_code": "A1B2C3D4",
@@ -115,3 +120,18 @@ def test_can_add_to_available_place_count(subject):
 
     assert updated["total_available_places"] == initial_spaces + 1
     assert subject.delete_study(study_id=result["id"])
+
+
+def test_custom_exceptions(subject):
+    """Test some of the exceptions defined in prolific.py."""
+
+    # Load the local configuration file, which contains only an [MTurk] section.
+    config = get_config()
+    config.load_from_file(LOCAL_CONFIG)
+    config.ready = True
+
+    # Test ProlificServiceNoSuchWorkspace is raised
+    config.set("prolific_workspace", "dummy space")
+
+    with pytest.raises(ProlificServiceNoSuchWorkspace):
+        subject.draft_study("1", "1", "1", [], 1, "1", "1", 1, "1", "1", 1, 1)

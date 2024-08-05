@@ -6,13 +6,31 @@ import requests
 import tenacity
 from dateutil import parser
 
+from dallinger.config import get_config
+
 logger = logging.getLogger(__file__)
+
+
+#####################
+# custom exceptions #
+#####################
 
 
 class ProlificServiceException(Exception):
     """Some error from Prolific"""
 
-    pass
+
+class ProlificServiceNoSuchProject(Exception):
+    """A specified project was not found in any of the user's workspaces."""
+
+
+class ProlificServiceNoSuchWorkspace(Exception):
+    """A specified workspace was not found for this user."""
+
+
+########
+# code #
+########
 
 
 class ProlificService:
@@ -90,6 +108,43 @@ class ProlificService:
         """
         return self._req(method="GET", endpoint=f"/submissions/{session_id}/")
 
+    def _translate_workspace_name(self, workspace_name: str) -> str:
+        """Return a workspace id for the supplied workspace name.
+
+        An exception is raised if the workspace isn't found.
+        """
+
+        # Get all of the user's workspaces.
+        workspaces = self._req(method="GET", endpoint="/workspaces/")
+
+        # For every workspace...
+        for entry in workspaces["results"]:
+            # If the supplied name matches a workspace name or id, we return its id.
+            if workspace_name in (entry["title"], entry["id"]):
+                # We found it.  Return its id.
+                return entry["id"]
+
+        # If we're here, the supplied workspace_name wasn't found in any of the user's workspaces.
+        raise ProlificServiceNoSuchWorkspace
+
+    def _translate_project_name(self, workspace_id: str, project_name: str) -> str:
+        """Return a project id for the supplied project name.
+
+        An exception is raised if the project isn't found.
+        """
+
+        # Get all of this workspace's projects.
+        projects = self._req(method="GET", endpoint=f"/{workspace_id}/projects/")
+
+        # If project_name exists as a name OR an id, we return its project_id.
+        for entry in projects["results"]:
+            if project_name in (entry["title"], entry["id"]):
+                # We found the project.  Return its id.
+                return entry["id"]
+
+        # The project_name was not found.
+        raise ProlificServiceNoSuchProject
+
     def published_study(
         self,
         completion_code: str,
@@ -146,20 +201,63 @@ class ProlificService:
     ) -> dict:
         """Create a draft Study on Prolific, and return its properties."""
 
+        config = get_config()
+        config.load()
+
+        # Ensure the workspace specified in the configuration exists, and get its id.  Configuration.get() will raise an
+        # exception if the key doesn't exist.
+        workspace_name = config.get("prolific_workspace")
+
+        try:
+            workspace_id = self._translate_workspace_name(workspace_name)
+
+        except ProlificServiceNoSuchWorkspace:
+            # The user specified a workspace but it doesn't exist.  Create it.
+            workspace_id = self._req(
+                method="POST",
+                endpoint="/workspaces/",
+                json={
+                    "title": workspace_name,
+                    "description": "Created by Dallinger draft_study",
+                },
+            )
+
+            workspace_id = workspace_id["id"]
+
+        # We have the workspace id.  Now ensure that the project exists and get its id.  If it's not in the
+        # configuration, we'll supply None for the name, which makes Prolific use a default project name.
+        if project_name := config.get("prolific_project"):
+            # Translate the name into a project ID.  If it doesn't exist, create it.
+            try:
+                project_id = self._translate_project_name(workspace_id, project_name)
+
+            except ProlificServiceNoSuchProject:
+                # The user specified a project but it doesn't exist.  Create it.
+                project_id = self._req(
+                    method="POST",
+                    endpoint=f"/workspaces/{workspace_id}/projects/",
+                    json={"title": workspace_id},
+                )
+                project_id = project_id["id"]
+            else:
+                project_id = None
+
+        # We can now create the draft study.
         payload = {
-            "name": name,
-            "internal_name": internal_name,
-            "description": description,
-            "external_study_url": external_study_url,
-            "prolific_id_option": prolific_id_option,
             "completion_code": completion_code,
             "completion_option": completion_option,
-            "total_available_places": total_available_places,
-            "estimated_completion_time": estimated_completion_time,
-            "maximum_allowed_time": maximum_allowed_time,
-            "reward": reward,
+            "description": description,
             "eligibility_requirements": eligibility_requirements,
+            "estimated_completion_time": estimated_completion_time,
+            "external_study_url": external_study_url,
+            "internal_name": internal_name,
+            "maximum_allowed_time": maximum_allowed_time,
+            "name": name,
+            "project": project_id,
+            "prolific_id_option": prolific_id_option,
+            "reward": reward,
             "status": "UNPUBLISHED",
+            "total_available_places": total_available_places,
         }
 
         if device_compatibility is not None:
@@ -233,9 +331,7 @@ class ProlificService:
         return payment_response
 
     def who_am_i(self) -> dict:
-        """For testing authorization, primarily, but does return all the
-        details for your user.
-        """
+        """For testing authorization, primarily, but does return all the details for your user."""
         return self._req(method="GET", endpoint="/users/me/")
 
     def _req(self, method: str, endpoint: str, **kw) -> dict:
