@@ -18,7 +18,7 @@ from sqlalchemy import func
 
 from dallinger.command_line.utils import Output
 from dallinger.config import get_config
-from dallinger.db import get_queue, redis_conn, session
+from dallinger.db import get_queue, log_orm_hierarchy, redis_conn, session
 from dallinger.experiment_server.utils import crossdomain, success_response
 from dallinger.experiment_server.worker_events import worker_function
 from dallinger.heroku import tools as heroku_tools
@@ -55,9 +55,8 @@ def run_status_check():
     If a recruiter finds discrepancies, it will enqueue a command to correct the
     status for each participant with a problem.
     """
-    # from dallinger import experiment
+    log_orm_hierarchy(Participant)
 
-    # experiment.load()
     participants_by_recruiter_nick = defaultdict(list)
     for participant in Participant.query.all():
         participants_by_recruiter_nick[participant.recruiter_id].append(participant)

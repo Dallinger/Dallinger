@@ -47,7 +47,6 @@ def check_db_for_missing_notifications():
 @scheduler.scheduled_job("interval", minutes=0.1)
 def async_recruiter_status_check():
     """Ask recruiters to check the status of their participants"""
-    print("Running async_recruiter_status_check()...")
     db.run_async(recruiters.run_status_check)
 
 
