@@ -123,7 +123,7 @@ class ProlificService:
             method="GET", endpoint="/submissions/", params=query_params
         )
 
-        return {s["participant"]: _translate_submission(s) for s in response["results"]}
+        return {s["id"]: _translate_submission(s) for s in response["results"]}
 
     def published_study(
         self,
@@ -320,11 +320,11 @@ class ProlificService:
 
 def _translate_submission(prolific_assignment_info):
     # Convert from Prolific to Dallinger terminology
-    p = prolific_assignment_info
+    a = prolific_assignment_info
     return {
-        "assignment_id": p["id"],
-        "hit_id": p["study_id"],
-        "worker_id": p["participant"],
-        "started_at": p["started_at"],
-        "status": p["status"],
+        "assignment_id": a["id"],
+        "hit_id": a["study_id"],
+        "worker_id": a["participant"],
+        "started_at": a["started_at"],
+        "status": a["status"],
     }

@@ -717,7 +717,7 @@ class TestProlificRecruiter(object):
 
         # Set up mock response from Prolific where only the first participant is included:
         recruiter.prolificservice.get_participant_submission.return_value = {
-            "participant_id": p1.assignment_id,
+            "assignment_id": p1.assignment_id,
             "hit_id": "some-study-id",
             "worker_id": "some-prolific-worker-id-1",
             "started_at": "2021-05-20T11:23:00.457Z",
