@@ -462,7 +462,7 @@ pytz==2024.1
     # via
     #   apscheduler
     #   pandas
-pyyaml==6.0.1
+pyyaml==6.0.2
     # via
     #   jupyter-events
     #   myst-parser
