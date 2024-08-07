@@ -16,7 +16,7 @@ from sqlalchemy import Table, create_engine, event
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Session, scoped_session, sessionmaker
+from sqlalchemy.orm import Session, class_mapper, scoped_session, sessionmaker
 from sqlalchemy.schema import DropTable
 
 from dallinger.config import initialize_experiment_package
@@ -66,6 +66,30 @@ Consult the developer guide for more information.
 *********************************************************
 
 """
+
+
+def _run_with_loaded_experiment(func, *args, **kw):
+    """Wrapper function that loads and instantiates the experiment
+    before running the wrapped function
+    """
+    from dallinger import experiment
+
+    logger.warning(f"Loading experiment and running {func.__name__}...")
+    klass = experiment.load()
+    # In case ORM class import only happens when experiment is instantiated:
+    klass(session)
+
+    func(*args, **kw)
+
+
+def run_async(func, name="default", *args, **kw):
+    """Run a function asynchronously via the rq Queue.
+
+    Enqueing this way ensures that the experiment is loaded inside the
+    async worker's context before the target function is executed.
+    """
+    q = get_queue(name)
+    q.enqueue(_run_with_loaded_experiment, func, *args, **kw)
 
 
 def get_queue(name="default"):
@@ -167,6 +191,38 @@ def init_db(drop_all=False, bind=engine):
         raise
 
     return session
+
+
+def _hierarchy(cls):
+    return [cls] + list(_subclasses(cls))
+
+
+def _subclasses(cls):
+    for cls in cls.__subclasses__():
+        yield cls
+        for cls in _subclasses(cls):
+            yield cls
+
+
+def log_orm_hierarchy(cls=Base):
+    classes = list(_hierarchy(cls))
+    logger.warning(f"Hierarchy: {classes}")
+    try:
+        for c in classes:
+            logger.warning(f"Checking class {c}")
+            try:
+                mapper = class_mapper(c)
+                polymorphic_map = mapper.polymorphic_map
+                for identity, subclass_mapper in polymorphic_map.items():
+                    logger.warning(
+                        f"Polymorphic identity: {identity}, "
+                        f"Mapped Class: {subclass_mapper.class_}"
+                    )
+            except Exception as e:
+                logger.error(f"Could not get class mapper for {c.__name__}: {e}")
+
+    except Exception as e:
+        logger.error(f"Error logging polymorphic map: {e}")
 
 
 def get_all_mapped_classes():
