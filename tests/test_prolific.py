@@ -51,7 +51,7 @@ private_study_request = {
     "total_available_places": 1,
 }
 
-# This is the return value of a call to /api.prolific.com/api/v1/workspaces/.
+# The return value of a call to /api.prolific.com/api/v1/workspaces/.
 WORKSPACES_API_RETURN_VALUE = {
     "results": [
         {
@@ -104,7 +104,7 @@ WORKSPACES_API_RETURN_VALUE = {
     "meta": {"count": 2},
 }
 
-# This is the return value of a call to /api.prolific.com/api/v1/workspaces/:workspace_id/projects/.
+# The return value of a call to /api.prolific.com/api/v1/workspaces/:workspace_id/projects/.
 PROJECTS_API_RETURN_VALUE = {
     "results": [
         {
@@ -249,7 +249,9 @@ def test_translate_project_name_exception(subject):
 @pytest.mark.parametrize(
     "test_input, expected",
     [
+        # Translate a name into an id.
         ("zippy the pinhead", "66b0f8e34632badef5c8d1db"),
+        # Translate an id into an id.
         ("66b0f8e34632badef5c8d1db", "66b0f8e34632badef5c8d1db"),
     ],
 )
@@ -265,7 +267,9 @@ def test_translate_workspace_name(subject, test_input, expected):
 @pytest.mark.parametrize(
     "test_input, expected",
     [
+        # Translate a name into an id.
         ("default ws project", "66b0f923fa279fd68ab7bd54"),
+        # Translate an id into an id.
         ("66b0f923fa279fd68ab7bd54", "66b0f923fa279fd68ab7bd54"),
     ],
 )
@@ -276,3 +280,21 @@ def test_translate_project_name(subject, test_input, expected):
     subject._req = MagicMock(return_value=PROJECTS_API_RETURN_VALUE)
 
     assert subject._translate_project_name("unused", test_input) == expected
+
+
+# @pytest.mark.parametrize(
+#     "test_input, expected",
+#     [
+#         ("default ws project", "66b0f923fa279fd68ab7bd54"),
+#         ("66b0f923fa279fd68ab7bd54", "66b0f923fa279fd68ab7bd54"),
+#     ],
+# )
+# def test_translate_draft_study(subject, test_input, expected):
+# def test_translate_draft_study(subject):
+#     """draft_study creates a default workspace when the configuration workspace is not found."""
+
+#     # Mock out self._req.
+#     subject._req = MagicMock(return_value=PROJECTS_API_RETURN_VALUE)
+
+#     result = subject.draft_study(**study_request)
+#     assert subject._translate_project_name("unused", test_input) == expected
