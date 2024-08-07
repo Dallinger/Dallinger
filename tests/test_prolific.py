@@ -1,11 +1,14 @@
 """Prolific module tests."""
 
 from unittest import mock
+from unittest.mock import MagicMock
 
 import pytest
 
-from dallinger.config import LOCAL_CONFIG, get_config
-from dallinger.prolific import ProlificServiceNoSuchWorkspace
+from dallinger.prolific import (
+    ProlificServiceNoSuchProject,
+    ProlificServiceNoSuchWorkspace,
+)
 
 study_request = {
     "completion_code": "A1B2C3D4",
@@ -48,6 +51,108 @@ private_study_request = {
     "total_available_places": 1,
 }
 
+# This is the return value of a call to /api.prolific.com/api/v1/workspaces/.
+WORKSPACES_API_RETURN_VALUE = {
+    "results": [
+        {
+            "id": "66b0f1ff97343f3cd6d6b597",
+            "title": "My Workspace",
+            "description": "This is your initial workspace.",
+            "owner": "66b0f1fd97343f3cd6d6b592",
+            "users": [
+                {
+                    "id": "66b0f1fd97343f3cd6d6b592",
+                    "name": "John DeRosa",
+                    "email": "johnderosa@me.com",
+                    "roles": ["WORKSPACE_ADMIN"],
+                }
+            ],
+            "naivety_distribution_rate": None,
+            "product": "human",
+            "is_trial_workspace": False,
+        },
+        {
+            "id": "66b0f8e34632badef5c8d1db",
+            "title": "zippy the pinhead",
+            "description": "",
+            "owner": "66b0f1fd97343f3cd6d6b592",
+            "users": [
+                {
+                    "id": "66b0f1fd97343f3cd6d6b592",
+                    "name": "John DeRosa",
+                    "email": "johnderosa@me.com",
+                    "roles": [],
+                }
+            ],
+            "naivety_distribution_rate": None,
+            "product": "human",
+            "is_trial_workspace": False,
+        },
+    ],
+    "_links": {
+        "self": {
+            "title": "Current",
+            "href": "https://api.prolific.com/api/v1/workspaces/",
+        },
+        "next": {"href": None, "title": "Next"},
+        "previous": {"href": None, "title": "Previous"},
+        "last": {
+            "href": "https://api.prolific.com/api/v1/workspaces/",
+            "title": "Last",
+        },
+    },
+    "meta": {"count": 2},
+}
+
+# This is the return value of a call to /api.prolific.com/api/v1/workspaces/:workspace_id/projects/.
+PROJECTS_API_RETURN_VALUE = {
+    "results": [
+        {
+            "id": "66b0f1ff97343f3cd6d6b59a",
+            "title": "Project",
+            "description": "This is your initial project.",
+            "owner": "66b0f1fd97343f3cd6d6b592",
+            "users": [
+                {
+                    "id": "66b0f1fd97343f3cd6d6b592",
+                    "name": "John DeRosa",
+                    "email": "johnderosa@me.com",
+                    "roles": ["PROJECT_EDITOR"],
+                }
+            ],
+            "naivety_distribution_rate": None,
+        },
+        {
+            "id": "66b0f923fa279fd68ab7bd54",
+            "title": "default ws project",
+            "description": "",
+            "owner": "66b0f1fd97343f3cd6d6b592",
+            "users": [
+                {
+                    "id": "66b0f1fd97343f3cd6d6b592",
+                    "name": "John DeRosa",
+                    "email": "johnderosa@me.com",
+                    "roles": ["PROJECT_EDITOR"],
+                }
+            ],
+            "naivety_distribution_rate": None,
+        },
+    ],
+    "_links": {
+        "self": {
+            "title": "Current",
+            "href": "https://api.prolific.com/api/v1/workspaces/66b0f1ff97343f3cd6d6b597/projects/",
+        },
+        "next": {"href": None, "title": "Next"},
+        "previous": {"href": None, "title": "Previous"},
+        "last": {
+            "href": "https://api.prolific.com/api/v1/workspaces/66b0f1ff97343f3cd6d6b597/projects/",
+            "title": "Last",
+        },
+    },
+    "meta": {"count": 2},
+}
+
 
 @pytest.fixture
 def subject(prolific_creds):
@@ -55,7 +160,6 @@ def subject(prolific_creds):
     from dallinger.version import __version__
 
     referer = f"https://github.com/Dallinger/Dallinger/tests/v{__version__}"
-
     return ProlificService(
         api_token=prolific_creds["prolific_api_token"],
         api_version=prolific_creds["prolific_api_version"],
@@ -122,16 +226,53 @@ def test_can_add_to_available_place_count(subject):
     assert subject.delete_study(study_id=result["id"])
 
 
-def test_custom_exceptions(subject):
-    """Test some of the exceptions defined in prolific.py."""
+def test_translate_workspace_name_exception(subject):
+    """_translate_workspace_name raises ProlificServiceNoSuchWorkspace."""
 
-    # Load the local configuration file, which contains only an [MTurk] section.
-    config = get_config()
-    config.load_from_file(LOCAL_CONFIG)
-    config.ready = True
-
-    # Test ProlificServiceNoSuchWorkspace is raised
-    config.set("prolific_workspace", "dummy space")
+    # Mock out self._req.
+    subject._req = MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
 
     with pytest.raises(ProlificServiceNoSuchWorkspace):
-        subject.draft_study("1", "1", "1", [], 1, "1", "1", 1, "1", "1", 1, 1)
+        subject._translate_workspace_name("does not exist")
+
+
+def test_translate_project_name_exception(subject):
+    """_translate_project_name raises ProlificServiceNoSuchProject."""
+
+    # Mock out self._req.
+    subject._req = MagicMock(return_value=PROJECTS_API_RETURN_VALUE)
+
+    with pytest.raises(ProlificServiceNoSuchProject):
+        subject._translate_project_name("unused", "does not exist")
+
+
+@pytest.mark.parametrize(
+    "test_input, expected",
+    [
+        ("zippy the pinhead", "66b0f8e34632badef5c8d1db"),
+        ("66b0f8e34632badef5c8d1db", "66b0f8e34632badef5c8d1db"),
+    ],
+)
+def test_translate_workspace_name(subject, test_input, expected):
+    """_translate_workspace_name returns a workspace id, when called with either a name or an id."""
+
+    # Mock out self._req.
+    subject._req = MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
+
+    assert subject._translate_workspace_name(test_input) == expected
+
+
+@pytest.mark.parametrize(
+    "test_input, expected",
+    [
+        ("default ws project", "66b0f923fa279fd68ab7bd54"),
+        ("66b0f923fa279fd68ab7bd54", "66b0f923fa279fd68ab7bd54"),
+    ],
+)
+def test_translate_project_name(subject, test_input, expected):
+    """_translate_project_name returns a project id, when called with either a name or an id.."""
+
+    # Mock out self._req.
+    subject._req = MagicMock(return_value=PROJECTS_API_RETURN_VALUE)
+
+    assert subject._translate_project_name("unused", test_input) == expected
