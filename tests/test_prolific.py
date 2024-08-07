@@ -1,6 +1,7 @@
 from unittest import mock
 
 import pytest
+from dateutil import parser
 
 study_request = {
     "completion_code": "A1B2C3D4",
@@ -115,3 +116,58 @@ def test_can_add_to_available_place_count(subject):
 
     assert updated["total_available_places"] == initial_spaces + 1
     assert subject.delete_study(study_id=result["id"])
+
+
+def test_get_assignments_for_study_iso(subject):
+    # Just verifies response parsing, which I screwed up (twice)
+    canned_response = {
+        "results": [
+            {
+                "id": "60d9aadeb86739de712faee0",
+                "participant_id": "60bf9310e8dec401be6e9615",
+                "started_at": "2021-05-20T11:03:00.457000Z",
+                "status": "ACTIVE",
+                "study_code": "ABC123",
+            }
+        ]
+    }
+    subject._req = mock.Mock(return_value=canned_response)
+
+    result = subject.get_assignments_for_study("some-study")
+
+    assert result == {
+        "60d9aadeb86739de712faee0": {
+            "assignment_id": "60d9aadeb86739de712faee0",
+            "worker_id": "60bf9310e8dec401be6e9615",
+            "started_at": parser.parse(canned_response["results"][0]["started_at"]),
+            "status": "ACTIVE",
+            "completion_code": "ABC123",
+        }
+    }
+
+
+def test_get_participant_submission_iso(subject):
+    # Just verifies response parsing
+    # NOTE that JSON format from Prolific differs based on whether
+    # you request a list of submissions or just one!
+    canned_response = {
+        "id": "60d9aadeb86739de712faee0",
+        "completed_at": "2022-04-18T11:25:02.734000Z",
+        "entered_code": "ABC123",
+        "participant": "60bf9310e8dec401be6e9615",
+        "started_at": "2022-04-18T11:24:51.395000Z",
+        "status": "ACTIVE",
+        "study_id": "60aca280709ee40ec37d4885",
+        "bonus_payments": [1000, 2536],
+    }
+    subject._req = mock.Mock(return_value=canned_response)
+
+    result = subject.get_participant_submission("60d9aadeb86739de712faee0")
+
+    assert result == {
+        "assignment_id": "60d9aadeb86739de712faee0",
+        "worker_id": "60bf9310e8dec401be6e9615",
+        "started_at": parser.parse(canned_response["started_at"]),
+        "status": "ACTIVE",
+        "completion_code": "ABC123",
+    }
