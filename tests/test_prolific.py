@@ -280,3 +280,114 @@ def test_translate_project_name(subject, test_input, expected):
     subject._req = MagicMock(return_value=PROJECTS_API_RETURN_VALUE)
 
     assert subject._translate_project_name("unused", test_input) == expected
+
+
+@pytest.mark.parametrize(
+    # Parameters:
+    # - The value of config.prolific_workspace.
+    # - The value of config.prolific_project
+    # - The value returned from the workspaces API endpoint.   We use a truncated dict in this test.
+    # - The value returned from the projects API endpoint  We use a truncated dict in this test.
+    # - The expected value of the project key in the call to the studies API endpoint
+    "config_workspace_name, config_project_name, workspaces_api_result, projects_api_result, expected_project_id",
+    [
+        # No config.prolific_workspace.
+        (
+            None,
+            None,
+            {
+                "results": [
+                    {
+                        "id": "66b0f1ff97343f3cd6d6b597",
+                        "title": "My Workspace",
+                        "description": "This is your initial workspace.",
+                        "owner": "66b0f1fd97343f3cd6d6b592",
+                        "users": [
+                            {
+                                "id": "66b0f1fd97343f3cd6d6b592",
+                                "name": "John DeRosa",
+                                "email": "johnderosa@me.com",
+                                "roles": ["WORKSPACE_ADMIN"],
+                            }
+                        ],
+                        "naivety_distribution_rate": None,
+                        "product": "human",
+                        "is_trial_workspace": False,
+                    },
+                    {
+                        "id": "66b0f8e34632badef5c8d1db",
+                        "title": "zippy the pinhead",
+                        "description": "",
+                        "owner": "66b0f1fd97343f3cd6d6b592",
+                        "users": [
+                            {
+                                "id": "66b0f1fd97343f3cd6d6b592",
+                                "name": "John DeRosa",
+                                "email": "johnderosa@me.com",
+                                "roles": [],
+                            }
+                        ],
+                        "naivety_distribution_rate": None,
+                        "product": "human",
+                        "is_trial_workspace": False,
+                    },
+                ],
+            },
+            {
+                "results": [
+                    {
+                        "id": "66b0f1ff97343f3cd6d6b59a",
+                        "title": "Project",
+                        "description": "This is your initial project.",
+                        "owner": "66b0f1fd97343f3cd6d6b592",
+                        "users": [
+                            {
+                                "id": "66b0f1fd97343f3cd6d6b592",
+                                "name": "John DeRosa",
+                                "email": "johnderosa@me.com",
+                                "roles": ["PROJECT_EDITOR"],
+                            }
+                        ],
+                        "naivety_distribution_rate": None,
+                    },
+                    {
+                        "id": "66b0f923fa279fd68ab7bd54",
+                        "title": "default ws project",
+                        "description": "",
+                        "owner": "66b0f1fd97343f3cd6d6b592",
+                        "users": [
+                            {
+                                "id": "66b0f1fd97343f3cd6d6b592",
+                                "name": "John DeRosa",
+                                "email": "johnderosa@me.com",
+                                "roles": ["PROJECT_EDITOR"],
+                            }
+                        ],
+                        "naivety_distribution_rate": None,
+                    },
+                ],
+            },
+            Exception,
+        )
+        # No config.prolific_project
+        # config.prolific_workspace not found in workspaces API endpoint
+        # config.prolific_project not found in workspaces API endpoint
+        # config.profliic_project found in workspaces API endpoint
+    ],
+)
+def test_translate_draft_study(
+    subject,
+    config_workspace_name,
+    config_project_name,
+    workspaces_api_result,
+    projects_api_result,
+    expected_project_id,
+):
+    """draft_study correctly handles missing and supplied workspace names and project names."""
+
+    # Mock out self._req.
+    subject._req = MagicMock(return_value=PROJECTS_API_RETURN_VALUE)
+
+    subject.draft_study(**study_request)
+    # result = subject.draft_study(**study_request)
+    # assert subject._translate_project_name("unused", test_input) == expected

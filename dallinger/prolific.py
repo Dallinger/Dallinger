@@ -208,24 +208,12 @@ class ProlificService:
         # exception if the key doesn't exist.
         workspace_name = config.get("prolific_workspace")
 
-        try:
-            workspace_id = self._translate_workspace_name(workspace_name)
+        # Get the workspace's id.  If it's not in Prolific, the function will raise an exception and it'll propagate
+        # up the call stack.
+        workspace_id = self._translate_workspace_name(workspace_name)
 
-        except ProlificServiceNoSuchWorkspace:
-            # The user specified a workspace but it doesn't exist.  Create it.
-            workspace_id = self._req(
-                method="POST",
-                endpoint="/workspaces/",
-                json={
-                    "title": workspace_name,
-                    "description": "Created by Dallinger draft_study",
-                },
-            )
-
-            workspace_id = workspace_id["id"]
-
-        # We have the workspace id.  Now ensure that the project exists and get its id.  If it's not in the
-        # configuration, we'll supply None for the name, which makes Prolific use a default project name.
+        # Now ensure that the project exists and get its id.  If it's not in the configuration, we'll supply None for
+        # the name, which makes Prolific use a default project name.
         if project_name := config.get("prolific_project"):
             # Translate the name into a project ID.  If it doesn't exist, create it.
             try:
@@ -239,6 +227,7 @@ class ProlificService:
                     json={"title": workspace_id},
                 )
                 project_id = project_id["id"]
+
             else:
                 project_id = None
 
@@ -337,8 +326,7 @@ class ProlificService:
     def _req(self, method: str, endpoint: str, **kw) -> dict:
         """Runs the actual request/response cycle:
         * Adds auth header
-        * Adds Referer header to help Prolific identify our requests
-          when troubleshooting
+        * Adds Referer header to help Prolific identify our requests when troubleshooting
         * Logs all requests (we might want to stop doing this when we're
           out of our "beta" period with Prolific)
         * Parses response and does error handling
