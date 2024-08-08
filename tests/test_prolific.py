@@ -280,21 +280,3 @@ def test_translate_project_name(subject, test_input, expected):
     subject._req = MagicMock(return_value=PROJECTS_API_RETURN_VALUE)
 
     assert subject._translate_project_name("unused", test_input) == expected
-
-
-# @pytest.mark.parametrize(
-#     "test_input, expected",
-#     [
-#         ("default ws project", "66b0f923fa279fd68ab7bd54"),
-#         ("66b0f923fa279fd68ab7bd54", "66b0f923fa279fd68ab7bd54"),
-#     ],
-# )
-# def test_translate_draft_study(subject, test_input, expected):
-# def test_translate_draft_study(subject):
-#     """draft_study creates a default workspace when the configuration workspace is not found."""
-
-#     # Mock out self._req.
-#     subject._req = MagicMock(return_value=PROJECTS_API_RETURN_VALUE)
-
-#     result = subject.draft_study(**study_request)
-#     assert subject._translate_project_name("unused", test_input) == expected

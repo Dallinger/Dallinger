@@ -284,7 +284,6 @@ class Configuration(object):
 
     def load_defaults(self):
         """Load default configuration values"""
-        breakpoint()
         # Apply extra parameters before loading the configs
         if experiment_available():
             # In practice, experiment_available should only return False in tests
