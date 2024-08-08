@@ -161,6 +161,7 @@ def subject(prolific_creds):
     from dallinger.version import __version__
 
     referer = f"https://github.com/Dallinger/Dallinger/tests/v{__version__}"
+
     return ProlificService(
         api_token=prolific_creds["prolific_api_token"],
         api_version=prolific_creds["prolific_api_version"],
