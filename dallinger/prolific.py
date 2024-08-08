@@ -20,11 +20,11 @@ class ProlificServiceException(Exception):
     """Some error from Prolific"""
 
 
-class ProlificServiceNoSuchProject(Exception):
+class ProlificServiceNoSuchProjectException(Exception):
     """A specified project was not found in any of the user's workspaces."""
 
 
-class ProlificServiceNoSuchWorkspace(Exception):
+class ProlificServiceNoSuchWorkspaceException(Exception):
     """A specified workspace was not found for this user."""
 
 
@@ -125,7 +125,7 @@ class ProlificService:
                 return entry["id"]
 
         # If we're here, the supplied workspace_name wasn't found in any of the user's workspaces.
-        raise ProlificServiceNoSuchWorkspace
+        raise ProlificServiceNoSuchWorkspaceException
 
     def _translate_project_name(self, workspace_id: str, project_name: str) -> str:
         """Return a project id for the supplied project name.
@@ -143,7 +143,7 @@ class ProlificService:
                 return entry["id"]
 
         # The project_name was not found.
-        raise ProlificServiceNoSuchProject
+        raise ProlificServiceNoSuchProjectException
 
     def published_study(
         self,
@@ -214,12 +214,14 @@ class ProlificService:
 
         # Now ensure that the project exists and get its id.  If it's not in the configuration, we'll supply None for
         # the name, which makes Prolific use a default project name.
+        project_id = None
+
         if project_name := config.get("prolific_project"):
             # Translate the name into a project ID.  If it doesn't exist, create it.
             try:
                 project_id = self._translate_project_name(workspace_id, project_name)
 
-            except ProlificServiceNoSuchProject:
+            except ProlificServiceNoSuchProjectException:
                 # The user specified a project but it doesn't exist.  Create it.
                 project_id = self._req(
                     method="POST",
@@ -227,9 +229,6 @@ class ProlificService:
                     json={"title": workspace_id},
                 )
                 project_id = project_id["id"]
-
-            else:
-                project_id = None
 
         # We can now create the draft study.
         payload = {
