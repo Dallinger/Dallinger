@@ -2,14 +2,13 @@
 
 from inspect import isclass
 from unittest import mock
-from unittest.mock import MagicMock
 
 import pytest
 
 from dallinger.config import get_config
 from dallinger.prolific import (
-    ProlificServiceNoSuchProjectException,
-    ProlificServiceNoSuchWorkspaceException,
+    ProlificServiceNoSuchProject,
+    ProlificServiceNoSuchWorkspace,
 )
 
 study_request = {
@@ -229,22 +228,22 @@ def test_can_add_to_available_place_count(subject):
 
 
 def test_translate_workspace_name_exception(subject):
-    """_translate_workspace_name raises ProlificServiceNoSuchWorkspaceException."""
+    """_translate_workspace_name raises ProlificServiceNoSuchWorkspace."""
 
     # Mock out self._req.
-    subject._req = MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
+    subject._req = mock.MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
 
-    with pytest.raises(ProlificServiceNoSuchWorkspaceException):
+    with pytest.raises(ProlificServiceNoSuchWorkspace):
         subject._translate_workspace_name("does not exist")
 
 
 def test_translate_project_name_exception(subject):
-    """_translate_project_name raises ProlificServiceNoSuchProjectException."""
+    """_translate_project_name raises ProlificServiceNoSuchProject."""
 
     # Mock out self._req.
-    subject._req = MagicMock(return_value=PROJECTS_API_RETURN_VALUE)
+    subject._req = mock.MagicMock(return_value=PROJECTS_API_RETURN_VALUE)
 
-    with pytest.raises(ProlificServiceNoSuchProjectException):
+    with pytest.raises(ProlificServiceNoSuchProject):
         subject._translate_project_name("unused", "does not exist")
 
 
@@ -261,7 +260,7 @@ def test_translate_workspace_name(subject, test_input, expected):
     """_translate_workspace_name returns a workspace id, when called with either a name or an id."""
 
     # Mock out self._req.
-    subject._req = MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
+    subject._req = mock.MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
 
     assert subject._translate_workspace_name(test_input) == expected
 
@@ -279,7 +278,7 @@ def test_translate_project_name(subject, test_input, expected):
     """_translate_project_name returns a project id, when called with either a name or an id.."""
 
     # Mock out self._req.
-    subject._req = MagicMock(return_value=PROJECTS_API_RETURN_VALUE)
+    subject._req = mock.MagicMock(return_value=PROJECTS_API_RETURN_VALUE)
 
     assert subject._translate_project_name("unused", test_input) == expected
 
@@ -288,8 +287,8 @@ def test_translate_project_name(subject, test_input, expected):
     # Parameters:
     # - The value of config.prolific_workspace.
     # - The value of config.prolific_project
-    # - The value returned from the workspaces API endpoint.   We use a truncated dict in this test.
-    # - The value returned from the projects API endpoint  We use a truncated dict in this test.
+    # - The value returned from the workspaces API endpoint.
+    # - The value returned from the projects API endpoint.
     # - The expected value of the project key in the call to the studies API endpoint, OR the expected
     #   exception.
     "config_workspace_name, config_project_name, workspaces_api_result, projects_api_result, expected_project_id",
@@ -298,161 +297,42 @@ def test_translate_project_name(subject, test_input, expected):
         (
             "",
             "",
-            {
-                "results": [
-                    {
-                        "id": "66b0f1ff97343f3cd6d6b597",
-                        "title": "My Workspace",
-                        "description": "This is your initial workspace.",
-                        "owner": "66b0f1fd97343f3cd6d6b592",
-                        "users": [
-                            {
-                                "id": "66b0f1fd97343f3cd6d6b592",
-                                "name": "John DeRosa",
-                                "email": "johnderosa@me.com",
-                                "roles": ["WORKSPACE_ADMIN"],
-                            }
-                        ],
-                        "naivety_distribution_rate": None,
-                        "product": "human",
-                        "is_trial_workspace": False,
-                    },
-                    {
-                        "id": "66b0f8e34632badef5c8d1db",
-                        "title": "zippy the pinhead",
-                        "description": "",
-                        "owner": "66b0f1fd97343f3cd6d6b592",
-                        "users": [
-                            {
-                                "id": "66b0f1fd97343f3cd6d6b592",
-                                "name": "John DeRosa",
-                                "email": "johnderosa@me.com",
-                                "roles": [],
-                            }
-                        ],
-                        "naivety_distribution_rate": None,
-                        "product": "human",
-                        "is_trial_workspace": False,
-                    },
-                ],
-            },
-            {
-                "results": [
-                    {
-                        "id": "66b0f1ff97343f3cd6d6b59a",
-                        "title": "Project",
-                        "description": "This is your initial project.",
-                        "owner": "66b0f1fd97343f3cd6d6b592",
-                        "users": [
-                            {
-                                "id": "66b0f1fd97343f3cd6d6b592",
-                                "name": "John DeRosa",
-                                "email": "johnderosa@me.com",
-                                "roles": ["PROJECT_EDITOR"],
-                            }
-                        ],
-                        "naivety_distribution_rate": None,
-                    },
-                    {
-                        "id": "66b0f923fa279fd68ab7bd54",
-                        "title": "default ws project",
-                        "description": "",
-                        "owner": "66b0f1fd97343f3cd6d6b592",
-                        "users": [
-                            {
-                                "id": "66b0f1fd97343f3cd6d6b592",
-                                "name": "John DeRosa",
-                                "email": "johnderosa@me.com",
-                                "roles": ["PROJECT_EDITOR"],
-                            }
-                        ],
-                        "naivety_distribution_rate": None,
-                    },
-                ],
-            },
-            ProlificServiceNoSuchWorkspaceException,
+            WORKSPACES_API_RETURN_VALUE,
+            PROJECTS_API_RETURN_VALUE,
+            ProlificServiceNoSuchWorkspace,
         ),
         # No config.prolific_project.
         (
             "zippy the pinhead",
             "",
-            {
-                "results": [
-                    {
-                        "id": "66b0f1ff97343f3cd6d6b597",
-                        "title": "My Workspace",
-                        "description": "This is your initial workspace.",
-                        "owner": "66b0f1fd97343f3cd6d6b592",
-                        "users": [
-                            {
-                                "id": "66b0f1fd97343f3cd6d6b592",
-                                "name": "John DeRosa",
-                                "email": "johnderosa@me.com",
-                                "roles": ["WORKSPACE_ADMIN"],
-                            }
-                        ],
-                        "naivety_distribution_rate": None,
-                        "product": "human",
-                        "is_trial_workspace": False,
-                    },
-                    {
-                        "id": "66b0f8e34632badef5c8d1db",
-                        "title": "zippy the pinhead",
-                        "description": "",
-                        "owner": "66b0f1fd97343f3cd6d6b592",
-                        "users": [
-                            {
-                                "id": "66b0f1fd97343f3cd6d6b592",
-                                "name": "John DeRosa",
-                                "email": "johnderosa@me.com",
-                                "roles": [],
-                            }
-                        ],
-                        "naivety_distribution_rate": None,
-                        "product": "human",
-                        "is_trial_workspace": False,
-                    },
-                ],
-            },
-            {
-                "results": [
-                    {
-                        "id": "66b0f1ff97343f3cd6d6b59a",
-                        "title": "Project",
-                        "description": "This is your initial project.",
-                        "owner": "66b0f1fd97343f3cd6d6b592",
-                        "users": [
-                            {
-                                "id": "66b0f1fd97343f3cd6d6b592",
-                                "name": "John DeRosa",
-                                "email": "johnderosa@me.com",
-                                "roles": ["PROJECT_EDITOR"],
-                            }
-                        ],
-                        "naivety_distribution_rate": None,
-                    },
-                    {
-                        "id": "66b0f923fa279fd68ab7bd54",
-                        "title": "default ws project",
-                        "description": "",
-                        "owner": "66b0f1fd97343f3cd6d6b592",
-                        "users": [
-                            {
-                                "id": "66b0f1fd97343f3cd6d6b592",
-                                "name": "John DeRosa",
-                                "email": "johnderosa@me.com",
-                                "roles": ["PROJECT_EDITOR"],
-                            }
-                        ],
-                        "naivety_distribution_rate": None,
-                    },
-                ],
-            },
+            WORKSPACES_API_RETURN_VALUE,
+            PROJECTS_API_RETURN_VALUE,
+            "ba5eba11",
+        ),
+        # config.prolific_workspace not found in workspaces API endpoint.
+        (
+            "this workspace doesn't exist",
+            "",
+            WORKSPACES_API_RETURN_VALUE,
+            PROJECTS_API_RETURN_VALUE,
+            ProlificServiceNoSuchWorkspace,
+        ),
+        # config.prolific_project not found in workspaces API endpoint.
+        (
+            "My Workspace",
+            "this project doesn't exist",
+            WORKSPACES_API_RETURN_VALUE,
+            PROJECTS_API_RETURN_VALUE,
             "deadbeefba5eba11deadfeed",
         ),
-        # config.prolific_workspace not found in workspaces API endpoint
-        # config.prolific_project not found in workspaces API endpoint
-        # config.profliic_project found in workspaces API endpoint
+        # config.profliic_project found in workspaces API endpoint.
+        (
+            "My Workspace",
+            "default ws project",
+            WORKSPACES_API_RETURN_VALUE,
+            PROJECTS_API_RETURN_VALUE,
+            "66b0f923fa279fd68ab7bd54",
+        ),
     ],
 )
 def test_translate_draft_study(
@@ -463,10 +343,15 @@ def test_translate_draft_study(
     projects_api_result,
     expected_project_id,
 ):
-    """draft_study correctly handles missing and supplied workspace names and project names."""
+    """draft_study correctly handles missing and supplied workspace names and project names.
+
+    NB. This tests the connections between draft_study, two inferior functions, and the configuration.
+    The mocked-out results returned from ProlificService._req() are *not* identical to what the API
+    actually returns.  This was done for expediency.
+    """
 
     def sideeffect(method, endpoint, **kw):
-        """Used to mock out ProlificService._req().
+        """This is used to mock out ProlificService._req().
 
         The if-statement is not generalized.  It's crafted to work only in this test.
         """
@@ -482,17 +367,27 @@ def test_translate_draft_study(
 
         if method == "POST" and "studies" in endpoint:
             # The call is to POST to create a draft study.
-            return kw["json"]
+            # If the incoming request has an id key, return that as the study id.  Else, return a default.
+            study_id = (
+                kw["json"]["project"] if kw["json"].get("project") else "ba5eba11"
+            )
+
+            return {
+                "id": study_id,
+                "title": "My project",
+                "description": "This project is for...",
+                "owner": "60a42f4c693c29420793cb73",
+            }
 
         if "projects" in endpoint:
-            # The call is a GET to the "project" endpoint.
+            # The call is a GET to the "projects" endpoint.
             return projects_api_result
 
         # The call is a GET to the "workspaces" endpoint.
         return workspaces_api_result
 
     # Mock out ProlificService._req.
-    subject._req = MagicMock(side_effect=sideeffect)
+    subject._req = mock.MagicMock(side_effect=sideeffect)
 
     # Load the workspace and project names into the config.
     config = get_config()
@@ -504,13 +399,8 @@ def test_translate_draft_study(
     # Do the test differently depending on whether an exception is expected.  Because an exception is a class and not an
     # instance, we can't call isinstance() the usual way.
     if isclass(expected_project_id) and isinstance(expected_project_id(), Exception):
-        with pytest.raises(ProlificServiceNoSuchWorkspaceException):
+        with pytest.raises(ProlificServiceNoSuchWorkspace):
             subject.draft_study(**study_request)
     else:
         result = subject.draft_study(**study_request)
-
-        # We have a skew between None and ''.  Will fix this later!
-        if config_project_name == "":
-            assert result["project"] is None
-        else:
-            assert result["project"] == config_project_name
+        assert result["id"] == expected_project_id
