@@ -134,7 +134,9 @@ class ProlificService:
         """
 
         # Get all of this workspace's projects.
-        projects = self._req(method="GET", endpoint=f"/{workspace_id}/projects/")
+        projects = self._req(
+            method="GET", endpoint=f"/workspaces/{workspace_id}/projects/"
+        )
 
         # If project_name exists as a name OR an id, we return its project_id.
         for entry in projects["results"]:
