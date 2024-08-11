@@ -365,7 +365,7 @@ pandas==2.2.2
     #   tablib
 pandocfilters==1.5.1
     # via nbconvert
-paramiko==3.4.0
+paramiko==3.4.1
     # via
     #   dallinger
     #   sshtunnel
