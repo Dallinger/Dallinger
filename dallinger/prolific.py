@@ -348,8 +348,17 @@ class DevProlificService(ProlificService):
         )
         return {"id": "prolific-user-id", "external_study_url": "external-study-url"}
 
-    def who_am_i(self) -> dict:
-        return {"id": "prolific-user-id"}
+    def pay_session_bonus(self, study_id: str, worker_id: str, amount: float) -> bool:
+        amount_str = "{:.2f}".format(amount)
+        payload = {
+            "study_id": study_id,
+            "csv_bonuses": f"{worker_id},{amount_str}",
+        }
+
+        self._req(method="POST", endpoint="/submissions/bonus-payments/", json=payload)
+        setup_response = {"id": "id-from call-to-/submissions/bonus-payments"}
+
+        self._req("POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/")
 
     def _req(self, method: str, endpoint: str, **kw) -> dict:
         """Does NOT make any requests but instead writes to the log."""
@@ -359,9 +368,7 @@ class DevProlificService(ProlificService):
             "method": method,
             "args": kw,
         }
-        self.debug_log(f"PROLIFIC API request would have been: {json.dumps(summary)}")
+        self.dev_log(json.dumps(summary))
 
-    def debug_log(self, msg):
-        logger.info("########## PROLIFIC DEBUG LOG START ###########")
-        logger.info(msg)
-        logger.info("########## PROLIFIC DEBUG LOG END #############")
+    def dev_log(self, msg):
+        logger.warning(f" >>> PROLIFIC DEV LOG <<< API request would have been: {msg}")
