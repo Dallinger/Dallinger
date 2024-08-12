@@ -284,7 +284,7 @@ class ProlificService:
 
 
 class DevProlificService(ProlificService):
-    """Wrapper that mocks the Prolific REST API and instead write to the log."""
+    """Wrapper that mocks the Prolific REST API and instead of making requests it writes to the log."""
 
     def __init__(self, api_token: str, api_version: str, referer_header: str):
         super().__init__(api_token, api_version, referer_header)
@@ -314,8 +314,6 @@ class DevProlificService(ProlificService):
         device_compatibility: Optional[List[str]] = None,
         peripheral_requirements: Optional[List[str]] = None,
     ) -> dict:
-        """Create a draft Study on Prolific, and return its properties."""
-
         payload = {
             "name": name,
             "internal_name": internal_name,
@@ -354,11 +352,10 @@ class DevProlificService(ProlificService):
             "study_id": study_id,
             "csv_bonuses": f"{worker_id},{amount_str}",
         }
-
         self._req(method="POST", endpoint="/submissions/bonus-payments/", json=payload)
         setup_response = {"id": "id-from call-to-/submissions/bonus-payments"}
-
         self._req("POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/")
+        return {"id": "id-from call-to-/bulk-bonus-payments/<id>/pay/"}
 
     def _req(self, method: str, endpoint: str, **kw) -> dict:
         """Does NOT make any requests but instead writes to the log."""
