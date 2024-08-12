@@ -1,6 +1,5 @@
 """Prolific module tests."""
 
-from inspect import isclass
 from unittest import mock
 
 import pytest
@@ -290,8 +289,8 @@ def test_translate_project_name(subject, test_input, expected):
     # - The value of config.prolific_project
     # - The value returned from the workspaces API endpoint.
     # - The value returned from the projects API endpoint.
-    # - The expected value of the project key in the call to the studies API endpoint, OR the expected
-    #   exception.
+    # - The expected value of the project key in the call to the studies API endpoint.  None means the project
+    #   key should not exist.
     "config_workspace_name, config_project_name, workspaces_api_result, projects_api_result, expected_project_id",
     [
         # No config.prolific_workspace.
@@ -300,7 +299,7 @@ def test_translate_project_name(subject, test_input, expected):
             "",
             WORKSPACES_API_RETURN_VALUE,
             PROJECTS_API_RETURN_VALUE,
-            ProlificServiceNoSuchWorkspace,
+            None,
         ),
         # No config.prolific_project.
         (
@@ -308,7 +307,7 @@ def test_translate_project_name(subject, test_input, expected):
             "",
             WORKSPACES_API_RETURN_VALUE,
             PROJECTS_API_RETURN_VALUE,
-            "ba5eba11",
+            None,
         ),
         # config.prolific_workspace not found in workspaces API endpoint.
         (
@@ -316,7 +315,7 @@ def test_translate_project_name(subject, test_input, expected):
             "",
             WORKSPACES_API_RETURN_VALUE,
             PROJECTS_API_RETURN_VALUE,
-            ProlificServiceNoSuchWorkspace,
+            None,
         ),
         # config.prolific_project not found in workspaces API endpoint.
         (
@@ -346,9 +345,10 @@ def test_translate_draft_study(
 ):
     """draft_study correctly handles missing and supplied workspace names and project names.
 
-    NB. This tests the connections between draft_study, two inferior functions, and the configuration.
-    The mocked-out results returned from ProlificService._req() are *not* identical to what the API
-    actually returns.  This was done for expediency.
+    NB. This tests the connections between draft_study, two inferior functions, and the
+    configuration.  The mocked-out results returned from ProlificService._req() are *not* what the
+    API actually returns.  This was done for expediency.
+
     """
 
     def sideeffect(method, endpoint, **kw):
@@ -358,7 +358,7 @@ def test_translate_draft_study(
         """
 
         if method == "POST" and "projects" in endpoint:
-            # The call is a POST to create a new project.
+            # The call is a POST to create a new project within a workspace.
             return {
                 "id": "deadbeefba5eba11deadfeed",
                 "title": "My project",
@@ -368,17 +368,7 @@ def test_translate_draft_study(
 
         if method == "POST" and "studies" in endpoint:
             # The call is to POST to create a draft study.
-            # If the incoming request has an id key, return that as the study id.  Else, return a default.
-            study_id = (
-                kw["json"]["project"] if kw["json"].get("project") else "ba5eba11"
-            )
-
-            return {
-                "id": study_id,
-                "title": "My project",
-                "description": "This project is for...",
-                "owner": "60a42f4c693c29420793cb73",
-            }
+            return kw["json"].get("project")
 
         if "projects" in endpoint:
             # The call is a GET to the "projects" endpoint.
@@ -397,11 +387,4 @@ def test_translate_draft_study(
     config.ready = True
     config.write(filter_sensitive=False)
 
-    # Do the test differently depending on whether an exception is expected.  Because an exception is a class and not an
-    # instance, we can't call isinstance() the usual way.
-    if isclass(expected_project_id) and isinstance(expected_project_id(), Exception):
-        with pytest.raises(ProlificServiceNoSuchWorkspace):
-            subject.draft_study(**study_request)
-    else:
-        result = subject.draft_study(**study_request)
-        assert result["id"] == expected_project_id
+    assert subject.draft_study(**study_request) == expected_project_id

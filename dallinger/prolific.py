@@ -206,31 +206,67 @@ class ProlificService:
         config = get_config()
         config.load()
 
-        # Ensure the workspace specified in the configuration exists, and get its id.  Configuration.get() will raise an
-        # exception if the key doesn't exist.
-        workspace_name = config.get("prolific_workspace")
+        # We won't specify the project id if this is True when we call the Prolific API endpoint.  Which will instruct
+        # Prolific to create the study in the default project.
+        use_prolific_default_project = True
 
-        # Get the workspace's id.  If it's not in Prolific, the function will raise an exception and it'll propagate
-        # up the call stack.
-        workspace_id = self._translate_workspace_name(workspace_name)
+        # These two try blocks are nested to make implementing different behaviors for each exception easier, should
+        # that be desired.
+        try:
+            # Ensure the workspace specified in the configuration exists, and get its id.
+            workspace_name = config.get("prolific_workspace")
 
-        # Now ensure that the project exists and get its id.  If it's not in the configuration, we'll supply the empty
-        # string, which makes Prolific use a default project name.
-        project_id = ""
+            if workspace_name != "":
+                try:
+                    # Get the workspace's id.  If it's not in Prolific, the function will raise an exception.
+                    workspace_id = self._translate_workspace_name(workspace_name)
+                    use_prolific_default_project = False
 
-        if project_name := config.get("prolific_project"):
-            # Translate the name into a project ID.  If it doesn't exist, create it.
+                except ProlificServiceNoSuchWorkspace:
+                    # If config.prolific_workspace is a non-empty string, and the workspace does not exist in the
+                    # /workspaces/ endpoint, the /studies/ endpoint will be called without a project key.
+                    pass
+
+        except KeyError:
+            # If config.prolific_workspace does not exist or is the empty string, the /studies/ endpoint will be
+            # called without a project key.
+            pass
+
+        # If we're on a path to not use the default project...
+        if not use_prolific_default_project:
+
+            # Get the project name from the configuration.
             try:
-                project_id = self._translate_project_name(workspace_id, project_name)
+                project_name = config.get("prolific_project")
 
-            except ProlificServiceNoSuchProject:
-                # The user specified a project but it doesn't exist.  Create it.
-                project_id = self._req(
-                    method="POST",
-                    endpoint=f"/workspaces/{workspace_id}/projects/",
-                    json={"title": workspace_id},
-                )
-                project_id = project_id["id"]
+                if project_name == "":
+                    # If config.prolific_project is the empty string, the /studies/ endpoint will be called without a
+                    # project key.
+                    use_prolific_default_project = True
+
+                else:
+                    # Translate the name into a project ID.
+                    try:
+                        # If config.prolific_project is a non-empty string, and the project exists in the specified
+                        # workspace, the /studies/ endpoint will be called with the project id.
+                        project_id = self._translate_project_name(
+                            workspace_id, project_name
+                        )
+
+                    except ProlificServiceNoSuchProject:
+                        # If config.prolific_project is a non-empty string, and the project does not exist in the
+                        # specified workspace, the project will be created in that workspace. And the /studies/ endpoint
+                        # will be called with the new project id.
+                        project_id = self._req(
+                            method="POST",
+                            endpoint=f"/workspaces/{workspace_id}/projects/",
+                            json={"title": workspace_id},
+                        )
+                        project_id = project_id["id"]
+
+            except KeyError:
+                # If config.prolific_project does not exist, the /studies/ endpoint will be called without a project key.
+                use_prolific_default_project = True
 
         # We can now create the draft study.
         payload = {
@@ -243,12 +279,14 @@ class ProlificService:
             "internal_name": internal_name,
             "maximum_allowed_time": maximum_allowed_time,
             "name": name,
-            "project": project_id,
             "prolific_id_option": prolific_id_option,
             "reward": reward,
             "status": "UNPUBLISHED",
             "total_available_places": total_available_places,
         }
+
+        if not use_prolific_default_project:
+            payload["project"] = project_id
 
         if device_compatibility is not None:
             payload["device_compatibility"] = device_compatibility
