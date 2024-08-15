@@ -103,7 +103,7 @@ Stopping and Starting
 ---------------------
 
 You can temporarily stop a running instance to prevent it from incurring hourly
-costs (while retaining it's stored data)::
+costs (while retaining its stored data)::
 
     dallinger ec2 stop --name <server_name> --region <region>
     dallinger ec2 stop --dns <subdomain>.my-experiments.org --region <region>
