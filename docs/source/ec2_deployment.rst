@@ -12,10 +12,18 @@ Initial Setup
 Route53 DNS
 ~~~~~~~~~~~
 
-In order to use EC2 provisioning, you must have a domain created in AWS Route53
-managed using the same credentials you use for your experiment (see:
-:doc:`aws_etc_keys`). The examples below assume that you have setup a domain
-``my-experiments.org`` in Route53.
+
+If your lab is doing this for the first time, you probably need to acquire a
+domain name for your experiment server. This is the parent URL that will be used
+to host your experiments. If your lab already has a domain name, you can skip
+this step. On the AWS online console, navigate to the Route 53 service. On the
+Dashboard you can register a domain name. Note that different domain names come
+with different costs, and that registering a domain name can take from a few
+minutes to several hours. Before proceeding with the next steps, please wait
+until the AWS console tells you that the registration is complete.
+
+The examples below assume that you have setup a domain ``my-experiments.org`` in
+Route53.
 
 EC2 Security Group
 ~~~~~~~~~~~~~~~~~~

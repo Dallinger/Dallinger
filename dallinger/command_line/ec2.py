@@ -16,7 +16,6 @@ from .lib.ec2 import (
     stop,
     teardown,
 )
-from .utils import user_confirms
 
 
 def get_instance_config():
@@ -35,12 +34,14 @@ def get_instance_config():
 @click.group("ec2")
 @click.pass_context
 def ec2(ctx):
+    """Sub-commands for provisioning on AWS EC2"""
     pass
 
 
 @ec2.group("ssh")
 @click.pass_context
 def ssh(ctx):
+    """Sub-commands to ssh to EC2 instances"""
     pass
 
 
@@ -48,6 +49,7 @@ def ssh(ctx):
 @click.option("--app", required=True, help="App name")
 @click.option("--dns", required=True, help="Server name")
 def ssh__web(app, dns):
+    """SSH to a web app container on an EC2 instance"""
     command = f"ssh {dns} -t 'docker exec -it {app}-web-1 bash'"
     os.system(command)
 
@@ -55,6 +57,7 @@ def ssh__web(app, dns):
 @ec2.group("list")
 @click.pass_context
 def list(ctx):
+    """Sub-commands for listing EC2 entities"""
     pass
 
 
@@ -66,6 +69,7 @@ def list(ctx):
 @click.option("--pem", default=None, help="Name of the PEM file to use")
 @click.pass_context
 def list__instances(ctx, region, running, stopped, terminated, pem):
+    """List your EC2 instances (with filtering)"""
     filtered_states = []
     if running:
         filtered_states.append("running")
@@ -79,6 +83,7 @@ def list__instances(ctx, region, running, stopped, terminated, pem):
 @list.command("regions")
 @click.pass_context
 def list__regions(ctx):
+    """List available EC2 regions"""
     list_regions()
 
 
@@ -86,6 +91,7 @@ def list__regions(ctx):
 @click.option("--region", default=None, help="Region name")
 @click.pass_context
 def list__instance_types(ctx, region):
+    """List available EC2 instance types in your region"""
     list_instance_types(region)
 
 
@@ -116,31 +122,8 @@ def list__instance_types(ctx, region):
 def ec2__provision(
     ctx, name, region, type, storage, pem, image_name, security_group_name, dns_host
 ):
-    try:
-        from dallinger import db, experiment
-
-        config = get_instance_config()
-        exp_klass = experiment.load()
-        exp = exp_klass(db.session)
-
-        asset_storage = getattr(exp, "asset_storage", None)
-        if asset_storage is not None:
-            asset_storage = asset_storage.__class__.__name__
-
-        if asset_storage and not asset_storage == "S3Storage":
-            if not user_confirms(
-                f"Your asset storage is {asset_storage} which is not recommended for experiments which use assets. "
-                f"For experiments with assets we recommend using S3Storage instead. "
-                f"Are you sure you want to provision an EC2 instance?"
-            ):
-                exit()
-    except ImportError:
-        if not user_confirms(
-            "You are not inside an experiment folder. This is not recommended. "
-            "Are you sure you want to provision an EC2 instance?"
-        ):
-            exit()
-
+    """Provision an EC2 instance for running experiments"""
+    config = get_instance_config()
     pem = config.get("pem", pem)
     security_group_name = config.get("security_group_name", security_group_name)
 
@@ -163,6 +146,7 @@ def ec2__provision(
 @click.option("--storage", required=True, type=int, help="Storage in GB")
 @click.pass_context
 def ec2__increase_storage(ctx, dns, name, region, storage):
+    """Increase the disk storage on an EC2 instance"""
     instance_row = _get_instance_row_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
@@ -177,6 +161,7 @@ def ec2__increase_storage(ctx, dns, name, region, storage):
 @click.option("--region", default=None, help="Region name")
 @click.pass_context
 def ec2__stop(ctx, dns, name, region):
+    """Stop (pause) an existing EC2 instance"""
     instance_id = _get_instance_id_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
@@ -189,6 +174,7 @@ def ec2__stop(ctx, dns, name, region):
 @click.option("--region", default=None, help="Region name")
 @click.pass_context
 def ec2__start(ctx, dns, name, region):
+    """Start a stopped EC2 instance"""
     instance_id = _get_instance_id_from(
         region_name=region,
         instance_name=name,
@@ -204,6 +190,7 @@ def ec2__start(ctx, dns, name, region):
 @click.option("--region", default=None, help="Region name")
 @click.pass_context
 def ec2__restart(ctx, dns, name, region):
+    """Restart a running EC2 instance"""
     instance_id = _get_instance_id_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
@@ -221,6 +208,7 @@ def ec2__restart(ctx, dns, name, region):
 )
 @click.pass_context
 def ec2__teardown(ctx, dns, name, region, dns_host):
+    """Teardown an EC2 instance"""
     instance_id = _get_instance_id_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
