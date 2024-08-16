@@ -112,6 +112,7 @@ this work is still experimental and so the documentation is not complete yet.
     docker_support
     docker_only
     vagrant_setup
+    ec2_deployment
 
 
 Core Contribution Documentation

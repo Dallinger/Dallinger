@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 compat=""
 if [[ "$OSTYPE" == "darwin"* ]]; then
     compat=" "
@@ -7,7 +7,7 @@ fi
 dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd $dir/..
 set -xe
-rm -f requirements.txt dev-requirements.txt constraints.txt
+# rm -f requirements.txt dev-requirements.txt constraints.txt
 export CUSTOM_COMPILE_COMMAND=./scripts/update_dependencies.sh
 pip-compile constraints.in
 pip-compile dev-requirements.in
