@@ -398,7 +398,9 @@ def increase_storage(
     return host, user, ip_address, executor
 
 
-def filter_zone_ids(zone_name, route_53=get_53_client()):
+def filter_zone_ids(zone_name, route_53=None):
+    if route_53 is None:
+        route_53 = get_53_client()
     return [
         item.get("Id")
         for item in route_53.list_hosted_zones_by_name()["HostedZones"]
@@ -414,7 +416,9 @@ def get_subdomain(dns_host):
     return dns_host.split(".")[0]
 
 
-def remove_dns_records(zone_id, dns_host, route_53=get_53_client(), confirm=False):
+def remove_dns_records(zone_id, dns_host, route_53=None, confirm=False):
+    if route_53 is None:
+        route_53 = get_53_client()
     records = route_53.list_resource_record_sets(HostedZoneId=zone_id)
     filtered_records = [
         record for record in records["ResourceRecordSets"] if dns_host in record["Name"]
@@ -442,7 +446,10 @@ def remove_dns_records(zone_id, dns_host, route_53=get_53_client(), confirm=Fals
         print(f"Removed DNS record {dns_host}")
 
 
-def create_dns_record(dns_host, user, host, route_53=get_53_client()):
+def create_dns_record(dns_host, user, host, route_53=None):
+    if route_53 is None:
+        route_53 = get_53_client()
+
     filtered_hosts = filter_zone_ids(get_domain(dns_host), route_53)
     hosted_zone_id = filtered_hosts[0]
     response = route_53.change_resource_record_sets(
