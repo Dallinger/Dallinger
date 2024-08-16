@@ -603,7 +603,7 @@ tornado==6.4.1
     #   terminado
 tox==4.15.1
     # via dallinger
-tqdm==4.66.4
+tqdm==4.66.5
     # via dallinger
 traitlets==5.14.3
     # via
