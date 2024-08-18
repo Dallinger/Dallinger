@@ -333,7 +333,7 @@ notebook-shim==0.2.4
     # via
     #   jupyterlab
     #   notebook
-numpy==2.0.0
+numpy==2.1.0
     # via pandas
 odfpy==1.4.1
     # via tablib
