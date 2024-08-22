@@ -469,7 +469,7 @@ pyyaml==6.0.1
     #   myst-parser
     #   pre-commit
     #   tablib
-pyzmq==26.0.3
+pyzmq==26.2.0
     # via
     #   ipykernel
     #   jupyter-client
