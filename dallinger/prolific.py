@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import List, Optional
 
 import requests
@@ -286,83 +287,31 @@ class ProlificService:
 class DevProlificService(ProlificService):
     """Wrapper that mocks the Prolific REST API and instead of making requests it writes to the log."""
 
-    def approve_participant_session(self, session_id: str) -> dict:
-        self._req(
-            method="POST",
-            endpoint=f"/submissions/{session_id}/transition/",
-            json={"action": "APPROVE"},
-        )
-        return True
-
-    def draft_study(
-        self,
-        completion_code: str,
-        completion_option: str,
-        description: str,
-        eligibility_requirements: List[dict],
-        estimated_completion_time: int,
-        external_study_url: str,
-        internal_name: str,
-        maximum_allowed_time: int,
-        name: str,
-        prolific_id_option: str,
-        reward: int,
-        total_available_places: int,
-        device_compatibility: Optional[List[str]] = None,
-        peripheral_requirements: Optional[List[str]] = None,
-    ) -> dict:
-        payload = {
-            "name": name,
-            "internal_name": internal_name,
-            "description": description,
-            "external_study_url": external_study_url,
-            "prolific_id_option": prolific_id_option,
-            "completion_code": completion_code,
-            "completion_option": completion_option,
-            "total_available_places": total_available_places,
-            "estimated_completion_time": estimated_completion_time,
-            "maximum_allowed_time": maximum_allowed_time,
-            "reward": reward,
-            "eligibility_requirements": eligibility_requirements,
-            "status": "UNPUBLISHED",
-        }
-
-        if device_compatibility is not None:
-            payload["device_compatibility"] = device_compatibility
-        if peripheral_requirements is not None:
-            payload["peripheral_requirements"] = peripheral_requirements
-
-        self._req(method="POST", endpoint="/studies/", json=payload)
-        return {"id": "prolific-user-id", "external_study_url": "external-study-url"}
-
-    def publish_study(self, study_id: str) -> dict:
-        self._req(
-            method="POST",
-            endpoint=f"/studies/{study_id}/transition/",
-            json={"action": "PUBLISH"},
-        )
-        return {"id": "prolific-user-id", "external_study_url": "external-study-url"}
-
-    def pay_session_bonus(self, study_id: str, worker_id: str, amount: float) -> bool:
-        amount_str = "{:.2f}".format(amount)
-        payload = {
-            "study_id": study_id,
-            "csv_bonuses": f"{worker_id},{amount_str}",
-        }
-        self._req(method="POST", endpoint="/submissions/bonus-payments/", json=payload)
-        setup_response = {"id": "id-from call-to-/submissions/bonus-payments"}
-        self._req("POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/")
-        return {"id": "id-from call-to-/bulk-bonus-payments/<id>/pay/"}
-
     def _req(self, method: str, endpoint: str, **kw) -> dict:
         """Does NOT make any requests but instead writes to the log."""
-        url = f"{self.api_root}{endpoint}"
-        summary = {
-            "URL": url,
-            "method": method,
-            "args": kw,
-        }
-        self.dev_log(json.dumps(summary))
+        self.dev_log(f"method = {method}, endpoint = {endpoint}, kwarg = {kw}")
+
+        if endpoint == "/studies/":
+            return {
+                "id": "prolific-user-id",
+                "external_study_url": "external-study-url",
+            }
+        elif endpoint.startswith("/bulk-bonus-payments/"):
+            return {"id": "id-from call-to-/bulk-bonus-payments/<id>/pay/"}
+        if endpoint.startswith("/submissions/bonus-payments"):
+            return {"id": "id-from call-to-/submissions/bonus-payments"}
+        elif endpoint.startswith("/submissions/"):
+            pattern = r"/submissions/[A-Za-z0-9]+/"
+            if re.match(pattern, endpoint):
+                return {
+                    "id": "some-id",
+                    "study_id": "some-study-id",
+                    "participant": "some-participant",
+                    "started_at": "some-started-at-timestamp",
+                    "status": "AWAITING REVIEW",
+                }
+        else:
+            logger.error("Simulated Prolific API call could not be matched.")
 
     def dev_log(self, msg):
-        logger.warning(f" >>> PROLIFIC DEV LOG <<< API request would have been: {msg}")
+        logger.warning(f"Simulated Prolific API call: {msg}")
