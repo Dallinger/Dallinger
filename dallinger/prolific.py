@@ -286,9 +286,6 @@ class ProlificService:
 class DevProlificService(ProlificService):
     """Wrapper that mocks the Prolific REST API and instead of making requests it writes to the log."""
 
-    def __init__(self, api_token: str, api_version: str, referer_header: str):
-        super().__init__(api_token, api_version, referer_header)
-
     def approve_participant_session(self, session_id: str) -> dict:
         self._req(
             method="POST",
