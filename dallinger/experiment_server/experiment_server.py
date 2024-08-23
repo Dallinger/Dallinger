@@ -500,9 +500,9 @@ def prepare_advertisement():
     if not browser.is_supported(request.user_agent.string):
         raise ExperimentError("browser_type_not_allowed")
 
+    recruiter = recruiters.from_config(config)
     recruiter_name = request.args.get("recruiter")
     if not recruiter_name:
-        recruiter = recruiters.from_config(config)
         recruiter_name = recruiter.nickname
 
     entry_information = request.args.to_dict()
