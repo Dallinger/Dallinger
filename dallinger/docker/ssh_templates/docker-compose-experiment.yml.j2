@@ -46,6 +46,7 @@ services:
   worker_{{ number + 1 }}:
     image: {{ experiment_image }}
     command: dallinger_heroku_worker
+    cpu_shares: {{ config["docker_worker_cpu_shares"] }}
     depends_on:
       <<: *commondepends
     user: "${UID}:${GID}"
