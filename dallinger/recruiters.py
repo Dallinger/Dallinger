@@ -72,11 +72,11 @@ class Recruiter(object):
         """Return a list of one or more initial recruitment URLs and an initial
         recruitment message:
         {
-            items: [
-                'https://experiment-url-1',
-                'https://experiment-url-2'
+            "items": [
+                "https://experiment-url-1",
+                "https://experiment-url-2"
             ],
-            message: 'More info about this particular recruiter's process'
+            "message": "More info about this particular recruiter's process"
         }
         """
         raise NotImplementedError
@@ -628,7 +628,7 @@ class DevProlificRecruiter(ProlificRecruiter):
 
     @property
     def external_submission_url(self):
-        self.prolificservice.dev_log(
+        self.prolificservice.debug_log(
             f"https://app.prolific.com/submissions/complete?cc={self.completion_code} (external submission URL)\n"
             "Exiting by sending browser to dashboard on localhost.\n"
         )

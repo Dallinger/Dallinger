@@ -228,7 +228,7 @@ class ProlificService:
         )
         # Step 2: pull the trigger
         payment_response = self._req(
-            "POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
+            method="POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
         )
 
         return payment_response
@@ -289,29 +289,77 @@ class DevProlificService(ProlificService):
 
     def _req(self, method: str, endpoint: str, **kw) -> dict:
         """Does NOT make any requests but instead writes to the log."""
-        self.dev_log(f"method = {method}, endpoint = {endpoint}, kwarg = {kw}")
+        self.debug_log(f"method = {method}, endpoint = {endpoint}, kw = {kw}")
 
-        if endpoint == "/studies/":
-            return {
-                "id": "prolific-user-id",
-                "external_study_url": "external-study-url",
-            }
+        if endpoint.startswith("/studies/"):
+            if method == "GET":
+                # method="GET", endpoint=f"/studies/{study_id}/"
+                if re.match(r"/studies/[a-z0-9]+/", endpoint):
+                    return {
+                        "id": "prolific-user-id",
+                        "external_study_url": "external-study-url",
+                    }
+                # method="GET", endpoint="/studies/"
+                elif endpoint == "/studies/":
+                    return {
+                        "results": [
+                            {
+                                "title": "title",
+                                "status": "status",
+                                "created": "created-date",
+                                "expiration": "",
+                                "description": "",
+                            }
+                        ]
+                    }
+
+            elif method == "POST":
+                # method="POST", endpoint="/studies/", json=payload
+                if endpoint == "/studies/":
+                    return {
+                        "id": "study-id",
+                        "external_study_url": "external-study-url",
+                    }
+
+                # method="POST", endpoint=f"/studies/{study_id}/transition/", json={"action": "PUBLISH"},
+                elif re.match(r"/studies/[a-z0-9]+/transition/", endpoint):
+                    return True
+
+            elif method == "PATCH":
+                # method="PATCH", endpoint=f"/studies/{study_id}/", json={"total_available_places": new_total},
+                return {
+                    "items": ["https://experiment-url-1", "https://experiment-url-2"],
+                    "message": "More info about this particular recruiter's process",
+                }
+
+            # method="DELETE", endpoint=f"/studies/{study_id}"
+            elif method == "DELETE":
+                return {"status_code": 204}
+
+        # method="POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
         elif endpoint.startswith("/bulk-bonus-payments/"):
             return {"id": "id-from call-to-/bulk-bonus-payments/<id>/pay/"}
-        if endpoint.startswith("/submissions/bonus-payments"):
+
+        # method="POST", endpoint="/submissions/bonus-payments/", json=payload
+        elif endpoint.startswith("/submissions/bonus-payments"):
             return {"id": "id-from call-to-/submissions/bonus-payments"}
+
         elif endpoint.startswith("/submissions/"):
-            pattern = r"/submissions/[A-Za-z0-9]+/"
-            if re.match(pattern, endpoint):
+            # method="POST", endpoint=f"/submissions/{session_id}/transition/", json={"action": "APPROVE"},
+            if re.match(r"/submissions/[A-Za-z0-9]+/transition/", endpoint):
+                return True
+
+            # method="GET", endpoint=f"/submissions/{session_id}/"
+            elif re.match(r"/submissions/[A-Za-z0-9]+/", endpoint):
                 return {
-                    "id": "some-id",
-                    "study_id": "some-study-id",
-                    "participant": "some-participant",
-                    "started_at": "some-started-at-timestamp",
+                    "id": "id",
+                    "study_id": "study-id",
+                    "participant": "participant",
+                    "started_at": "started-at-timestamp",
                     "status": "AWAITING REVIEW",
                 }
-        else:
-            logger.error("Simulated Prolific API call could not be matched.")
 
-    def dev_log(self, msg):
+        logger.error("Simulated Prolific API call could not be matched.")
+
+    def debug_log(self, msg):
         logger.warning(f"Simulated Prolific API call: {msg}")
