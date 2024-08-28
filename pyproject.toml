@@ -28,47 +28,46 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 
-dependencies = [
-    "apscheduler",
-    "boto3",
-    "build",
-    "cached-property",
-    "click",
-    "faker",
-    "flask-sock",
-    "flask",
-    "flask-crossdomain",
-    "flask-login",
-    "flask-wtf",
-    "future",
-    "gevent",
-    "greenlet",
-    "gunicorn[gevent]",
-    "heroku3",
-    "ipython < 8.19",
-    "localconfig",
-    "pexpect",
-    "pip",
-    "pip-tools",
-    "psycopg2",
-    "psutil",
-    "pyopenssl",
-    "redis",
-    "requests",
-    "rq",
-    "selenium",
-    "six",
-    "sqlalchemy < 2",
-    "sqlalchemy-postgres-copy",
-    "tabulate",
-    "tenacity",
-    "timeago",
-    "tzlocal",
-    "ua-parser",
-    "urllib3 < 2",
-    "user-agents",
-    "yaspin",
-]
+[project.dependencies]
+apscheduler = "*"
+boto3 = "*"
+build = "*"
+cached-property = "*"
+click = "*"
+faker = "*"
+flask-sock = "*"
+flask = "*"
+flask-crossdomain = "*"
+flask-login = "*"
+flask-wtf = "*"
+future = "*"
+gevent = "*"
+greenlet = "*"
+gunicorn = { version = "*", extras = ["gevent"] }
+heroku3 = "*"
+ipython = "<8.19"
+localconfig = "*"
+pexpect = "*"
+pip = "*"
+pip-tools = "*"
+psycopg2 = "*"
+psutil = "*"
+pyopenssl = "*"
+redis = "*"
+requests = "*"
+rq = "*"
+selenium = "*"
+six = "*"
+sqlalchemy = "<2"
+sqlalchemy-postgres-copy = "*"
+tabulate = "*"
+tenacity = "*"
+timeago = "*"
+tzlocal = "*"
+ua-parser = "*"
+urllib3 = "<2"
+user-agents = "*"
+yaspin = "*"
 
 [project.optional-dependencies]
 data = [
