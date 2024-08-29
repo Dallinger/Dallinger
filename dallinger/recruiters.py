@@ -14,6 +14,7 @@ from collections import defaultdict
 import flask
 import requests
 import tabulate
+from rq import Queue
 from sqlalchemy import func
 
 from dallinger.command_line.utils import Output
@@ -37,6 +38,11 @@ from dallinger.utils import ParticipationTime, generate_random_id, get_base_url
 from dallinger.version import __version__
 
 logger = logging.getLogger(__file__)
+
+
+def _get_queue(name="default"):
+    # Connect to Redis Queue
+    return Queue(name, connection=redis_conn)
 
 
 # These are constants because other components may listen for these
@@ -92,11 +98,11 @@ class Recruiter(object):
         """Return a list of one or more initial recruitment URLs and an initial
         recruitment message:
         {
-            items: [
-                'https://experiment-url-1',
-                'https://experiment-url-2'
+            "items": [
+                "https://experiment-url-1",
+                "https://experiment-url-2"
             ],
-            message: 'More info about this particular recruiter's process'
+            "message": "More info about this particular recruiter's process"
         }
         """
         raise NotImplementedError
@@ -324,7 +330,7 @@ def prolific_submission_listener():
     if participant is not None and participant.status != "submitted":
         participant.status = "submitted"
         session.commit()  # NB: commit releases lock
-        q = get_queue()
+        q = _get_queue()
         # Here we assume the participant has submitted on Prolific by now
         # and we express this by firing off the corresponding event:
         q.enqueue(
@@ -368,6 +374,16 @@ def check_for_prolific_worker_status_discrepancy(local_status, prolific_status):
     return actions.get((local_status, prolific_status))
 
 
+def _dev_prolific_service_from_config():
+    from dallinger.prolific import DevProlificService
+
+    return DevProlificService(
+        api_token="prolific-api-token",
+        api_version="prolific-api-version",
+        referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
+    )
+
+
 class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.com/)"""
 
@@ -400,7 +416,10 @@ class ProlificRecruiter(Recruiter):
                 f"(ID {self.current_study_id}) is already running for this experiment"
             )
 
-        if self.study_domain is None:
+        if (
+            self.study_domain is None
+            and self.config.get("debug_recruiter") != "DevProlificRecruiter"
+        ):
             raise ProlificRecruiterException(
                 "Can't run a Prolific Study from localhost"
             )
@@ -712,6 +731,24 @@ class ProlificRecruiter(Recruiter):
             "eligibility_requirements": details["eligibility_requirements"],
             "peripheral_requirements": details["peripheral_requirements"],
         }
+
+
+class DevProlificRecruiter(ProlificRecruiter):
+    """A debug recruiter for [Prolific](https://app.prolific.com/)"""
+
+    nickname = "devprolific"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.prolificservice = _dev_prolific_service_from_config()
+
+    @property
+    def external_submission_url(self):
+        self.prolificservice.debug_log(
+            f"https://app.prolific.com/submissions/complete?cc={self.completion_code} (external submission URL)\n"
+            "Exiting by sending browser to dashboard on localhost.\n"
+        )
+        return "http://127.0.0.1:5000/dashboard/develop"
 
 
 class CLIRecruiter(Recruiter):

@@ -129,6 +129,17 @@ dallinger.add_command(develop)
 dallinger.add_command(docker)
 dallinger.add_command(docker_ssh)
 
+try:
+    from dallinger.command_line.ec2 import ec2
+
+    dallinger.add_command(ec2)
+except ImportError:
+    log(
+        "Could not import EC2 support. "
+        "Install dallinger with the ec2 extra to use EC2 related commands."
+    )
+    pass
+
 
 @dallinger.command()
 def setup():

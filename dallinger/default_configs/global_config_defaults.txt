@@ -2,6 +2,8 @@
 aws_access_key_id = YourAccessKeyId
 aws_secret_access_key = YourSecretAccessKey
 aws_region = us-east-1
+ec2_default_pem = dallinger
+ec2_default_security_group = dallinger
 
 [Development]
 dallinger_develop_directory = /tmp/dallinger_develop
