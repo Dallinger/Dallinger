@@ -3,20 +3,10 @@
 import inspect
 from datetime import datetime
 
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    Enum,
-    Float,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-    and_,
-    func,
-    or_,
-)
+import sqlalchemy
+from sqlalchemy import Boolean, Column, DateTime
+from sqlalchemy import Enum as EnumBase
+from sqlalchemy import Float, ForeignKey, Integer, String, Text, and_, func, or_
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import column_property, relationship, validates
 from sqlalchemy.sql.expression import false, select
@@ -24,6 +14,27 @@ from sqlalchemy.sql.expression import false, select
 from .db import Base
 
 DATETIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
+
+
+class Enum(EnumBase):
+    """
+    Custom version of sqlalchemy.Enum with helper method for dropping all registered enum types.
+    """
+
+    _registry = []
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._registry.append(self)
+
+    @classmethod
+    def drop_all(cls, bind):
+        for enum in cls._registry:
+            try:
+                enum.drop(bind=bind)
+            except sqlalchemy.exc.ProgrammingError as e:
+                if "does not exist" in str(e):
+                    pass
 
 
 def timenow():

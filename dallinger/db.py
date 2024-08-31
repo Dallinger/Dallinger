@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session, scoped_session, sessionmaker
 from sqlalchemy.schema import DropTable
 
 from dallinger.config import initialize_experiment_package
+from dallinger.models import Enum
 from dallinger.redis_utils import connect_to_redis
 
 logger = logging.getLogger("dallinger.db")
@@ -145,6 +146,11 @@ def init_db(drop_all=False, bind=engine):
     try:
         if drop_all:
             Base.metadata.drop_all(bind=bind)
+
+            # SQLAlchemy does not (seem to) know how to update an enum type if one already exists in the database.
+            # This can cause problems when changing between Dallinger versions that define different enum types.
+            # Base.metadata.drop_all does not drop enums automatically, so we have to do the dropping manually.
+            Enum.drop_all()
         Base.metadata.create_all(bind=bind)
     except OperationalError as err:
         msg = 'password authentication failed for user "dallinger"'
