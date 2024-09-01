@@ -123,7 +123,7 @@ docutils==0.20.1
     #   sphinx-rtd-theme
 et-xmlfile==1.1.0
     # via openpyxl
-executing==2.0.1
+executing==2.1.0
     # via stack-data
 faker==26.0.0
     # via dallinger
