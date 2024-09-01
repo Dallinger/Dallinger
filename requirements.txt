@@ -46,7 +46,7 @@ cryptography==42.0.8
     # via pyopenssl
 decorator==5.1.1
     # via ipython
-executing==2.0.1
+executing==2.1.0
     # via stack-data
 faker==26.0.0
     # via dallinger
