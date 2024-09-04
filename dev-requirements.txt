@@ -70,7 +70,7 @@ certifi==2024.6.2
     #   httpx
     #   requests
     #   selenium
-cffi==1.16.0
+cffi==1.17.1
     # via
     #   argon2-cffi-bindings
     #   cryptography
