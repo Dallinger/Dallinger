@@ -623,7 +623,7 @@ class DevProlificRecruiter(ProlificRecruiter):
     nickname = "devprolific"
 
     def __init__(self, *args, **kwargs):
-        super().__init__()
+        super().__init__(*args, **kwargs)
         self.prolificservice = _dev_prolific_service_from_config()
 
     @property
