@@ -288,6 +288,8 @@ class DevProlificService(ProlificService):
     """Wrapper that mocks the Prolific REST API and instead of making requests it writes to the log."""
 
     def _req(self, method: str, endpoint: str, **kw) -> dict:
+        from uuid import uuid4
+
         """Does NOT make any requests but instead writes to the log."""
         self.debug_log_request(f"method = {method}, endpoint = {endpoint}, kw = {kw}")
 
@@ -344,12 +346,12 @@ class DevProlificService(ProlificService):
 
         # method="POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
         elif endpoint.startswith("/bulk-bonus-payments/"):
-            response = {"id": "id-from call-to-/bulk-bonus-payments/<id>/pay/"}
+            response = {"id": str(uuid4())}
             return self.debug_log_response(response)
 
         # method="POST", endpoint="/submissions/bonus-payments/", json=payload
         elif endpoint.startswith("/submissions/bonus-payments"):
-            response = {"id": "id-from call-to-/submissions/bonus-payments"}
+            response = {"id": str(uuid4())}
             return self.debug_log_response(response)
 
         elif endpoint.startswith("/submissions/"):
