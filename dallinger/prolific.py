@@ -298,8 +298,7 @@ class DevProlificService(ProlificService):
                 # method="GET", endpoint=f"/studies/{study_id}/"
                 if re.match(r"/studies/[a-z0-9]+/", endpoint):
                     response = {
-                        "id": "prolific-user-id",
-                        "external_study_url": "external-study-url",
+                        "total_available_places": 100,
                     }
                     return self.debug_log_response(response)
 
