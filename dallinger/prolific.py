@@ -289,19 +289,21 @@ class DevProlificService(ProlificService):
 
     def _req(self, method: str, endpoint: str, **kw) -> dict:
         """Does NOT make any requests but instead writes to the log."""
-        self.debug_log(f"method = {method}, endpoint = {endpoint}, kw = {kw}")
+        self.debug_log_request(f"method = {method}, endpoint = {endpoint}, kw = {kw}")
 
         if endpoint.startswith("/studies/"):
             if method == "GET":
                 # method="GET", endpoint=f"/studies/{study_id}/"
                 if re.match(r"/studies/[a-z0-9]+/", endpoint):
-                    return {
+                    response = {
                         "id": "prolific-user-id",
                         "external_study_url": "external-study-url",
                     }
+                    return self.debug_log_response(response)
+
                 # method="GET", endpoint="/studies/"
                 elif endpoint == "/studies/":
-                    return {
+                    response = {
                         "results": [
                             {
                                 "title": "title",
@@ -312,54 +314,65 @@ class DevProlificService(ProlificService):
                             }
                         ]
                     }
+                    return self.debug_log_response(response)
 
             elif method == "POST":
                 # method="POST", endpoint="/studies/", json=payload
                 if endpoint == "/studies/":
-                    return {
+                    response = {
                         "id": "study-id",
                         "external_study_url": "external-study-url",
                     }
+                    return self.debug_log_response(response)
 
                 # method="POST", endpoint=f"/studies/{study_id}/transition/", json={"action": "PUBLISH"},
                 elif re.match(r"/studies/[a-z0-9]+/transition/", endpoint):
-                    return True
+                    return self.debug_log_response(True)
 
             elif method == "PATCH":
                 # method="PATCH", endpoint=f"/studies/{study_id}/", json={"total_available_places": new_total},
-                return {
+                response = {
                     "items": ["https://experiment-url-1", "https://experiment-url-2"],
                     "message": "More info about this particular recruiter's process",
                 }
+                return self.debug_log_response(response)
 
             # method="DELETE", endpoint=f"/studies/{study_id}"
             elif method == "DELETE":
-                return {"status_code": 204}
+                response = {"status_code": 204}
+                return self.debug_log_response(response)
 
         # method="POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
         elif endpoint.startswith("/bulk-bonus-payments/"):
-            return {"id": "id-from call-to-/bulk-bonus-payments/<id>/pay/"}
+            response = {"id": "id-from call-to-/bulk-bonus-payments/<id>/pay/"}
+            return self.debug_log_response(response)
 
         # method="POST", endpoint="/submissions/bonus-payments/", json=payload
         elif endpoint.startswith("/submissions/bonus-payments"):
-            return {"id": "id-from call-to-/submissions/bonus-payments"}
+            response = {"id": "id-from call-to-/submissions/bonus-payments"}
+            return self.debug_log_response(response)
 
         elif endpoint.startswith("/submissions/"):
             # method="POST", endpoint=f"/submissions/{session_id}/transition/", json={"action": "APPROVE"},
             if re.match(r"/submissions/[A-Za-z0-9]+/transition/", endpoint):
-                return True
+                return self.debug_log_response(True)
 
             # method="GET", endpoint=f"/submissions/{session_id}/"
             elif re.match(r"/submissions/[A-Za-z0-9]+/", endpoint):
-                return {
+                response = {
                     "id": "id",
                     "study_id": "study-id",
                     "participant": "participant",
                     "started_at": "started-at-timestamp",
                     "status": "AWAITING REVIEW",
                 }
+                return self.debug_log_response(response)
 
         logger.error("Simulated Prolific API call could not be matched.")
 
-    def debug_log(self, msg):
-        logger.warning(f"Simulated Prolific API call: {msg}")
+    def debug_log_request(self, request):
+        logger.warning(f"Simulated Prolific API request: {request}")
+
+    def debug_log_response(self, response):
+        logger.warning(f"Simulated Prolific API response: {response}")
+        return response
