@@ -1791,7 +1791,8 @@ def from_config(config):
     # Special case 3: if we're not using bots and we're in debug mode,
     # if present, use the configured debug_recruiter or else fallback to HotAirRecruiter:
     if debug_mode:
-        if config.get("recruiter", None) == "prolific":
+        recruiter = by_name(config.get("recruiter", None))
+        if isinstance(recruiter, ProlificRecruiter):
             return by_name("devprolific")
 
         return by_name(config.get("debug_recruiter", "HotAirRecruiter"))
