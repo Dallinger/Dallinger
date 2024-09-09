@@ -291,7 +291,7 @@ class DevProlificService(ProlificService):
         from uuid import uuid4
 
         """Does NOT make any requests but instead writes to the log."""
-        self.debug_log_request(method=method, endpoint=endpoint, **kw)
+        self.log_request(method=method, endpoint=endpoint, **kw)
         response = None
 
         if endpoint.startswith("/studies/"):
@@ -364,10 +364,10 @@ class DevProlificService(ProlificService):
 
         if response is None:
             raise RuntimeError("Simulated Prolific API call could not be matched.")
-        self.debug_log_response(response)
+        self.log_response(response)
         return response
 
-    def debug_log_request(self, method, endpoint, **kw):
+    def log_request(self, method, endpoint, **kw):
         log_msg = (
             f'Simulated Prolific API request: method="{method}", endpoint="{endpoint}"'
         )
@@ -375,5 +375,5 @@ class DevProlificService(ProlificService):
         log_msg += f'\n{kw["message"]}' if "message" in kw else ""
         logger.warning(log_msg)
 
-    def debug_log_response(self, response):
+    def log_response(self, response):
         logger.warning(f"Simulated Prolific API response: {response}")
