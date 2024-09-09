@@ -291,7 +291,7 @@ class DevProlificService(ProlificService):
         from uuid import uuid4
 
         """Does NOT make any requests but instead writes to the log."""
-        self.debug_log_request(f"method = {method}, endpoint = {endpoint}, kw = {kw}")
+        self.debug_log_request(method=method, endpoint=endpoint, **kw)
 
         if endpoint.startswith("/studies/"):
             if method == "GET":
@@ -371,8 +371,13 @@ class DevProlificService(ProlificService):
 
         logger.error("Simulated Prolific API call could not be matched.")
 
-    def debug_log_request(self, request):
-        logger.warning(f"Simulated Prolific API request: {request}")
+    def debug_log_request(self, method, endpoint, **kw):
+        log_msg = (
+            f'Simulated Prolific API request: method="{method}", endpoint="{endpoint}"'
+        )
+        log_msg += f', json={kw["json"]}' if "json" in kw else ""
+        log_msg += f'\n{kw["message"]}' if "message" in kw else ""
+        logger.warning(log_msg)
 
     def debug_log_response(self, response):
         logger.warning(f"Simulated Prolific API response: {response}")
