@@ -292,6 +292,7 @@ class DevProlificService(ProlificService):
 
         """Does NOT make any requests but instead writes to the log."""
         self.debug_log_request(method=method, endpoint=endpoint, **kw)
+        response = None
 
         if endpoint.startswith("/studies/"):
             if method == "GET":
@@ -300,7 +301,6 @@ class DevProlificService(ProlificService):
                     response = {
                         "total_available_places": 100,
                     }
-                    return self.debug_log_response(response)
 
                 # method="GET", endpoint="/studies/"
                 elif endpoint == "/studies/":
@@ -315,7 +315,6 @@ class DevProlificService(ProlificService):
                             }
                         ]
                     }
-                    return self.debug_log_response(response)
 
             elif method == "POST":
                 # method="POST", endpoint="/studies/", json=payload
@@ -324,11 +323,10 @@ class DevProlificService(ProlificService):
                         "id": "study-id",
                         "external_study_url": "external-study-url",
                     }
-                    return self.debug_log_response(response)
 
                 # method="POST", endpoint=f"/studies/{study_id}/transition/", json={"action": "PUBLISH"},
                 elif re.match(r"/studies/[a-z0-9]+/transition/", endpoint):
-                    return self.debug_log_response(True)
+                    response = True
 
             elif method == "PATCH":
                 # method="PATCH", endpoint=f"/studies/{study_id}/", json={"total_available_places": new_total},
@@ -336,27 +334,23 @@ class DevProlificService(ProlificService):
                     "items": ["https://experiment-url-1", "https://experiment-url-2"],
                     "message": "More info about this particular recruiter's process",
                 }
-                return self.debug_log_response(response)
 
             # method="DELETE", endpoint=f"/studies/{study_id}"
             elif method == "DELETE":
                 response = {"status_code": 204}
-                return self.debug_log_response(response)
 
         # method="POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
         elif endpoint.startswith("/bulk-bonus-payments/"):
             response = {"id": str(uuid4())}
-            return self.debug_log_response(response)
 
         # method="POST", endpoint="/submissions/bonus-payments/", json=payload
         elif endpoint.startswith("/submissions/bonus-payments"):
             response = {"id": str(uuid4())}
-            return self.debug_log_response(response)
 
         elif endpoint.startswith("/submissions/"):
             # method="POST", endpoint=f"/submissions/{session_id}/transition/", json={"action": "APPROVE"},
             if re.match(r"/submissions/[A-Za-z0-9]+/transition/", endpoint):
-                return self.debug_log_response(True)
+                response = True
 
             # method="GET", endpoint=f"/submissions/{session_id}/"
             elif re.match(r"/submissions/[A-Za-z0-9]+/", endpoint):
@@ -367,9 +361,11 @@ class DevProlificService(ProlificService):
                     "started_at": "started-at-timestamp",
                     "status": "AWAITING REVIEW",
                 }
-                return self.debug_log_response(response)
 
-        logger.error("Simulated Prolific API call could not be matched.")
+        if response is None:
+            raise RuntimeError("Simulated Prolific API call could not be matched.")
+        self.debug_log_response(response)
+        return response
 
     def debug_log_request(self, method, endpoint, **kw):
         log_msg = (
@@ -381,4 +377,3 @@ class DevProlificService(ProlificService):
 
     def debug_log_response(self, response):
         logger.warning(f"Simulated Prolific API response: {response}")
-        return response

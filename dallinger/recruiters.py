@@ -631,7 +631,8 @@ class DevProlificRecruiter(ProlificRecruiter):
             message="Exiting by sending browser to dashboard on localhost (external submission URL).\n",
         )
         response = "http://127.0.0.1:5000/dashboard/develop"
-        return self.prolificservice.debug_log_response(response)
+        self.prolificservice.debug_log_response(response)
+        return response
 
 
 class CLIRecruiter(Recruiter):
