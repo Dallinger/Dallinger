@@ -552,7 +552,7 @@ sphinx==7.3.7
     #   sphinx-rtd-theme
     #   sphinxcontrib-jquery
     #   sphinxcontrib-spelling
-sphinx-js @ https://github.com/Dallinger/sphinx-js/archive/refs/tags/3.2.2-markupsafe-fix.zip
+sphinx-js==3.2.2
     # via dallinger
 sphinx-rtd-theme==2.0.0
     # via dallinger
