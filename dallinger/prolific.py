@@ -373,7 +373,7 @@ class DevProlificService(ProlificService):
         )
         log_msg += f', json={kw["json"]}' if "json" in kw else ""
         log_msg += f'\n{kw["message"]}' if "message" in kw else ""
-        logger.warning(log_msg)
+        logger.info(log_msg)
 
     def log_response(self, response):
-        logger.warning(f"Simulated Prolific API response: {response}")
+        logger.info(f"Simulated Prolific API response: {response}")
