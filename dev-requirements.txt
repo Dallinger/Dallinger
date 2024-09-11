@@ -463,7 +463,7 @@ python-dateutil==2.9.0.post0
     #   pandas
 python-json-logger==2.0.7
     # via jupyter-events
-pytz==2024.1
+pytz==2024.2
     # via
     #   apscheduler
     #   pandas
