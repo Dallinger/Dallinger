@@ -6,13 +6,31 @@ import requests
 import tenacity
 from dateutil import parser
 
+from dallinger.config import get_config
+
 logger = logging.getLogger(__file__)
+
+
+#####################
+# custom exceptions #
+#####################
 
 
 class ProlificServiceException(Exception):
     """Some error from Prolific"""
 
-    pass
+
+class ProlificServiceNoSuchProject(Exception):
+    """A specified project was not found in any of the user's workspaces."""
+
+
+class ProlificServiceNoSuchWorkspace(Exception):
+    """A specified workspace was not found for this user."""
+
+
+########
+# code #
+########
 
 
 class ProlificService:
@@ -90,6 +108,45 @@ class ProlificService:
         """
         return self._req(method="GET", endpoint=f"/submissions/{session_id}/")
 
+    def _translate_workspace_name(self, workspace_name: str) -> str:
+        """Return a workspace id for the supplied workspace name.
+
+        An exception is raised if the workspace isn't found.
+        """
+
+        # Get all of the user's workspaces.
+        workspaces = self._req(method="GET", endpoint="/workspaces/")
+
+        # For every workspace...
+        for entry in workspaces["results"]:
+            # If the supplied name matches a workspace name or id, we return its id.
+            if workspace_name in (entry["title"], entry["id"]):
+                # We found it.  Return its id.
+                return entry["id"]
+
+        # If we're here, the supplied workspace_name wasn't found in any of the user's workspaces.
+        raise ProlificServiceNoSuchWorkspace
+
+    def _translate_project_name(self, workspace_id: str, project_name: str) -> str:
+        """Return a project id for the supplied project name.
+
+        An exception is raised if the project isn't found.
+        """
+
+        # Get all of this workspace's projects.
+        projects = self._req(
+            method="GET", endpoint=f"/workspaces/{workspace_id}/projects/"
+        )
+
+        # If project_name exists as a name OR an id, we return its project_id.
+        for entry in projects["results"]:
+            if project_name in (entry["title"], entry["id"]):
+                # We found the project.  Return its id.
+                return entry["id"]
+
+        # The project_name was not found.
+        raise ProlificServiceNoSuchProject
+
     def published_study(
         self,
         completion_code: str,
@@ -146,21 +203,90 @@ class ProlificService:
     ) -> dict:
         """Create a draft Study on Prolific, and return its properties."""
 
+        config = get_config()
+        config.load()
+
+        # We won't specify the project id if this is True when we call the Prolific API endpoint.  Which will instruct
+        # Prolific to create the study in the default project.
+        use_prolific_default_project = True
+
+        # These two try blocks are nested to make implementing different behaviors for each exception easier, should
+        # that be desired.
+        try:
+            # Ensure the workspace specified in the configuration exists, and get its id.
+            workspace_name = config.get("prolific_workspace")
+
+            if workspace_name != "":
+                try:
+                    # Get the workspace's id.  If it's not in Prolific, the function will raise an exception.
+                    workspace_id = self._translate_workspace_name(workspace_name)
+                    use_prolific_default_project = False
+
+                except ProlificServiceNoSuchWorkspace:
+                    # If config.prolific_workspace is a non-empty string, and the workspace does not exist in the
+                    # /workspaces/ endpoint, the /studies/ endpoint will be called without a project key.
+                    pass
+
+        except KeyError:
+            # If config.prolific_workspace does not exist or is the empty string, the /studies/ endpoint will be
+            # called without a project key.
+            pass
+
+        # If we're on a path to not use the default project...
+        if not use_prolific_default_project:
+
+            # Get the project name from the configuration.
+            try:
+                project_name = config.get("prolific_project")
+
+                if project_name == "":
+                    # If config.prolific_project is the empty string, the /studies/ endpoint will be called without a
+                    # project key.
+                    use_prolific_default_project = True
+
+                else:
+                    # Translate the name into a project ID.
+                    try:
+                        # If config.prolific_project is a non-empty string, and the project exists in the specified
+                        # workspace, the /studies/ endpoint will be called with the project id.
+                        project_id = self._translate_project_name(
+                            workspace_id, project_name
+                        )
+
+                    except ProlificServiceNoSuchProject:
+                        # If config.prolific_project is a non-empty string, and the project does not exist in the
+                        # specified workspace, the project will be created in that workspace. And the /studies/ endpoint
+                        # will be called with the new project id.
+                        project_id = self._req(
+                            method="POST",
+                            endpoint=f"/workspaces/{workspace_id}/projects/",
+                            json={"title": workspace_id},
+                        )
+                        project_id = project_id["id"]
+
+            except KeyError:
+                # If config.prolific_project does not exist, the /studies/ endpoint will be called without a project key.
+                use_prolific_default_project = True
+
+        # We can now create the draft study.
         payload = {
-            "name": name,
-            "internal_name": internal_name,
-            "description": description,
-            "external_study_url": external_study_url,
-            "prolific_id_option": prolific_id_option,
             "completion_code": completion_code,
             "completion_option": completion_option,
-            "total_available_places": total_available_places,
-            "estimated_completion_time": estimated_completion_time,
-            "maximum_allowed_time": maximum_allowed_time,
-            "reward": reward,
+            "description": description,
             "eligibility_requirements": eligibility_requirements,
+            "estimated_completion_time": estimated_completion_time,
+            "external_study_url": external_study_url,
+            "internal_name": internal_name,
+            "maximum_allowed_time": maximum_allowed_time,
+            "name": name,
+            "prolific_id_option": prolific_id_option,
+            "reward": reward,
             "status": "UNPUBLISHED",
+            "total_available_places": total_available_places,
         }
+
+        if not use_prolific_default_project:
+            payload["project"] = project_id
 
         if device_compatibility is not None:
             payload["device_compatibility"] = device_compatibility
@@ -233,16 +359,13 @@ class ProlificService:
         return payment_response
 
     def who_am_i(self) -> dict:
-        """For testing authorization, primarily, but does return all the
-        details for your user.
-        """
+        """For testing authorization, primarily, but does return all the details for your user."""
         return self._req(method="GET", endpoint="/users/me/")
 
     def _req(self, method: str, endpoint: str, **kw) -> dict:
         """Runs the actual request/response cycle:
         * Adds auth header
-        * Adds Referer header to help Prolific identify our requests
-          when troubleshooting
+        * Adds Referer header to help Prolific identify our requests when troubleshooting
         * Logs all requests (we might want to stop doing this when we're
           out of our "beta" period with Prolific)
         * Parses response and does error handling
