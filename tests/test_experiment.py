@@ -350,16 +350,13 @@ class TestExperimentBaseClass(object):
             )
 
     def test_send_enqueues_worker_function(self, exp):
-        from dallinger.db import redis_conn
         from dallinger.experiment_server.worker_events import worker_function
 
-        with mock.patch(
-            "dallinger.experiment_server.worker_events.Queue"
-        ) as mock_queue_class:
-            mock_queue = mock_queue_class.return_value = mock.Mock()
+        with mock.patch("dallinger.experiment.db.get_queue") as mock_get_queue:
+            mock_queue = mock_get_queue.return_value = mock.Mock()
             exp.channel = "exp_default"
             exp.send('exp_default:{"key":"value","sender":1}')
-            mock_queue_class.assert_called_once_with("high", connection=redis_conn)
+            mock_get_queue.assert_called_once_with("high")
             mock_queue.enqueue.assert_called_once_with(
                 worker_function,
                 "WebSocketMessage",

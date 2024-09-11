@@ -346,10 +346,7 @@ class Experiment(object):
         :param raw_message: a formatted message string ``'$channel_name:$data'``
         :type raw_message: str
         """
-        from dallinger.experiment_server.worker_events import (
-            _get_queue,
-            worker_function,
-        )
+        from dallinger.experiment_server.worker_events import worker_function
 
         receive_time = datetime.datetime.now()
         channel_name, message_string = raw_message.split(":", 1)
@@ -375,7 +372,7 @@ class Experiment(object):
             )
             return
 
-        q = _get_queue("high")
+        q = db.get_queue("high")
         q.enqueue(
             worker_function,
             "WebSocketMessage",
