@@ -29,11 +29,17 @@ def main():
     if not config.ready:
         config.load()
 
-    loglevels = ["DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"]
-    loglevel = os.environ.get("loglevel", loglevels[config.get("loglevel_worker")])
+    LOG_LEVELS = [
+        logging.DEBUG,
+        logging.INFO,
+        logging.WARNING,
+        logging.ERROR,
+        logging.CRITICAL,
+    ]
+    LOG_LEVEL = LOG_LEVELS[config.get("loglevel_worker")]
     logging.basicConfig(
         format="%(asctime)s %(message)s",
-        level=getattr(logging, loglevel, logging.WARN),
+        level=LOG_LEVEL,
     )
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
     # Specify queue class for improved performance with gevent.
@@ -56,7 +62,7 @@ def main():
         # Default to log.warn because rq logs extremely verbosely at the info
         # level
         worker.log.info = worker.log.debug
-        worker.work(logging_level=loglevel)
+        worker.work(logging_level=os.environ.get("loglevel_worker", LOG_LEVEL))
 
 
 if __name__ == "__main__":  # pragma: nocover
