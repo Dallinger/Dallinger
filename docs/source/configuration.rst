@@ -49,8 +49,8 @@ General
     runs at 0 (``debug``).
 
 ``loglevel_worker`` *unicode*
-    A number between 0 and 4 that controls the verbosity of worker logs, from ``debug`` (0)
-    to ``critical`` (4). Default is 2 ``warn``.
+    A number between 0 and 4 that controls the verbosity of worker logs, from 0 (debug)
+    to 4 (critical). Default is 2 (warn).
 
 ``whimsical`` *boolean*
     What's life without whimsy? Controls whether email notifications sent
