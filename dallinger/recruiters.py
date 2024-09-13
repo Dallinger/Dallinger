@@ -72,11 +72,11 @@ class Recruiter(object):
         """Return a list of one or more initial recruitment URLs and an initial
         recruitment message:
         {
-            items: [
-                'https://experiment-url-1',
-                'https://experiment-url-2'
+            "items": [
+                "https://experiment-url-1",
+                "https://experiment-url-2"
             ],
-            message: 'More info about this particular recruiter's process'
+            "message": "More info about this particular recruiter's process"
         }
         """
         raise NotImplementedError
@@ -321,6 +321,16 @@ def _prolific_service_from_config():
     )
 
 
+def _dev_prolific_service_from_config():
+    from dallinger.prolific import DevProlificService
+
+    return DevProlificService(
+        api_token="prolific-api-token",
+        api_version="prolific-api-version",
+        referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
+    )
+
+
 class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.com/)"""
 
@@ -353,7 +363,7 @@ class ProlificRecruiter(Recruiter):
                 f"(ID {self.current_study_id}) is already running for this experiment"
             )
 
-        if self.study_domain is None:
+        if self.study_domain is None and not isinstance(self, DevProlificRecruiter):
             raise ProlificRecruiterException(
                 "Can't run a Prolific Study from localhost"
             )
@@ -602,6 +612,27 @@ class ProlificRecruiter(Recruiter):
             "eligibility_requirements": details["eligibility_requirements"],
             "peripheral_requirements": details["peripheral_requirements"],
         }
+
+
+class DevProlificRecruiter(ProlificRecruiter):
+    """A debug recruiter for [Prolific](https://app.prolific.com/)"""
+
+    nickname = "devprolific"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prolificservice = _dev_prolific_service_from_config()
+
+    @property
+    def external_submission_url(self):
+        self.prolificservice.log_request(
+            "GET",
+            f"https://app.prolific.com/submissions/complete?cc={self.completion_code}",
+            message="Exiting by sending browser to dashboard on localhost (external submission URL).\n",
+        )
+        response = "http://127.0.0.1:5000/dashboard/develop"
+        self.prolificservice.log_response(response)
+        return response
 
 
 class CLIRecruiter(Recruiter):
@@ -1762,6 +1793,9 @@ def from_config(config):
     # Special case 3: if we're not using bots and we're in debug mode,
     # if present, use the configured debug_recruiter or else fallback to HotAirRecruiter:
     if debug_mode:
+        if isinstance(recruiter, ProlificRecruiter):
+            return by_name("devprolific")
+
         return by_name(config.get("debug_recruiter", "HotAirRecruiter"))
 
     # Configured recruiter:
