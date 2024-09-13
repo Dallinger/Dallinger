@@ -161,7 +161,9 @@ class GeventWorker(Worker):
         if burst:
             return self._work(burst, logging_level=logging_level)
 
-        self.gevent_worker = gevent.spawn(self._work, burst)
+        self.gevent_worker = gevent.spawn(
+            self._work, burst, logging_level=logging_level
+        )
         self.gevent_worker.join()
         return self.gevent_worker.value
 
