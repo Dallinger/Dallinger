@@ -7,8 +7,8 @@ will be run on `GitHub <https://github.com/>`_.
 
 Current build status: |status|
 
-.. |status| image:: https://github.com/Dallinger/Dallinger/workflows/continuous-integration/badge.svg
-   :target: https://github.com/Dallinger/Dallinger/actions?query=workflow%3Acontinuous-integration
+.. |status| image:: https://github.com/dallinger/Dallinger/actions/workflows/deploy.yml/badge.svg
+   :target: https://github.com/Dallinger/Dallinger/actions?query=workflow%3Arelease
 
 The tests include:
 
