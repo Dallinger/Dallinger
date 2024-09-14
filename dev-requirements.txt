@@ -175,7 +175,7 @@ httpx==0.27.2
     # via jupyterlab
 identify==2.6.0
     # via pre-commit
-idna==3.8
+idna==3.9
     # via
     #   anyio
     #   httpx
@@ -221,7 +221,6 @@ jinja2==3.1.4
     #   myst-parser
     #   nbconvert
     #   sphinx
-    #   sphinx-js
 jmespath==1.0.1
     # via
     #   boto3
@@ -293,7 +292,6 @@ markupsafe==2.1.5
     # via
     #   jinja2
     #   nbconvert
-    #   sphinx-js
     #   werkzeug
     #   wtforms
 matplotlib-inline==0.1.7
@@ -370,8 +368,6 @@ paramiko==3.4.1
     # via
     #   dallinger
     #   sshtunnel
-parsimonious==0.10.0
-    # via sphinx-js
 parso==0.8.4
     # via jedi
 pathspec==0.12.1
@@ -485,8 +481,6 @@ referencing==0.35.1
     #   jsonschema
     #   jsonschema-specifications
     #   jupyter-events
-regex==2024.9.11
-    # via parsimonious
 requests==2.32.3
     # via
     #   dallinger
@@ -540,12 +534,9 @@ sphinx==7.4.7
     # via
     #   dallinger
     #   myst-parser
-    #   sphinx-js
     #   sphinx-rtd-theme
     #   sphinxcontrib-jquery
     #   sphinxcontrib-spelling
-sphinx-js @ https://github.com/Dallinger/sphinx-js/archive/refs/tags/3.2.2-markupsafe-fix.zip
-    # via dallinger
 sphinx-rtd-theme==2.0.0
     # via dallinger
 sphinxcontrib-applehelp==2.0.0
