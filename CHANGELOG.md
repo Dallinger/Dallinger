@@ -1,5 +1,10 @@
 # Change Log
 
+## [v10.2.1](https://github.com/dallinger/dallinger/tree/v10.2.1) (2024-09-16)
+
+#### Fixed
+- Fixed importing `dallinger.config.get_config`
+
 ## [v10.2.0](https://github.com/dallinger/dallinger/tree/v10.2.0) (2024-09-14)
 
 #### Fixed
