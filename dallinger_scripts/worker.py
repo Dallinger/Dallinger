@@ -1,5 +1,3 @@
-from dallinger.config import get_config
-
 listen = ["high", "default", "low"]
 
 
@@ -20,7 +18,7 @@ def main():
     from rq import Connection, Queue
     from six.moves.urllib.parse import urlparse
 
-    from dallinger.config import initialize_experiment_package
+    from dallinger.config import get_config, initialize_experiment_package
     from dallinger.heroku.rq_gevent_worker import GeventWorker as Worker
 
     initialize_experiment_package(os.getcwd())
