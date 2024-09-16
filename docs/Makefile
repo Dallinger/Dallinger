@@ -51,6 +51,7 @@ clean:
 
 .PHONY: html
 html:
+	pip install sphinx-js@https://github.com/Dallinger/sphinx-js/archive/refs/tags/3.2.2-markupsafe-fix.zip
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
