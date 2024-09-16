@@ -3,11 +3,10 @@ build:
   os: ubuntu-lts-latest
   tools:
     python: "3.12"
-  apt_packages:
-    - npm
+    nodejs: "22"
   jobs:
     post_install:
-      - npm install jsdoc
+      - npm install -g jsdoc
 
 python:
   install:
