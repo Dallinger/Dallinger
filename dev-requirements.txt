@@ -432,7 +432,7 @@ pyopenssl==24.2.1
     # via dallinger
 pypandoc==1.13
     # via dallinger
-pyproject-api==1.7.1
+pyproject-api==1.7.2
     # via tox
 pyproject-hooks==1.1.0
     # via
