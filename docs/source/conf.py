@@ -1,6 +1,12 @@
-# -*- coding: utf-8 -*-
-# flake8: noqa
-#
+import collections
+import collections.abc
+import os
+import sys
+
+import build_demo_docs
+
+from dallinger.version import __version__ as version
+
 # Dallinger documentation build configuration file, created by
 # sphinx-quickstart on Wed Aug 10 14:50:29 2016.
 #
@@ -17,8 +23,6 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import os
-import sys
 
 here = os.path.dirname(os.path.abspath(__file__))
 src = os.path.abspath(os.path.join(here, "..", ".."))
@@ -50,9 +54,6 @@ extensions = [
 ]
 
 # Hack to make sphinx_js work with python 3.10
-import collections
-import collections.abc
-
 if not hasattr(collections, "Mapping"):
     collections.Mapping = collections.abc.Mapping
 
@@ -91,7 +92,6 @@ author = "Dallinger Development Team"
 #
 # The short X.Y version.
 # version = u'5.0.1'
-from dallinger.version import __version__ as version
 
 # The full version, including alpha/beta/rc tags.
 # release = u'5.0.1'
@@ -423,13 +423,9 @@ texinfo_documents = [
 
 # -- Install demo files -------------------------------------------
 
-import os
-import sys
-
 root = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(root)
 
-import build_demo_docs
 
 static = build_demo_docs.build(root)
 html_static_path.extend(static)
