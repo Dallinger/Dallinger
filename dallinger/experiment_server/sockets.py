@@ -1,5 +1,4 @@
-"""Handles relaying websocket messages between processes using redis.
-"""
+"""Handles relaying websocket messages between processes using redis."""
 
 from __future__ import unicode_literals
 

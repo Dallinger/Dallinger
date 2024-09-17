@@ -1,4 +1,4 @@
-""" This module provides the backend Flask server that serves an experiment. """
+"""This module provides the backend Flask server that serves an experiment."""
 
 import os
 import re
@@ -1597,8 +1597,9 @@ def transformation_get(node_id):
     node = models.Node.query.get(node_id)
     if node is None:
         return error_response(
-            error_type="/node/transformations, "
-            "node {} does not exist".format(node_id)
+            error_type="/node/transformations, " "node {} does not exist".format(
+                node_id
+            )
         )
 
     # execute the request
