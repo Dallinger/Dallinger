@@ -158,16 +158,8 @@ include = [
     "/requirements.txt",
 ]
 
-[tool.black]
-line-length = 88
-target-version = ["py313"]
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.git
-  | \.tox
-  | \.venv
-  | docs/_build
-  | dist
-)/
-'''
+[tool.ruff]
+src = [".", "tests","dallinger","dallinger_scripts","demos"]
+
+[tool.ruff.lint]
+extend-select = ["I"]
