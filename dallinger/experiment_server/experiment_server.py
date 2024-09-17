@@ -1643,8 +1643,9 @@ def transformation_get(node_id):
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(
-            error_type="/node/transformations, "
-            "node {} does not exist".format(node_id)
+            error_type="/node/transformations, " "node {} does not exist".format(
+                node_id
+            )
         )
 
     # execute the request

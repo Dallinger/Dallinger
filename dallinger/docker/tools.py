@@ -6,11 +6,11 @@ from shutil import which
 from subprocess import CalledProcessError, check_output
 
 import click
-import docker
 from jinja2 import Template
 from pip._internal.network.session import PipSession
 from pip._internal.req import parse_requirements
 
+import docker
 from dallinger.docker.wheel_filename import parse_wheel_filename
 from dallinger.utils import (
     JSON_LOGFILE,
