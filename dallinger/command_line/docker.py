@@ -133,9 +133,8 @@ def build():
 @click.option("--use-existing", is_flag=True, default=False)
 def push(use_existing: bool, **kwargs) -> str:
     """Build and push the docker image for this experiment."""
-    from docker import client
-
     from dallinger.docker.tools import build_image
+    from docker import client
 
     config = get_config(load=True)
     app_name = kwargs.get("app_name", None)

@@ -27,9 +27,7 @@ header = r"""
 
                 Laboratory automation for
        the behavioral and social sciences.
-""".format(
-    "v" + __version__
-)
+""".format("v" + __version__)
 
 
 def log(msg, chevrons=True, verbose=True, **kw):
