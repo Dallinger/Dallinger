@@ -10,7 +10,7 @@ if sys.argv[-1] == "publish":
 
 setup_args = dict(
     name="dlgr.demos",
-    version="10.2.1",
+    version="10.2.2",
     description="Demonstration experiments for Dallinger",
     url="http://github.com/Dallinger/Dallinger",
     maintainer="Jordan Suchow",
