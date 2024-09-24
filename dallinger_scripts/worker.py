@@ -60,7 +60,7 @@ def main():
         # Default to log.warn because rq logs extremely verbosely at the info
         # level
         worker.log.info = worker.log.debug
-        worker.work(logging_level=os.environ.get("loglevel_worker", LOG_LEVEL))
+        worker.work(logging_level=LOG_LEVEL)
 
 
 if __name__ == "__main__":  # pragma: nocover
