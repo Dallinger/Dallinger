@@ -728,7 +728,9 @@ class FileSource(object):
     @property
     def size(self):
         """Combined size of all files, accounting for exclusions."""
-        return sum([os.path.getsize(path) for path in self.files])
+        return sum(
+            [os.path.getsize(path) for path in self.files if not os.path.islink(path)]
+        )
 
     def apply_to(self, destination, copy_func=copy_file):
         """Copy files based iterable of source and destination tuples.
