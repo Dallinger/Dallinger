@@ -143,7 +143,7 @@ pygments==2.18.0
     # via ipython
 pyopenssl==24.2.1
     # via dallinger
-pyproject-hooks==1.1.0
+pyproject-hooks==1.2.0
     # via
     #   build
     #   pip-tools
