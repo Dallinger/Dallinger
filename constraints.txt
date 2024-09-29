@@ -434,7 +434,7 @@ pypandoc==1.13
     # via dallinger
 pyproject-api==1.7.1
     # via tox
-pyproject-hooks==1.1.0
+pyproject-hooks==1.2.0
     # via
     #   build
     #   pip-tools
