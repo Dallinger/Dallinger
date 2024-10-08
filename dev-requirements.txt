@@ -288,7 +288,7 @@ markdown-it-py==3.0.0
     # via
     #   mdit-py-plugins
     #   myst-parser
-markupsafe==2.1.5
+markupsafe==3.0.1
     # via
     #   jinja2
     #   nbconvert
