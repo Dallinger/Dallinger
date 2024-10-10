@@ -741,7 +741,8 @@ class FileSource(object):
             ensure_directory(target_folder)
             if os.path.exists(to_path):
                 continue
-            copy_func(from_path, to_path)
+            if os.path.exists(from_path):
+                copy_func(from_path, to_path)
 
     def map_locations_to(self, destination):
         """Return a generator of two-tuples, where the first element is
