@@ -16,13 +16,13 @@ attrs==24.2.0
     #   trio
 blinker==1.8.2
     # via flask
-boto3==1.35.19
+boto3==1.35.37
     # via dallinger
-botocore==1.35.19
+botocore==1.35.37
     # via
     #   boto3
     #   s3transfer
-build==1.2.2
+build==1.2.2.post1
     # via
     #   dallinger
     #   pip-tools
@@ -34,7 +34,7 @@ certifi==2024.8.30
     #   selenium
 cffi==1.17.1
     # via cryptography
-charset-normalizer==3.3.2
+charset-normalizer==3.4.0
     # via requests
 click==8.1.7
     # via
@@ -48,7 +48,7 @@ decorator==5.1.1
     # via ipython
 executing==2.1.0
     # via stack-data
-faker==28.4.1
+faker==30.3.0
     # via dallinger
 flask==3.0.3
     # via
@@ -71,7 +71,7 @@ gevent==24.2.1
     # via
     #   dallinger
     #   gunicorn
-greenlet==3.1.0
+greenlet==3.1.1
     # via
     #   dallinger
     #   gevent
@@ -102,7 +102,7 @@ jmespath==1.0.1
     #   botocore
 localconfig==1.1.4
     # via dallinger
-markupsafe==2.1.5
+markupsafe==3.0.1
     # via
     #   jinja2
     #   werkzeug
@@ -125,7 +125,7 @@ pexpect==4.9.0
     #   ipython
 pip-tools==7.4.1
     # via dallinger
-prompt-toolkit==3.0.47
+prompt-toolkit==3.0.48
     # via ipython
 psutil==6.0.0
     # via dallinger
@@ -143,7 +143,7 @@ pygments==2.18.0
     # via ipython
 pyopenssl==24.2.1
     # via dallinger
-pyproject-hooks==1.1.0
+pyproject-hooks==1.2.0
     # via
     #   build
     #   pip-tools
@@ -156,7 +156,7 @@ python-dateutil==2.9.0.post0
     #   heroku3
 pytz==2024.2
     # via apscheduler
-redis==5.0.8
+redis==5.1.1
     # via
     #   dallinger
     #   rq
@@ -166,9 +166,9 @@ requests==2.32.3
     #   heroku3
 rq==1.16.2
     # via dallinger
-s3transfer==0.10.2
+s3transfer==0.10.3
     # via boto3
-selenium==4.24.0
+selenium==4.25.0
     # via dallinger
 simple-websocket==1.0.0
     # via flask-sock
@@ -210,7 +210,9 @@ trio==0.26.2
 trio-websocket==0.11.1
     # via selenium
 typing-extensions==4.12.2
-    # via selenium
+    # via
+    #   faker
+    #   selenium
 tzlocal==5.2
     # via
     #   apscheduler
@@ -243,7 +245,7 @@ wsproto==1.2.0
     #   trio-websocket
 wtforms==3.1.2
     # via flask-wtf
-yaspin==3.0.2
+yaspin==3.1.0
     # via dallinger
 zope-event==5.0
     # via gevent
