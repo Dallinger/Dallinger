@@ -85,7 +85,7 @@ class ParsedWheelFilename(NamedTuple):
 
 
 def parse_wheel_filename(
-    filename: Union[str, bytes, "os.PathLike[str]", "os.PathLike[bytes]"]
+    filename: Union[str, bytes, "os.PathLike[str]", "os.PathLike[bytes]"],
 ) -> ParsedWheelFilename:
     """
     Parse a wheel filename into its components

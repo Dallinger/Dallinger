@@ -1,7 +1,5 @@
 """Miscellaneous tools for Heroku."""
 
-from __future__ import unicode_literals
-
 import json
 import netrc
 import os

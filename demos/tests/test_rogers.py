@@ -14,6 +14,10 @@ from datetime import datetime
 
 import pytest
 import requests
+
+from dallinger import models
+from dallinger.information import Gene, Meme, State
+from dallinger.nodes import Agent, Source
 from dlgr.demos.rogers.experiment import RogersExperiment
 from dlgr.demos.rogers.models import (
     LearningGene,
@@ -21,10 +25,6 @@ from dlgr.demos.rogers.models import (
     RogersEnvironment,
     RogersSource,
 )
-
-from dallinger import models
-from dallinger.information import Gene, Meme, State
-from dallinger.nodes import Agent, Source
 
 
 def timenow():

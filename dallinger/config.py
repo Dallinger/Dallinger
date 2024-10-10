@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import io
 import json
 import logging
@@ -158,7 +156,7 @@ class Configuration(object):
                     with io.open(filename, "rt", encoding="utf-8") as source_file:
                         value = source_file.read()
                 try:
-                    if expected_type == bool:
+                    if expected_type is bool:
                         value = strtobool(value)
                     value = expected_type(value)
                 except ValueError:

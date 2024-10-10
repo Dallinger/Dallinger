@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import os
 from tempfile import NamedTemporaryFile
 
@@ -174,9 +172,7 @@ class TestConfigurationUnitTests(object):
 mode = {}
 num_participants = 10
 worldwide = false
-""".format(
-            mode_with_trailing_whitespace
-        )
+""".format(mode_with_trailing_whitespace)
 
         with NamedTemporaryFile() as configfile:
             configfile.write(contents.encode("utf-8"))
