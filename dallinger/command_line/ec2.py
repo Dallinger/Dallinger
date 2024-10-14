@@ -221,4 +221,4 @@ def ec2__teardown(ctx, dns, name, region, dns_host):
             .query(f"instance_id == '{instance_id}'")
             .iloc[0]["public_dns_name"]
         )
-    teardown(region, instance_id, dns, dns_host)
+    teardown(region, instance_id, dns, dns_host, name)
