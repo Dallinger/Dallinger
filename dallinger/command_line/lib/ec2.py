@@ -565,7 +565,7 @@ def prepare_instance(
         instance_id, instance_name, storage_in_gb, ec2
     )
     if callback is not None:
-        callback(host, user, ip_address, executor, dns_host)
+        callback(host, user, ip_address, executor, dns_host, instance_name)
 
     duration = time.time() - start
     print(
@@ -573,7 +573,9 @@ def prepare_instance(
     )
 
 
-def prepare_docker_experiment_setup(host, user, ip_address, executor, dns_host=None):
+def prepare_docker_experiment_setup(
+    host, user, ip_address, executor, dns_host=None, instance_name=None
+):
     from dallinger.config import get_config
 
     config = get_config()
@@ -591,6 +593,8 @@ def prepare_docker_experiment_setup(host, user, ip_address, executor, dns_host=N
 
     dallinger_store_host(dict(host=host, user=user))
     dallinger_store_host(dict(host=dns_host, user=user))
+    if instance_name is not None:
+        dallinger_store_host(dict(host=f"{instance_name}.{dns_host}", user=user))
     print("Host registered in dallinger")
 
 
@@ -684,7 +688,7 @@ def stop(region_name, instance_id):
     logger.info(f"Stopping of {instance_id} complete!")
 
 
-def teardown(region_name, instance_id, public_dns_name, dns_host):
+def teardown(region_name, instance_id, public_dns_name, dns_host, name=None):
     logger.info(f"Terminating {instance_id} ({public_dns_name})...")
     get_ec2_client(region_name).terminate_instances(InstanceIds=[instance_id])
     dallinger_remove_host(public_dns_name)
@@ -694,4 +698,6 @@ def teardown(region_name, instance_id, public_dns_name, dns_host):
         filtered_ids = filter_zone_ids(get_domain(dns_host), route_53)
         remove_dns_records(filtered_ids[0], dns_host, route_53)
         dallinger_remove_host(dns_host)
+        if name is not None:
+            dallinger_remove_host(f"{name}.{dns_host}")
     logger.info(f"Termination of {instance_id} complete!")
