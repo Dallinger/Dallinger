@@ -565,7 +565,7 @@ def prepare_instance(
         instance_id, instance_name, storage_in_gb, ec2
     )
     if callback is not None:
-        callback(host, user, ip_address, executor, dns_host)
+        callback(host, user, ip_address, executor, dns_host, instance_name)
 
     duration = time.time() - start
     print(
@@ -573,7 +573,9 @@ def prepare_instance(
     )
 
 
-def prepare_docker_experiment_setup(host, user, ip_address, executor, dns_host=None):
+def prepare_docker_experiment_setup(
+    host, user, ip_address, executor, dns_host=None, instance_name=None
+):
     from dallinger.config import get_config
 
     config = get_config()
@@ -591,6 +593,8 @@ def prepare_docker_experiment_setup(host, user, ip_address, executor, dns_host=N
 
     dallinger_store_host(dict(host=host, user=user))
     dallinger_store_host(dict(host=dns_host, user=user))
+    if instance_name is not None:
+        dallinger_store_host(dict(host=f"{instance_name}.{dns_host}", user=user))
     print("Host registered in dallinger")
 
 
