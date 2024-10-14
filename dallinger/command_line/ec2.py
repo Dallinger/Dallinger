@@ -128,7 +128,7 @@ def ec2__provision(
         security_group_name = config.get("security_group_name", security_group_name)
     from .utils import check_valid_subdomain
 
-    check_valid_subdomain("name", dns_host)
+    check_valid_subdomain("name", name)
 
     provision(
         instance_name=name,
