@@ -100,9 +100,7 @@ def list__instance_types(ctx, region):
 @click.option("--region", default=None, help="Region name")
 @click.option("--type", default="m5.xlarge", help="Instance type")
 @click.option("--storage", default=32, type=int, help="Storage in GB; default is 32 GB")
-@click.option(
-    "--pem", default="dallinger", help="PEM file name; default is dallinger.pem"
-)
+@click.option("--pem", default=None, help="PEM file name; default is dallinger.pem")
 @click.option(
     "--image_name",
     default="ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-20230516",
@@ -110,7 +108,7 @@ def list__instance_types(ctx, region):
 )
 @click.option(
     "--security_group_name",
-    default="dallinger",
+    default=None,
     help="Security group name; default is dallinger",
 )
 @click.option(
@@ -124,8 +122,13 @@ def ec2__provision(
 ):
     """Provision an EC2 instance for running experiments"""
     config = get_instance_config()
-    pem = config.get("pem", pem)
-    security_group_name = config.get("security_group_name", security_group_name)
+    if not pem:
+        pem = config.get("pem", pem)
+    if not security_group_name:
+        security_group_name = config.get("security_group_name", security_group_name)
+    from .utils import check_valid_subdomain
+
+    check_valid_subdomain("name", dns_host)
 
     provision(
         instance_name=name,
