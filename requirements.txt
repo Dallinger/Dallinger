@@ -42,7 +42,7 @@ click==8.1.7
     #   flask
     #   pip-tools
     #   rq
-cryptography==43.0.1
+cryptography==43.0.3
     # via pyopenssl
 decorator==5.1.1
     # via ipython
