@@ -102,7 +102,7 @@ jmespath==1.0.1
     #   botocore
 localconfig==1.1.4
     # via dallinger
-markupsafe==2.1.5
+markupsafe==3.0.2
     # via
     #   jinja2
     #   werkzeug
