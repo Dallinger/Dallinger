@@ -241,7 +241,7 @@ wsproto==1.2.0
     # via
     #   simple-websocket
     #   trio-websocket
-wtforms==3.1.2
+wtforms==3.2.0
     # via flask-wtf
 yaspin==3.0.2
     # via dallinger
