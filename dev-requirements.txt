@@ -583,7 +583,7 @@ timeago==1.0.16
     # via dallinger
 tinycss2==1.3.0
     # via nbconvert
-tokenize-rt==6.0.0
+tokenize-rt==6.1.0
     # via black
 tornado==6.4.1
     # via
