@@ -119,7 +119,7 @@ docutils==0.20.1
     #   myst-parser
     #   sphinx
     #   sphinx-rtd-theme
-et-xmlfile==1.1.0
+et-xmlfile==2.0.0
     # via openpyxl
 executing==2.1.0
     # via stack-data
