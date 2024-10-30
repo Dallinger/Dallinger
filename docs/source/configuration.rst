@@ -235,6 +235,10 @@ Prolific Recruitment
 ``prolific_estimated_completion_minutes`` *int*
     Estimated duration in minutes of the experiment or survey
 
+``prolific_is_custom_screening`` *bool*
+    Whether or not this study includes a custom screening. Default is `False`.
+    See https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/CreateStudy for more information.
+
 ``prolific_recruitment_config`` *unicode - JSON formatted*
     JSON data to add additional recruitment parameters
 
