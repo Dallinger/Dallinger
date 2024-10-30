@@ -366,6 +366,7 @@ def prolific_config(active_config):
         "prolific_api_token": "fake Prolific API token",
         "prolific_api_version": "v1",
         "prolific_estimated_completion_minutes": 5,
+        "prolific_is_custom_screening": True,
         "prolific_recruitment_config": json.dumps(
             {"peripheral_requirements": ["audio", "microphone"]}
         ),

@@ -100,6 +100,7 @@ class ProlificService:
         estimated_completion_time: int,
         external_study_url: str,
         internal_name: str,
+        is_custom_screening: bool,
         maximum_allowed_time: int,
         name: str,
         prolific_id_option: str,
@@ -137,6 +138,7 @@ class ProlificService:
         estimated_completion_time: int,
         external_study_url: str,
         internal_name: str,
+        is_custom_screening: bool,
         maximum_allowed_time: int,
         name: str,
         prolific_id_option: str,
@@ -150,6 +152,7 @@ class ProlificService:
         payload = {
             "name": name,
             "internal_name": internal_name,
+            "is_custom_screening": is_custom_screening,
             "description": description,
             "external_study_url": external_study_url,
             "prolific_id_option": prolific_id_option,

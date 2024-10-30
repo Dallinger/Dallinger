@@ -380,6 +380,7 @@ class ProlificRecruiter(Recruiter):
             ),
             "external_study_url": self.ad_url + PROLIFIC_AD_QUERYSTRING,
             "internal_name": self.config.get("id"),
+            "is_custom_screening": self.config.get("prolific_is_custom_screening"),
             "maximum_allowed_time": self.config.get(
                 "prolific_maximum_allowed_minutes",
                 3 * self.config.get("prolific_estimated_completion_minutes") + 2,
