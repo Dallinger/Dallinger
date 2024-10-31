@@ -56,7 +56,7 @@ dependencies = [
     "pyopenssl",
     "redis",
     "requests",
-    "rq",
+    "rq < 2",
     "selenium",
     "six",
     "sqlalchemy < 2",
