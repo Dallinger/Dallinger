@@ -23,21 +23,21 @@ blinker==1.8.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask
-boto3==1.35.19
+boto3==1.35.53
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-botocore==1.35.19
+botocore==1.35.53
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
     #   s3transfer
-build==1.2.2
+build==1.2.2.post1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
     #   pip-tools
-cached-property==1.5.2
+cached-property==2.0.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -50,7 +50,7 @@ cffi==1.17.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   cryptography
-charset-normalizer==3.3.2
+charset-normalizer==3.4.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   requests
@@ -62,11 +62,11 @@ click==8.1.7
     #   nltk
     #   pip-tools
     #   rq
-cryptography==43.0.1
+cryptography==43.0.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   pyopenssl
-dallinger==10.2.2
+dallinger==10.2.3
     # via -r requirements.txt
 decorator==5.1.1
     # via
@@ -76,7 +76,7 @@ executing==2.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   stack-data
-faker==28.4.1
+faker==30.8.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -100,7 +100,7 @@ flask-sock==0.7.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-flask-wtf==1.2.1
+flask-wtf==1.2.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -108,12 +108,12 @@ future==1.0.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-gevent==24.2.1
+gevent==24.10.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
     #   gunicorn
-greenlet==3.1.0
+greenlet==3.1.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -164,7 +164,7 @@ localconfig==1.1.4
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-markupsafe==2.1.5
+markupsafe==3.0.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   jinja2
@@ -202,15 +202,15 @@ pip-tools==7.4.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-prompt-toolkit==3.0.47
+prompt-toolkit==3.0.48
     # via
     #   -c ../../../../dev-requirements.txt
     #   ipython
-psutil==6.0.0
+psutil==6.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-psycopg2==2.9.9
+psycopg2==2.9.10
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -235,7 +235,7 @@ pyopenssl==24.2.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-pyproject-hooks==1.1.0
+pyproject-hooks==1.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   build
@@ -254,7 +254,7 @@ pytz==2024.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   apscheduler
-redis==5.0.8
+redis==5.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -270,15 +270,15 @@ rq==1.16.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-s3transfer==0.10.2
+s3transfer==0.10.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
-selenium==4.24.0
+selenium==4.26.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-simple-websocket==1.0.0
+simple-websocket==1.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask-sock
@@ -327,7 +327,7 @@ timeago==1.0.16
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-tqdm==4.66.5
+tqdm==4.66.6
     # via
     #   -c ../../../../dev-requirements.txt
     #   nltk
@@ -336,7 +336,7 @@ traitlets==5.14.3
     #   -c ../../../../dev-requirements.txt
     #   ipython
     #   matplotlib-inline
-trio==0.26.2
+trio==0.27.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   selenium
@@ -348,6 +348,7 @@ trio-websocket==0.11.1
 typing-extensions==4.12.2
     # via
     #   -c ../../../../dev-requirements.txt
+    #   faker
     #   selenium
 tzlocal==5.2
     # via
@@ -378,7 +379,7 @@ websocket-client==1.8.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   selenium
-werkzeug==3.0.4
+werkzeug==3.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask
@@ -392,11 +393,11 @@ wsproto==1.2.0
     #   -c ../../../../dev-requirements.txt
     #   simple-websocket
     #   trio-websocket
-wtforms==3.1.2
+wtforms==3.2.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask-wtf
-yaspin==3.0.2
+yaspin==3.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -404,7 +405,7 @@ zope-event==5.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   gevent
-zope-interface==7.0.3
+zope-interface==7.1.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   gevent
