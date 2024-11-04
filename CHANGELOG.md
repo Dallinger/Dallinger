@@ -1,12 +1,12 @@
 # Change Log
 
-## [v10.2.3](https://github.com/dallinger/dallinger/tree/v10.2.3) (2024-11-01)
+## [v10.3.0](https://github.com/dallinger/dallinger/tree/v10.3.0) (2024-11-04)
 
 #### Fixed
-- Exclude symbolic links when calculating a FileSource's size.
+- Exclude symbolic links when calculating `FileSource` size.
 
 #### Added
-- Added new config variable 'prolific_is_custom_screening'.
+- Added new config variable `prolific_is_custom_screening`.
 
 #### Updated
 - Updated dependencies; pin `rq < 2`.
