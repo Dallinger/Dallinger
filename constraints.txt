@@ -46,9 +46,9 @@ bleach==6.2.0
     # via nbconvert
 blinker==1.8.2
     # via flask
-boto3==1.35.53
+boto3==1.35.54
     # via dallinger
-botocore==1.35.53
+botocore==1.35.54
     # via
     #   boto3
     #   s3transfer
@@ -661,7 +661,7 @@ websocket-client==1.8.0
     # via
     #   jupyter-server
     #   selenium
-werkzeug==3.1.0
+werkzeug==3.1.1
     # via
     #   flask
     #   flask-login
