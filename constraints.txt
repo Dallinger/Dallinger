@@ -661,7 +661,7 @@ websocket-client==1.8.0
     # via
     #   jupyter-server
     #   selenium
-werkzeug==3.1.1
+werkzeug==3.1.2
     # via
     #   flask
     #   flask-login
