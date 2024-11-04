@@ -233,7 +233,7 @@ wcwidth==0.2.13
     # via prompt-toolkit
 websocket-client==1.8.0
     # via selenium
-werkzeug==3.1.1
+werkzeug==3.1.2
     # via
     #   flask
     #   flask-login
