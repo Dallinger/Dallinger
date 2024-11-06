@@ -284,7 +284,7 @@ def verify_no_conflicts(verbose=True):
 
 def check_valid_subdomain(param_name, param_value):
     """Check if the subdomain is valid."""
-    if not bool(re.match(r"^[a-z0-9-]+$", param_value)):
+    if not re.match(r"^[a-z0-9-]+$", param_value):
         raise click.BadParameter(
             f"The --{param_name} parameter contains invalid characters. The only characters allowed are: a-z, 0-9, and '-'."
         )
