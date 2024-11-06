@@ -84,9 +84,13 @@ def get_instances(region_name=None):
     instances = []
     for reservation in reservations:
         for instance in reservation["Instances"]:
+            try:
+                name = instance["Tags"][0]["Value"]
+            except KeyError:
+                name = "Unnamed"
             instances.append(
                 {
-                    "name": instance["Tags"][0]["Value"],
+                    "name": name,
                     "instance_id": instance["InstanceId"],
                     "instance_type": instance["InstanceType"],
                     "availability_zone": instance["Placement"]["AvailabilityZone"],
