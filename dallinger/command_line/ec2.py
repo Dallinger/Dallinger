@@ -109,7 +109,7 @@ def list__instance_types(ctx, region):
 @click.option(
     "--security_group_name",
     default=None,
-    help="Security group name; default is dallinger",
+    help="Security group name; default is security_group_name from the config; fallback is dallinger",
 )
 @click.option(
     "--dns-host",
