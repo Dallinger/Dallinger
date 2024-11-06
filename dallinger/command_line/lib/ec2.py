@@ -173,7 +173,7 @@ def list_instances(region_name=None, filtered_states=[], pem=None):
     if len(filtered_states) > 0:
         instance_df = instance_df.query("state in @filtered_states")
     if pem is not None:
-        instance_df = instance_df.query("pem == @pem")
+        instance_df = instance_df.query("pem.str.endswith(@pem)")
     print(instance_df.to_markdown())
 
 
