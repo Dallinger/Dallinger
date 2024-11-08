@@ -118,7 +118,7 @@ def list__instance_types(ctx, region):
 )
 @click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
+    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
     default=None,
 )
 @click.pass_context
@@ -164,7 +164,7 @@ def ec2__increase_storage(ctx, dns, name, region, storage):
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
+    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
     default=None,
 )
 @click.pass_context
@@ -184,7 +184,7 @@ def ec2__stop(ctx, dns, name, region, dns_host):
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
+    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
     default=None,
 )
 @click.pass_context
@@ -202,7 +202,7 @@ def ec2__start(ctx, dns, name, region, dns_host):
     instance_row = wait_for_instance_state_change(region, name, "stopped")
     assert (
         instance_row["state"] == "stopped"
-    ), f"Instance {name} is not stopped, but in state {instance_row['state']}"
+    ), f"Instance {name} is not stopped, but in state '{instance_row['state']}'"
     dns, instance_id, name = (
         instance_row["public_dns_name"],
         instance_row["instance_id"],
@@ -237,7 +237,7 @@ def ec2__restart(ctx, dns, name, region):
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
+    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
     default=None,
 )
 @click.pass_context

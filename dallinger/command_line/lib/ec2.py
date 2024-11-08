@@ -670,7 +670,7 @@ def _get_instance_id_from(
 
 def wait_for_instance_state_change(region, name, state, n_tries=12, wait=10):
     with yaspin(
-        text=f"Waiting for the instance to change to {state}: ", color="yellow"
+        text=f"Waiting for the instance to change to state '{state}': ", color="yellow"
     ) as sp:
         for _ in range(n_tries):
             instance_row = _get_instance_row_from(
@@ -687,7 +687,7 @@ def wait_for_instance_state_change(region, name, state, n_tries=12, wait=10):
                 f"Instance did not change to state '{name}' after {n_tries * wait} seconds"
             )
         else:
-            sp.text = f"Instance {name} changed to state {state}"
+            sp.text = f"Instance '{name}' changed to state {state}"
             sp.ok("✅")
         return instance_row
 
