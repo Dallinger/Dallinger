@@ -631,10 +631,10 @@ def provision(
 
 
 def _get_instance_row_from(
-        region_name,
-        instance_name=None,
-        public_dns_name=None,
-        filter_by="state == 'running'",
+    region_name,
+    instance_name=None,
+    public_dns_name=None,
+    filter_by="state == 'running'",
 ):
     instances_df = get_instances(region_name)
     if filter_by is not None:
@@ -669,19 +669,23 @@ def _get_instance_id_from(
 
 
 def wait_for_instance_state_change(region, name, state, n_tries=12, wait=10):
-    with yaspin(text=f"Waiting for the instance to change to {state}: ", color="yellow") as sp:
+    with yaspin(
+        text=f"Waiting for the instance to change to {state}: ", color="yellow"
+    ) as sp:
         for _ in range(n_tries):
             instance_row = _get_instance_row_from(
                 region_name=region,
                 instance_name=name,
                 filter_by=None,
             )
-            if instance_row['state'] == state:
+            if instance_row["state"] == state:
                 break
             time.sleep(wait)
-        if instance_row['state'] != state:
+        if instance_row["state"] != state:
             sp.fail("❌")
-            raise Exception(f"Instance did not change to state '{name}' after {n_tries * wait} seconds")
+            raise Exception(
+                f"Instance did not change to state '{name}' after {n_tries * wait} seconds"
+            )
         else:
             sp.text = f"Instance {name} changed to state {state}"
             sp.ok("✅")
