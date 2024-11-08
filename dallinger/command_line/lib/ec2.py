@@ -4,6 +4,7 @@ import os.path
 import struct
 import subprocess
 import time
+from datetime import datetime
 from typing import Callable
 
 import boto3
@@ -111,6 +112,9 @@ def get_instances(region_name):
                 name = instance["Tags"][0]["Value"]
             except KeyError:
                 name = "Unnamed"
+            instance_time_zone = instance["LaunchTime"].tzinfo
+            now_in_instance_time_zone = datetime.now(instance_time_zone)
+
             instances.append(
                 {
                     "name": name,
@@ -122,7 +126,9 @@ def get_instances(region_name):
                     # 'public_ip_address': instance['PublicIpAddress'],
                     "pem": instance["KeyName"],
                     # Duration since instance was started
-                    "uptime": time.time() - instance["LaunchTime"].timestamp(),
+                    "uptime": (
+                        now_in_instance_time_zone - instance["LaunchTime"]
+                    ).seconds,
                 }
             )
 
