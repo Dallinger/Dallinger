@@ -237,7 +237,7 @@ werkzeug==3.1.1
     # via
     #   flask
     #   flask-login
-wheel==0.44.0
+wheel==0.45.0
     # via pip-tools
 wsproto==1.2.0
     # via
