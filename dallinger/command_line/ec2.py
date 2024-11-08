@@ -100,7 +100,11 @@ def list__instance_types(ctx, region):
 @click.option("--region", default=None, help="Region name")
 @click.option("--type", default="m5.xlarge", help="Instance type")
 @click.option("--storage", default=32, type=int, help="Storage in GB; default is 32 GB")
-@click.option("--pem", default=None, help="PEM file name; default is dallinger.pem")
+@click.option(
+    "--pem",
+    default=None,
+    help="Path to PEM file; if not specified, defaults to the `pem` config variable, whose default value is 'dallinger.pem'",
+)
 @click.option(
     "--image_name",
     default="ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-20230516",
@@ -109,7 +113,7 @@ def list__instance_types(ctx, region):
 @click.option(
     "--security_group_name",
     default=None,
-    help="Security group name; default is security_group_name from the config; fallback is dallinger",
+    help="Security group name; if not specified, defaults to the `security_group_name` config variable, whose default value is 'dallinger'.",
 )
 @click.option(
     "--dns-host",
