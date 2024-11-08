@@ -44,7 +44,7 @@ black==24.10.0
     # via dallinger
 bleach==6.2.0
     # via nbconvert
-blinker==1.8.2
+blinker==1.9.0
     # via flask
 boto3==1.35.54
     # via dallinger
