@@ -687,7 +687,7 @@ def wait_for_instance_state_change(region, name, state, n_tries=12, wait=10):
                 f"Instance did not change to state '{name}' after {n_tries * wait} seconds"
             )
         else:
-            sp.text = f"Instance '{name}' changed to state {state}"
+            sp.text = f"Instance '{name}' changed to state '{state}'"
             sp.ok("✅")
         return instance_row
 

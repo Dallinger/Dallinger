@@ -202,7 +202,7 @@ def ec2__start(ctx, dns, name, region, dns_host):
     instance_row = wait_for_instance_state_change(region, name, "stopped")
     assert (
         instance_row["state"] == "stopped"
-    ), f"Instance {name} is not stopped, but in state '{instance_row['state']}'"
+    ), f"Instance '{name}' is not stopped, but in state '{instance_row['state']}'"
     dns, instance_id, name = (
         instance_row["public_dns_name"],
         instance_row["instance_id"],
