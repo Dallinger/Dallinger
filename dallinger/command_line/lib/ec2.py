@@ -4,12 +4,14 @@ import os.path
 import struct
 import subprocess
 import time
+from datetime import datetime
 from typing import Callable
 
 import boto3
 import click
 import pandas as pd
 import paramiko
+import requests
 from botocore.exceptions import ClientError
 from paramiko.util import deflate_long
 from tqdm import tqdm
@@ -79,21 +81,54 @@ def list_regions():
     print(pd.DataFrame(region_metadata).to_markdown())
 
 
-def get_instances(region_name=None):
+def get_instance_details(instance_types, region_name=None):
+    response = requests.get(
+        "https://ec2.shop",
+        params={
+            "filter": ",".join(instance_types),
+            "region": region_name,
+        },
+        headers={
+            "accept": "json",
+        },
+    )
+    if response.status_code != 200:
+        print(f"Failed to get details for {instance_types} in {region_name}")
+        return None
+
+    price_df = pd.DataFrame(response.json()["Prices"])
+
+    if len(price_df) != len(instance_types):
+        print(f"Failed to get all details for {instance_types} in {region_name}")
+    return price_df
+
+
+def get_instances(region_name):
     reservations = get_ec2_client(region_name).describe_instances()["Reservations"]
     instances = []
     for reservation in reservations:
         for instance in reservation["Instances"]:
+            try:
+                name = instance["Tags"][0]["Value"]
+            except KeyError:
+                name = "Unnamed"
+            instance_time_zone = instance["LaunchTime"].tzinfo
+            now_in_instance_time_zone = datetime.now(instance_time_zone)
+
             instances.append(
                 {
-                    "name": instance["Tags"][0]["Value"],
+                    "name": name,
                     "instance_id": instance["InstanceId"],
                     "instance_type": instance["InstanceType"],
-                    "availability_zone": instance["Placement"]["AvailabilityZone"],
+                    "region": region_name,
                     "state": instance["State"]["Name"],
                     "public_dns_name": instance["PublicDnsName"],
                     # 'public_ip_address': instance['PublicIpAddress'],
                     "pem": instance["KeyName"],
+                    # Duration since instance was started
+                    "uptime": (
+                        now_in_instance_time_zone - instance["LaunchTime"]
+                    ).seconds,
                 }
             )
 
@@ -112,6 +147,27 @@ def get_all_instances(region_name=None):
         instance_df = pd.concat(instance_dfs)
     else:
         instance_df = get_instances(region_name)
+    if len(instance_df) == 0:
+        return instance_df
+    with yaspin(text="Getting instance details..."):
+        instance_details = instance_df.groupby(["instance_type", "region"]).apply(
+            lambda x: get_instance_details(
+                x["instance_type"].unique(), x["region"].unique()
+            )
+        )
+        instance_details = instance_details.reset_index()
+        instance_details = instance_details[
+            ["instance_type", "region", "Memory", "VCPUS", "Cost"]
+        ]
+    instance_df = instance_df.merge(
+        instance_details, on=["instance_type", "region"], how="left"
+    )
+    instance_df["Cost"] = instance_df["Cost"] * instance_df["uptime"] / (60**2)
+    instance_df.sort_values("Cost", inplace=True)
+    instance_df["Cost"] = instance_df["Cost"].apply(lambda x: f"${int(x)}")
+    instance_df["uptime"] = instance_df["uptime"].apply(
+        lambda x: str(int(x / 60**2)) + "h"
+    )
     return instance_df
 
 
@@ -123,7 +179,7 @@ def list_instances(region_name=None, filtered_states=[], pem=None):
     if len(filtered_states) > 0:
         instance_df = instance_df.query("state in @filtered_states")
     if pem is not None:
-        instance_df = instance_df.query("pem == @pem")
+        instance_df = instance_df.query("pem.str.endswith(@pem)")
     print(instance_df.to_markdown())
 
 
@@ -565,7 +621,7 @@ def prepare_instance(
         instance_id, instance_name, storage_in_gb, ec2
     )
     if callback is not None:
-        callback(host, user, ip_address, executor, dns_host)
+        callback(host, user, ip_address, executor, dns_host, instance_name)
 
     duration = time.time() - start
     print(
@@ -588,7 +644,9 @@ def remove_dns_record(dns_host, remove_dallinger_host=True):
             dallinger_remove_host(dns_host)
 
 
-def prepare_docker_experiment_setup(host, user, ip_address, executor, dns_host=None):
+def prepare_docker_experiment_setup(
+    host, user, ip_address, executor, dns_host=None, instance_name=None
+):
     from dallinger.config import get_config
 
     config = get_config()
