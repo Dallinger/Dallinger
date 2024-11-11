@@ -152,7 +152,7 @@ fqdn==1.5.1
     # via jsonschema
 future==1.0.0
     # via dallinger
-gevent==24.10.3
+gevent==24.11.1
     # via
     #   dallinger
     #   gunicorn
