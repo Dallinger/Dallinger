@@ -684,7 +684,7 @@ def wait_for_instance_state_change(region, name, state, n_tries=12, wait=10):
         if instance_row["state"] != state:
             sp.fail("❌")
             raise Exception(
-                f"Instance did not change to state '{name}' after {n_tries * wait} seconds"
+                f"Instance '{name}' did not change to state '{state}' after {n_tries * wait} seconds"
             )
         else:
             sp.text = f"Instance '{name}' changed to state '{state}'"
