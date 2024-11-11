@@ -87,6 +87,7 @@ default_keys = (
     ("prolific_api_token", six.text_type, ["PROLIFIC_RESEARCHER_API_TOKEN"], True),
     ("prolific_api_version", six.text_type, []),
     ("prolific_estimated_completion_minutes", int, []),
+    ("prolific_is_custom_screening", bool, []),
     ("prolific_maximum_allowed_minutes", int, []),
     ("prolific_recruitment_config", six.text_type, [], False, [is_valid_json]),
     ("protected_routes", six.text_type, [], False, [is_valid_json]),

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dallinger"
-version = "10.3.0a1"
+version = "10.4.0a1"
 maintainers = [
   {name = "Jordan Suchow", email = "jws@stevens.edu"},
   {name = "Peter Harrison", email = "pmch2@cam.ac.uk"},
@@ -56,7 +56,7 @@ dependencies = [
     "pyopenssl",
     "redis",
     "requests",
-    "rq",
+    "rq < 2",
     "selenium",
     "six",
     "sqlalchemy < 2",
