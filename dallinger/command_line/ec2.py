@@ -5,16 +5,19 @@ import click
 from .lib.ec2 import (
     _get_instance_id_from,
     _get_instance_row_from,
+    create_dns_records,
     get_instances,
     increase_storage,
     list_instance_types,
     list_instances,
     list_regions,
     provision,
+    remove_dns_record,
     restart,
     start,
     stop,
     teardown,
+    wait_for_instance_state_change,
 )
 
 
@@ -101,7 +104,9 @@ def list__instance_types(ctx, region):
 @click.option("--type", default="m5.xlarge", help="Instance type")
 @click.option("--storage", default=32, type=int, help="Storage in GB; default is 32 GB")
 @click.option(
-    "--pem", default="dallinger", help="PEM file name; default is dallinger.pem"
+    "--pem",
+    default=None,
+    help="Path to PEM file; if not specified, defaults to the `pem` config variable, whose default value is 'dallinger.pem'",
 )
 @click.option(
     "--image_name",
@@ -110,12 +115,12 @@ def list__instance_types(ctx, region):
 )
 @click.option(
     "--security_group_name",
-    default="dallinger",
-    help="Security group name; default is dallinger",
+    default=None,
+    help="Security group name; if not specified, defaults to the `security_group_name` config variable, whose default value is 'dallinger'.",
 )
 @click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
+    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
     default=None,
 )
 @click.pass_context
@@ -124,8 +129,13 @@ def ec2__provision(
 ):
     """Provision an EC2 instance for running experiments"""
     config = get_instance_config()
-    pem = config.get("pem", pem)
-    security_group_name = config.get("security_group_name", security_group_name)
+    if not pem:
+        pem = config.get("pem", pem)
+    if not security_group_name:
+        security_group_name = config.get("security_group_name", security_group_name)
+    from .utils import check_valid_subdomain
+
+    check_valid_subdomain("name", name)
 
     provision(
         instance_name=name,
@@ -159,12 +169,19 @@ def ec2__increase_storage(ctx, dns, name, region, storage):
 @click.option("--dns", default=None, help="Public DNS name")
 @click.option("--name", default=None, help="Instance ID")
 @click.option("--region", default=None, help="Region name")
+@click.option(
+    "--dns-host",
+    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
+    default=None,
+)
 @click.pass_context
-def ec2__stop(ctx, dns, name, region):
+def ec2__stop(ctx, dns, name, region, dns_host):
     """Stop (pause) an existing EC2 instance"""
     instance_id = _get_instance_id_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
+    # Remove old DNS records, but keep the dallinger host
+    remove_dns_record(dns_host, remove_dallinger_host=False)
     stop(region, instance_id)
 
 
@@ -172,16 +189,40 @@ def ec2__stop(ctx, dns, name, region):
 @click.option("--dns", default=None, help="Public DNS name")
 @click.option("--name", default=None, help="Instance ID")
 @click.option("--region", default=None, help="Region name")
+@click.option(
+    "--dns-host",
+    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
+    default=None,
+)
 @click.pass_context
-def ec2__start(ctx, dns, name, region):
+def ec2__start(ctx, dns, name, region, dns_host):
     """Start a stopped EC2 instance"""
-    instance_id = _get_instance_id_from(
+    from dallinger.command_line.config import get_configured_hosts
+
+    CONFIGURED_HOSTS = get_configured_hosts()
+    instance_row = _get_instance_row_from(
         region_name=region,
         instance_name=name,
         public_dns_name=dns,
-        filter_by="state == 'stopped'",
+        filter_by=None,
+    )
+    instance_row = wait_for_instance_state_change(region, name, "stopped")
+    assert (
+        instance_row["state"] == "stopped"
+    ), f"Instance '{name}' is not stopped, but in state '{instance_row['state']}'"
+    dns, instance_id, name = (
+        instance_row["public_dns_name"],
+        instance_row["instance_id"],
+        instance_row["name"],
     )
     start(region, instance_id)
+
+    old_dns_host = CONFIGURED_HOSTS.get(dns, {})
+    user = old_dns_host.get("user", "ubuntu")
+
+    instance_row = wait_for_instance_state_change(region, name, "running")
+
+    create_dns_records(dns_host, user, instance_row["public_dns_name"])
 
 
 @ec2.command("restart")
@@ -203,7 +244,7 @@ def ec2__restart(ctx, dns, name, region):
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
+    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
     default=None,
 )
 @click.pass_context
@@ -218,4 +259,4 @@ def ec2__teardown(ctx, dns, name, region, dns_host):
             .query(f"instance_id == '{instance_id}'")
             .iloc[0]["public_dns_name"]
         )
-    teardown(region, instance_id, dns, dns_host)
+    teardown(region, instance_id, dns, dns_host, name)
