@@ -573,6 +573,21 @@ def prepare_instance(
     )
 
 
+def create_dns_records(dns_host, user, host):
+    if dns_host is not None:
+        create_dns_record(dns_host, user, host)
+        create_dns_record("*." + dns_host, user, host)
+
+
+def remove_dns_record(dns_host, remove_dallinger_host=True):
+    if dns_host is not None:
+        route_53 = get_53_client()
+        filtered_ids = filter_zone_ids(get_domain(dns_host), route_53)
+        remove_dns_records(filtered_ids[0], dns_host, route_53)
+        if remove_dallinger_host:
+            dallinger_remove_host(dns_host)
+
+
 def prepare_docker_experiment_setup(host, user, ip_address, executor, dns_host=None):
     from dallinger.config import get_config
 
@@ -585,9 +600,7 @@ def prepare_docker_experiment_setup(host, user, ip_address, executor, dns_host=N
 
     dallinger_prepare_server(host, user)
 
-    if dns_host is not None:
-        create_dns_record(dns_host, user, host)
-        create_dns_record("*." + dns_host, user, host)
+    create_dns_records(dns_host, user, host)
 
     dallinger_store_host(dict(host=host, user=user))
     dallinger_store_host(dict(host=dns_host, user=user))
@@ -655,6 +668,30 @@ def _get_instance_id_from(
     )["instance_id"]
 
 
+def wait_for_instance_state_change(region, name, state, n_tries=12, wait=10):
+    with yaspin(
+        text=f"Waiting for the instance to change to state '{state}': ", color="yellow"
+    ) as sp:
+        for _ in range(n_tries):
+            instance_row = _get_instance_row_from(
+                region_name=region,
+                instance_name=name,
+                filter_by=None,
+            )
+            if instance_row["state"] == state:
+                break
+            time.sleep(wait)
+        if instance_row["state"] != state:
+            sp.fail("❌")
+            raise Exception(
+                f"Instance '{name}' did not change to state '{state}' after {n_tries * wait} seconds"
+            )
+        else:
+            sp.text = f"Instance '{name}' changed to state '{state}'"
+            sp.ok("✅")
+        return instance_row
+
+
 def get_instance_id_from_url(region_name, public_dns_name):
     return _get_instance_id_from(region_name, public_dns_name=public_dns_name)
 
@@ -688,10 +725,5 @@ def teardown(region_name, instance_id, public_dns_name, dns_host):
     logger.info(f"Terminating {instance_id} ({public_dns_name})...")
     get_ec2_client(region_name).terminate_instances(InstanceIds=[instance_id])
     dallinger_remove_host(public_dns_name)
-
-    if dns_host is not None:
-        route_53 = get_53_client()
-        filtered_ids = filter_zone_ids(get_domain(dns_host), route_53)
-        remove_dns_records(filtered_ids[0], dns_host, route_53)
-        dallinger_remove_host(dns_host)
+    remove_dns_record(dns_host, remove_dallinger_host=True)
     logger.info(f"Termination of {instance_id} complete!")
