@@ -58,6 +58,8 @@ default_keys = (
     ("dyno_type", six.text_type, []),
     ("dyno_type_web", six.text_type, []),
     ("dyno_type_worker", six.text_type, []),
+    ("ec2_default_pem", six.text_type, []),
+    ("ec2_default_security_group", six.text_type, []),
     ("enable_global_experiment_registry", bool, []),
     ("EXPERIMENT_CLASS_NAME", six.text_type, []),
     ("group_name", six.text_type, []),
@@ -74,6 +76,7 @@ default_keys = (
     ("lock_table_when_creating_participant", bool, []),
     ("logfile", six.text_type, []),
     ("loglevel", int, []),
+    ("loglevel_worker", int, []),
     ("mode", six.text_type, []),
     ("mturk_qualification_blocklist", six.text_type, ["qualification_blacklist"]),
     ("mturk_qualification_requirements", six.text_type, [], False, [is_valid_json]),
@@ -84,6 +87,7 @@ default_keys = (
     ("prolific_api_token", six.text_type, ["PROLIFIC_RESEARCHER_API_TOKEN"], True),
     ("prolific_api_version", six.text_type, []),
     ("prolific_estimated_completion_minutes", int, []),
+    ("prolific_is_custom_screening", bool, []),
     ("prolific_maximum_allowed_minutes", int, []),
     ("prolific_project", six.text_type, []),
     ("prolific_recruitment_config", six.text_type, [], False, [is_valid_json]),
@@ -108,6 +112,7 @@ default_keys = (
     ("docker_image_base_name", six.text_type, [], ""),
     ("docker_image_name", six.text_type, [], ""),
     ("docker_volumes", six.text_type, [], ""),
+    ("docker_worker_cpu_shares", int, [], ""),
 )
 
 

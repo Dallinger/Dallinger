@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import List, Optional
 
 import requests
@@ -156,6 +157,7 @@ class ProlificService:
         estimated_completion_time: int,
         external_study_url: str,
         internal_name: str,
+        is_custom_screening: bool,
         maximum_allowed_time: int,
         name: str,
         prolific_id_option: str,
@@ -193,6 +195,7 @@ class ProlificService:
         estimated_completion_time: int,
         external_study_url: str,
         internal_name: str,
+        is_custom_screening: bool,
         maximum_allowed_time: int,
         name: str,
         prolific_id_option: str,
@@ -277,6 +280,7 @@ class ProlificService:
             "estimated_completion_time": estimated_completion_time,
             "external_study_url": external_study_url,
             "internal_name": internal_name,
+            "is_custom_screening": is_custom_screening,
             "maximum_allowed_time": maximum_allowed_time,
             "name": name,
             "prolific_id_option": prolific_id_option,
@@ -353,19 +357,22 @@ class ProlificService:
         )
         # Step 2: pull the trigger
         payment_response = self._req(
-            "POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
+            method="POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
         )
 
         return payment_response
 
     def who_am_i(self) -> dict:
-        """For testing authorization, primarily, but does return all the details for your user."""
+        """For testing authorization, primarily, but does return all the
+        details for your user.
+        """
         return self._req(method="GET", endpoint="/users/me/")
 
     def _req(self, method: str, endpoint: str, **kw) -> dict:
         """Runs the actual request/response cycle:
-        * Adds auth header
-        * Adds Referer header to help Prolific identify our requests when troubleshooting
+        * Adds Authorization header
+        * Adds Referer header to help Prolific identify our requests
+          when troubleshooting
         * Logs all requests (we might want to stop doing this when we're
           out of our "beta" period with Prolific)
         * Parses response and does error handling
@@ -404,3 +411,98 @@ class ProlificService:
             raise ProlificServiceException(json.dumps(error))
 
         return parsed
+
+
+class DevProlificService(ProlificService):
+    """Wrapper that mocks the Prolific REST API and instead of making requests it writes to the log."""
+
+    def _req(self, method: str, endpoint: str, **kw) -> dict:
+        from uuid import uuid4
+
+        """Does NOT make any requests but instead writes to the log."""
+        self.log_request(method=method, endpoint=endpoint, **kw)
+        response = None
+
+        if endpoint.startswith("/studies/"):
+            if method == "GET":
+                # method="GET", endpoint=f"/studies/{study_id}/"
+                if re.match(r"/studies/[a-z0-9]+/", endpoint):
+                    response = {
+                        "total_available_places": 100,
+                    }
+
+                # method="GET", endpoint="/studies/"
+                elif endpoint == "/studies/":
+                    response = {
+                        "results": [
+                            {
+                                "title": "title",
+                                "status": "status",
+                                "created": "created-date",
+                                "expiration": "",
+                                "description": "",
+                            }
+                        ]
+                    }
+
+            elif method == "POST":
+                # method="POST", endpoint="/studies/", json=payload
+                if endpoint == "/studies/":
+                    response = {
+                        "id": "study-id",
+                        "external_study_url": "external-study-url",
+                    }
+
+                # method="POST", endpoint=f"/studies/{study_id}/transition/", json={"action": "PUBLISH"},
+                elif re.match(r"/studies/[a-z0-9]+/transition/", endpoint):
+                    response = True
+
+            elif method == "PATCH":
+                # method="PATCH", endpoint=f"/studies/{study_id}/", json={"total_available_places": new_total},
+                response = {
+                    "items": ["https://experiment-url-1", "https://experiment-url-2"],
+                    "message": "More info about this particular recruiter's process",
+                }
+
+            # method="DELETE", endpoint=f"/studies/{study_id}"
+            elif method == "DELETE":
+                response = {"status_code": 204}
+
+        # method="POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
+        elif endpoint.startswith("/bulk-bonus-payments/"):
+            response = {"id": str(uuid4())}
+
+        # method="POST", endpoint="/submissions/bonus-payments/", json=payload
+        elif endpoint.startswith("/submissions/bonus-payments"):
+            response = {"id": str(uuid4())}
+
+        elif endpoint.startswith("/submissions/"):
+            # method="POST", endpoint=f"/submissions/{session_id}/transition/", json={"action": "APPROVE"},
+            if re.match(r"/submissions/[A-Za-z0-9]+/transition/", endpoint):
+                response = True
+
+            # method="GET", endpoint=f"/submissions/{session_id}/"
+            elif re.match(r"/submissions/[A-Za-z0-9]+/", endpoint):
+                response = {
+                    "id": "id",
+                    "study_id": "study-id",
+                    "participant": "participant",
+                    "started_at": "started-at-timestamp",
+                    "status": "AWAITING REVIEW",
+                }
+
+        if response is None:
+            raise RuntimeError("Simulated Prolific API call could not be matched.")
+        self.log_response(response)
+        return response
+
+    def log_request(self, method, endpoint, **kw):
+        log_msg = (
+            f'Simulated Prolific API request: method="{method}", endpoint="{endpoint}"'
+        )
+        log_msg += f', json={kw["json"]}' if "json" in kw else ""
+        log_msg += f'\n{kw["message"]}' if "message" in kw else ""
+        logger.info(log_msg)
+
+    def log_response(self, response):
+        logger.info(f"Simulated Prolific API response: {response}")

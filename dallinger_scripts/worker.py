@@ -1,5 +1,3 @@
-"""Heroku web worker."""
-
 listen = ["high", "default", "low"]
 
 
@@ -20,15 +18,26 @@ def main():
     from rq import Connection, Queue
     from six.moves.urllib.parse import urlparse
 
-    from dallinger.config import initialize_experiment_package
+    from dallinger.config import get_config, initialize_experiment_package
     from dallinger.heroku.rq_gevent_worker import GeventWorker as Worker
 
     initialize_experiment_package(os.getcwd())
 
-    log_level = os.environ.get("loglevel", "WARN")
+    config = get_config()
+    if not config.ready:
+        config.load()
+
+    LOG_LEVELS = [
+        logging.DEBUG,
+        logging.INFO,
+        logging.WARNING,
+        logging.ERROR,
+        logging.CRITICAL,
+    ]
+    LOG_LEVEL = LOG_LEVELS[config.get("loglevel_worker")]
     logging.basicConfig(
         format="%(asctime)s %(message)s",
-        level=getattr(logging, log_level, logging.WARN),
+        level=LOG_LEVEL,
     )
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
     # Specify queue class for improved performance with gevent.
@@ -51,7 +60,7 @@ def main():
         # Default to log.warn because rq logs extremely verbosely at the info
         # level
         worker.log.info = worker.log.debug
-        worker.work(logging_level=log_level)
+        worker.work(logging_level=LOG_LEVEL)
 
 
 if __name__ == "__main__":  # pragma: nocover
