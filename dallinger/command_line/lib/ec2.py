@@ -3,6 +3,7 @@ import logging
 import os.path
 import struct
 import subprocess
+import sys
 import time
 from datetime import datetime
 from typing import Callable
@@ -489,7 +490,7 @@ def remove_dns_records(zone_id, dns_host, route_53=None, confirm=False):
                 """
         if confirm and not click.confirm(msg):
             print("Aborting...")
-            return
+            sys.exit(1)
 
         # delete the existing records
         for record in filtered_records:
@@ -608,7 +609,6 @@ def prepare_instance(
     image_id = get_image_id(ec2, image_name)
 
     setup_ssh_keys(ec2, key_name, region_name)
-
     instance_id = boot_instance(
         ec2, image_id, instance_type, key_name, instance_name, region_name
     )
