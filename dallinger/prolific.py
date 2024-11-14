@@ -501,6 +501,88 @@ class DevProlificService(ProlificService):
                     "status": "AWAITING REVIEW",
                 }
 
+        elif endpoint.startswith("/workspaces/"):
+            if method == "GET":
+                # method="GET", endpoint=f"/workspaces/"
+                if endpoint == "/workspaces/":
+                    response = {
+                        "results": [
+                            {
+                                "id": "62fce6fff0a78eb4f3ebc09c",
+                                "title": "My workspace",
+                                "description": "This workspace does...",
+                                "owner": "60a42f4c693c29420793cb73",
+                                "users": [
+                                    {
+                                        "id": "60a42f4c693c29420793cb73",
+                                        "name": "Joe Soap",
+                                        "email": "joe.soap@gmail.com",
+                                        "roles": ["WORKSPACE_ADMIN"],
+                                    }
+                                ],
+                                "naivety_distribution_rate": 0.5,
+                            }
+                        ]
+                    }
+                # method="GET", endpoint=f"/workspaces/{workspace_id}/projects/"
+                elif re.match(r"/workspaces/[A-Za-z0-9]+/projects/", endpoint):
+                    response = {
+                        "results": [
+                            {
+                                "id": "62fce6fff0a78eb4f3ebc09c",
+                                "title": "My project",
+                                "description": "This project is for...",
+                                "owner": "60a42f4c693c29420793cb73",
+                                "users": [
+                                    {
+                                        "id": "60a42f4c693c29420793cb73",
+                                        "name": "Joe Soap",
+                                        "email": "joe.soap@gmail.com",
+                                        "roles": ["PROJECT_EDITOR"],
+                                    }
+                                ],
+                                "naivety_distribution_rate": 0.5,
+                            }
+                        ]
+                    }
+
+            elif method == "POST":
+                # method="POST", endpoint=f"/workspaces/", json={"title": "My new workspace"}
+                if endpoint == "/workspaces/":
+                    response = {
+                        "id": "62fce6fff0a78eb4f3ebc09c",
+                        "title": "My new workspace",
+                        "owner": "60a42f4c693c29420793cb73",
+                        "users": [
+                            {
+                                "id": "60a42f4c693c29420793cb73",
+                                "name": "Joe Soap",
+                                "email": "joe.soap@gmail.com",
+                                "roles": [],
+                            }
+                        ],
+                        "projects": [{"id": "60a42f4c693c29420793cb73"}],
+                        "wallet": "61a65c06b084910b3f0c00d6",
+                    }
+
+                # method="POST", endpoint=f"/workspaces/{workspace_id}/projects/", json={"title": "My project"}
+                elif re.match(r"/workspaces/[A-Za-z0-9]+/projects/", endpoint):
+                    response = {
+                        "id": "62fce6fff0a78eb4f3ebc09c",
+                        "title": "My project",
+                        "owner": "60a42f4c693c29420793cb73",
+                        "users": [
+                            {
+                                "id": "60a42f4c693c29420793cb73",
+                                "name": "Joe Soap",
+                                "email": "joe.soap@gmail.com",
+                                "roles": ["PROJECT_EDITOR"],
+                            }
+                        ],
+                        "workspace": "60a42f4c693c29420793cb73",
+                        "naivety_distribution_rate": 0.5,
+                    }
+
         if response is None:
             raise RuntimeError("Simulated Prolific API call could not be matched.")
         self.log_response(response)
