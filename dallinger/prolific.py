@@ -219,8 +219,8 @@ class ProlificService:
             workspace_id = None
 
             # Ensure the workspace specified in the configuration exists, and get its id.
+            workspace_id = None
             workspace_name = config.get("prolific_workspace")
-
             if workspace_name != "":
                 try:
                     # Get the workspace's id.  If it's not in Prolific, the function will raise an exception.
@@ -238,6 +238,7 @@ class ProlificService:
                         json={"title": workspace_name},
                     )
                     workspace_id = response["id"]
+                    use_prolific_default_project = False
 
         except KeyError:
             # If config.prolific_workspace does not exist or is the empty string, the /studies/ endpoint will be
@@ -272,7 +273,7 @@ class ProlificService:
                         project_id = self._req(
                             method="POST",
                             endpoint=f"/workspaces/{workspace_id}/projects/",
-                            json={"title": workspace_id},
+                            json={"title": project_name},
                         )
                         project_id = project_id["id"]
 
