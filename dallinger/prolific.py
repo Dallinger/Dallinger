@@ -230,7 +230,14 @@ class ProlificService:
                 except ProlificServiceNoSuchWorkspace:
                     # If config.prolific_workspace is a non-empty string, and the workspace does not exist in the
                     # /workspaces/ endpoint, the /studies/ endpoint will be called without a project key.
-                    pass
+
+                    # Create a new workspace
+                    response = self._req(
+                        method="POST",
+                        endpoint="/workspaces/",
+                        json={"title": workspace_name},
+                    )
+                    workspace_id = response["id"]
 
         except KeyError:
             # If config.prolific_workspace does not exist or is the empty string, the /studies/ endpoint will be
