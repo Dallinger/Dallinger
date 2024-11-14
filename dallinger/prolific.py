@@ -216,6 +216,8 @@ class ProlificService:
         # These two try blocks are nested to make implementing different behaviors for each exception easier, should
         # that be desired.
         try:
+            workspace_id = None
+
             # Ensure the workspace specified in the configuration exists, and get its id.
             workspace_name = config.get("prolific_workspace")
 
