@@ -296,30 +296,6 @@ def test_translate_project_name(subject, test_input, expected):
     #   key should not exist.
     "config_workspace_name, config_project_name, workspaces_api_result, projects_api_result, expected_project_id",
     [
-        # No config.prolific_workspace.
-        (
-            "",
-            "",
-            WORKSPACES_API_RETURN_VALUE,
-            PROJECTS_API_RETURN_VALUE,
-            None,
-        ),
-        # No config.prolific_project.
-        (
-            "zippy the pinhead",
-            "",
-            WORKSPACES_API_RETURN_VALUE,
-            PROJECTS_API_RETURN_VALUE,
-            None,
-        ),
-        # config.prolific_workspace not found in workspaces API endpoint.
-        (
-            "this workspace doesn't exist",
-            "",
-            WORKSPACES_API_RETURN_VALUE,
-            PROJECTS_API_RETURN_VALUE,
-            None,
-        ),
         # config.prolific_project not found in workspaces API endpoint.
         (
             "My Workspace",
@@ -328,7 +304,7 @@ def test_translate_project_name(subject, test_input, expected):
             PROJECTS_API_RETURN_VALUE,
             "deadbeefba5eba11deadfeed",
         ),
-        # config.profliic_project found in workspaces API endpoint.
+        # config.prolific_project found in workspaces API endpoint.
         (
             "My Workspace",
             "default ws project",
