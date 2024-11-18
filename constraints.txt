@@ -46,9 +46,9 @@ bleach==6.2.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.35.60
+boto3==1.35.64
     # via dallinger
-botocore==1.35.60
+botocore==1.35.64
     # via
     #   boto3
     #   s3transfer
@@ -92,7 +92,7 @@ comm==0.2.2
     # via
     #   ipykernel
     #   ipywidgets
-coverage==7.6.4
+coverage==7.6.7
     # via
     #   coverage-pth
     #   dallinger
@@ -123,7 +123,7 @@ et-xmlfile==2.0.0
     # via openpyxl
 executing==2.1.0
     # via stack-data
-faker==32.1.0
+faker==33.0.0
     # via dallinger
 fastjsonschema==2.20.0
     # via nbformat
@@ -169,7 +169,7 @@ h11==0.14.0
     #   wsproto
 heroku3==5.2.1
     # via dallinger
-httpcore==1.0.6
+httpcore==1.0.7
     # via httpx
 httpx==0.27.2
     # via jupyterlab
@@ -270,7 +270,7 @@ jupyter-server==2.14.2
     #   notebook-shim
 jupyter-server-terminals==0.5.3
     # via jupyter-server
-jupyterlab==4.2.5
+jupyterlab==4.2.6
     # via
     #   jupyter
     #   notebook
