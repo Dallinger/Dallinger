@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dallinger"
-version = "10.2.0a1"
+version = "10.4.0a1"
 maintainers = [
   {name = "Jordan Suchow", email = "jws@stevens.edu"},
   {name = "Peter Harrison", email = "pmch2@cam.ac.uk"},
@@ -47,6 +47,7 @@ dependencies = [
     "heroku3",
     "ipython < 8.19",
     "localconfig",
+    "numpy < 2.1",
     "pexpect",
     "pip",
     "pip-tools",
@@ -55,7 +56,7 @@ dependencies = [
     "pyopenssl",
     "redis",
     "requests",
-    "rq",
+    "rq < 2",
     "selenium",
     "six",
     "sqlalchemy < 2",
@@ -84,7 +85,7 @@ dev = [
     "coverage_pth",
     "flake8",
     "isort",
-    "myst-parser",
+    "myst-parser < 4",
     "pre-commit",
     "pycodestyle",
     "pypandoc",
@@ -99,6 +100,12 @@ docker = [
     "docker",
     "paramiko",
     "sshtunnel",
+]
+ec2 = [
+    "pandas",
+    "paramiko",
+    "tqdm",
+    "yaspin",
 ]
 jupyter = [
     "ipywidgets",

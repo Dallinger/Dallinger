@@ -282,6 +282,14 @@ def verify_no_conflicts(verbose=True):
     return True
 
 
+def check_valid_subdomain(param_name, param_value):
+    """Check if the subdomain is valid."""
+    if not re.match(r"^[a-z0-9-]+$", param_value):
+        raise click.BadParameter(
+            f"The --{param_name} parameter contains invalid characters. The only characters allowed are: a-z, 0-9, and '-'."
+        )
+
+
 def verify_id(ctx, param, app):
     """Verify the experiment id."""
     if app is None:
@@ -291,8 +299,14 @@ def verify_id(ctx, param, app):
             "The --app parameter requires the full "
             "UUID beginning with {}-...".format(app[5:23])
         )
-    elif not bool(re.match(r"^[a-z0-9-]+$", app)):
-        raise click.BadParameter(
-            "The --app parameter contains invalid characters. The only characters allowed are: a-z, 0-9, and '-'."
-        )
+    check_valid_subdomain("app", app)
     return app
+
+
+# Ported from PsyNet
+def user_confirms(question, default=False):
+    """
+    Like click.confirm but safe for using within our wrapped Docker commands.
+    """
+    print(question + " Enter 'y' for yes, 'n' for no.")
+    return click.confirm("", default=default)

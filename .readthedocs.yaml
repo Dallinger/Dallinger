@@ -1,0 +1,21 @@
+version: 2
+build:
+  os: ubuntu-lts-latest
+  tools:
+    python: "3.12"
+    nodejs: "latest"
+  jobs:
+    post_install:
+      - npm install -g jsdoc
+
+python:
+  install:
+    - requirements: dev-requirements.txt
+    - requirements: requirements-readthedocs.txt
+    - method: pip
+      path: .
+      extra_requirements:
+        - dev
+
+sphinx:
+  configuration: docs/source/conf.py

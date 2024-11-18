@@ -1,5 +1,6 @@
 services:
   redis_{{ experiment_id }}:
+    restart: unless-stopped
     image: redis
     command: redis-server --appendonly yes
     volumes:
@@ -12,6 +13,7 @@ services:
       - dallinger
 
   web:
+    restart: unless-stopped
     image: {{ experiment_image }}
     user: "${UID}:${GID}"
     command: dallinger_heroku_web
@@ -44,8 +46,10 @@ services:
   {% set num_dynos = config["num_dynos_worker"] | default('1') | int %}
   {%- for number in range(num_dynos) %}
   worker_{{ number + 1 }}:
+    restart: unless-stopped
     image: {{ experiment_image }}
     command: dallinger_heroku_worker
+    cpu_shares: {{ config["docker_worker_cpu_shares"] }}
     depends_on:
       <<: *commondepends
     user: "${UID}:${GID}"
@@ -63,6 +67,7 @@ services:
   {%- endfor %}
 
   pgbouncer:
+    restart: unless-stopped
     image: docker.io/bitnami/pgbouncer:1.19.1
     container_name: {{ experiment_id }}_pgbouncer
     networks:
@@ -82,6 +87,7 @@ services:
 
 {%- if config["clock_on"] %}
   clock:
+    restart: unless-stopped
     image: {{ experiment_image }}
     user: "${UID}:${GID}"
     command: dallinger_heroku_clock

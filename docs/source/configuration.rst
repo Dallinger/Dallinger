@@ -48,6 +48,10 @@ General
     to ``critical``. Note that ``dallinger debug`` ignores this setting and always
     runs at 0 (``debug``).
 
+``loglevel_worker`` *unicode*
+    A number between 0 and 4 that controls the verbosity of worker logs, from 0 (debug)
+    to 4 (critical). Default is 2 (warn).
+
 ``whimsical`` *boolean*
     What's life without whimsy? Controls whether email notifications sent
     regarding various experiment errors are whimsical in tone, or more
@@ -230,6 +234,10 @@ Prolific Recruitment
 
 ``prolific_estimated_completion_minutes`` *int*
     Estimated duration in minutes of the experiment or survey
+
+``prolific_is_custom_screening`` *bool*
+    Whether or not this study includes a custom screening. Default is `False`.
+    See https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/CreateStudy for more information.
 
 ``prolific_recruitment_config`` *unicode - JSON formatted*
     JSON data to add additional recruitment parameters
@@ -479,3 +487,8 @@ Docker Deployment Configuration
     Additional list of volumes to mount when deploying using docker.
 
     Example: ``/host/path:/container_path,/another-path:/another-container-path``
+
+``docker_worker_cpu_shares``
+    An integer value which specify `Docker --cpu-shares option <https://docs.docker.com/config/containers/resource_constraints/#configure-the-default-cfs-scheduler>`_ for worker containers.
+
+    Defaults to ``1024``, lower this value to limit worker containers CPU usage when CPU cycles are constrained.

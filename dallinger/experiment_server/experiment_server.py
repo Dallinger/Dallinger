@@ -27,6 +27,7 @@ from sqlalchemy.sql.expression import true
 from dallinger import db, experiment, models, recruiters
 from dallinger.config import get_config
 from dallinger.notifications import MessengerError, admin_notifier
+from dallinger.recruiters import ProlificRecruiter
 from dallinger.utils import generate_random_id
 
 from . import dashboard
@@ -499,9 +500,9 @@ def prepare_advertisement():
     if not browser.is_supported(request.user_agent.string):
         raise ExperimentError("browser_type_not_allowed")
 
+    recruiter = recruiters.from_config(config)
     recruiter_name = request.args.get("recruiter")
     if not recruiter_name:
-        recruiter = recruiters.from_config(config)
         recruiter_name = recruiter.nickname
 
     entry_information = request.args.to_dict()
@@ -510,7 +511,7 @@ def prepare_advertisement():
         redirect_params = entry_information.copy()
         del redirect_params["generate_tokens"]
 
-        if recruiter_name == "prolific":
+        if isinstance(recruiter, ProlificRecruiter):
             entry_params = ("PROLIFIC_PID", "STUDY_ID", "SESSION_ID")
         else:
             entry_params = ("hitId", "assignmentId", "workerId")

@@ -11,6 +11,7 @@ host = localhost
 base_port = 5000
 logfile = server.log
 loglevel = 0
+loglevel_worker = 2
 threads = auto
 whimsical = true
 dashboard_user = admin

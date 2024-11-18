@@ -395,6 +395,7 @@ def prolific_config(active_config):
         "prolific_api_token": "fake Prolific API token",
         "prolific_api_version": "v1",
         "prolific_estimated_completion_minutes": 5,
+        "prolific_is_custom_screening": True,
         "prolific_recruitment_config": json.dumps(
             {"peripheral_requirements": ["audio", "microphone"]}
         ),
@@ -423,7 +424,10 @@ def prolificservice(prolific_config, fake_parsed_prolific_study):
 @pytest.mark.usefixtures("prolific_config")
 class TestProlificRecruiter(object):
     @pytest.fixture
-    def recruiter(self, mailer, notifies_admin, prolificservice, hit_id_store):
+    def recruiter(
+        self, mailer, notifies_admin, prolificservice, hit_id_store, active_config
+    ):
+        active_config.extend({"debug_recruiter": ""})
         from dallinger.recruiters import ProlificRecruiter
 
         with mock.patch.multiple(

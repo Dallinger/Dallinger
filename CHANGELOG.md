@@ -1,5 +1,47 @@
 # Change Log
 
+## [v10.3.0](https://github.com/dallinger/dallinger/tree/v10.3.0) (2024-11-04)
+
+#### Fixed
+- Exclude symbolic links when calculating `FileSource` size.
+
+#### Added
+- Added new config variable `prolific_is_custom_screening`.
+
+#### Updated
+- Updated dependencies; pin `rq < 2`.
+
+## [v10.2.2](https://github.com/dallinger/dallinger/tree/v10.2.2) (2024-09-24)
+
+#### Fixed
+- Fixed bug setting loglevel for worker.
+- Fixed building Sphinx documentation.
+
+## [v10.2.1](https://github.com/dallinger/dallinger/tree/v10.2.1) (2024-09-16)
+
+#### Fixed
+- Fixed importing `dallinger.config.get_config`.
+
+## [v10.2.0](https://github.com/dallinger/dallinger/tree/v10.2.0) (2024-09-14)
+
+#### Fixed
+- Bugfix in `init_db(drop_all=True)`.
+
+#### Added
+- Added EC2 provisioning support to Dallinger command line.
+- Added `DevProlificRecruiter` and `DevProlificService` for Prolific development.
+- Added sphinx-js back and point the repo to a tag of our fork with fixed pins.
+- Added `docker_worker_cpu_shares` configuration variable which limits the worker CPU usage when resources are constrained.
+- Added new config variable `loglevel_worker` for worker processes.
+
+#### Updated
+- Updated extensions for the datatables JS library to their latest versions for datatables < 2.0 to fix bug with missing filters' headers and allow filtering by boolean properties.
+- Upgraded jQuery from version 3.6.0 to 3.7.1.
+- Updated update_dependencies.sh script:
+  - Replace bash code for removing extras from constraints byusing 'pip-compile --strip-extras'.
+  - Post-process the constraints and dev-requirements.txt files to make replacements in the via comments.
+- Updated dependencies; pin myst-parser < 4; pin numpy < 2.1.
+
 ## [v10.1.3](https://github.com/dallinger/dallinger/tree/v10.1.3) (2024-07-04)
 
 #### Fixed
@@ -22,7 +64,7 @@
 
 #### Updated
 
-- Infrastructure: Updated Docker images to Debian bookworm
+- Infrastructure: Updated Docker images to Debian bookworm.
 
 ## [v10.1.0](https://github.com/dallinger/dallinger/tree/v10.1.0) (2024-05-08)
 
