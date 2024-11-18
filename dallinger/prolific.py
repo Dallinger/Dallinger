@@ -233,7 +233,9 @@ class ProlificService:
                 use_prolific_default_project = False
 
         except Exception as e:
-            raise RuntimeError(f"Error finding or creating specified workspace: {e}")
+            raise RuntimeError(
+                f"Error finding or creating specified workspace: {e}"
+            ) from e
 
         try:
             # Get the project ID.  If it's not in Prolific, the function will raise an exception and create the project.
@@ -255,7 +257,9 @@ class ProlificService:
                 use_prolific_default_project = False
 
         except Exception as e:
-            raise RuntimeError(f"Error finding or creating specified project: {e}")
+            raise RuntimeError(
+                f"Error finding or creating specified project: {e}"
+            ) from e
 
         # We can now create the draft study.
         payload = {
