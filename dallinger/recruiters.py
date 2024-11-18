@@ -69,6 +69,7 @@ def run_status_check():
     for nick, participants in participants_by_recruiter_nick.items():
         recruiter = by_name(nick)
         recruiter.verify_status_of(participants)
+        session.commit()
 
 
 class Recruiter(object):
