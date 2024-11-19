@@ -102,20 +102,15 @@ class ProlificService:
         Example return value:
 
         {
-            "60d9aadeb86739de712faee0": {
-                "assignment_id": "60d9aadeb86739de712faee0",
-                "hit_id": "60aca280709ee40ec37d4885",
-                "worker_id": "60bf9310e8dec401be6e9615",
-                "started_at": "2021-05-20T11:03:00.457Z",
-                "status": "ACTIVE",
-            },
-            "78g9aadeb86739de712fabb4": {
-                "assignment_id": "78g9aadeb86739de712fabb4",
-                "hit_id": "60aca280709ee40ec37d4885",
-                "worker_id": "703f9310g8dec401be6e4123",
-                "started_at": "2021-05-20T11:23:00.457Z",
-                "status": "RETURNED",
-            },
+          "results": [
+            {
+              "id": "60d9aadeb86739de712faee0",
+              "participant_id": "60bf9310e8dec401be6e9615",
+              "started_at": "2021-05-20T11:03:00.457000Z",
+              "status": "ACTIVE",
+              "study_code": "ABC123"
+            }
+          ]
         }
         """
 
@@ -340,20 +335,29 @@ class DevProlificService(ProlificService):
     def _req(self, method: str, endpoint: str, **kw) -> dict:
         from uuid import uuid4
 
+        uuid4_str = str(uuid4())
+
         """Does NOT make any requests but instead writes to the log."""
         self.log_request(method=method, endpoint=endpoint, **kw)
         response = None
 
-        if endpoint.startswith("/studies/"):
+        # Bonuses
+        if endpoint.startswith("/bulk-bonus-payments/"):
+            if method == "POST":
+                # method="POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
+                response = {"id": uuid4_str}
+
+        # Studies
+        elif endpoint.startswith("/studies/"):
             if method == "GET":
-                # method="GET", endpoint=f"/studies/{study_id}/"
                 if re.match(r"/studies/[a-z0-9]+/", endpoint):
+                    # method="GET", endpoint=f"/studies/{study_id}/"
                     response = {
                         "total_available_places": 100,
                     }
 
-                # method="GET", endpoint="/studies/"
                 elif endpoint == "/studies/":
+                    # method="GET", endpoint="/studies/"
                     response = {
                         "results": [
                             {
@@ -367,15 +371,15 @@ class DevProlificService(ProlificService):
                     }
 
             elif method == "POST":
-                # method="POST", endpoint="/studies/", json=payload
                 if endpoint == "/studies/":
+                    # method="POST", endpoint="/studies/", json=payload
                     response = {
                         "id": "study-id",
                         "external_study_url": "external-study-url",
                     }
 
-                # method="POST", endpoint=f"/studies/{study_id}/transition/", json={"action": "PUBLISH"},
                 elif re.match(r"/studies/[a-z0-9]+/transition/", endpoint):
+                    # method="POST", endpoint=f"/studies/{study_id}/transition/", json={"action": "PUBLISH"},
                     response = True
 
             elif method == "PATCH":
@@ -385,35 +389,48 @@ class DevProlificService(ProlificService):
                     "message": "More info about this particular recruiter's process",
                 }
 
-            # method="DELETE", endpoint=f"/studies/{study_id}"
             elif method == "DELETE":
+                # method="DELETE", endpoint=f"/studies/{study_id}"
                 response = {"status_code": 204}
 
-        # method="POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
-        elif endpoint.startswith("/bulk-bonus-payments/"):
-            response = {"id": str(uuid4())}
-
-        # method="POST", endpoint="/submissions/bonus-payments/", json=payload
-        elif endpoint.startswith("/submissions/bonus-payments"):
-            response = {"id": str(uuid4())}
-
+        # Submissions
         elif endpoint.startswith("/submissions/"):
-            # method="POST", endpoint=f"/submissions/{session_id}/transition/", json={"action": "APPROVE"},
-            if re.match(r"/submissions/[A-Za-z0-9]+/transition/", endpoint):
-                response = True
+            if method == "GET":
+                if endpoint == "/submissions/":
+                    # method="GET", endpoint="/submissions/", params={"study": study_id}
+                    response = {
+                        "results": [
+                            {
+                                "id": uuid4_str,
+                                "study_id": "60aca280709ee40ec37d4885",
+                                "participant": "1",
+                                "started_at": "2021-05-20T11:03:00.457Z",
+                                "status": "ACTIVE",
+                            }
+                        ],
+                    }
+                elif re.match(r"/submissions/[A-Za-z0-9]+/", endpoint):
+                    # method="GET", endpoint="/submissions/{submission_id}/"
+                    response = {
+                        "id": uuid4_str,
+                        "study_id": "60aca280709ee40ec37d4885",
+                        "participant": "1",
+                        "started_at": "started-at-timestamp",
+                        "status": "AWAITING REVIEW",
+                    }
+            elif method == "POST":
+                if endpoint == "/submissions/bonus-payments/":
+                    # method="POST", endpoint="/submissions/bonus-payments/", json=payload
+                    response = {"id": uuid4_str}
 
-            # method="GET", endpoint=f"/submissions/{session_id}/"
-            elif re.match(r"/submissions/[A-Za-z0-9]+/", endpoint):
-                response = {
-                    "id": "id",
-                    "study_id": "study-id",
-                    "participant": "participant",
-                    "started_at": "started-at-timestamp",
-                    "status": "AWAITING REVIEW",
-                }
+                if re.match(r"/submissions/[A-Za-z0-9]+/transition/", endpoint):
+                    # method="POST", endpoint=f"/submissions/{submission_id}/transition/", json={"action": "APPROVE"},
+                    response = True
 
         if response is None:
-            raise RuntimeError("Simulated Prolific API call could not be matched.")
+            raise RuntimeError(
+                f"Simulated Prolific API call could not be matched:\nmethod: {method}\nendpoint: {endpoint}\nkw: {kw}"
+            )
         self.log_response(response)
         return response
 
