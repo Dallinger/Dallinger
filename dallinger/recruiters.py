@@ -62,7 +62,7 @@ def run_status_check():
     for participant in Participant.query.all():
         participants_by_recruiter_nick[participant.recruiter_id].append(participant)
 
-    logger.warning(
+    logger.info(
         "Checking status of all participants: {}".format(participants_by_recruiter_nick)
     )
 
