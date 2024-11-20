@@ -36,7 +36,7 @@ babel==2.16.0
     # via
     #   jupyterlab-server
     #   sphinx
-bcrypt==4.2.0
+bcrypt==4.2.1
     # via paramiko
 beautifulsoup4==4.12.3
     # via nbconvert
