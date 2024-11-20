@@ -613,7 +613,7 @@ class ProlificRecruiter(Recruiter):
                     participant.id,
                 )
             else:
-                logger.warning(f"Status already in sync for {participant.id}")
+                logger.info(f"Status already in sync for {participant.id}")
 
     @property
     def study_id_storage_key(self):
@@ -847,8 +847,8 @@ class CLIRecruiter(Recruiter):
     def verify_status_of(self, participants: list[Participant]):
         """We only track participants locally, so we have nothing to do."""
         for p in participants:
-            logger.warning("{} -> {}".format(p.id, p.status))
-        logger.warning(
+            logger.info("{} -> {}".format(p.id, p.status))
+        logger.info(
             f"{self.__class__.__name__} implicitly verifying status "
             "of all its participants. 👍"
         )
