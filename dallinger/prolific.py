@@ -218,9 +218,6 @@ class ProlificService:
                 workspace_id = self._translate_workspace_name(workspace_name)
 
             except ProlificServiceNoSuchWorkspace:
-                # If the workspace does not exist in the '/workspaces/' endpoint, the '/studies/' endpoint will be
-                # called without a project key.
-
                 # Create a new workspace if it doesn't exist
                 response = self._req(
                     method="POST",
@@ -240,9 +237,6 @@ class ProlificService:
                 project_id = self._translate_project_name(workspace_id, project_name)
 
             except ProlificServiceNoSuchProject:
-                # If the project exists in the specified workspace, the '/studies/' endpoint will be
-                # called with the project ID.
-
                 # Create a new project in the workspace if it doesn't exist
                 response = self._req(
                     method="POST",
