@@ -211,13 +211,11 @@ class ProlificService:
 
         project_name = config.get("prolific_project")
         workspace_name = config.get("prolific_workspace")
-        use_prolific_default_project = True
 
         try:
             # Get the workspace ID.  If it's not in Prolific, the function will raise an exception and create the workspace.
             try:
                 workspace_id = self._translate_workspace_name(workspace_name)
-                use_prolific_default_project = False
 
             except ProlificServiceNoSuchWorkspace:
                 # If the workspace does not exist in the '/workspaces/' endpoint, the '/studies/' endpoint will be
@@ -230,7 +228,6 @@ class ProlificService:
                     json={"title": workspace_name},
                 )
                 workspace_id = response["id"]
-                use_prolific_default_project = False
 
         except Exception as e:
             raise RuntimeError(
@@ -241,7 +238,6 @@ class ProlificService:
             # Get the project ID.  If it's not in Prolific, the function will raise an exception and create the project.
             try:
                 project_id = self._translate_project_name(workspace_id, project_name)
-                use_prolific_default_project = False
 
             except ProlificServiceNoSuchProject:
                 # If the project exists in the specified workspace, the '/studies/' endpoint will be
@@ -254,7 +250,6 @@ class ProlificService:
                     json={"title": project_name},
                 )
                 project_id = response["id"]
-                use_prolific_default_project = False
 
         except Exception as e:
             raise RuntimeError(
@@ -279,8 +274,7 @@ class ProlificService:
             "total_available_places": total_available_places,
         }
 
-        if not use_prolific_default_project:
-            payload["project"] = project_id
+        payload["project"] = project_id
 
         if device_compatibility is not None:
             payload["device_compatibility"] = device_compatibility
