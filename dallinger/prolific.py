@@ -7,8 +7,6 @@ import requests
 import tenacity
 from dateutil import parser
 
-from dallinger.config import get_config
-
 logger = logging.getLogger(__file__)
 
 
@@ -160,10 +158,12 @@ class ProlificService:
         is_custom_screening: bool,
         maximum_allowed_time: int,
         name: str,
+        project_name: str,
         prolific_id_option: str,
         reward: int,
         total_available_places: int,
         mode: str,
+        workspace_name: str,
         device_compatibility: Optional[List[str]] = None,
         peripheral_requirements: Optional[List[str]] = None,
     ) -> dict:
@@ -198,19 +198,15 @@ class ProlificService:
         is_custom_screening: bool,
         maximum_allowed_time: int,
         name: str,
+        project_name: str,
         prolific_id_option: str,
         reward: int,
         total_available_places: int,
+        workspace_name: str,
         device_compatibility: Optional[List[str]] = None,
         peripheral_requirements: Optional[List[str]] = None,
     ) -> dict:
         """Create a draft Study on Prolific, and return its properties."""
-
-        config = get_config()
-        config.load()
-
-        project_name = config.get("prolific_project")
-        workspace_name = config.get("prolific_workspace")
 
         try:
             # Get the workspace ID.  If it's not in Prolific, the function will raise an exception and create the workspace.

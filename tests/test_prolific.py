@@ -22,10 +22,12 @@ study_request = {
     "is_custom_screening": True,
     "maximum_allowed_time": 17,
     "name": "fake experiment title (dlgr-TEST_EXPERIMENT_UI)",
+    "project_name": "My project",
     "peripheral_requirements": ["audio"],
     "prolific_id_option": "url_parameters",
     "reward": 5,
     "total_available_places": 2,
+    "workspace_name": "My Workspace",
 }
 
 # If you need to created a study for testing which targets just your
@@ -48,9 +50,11 @@ private_study_request = {
     "is_custom_screening": True,
     "maximum_allowed_time": 10,
     "name": "Test Private Study for One",
+    "project_name": "My project",
     "prolific_id_option": "url_parameters",
     "reward": 25,
     "total_available_places": 1,
+    "workspace_name": "My Workspace",
 }
 
 # The return value of a call to /api.prolific.com/api/v1/workspaces/.
