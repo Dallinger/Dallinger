@@ -265,7 +265,7 @@ def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
 
 
 def _run_pre_launch_checks(config):
-    if config.get("recruiter") == "prolific":
+    if config.get("recruiter", None) == "prolific":
         # Make sure these variables are set; otherwise an error will be raised
         config.get("prolific_project")
         config.get("prolific_workspace")
