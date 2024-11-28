@@ -93,7 +93,7 @@ class ProlificService:
         """
         response = self._req(method="GET", endpoint=f"/submissions/{submission_id}/")
         if response:
-            return _translate_submission(response)
+            return _translate_submission_from_get_submission(response)
 
     def get_assignments_for_study(self, study_id: str) -> dict:
         """Return all submissions for the current Prolific study, keyed by
@@ -119,7 +119,10 @@ class ProlificService:
             method="GET", endpoint="/submissions/", params=query_params
         )
 
-        return {s["participant"]: _translate_submission(s) for s in response["results"]}
+        return {
+            s["participant"]: _translate_submission_from_get_submissions(s, study_id)
+            for s in response["results"]
+        }
 
     def published_study(
         self,
@@ -317,13 +320,25 @@ class ProlificService:
         return parsed
 
 
-def _translate_submission(prolific_assignment_info):
+def _translate_submission_from_get_submission(prolific_assignment_info):
     # Convert from Prolific to Dallinger terminology
     p = prolific_assignment_info
     return {
         "assignment_id": p["id"],
         "hit_id": p["study_id"],
         "worker_id": p["participant"],
+        "started_at": p["started_at"],
+        "status": p["status"],
+    }
+
+
+def _translate_submission_from_get_submissions(prolific_assignment_info, study_id):
+    # Convert from Prolific to Dallinger terminology
+    p = prolific_assignment_info
+    return {
+        "assignment_id": p["id"],
+        "hit_id": study_id,
+        "worker_id": p["participant_id"],
         "started_at": p["started_at"],
         "status": p["status"],
     }
