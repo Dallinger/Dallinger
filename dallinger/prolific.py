@@ -120,7 +120,7 @@ class ProlificService:
         )
 
         return {
-            s["participant"]: _translate_submission_from_get_submissions(s, study_id)
+            s["participant_id"]: _translate_submission_from_get_submissions(s, study_id)
             for s in response["results"]
         }
 
