@@ -84,9 +84,9 @@ class ProlificService:
         Example return value:
 
         {
-            "assignment_id": "60d9aadeb86739de712faee0",
-            "hit_id": "60aca280709ee40ec37d4885",
-            "worker_id": "60bf9310e8dec401be6e9615",
+            "id": "60d9aadeb86739de712faee0",
+            "study_id": "60aca280709ee40ec37d4885",
+            "participant": "60bf9310e8dec401be6e9615",
             "started_at": "2021-05-20T11:03:00.457Z",
             "status": "ACTIVE",
         }
