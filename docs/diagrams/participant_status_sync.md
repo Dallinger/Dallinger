@@ -1,6 +1,6 @@
 # Dallinger Participant Status Synchronization
 
-Different recruitment systems offer different levels of support for recieving
+Different recruitment systems offer different levels of support for receiving
 status updates about participants.
 
 Amazon MTurk is most helpful here, because the platform sends SNS notifications
