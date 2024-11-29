@@ -267,11 +267,13 @@ def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
 def _run_pre_launch_checks(config):
     from dallinger.recruiters import ProlificRecruiter
 
-    recruiter = config.get("recruiter", None)
-    if isinstance(recruiter, ProlificRecruiter):
-        # Make sure these variables are set; otherwise an error will be raised
-        config.get("prolific_project")
-        config.get("prolific_workspace")
+    recruiter_name = config.get("recruiter", None)
+    if recruiter_name is not None:
+        recruiter = by_name(recruiter_name)
+        if isinstance(recruiter, ProlificRecruiter):
+            # Make sure these variables are set; otherwise an error will be raised
+            config.get("prolific_project")
+            config.get("prolific_workspace")
 
 
 def fail_on_unsupported_urls(f):
