@@ -418,7 +418,7 @@ class DevProlificService(ProlificService):
                             {
                                 "id": uuid4_str,
                                 "study_id": "60aca280709ee40ec37d4885",
-                                "participant": "1",
+                                "participant_id": "1",
                                 "started_at": "2021-05-20T11:03:00.457Z",
                                 "status": "ACTIVE",
                             }
