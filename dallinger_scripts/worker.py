@@ -15,7 +15,7 @@ def main():
 
     from gevent.queue import LifoQueue
     from redis import BlockingConnectionPool, StrictRedis
-    from rq import Connection, Queue
+    from rq import Queue
     from six.moves.urllib.parse import urlparse
 
     from dallinger.config import get_config, initialize_experiment_package
@@ -54,13 +54,16 @@ def main():
     redis_pool = BlockingConnectionPool.from_url(**connection_args)
     redis_conn = StrictRedis(connection_pool=redis_pool)
 
-    with Connection(redis_conn):
-        worker = Worker(list(map(Queue, listen)), log_job_description=False)
-        worker.log_result_lifespan = False
-        # Default to log.warn because rq logs extremely verbosely at the info
-        # level
-        worker.log.info = worker.log.debug
-        worker.work(logging_level=LOG_LEVEL)
+    worker = Worker(
+        [Queue(name, connection=redis_conn) for name in listen],
+        connection=redis_conn,
+        log_job_description=False,
+    )
+    worker.log_result_lifespan = False
+    # Default to log.warn because rq logs extremely verbosely at the info
+    # level
+    worker.log.info = worker.log.debug
+    worker.work(logging_level=LOG_LEVEL)
 
 
 if __name__ == "__main__":  # pragma: nocover
