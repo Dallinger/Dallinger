@@ -21,7 +21,7 @@ from pathlib import Path
 import click
 import requests
 import tabulate
-from rq import Connection, Worker
+from rq import Worker
 from sqlalchemy import exc as sa_exc
 
 from dallinger import data, db
@@ -884,10 +884,9 @@ def verify():
 def rq_worker():
     """Start an rq worker in the context of dallinger."""
     setup_experiment(log)
-    with Connection(db.redis_conn):
-        # right now we care about low queue for bots
-        worker = Worker("low")
-        worker.work()
+    # right now we care about low queue for bots
+    worker = Worker("low", connection=db.redis_conn)
+    worker.work()
 
 
 @dallinger.command()
