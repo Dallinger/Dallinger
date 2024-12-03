@@ -225,7 +225,7 @@ class HerokuApp(HerokuCommandRunner):
         postgres://some-long-uid@ec2-52-7-232-59.compute-1.amazonaws.com:5432/d5fou154it1nvt
         """
         output = self.get("DATABASE", subcommand="pg:credentials:url")
-        match = re.search("(postgres://.*)$", output)
+        match = re.search("(postgres://.*)", output)
         if match is None:
             raise NameError(
                 "Could not retrieve the DB URI. Check for error output from "
