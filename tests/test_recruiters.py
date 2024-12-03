@@ -17,11 +17,6 @@ class TestModuleFunctions(object):
 
         return recruiters
 
-    def test__get_queue(self, mod):
-        from rq import Queue
-
-        assert isinstance(mod._get_queue(), Queue)
-
     def test_for_experiment(self, mod):
         mock_exp = mock.MagicMock(spec=Experiment)
         mock_exp.recruiter = mock.sentinel.some_object
@@ -82,6 +77,16 @@ class TestModuleFunctions(object):
         with pytest.raises(NotImplementedError):
             mod.from_config(stub_config)
 
+    @pytest.mark.usefixtures("db_session")
+    def test_run_status_check_calls_recruiters_with_their_participants(self, a, mod):
+        mock_recruiter = mock.Mock(spec=mod.Recruiter)
+        participant = a.participant()
+
+        with mock.patch("dallinger.recruiters.by_name") as mock_by_name:
+            mock_by_name.return_value = mock_recruiter
+            mod.run_status_check()
+            mock_recruiter.verify_status_of.assert_called_once_with([participant])
+
 
 class TestRecruiter(object):
     @pytest.fixture
@@ -109,6 +114,10 @@ class TestRecruiter(object):
     def test_reward_bonus(self, recruiter):
         with pytest.raises(NotImplementedError):
             recruiter.reward_bonus(None, 0.01, "You're great!")
+
+    def test_verify_status_of(self, recruiter):
+        with pytest.raises(NotImplementedError):
+            recruiter.verify_status_of([])
 
     def test_external_submission_url(self, recruiter):
         assert recruiter.external_submission_url is None
@@ -203,6 +212,11 @@ class TestCLIRecruiter(object):
             "action": "RecruiterSubmissionComplete",
         }
 
+    def test_verify_status_of_is_harmless_noop(self, a, recruiter):
+        p = a.participant()
+        p.recruiter_id = "cli"
+        recruiter.verify_status_of([p])
+
 
 @pytest.mark.usefixtures("active_config")
 class TestHotAirRecruiter(object):
@@ -258,6 +272,11 @@ class TestHotAirRecruiter(object):
             "action": "RecruiterSubmissionComplete",
         }
 
+    def test_verify_status_of_is_harmless_noop(self, a, recruiter):
+        p = a.participant()
+        p.recruiter_id = "hotair"
+        recruiter.verify_status_of([p])
+
 
 class TestSimulatedRecruiter(object):
     @pytest.fixture
@@ -287,6 +306,11 @@ class TestSimulatedRecruiter(object):
     def test_close_recruitment(self, recruiter):
         assert recruiter.close_recruitment() is None
 
+    def test_verify_status_of_is_harmless_noop(self, a, recruiter):
+        p = a.participant()
+        p.recruiter_id = "sim"
+        recruiter.verify_status_of([p])
+
 
 class TestBotRecruiter(object):
     @pytest.fixture
@@ -294,7 +318,7 @@ class TestBotRecruiter(object):
         from dallinger.recruiters import BotRecruiter
 
         with mock.patch.multiple(
-            "dallinger.recruiters", _get_queue=mock.DEFAULT, get_base_url=mock.DEFAULT
+            "dallinger.recruiters", get_queue=mock.DEFAULT, get_base_url=mock.DEFAULT
         ) as mocks:
             mocks["get_base_url"].return_value = "fake_base_url"
             r = BotRecruiter()
@@ -342,6 +366,11 @@ class TestBotRecruiter(object):
         recruiter.notify_duration_exceeded([bot], datetime.now())
 
         assert bot.status == "rejected"
+
+    def test_verify_status_of_is_harmless_noop(self, a, recruiter):
+        p = a.participant()
+        p.recruiter_id = "bots"
+        recruiter.verify_status_of([p])
 
 
 @pytest.fixture
@@ -495,14 +524,14 @@ class TestProlificRecruiter(object):
         fake_id = "fake assignment id"
         recruiter.approve_hit(fake_id)
 
-        recruiter.prolificservice.approve_participant_session.assert_called_once_with(
-            session_id=fake_id
+        recruiter.prolificservice.approve_participant_submission.assert_called_once_with(
+            submission_id=fake_id
         )
 
     def test_approve_hit_logs_exception(self, recruiter):
         from dallinger.prolific import ProlificServiceException
 
-        recruiter.prolificservice.approve_participant_session.side_effect = (
+        recruiter.prolificservice.approve_participant_submission.side_effect = (
             ProlificServiceException("Boom!")
         )
         with mock.patch("dallinger.recruiters.logger") as mock_logger:
@@ -630,6 +659,83 @@ class TestProlificRecruiter(object):
                 "_cls": "web.eligibility.models.SelectAnswerEligibilityRequirement",
             },
         ]
+
+    def test_verify_status_triggers_corrections(self, a, recruiter, queue):
+        p1 = a.participant(assignment_id="aaa111", recruiter_id="prolific")
+        p2 = a.participant(assignment_id="bbb222", recruiter_id="prolific")
+
+        # Set up mock response from Prolific regarding these participants:
+        recruiter.prolificservice.get_assignments_for_study.return_value = {
+            p1.assignment_id: {
+                "participant_id": p1.assignment_id,
+                "hit_id": "some-study-id",
+                "worker_id": "some-prolific-worker-id-1",
+                "started_at": "2021-05-20T11:23:00.457Z",
+                "status": "RETURNED",
+            },
+            p2.assignment_id: {
+                "participant_id": p2.assignment_id,
+                "hit_id": "some-study-id",
+                "worker_id": "some-prolific-worker-id-2",
+                "started_at": "2021-05-20T11:24:00.457Z",
+                "status": "TIMED-OUT",
+            },
+        }
+
+        recruiter.verify_status_of([p1, p2])
+
+        queue.enqueue.assert_has_calls(
+            [
+                mock.call(mock.ANY, "AssignmentReturned", "aaa111", p1.id),
+                mock.call(mock.ANY, "AssignmentAbandoned", "bbb222", p2.id),
+            ]
+        )
+
+    def test_verify_status_copes_with_assignments_not_in_prolific(
+        self, a, recruiter, queue
+    ):
+        p1 = a.participant(assignment_id="aaa111", recruiter_id="prolific")
+        p2 = a.participant(assignment_id="bbb222", recruiter_id="prolific")
+
+        # Set up mock response from Prolific where only the first participant is included:
+        recruiter.prolificservice.get_assignments_for_study.return_value = {
+            p1.assignment_id: {
+                "participant_id": p1.assignment_id,
+                "hit_id": "some-study-id",
+                "worker_id": "some-prolific-worker-id-1",
+                "started_at": "2021-05-20T11:23:00.457Z",
+                "status": "RETURNED",
+            },
+        }
+
+        recruiter.verify_status_of([p1, p2])
+
+        queue.enqueue.assert_has_calls(
+            [
+                mock.call(mock.ANY, "AssignmentReturned", "aaa111", p1.id),
+            ]
+        )
+
+    def test_notify_duration_exceeded_triggers_worker_events(self, a, recruiter, queue):
+        p1 = a.participant(assignment_id="aaa111", recruiter_id="prolific")
+
+        # Set up mock response from Prolific where only the first participant is included:
+        recruiter.prolificservice.get_participant_submission.return_value = {
+            "participant_id": p1.assignment_id,
+            "hit_id": "some-study-id",
+            "worker_id": "some-prolific-worker-id-1",
+            "started_at": "2021-05-20T11:23:00.457Z",
+            "status": "RETURNED",
+        }
+        reference_time = datetime.now()
+
+        recruiter.notify_duration_exceeded([p1], reference_time)
+
+        queue.enqueue.assert_has_calls(
+            [
+                mock.call(mock.ANY, "AssignmentReturned", "aaa111", p1.id),
+            ]
+        )
 
 
 class TestMTurkRecruiterMessages(object):
@@ -776,7 +882,7 @@ def queue():
     from rq import Queue
 
     instance = mock.Mock(spec=Queue)
-    with mock.patch("dallinger.recruiters._get_queue") as mock_q:
+    with mock.patch("dallinger.recruiters.get_queue") as mock_q:
         mock_q.return_value = instance
 
         yield instance
@@ -1312,6 +1418,11 @@ class TestMTurkRecruiter(object):
         recruiter.notify_duration_exceeded(participants, datetime.now())
 
         recruiter.mturkservice.expire_hit.assert_not_called()
+
+    def test_verify_status_of_is_harmless_noop(self, a, recruiter):
+        p = a.participant()
+        p.recruiter_id = "mturk"
+        recruiter.verify_status_of([p])
 
 
 class TestRedisTally(object):
