@@ -390,7 +390,7 @@ pluggy==1.5.0
     #   tox
 pre-commit==4.0.1
     # via dallinger
-prometheus-client==0.21.0
+prometheus-client==0.21.1
     # via jupyter-server
 prompt-toolkit==3.0.48
     # via
