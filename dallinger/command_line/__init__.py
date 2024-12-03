@@ -33,6 +33,7 @@ from dallinger.command_line.utils import (
     header,
     log,
     require_exp_directory,
+    run_pre_launch_checks,
     verify_id,
     verify_package,
 )
@@ -248,7 +249,7 @@ def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
-    _run_pre_launch_checks(config)
+    run_pre_launch_checks(config)
 
     prelaunch = []
     if archive:
@@ -262,18 +263,6 @@ def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
     return deploy_sandbox_shared_setup(
         log=log, verbose=verbose, app=app, prelaunch_actions=prelaunch
     )
-
-
-def _run_pre_launch_checks(config):
-    from dallinger.recruiters import ProlificRecruiter
-
-    recruiter_name = config.get("recruiter", None)
-    if recruiter_name is not None:
-        recruiter = by_name(recruiter_name)
-        if isinstance(recruiter, ProlificRecruiter):
-            # Make sure these variables are set; otherwise an error will be raised
-            config.get("prolific_project")
-            config.get("prolific_workspace")
 
 
 def fail_on_unsupported_urls(f):

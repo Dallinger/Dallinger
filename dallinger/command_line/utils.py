@@ -303,6 +303,13 @@ def verify_id(ctx, param, app):
     return app
 
 
+def run_pre_launch_checks(config):
+    if config.get("recruiter") == "prolific":
+        # Make sure these variables are set; otherwise an error will be raised
+        config.get("prolific_project")
+        config.get("prolific_workspace")
+
+
 # Ported from PsyNet
 def user_confirms(question, default=False):
     """
