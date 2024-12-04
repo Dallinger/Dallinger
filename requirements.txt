@@ -172,7 +172,7 @@ selenium==4.26.1
     # via dallinger
 simple-websocket==1.1.0
     # via flask-sock
-six==1.16.0
+six==1.17.0
     # via
     #   apscheduler
     #   asttokens
