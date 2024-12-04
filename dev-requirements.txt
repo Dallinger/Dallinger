@@ -510,7 +510,7 @@ send2trash==1.8.3
     # via jupyter-server
 simple-websocket==1.1.0
     # via flask-sock
-six==1.16.0
+six==1.17.0
     # via
     #   apscheduler
     #   asttokens
