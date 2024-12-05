@@ -30,7 +30,7 @@ from urllib3.util.retry import Retry
 from yaspin import yaspin
 
 from dallinger.command_line.config import get_configured_hosts, remove_host, store_host
-from dallinger.command_line.utils import Output
+from dallinger.command_line.utils import Output, run_pre_launch_checks
 from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
@@ -354,6 +354,9 @@ def deploy(
     """Deploy a dallinger experiment docker image to a server using ssh."""
     config = get_config()
     config.load()
+
+    run_pre_launch_checks(config)
+
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")

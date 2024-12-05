@@ -33,6 +33,7 @@ from dallinger.command_line.utils import (
     header,
     log,
     require_exp_directory,
+    run_pre_launch_checks,
     verify_id,
     verify_package,
 )
@@ -243,6 +244,13 @@ def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
         verify_id(None, None, app)
 
     log(header, chevrons=False)
+
+    config = get_config()
+    config.load()
+    config.extend({"mode": mode, "logfile": "-"})
+
+    run_pre_launch_checks(config)
+
     prelaunch = []
     if archive:
         archive_path = os.path.abspath(archive)
@@ -251,10 +259,6 @@ def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
                 'Experiment archive "{}" does not exist.'.format(archive_path)
             )
         prelaunch.append(prelaunch_db_bootstrapper(archive_path, log))
-
-    config = get_config()
-    config.load()
-    config.extend({"mode": mode, "logfile": "-"})
 
     return deploy_sandbox_shared_setup(
         log=log, verbose=verbose, app=app, prelaunch_actions=prelaunch

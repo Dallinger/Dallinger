@@ -367,9 +367,11 @@ def prolific_config(active_config):
         "prolific_api_version": "v1",
         "prolific_estimated_completion_minutes": 5,
         "prolific_is_custom_screening": True,
+        "prolific_project": "My project",
         "prolific_recruitment_config": json.dumps(
             {"peripheral_requirements": ["audio", "microphone"]}
         ),
+        "prolific_workspace": "My workspace",
     }
     active_config.extend(prolific_extensions)
 
