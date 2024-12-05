@@ -115,11 +115,13 @@ class ProlificService:
 
         # Get all of the user's workspaces.
         workspaces = self._req(method="GET", endpoint="/workspaces/")
-
+        logger.warning(f"Prolific DEBUG API workspaces: {workspaces}")
         # For every workspace...
         for entry in workspaces["results"]:
+            logger.warning(f"Prolific DEBUG API workspace entry: {entry}")
             # If the supplied name matches a workspace name or id, we return its id.
             if workspace_name in (entry["title"], entry["id"]):
+                logger.warning(f"Prolific DEBUG API workspace entry found: {entry}")
                 # We found it.  Return its id.
                 return entry["id"]
 
@@ -211,6 +213,7 @@ class ProlificService:
         try:
             # Get the workspace ID.  If it's not in Prolific, the function will raise an exception and create the workspace.
             try:
+                logger.warning(f"Prolific DEBUG API: {workspace_name}")
                 workspace_id = self._translate_workspace_name(workspace_name)
 
             except ProlificServiceNoSuchWorkspace:
