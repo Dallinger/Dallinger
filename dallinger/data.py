@@ -265,9 +265,10 @@ def export_db_uri(id, db_uri, local, scrub_pii):
 
     # Backup data on S3 unless run locally
     if not local:
-        bucket = user_s3_bucket()
         config = get_config()
-        try:
+        bucket = user_s3_bucket()
+
+        if bucket is not None:
             bucket.upload_file(path_to_data, data_filename)
             registration_url = _generate_s3_url(bucket, data_filename)
             s3_console_url = (
@@ -281,8 +282,10 @@ def export_db_uri(id, db_uri, local, scrub_pii):
                 f" - bucket name: {bucket.name}\n"
                 f" - S3 console URL: {s3_console_url}"
             )
-        except AttributeError:
-            raise S3BucketUnavailable("Could not find an S3 bucket!")
+        else:
+            print(
+                "Could not find an S3 bucket! Did you set the AWS credentials in .dallingerconfig?"
+            )
 
     return path_to_data
 
