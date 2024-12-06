@@ -156,7 +156,7 @@ python-dateutil==2.9.0.post0
     #   heroku3
 pytz==2024.2
     # via apscheduler
-redis==5.2.0
+redis==5.2.1
     # via
     #   dallinger
     #   rq
