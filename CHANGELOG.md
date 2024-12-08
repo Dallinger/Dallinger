@@ -1,5 +1,10 @@
 # Change Log
 
+## [v10.3.1](https://github.com/dallinger/dallinger/tree/v10.3.1) (2024-12-07)
+
+#### Fixed
+- Fixed tagging latest Docker image also as `latest`.
+
 ## [v10.3.0](https://github.com/dallinger/dallinger/tree/v10.3.0) (2024-11-04)
 
 #### Fixed
