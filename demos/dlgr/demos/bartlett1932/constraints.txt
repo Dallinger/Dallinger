@@ -65,8 +65,8 @@ cryptography==43.0.3
     # via
     #   -c ../../../../dev-requirements.txt
     #   pyopenssl
-dallinger==10.3.0
-    # via -r requirements.txt
+dallinger==10.3.1
+    # via -r /home/frank/projects/Dallinger/demos/dlgr/demos/bartlett1932/requirements.txt
 decorator==5.1.1
     # via
     #   -c ../../../../dev-requirements.txt
