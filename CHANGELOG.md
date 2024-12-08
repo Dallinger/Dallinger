@@ -1,9 +1,10 @@
 # Change Log
 
-## [v10.3.2](https://github.com/dallinger/dallinger/tree/v10.3.2) (2024-12-07)
+## [v10.3.3](https://github.com/dallinger/dallinger/tree/v10.3.3) (2024-12-07)
 
 #### Fixed
 - Fixed tagging latest Docker image also as `latest`.
+- Updated Yarn JavaScript dependencies.
 
 ## [v10.3.0](https://github.com/dallinger/dallinger/tree/v10.3.0) (2024-11-04)
 
