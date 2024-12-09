@@ -6,7 +6,7 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: pypi
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +43,7 @@ jobs:
           password: ${{ secrets.PYPI_API_TOKEN }}
 
   docker-images:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: ghcr
     steps:
       - name: Get version

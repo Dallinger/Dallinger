@@ -3,7 +3,7 @@ on: [push]
 
 jobs:
   check_mturk_changes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       needs_mturk_tests: ${{ steps.check_files.outputs.mturk_changed }}
     steps:
@@ -31,7 +31,7 @@ jobs:
           done < files.txt
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: check_mturk_changes
     strategy:
       matrix:
@@ -136,7 +136,7 @@ jobs:
         if: ${{ matrix.python-version == '3.12' }}
 
   docker:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Get version
@@ -210,7 +210,7 @@ jobs:
         run: for container in $(docker ps -a -q); do echo "***** $(docker ps -a|grep $container) *******"; docker logs $container; done
 
   pre-commit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
