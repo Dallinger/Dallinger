@@ -389,10 +389,7 @@ def user_s3_bucket(canonical_user_id=None):
     """Get the user's S3 bucket."""
     s3 = _s3_resource()
     if not canonical_user_id:
-        try:
-            canonical_user_id = _get_canonical_aws_user_id(s3)
-        except botocore.exceptions.ClientError:
-            return None
+        canonical_user_id = _get_canonical_aws_user_id(s3)
 
     s3_bucket_name = "dallinger-{}".format(
         hashlib.sha256(canonical_user_id.encode("utf8")).hexdigest()[0:8]
