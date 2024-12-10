@@ -288,9 +288,7 @@ def export_db_uri(id, db_uri, local, scrub_pii):
                 f" - S3 console URL: {s3_console_url}"
             )
         else:
-            print(
-                "✘ Could not find an S3 bucket! No assets exported.\n✘ Are your AWS credentials in .dallingerconfig up-to-date?"
-            )
+            print("✘ Could not find an S3 bucket!")
 
     return path_to_data
 
