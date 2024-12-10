@@ -207,6 +207,8 @@ def _scrub_participant_table(path_to_data):
             row[headers.index("unique_id")] = "{}:{}".format(
                 row[headers.index("id")], row[headers.index("assignment_id")]
             )
+            if "client_ip_address" in headers:
+                row[headers.index("client_ip_address")] = ""
             writer.writerow(row)
 
         os.rename("{}.0".format(path), path)
