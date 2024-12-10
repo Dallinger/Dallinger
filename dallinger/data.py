@@ -84,17 +84,19 @@ def find_experiment_export(app_id):
     # Get remote file instead
     path_to_data = os.path.join(tempfile.mkdtemp(), data_filename)
 
-    buckets = [user_s3_bucket(), dallinger_s3_bucket()]
+    buckets = []
+    if aws_access_keys_present(get_config()):
+        buckets = [user_s3_bucket(), dallinger_s3_bucket()]
 
-    for bucket in buckets:
-        if bucket is None:
-            continue
-        try:
-            bucket.download_file(data_filename, path_to_data)
-        except botocore.exceptions.ClientError:
-            pass
-        else:
-            return path_to_data
+        for bucket in buckets:
+            if bucket is None:
+                continue
+            try:
+                bucket.download_file(data_filename, path_to_data)
+            except botocore.exceptions.ClientError:
+                pass
+            else:
+                return path_to_data
 
 
 def load(app_id):
@@ -266,7 +268,10 @@ def export_db_uri(id, db_uri, local, scrub_pii):
     # Backup data on S3 unless run locally
     if not local:
         config = get_config()
-        bucket = user_s3_bucket()
+
+        bucket = None
+        if aws_access_keys_present(config):
+            bucket = user_s3_bucket()
 
         if bucket is not None:
             bucket.upload_file(path_to_data, data_filename)
@@ -284,10 +289,21 @@ def export_db_uri(id, db_uri, local, scrub_pii):
             )
         else:
             print(
-                "Could not find an S3 bucket! Did you set the AWS credentials in .dallingerconfig?"
+                "✘ Could not find an S3 bucket! No assets exported.\n✘ Are your AWS credentials in .dallingerconfig up-to-date?"
             )
 
     return path_to_data
+
+
+def aws_access_keys_present(config):
+    """Verifies that AWS access keys are set"""
+    if (
+        config.get("aws_access_key_id") == "YourAccessKeyId"
+        or config.get("aws_secret_access_key") == "YourSecretAccessKey"
+        or not config.get("aws_access_key_id")
+        or not config.get("aws_secret_access_key")
+    ):
+        print("✘ Verify AWS credentials are set in .dallingerconfig!")
 
 
 def bootstrap_db_from_zip(zip_path, engine):
