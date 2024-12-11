@@ -84,17 +84,22 @@ def find_experiment_export(app_id):
     # Get remote file instead
     path_to_data = os.path.join(tempfile.mkdtemp(), data_filename)
 
-    buckets = [user_s3_bucket(), dallinger_s3_bucket()]
+    config = get_config()
+    config.load()
 
-    for bucket in buckets:
-        if bucket is None:
-            continue
-        try:
-            bucket.download_file(data_filename, path_to_data)
-        except botocore.exceptions.ClientError:
-            pass
-        else:
-            return path_to_data
+    buckets = []
+    if aws_access_keys_present(config):
+        buckets = [user_s3_bucket(), dallinger_s3_bucket()]
+
+        for bucket in buckets:
+            if bucket is None:
+                continue
+            try:
+                bucket.download_file(data_filename, path_to_data)
+            except botocore.exceptions.ClientError:
+                pass
+            else:
+                return path_to_data
 
 
 def load(app_id):
@@ -267,9 +272,13 @@ def export_db_uri(id, db_uri, local, scrub_pii):
 
     # Backup data on S3 unless run locally
     if not local:
-        bucket = user_s3_bucket()
         config = get_config()
-        try:
+
+        bucket = None
+        if aws_access_keys_present(config):
+            bucket = user_s3_bucket()
+
+        if bucket is not None:
             bucket.upload_file(path_to_data, data_filename)
             registration_url = _generate_s3_url(bucket, data_filename)
             s3_console_url = (
@@ -283,10 +292,21 @@ def export_db_uri(id, db_uri, local, scrub_pii):
                 f" - bucket name: {bucket.name}\n"
                 f" - S3 console URL: {s3_console_url}"
             )
-        except AttributeError:
-            raise S3BucketUnavailable("Could not find an S3 bucket!")
+        else:
+            print("✘ Could not find an S3 bucket!")
 
     return path_to_data
+
+
+def aws_access_keys_present(config):
+    """Verifies that AWS access keys are set"""
+    if (
+        config.get("aws_access_key_id") == "YourAccessKeyId"
+        or config.get("aws_secret_access_key") == "YourSecretAccessKey"
+        or not config.get("aws_access_key_id")
+        or not config.get("aws_secret_access_key")
+    ):
+        print("✘ Verify AWS credentials are set in .dallingerconfig!")
 
 
 def bootstrap_db_from_zip(zip_path, engine):
@@ -388,10 +408,7 @@ def user_s3_bucket(canonical_user_id=None):
     """Get the user's S3 bucket."""
     s3 = _s3_resource()
     if not canonical_user_id:
-        try:
-            canonical_user_id = _get_canonical_aws_user_id(s3)
-        except botocore.exceptions.ClientError:
-            return None
+        canonical_user_id = _get_canonical_aws_user_id(s3)
 
     s3_bucket_name = "dallinger-{}".format(
         hashlib.sha256(canonical_user_id.encode("utf8")).hexdigest()[0:8]
