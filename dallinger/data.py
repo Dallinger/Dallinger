@@ -84,8 +84,11 @@ def find_experiment_export(app_id):
     # Get remote file instead
     path_to_data = os.path.join(tempfile.mkdtemp(), data_filename)
 
+    config = get_config()
+    config.load()
+
     buckets = []
-    if aws_access_keys_present(get_config()):
+    if aws_access_keys_present(config):
         buckets = [user_s3_bucket(), dallinger_s3_bucket()]
 
         for bucket in buckets:
