@@ -114,7 +114,9 @@ class ProlificService:
         """
 
         # Get all of the user's workspaces.
-        workspaces = self._req(method="GET", endpoint="/workspaces/")
+        workspaces = self._req(
+            method="GET", endpoint="/workspaces/?limit=1000"
+        )  # without the limit param the number workspaces returned would be limited to 20
         logger.warning(f"Prolific DEBUG API workspaces: {workspaces}")
         # For every workspace...
         for entry in workspaces["results"]:
