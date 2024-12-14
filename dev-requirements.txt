@@ -62,7 +62,7 @@ cached-property==2.0.1
     # via dallinger
 cachetools==5.5.0
     # via tox
-certifi==2024.8.30
+certifi==2024.12.14
     # via
     #   httpcore
     #   httpx
