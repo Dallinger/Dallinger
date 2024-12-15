@@ -305,6 +305,9 @@ def aws_access_keys_present(config):
         or not config.get("aws_secret_access_key")
     ):
         print("✘ Verify AWS credentials are set in .dallingerconfig!")
+        return False
+
+    return True
 
 
 def bootstrap_db_from_zip(zip_path, engine):
