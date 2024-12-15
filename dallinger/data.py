@@ -85,7 +85,8 @@ def find_experiment_export(app_id):
     path_to_data = os.path.join(tempfile.mkdtemp(), data_filename)
 
     config = get_config()
-    config.load()
+    if not config.ready:
+        config.load()
 
     if not aws_access_keys_present(config):
         return
@@ -272,12 +273,11 @@ def export_db_uri(id, db_uri, local, scrub_pii):
     # Backup data on S3 unless run locally
     if not local:
         config = get_config()
+        if not config.ready:
+            config.load()
 
-        bucket = None
         if aws_access_keys_present(config):
             bucket = user_s3_bucket()
-
-        if bucket is not None:
             bucket.upload_file(path_to_data, data_filename)
             registration_url = _generate_s3_url(bucket, data_filename)
             s3_console_url = (
@@ -292,7 +292,7 @@ def export_db_uri(id, db_uri, local, scrub_pii):
                 f" - S3 console URL: {s3_console_url}"
             )
         else:
-            print("✘ Could not find an S3 bucket!")
+            print("✘ Couldn't save a copy of the exported data to Amazon S3!")
 
     return path_to_data
 
