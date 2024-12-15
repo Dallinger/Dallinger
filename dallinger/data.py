@@ -89,6 +89,7 @@ def find_experiment_export(app_id):
         config.load()
 
     if not aws_access_keys_present(config):
+        logger.warn("AWS credentials not present, skipping download from S3.")
         return
 
     buckets = [user_s3_bucket(), dallinger_s3_bucket()]
@@ -276,23 +277,24 @@ def export_db_uri(id, db_uri, local, scrub_pii):
         if not config.ready:
             config.load()
 
-        if aws_access_keys_present(config):
-            bucket = user_s3_bucket()
-            bucket.upload_file(path_to_data, data_filename)
-            registration_url = _generate_s3_url(bucket, data_filename)
-            s3_console_url = (
-                f"https://s3.console.aws.amazon.com/s3/object/{bucket.name}"
-                f"?region={config.aws_region}&prefix={data_filename}"
-            )
-            # Register experiment UUID with dallinger
-            register(id, registration_url)
-            print(
-                "A copy of your export was saved also to Amazon S3:\n"
-                f" - bucket name: {bucket.name}\n"
-                f" - S3 console URL: {s3_console_url}"
-            )
-        else:
-            print("✘ Couldn't save a copy of the exported data to Amazon S3!")
+        if not aws_access_keys_present(config):
+            logger.warn("AWS credentials not present, skipping export to S3.")
+            return
+
+        bucket = user_s3_bucket()
+        bucket.upload_file(path_to_data, data_filename)
+        registration_url = _generate_s3_url(bucket, data_filename)
+        s3_console_url = (
+            f"https://s3.console.aws.amazon.com/s3/object/{bucket.name}"
+            f"?region={config.aws_region}&prefix={data_filename}"
+        )
+        # Register experiment UUID with dallinger
+        register(id, registration_url)
+        print(
+            "A copy of your export was saved also to Amazon S3:\n"
+            f" - bucket name: {bucket.name}\n"
+            f" - S3 console URL: {s3_console_url}"
+        )
 
     return path_to_data
 
@@ -305,7 +307,6 @@ def aws_access_keys_present(config):
         or not config.get("aws_access_key_id")
         or not config.get("aws_secret_access_key")
     ):
-        print("✘ Verify AWS credentials are set in .dallingerconfig!")
         return False
 
     return True
