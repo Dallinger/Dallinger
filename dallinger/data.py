@@ -89,7 +89,7 @@ def find_experiment_export(app_id):
         config.load()
 
     if not aws_access_keys_present(config):
-        logger.warn("AWS credentials not present, skipping download from S3.")
+        print("✘ AWS credentials not present, skipping download from S3.")
         return
 
     buckets = [user_s3_bucket(), dallinger_s3_bucket()]
@@ -278,7 +278,7 @@ def export_db_uri(id, db_uri, local, scrub_pii):
             config.load()
 
         if not aws_access_keys_present(config):
-            logger.warn("AWS credentials not present, skipping export to S3.")
+            print("✘ AWS credentials not present, skipping export to S3.")
             return
 
         bucket = user_s3_bucket()
