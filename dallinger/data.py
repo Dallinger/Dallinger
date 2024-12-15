@@ -87,19 +87,20 @@ def find_experiment_export(app_id):
     config = get_config()
     config.load()
 
-    buckets = []
-    if aws_access_keys_present(config):
-        buckets = [user_s3_bucket(), dallinger_s3_bucket()]
+    if not aws_access_keys_present(config):
+        return
 
-        for bucket in buckets:
-            if bucket is None:
-                continue
-            try:
-                bucket.download_file(data_filename, path_to_data)
-            except botocore.exceptions.ClientError:
-                pass
-            else:
-                return path_to_data
+    buckets = [user_s3_bucket(), dallinger_s3_bucket()]
+
+    for bucket in buckets:
+        if bucket is None:
+            continue
+        try:
+            bucket.download_file(data_filename, path_to_data)
+        except botocore.exceptions.ClientError:
+            pass
+        else:
+            return path_to_data
 
 
 def load(app_id):
