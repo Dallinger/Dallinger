@@ -373,7 +373,7 @@ def sandbox(
 @click.option(
     "--open-recruitment",
     flag_value="open_recruitment",
-    default=True,
+    default=False,
     help="Recruitment should start automatically when the experiment launches",
 )
 @validate_update
@@ -417,6 +417,17 @@ def _deploy_in_mode(
     ssh_user = server_info.get("user")
     dashboard_user = config.get("dashboard_user", "admin")
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
+
+    if (
+        config["recruiter"] == "mturk"
+        and mode == "live"
+        and not config.get("open_recruitment", False)
+        and not config_options.get("open_recruitment", False)
+    ):
+        print(
+            "When deploying to MTurk either `open_recruitment` must be `True` in the config or the `--open-recruitment` flag must be provided in the deploy command."
+        )
+        raise click.Abort
 
     # We deleted this because synchronizing configs between local and remote can cause problems especially when using
     # different credential managers
