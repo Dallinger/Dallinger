@@ -314,14 +314,49 @@ def set_dozzle_password_cmd(server, password):
 
 
 @docker_ssh.command()
+@server_option
 @click.option(
-    "--sandbox",
-    "mode",
-    flag_value="sandbox",
-    help="Deploy to MTurk sandbox",
-    default=True,
+    "--app-name",
+    help="Name to use for the app. If not provided a random one will be generated",
 )
-@click.option("--live", "mode", flag_value="live", help="Deploy to the real MTurk")
+@click.option(
+    "--archive",
+    "-a",
+    "archive_path",
+    type=click.Path(exists=True),
+    help="Path to a zip archive created with the `export` command to use as initial database state",
+)
+@click.option("--config", "-c", "config_options", nargs=2, multiple=True)
+@click.option(
+    "--dns-host",
+    help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
+)
+@click.option(
+    "--update",
+    "-u",
+    flag_value="update",
+    default=False,
+    help="Update an existing experiment",
+)
+@validate_update
+@build_and_push_image
+def sandbox(
+    app_name, archive_path, config_options, dns_host, image_name, server, update
+):  # pragma: no cover
+    """Sandbox a dallinger experiment docker image to a server using ssh."""
+    return _deploy_in_mode(
+        app_name=app_name,
+        archive_path=archive_path,
+        config_options=config_options,
+        dns_host=dns_host,
+        image_name=image_name,
+        mode="sandbox",
+        server=server,
+        update=update,
+    )
+
+
+@docker_ssh.command()
 @server_option
 @click.option(
     "--dns-host",
@@ -349,9 +384,24 @@ def set_dozzle_password_cmd(server, password):
 @validate_update
 @build_and_push_image
 def deploy(
-    image_name, mode, server, dns_host, app_name, config_options, archive_path, update
+    app_name, archive_path, config_options, dns_host, image_name, server, update
 ):  # pragma: no cover
     """Deploy a dallinger experiment docker image to a server using ssh."""
+    return _deploy_in_mode(
+        app_name=app_name,
+        archive_path=archive_path,
+        config_options=config_options,
+        dns_host=dns_host,
+        image_name=image_name,
+        mode="live",
+        server=server,
+        update=update,
+    )
+
+
+def _deploy_in_mode(
+    app_name, archive_path, config_options, dns_host, image_name, mode, server, update
+):
     config = get_config()
     config.load()
 
