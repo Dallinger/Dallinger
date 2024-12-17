@@ -375,6 +375,12 @@ def sandbox(
 )
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 @click.option(
+    "--open-recruitment",
+    flag_value="open_recruitment",
+    default=True,
+    help="Recruitment should start automatically when the experiment launches",
+)
+@click.option(
     "--update",
     "-u",
     flag_value="update",
