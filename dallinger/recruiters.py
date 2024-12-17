@@ -385,11 +385,13 @@ class ProlificRecruiter(Recruiter):
                 "prolific_maximum_allowed_minutes",
                 3 * self.config.get("prolific_estimated_completion_minutes") + 2,
             ),
+            "mode": self.config.get("mode"),
             "name": self.config.get("title"),
+            "project_name": self.config.get("prolific_project"),
             "prolific_id_option": "url_parameters",
             "reward": int(self.config.get("base_payment") * 100),
             "total_available_places": n,
-            "mode": self.config.get("mode"),
+            "workspace_name": self.config.get("prolific_workspace"),
         }
         # Merge in any explicit configuration untouched:
         if self.config.get("prolific_recruitment_config", None) is not None:
