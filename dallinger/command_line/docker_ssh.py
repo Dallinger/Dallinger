@@ -372,8 +372,7 @@ def sandbox(
 @option_update
 @click.option(
     "--open-recruitment",
-    flag_value="open_recruitment",
-    default=False,
+    is_flag=True,
     help="Recruitment should start automatically when the experiment launches",
 )
 @validate_update
