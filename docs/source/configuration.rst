@@ -91,7 +91,7 @@ General
 Recruitment (General)
 ~~~~~~~~~~~~~~~~~~~~~
 
-``activate_recruiter_on_start`` *boolean*
+``open_recruitment`` *boolean*
     A boolean on whether recruitment should start automatically when the experiment launches.
     If set to ``false`` the user has to manually initialize recruitment (e.g. via the Prolific panel).
     Defaults to ``true``.

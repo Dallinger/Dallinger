@@ -128,7 +128,7 @@ def stub_config():
     dallinger.config.get_config()
     """
     defaults = {
-        "activate_recruiter_on_start": True,
+        "open_recruitment": True,
         "ad_group": "Test ad group",
         "approve_requirement": 95,
         "assign_qualifications": True,

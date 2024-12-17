@@ -421,7 +421,7 @@ def launch():
         )
 
     recruitment_details = None
-    if _config().get("activate_recruiter_on_start"):
+    if _config().get("open_recruitment"):
         try:
             recruitment_details = exp.recruiter.open_recruitment(
                 n=exp.initial_recruitment_size
