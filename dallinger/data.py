@@ -84,6 +84,14 @@ def find_experiment_export(app_id):
     # Get remote file instead
     path_to_data = os.path.join(tempfile.mkdtemp(), data_filename)
 
+    config = get_config()
+    if not config.ready:
+        config.load()
+
+    if not aws_access_keys_present(config):
+        print("✘ AWS credentials not present, skipping download from S3.")
+        return
+
     buckets = [user_s3_bucket(), dallinger_s3_bucket()]
 
     for bucket in buckets:
@@ -267,26 +275,43 @@ def export_db_uri(id, db_uri, local, scrub_pii):
 
     # Backup data on S3 unless run locally
     if not local:
-        bucket = user_s3_bucket()
         config = get_config()
-        try:
-            bucket.upload_file(path_to_data, data_filename)
-            registration_url = _generate_s3_url(bucket, data_filename)
-            s3_console_url = (
-                f"https://s3.console.aws.amazon.com/s3/object/{bucket.name}"
-                f"?region={config.aws_region}&prefix={data_filename}"
-            )
-            # Register experiment UUID with dallinger
-            register(id, registration_url)
-            print(
-                "A copy of your export was saved also to Amazon S3:\n"
-                f" - bucket name: {bucket.name}\n"
-                f" - S3 console URL: {s3_console_url}"
-            )
-        except AttributeError:
-            raise S3BucketUnavailable("Could not find an S3 bucket!")
+        if not config.ready:
+            config.load()
+
+        if not aws_access_keys_present(config):
+            print("✘ AWS credentials not present, skipping export to S3.")
+            return
+
+        bucket = user_s3_bucket()
+        bucket.upload_file(path_to_data, data_filename)
+        registration_url = _generate_s3_url(bucket, data_filename)
+        s3_console_url = (
+            f"https://s3.console.aws.amazon.com/s3/object/{bucket.name}"
+            f"?region={config.aws_region}&prefix={data_filename}"
+        )
+        # Register experiment UUID with dallinger
+        register(id, registration_url)
+        print(
+            "A copy of your export was saved also to Amazon S3:\n"
+            f" - bucket name: {bucket.name}\n"
+            f" - S3 console URL: {s3_console_url}"
+        )
 
     return path_to_data
+
+
+def aws_access_keys_present(config):
+    """Verifies that AWS access keys are set"""
+    if (
+        config.get("aws_access_key_id") == "YourAccessKeyId"
+        or config.get("aws_secret_access_key") == "YourSecretAccessKey"
+        or not config.get("aws_access_key_id")
+        or not config.get("aws_secret_access_key")
+    ):
+        return False
+
+    return True
 
 
 def bootstrap_db_from_zip(zip_path, engine):
@@ -388,10 +413,7 @@ def user_s3_bucket(canonical_user_id=None):
     """Get the user's S3 bucket."""
     s3 = _s3_resource()
     if not canonical_user_id:
-        try:
-            canonical_user_id = _get_canonical_aws_user_id(s3)
-        except botocore.exceptions.ClientError:
-            return None
+        canonical_user_id = _get_canonical_aws_user_id(s3)
 
     s3_bucket_name = "dallinger-{}".format(
         hashlib.sha256(canonical_user_id.encode("utf8")).hexdigest()[0:8]
