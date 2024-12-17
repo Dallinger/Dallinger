@@ -191,7 +191,7 @@ if len(CONFIGURED_HOSTS) == 1:
 else:
     default_server = None
     server_prompt = "Choose one of the configured servers (add one with `dallinger docker-ssh servers add`)\n"
-server_option = click.option(
+option_server = click.option(
     "--server",
     required=True,
     default=default_server,
@@ -300,7 +300,7 @@ def set_dozzle_password(executor, sftp, new_password):
 
 
 @docker_ssh.command("set-dozzle-password")
-@server_option
+@option_server
 @click.password_option()
 def set_dozzle_password_cmd(server, password):
     server_info = CONFIGURED_HOSTS[server]
@@ -313,31 +313,38 @@ def set_dozzle_password_cmd(server, password):
     set_dozzle_password(executor, sftp, password)
 
 
-@docker_ssh.command()
-@server_option
-@click.option(
+option_app_name = click.option(
     "--app-name",
     help="Name to use for the app. If not provided a random one will be generated",
 )
-@click.option(
+option_archive = click.option(
     "--archive",
     "-a",
     "archive_path",
     type=click.Path(exists=True),
     help="Path to a zip archive created with the `export` command to use as initial database state",
 )
-@click.option("--config", "-c", "config_options", nargs=2, multiple=True)
-@click.option(
+option_config = click.option("--config", "-c", "config_options", nargs=2, multiple=True)
+option_dns_host = click.option(
     "--dns-host",
     help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
 )
-@click.option(
+option_update = click.option(
     "--update",
     "-u",
     flag_value="update",
     default=False,
     help="Update an existing experiment",
 )
+
+
+@docker_ssh.command()
+@option_app_name
+@option_archive
+@option_config
+@option_dns_host
+@option_server
+@option_update
 @validate_update
 @build_and_push_image
 def sandbox(
@@ -357,42 +364,34 @@ def sandbox(
 
 
 @docker_ssh.command()
-@server_option
-@click.option(
-    "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
-)
-@click.option(
-    "--app-name",
-    help="Name to use for the app. If not provided a random one will be generated",
-)
-@click.option(
-    "--archive",
-    "-a",
-    "archive_path",
-    type=click.Path(exists=True),
-    help="Path to a zip archive created with the `export` command to use as initial database state",
-)
-@click.option("--config", "-c", "config_options", nargs=2, multiple=True)
+@option_app_name
+@option_archive
+@option_config
+@option_dns_host
+@option_server
+@option_update
 @click.option(
     "--open-recruitment",
     flag_value="open_recruitment",
     default=True,
     help="Recruitment should start automatically when the experiment launches",
 )
-@click.option(
-    "--update",
-    "-u",
-    flag_value="update",
-    default=False,
-    help="Update an existing experiment",
-)
 @validate_update
 @build_and_push_image
 def deploy(
-    app_name, archive_path, config_options, dns_host, image_name, server, update
+    app_name,
+    archive_path,
+    config_options,
+    dns_host,
+    image_name,
+    open_recruitment,
+    server,
+    update,
 ):  # pragma: no cover
     """Deploy a dallinger experiment docker image to a server using ssh."""
+    if open_recruitment:
+        config_options["open_recruitment"] = True
+
     return _deploy_in_mode(
         app_name=app_name,
         archive_path=archive_path,
@@ -695,7 +694,7 @@ def remove_redis_volumes(app_name, executor):
 
 
 @docker_ssh.command()
-@server_option
+@option_server
 def apps(server):
     """List dallinger apps running on the remote server."""
     server_info = CONFIGURED_HOSTS[server]
@@ -711,7 +710,7 @@ def apps(server):
 
 
 @docker_ssh.command()
-@server_option
+@option_server
 def stats(server):
     """Get resource usage stats from remote server."""
     server_info = CONFIGURED_HOSTS[server]
@@ -735,7 +734,7 @@ def stats(server):
     flag_value=True,
     help="Don't scrub PII (Personally Identifiable Information) - if not specified PII will be scrubbed",
 )
-@server_option
+@option_server
 def export(app, local, no_scrub, server):
     """Export database to a local file."""
     server_info = CONFIGURED_HOSTS[server]
@@ -779,7 +778,7 @@ def remote_postgres(server_info, app):
 
 @docker_ssh.command()
 @click.option("--app", required=True, help="Name of the experiment app to destroy")
-@server_option
+@option_server
 def destroy(server, app):
     """Tear down an experiment run on a server you control via ssh."""
     server_info = CONFIGURED_HOSTS[server]
