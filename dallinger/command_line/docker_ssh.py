@@ -191,6 +191,29 @@ if len(CONFIGURED_HOSTS) == 1:
 else:
     default_server = None
     server_prompt = "Choose one of the configured servers (add one with `dallinger docker-ssh servers add`)\n"
+
+# Click options
+option_app_name = click.option(
+    "--app-name",
+    help="Name to use for the app. If not provided a random one will be generated",
+)
+option_archive = click.option(
+    "--archive",
+    "-a",
+    "archive_path",
+    type=click.Path(exists=True),
+    help="Path to a zip archive created with the `export` command to use as initial database state",
+)
+option_config = click.option("--config", "-c", "config_options", nargs=2, multiple=True)
+option_dns_host = click.option(
+    "--dns-host",
+    help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
+)
+option_open_recruitment = click.option(
+    "--open-recruitment",
+    is_flag=True,
+    help="Recruitment should start automatically when the experiment launches",
+)
 option_server = click.option(
     "--server",
     required=True,
@@ -198,6 +221,13 @@ option_server = click.option(
     help="Name of the remote server",
     prompt=server_prompt,
     type=click.Choice(tuple(CONFIGURED_HOSTS.keys())),
+)
+option_update = click.option(
+    "--update",
+    "-u",
+    flag_value="update",
+    default=False,
+    help="Update an existing experiment",
 )
 
 
@@ -313,31 +343,6 @@ def set_dozzle_password_cmd(server, password):
     set_dozzle_password(executor, sftp, password)
 
 
-option_app_name = click.option(
-    "--app-name",
-    help="Name to use for the app. If not provided a random one will be generated",
-)
-option_archive = click.option(
-    "--archive",
-    "-a",
-    "archive_path",
-    type=click.Path(exists=True),
-    help="Path to a zip archive created with the `export` command to use as initial database state",
-)
-option_config = click.option("--config", "-c", "config_options", nargs=2, multiple=True)
-option_dns_host = click.option(
-    "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
-)
-option_update = click.option(
-    "--update",
-    "-u",
-    flag_value="update",
-    default=False,
-    help="Update an existing experiment",
-)
-
-
 @docker_ssh.command()
 @option_app_name
 @option_archive
@@ -370,11 +375,7 @@ def sandbox(
 @option_dns_host
 @option_server
 @option_update
-@click.option(
-    "--open-recruitment",
-    is_flag=True,
-    help="Recruitment should start automatically when the experiment launches",
-)
+@option_open_recruitment
 @validate_update
 @build_and_push_image
 def deploy(
