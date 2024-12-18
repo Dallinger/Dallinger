@@ -353,7 +353,7 @@ def set_dozzle_password_cmd(server, password):
 @validate_update
 @build_and_push_image
 def sandbox(
-    app_name, archive_path, config_options, dns_host, image_name, server, update
+    image_name, app_name, archive_path, config_options, dns_host, server, update
 ):  # pragma: no cover
     """Sandbox a dallinger experiment docker image to a server using ssh."""
     return _deploy_in_mode(
@@ -379,11 +379,11 @@ def sandbox(
 @validate_update
 @build_and_push_image
 def deploy(
+    image_name,
     app_name,
     archive_path,
     config_options,
     dns_host,
-    image_name,
     open_recruitment,
     server,
     update,
