@@ -27,7 +27,6 @@ def is_valid_json(value):
 
 default_keys = (
     # These are the keys allowed in a dallinger experiment config.txt file.
-    ("open_recruitment", bool, []),
     ("ad_group", six.text_type, []),
     ("approve_requirement", int, []),
     ("assign_qualifications", bool, []),
@@ -82,6 +81,7 @@ default_keys = (
     ("mturk_qualification_requirements", six.text_type, [], False, [is_valid_json]),
     ("num_dynos_web", int, []),
     ("num_dynos_worker", int, []),
+    ("open_recruitment", bool, []),
     ("organization_name", six.text_type, []),
     ("port", int, ["PORT"]),
     ("prolific_api_token", six.text_type, ["PROLIFIC_RESEARCHER_API_TOKEN"], True),
