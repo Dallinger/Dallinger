@@ -107,8 +107,8 @@ class ProlificService:
         """
         return self._req(method="GET", endpoint=f"/submissions/{session_id}/")
 
-    def _translate_workspace_name(self, workspace_name: str) -> str:
-        """Return a workspace id for the supplied workspace name.
+    def _translate_workspace(self, workspace: str) -> str:
+        """Return a workspace id for the supplied workspace name or Id.
 
         An exception is raised if the workspace isn't found.
         """
@@ -118,16 +118,21 @@ class ProlificService:
             method="GET", endpoint="/workspaces/?limit=1000"
         )  # without the limit param the number workspaces returned would be limited to 20
         logger.warning(f"Prolific DEBUG API workspaces: {workspaces}")
-        # For every workspace...
+
         for entry in workspaces["results"]:
             logger.warning(f"Prolific DEBUG API workspace entry: {entry}")
-            # If the supplied name matches a workspace name or id, we return its id.
-            if workspace_name in (entry["title"], entry["id"]):
+            # If the supplied workspace matches a workspace id or name, we return its id.
+            if workspace == entry["id"]:  # entry["title"]
                 logger.warning(f"Prolific DEBUG API workspace entry found: {entry}")
                 # We found it.  Return its id.
                 return entry["id"]
 
-        # If we're here, the supplied workspace_name wasn't found in any of the user's workspaces.
+        # TODO: If there are multiple through an error saying that you are not allowed to specify a workspace
+        # with repeated names (and say what is the ID of the projects that are repeated in the error message),
+        # otherwise if there is no match through an error say that you have to select an existing workspace.
+        # If there is one - select this as the workspace value.
+
+        # If we're here, the supplied workspace wasn't found in any of the user's workspaces.
         raise ProlificServiceNoSuchWorkspace
 
     def _translate_project_name(self, workspace_id: str, project_name: str) -> str:
@@ -167,7 +172,7 @@ class ProlificService:
         reward: int,
         total_available_places: int,
         mode: str,
-        workspace_name: str,
+        workspace: str,
         device_compatibility: Optional[List[str]] = None,
         peripheral_requirements: Optional[List[str]] = None,
     ) -> dict:
@@ -206,31 +211,23 @@ class ProlificService:
         prolific_id_option: str,
         reward: int,
         total_available_places: int,
-        workspace_name: str,
+        workspace: str,
         device_compatibility: Optional[List[str]] = None,
         peripheral_requirements: Optional[List[str]] = None,
     ) -> dict:
         """Create a draft Study on Prolific, and return its properties."""
 
         try:
-            # Get the workspace ID.  If it's not in Prolific, the function will raise an exception and create the workspace.
+            # Get the workspace ID.  If it's not in Prolific, the function will raise an exception.
             try:
-                logger.warning(f"Prolific DEBUG API: {workspace_name}")
-                workspace_id = self._translate_workspace_name(workspace_name)
+                logger.warning(f"Prolific DEBUG API: {workspace}")
+                workspace_id = self._translate_workspace(workspace)
 
-            except ProlificServiceNoSuchWorkspace:
-                # Create a new workspace if it doesn't exist
-                response = self._req(
-                    method="POST",
-                    endpoint="/workspaces/",
-                    json={"title": workspace_name},
-                )
-                workspace_id = response["id"]
+            except ProlificServiceNoSuchWorkspace as e1:
+                raise RuntimeError(f"Error finding specified workspace: {e1}") from e1
 
-        except Exception as e:
-            raise RuntimeError(
-                f"Error finding or creating specified workspace: {e}"
-            ) from e
+        except Exception as e2:
+            raise RuntimeError(f"Error finding specified workspace: {e2}") from e2
 
         try:
             # Get the project ID.  If it's not in Prolific, the function will raise an exception and create the project.

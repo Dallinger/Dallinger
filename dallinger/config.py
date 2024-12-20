@@ -212,8 +212,8 @@ class Configuration(object):
                 continue
         if default is marker:
             error_text = f"The following config parameter was not set: {key}. Consider setting it in config.txt or in ~/.dallingerconfig."
-            if key in ["prolific_project", "prolific_workspace"]:
-                error_text += " Prolific projects and workspaces will be created automatically if they don't exist already."
+            if key == "prolific_project":
+                error_text += " Prolific projects will be created automatically if they don't exist already."
             raise KeyError(error_text)
         return default
 

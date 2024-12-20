@@ -234,14 +234,14 @@ def test_can_add_to_available_place_count(subject):
     assert subject.delete_study(study_id=result["id"])
 
 
-def test_translate_workspace_name_exception(subject):
-    """_translate_workspace_name raises ProlificServiceNoSuchWorkspace."""
+def test_translate_workspace_exception(subject):
+    """_translate_workspace raises ProlificServiceNoSuchWorkspace."""
 
     # Mock out self._req.
     subject._req = mock.MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
 
     with pytest.raises(ProlificServiceNoSuchWorkspace):
-        subject._translate_workspace_name("does not exist")
+        subject._translate_workspace("does not exist")
 
 
 def test_translate_project_name_exception(subject):
@@ -263,13 +263,13 @@ def test_translate_project_name_exception(subject):
         ("66b0f8e34632badef5c8d1db", "66b0f8e34632badef5c8d1db"),
     ],
 )
-def test_translate_workspace_name(subject, test_input, expected):
-    """_translate_workspace_name returns a workspace id, when called with either a name or an id."""
+def test_translate_workspace(subject, test_input, expected):
+    """_translate_workspace returns a workspace id, when called with either a name or an id."""
 
     # Mock out self._req.
     subject._req = mock.MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
 
-    assert subject._translate_workspace_name(test_input) == expected
+    assert subject._translate_workspace(test_input) == expected
 
 
 @pytest.mark.parametrize(
