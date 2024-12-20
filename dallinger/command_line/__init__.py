@@ -28,6 +28,7 @@ from dallinger import data, db
 from dallinger.command_line.develop import develop
 from dallinger.command_line.docker import docker
 from dallinger.command_line.docker_ssh import docker_ssh
+from dallinger.command_line.prolific import prolific
 from dallinger.command_line.utils import (
     Output,
     header,
@@ -140,6 +141,8 @@ except ImportError:
         "Install dallinger with the ec2 extra to use EC2 related commands."
     )
     pass
+
+dallinger.add_command(prolific)
 
 
 @dallinger.command()
