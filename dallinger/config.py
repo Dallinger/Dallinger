@@ -89,7 +89,9 @@ default_keys = (
     ("prolific_estimated_completion_minutes", int, []),
     ("prolific_is_custom_screening", bool, []),
     ("prolific_maximum_allowed_minutes", int, []),
+    ("prolific_project", six.text_type, []),
     ("prolific_recruitment_config", six.text_type, [], False, [is_valid_json]),
+    ("prolific_workspace", six.text_type, []),
     ("protected_routes", six.text_type, [], False, [is_valid_json]),
     ("recruiter", six.text_type, []),
     ("recruiters", six.text_type, []),
@@ -209,10 +211,10 @@ class Configuration(object):
             except KeyError:
                 continue
         if default is marker:
-            raise KeyError(
-                f"The following config parameter was not set: {key}. Consider setting it in "
-                "config.txt or in ~/.dallingerconfig."
-            )
+            error_text = f"The following config parameter was not set: {key}. Consider setting it in config.txt or in ~/.dallingerconfig."
+            if key == "prolific_project":
+                error_text += " Prolific projects will be created automatically if they don't exist already."
+            raise KeyError(error_text)
         return default
 
     def __getitem__(self, key):

@@ -246,6 +246,10 @@ class Recruiter(object):
         """Return the status of the recruiter as a dictionary."""
         return {}
 
+    def validate_config(self):
+        """Validates config variables, if implemented."""
+        pass
+
 
 def alphanumeric_code(seed: str, length: int = 8):
     """Return an alphanumeric string of specified length based on a
@@ -385,11 +389,13 @@ class ProlificRecruiter(Recruiter):
                 "prolific_maximum_allowed_minutes",
                 3 * self.config.get("prolific_estimated_completion_minutes") + 2,
             ),
+            "mode": self.config.get("mode"),
             "name": self.config.get("title"),
+            "project_name": self.config.get("prolific_project"),
             "prolific_id_option": "url_parameters",
             "reward": int(self.config.get("base_payment") * 100),
             "total_available_places": n,
-            "mode": self.config.get("mode"),
+            "workspace": self.config.get("prolific_workspace"),
         }
         # Merge in any explicit configuration untouched:
         if self.config.get("prolific_recruitment_config", None) is not None:
@@ -613,6 +619,10 @@ class ProlificRecruiter(Recruiter):
             "eligibility_requirements": details["eligibility_requirements"],
             "peripheral_requirements": details["peripheral_requirements"],
         }
+
+    def validate_config(self):
+        self.config.get("prolific_project")
+        self.config.get("prolific_workspace")
 
 
 class DevProlificRecruiter(ProlificRecruiter):
@@ -1758,6 +1768,11 @@ class MultiRecruiter(Recruiter):
         for name in set(name for name, count in self.spec):
             recruiter = by_name(name)
             recruiter.close_recruitment()
+
+    def validate_config(self):
+        for name in set(name for name, count in self.spec):
+            recruiter = by_name(name)
+            recruiter.validate_config()
 
 
 def for_experiment(experiment):
