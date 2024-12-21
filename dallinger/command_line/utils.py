@@ -304,15 +304,12 @@ def verify_id(ctx, param, app):
 
 
 def run_pre_launch_checks(config):
-    from dallinger.recruiters import ProlificRecruiter, by_name
+    from dallinger.recruiters import by_name
 
     recruiter_name = config.get("recruiter", None)
     if recruiter_name is not None:
         recruiter = by_name(recruiter_name)
-        if isinstance(recruiter, ProlificRecruiter):
-            # Make sure these variables are set; otherwise an error will be raised
-            config.get("prolific_project")
-            config.get("prolific_workspace")
+        recruiter.validate_config()
 
 
 # Ported from PsyNet
