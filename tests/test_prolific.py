@@ -6,8 +6,9 @@ import pytest
 
 from dallinger.config import get_config
 from dallinger.prolific import (
+    ProlificServiceMultipleWorkspacesException,
     ProlificServiceNoSuchProject,
-    ProlificServiceNoSuchWorkspace,
+    ProlificServiceNoSuchWorkspaceException,
 )
 
 study_request = {
@@ -27,7 +28,7 @@ study_request = {
     "prolific_id_option": "url_parameters",
     "reward": 5,
     "total_available_places": 2,
-    "workspace_name": "My Workspace",
+    "workspace": "My Workspace",
 }
 
 # If you need to created a study for testing which targets just your
@@ -54,7 +55,7 @@ private_study_request = {
     "prolific_id_option": "url_parameters",
     "reward": 25,
     "total_available_places": 1,
-    "workspace_name": "My Workspace",
+    "workspace": "My Workspace",
 }
 
 # The return value of a call to /api.prolific.com/api/v1/workspaces/.
@@ -79,6 +80,23 @@ WORKSPACES_API_RETURN_VALUE = {
         },
         {
             "id": "66b0f8e34632badef5c8d1db",
+            "title": "zippy the pinhead",
+            "description": "",
+            "owner": "66b0f1fd97343f3cd6d6b592",
+            "users": [
+                {
+                    "id": "66b0f1fd97343f3cd6d6b592",
+                    "name": "John DeRosa",
+                    "email": "johnderosa@me.com",
+                    "roles": [],
+                }
+            ],
+            "naivety_distribution_rate": None,
+            "product": "human",
+            "is_trial_workspace": False,
+        },
+        {
+            "id": "a1a1a1a1a1a1a1a1a1a1a1a1",
             "title": "zippy the pinhead",
             "description": "",
             "owner": "66b0f1fd97343f3cd6d6b592",
@@ -234,14 +252,24 @@ def test_can_add_to_available_place_count(subject):
     assert subject.delete_study(study_id=result["id"])
 
 
-def test_translate_workspace_exception(subject):
-    """_translate_workspace raises ProlificServiceNoSuchWorkspace."""
+def test_translate_workspace_does_not_exist_exception(subject):
+    """_translate_workspace raises ProlificServiceNoSuchWorkspaceException."""
 
     # Mock out self._req.
     subject._req = mock.MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
 
-    with pytest.raises(ProlificServiceNoSuchWorkspace):
+    with pytest.raises(ProlificServiceNoSuchWorkspaceException):
         subject._translate_workspace("does not exist")
+
+
+def test_translate_workspace_multiples_exist_exception(subject):
+    """_translate_workspace raises ProlificServiceNoSuchWorkspaceException if multiple workspaces with that name exists."""
+
+    # Mock out self._req.
+    subject._req = mock.MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
+
+    with pytest.raises(ProlificServiceMultipleWorkspacesException):
+        subject._translate_workspace("zippy the pinhead")
 
 
 def test_translate_project_name_exception(subject):
@@ -255,21 +283,35 @@ def test_translate_project_name_exception(subject):
 
 
 @pytest.mark.parametrize(
-    "test_input, expected",
+    "test_input_by_id, expected",
     [
-        # Translate a name into an id.
-        ("zippy the pinhead", "66b0f8e34632badef5c8d1db"),
         # Translate an id into an id.
         ("66b0f8e34632badef5c8d1db", "66b0f8e34632badef5c8d1db"),
     ],
 )
-def test_translate_workspace(subject, test_input, expected):
-    """_translate_workspace returns a workspace id, when called with either a name or an id."""
+def test_translate_workspace_by_id_success(subject, test_input_by_id, expected):
+    """_translate_workspace returns a workspace id, when called with an id."""
 
     # Mock out self._req.
     subject._req = mock.MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
 
-    assert subject._translate_workspace(test_input) == expected
+    assert subject._translate_workspace(test_input_by_id) == expected
+
+
+@pytest.mark.parametrize(
+    "test_input_by_name, expected",
+    [
+        # Translate a name into an id.
+        ("My Workspace", "66b0f1ff97343f3cd6d6b597"),
+    ],
+)
+def test_translate_workspace_by_name_success(subject, test_input_by_name, expected):
+    """_translate_workspace returns a workspace id, when called with a name."""
+
+    # Mock out self._req.
+    subject._req = mock.MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
+
+    assert subject._translate_workspace(test_input_by_name) == expected
 
 
 @pytest.mark.parametrize(
@@ -298,7 +340,7 @@ def test_translate_project_name(subject, test_input, expected):
     # - The value returned from the projects API endpoint.
     # - The expected value of the project key in the call to the studies API endpoint.  None means the project
     #   key should not exist.
-    "config_workspace_name, config_project_name, workspaces_api_result, projects_api_result, expected_project_id",
+    "config_workspace, config_project_name, workspaces_api_result, projects_api_result, expected_project_id",
     [
         # config.prolific_project not found in workspaces API endpoint.
         (
@@ -321,7 +363,7 @@ def test_translate_project_name(subject, test_input, expected):
 @pytest.mark.skip(reason="Needs refactoring and fixing of the tests")
 def test_translate_draft_study(
     subject,
-    config_workspace_name,
+    config_workspace,
     config_project_name,
     workspaces_api_result,
     projects_api_result,
@@ -366,7 +408,7 @@ def test_translate_draft_study(
 
     # Load the workspace and project names into the config.
     config = get_config()
-    config.set("prolific_workspace", config_workspace_name)
+    config.set("prolific_workspace", config_workspace)
     config.set("prolific_project", config_project_name)
     config.ready = True
     config.write(filter_sensitive=False)

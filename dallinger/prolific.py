@@ -23,8 +23,12 @@ class ProlificServiceNoSuchProject(Exception):
     """A specified project was not found in any of the user's workspaces."""
 
 
-class ProlificServiceNoSuchWorkspace(Exception):
+class ProlificServiceNoSuchWorkspaceException(Exception):
     """A specified workspace was not found for this user."""
+
+
+class ProlificServiceMultipleWorkspacesException(Exception):
+    """A specified workspace name already exists multiple times for this user."""
 
 
 ########
@@ -108,24 +112,32 @@ class ProlificService:
         return self._req(method="GET", endpoint=f"/submissions/{session_id}/")
 
     def _translate_workspace(self, workspace: str) -> str:
-        """Return a workspace id for the supplied workspace name or Id.
+        """Return a workspace id for the supplied workspace name or id.
 
-        An exception is raised if the workspace isn't found.
+        An exception is raised if the workspace isn't found by id or name or if multiple workspaces with the given name are found.
         """
 
         # Get all of the user's workspaces.
-        workspaces = self._req(
+        response = self._req(
             method="GET", endpoint="/workspaces/?limit=1000"
-        )  # without the limit param the number workspaces returned would be limited to 20
-        logger.warning(f"Prolific DEBUG API workspaces: {workspaces}")
+        )  # without the limit param the number workspaces returned by the Prolific API is limited to 20
+        logger.warning(f"Prolific DEBUG API workspaces: {response}")
+        workspaces = response["results"]
 
-        for entry in workspaces["results"]:
-            logger.warning(f"Prolific DEBUG API workspace entry: {entry}")
+        matching_titles = [w for w in workspaces if w["title"] == workspace]
+        if len(matching_titles) > 1:
+            raise ProlificServiceMultipleWorkspacesException
+
+        for w in workspaces:
+            logger.warning(f"Prolific DEBUG API workspace: {w}")
+
             # If the supplied workspace matches a workspace id or name, we return its id.
-            if workspace == entry["id"]:  # entry["title"]
-                logger.warning(f"Prolific DEBUG API workspace entry found: {entry}")
-                # We found it.  Return its id.
-                return entry["id"]
+            if workspace == w["id"]:
+                logger.warning(f"Prolific DEBUG API workspace found by id: {w}")
+                return w["id"]
+            elif workspace == w["title"]:
+                logger.warning(f"Prolific DEBUG API workspace found by name: {w}")
+                return w["id"]
 
         # TODO: If there are multiple through an error saying that you are not allowed to specify a workspace
         # with repeated names (and say what is the ID of the projects that are repeated in the error message),
@@ -133,7 +145,8 @@ class ProlificService:
         # If there is one - select this as the workspace value.
 
         # If we're here, the supplied workspace wasn't found in any of the user's workspaces.
-        raise ProlificServiceNoSuchWorkspace
+
+        raise ProlificServiceNoSuchWorkspaceException
 
     def _translate_project_name(self, workspace_id: str, project_name: str) -> str:
         """Return a project id for the supplied project name.
@@ -215,19 +228,20 @@ class ProlificService:
         device_compatibility: Optional[List[str]] = None,
         peripheral_requirements: Optional[List[str]] = None,
     ) -> dict:
-        """Create a draft Study on Prolific, and return its properties."""
+        """Create a draft study on Prolific, and return its properties."""
 
+        # Get the workspace ID.  If it's not in Prolific, the function will raise an exception.
         try:
-            # Get the workspace ID.  If it's not in Prolific, the function will raise an exception.
-            try:
-                logger.warning(f"Prolific DEBUG API: {workspace}")
-                workspace_id = self._translate_workspace(workspace)
+            logger.warning(f"Prolific DEBUG API: {workspace}")
+            workspace_id = self._translate_workspace(workspace)
 
-            except ProlificServiceNoSuchWorkspace as e1:
-                raise RuntimeError(f"Error finding specified workspace: {e1}") from e1
+        except ProlificServiceNoSuchWorkspaceException:
+            raise RuntimeError(f"Cannot find specified workspace '{workspace}'.")
 
-        except Exception as e2:
-            raise RuntimeError(f"Error finding specified workspace: {e2}") from e2
+        except ProlificServiceMultipleWorkspacesException:
+            raise RuntimeError(
+                f"Multiple workspaces with the name '{workspace}' exist."
+            )
 
         try:
             # Get the project ID.  If it's not in Prolific, the function will raise an exception and create the project.
@@ -470,7 +484,8 @@ class DevProlificService(ProlificService):
         elif endpoint.startswith("/workspaces/"):
             if method == "GET":
                 # method="GET", endpoint=f"/workspaces/"
-                if endpoint == "/workspaces/":
+
+                if endpoint == "/workspaces/?limit=1000":
                     response = {
                         "results": [
                             {
