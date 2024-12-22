@@ -80,7 +80,7 @@ WORKSPACES_API_RETURN_VALUE = {
         },
         {
             "id": "66b0f8e34632badef5c8d1db",
-            "title": "zippy the pinhead",
+            "title": "exists twice",
             "description": "",
             "owner": "66b0f1fd97343f3cd6d6b592",
             "users": [
@@ -97,7 +97,7 @@ WORKSPACES_API_RETURN_VALUE = {
         },
         {
             "id": "a1a1a1a1a1a1a1a1a1a1a1a1",
-            "title": "zippy the pinhead",
+            "title": "exists twice",
             "description": "",
             "owner": "66b0f1fd97343f3cd6d6b592",
             "users": [
@@ -258,8 +258,12 @@ def test_translate_workspace_does_not_exist_exception(subject):
     # Mock out self._req.
     subject._req = mock.MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
 
-    with pytest.raises(ProlificServiceNoSuchWorkspaceException):
+    with pytest.raises(ProlificServiceNoSuchWorkspaceException) as exc_info:
         subject._translate_workspace("does not exist")
+    assert (
+        str(exc_info.value)
+        == "No workspace with ID or name 'does not exist' exists. Please use an existing workspace!"
+    )
 
 
 def test_translate_workspace_multiples_exist_exception(subject):
@@ -268,8 +272,12 @@ def test_translate_workspace_multiples_exist_exception(subject):
     # Mock out self._req.
     subject._req = mock.MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
 
-    with pytest.raises(ProlificServiceMultipleWorkspacesException):
-        subject._translate_workspace("zippy the pinhead")
+    with pytest.raises(ProlificServiceMultipleWorkspacesException) as exc_info:
+        subject._translate_workspace("exists twice")
+    assert (
+        str(exc_info.value)
+        == "Multiple workspaces with name 'exists twice' exist (IDs: 66b0f8e34632badef5c8d1db, a1a1a1a1a1a1a1a1a1a1a1a1)"
+    )
 
 
 def test_translate_project_name_exception(subject):
