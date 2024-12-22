@@ -124,7 +124,9 @@ class ProlificService:
 
         workspaces = response["results"]
 
-        matching_ids = [w["id"] for w in workspaces if w["title"] == workspace]
+        matching_ids = [
+            w["id"] for w in workspaces if w["title"].lower() == workspace.lower()
+        ]
         if len(matching_ids) > 1:
             raise ProlificServiceMultipleWorkspacesException(
                 f"Multiple workspaces with name '{workspace}' exist (IDs: {', '.join(matching_ids)})"
@@ -141,7 +143,7 @@ class ProlificService:
 
         # If we're here, the supplied workspace wasn't found in any of the user's workspaces.
         raise ProlificServiceNoSuchWorkspaceException(
-            f"No workspace with ID or name '{workspace}' exists. Please use an existing workspace!"
+            f"No workspace with ID or name '{workspace}' exists. Please select an existing workspace!"
         )
 
     def _translate_project_name(self, workspace_id: str, project_name: str) -> str:

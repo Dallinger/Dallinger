@@ -262,7 +262,7 @@ def test_translate_workspace_does_not_exist_exception(subject):
         subject._translate_workspace("does not exist")
     assert (
         str(exc_info.value)
-        == "No workspace with ID or name 'does not exist' exists. Please use an existing workspace!"
+        == "No workspace with ID or name 'does not exist' exists. Please select an existing workspace!"
     )
 
 

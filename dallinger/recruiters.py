@@ -621,8 +621,11 @@ class ProlificRecruiter(Recruiter):
         }
 
     def validate_config(self):
+        # Make sure Prolific config variables are present
         self.config.get("prolific_project")
-        self.config.get("prolific_workspace")
+        workspace = self.config.get("prolific_workspace")
+        # Validate workspace
+        self.prolificservice._translate_workspace(workspace)
 
 
 class DevProlificRecruiter(ProlificRecruiter):
