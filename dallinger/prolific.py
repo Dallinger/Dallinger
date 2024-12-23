@@ -7,6 +7,8 @@ import requests
 import tenacity
 from dateutil import parser
 
+from dallinger.version import __version__
+
 logger = logging.getLogger(__file__)
 
 
@@ -118,11 +120,31 @@ class ProlificService:
         """
 
         # Get all of the user's workspaces.
-        response = self._req(
-            method="GET", endpoint="/workspaces/?limit=1000"
-        )  # without the limit param the number workspaces returned by the Prolific API is limited to 20
+        workspaces = self.get_workspaces()
+        self.validate_workspace(workspace, workspaces)
 
-        workspaces = response["results"]
+        for w in workspaces:
+            # If the supplied workspace matches a workspace ID or name, return its ID.
+            if workspace == w["id"]:
+                logger.info(f"Prolific workspace found by ID: {workspace}")
+                return w["id"]
+            elif workspace == w["title"]:
+                logger.info(f"Prolific workspace found by name: {workspace}")
+                return w["id"]
+
+    def get_workspaces(self):
+        workspaces = self._req(
+            method="GET", endpoint="/workspaces/?limit=1000"
+        )  # without the limit param the number workspaces returned would be limited to 20
+        return workspaces["results"]
+
+    def validate_workspace(self, workspace, workspaces=None):
+        """
+        Validates the workspace for matching entries.
+        Raises exceptions for multiple matches or no match.
+        """
+        if workspaces is None:
+            workspaces = self.get_workspaces()
 
         matching_ids = [
             w["id"] for w in workspaces if w["title"].lower() == workspace.lower()
@@ -131,20 +153,10 @@ class ProlificService:
             raise ProlificServiceMultipleWorkspacesException(
                 f"Multiple workspaces with name '{workspace}' exist (IDs: {', '.join(matching_ids)})"
             )
-
-        for w in workspaces:
-            # If the supplied workspace matches a workspace ID or name, we return its ID.
-            if workspace == w["id"]:
-                logger.info(f"Prolific workspace found by ID: {workspace}")
-                return w["id"]
-            elif workspace == w["title"]:
-                logger.info(f"Prolific workspace found by name: {workspace}")
-                return w["id"]
-
-        # If we're here, the supplied workspace wasn't found in any of the user's workspaces.
-        raise ProlificServiceNoSuchWorkspaceException(
-            f"No workspace with ID or name '{workspace}' exists. Please select an existing workspace!"
-        )
+        if not any(workspace in {w["id"], w["title"]} for w in workspaces):
+            raise ProlificServiceNoSuchWorkspaceException(
+                f"No workspace with ID or name '{workspace}' exists. Please select an existing workspace!"
+            )
 
     def _translate_project_name(self, workspace_id: str, project_name: str) -> str:
         """Return a project id for the supplied project name.
@@ -567,3 +579,26 @@ class DevProlificService(ProlificService):
 
     def log_response(self, response):
         logger.info(f"Simulated Prolific API response: {response}")
+
+
+def prolific_service_from_config():  #
+    from dallinger.config import get_config
+    from dallinger.prolific import ProlificService
+
+    config = get_config()
+    config.load()
+    return ProlificService(
+        api_token=config.get("prolific_api_token"),
+        api_version=config.get("prolific_api_version"),
+        referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
+    )
+
+
+def dev_prolific_service_from_config():
+    from dallinger.prolific import DevProlificService
+
+    return DevProlificService(
+        api_token="prolific-api-token",
+        api_version="prolific-api-version",
+        referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
+    )
