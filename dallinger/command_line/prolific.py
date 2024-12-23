@@ -29,7 +29,7 @@ def list(ctx):
     help="Display all workspace columns returned from the Prolific API",
 )
 @click.pass_context
-def list__workspaces(ctx, show_all_columns):
+def list_workspaces(ctx, show_all_columns):
     """List Prolific workspaces"""
     from dallinger.prolific import prolific_service_from_config
 
