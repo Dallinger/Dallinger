@@ -113,32 +113,13 @@ class ProlificService:
         """
         return self._req(method="GET", endpoint=f"/submissions/{session_id}/")
 
-    def _translate_workspace(self, workspace: str) -> str:
-        """Return a workspace ID for the supplied workspace ID or name.
-
-        An exception is raised if the workspace isn't found by ID or name or if multiple workspaces with the given name exist.
-        """
-
-        # Get all of the user's workspaces.
-        workspaces = self.get_workspaces()
-        self.validate_workspace(workspace, workspaces)
-
-        for w in workspaces:
-            # If the supplied workspace matches a workspace ID or name, return its ID.
-            if workspace == w["id"]:
-                logger.info(f"Prolific workspace found by ID: {workspace}")
-                return w["id"]
-            elif workspace == w["title"]:
-                logger.info(f"Prolific workspace found by name: {workspace}")
-                return w["id"]
-
     def get_workspaces(self):
         workspaces = self._req(
             method="GET", endpoint="/workspaces/?limit=1000"
         )  # without the limit param the number workspaces returned would be limited to 20
         return workspaces["results"]
 
-    def validate_workspace(self, workspace, workspaces=None):
+    def validate_workspace(self, workspace: str, workspaces: Optional[dict] = None):
         """
         Validates the workspace for matching entries.
         Raises exceptions for multiple matches or no match.
@@ -177,6 +158,25 @@ class ProlificService:
 
         # The project_name was not found.
         raise ProlificServiceNoSuchProject
+
+    def _translate_workspace(self, workspace: str) -> str:
+        """Return a workspace ID for the supplied workspace ID or name.
+
+        An exception is raised if the workspace isn't found by ID or name or if multiple workspaces with the given name exist.
+        """
+
+        # Get all of the user's workspaces.
+        workspaces = self.get_workspaces()
+        self.validate_workspace(workspace, workspaces)
+
+        for w in workspaces:
+            # If the supplied workspace matches a workspace ID or name, return its ID.
+            if workspace == w["id"]:
+                logger.info(f"Prolific workspace found by ID: {workspace}")
+                return w["id"]
+            elif workspace == w["title"]:
+                logger.info(f"Prolific workspace found by name: {workspace}")
+                return w["id"]
 
     def published_study(
         self,
