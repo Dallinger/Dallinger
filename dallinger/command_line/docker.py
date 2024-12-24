@@ -21,6 +21,7 @@ from dallinger.command_line.utils import (
     header,
     log,
     require_exp_directory,
+    run_pre_launch_checks,
     verify_id,
 )
 from dallinger.config import get_config
@@ -303,9 +304,12 @@ def _deploy_in_mode(mode, verbose, log, app=None):
         verify_id(None, None, app)
 
     log(header, chevrons=False)
+
     config = get_config()
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
+
+    run_pre_launch_checks(config)
 
     return deploy_heroku_docker(log=log, verbose=verbose, app=app)
 

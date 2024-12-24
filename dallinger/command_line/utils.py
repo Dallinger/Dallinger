@@ -303,6 +303,15 @@ def verify_id(ctx, param, app):
     return app
 
 
+def run_pre_launch_checks(config):
+    from dallinger.recruiters import by_name
+
+    recruiter_name = config.get("recruiter", None)
+    if recruiter_name is not None:
+        recruiter = by_name(recruiter_name)
+        recruiter.validate_config()
+
+
 # Ported from PsyNet
 def user_confirms(question, default=False):
     """
