@@ -93,7 +93,7 @@ dev = [
     "pytest-rerunfailures",
     "sphinx",
     "sphinx_rtd_theme",
-    "sphinxcontrib-spelling",
+    "sphinxcontrib-spelling < 8.0.1",
     "tox",
 ]
 docker = [
