@@ -35,6 +35,7 @@ docs/build
 README.rst
 .netrc
 .vagrant/
+.venv/
 .cache/*
 htmlcov/*
 tests/config.py
