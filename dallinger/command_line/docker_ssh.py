@@ -353,20 +353,9 @@ def set_dozzle_password_cmd(server, password):
 @option_update
 @validate_update
 @build_and_push_image
-def sandbox(
-    image_name, app_name, archive_path, config_options, dns_host, server, update
-):  # pragma: no cover
+def sandbox(**kwargs):  # pragma: no cover
     """Sandbox a dallinger experiment docker image to a server using ssh."""
-    return _deploy_in_mode(
-        app_name=app_name,
-        archive_path=archive_path,
-        config_options=config_options,
-        dns_host=dns_host,
-        image_name=image_name,
-        mode="sandbox",
-        server=server,
-        update=update,
-    )
+    return _deploy_in_mode(mode="sandbox", **kwargs)
 
 
 @docker_ssh.command()
@@ -379,30 +368,13 @@ def sandbox(
 @option_open_recruitment
 @validate_update
 @build_and_push_image
-def deploy(
-    image_name,
-    app_name,
-    archive_path,
-    config_options,
-    dns_host,
-    open_recruitment,
-    server,
-    update,
-):  # pragma: no cover
+def deploy(**kwargs):  # pragma: no cover
     """Deploy a dallinger experiment docker image to a server using ssh."""
-    if open_recruitment:
+    if kwargs.get("open_recruitment"):
+        config_options = kwargs.get("config_options")
         config_options["open_recruitment"] = True
 
-    return _deploy_in_mode(
-        app_name=app_name,
-        archive_path=archive_path,
-        config_options=config_options,
-        dns_host=dns_host,
-        image_name=image_name,
-        mode="live",
-        server=server,
-        update=update,
-    )
+    return _deploy_in_mode(mode="live", config_options=config_options, **kwargs)
 
 
 def _deploy_in_mode(
