@@ -35,6 +35,7 @@ from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import handle_launch_data, setup_experiment
+from dallinger.recruiters import by_name
 from dallinger.utils import abspath_from_egg, check_output
 
 # A couple of constants to colour console output
@@ -418,12 +419,8 @@ def _deploy_in_mode(
     dashboard_user = config.get("dashboard_user", "admin")
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
-    if (
-        config["recruiter"] == "mturk"
-        and mode == "live"
-        and not config.get("open_recruitment", False)
-        and not config_options.get("open_recruitment", False)
-    ):
+    recruiter = by_name(config["recruiter"])
+    if not recruiter.validate_config(mode_from_command=mode):
         print(
             "When deploying to MTurk either `open_recruitment` must be `True` in the config or the `--open-recruitment` flag must be provided in the deploy command."
         )

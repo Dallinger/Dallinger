@@ -1056,15 +1056,12 @@ class MTurkRecruiter(Recruiter):
         self.store = kwargs.get("store") or RedisStore()
         skip_config_validation = kwargs.get("skip_config_validation", False)
 
-        if not skip_config_validation:
-            self._validate_config()
-
-    def _validate_config(self):
-        mode = self.config.get("mode")
-        if mode not in ("sandbox", "live"):
+        if not skip_config_validation and not self.validate_config():
             raise MTurkRecruiterException(
                 '"{}" is not a valid mode for MTurk recruitment. '
-                'The value of "mode" must be either "sandbox" or "live"'.format(mode)
+                'The value of "mode" must be either "sandbox" or "live"'.format(
+                    self.config.get("mode")
+                )
             )
 
     def exit_response(self, experiment, participant):
@@ -1522,6 +1519,19 @@ class MTurkRecruiter(Recruiter):
     def get_qualifications(self, hit_id, sandbox):
         service = self.load_service(sandbox)
         return service.get_study(hit_id)["QualificationRequirements"]
+
+    def validate_config(self, mode_from_command=None):
+        if (
+            mode_from_command == "live"
+            and not self.config.get("open_recruitment", False)
+            and not self.config_options.get("open_recruitment", False)
+        ):
+            return False
+
+        elif self.config.get("mode") not in ("sandbox", "live"):
+            return False
+
+        return True
 
 
 class RedisTally(object):
