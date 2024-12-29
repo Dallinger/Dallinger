@@ -32,9 +32,12 @@ from dallinger.mturk import (
     QualificationNotFoundException,
 )
 from dallinger.notifications import MessengerError, admin_notifier, get_mailer
-from dallinger.prolific import ProlificService, ProlificServiceException
+from dallinger.prolific import (
+    ProlificServiceException,
+    dev_prolific_service_from_config,
+    prolific_service_from_config,
+)
 from dallinger.utils import ParticipationTime, generate_random_id, get_base_url
-from dallinger.version import __version__
 
 logger = logging.getLogger(__file__)
 
@@ -246,6 +249,10 @@ class Recruiter(object):
         """Return the status of the recruiter as a dictionary."""
         return {}
 
+    def validate_config(self):
+        """Validates config variables, if implemented."""
+        pass
+
 
 def alphanumeric_code(seed: str, length: int = 8):
     """Return an alphanumeric string of specified length based on a
@@ -311,26 +318,6 @@ def prolific_submission_listener():
 PROLIFIC_AD_QUERYSTRING = "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
 
 
-def _prolific_service_from_config():
-    config = get_config()
-    config.load()
-    return ProlificService(
-        api_token=config.get("prolific_api_token"),
-        api_version=config.get("prolific_api_version"),
-        referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
-    )
-
-
-def _dev_prolific_service_from_config():
-    from dallinger.prolific import DevProlificService
-
-    return DevProlificService(
-        api_token="prolific-api-token",
-        api_version="prolific-api-version",
-        referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
-    )
-
-
 class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.com/)"""
 
@@ -344,7 +331,7 @@ class ProlificRecruiter(Recruiter):
         base_url = get_base_url()
         self.ad_url = f"{base_url}/ad?recruiter={self.nickname}"
         self.study_domain = os.getenv("HOST")
-        self.prolificservice = _prolific_service_from_config()
+        self.prolificservice = prolific_service_from_config()
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
@@ -385,11 +372,13 @@ class ProlificRecruiter(Recruiter):
                 "prolific_maximum_allowed_minutes",
                 3 * self.config.get("prolific_estimated_completion_minutes") + 2,
             ),
+            "mode": self.config.get("mode"),
             "name": self.config.get("title"),
+            "project_name": self.config.get("prolific_project"),
             "prolific_id_option": "url_parameters",
             "reward": int(self.config.get("base_payment") * 100),
             "total_available_places": n,
-            "mode": self.config.get("mode"),
+            "workspace": self.config.get("prolific_workspace"),
         }
         # Merge in any explicit configuration untouched:
         if self.config.get("prolific_recruitment_config", None) is not None:
@@ -512,7 +501,7 @@ class ProlificRecruiter(Recruiter):
         self.store.set(self.study_id_storage_key, study_id)
 
     def load_service(self, sandbox):
-        return _prolific_service_from_config()
+        return prolific_service_from_config()
 
     def _get_hits_from_app(self, service, app):
         return service.get_hits(hit_filter=lambda h: h.get("annotation") == app)
@@ -614,6 +603,12 @@ class ProlificRecruiter(Recruiter):
             "peripheral_requirements": details["peripheral_requirements"],
         }
 
+    def validate_config(self):
+        # Make sure Prolific config variables are present and validate the workspace
+        self.config.get("prolific_project")
+        workspace = self.config.get("prolific_workspace")
+        self.prolificservice.validate_workspace(workspace)
+
 
 class DevProlificRecruiter(ProlificRecruiter):
     """A debug recruiter for [Prolific](https://app.prolific.com/)"""
@@ -622,7 +617,7 @@ class DevProlificRecruiter(ProlificRecruiter):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.prolificservice = _dev_prolific_service_from_config()
+        self.prolificservice = dev_prolific_service_from_config()
 
     @property
     def external_submission_url(self):
@@ -1758,6 +1753,11 @@ class MultiRecruiter(Recruiter):
         for name in set(name for name, count in self.spec):
             recruiter = by_name(name)
             recruiter.close_recruitment()
+
+    def validate_config(self):
+        for name in set(name for name, count in self.spec):
+            recruiter = by_name(name)
+            recruiter.validate_config()
 
 
 def for_experiment(experiment):
