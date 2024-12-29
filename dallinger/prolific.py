@@ -178,46 +178,6 @@ class ProlificService:
                 logger.info(f"Prolific workspace found by name: {workspace}")
                 return w["id"]
 
-    def published_study(
-        self,
-        completion_code: str,
-        completion_option: str,
-        description: str,
-        eligibility_requirements: List[dict],  # can be empty, but not None
-        estimated_completion_time: int,
-        external_study_url: str,
-        internal_name: str,
-        is_custom_screening: bool,
-        maximum_allowed_time: int,
-        name: str,
-        project_name: str,
-        prolific_id_option: str,
-        reward: int,
-        total_available_places: int,
-        mode: str,
-        workspace: str,
-        device_compatibility: Optional[List[str]] = None,
-        peripheral_requirements: Optional[List[str]] = None,
-    ) -> dict:
-        """Create an active Study on Prolific, and return its properties.
-
-        This method wraps both creating a draft study and publishing it, which
-        is the required workflow for generating a working study on Prolific.
-        """
-        args = locals()
-        del args["self"]
-        del args["mode"]
-        draft = self.draft_study(**args)
-        study_id = draft["id"]
-        if mode == "live":
-            logger.info(f"Publishing experiment {study_id} on Prolific...")
-            return self.publish_study(study_id)
-        else:
-            logger.info(
-                f"Sandboxing experiment {study_id} in Prolific (saved as draft, not public)..."
-            )
-            return draft
-
     def draft_study(
         self,
         completion_code: str,
@@ -288,6 +248,46 @@ class ProlificService:
             payload["peripheral_requirements"] = peripheral_requirements
 
         return self._req(method="POST", endpoint="/studies/", json=payload)
+
+    def published_study(
+        self,
+        completion_code: str,
+        completion_option: str,
+        description: str,
+        eligibility_requirements: List[dict],  # can be empty, but not None
+        estimated_completion_time: int,
+        external_study_url: str,
+        internal_name: str,
+        is_custom_screening: bool,
+        maximum_allowed_time: int,
+        name: str,
+        project_name: str,
+        prolific_id_option: str,
+        reward: int,
+        total_available_places: int,
+        mode: str,
+        workspace: str,
+        device_compatibility: Optional[List[str]] = None,
+        peripheral_requirements: Optional[List[str]] = None,
+    ) -> dict:
+        """Create an active Study on Prolific, and return its properties.
+
+        This method wraps both creating a draft study and publishing it, which
+        is the required workflow for generating a working study on Prolific.
+        """
+        args = locals()
+        del args["self"]
+        del args["mode"]
+        draft = self.draft_study(**args)
+        study_id = draft["id"]
+        if mode == "live":
+            logger.info(f"Publishing experiment {study_id} on Prolific...")
+            return self.publish_study(study_id)
+        else:
+            logger.info(
+                f"Sandboxing experiment {study_id} in Prolific (saved as draft, not public)..."
+            )
+            return draft
 
     def get_hits(self):
         """Get a list of all HITs in the account."""
