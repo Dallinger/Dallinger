@@ -56,7 +56,7 @@ dependencies = [
     "pyopenssl",
     "redis",
     "requests",
-    "rq < 2",
+    "rq",
     "selenium",
     "six",
     "sqlalchemy < 2",
@@ -93,7 +93,7 @@ dev = [
     "pytest-rerunfailures",
     "sphinx",
     "sphinx_rtd_theme",
-    "sphinxcontrib-spelling",
+    "sphinxcontrib-spelling < 8.0.1",
     "tox",
 ]
 docker = [

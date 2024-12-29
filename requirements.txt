@@ -6,19 +6,19 @@
 #
 
     # via -r requirements.in
-apscheduler==3.10.4
+apscheduler==3.11.0
     # via dallinger
-asttokens==2.4.1
+asttokens==3.0.0
     # via stack-data
-attrs==24.2.0
+attrs==24.3.0
     # via
     #   outcome
     #   trio
-blinker==1.8.2
+blinker==1.9.0
     # via flask
-boto3==1.35.54
+boto3==1.35.87
     # via dallinger
-botocore==1.35.54
+botocore==1.35.87
     # via
     #   boto3
     #   s3transfer
@@ -28,7 +28,7 @@ build==1.2.2.post1
     #   pip-tools
 cached-property==2.0.1
     # via dallinger
-certifi==2024.8.30
+certifi==2024.12.14
     # via
     #   requests
     #   selenium
@@ -36,21 +36,21 @@ cffi==1.17.1
     # via cryptography
 charset-normalizer==3.4.0
     # via requests
-click==8.1.7
+click==8.1.8
     # via
     #   dallinger
     #   flask
     #   pip-tools
     #   rq
-cryptography==43.0.3
+cryptography==44.0.0
     # via pyopenssl
 decorator==5.1.1
     # via ipython
 executing==2.1.0
     # via stack-data
-faker==30.8.2
+faker==33.1.0
     # via dallinger
-flask==3.0.3
+flask==3.1.0
     # via
     #   dallinger
     #   flask-crossdomain
@@ -67,7 +67,7 @@ flask-wtf==1.2.2
     # via dallinger
 future==1.0.0
     # via dallinger
-gevent==24.10.3
+gevent==24.11.1
     # via
     #   dallinger
     #   gunicorn
@@ -92,9 +92,9 @@ itsdangerous==2.2.0
     # via
     #   flask
     #   flask-wtf
-jedi==0.19.1
+jedi==0.19.2
     # via ipython
-jinja2==3.1.4
+jinja2==3.1.5
     # via flask
 jmespath==1.0.1
     # via
@@ -113,7 +113,7 @@ numpy==2.0.2
     # via dallinger
 outcome==1.3.0.post0
     # via trio
-packaging==24.1
+packaging==24.2
     # via
     #   build
     #   gunicorn
@@ -127,7 +127,7 @@ pip-tools==7.4.1
     # via dallinger
 prompt-toolkit==3.0.48
     # via ipython
-psutil==6.1.0
+psutil==6.1.1
     # via dallinger
 psycopg2==2.9.10
     # via
@@ -141,7 +141,7 @@ pycparser==2.22
     # via cffi
 pygments==2.18.0
     # via ipython
-pyopenssl==24.2.1
+pyopenssl==24.3.0
     # via dallinger
 pyproject-hooks==1.2.0
     # via
@@ -154,9 +154,7 @@ python-dateutil==2.9.0.post0
     #   botocore
     #   faker
     #   heroku3
-pytz==2024.2
-    # via apscheduler
-redis==5.2.0
+redis==5.2.1
     # via
     #   dallinger
     #   rq
@@ -164,18 +162,16 @@ requests==2.32.3
     # via
     #   dallinger
     #   heroku3
-rq==1.16.2
+rq==2.1.0
     # via dallinger
-s3transfer==0.10.3
+s3transfer==0.10.4
     # via boto3
-selenium==4.26.1
+selenium==4.27.1
     # via dallinger
 simple-websocket==1.1.0
     # via flask-sock
-six==1.16.0
+six==1.17.0
     # via
-    #   apscheduler
-    #   asttokens
     #   dallinger
     #   python-dateutil
     #   sqlalchemy-postgres-copy
@@ -217,10 +213,12 @@ tzlocal==5.2
     # via
     #   apscheduler
     #   dallinger
-ua-parser==0.18.0
+ua-parser==1.0.0
     # via
     #   dallinger
     #   user-agents
+ua-parser-builtins==0.18.0.post1
+    # via ua-parser
 urllib3==1.26.20
     # via
     #   botocore
@@ -233,11 +231,11 @@ wcwidth==0.2.13
     # via prompt-toolkit
 websocket-client==1.8.0
     # via selenium
-werkzeug==3.1.1
+werkzeug==3.1.3
     # via
     #   flask
     #   flask-login
-wheel==0.44.0
+wheel==0.45.1
     # via pip-tools
 wsproto==1.2.0
     # via
@@ -249,7 +247,7 @@ yaspin==3.1.0
     # via dallinger
 zope-event==5.0
     # via gevent
-zope-interface==7.1.1
+zope-interface==7.2
     # via gevent
 
 # The following packages are considered to be unsafe in a requirements file:

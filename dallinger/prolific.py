@@ -7,13 +7,35 @@ import requests
 import tenacity
 from dateutil import parser
 
+from dallinger.version import __version__
+
 logger = logging.getLogger(__file__)
+
+
+#####################
+# custom exceptions #
+#####################
 
 
 class ProlificServiceException(Exception):
     """Some error from Prolific"""
 
-    pass
+
+class ProlificServiceNoSuchProject(Exception):
+    """A specified project was not found in any of the user's workspaces."""
+
+
+class ProlificServiceNoSuchWorkspaceException(Exception):
+    """A specified workspace was not found for this user."""
+
+
+class ProlificServiceMultipleWorkspacesException(Exception):
+    """A specified workspace name already exists multiple times for this user."""
+
+
+########
+# code #
+########
 
 
 class ProlificService:
@@ -124,6 +146,142 @@ class ProlificService:
             for s in response["results"]
         }
 
+    def get_workspaces(self):
+        workspaces = self._req(
+            method="GET", endpoint="/workspaces/?limit=1000"
+        )  # without the limit param the number workspaces returned would be limited to 20
+        return workspaces["results"]
+
+    def validate_workspace(self, workspace: str, workspaces: Optional[dict] = None):
+        """
+        Validates the workspace for matching entries.
+        Raises exceptions for multiple matches or no match.
+        """
+        if workspaces is None:
+            workspaces = self.get_workspaces()
+
+        matching_ids = [
+            w["id"] for w in workspaces if w["title"].lower() == workspace.lower()
+        ]
+        if len(matching_ids) > 1:
+            raise ProlificServiceMultipleWorkspacesException(
+                f"Multiple workspaces with name '{workspace}' exist (IDs: {', '.join(matching_ids)})"
+            )
+        if not any(workspace in {w["id"], w["title"]} for w in workspaces):
+            raise ProlificServiceNoSuchWorkspaceException(
+                f"No workspace with ID or name '{workspace}' exists. Please select an existing workspace!"
+            )
+
+    def _translate_project_name(self, workspace_id: str, project_name: str) -> str:
+        """Return a project id for the supplied project name.
+
+        An exception is raised if the project isn't found.
+        """
+
+        # Get all of this workspace's projects.
+        projects = self._req(
+            method="GET", endpoint=f"/workspaces/{workspace_id}/projects/"
+        )
+
+        # If project_name exists as a name OR an id, we return its project_id.
+        for entry in projects["results"]:
+            if project_name in (entry["title"], entry["id"]):
+                # We found the project.  Return its id.
+                return entry["id"]
+
+        # The project_name was not found.
+        raise ProlificServiceNoSuchProject
+
+    def _translate_workspace(self, workspace: str) -> str:
+        """Return a workspace ID for the supplied workspace ID or name.
+
+        An exception is raised if the workspace isn't found by ID or name or if multiple workspaces with the given name exist.
+        """
+
+        # Get all of the user's workspaces.
+        workspaces = self.get_workspaces()
+        self.validate_workspace(workspace, workspaces)
+
+        for w in workspaces:
+            # If the supplied workspace matches a workspace ID or name, return its ID.
+            if workspace == w["id"]:
+                logger.info(f"Prolific workspace found by ID: {workspace}")
+                return w["id"]
+            elif workspace == w["title"]:
+                logger.info(f"Prolific workspace found by name: {workspace}")
+                return w["id"]
+
+    def draft_study(
+        self,
+        completion_code: str,
+        completion_option: str,
+        description: str,
+        eligibility_requirements: List[dict],
+        estimated_completion_time: int,
+        external_study_url: str,
+        internal_name: str,
+        is_custom_screening: bool,
+        maximum_allowed_time: int,
+        name: str,
+        project_name: str,
+        prolific_id_option: str,
+        reward: int,
+        total_available_places: int,
+        workspace: str,
+        device_compatibility: Optional[List[str]] = None,
+        peripheral_requirements: Optional[List[str]] = None,
+    ) -> dict:
+        """Create a draft study on Prolific, and return its properties."""
+
+        # Get the workspace ID by ID or name.  If it's not in Prolific, the function will raise an exception.
+        workspace_id = self._translate_workspace(workspace)
+
+        try:
+            # Get the project ID.  If it's not in Prolific, the function will raise an exception and create the project.
+            try:
+                project_id = self._translate_project_name(workspace_id, project_name)
+
+            except ProlificServiceNoSuchProject:
+                # Create a new project in the workspace if it doesn't exist
+                response = self._req(
+                    method="POST",
+                    endpoint=f"/workspaces/{workspace_id}/projects/",
+                    json={"title": project_name},
+                )
+                project_id = response["id"]
+
+        except Exception as e:
+            raise RuntimeError(
+                f"Error finding or creating specified project: {e}"
+            ) from e
+
+        # We can now create the draft study.
+        payload = {
+            "completion_code": completion_code,
+            "completion_option": completion_option,
+            "description": description,
+            "eligibility_requirements": eligibility_requirements,
+            "estimated_completion_time": estimated_completion_time,
+            "external_study_url": external_study_url,
+            "internal_name": internal_name,
+            "is_custom_screening": is_custom_screening,
+            "maximum_allowed_time": maximum_allowed_time,
+            "name": name,
+            "prolific_id_option": prolific_id_option,
+            "reward": reward,
+            "status": "UNPUBLISHED",
+            "total_available_places": total_available_places,
+        }
+
+        payload["project"] = project_id
+
+        if device_compatibility is not None:
+            payload["device_compatibility"] = device_compatibility
+        if peripheral_requirements is not None:
+            payload["peripheral_requirements"] = peripheral_requirements
+
+        return self._req(method="POST", endpoint="/studies/", json=payload)
+
     def published_study(
         self,
         completion_code: str,
@@ -136,10 +294,12 @@ class ProlificService:
         is_custom_screening: bool,
         maximum_allowed_time: int,
         name: str,
+        project_name: str,
         prolific_id_option: str,
         reward: int,
         total_available_places: int,
         mode: str,
+        workspace: str,
         device_compatibility: Optional[List[str]] = None,
         peripheral_requirements: Optional[List[str]] = None,
     ) -> dict:
@@ -161,50 +321,6 @@ class ProlificService:
                 f"Sandboxing experiment {study_id} in Prolific (saved as draft, not public)..."
             )
             return draft
-
-    def draft_study(
-        self,
-        completion_code: str,
-        completion_option: str,
-        description: str,
-        eligibility_requirements: List[dict],
-        estimated_completion_time: int,
-        external_study_url: str,
-        internal_name: str,
-        is_custom_screening: bool,
-        maximum_allowed_time: int,
-        name: str,
-        prolific_id_option: str,
-        reward: int,
-        total_available_places: int,
-        device_compatibility: Optional[List[str]] = None,
-        peripheral_requirements: Optional[List[str]] = None,
-    ) -> dict:
-        """Create a draft Study on Prolific, and return its properties."""
-
-        payload = {
-            "name": name,
-            "internal_name": internal_name,
-            "is_custom_screening": is_custom_screening,
-            "description": description,
-            "external_study_url": external_study_url,
-            "prolific_id_option": prolific_id_option,
-            "completion_code": completion_code,
-            "completion_option": completion_option,
-            "total_available_places": total_available_places,
-            "estimated_completion_time": estimated_completion_time,
-            "maximum_allowed_time": maximum_allowed_time,
-            "reward": reward,
-            "eligibility_requirements": eligibility_requirements,
-            "status": "UNPUBLISHED",
-        }
-
-        if device_compatibility is not None:
-            payload["device_compatibility"] = device_compatibility
-        if peripheral_requirements is not None:
-            payload["peripheral_requirements"] = peripheral_requirements
-
-        return self._req(method="POST", endpoint="/studies/", json=payload)
 
     def get_hits(self):
         """Get a list of all HITs in the account."""
@@ -442,6 +558,89 @@ class DevProlificService(ProlificService):
                     # method="POST", endpoint=f"/submissions/{submission_id}/transition/", json={"action": "APPROVE"},
                     response = True
 
+        elif endpoint.startswith("/workspaces/"):
+            if method == "GET":
+                # method="GET", endpoint=f"/workspaces/"
+
+                if endpoint == "/workspaces/?limit=1000":
+                    response = {
+                        "results": [
+                            {
+                                "id": "62fce6fff0a78eb4f3ebc09c",
+                                "title": "My workspace",
+                                "description": "This workspace does...",
+                                "owner": "60a42f4c693c29420793cb73",
+                                "users": [
+                                    {
+                                        "id": "60a42f4c693c29420793cb73",
+                                        "name": "Joe Soap",
+                                        "email": "joe.soap@gmail.com",
+                                        "roles": ["WORKSPACE_ADMIN"],
+                                    }
+                                ],
+                                "naivety_distribution_rate": 0.5,
+                            }
+                        ]
+                    }
+                # method="GET", endpoint=f"/workspaces/{workspace_id}/projects/"
+                elif re.match(r"/workspaces/[A-Za-z0-9]+/projects/", endpoint):
+                    response = {
+                        "results": [
+                            {
+                                "id": "62fce6fff0a78eb4f3ebc09c",
+                                "title": "My project",
+                                "description": "This project is for...",
+                                "owner": "60a42f4c693c29420793cb73",
+                                "users": [
+                                    {
+                                        "id": "60a42f4c693c29420793cb73",
+                                        "name": "Joe Soap",
+                                        "email": "joe.soap@gmail.com",
+                                        "roles": ["PROJECT_EDITOR"],
+                                    }
+                                ],
+                                "naivety_distribution_rate": 0.5,
+                            }
+                        ]
+                    }
+
+            elif method == "POST":
+                # method="POST", endpoint=f"/workspaces/", json={"title": "My new workspace"}
+                if endpoint == "/workspaces/":
+                    response = {
+                        "id": "62fce6fff0a78eb4f3ebc09c",
+                        "title": "My new workspace",
+                        "owner": "60a42f4c693c29420793cb73",
+                        "users": [
+                            {
+                                "id": "60a42f4c693c29420793cb73",
+                                "name": "Joe Soap",
+                                "email": "joe.soap@gmail.com",
+                                "roles": [],
+                            }
+                        ],
+                        "projects": [{"id": "60a42f4c693c29420793cb73"}],
+                        "wallet": "61a65c06b084910b3f0c00d6",
+                    }
+
+                # method="POST", endpoint=f"/workspaces/{workspace_id}/projects/", json={"title": "My project"}
+                elif re.match(r"/workspaces/[A-Za-z0-9]+/projects/", endpoint):
+                    response = {
+                        "id": "62fce6fff0a78eb4f3ebc09c",
+                        "title": "My project",
+                        "owner": "60a42f4c693c29420793cb73",
+                        "users": [
+                            {
+                                "id": "60a42f4c693c29420793cb73",
+                                "name": "Joe Soap",
+                                "email": "joe.soap@gmail.com",
+                                "roles": ["PROJECT_EDITOR"],
+                            }
+                        ],
+                        "workspace": "60a42f4c693c29420793cb73",
+                        "naivety_distribution_rate": 0.5,
+                    }
+
         if response is None:
             raise RuntimeError(
                 f"Simulated Prolific API call could not be matched:\nmethod: {method}\nendpoint: {endpoint}\nkw: {kw}"
@@ -459,3 +658,26 @@ class DevProlificService(ProlificService):
 
     def log_response(self, response):
         logger.info(f"Simulated Prolific API response: {response}")
+
+
+def prolific_service_from_config():  #
+    from dallinger.config import get_config
+    from dallinger.prolific import ProlificService
+
+    config = get_config()
+    config.load()
+    return ProlificService(
+        api_token=config.get("prolific_api_token"),
+        api_version=config.get("prolific_api_version"),
+        referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
+    )
+
+
+def dev_prolific_service_from_config():
+    from dallinger.prolific import DevProlificService
+
+    return DevProlificService(
+        api_token="prolific-api-token",
+        api_version="prolific-api-version",
+        referer_header=f"https://github.com/Dallinger/Dallinger/v{__version__}",
+    )
