@@ -14,7 +14,7 @@ Install Python
 ~~~~~~~~~~~~~~
 
 Dallinger is written in the language Python. For it to work, you will need
-to have Python 3.9 or higher. You can check what version of Python you
+to have Python 3.10 or higher. You can check what version of Python you
 have by running:
 ::
 
@@ -177,7 +177,7 @@ Now let's set up a virtual environment by running the following commands:
     pip3 install virtualenvwrapper
     export WORKON_HOME=$HOME/.virtualenvs
     mkdir -p $WORKON_HOME
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.9)
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
     source $(which virtualenvwrapper.sh)
 
 
@@ -192,7 +192,7 @@ Example:
 ::
 
 
-    mkvirtualenv dlgr_env --python /usr/local/bin/python3.9
+    mkvirtualenv dlgr_env --python /usr/local/bin/python3.12
 
 Virtualenvwrapper provides an easy way to switch between virtual environments
 by simply typing: ``workon [virtual environment name]``.
@@ -221,7 +221,7 @@ The how-to:
 In the future, you can work on your virtual environment by running:
 ::
 
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.9)
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
     source $(which virtualenvwrapper.sh)
     workon dlgr_env
 
@@ -235,7 +235,7 @@ execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
 do that type:
 ::
 
-    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.9)" >> ~/.bash_profile
+    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)" >> ~/.bash_profile
     echo "source $(which virtualenvwrapper.sh)" >> ~/.bash_profile
 
 
@@ -354,8 +354,7 @@ Install Python
 ~~~~~~~~~~~~~~
 
 Dallinger is written in the language Python. For it to work, you will need
-to have Python 3.9 or higher. Python 3 is the preferred option.
-You can check what version of Python you have by running:
+to have Python 3.10 or higher. You can check what version of Python you have by running:
 ::
 
     python --version
