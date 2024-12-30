@@ -16,9 +16,9 @@ attrs==24.3.0
     #   trio
 blinker==1.9.0
     # via flask
-boto3==1.35.87
+boto3==1.35.90
     # via dallinger
-botocore==1.35.87
+botocore==1.35.90
     # via
     #   boto3
     #   s3transfer
@@ -34,7 +34,7 @@ certifi==2024.12.14
     #   selenium
 cffi==1.17.1
     # via cryptography
-charset-normalizer==3.4.0
+charset-normalizer==3.4.1
     # via requests
 click==8.1.8
     # via
@@ -199,7 +199,7 @@ traitlets==5.14.3
     # via
     #   ipython
     #   matplotlib-inline
-trio==0.27.0
+trio==0.28.0
     # via
     #   selenium
     #   trio-websocket

@@ -46,9 +46,9 @@ bleach==6.2.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.35.87
+boto3==1.35.90
     # via dallinger
-botocore==1.35.87
+botocore==1.35.90
     # via
     #   boto3
     #   s3transfer
@@ -77,7 +77,7 @@ cfgv==3.4.0
     # via pre-commit
 chardet==5.2.0
     # via tox
-charset-normalizer==3.4.0
+charset-normalizer==3.4.1
     # via requests
 click==8.1.8
     # via
@@ -92,7 +92,7 @@ comm==0.2.2
     # via
     #   ipykernel
     #   ipywidgets
-coverage==7.6.9
+coverage==7.6.10
     # via
     #   coverage-pth
     #   dallinger
@@ -173,7 +173,7 @@ httpcore==1.0.7
     # via httpx
 httpx==0.28.1
     # via jupyterlab
-identify==2.6.3
+identify==2.6.4
     # via pre-commit
 idna==3.10
     # via
@@ -304,7 +304,7 @@ mdit-py-plugins==0.4.2
     # via myst-parser
 mdurl==0.1.2
     # via markdown-it-py
-mistune==3.0.2
+mistune==3.1.0
     # via nbconvert
 mypy-extensions==1.0.0
     # via black
@@ -607,7 +607,7 @@ traitlets==5.14.3
     #   nbclient
     #   nbconvert
     #   nbformat
-trio==0.27.0
+trio==0.28.0
     # via
     #   selenium
     #   trio-websocket
