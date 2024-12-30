@@ -13,13 +13,7 @@ logger.addHandler(logging.NullHandler())
 # Avoid PEP-8 warning, we want this to be importable from this location
 Experiment = Experiment
 
-try:
-    experiments_entry_points = entry_points(group="dallinger.experiments")
-except TypeError:
-    # For Python 3.9 we fall back to using `iter_entry_points`
-    from pkg_resources import iter_entry_points
-
-    experiments_entry_points = iter_entry_points(group="dallinger.experiments")
+experiments_entry_points = entry_points(group="dallinger.experiments")
 
 for entry_point in experiments_entry_points:
     try:
