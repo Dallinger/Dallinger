@@ -48,7 +48,7 @@ Install Python
 ~~~~~~~~~~~~~~
 
 Dallinger is written in the language Python. For it to work, you will need
-to have Python 3.9 or higher. You can check what version of Python you have
+to have Python 3.10 or higher. You can check what version of Python you have
 by running:
 ::
 
@@ -215,7 +215,7 @@ Now let's set up a virtual environment by running the following commands:
     pip3 install virtualenvwrapper
     export WORKON_HOME=$HOME/.virtualenvs
     mkdir -p $WORKON_HOME
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.9)
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
     source $(which virtualenvwrapper.sh)
 
 
@@ -228,11 +228,11 @@ Now create the virtual environment using:
 
 Examples:
 
-Using homebrew installed Python 3.9:
+Using homebrew installed Python 3.12:
 ::
 
 
-    mkvirtualenv dlgr_env --python /usr/local/bin/python3.9
+    mkvirtualenv dlgr_env --python /usr/local/bin/python3.12
 
 
 Virtualenvwrapper provides an easy way to switch between virtual environments
@@ -262,7 +262,7 @@ The how-to:
 In the future, you can work on your virtual environment by running:
 ::
 
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.9)
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
     source $(which virtualenvwrapper.sh)
     workon dlgr_env
 
@@ -276,7 +276,7 @@ execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
 do that type:
 ::
 
-    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.9)" >> ~/.bash_profile
+    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)" >> ~/.bash_profile
     echo "source $(which virtualenvwrapper.sh)" >> ~/.bash_profile
 
 
@@ -307,16 +307,14 @@ Install Python
 ~~~~~~~~~~~~~~
 
 Dallinger is written in the language Python. For it to work, you will need
-to have Python 3.9 or higher. You can check what version of Python you have
+to have Python 3.10 or higher. You can check what version of Python you have
 by running:
 ::
 
     python --version
 
 
-Ubuntu 18.04 LTS ships with Python 3.6.
-
-Ubuntu 16.04 LTS ships with Python 3.5, while Ubuntu 14.04 LTS ships with Python 3.4.
+Ubuntu 24.04 LTS ships with Python 3.12, while Ubuntu 22.04 LTS ships with Python 3.10.
 In case you are using one of these distributions of Ubuntu, you will need to upgrade
 to the latest Python 3.x on your own.
 
@@ -328,7 +326,7 @@ contains the header files you need to build Python extensions appropriate to the
 
 .. note::
 
-    You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed.     It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.) If you are using Python 3, you may find that you may need to use the ``pip3`` command instead of ``pip`` where applicable in the instructions that follow.
+    You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed. It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.) If you are using Python 3, you may find that you may need to use the ``pip3`` command instead of ``pip`` where applicable in the instructions that follow.
 
 ::
 
