@@ -14,14 +14,14 @@ license = {file = "LICENSE"}
 description = "Laboratory automation for the behavioral and social sciences"
 keywords = ["science", "cultural evolution", "experiments", "psychology"]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Framework :: Flask",
     "Topic :: Scientific/Engineering",
     "Intended Audience :: Science/Research",
