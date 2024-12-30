@@ -47,9 +47,9 @@ dependencies = [
     "greenlet",
     "gunicorn[gevent]",
     "heroku3",
-    "ipython < 8.19",
+    "ipython",
     "localconfig",
-    "numpy < 2.1",
+    "numpy",
     "pexpect",
     "pip",
     "pip-tools",
@@ -89,7 +89,7 @@ dev = [
     "coverage_pth",
     "flake8",
     "isort",
-    "myst-parser < 4",
+    "myst-parser",
     "pre-commit",
     "pycodestyle",
     "pypandoc",
@@ -97,7 +97,7 @@ dev = [
     "pytest-rerunfailures",
     "sphinx",
     "sphinx_rtd_theme",
-    "sphinxcontrib-spelling < 8.0.1",
+    "sphinxcontrib-spelling",
     "tox",
 ]
 docker = [
@@ -161,7 +161,7 @@ include = [
 
 [tool.black]
 line-length = 88
-target-version = ["py312"]
+target-version = ["py313"]
 include = '\.pyi?$'
 exclude = '''
 /(
