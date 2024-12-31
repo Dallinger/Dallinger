@@ -392,11 +392,7 @@ def _deploy_in_mode(
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
     recruiter = by_name(config["recruiter"])
-    if not recruiter.validate_config(mode_from_command=mode):
-        print(
-            "When deploying to MTurk either `open_recruitment` must be `True` in the config or the `--open-recruitment` flag must be provided in the deploy command."
-        )
-        raise click.Abort
+    recruiter.validate_config(mode_from_command=mode)
 
     # We deleted this because synchronizing configs between local and remote can cause problems especially when using
     # different credential managers
