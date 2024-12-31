@@ -48,7 +48,7 @@ BLUE = "\033[34m"
 HOSTNAME = gethostname()
 try:
     USER = getuser()
-except KeyError:
+except (KeyError, OSError):  # Python >= 3.13 raises OSError
     USER = "user"
 
 DOCKER_COMPOSE_SERVER = abspath_from_egg(
