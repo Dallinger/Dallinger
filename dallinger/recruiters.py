@@ -1054,10 +1054,9 @@ class MTurkRecruiter(Recruiter):
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
-        skip_config_validation = kwargs.get("skip_config_validation", False)
-
-        if not skip_config_validation:
-            self.validate_config()
+        self.validate_config(
+            skip_config_validation=kwargs.get("skip_config_validation", False)
+        )
 
     def exit_response(self, experiment, participant):
         return flask.render_template(
@@ -1515,7 +1514,10 @@ class MTurkRecruiter(Recruiter):
         service = self.load_service(sandbox)
         return service.get_study(hit_id)["QualificationRequirements"]
 
-    def validate_config(self, mode_from_command=None):
+    def validate_config(self, mode_from_command=None, skip_config_validation=False):
+        if skip_config_validation:
+            return
+
         if (
             mode_from_command == "live"
             and not self.config.get("open_recruitment", False)
