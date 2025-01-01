@@ -195,7 +195,7 @@ else:
 
 # Click options
 option_app_name = click.option(
-    "--app-name",
+    "--app",
     help="Name to use for the app. If not provided a random one will be generated",
 )
 option_archive = click.option(
@@ -293,7 +293,7 @@ def validate_update(f):
     def wrapper(*args, **kwargs):
         if kwargs["update"] and not kwargs.get("app_name"):
             raise click.UsageError(
-                "Please specify the id of the running app to update with --app-name"
+                "Please specify the id of the running app to update with --app"
             )
         if kwargs["update"] and kwargs.get("archive_path"):
             raise click.UsageError(
@@ -429,7 +429,7 @@ def _deploy_in_mode(
             f"{BLUE}For instance to use the name experiment1.my-custom-domain.example.com"
         )
         print(
-            f"you can pass options --app-name experiment1 --dns-host my-custom-domain.example.com{END}"
+            f"you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}"
         )
     else:
         # Check dns_host: make sure that {experiment_id}.{dns_host} resolves to the remote host
