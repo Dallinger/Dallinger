@@ -1511,13 +1511,13 @@ class MTurkRecruiter(Recruiter):
         service = self.load_service(sandbox)
         return service.get_study(hit_id)["QualificationRequirements"]
 
-    def validate_config(self, mode_from_command=None):
+    def validate_config(self, mode_from_command=None, config_options={}):
         if (
             mode_from_command == "live"
             and not self.config.get("open_recruitment", False)
-            and not self.config_options.get("open_recruitment", False)
+            and not config_options.get("open_recruitment", False)
         ):
-            raise ValueError(
+            raise MTurkRecruiterException(
                 "When deploying to MTurk either `open_recruitment` must be `True` in the config "
                 "or the `--open-recruitment` flag must be provided in the deploy command."
             )
