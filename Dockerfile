@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 
 ###################### Dallinger base image ###################################
-FROM python:3.13-bookworm as dallinger
+FROM python:3.12-bookworm as dallinger
 ENV DEBIAN_FRONTEND=noninteractive
 LABEL org.opencontainers.image.source https://github.com/Dallinger/Dallinger
 
