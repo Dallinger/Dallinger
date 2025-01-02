@@ -196,6 +196,7 @@ else:
 # Click options
 option_app_name = click.option(
     "--app",
+    "app_name",
     help="Name to use for the app. If not provided a random one will be generated",
 )
 option_archive = click.option(
@@ -283,7 +284,7 @@ def build_and_push_image(f):
         )
         build_image(tmp_dir, config.get("docker_image_base_name"), out=Output())
         image_name = push.callback(use_existing=True, app_name=app_name)
-        return f(image_name, *args, **kwargs)
+        return f(image_name=image_name, *args, **kwargs)
 
     return wrapper
 
@@ -370,15 +371,19 @@ def sandbox(**kwargs):  # pragma: no cover
 @build_and_push_image
 def deploy(**kwargs):  # pragma: no cover
     """Deploy a dallinger experiment docker image to a server using ssh."""
-    if kwargs.get("open_recruitment"):
-        config_options = kwargs.get("config_options")
-        config_options["open_recruitment"] = True
-
-    return _deploy_in_mode(mode="live", config_options=config_options, **kwargs)
+    return _deploy_in_mode(mode="live", **kwargs)
 
 
 def _deploy_in_mode(
-    app_name, archive_path, config_options, dns_host, image_name, mode, server, update
+    app_name,
+    archive_path,
+    config_options,
+    dns_host,
+    image_name,
+    mode,
+    open_recruitment,
+    server,
+    update,
 ):
     config = get_config()
     config.load()
@@ -392,7 +397,9 @@ def _deploy_in_mode(
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
     recruiter = by_name(config["recruiter"])
-    recruiter.validate_config(mode_from_command=mode)
+    recruiter.validate_config(
+        mode_from_command=mode, open_recruitment_from_command=open_recruitment
+    )
 
     # We deleted this because synchronizing configs between local and remote can cause problems especially when using
     # different credential managers
