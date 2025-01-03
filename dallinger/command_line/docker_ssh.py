@@ -397,9 +397,7 @@ def _deploy_in_mode(
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
     recruiter = by_name(config["recruiter"])
-    recruiter.validate_config(
-        mode_from_command=mode, open_recruitment_from_command=open_recruitment
-    )
+    recruiter.validate_config({"mode": mode, "open_recruitment": open_recruitment})
 
     # We deleted this because synchronizing configs between local and remote can cause problems especially when using
     # different credential managers

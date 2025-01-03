@@ -1511,12 +1511,10 @@ class MTurkRecruiter(Recruiter):
         service = self.load_service(sandbox)
         return service.get_study(hit_id)["QualificationRequirements"]
 
-    def validate_config(
-        self, mode_from_command=None, open_recruitment_from_command=False
-    ):
+    def validate_config(self, cli_invocation_options: dict = {}):
         if (
-            mode_from_command == "live"
-            and not open_recruitment_from_command
+            cli_invocation_options.get("mode") == "live"
+            and not cli_invocation_options.get("open_recruitment")
             and not self.config.get("open_recruitment")
         ):
             raise MTurkRecruiterException(
