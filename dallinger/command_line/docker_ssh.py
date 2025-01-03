@@ -35,7 +35,6 @@ from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import handle_launch_data, setup_experiment
-from dallinger.recruiters import by_name
 from dallinger.utils import abspath_from_egg, check_output
 
 # A couple of constants to colour console output
@@ -388,16 +387,13 @@ def _deploy_in_mode(
     config = get_config()
     config.load()
 
-    run_pre_launch_checks(config)
+    run_pre_launch_checks(config, {"mode": mode, "open_recruitment": open_recruitment})
 
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
     dashboard_user = config.get("dashboard_user", "admin")
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
-
-    recruiter = by_name(config["recruiter"])
-    recruiter.validate_config({"mode": mode, "open_recruitment": open_recruitment})
 
     # We deleted this because synchronizing configs between local and remote can cause problems especially when using
     # different credential managers

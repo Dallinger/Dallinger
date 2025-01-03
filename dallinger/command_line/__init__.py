@@ -242,7 +242,7 @@ def prelaunch_db_bootstrapper(zip_path, log):
     return bootstrap_db
 
 
-def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
+def _deploy_in_mode(mode, verbose, log, app=None, archive=None, open_recruitment=False):
     if app:
         verify_id(None, None, app)
 
@@ -252,7 +252,7 @@ def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
-    run_pre_launch_checks(config)
+    run_pre_launch_checks(config, {"mode": mode, "open_recruitment": open_recruitment})
 
     prelaunch = []
     if archive:
@@ -306,13 +306,23 @@ def sandbox(verbose, app, archive):
 @click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
 @click.option("--app", default=None, help="ID of the deployed experiment")
 @click.option("--archive", default=None, help="Optional path to an experiment archive")
+@click.option(
+    "--open-recruitment",
+    is_flag=True,
+    help="Recruitment should start automatically when the experiment launches",
+)
 @require_exp_directory
 @fail_on_unsupported_urls
 @report_idle_after(21600)
-def deploy(verbose, app, archive):
+def deploy(verbose, app, archive, open_recruitment):
     """Deploy app using Heroku to MTurk."""
     return _deploy_in_mode(
-        mode="live", verbose=verbose, log=log, app=app, archive=archive
+        mode="live",
+        verbose=verbose,
+        log=log,
+        app=app,
+        archive=archive,
+        open_recruitment=open_recruitment,
     )
 
 
