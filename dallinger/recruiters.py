@@ -1054,18 +1054,6 @@ class MTurkRecruiter(Recruiter):
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
-        skip_config_validation = kwargs.get("skip_config_validation", False)
-
-        if not skip_config_validation:
-            self._validate_config()
-
-    def _validate_config(self):
-        mode = self.config.get("mode")
-        if mode not in ("sandbox", "live"):
-            raise MTurkRecruiterException(
-                '"{}" is not a valid mode for MTurk recruitment. '
-                'The value of "mode" must be either "sandbox" or "live"'.format(mode)
-            )
 
     def exit_response(self, experiment, participant):
         return flask.render_template(
@@ -1522,6 +1510,24 @@ class MTurkRecruiter(Recruiter):
     def get_qualifications(self, hit_id, sandbox):
         service = self.load_service(sandbox)
         return service.get_study(hit_id)["QualificationRequirements"]
+
+    def validate_config(self, cli_invocation_options: dict = {}):
+        if (
+            cli_invocation_options.get("mode") == "live"
+            and not cli_invocation_options.get("open_recruitment")
+            and not self.config.get("open_recruitment")
+        ):
+            raise MTurkRecruiterException(
+                "When deploying to MTurk either `open_recruitment` must be `True` in the config "
+                "or the `--open-recruitment` flag must be provided in the deploy command."
+            )
+
+        mode = self.config.get("mode")
+        if mode not in ("sandbox", "live"):
+            raise MTurkRecruiterException(
+                '"{}" is not a valid mode for MTurk recruitment. '
+                'The value of "mode" must be either "sandbox" or "live"'.format(mode)
+            )
 
 
 class RedisTally(object):
