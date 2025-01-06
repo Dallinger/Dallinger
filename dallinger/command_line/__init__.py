@@ -242,7 +242,9 @@ def prelaunch_db_bootstrapper(zip_path, log):
     return bootstrap_db
 
 
-def _deploy_in_mode(mode, open_recruitment, verbose, log=log, app=None, archive=None):
+def _deploy_in_mode(
+    mode, verbose, open_recruitment=False, log=log, app=None, archive=None
+):
     if app:
         verify_id(None, None, app)
 
