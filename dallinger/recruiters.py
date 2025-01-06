@@ -249,7 +249,9 @@ class Recruiter(object):
         """Return the status of the recruiter as a dictionary."""
         return {}
 
-    def validate_config(self):
+    def validate_config(
+        self, mode_from_cli: str = "", cli_invocation_options: dict = {}
+    ):
         """Validates config variables, if implemented."""
         pass
 
@@ -603,7 +605,9 @@ class ProlificRecruiter(Recruiter):
             "peripheral_requirements": details["peripheral_requirements"],
         }
 
-    def validate_config(self):
+    def validate_config(
+        self, _mode_from_cli: str = "", _cli_invocation_options: dict = {}
+    ):
         # Make sure Prolific config variables are present and validate the workspace
         self.config.get("prolific_project")
         workspace = self.config.get("prolific_workspace")
@@ -1511,9 +1515,9 @@ class MTurkRecruiter(Recruiter):
         service = self.load_service(sandbox)
         return service.get_study(hit_id)["QualificationRequirements"]
 
-    def validate_config(self, cli_invocation_options: dict = {}):
+    def validate_config(self, mode_from_cli, cli_invocation_options):
         if (
-            cli_invocation_options.get("mode") == "live"
+            mode_from_cli == "live"
             and not cli_invocation_options.get("open_recruitment")
             and not self.config.get("open_recruitment")
         ):
@@ -1760,10 +1764,12 @@ class MultiRecruiter(Recruiter):
             recruiter = by_name(name)
             recruiter.close_recruitment()
 
-    def validate_config(self):
+    def validate_config(
+        self, mode_from_cli: str = "", cli_invocation_options: dict = {}
+    ):
         for name in set(name for name, count in self.spec):
             recruiter = by_name(name)
-            recruiter.validate_config()
+            recruiter.validate_config(mode_from_cli, cli_invocation_options)
 
 
 def for_experiment(experiment):

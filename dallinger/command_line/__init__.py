@@ -242,7 +242,7 @@ def prelaunch_db_bootstrapper(zip_path, log):
     return bootstrap_db
 
 
-def _deploy_in_mode(mode, verbose, log, app=None, archive=None, open_recruitment=False):
+def _deploy_in_mode(mode, open_recruitment, verbose, log=log, app=None, archive=None):
     if app:
         verify_id(None, None, app)
 
@@ -252,7 +252,7 @@ def _deploy_in_mode(mode, verbose, log, app=None, archive=None, open_recruitment
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
-    run_pre_launch_checks(config, {"mode": mode, "open_recruitment": open_recruitment})
+    run_pre_launch_checks(config, mode, locals())
 
     prelaunch = []
     if archive:
@@ -295,11 +295,9 @@ def fail_on_unsupported_urls(f):
 @require_exp_directory
 @fail_on_unsupported_urls
 @report_idle_after(21600)
-def sandbox(verbose, app, archive):
+def sandbox(**kwargs):
     """Deploy app using Heroku to the MTurk Sandbox."""
-    return _deploy_in_mode(
-        mode="sandbox", verbose=verbose, log=log, app=app, archive=archive
-    )
+    return _deploy_in_mode(mode="sandbox", **kwargs)
 
 
 @dallinger.command()
@@ -314,16 +312,9 @@ def sandbox(verbose, app, archive):
 @require_exp_directory
 @fail_on_unsupported_urls
 @report_idle_after(21600)
-def deploy(verbose, app, archive, open_recruitment):
+def deploy(**kwargs):
     """Deploy app using Heroku to MTurk."""
-    return _deploy_in_mode(
-        mode="live",
-        verbose=verbose,
-        log=log,
-        app=app,
-        archive=archive,
-        open_recruitment=open_recruitment,
-    )
+    return _deploy_in_mode(mode="live", **kwargs)
 
 
 @dallinger.command()

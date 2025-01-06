@@ -104,9 +104,9 @@ def remove_services_data():
 @click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
 @click.option("--app", default=None, help="Experiment id")
 @require_exp_directory
-def sandbox(verbose, app):
+def sandbox(**kwargs):
     """Deploy app using Heroku to the MTurk Sandbox."""
-    return _deploy_in_mode(mode="sandbox", verbose=verbose, log=log, app=app)
+    return _deploy_in_mode(mode="sandbox", log=log, **kwargs)
 
 
 @docker.command()
@@ -118,15 +118,9 @@ def sandbox(verbose, app):
     help="Recruitment should start automatically when the experiment launches",
 )
 @require_exp_directory
-def deploy(verbose, app, open_recruitment):
+def deploy(**kwargs):
     """Deploy app using Heroku to MTurk."""
-    return _deploy_in_mode(
-        mode="live",
-        verbose=verbose,
-        log=log,
-        app=app,
-        open_recruitment=open_recruitment,
-    )
+    return _deploy_in_mode(mode="live", **kwargs)
 
 
 @docker.command()
@@ -310,7 +304,7 @@ def deploy_image(image_name, mode, config_options):
     )
 
 
-def _deploy_in_mode(mode, verbose, log, app=None, open_recruitment=False):
+def _deploy_in_mode(mode, open_recruitment, verbose, log=log, app=None):
     if app:
         verify_id(None, None, app)
 
@@ -320,7 +314,7 @@ def _deploy_in_mode(mode, verbose, log, app=None, open_recruitment=False):
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
-    run_pre_launch_checks(config, {"mode": mode, "open_recruitment": open_recruitment})
+    run_pre_launch_checks(config, mode, locals())
 
     return deploy_heroku_docker(log=log, verbose=verbose, app=app)
 
