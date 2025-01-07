@@ -1513,8 +1513,8 @@ class MTurkRecruiter(Recruiter):
 
     def validate_config(self, **kwargs):
         if (
-            kwargs["mode"] == "live"
-            and not kwargs["open_recruitment"]
+            kwargs.get("mode") == "live"
+            and not kwargs.get("open_recruitment")
             and not self.config.get("open_recruitment")
         ):
             raise MTurkRecruiterException(
