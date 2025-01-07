@@ -303,13 +303,13 @@ def verify_id(ctx, param, app):
     return app
 
 
-def run_pre_launch_checks(config, mode_from_cli, cli_invocation_options: dict = {}):
+def run_pre_launch_checks(**kwargs):
     from dallinger.recruiters import by_name
 
-    recruiter_name = config.get("recruiter", None)
+    recruiter_name = kwargs["config"].get("recruiter", None)
     if recruiter_name is not None:
         log(f"Validating config for {recruiter_name} recruitment...")
-        by_name(recruiter_name).validate_config(mode_from_cli, cli_invocation_options)
+        by_name(recruiter_name).validate_config(**kwargs)
 
 
 # Ported from PsyNet

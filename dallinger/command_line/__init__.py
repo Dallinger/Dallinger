@@ -252,7 +252,7 @@ def _deploy_in_mode(mode, verbose, open_recruitment=None, app=None, archive=None
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
-    run_pre_launch_checks(config, mode, locals())
+    run_pre_launch_checks(**locals())
 
     prelaunch = []
     if archive:

@@ -387,7 +387,7 @@ def _deploy_in_mode(
     config = get_config()
     config.load()
 
-    run_pre_launch_checks(config, mode, locals())
+    run_pre_launch_checks(**locals())
 
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]

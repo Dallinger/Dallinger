@@ -314,7 +314,7 @@ def _deploy_in_mode(mode, verbose, open_recruitment=None, app=None):
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
-    run_pre_launch_checks(config, mode, locals())
+    run_pre_launch_checks(**locals())
 
     return deploy_heroku_docker(log=log, verbose=verbose, app=app)
 
