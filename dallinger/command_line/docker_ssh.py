@@ -380,9 +380,9 @@ def _deploy_in_mode(
     dns_host,
     image_name,
     mode,
-    open_recruitment,
     server,
     update,
+    open_recruitment=None,
 ):
     config = get_config()
     config.load()
