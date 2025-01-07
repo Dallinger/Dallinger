@@ -104,18 +104,23 @@ def remove_services_data():
 @click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
 @click.option("--app", default=None, help="Experiment id")
 @require_exp_directory
-def sandbox(verbose, app):
+def sandbox(**kwargs):
     """Deploy app using Heroku to the MTurk Sandbox."""
-    return _deploy_in_mode(mode="sandbox", verbose=verbose, log=log, app=app)
+    return _deploy_in_mode(mode="sandbox", **kwargs)
 
 
 @docker.command()
 @click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
 @click.option("--app", default=None, help="Experiment id")
+@click.option(
+    "--open-recruitment",
+    is_flag=True,
+    help="Recruitment should start automatically when the experiment launches",
+)
 @require_exp_directory
-def deploy(verbose, app):
+def deploy(**kwargs):
     """Deploy app using Heroku to MTurk."""
-    return _deploy_in_mode(mode="live", verbose=verbose, log=log, app=app)
+    return _deploy_in_mode(mode="live", **kwargs)
 
 
 @docker.command()
@@ -213,7 +218,7 @@ def deploy_image(image_name, mode, config_options):
         "AWS_SECRET_ACCESS_KEY": config.get("aws_secret_access_key"),
         "AWS_DEFAULT_REGION": config.get("aws_region"),
         "prolific_api_token": config["prolific_api_token"],
-        "activate_recruiter_on_start": config.get("activate_recruiter_on_start"),
+        "open_recruitment": config.get("open_recruitment"),
         "auto_recruit": config.get("auto_recruit"),
         "smtp_username": config.get("smtp_username"),
         "smtp_password": config.get("smtp_password"),
@@ -299,7 +304,7 @@ def deploy_image(image_name, mode, config_options):
     )
 
 
-def _deploy_in_mode(mode, verbose, log, app=None):
+def _deploy_in_mode(mode, verbose, open_recruitment=None, app=None):
     if app:
         verify_id(None, None, app)
 
@@ -309,7 +314,7 @@ def _deploy_in_mode(mode, verbose, log, app=None):
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
-    run_pre_launch_checks(config)
+    run_pre_launch_checks(**locals())
 
     return deploy_heroku_docker(log=log, verbose=verbose, app=app)
 
@@ -380,7 +385,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
         "AWS_SECRET_ACCESS_KEY": config["aws_secret_access_key"],
         "AWS_DEFAULT_REGION": config["aws_region"],
         "prolific_api_token": config["prolific_api_token"],
-        "activate_recruiter_on_start": config.get("activate_recruiter_on_start"),
+        "open_recruitment": config.get("open_recruitment"),
         "auto_recruit": config["auto_recruit"],
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],

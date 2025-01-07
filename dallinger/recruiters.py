@@ -282,7 +282,7 @@ class Recruiter(object):
         """
         raise NotImplementedError
 
-    def validate_config(self):
+    def validate_config(self, **kwargs):
         """Validates config variables, if implemented."""
         pass
 
@@ -715,7 +715,7 @@ class ProlificRecruiter(Recruiter):
             "peripheral_requirements": details["peripheral_requirements"],
         }
 
-    def validate_config(self):
+    def validate_config(self, **kwargs):
         # Make sure Prolific config variables are present and validate the workspace
         self.config.get("prolific_project")
         workspace = self.config.get("prolific_workspace")
@@ -1179,18 +1179,6 @@ class MTurkRecruiter(Recruiter):
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
-        skip_config_validation = kwargs.get("skip_config_validation", False)
-
-        if not skip_config_validation:
-            self._validate_config()
-
-    def _validate_config(self):
-        mode = self.config.get("mode")
-        if mode not in ("sandbox", "live"):
-            raise MTurkRecruiterException(
-                '"{}" is not a valid mode for MTurk recruitment. '
-                'The value of "mode" must be either "sandbox" or "live"'.format(mode)
-            )
 
     def exit_response(self, experiment, participant):
         return flask.render_template(
@@ -1655,6 +1643,24 @@ class MTurkRecruiter(Recruiter):
         service = self.load_service(sandbox)
         return service.get_study(hit_id)["QualificationRequirements"]
 
+    def validate_config(self, **kwargs):
+        if (
+            kwargs.get("mode") == "live"
+            and not kwargs.get("open_recruitment")
+            and not self.config.get("open_recruitment")
+        ):
+            raise MTurkRecruiterException(
+                "When deploying to MTurk either `open_recruitment` must be `True` in the config "
+                "or the `--open-recruitment` flag must be provided in the deploy command."
+            )
+
+        mode = self.config.get("mode")
+        if mode not in ("sandbox", "live"):
+            raise MTurkRecruiterException(
+                '"{}" is not a valid mode for MTurk recruitment. '
+                'The value of "mode" must be either "sandbox" or "live"'.format(mode)
+            )
+
 
 class RedisTally(object):
     _key = "num_recruited"
@@ -1890,10 +1896,10 @@ class MultiRecruiter(Recruiter):
             recruiter = by_name(name)
             recruiter.close_recruitment()
 
-    def validate_config(self):
+    def validate_config(self, **kwargs):
         for name in set(name for name, count in self.spec):
             recruiter = by_name(name)
-            recruiter.validate_config()
+            recruiter.validate_config(**kwargs)
 
 
 def for_experiment(experiment):
