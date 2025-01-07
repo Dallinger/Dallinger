@@ -106,7 +106,7 @@ def remove_services_data():
 @require_exp_directory
 def sandbox(**kwargs):
     """Deploy app using Heroku to the MTurk Sandbox."""
-    return _deploy_in_mode(mode="sandbox", log=log, **kwargs)
+    return _deploy_in_mode(mode="sandbox", **kwargs)
 
 
 @docker.command()
@@ -304,7 +304,7 @@ def deploy_image(image_name, mode, config_options):
     )
 
 
-def _deploy_in_mode(mode, open_recruitment, verbose, log=log, app=None):
+def _deploy_in_mode(mode, verbose, open_recruitment=None, app=None):
     if app:
         verify_id(None, None, app)
 
