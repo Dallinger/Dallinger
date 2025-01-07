@@ -8,6 +8,7 @@ import pytest
 from dallinger.experiment import Experiment
 from dallinger.models import Participant
 from dallinger.mturk import MTurkQualificationRequirements, MTurkQuestions
+from dallinger.recruiters import MTurkRecruiterException
 
 
 class TestModuleFunctions(object):
@@ -854,14 +855,6 @@ class TestMTurkRecruiter(object):
 
             return r
 
-    def test_instantiation_fails_with_invalid_mode(self, active_config):
-        from dallinger.recruiters import MTurkRecruiter, MTurkRecruiterException
-
-        active_config.extend({"mode": "nonsense"})
-        with pytest.raises(MTurkRecruiterException) as ex_info:
-            MTurkRecruiter()
-        assert ex_info.match('"nonsense" is not a valid mode')
-
     def test_config_passed_to_constructor_sandbox(self, recruiter):
         assert recruiter.config.get("title") == "fake experiment title"
 
@@ -887,8 +880,6 @@ class TestMTurkRecruiter(object):
     def test_open_recruitment_raises_if_no_external_hit_domain_configured(
         self, recruiter
     ):
-        from dallinger.recruiters import MTurkRecruiterException
-
         recruiter.hit_domain = None
         with pytest.raises(MTurkRecruiterException):
             recruiter.open_recruitment(n=1)
@@ -1007,8 +998,6 @@ class TestMTurkRecruiter(object):
     def test_open_recruitment_raises_error_if_hit_already_in_progress(
         self, fake_parsed_hit, recruiter
     ):
-        from dallinger.recruiters import MTurkRecruiterException
-
         recruiter.open_recruitment()
         with pytest.raises(MTurkRecruiterException):
             recruiter.open_recruitment()
@@ -1315,6 +1304,40 @@ class TestMTurkRecruiter(object):
 
         recruiter.mturkservice.expire_hit.assert_not_called()
 
+    def test_validate_config_with_invalid_mode(self, a, recruiter):
+        recruiter.config["mode"] = "nonsense"
+
+        with pytest.raises(MTurkRecruiterException) as ex_info:
+            recruiter.validate_config()
+        assert ex_info.match('"nonsense" is not a valid mode')
+
+    def test_validate_config_deploy_open_recruitment_missing_from_config_and_command(
+        self, a, recruiter
+    ):
+        recruiter.config["open_recruitment"] = False
+
+        with pytest.raises(MTurkRecruiterException) as ex_info:
+            recruiter.validate_config(mode="live", open_recruitment=False)
+        assert ex_info.match(
+            "When deploying to MTurk either `open_recruitment` must be `True` in the config or the `--open-recruitment` flag must be provided in the deploy command."
+        )
+
+    def test_validate_config_deploy_open_recruitment_set_in_config(self, a, recruiter):
+        recruiter.config["open_recruitment"] = True
+        recruiter.validate_config(mode="live", open_recruitment=False)
+
+    def test_validate_config_deploy_open_recruitment_set_from_command(
+        self, a, recruiter
+    ):
+        recruiter.config["open_recruitment"] = False
+        recruiter.validate_config(mode="live", open_recruitment=True)
+
+    def test_validate_config_sandbox_open_recruitment_missing_from_config_and_command(
+        self, a, recruiter
+    ):
+        recruiter.config["open_recruitment"] = False
+        recruiter.validate_config(mode="sandbox", open_recruitment=False)
+
 
 class TestRedisTally(object):
     @pytest.fixture
@@ -1363,8 +1386,6 @@ class TestMTurkLargeRecruiter(object):
     def test_open_recruitment_raises_error_if_experiment_in_progress(
         self, fake_parsed_hit, recruiter
     ):
-        from dallinger.recruiters import MTurkRecruiterException
-
         recruiter.open_recruitment()
         with pytest.raises(MTurkRecruiterException):
             recruiter.open_recruitment()

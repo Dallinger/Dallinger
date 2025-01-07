@@ -242,7 +242,7 @@ def prelaunch_db_bootstrapper(zip_path, log):
     return bootstrap_db
 
 
-def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
+def _deploy_in_mode(mode, verbose, open_recruitment=None, app=None, archive=None):
     if app:
         verify_id(None, None, app)
 
@@ -252,7 +252,7 @@ def _deploy_in_mode(mode, verbose, log, app=None, archive=None):
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
-    run_pre_launch_checks(config)
+    run_pre_launch_checks(**locals())
 
     prelaunch = []
     if archive:
@@ -295,25 +295,26 @@ def fail_on_unsupported_urls(f):
 @require_exp_directory
 @fail_on_unsupported_urls
 @report_idle_after(21600)
-def sandbox(verbose, app, archive):
+def sandbox(**kwargs):
     """Deploy app using Heroku to the MTurk Sandbox."""
-    return _deploy_in_mode(
-        mode="sandbox", verbose=verbose, log=log, app=app, archive=archive
-    )
+    return _deploy_in_mode(mode="sandbox", **kwargs)
 
 
 @dallinger.command()
 @click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
 @click.option("--app", default=None, help="ID of the deployed experiment")
 @click.option("--archive", default=None, help="Optional path to an experiment archive")
+@click.option(
+    "--open-recruitment",
+    is_flag=True,
+    help="Recruitment should start automatically when the experiment launches",
+)
 @require_exp_directory
 @fail_on_unsupported_urls
 @report_idle_after(21600)
-def deploy(verbose, app, archive):
+def deploy(**kwargs):
     """Deploy app using Heroku to MTurk."""
-    return _deploy_in_mode(
-        mode="live", verbose=verbose, log=log, app=app, archive=archive
-    )
+    return _deploy_in_mode(mode="live", **kwargs)
 
 
 @dallinger.command()
@@ -554,7 +555,7 @@ def hits(app, sandbox, recruiter):
     if app is not None:
         verify_id(None, "--app", app)
     prolific_check(recruiter, sandbox)
-    rec = by_name(recruiter, skip_config_validation=True)
+    rec = by_name(recruiter)
     rec.hits(app, sandbox)
 
 
@@ -570,7 +571,7 @@ def hits(app, sandbox, recruiter):
 def hit_details(hit_id, sandbox, recruiter):
     """Print the details of a specific HIT for a recruiter."""
     prolific_check(recruiter, sandbox)
-    rec = by_name(recruiter, skip_config_validation=True)
+    rec = by_name(recruiter)
     details = rec.hit_details(hit_id, sandbox)
     print(json.dumps(details, indent=4, default=str))
 
@@ -588,7 +589,7 @@ def hit_details(hit_id, sandbox, recruiter):
 def copy_qualifications(hit_id, sandbox, recruiter, path):
     """Copy qualifications from an existing HIT and save them to a JSON file."""
     prolific_check(recruiter, sandbox)
-    rec = by_name(recruiter, skip_config_validation=True)
+    rec = by_name(recruiter)
     if path is None:
         path = rec.default_qualification_name
     assert path.endswith(".json"), "Qualification path must be a json file"
