@@ -441,27 +441,31 @@ class TestDashboardMonitorRoute(object):
 
         assert resp.status_code == 200
         resp_text = resp.data.decode("utf8")
-        assert '<h5 class="card-title">Participants</h5>' in resp_text
-        assert "<li>working: 0</li>" in resp_text
+        for title in ["Participants", "Networks", "Nodes", "Infos"]:
+            assert f'<h5 class="card-title">{title}</h5>' in resp_text
 
-    def test_statistics_show_working(self, webapp_admin, db_session):
+    def test_statistics_show_status_and_count(self, webapp_admin, db_session):
         from dallinger.models import Participant
 
-        participant = Participant(
-            recruiter_id="hotair",
-            worker_id="1",
-            hit_id="1",
-            assignment_id="1",
-            mode="test",
-        )
-        db_session.add(participant)
+        for i in range(2):
+            participant = Participant(
+                recruiter_id="hotair",
+                worker_id=str(i),
+                hit_id=str(i),
+                assignment_id=str(i),
+                mode="test",
+            )
+            db_session.add(participant)
 
         resp = webapp_admin.get("/dashboard/monitoring")
 
         assert resp.status_code == 200
         resp_text = resp.data.decode("utf8")
         assert '<h5 class="card-title">Participants</h5>' in resp_text
-        assert "<li>working: 1</li>" in resp_text
+        assert (
+            '<span class="statistics-key">working</span>: <span class="statistics-value">2</span>'
+            in resp_text
+        )
 
     def test_custom_vis_options(self, webapp_admin):
         # The HTML is customized using a property on the model class
