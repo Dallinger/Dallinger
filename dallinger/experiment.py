@@ -1166,14 +1166,11 @@ class Experiment(object):
         nodes = Node.query
         infos = Info.query
 
+        unique_statuses = set(participant.status for participant in participants.all())
         stats = OrderedDict()
-        stats["Participants"] = OrderedDict(
-            (
-                ("working", participants.filter_by(status="working").count()),
-                ("abandoned", participants.filter_by(status="abandoned").count()),
-                ("returned", participants.filter_by(status="returned").count()),
-                ("approved", participants.filter_by(status="approved").count()),
-            )
+        stats["Participants"] = dict(
+            (status, participants.filter_by(status=status).count())
+            for status in sorted(unique_statuses)
         )
 
         # Count up our networks by role
