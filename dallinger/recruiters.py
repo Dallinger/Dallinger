@@ -535,27 +535,28 @@ class ProlificRecruiter(Recruiter):
         status on Prolific and act based on this.
         """
         q = get_queue()
+        assignments_by_id = self.prolificservice.get_assignments_for_study(
+            self.current_study_id
+        )
+        action_for_status = {
+            "ACTIVE": "AssignmentAbandoned",
+            "RETURNED": "AssignmentReturned",
+        }
 
         for participant in participants:
             assignment_id = participant.assignment_id
             participant_id = participant.id
-            submission = self.prolificservice.get_participant_submission(assignment_id)
-            status = submission["status"]
+            latest_data = assignments_by_id.get(assignment_id)
+            if latest_data is None:
+                logger.warning(
+                    f"We found no assignment data for participant {participant_id} "
+                    f"with assignment ID {assignment_id} on Prolific!"
+                )
+                continue
 
-            if status == "ACTIVE":
-                q.enqueue(
-                    worker_function,
-                    "AssignmentAbandoned",
-                    assignment_id,
-                    participant_id,
-                )
-            elif status == "RETURNED":
-                q.enqueue(
-                    worker_function,
-                    "AssignmentReturned",
-                    assignment_id,
-                    participant_id,
-                )
+            action = action_for_status.get(latest_data["status"])
+            if action is not None:
+                q.enqueue(worker_function, action, assignment_id, participant_id)
 
     @property
     def current_study_id(self):
