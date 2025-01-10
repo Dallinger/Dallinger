@@ -32,3 +32,27 @@ body {
 #no-consent {
     float: right;
 }
+
+.nowrap {
+    white-space: nowrap;
+}
+
+.all-failures {
+    color: red;
+}
+
+.some-failures {
+    color: orange;
+}
+
+.no-failures {
+    color: green;
+}
+
+.statistics-key {
+    font-family: monospace;
+}
+
+.statistics-value {
+    font-weight: bold;
+}
