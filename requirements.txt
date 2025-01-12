@@ -141,7 +141,7 @@ pycparser==2.22
     # via cffi
 pygments==2.18.0
     # via ipython
-pyopenssl==24.3.0
+pyopenssl==25.0.0
     # via dallinger
 pyproject-hooks==1.2.0
     # via
