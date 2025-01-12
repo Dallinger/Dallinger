@@ -448,11 +448,12 @@ class TestDashboardMonitorRoute(object):
         from dallinger.models import Participant
 
         for i in range(2):
+            _id = str(i + 1)
             participant = Participant(
                 recruiter_id="hotair",
-                worker_id=str(i),
-                hit_id=str(i),
-                assignment_id=str(i),
+                worker_id=_id,
+                hit_id=_id,
+                assignment_id=_id,
                 mode="test",
             )
             db_session.add(participant)
