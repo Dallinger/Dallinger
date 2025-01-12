@@ -1103,6 +1103,9 @@ def mturk_recruiter_notify():
         logger.warning("Received an Event Notification from AWS.")
         message = json.loads(content.get("Message"))
         events = message["Events"]
+        logger.warning("<<<<<<<<<<<<<<< Debugging events")
+        logger.warning(events)
+        logger.warning("<<<<<<<<<<<<<<< Debugging events")
         recruiter._report_event_notification(events)
 
     else:
@@ -1498,6 +1501,9 @@ class MTurkRecruiter(Recruiter):
         # transaction before passing off the async worker task.
         q = get_queue()
         for event in events:
+            logger.warning("<<<<<<<<<<<<<<< Debugging event")
+            logger.warning(event)
+            logger.warning("<<<<<<<<<<<<<<< Debugging event")
             mturk_type = event.get("EventType")
             assignment_id = event.get("AssignmentId")
 
@@ -1516,6 +1522,9 @@ class MTurkRecruiter(Recruiter):
 
                 participant.status = "submitted"
                 session.commit()
+            logger.warning("<<<<<<<<<<<<<<< Debugging mturk_type")
+            logger.warning(mturk_type)
+            logger.warning("<<<<<<<<<<<<<<< Debugging mturk_type")
 
             dlgr_event_type = self._translate_event_type(mturk_type)
             q.enqueue(worker_function, dlgr_event_type, assignment_id, participant.id)
