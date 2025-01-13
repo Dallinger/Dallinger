@@ -1501,7 +1501,7 @@ class MTurkRecruiter(Recruiter):
             mturk_type = event.get("EventType")
             assignment_id = event.get("AssignmentId")
 
-            if mturk_type == "AssignmentSubmitted":
+            if mturk_type in ["AssignmentAccepted", "AssignmentSubmitted"]:
                 participant = (
                     Participant.query.filter_by(assignment_id=assignment_id)
                     .order_by(Participant.creation_time.desc())
@@ -1509,13 +1509,14 @@ class MTurkRecruiter(Recruiter):
                 )
                 if participant is None:
                     logger.error(
-                        "Received an AssignmentSubmitted notification from MTurk for assignment ID {}, "
-                        "which is not related to any participant.".format(assignment_id)
+                        f"Received an {mturk_type} notification from MTurk for assignment ID {assignment_id}, "
+                        "which is not related to any participant."
                     )
                     return
 
-                participant.status = "submitted"
-                session.commit()
+                if mturk_type == "AssignmentSubmitted":
+                    participant.status = "submitted"
+                    session.commit()
 
             dlgr_event_type = self._translate_event_type(mturk_type)
             q.enqueue(worker_function, dlgr_event_type, assignment_id, participant.id)
