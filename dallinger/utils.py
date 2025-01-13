@@ -890,6 +890,7 @@ def exclusion_policy():
             "config.txt",
             "*.db",
             "*.dmg",
+            "local_only",
             "node_modules",
             "snapshots",
             "data",
