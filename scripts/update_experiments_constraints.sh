@@ -14,13 +14,18 @@ for demo_name in $(ls demos/dlgr/demos/); do
     if [ -f "demos/dlgr/demos/${demo_name}/config.txt" ]; then
         cd "demos/dlgr/demos/${demo_name}/"
         echo Compiling ${demo_name}
-        echo "-c ../../../../dev-requirements.txt
--r requirements.txt" > temp-requirements.txt
-        pip-compile temp-requirements.txt -o constraints.txt
-        rm temp-requirements.txt
-        echo '# generate from file with hash ' $(md5_cmd requirements.txt) >> constraints.txt
-        # Remove the extras from constraints.txt
+        # Temporarily replace the dallinger package name with the GitHub requirement which includes the release branch
+        sed -i "s/^dallinger$/dallinger@git+https:\/\/github.com\/Dallinger\/Dallinger@$(git branch --show-current)/g" requirements.txt
+        # Compile constraints.txt file
+        pip-compile -o constraints.txt -c ../../../../dev-requirements.txt -r requirements.txt
+        # Remove extras from constraints.txt
         sed -e 's/\[.*==/==/' -i constraints.txt
+        # Revert dallinger GitHub requirement back to package name
+        sed -i "s/^dallinger@git+https:\/\/github.com\/Dallinger\/Dallinger@$(git branch --show-current)$/dallinger/g" requirements.txt
+        # Update constraints.txt file to use the to be released dallinger version
+        sed -i "s/^dallinger\ @\ git+https:\/\/github.com\/Dallinger\/Dallinger@$(git branch --show-current)$/dallinger==$(dallinger -v)/g" constraints.txt
+        echo ""
+        echo "# Hash of requirements.txt file:" $(md5_cmd requirements.txt) >> constraints.txt
         cd -
     fi
 done

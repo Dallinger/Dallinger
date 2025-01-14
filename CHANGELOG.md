@@ -1,5 +1,48 @@
 # Change Log
 
+## [v11.0.0](https://github.com/dallinger/dallinger/tree/v11.0.0 (2025-01-XX)
+
+#### Breaking changes
+- Renamed config variable `activate_recruiter_on_start` to `open_recruitment` and allow it to be set to `True` also by using a `--open-recruitment` flag
+
+#### Added
+- Added new config variables `prolific_workspace` and `prolific_project` to support declaration of Prolific workspaces and project names (the workspace must already exist and a new project in that workspace will be created if it doesn't exist already)
+- Added the `dallinger docker-ssh sandbox` command
+- Added `validate_config` methods to recruiters
+- Added `local_only` to `exclusion_policy` used when assembling the deployment directory. Users can then use this directory called `local_only` to store misc files that they don't want deployed to the web server.
+
+#### Fixed
+- Keep Dallinger database in sync with Prolific via combination of regular polling + experiment-requested syncs by adding new `scheduled_job` '`async_recruiter_status_check`'
+- Fixed a regex error in `HerokuApp.db_uri` for Heroku deployments
+- EC2 provisioning:
+  - Check the instance name complies with same naming conventions as for the app name (underscores lead to errors)
+  - Allow to override `PEM` file and `security_group_name` (previously the passed parameters were always overridden by .dallingerconfig)
+  - Fix a bug in fetching instance name if it's missing
+  - Bugfix for `PEM` file stored as absolute path in config
+  - Add instance details like uptime, total cost, VCPU, and memory
+  - Add `restart: unless-stopped` to docker-compose.yml to automatically restart the server
+  - Update an instance's DNS entry to use the new IP address when an EC2 instance is stopped and later restarted
+
+### Changed
+- Scrub `client_ip_address` data from participant anonymous data export
+- Improved handling of exporting data when no AWS credentials are registered by not raising an `S3BucketUnavailable` error
+- Throw an error when deploying to MTurk and `open_recruitment` is not set to `True`, either by setting `open_recruitment` in the config or by using the `--open-recruitment` command flag
+
+### Refactorings
+- `dallinger docker-ssh deploy/sandbox` commands introducing a `_deploy_in_mode` function
+- `dallinger docker deploy/sandbox` commands
+- `dallinger deploy/sandbox` commands
+- `run_pre_launch_checks` method in `dallinger.command_line.utils`
+
+#### Updated
+- Updated `rq` to version `>= 2` by refactoring and thereby getting rid of deprecation warnings
+- Updated dependencies; pin `sphinxcontrib-spelling < 8.0.1`
+
+## [v10.3.3](https://github.com/dallinger/dallinger/tree/v10.3.3) (2024-12-07)
+
+#### Fixed
+- Fixed tagging latest Docker image also as `latest`.
+
 ## [v10.3.0](https://github.com/dallinger/dallinger/tree/v10.3.0) (2024-11-04)
 
 #### Fixed
