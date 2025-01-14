@@ -2,15 +2,14 @@
   "name": "dallinger",
   "version": "0.1.0",
   "description": "Dallinger experiment server",
-  "dependencies": {},
   "devDependencies": {
     "browser-sync": "^2.18.8",
     "browser-sync-webpack-plugin": "^1.1.4",
     "fingerprintjs2": "^1.5.1",
-    "jest": "^23.6.0",
-    "jsdoc": "^3.6.3",
+    "jest": "^29.7.0",
+    "jsdoc": "^4.0.4",
     "uglify-es": "^3.0.28",
-    "webpack": "^2.4.1"
+    "webpack": "^5.97.1"
   },
   "engines": {
     "node": ">= 8.15.0"
