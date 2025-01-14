@@ -1,6 +1,6 @@
 # Change Log
 
-## [v11.0.0](https://github.com/dallinger/dallinger/tree/v11.0.0 (2025-01-XX)
+## [v11.0.0](https://github.com/dallinger/dallinger/tree/v11.0.0) (2025-01-14)
 
 #### Breaking changes
 - Renamed config variable `activate_recruiter_on_start` to `open_recruitment` and allow it to be set to `True` also by using a `--open-recruitment` flag
