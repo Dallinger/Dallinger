@@ -1501,7 +1501,12 @@ class MTurkRecruiter(Recruiter):
             mturk_type = event.get("EventType")
             assignment_id = event.get("AssignmentId")
 
-            if mturk_type in ["AssignmentAccepted", "AssignmentSubmitted"]:
+            if mturk_type in [
+                "AssignmentAbandoned",
+                "AssignmentAccepted",
+                "AssignmentReturned",
+                "AssignmentSubmitted",
+            ]:
                 participant = (
                     Participant.query.filter_by(assignment_id=assignment_id)
                     .order_by(Participant.creation_time.desc())
@@ -1514,9 +1519,13 @@ class MTurkRecruiter(Recruiter):
                     )
                     return
 
+                if mturk_type == "AssignmentAbandoned":
+                    participant.status = "abandoned"
+                if mturk_type == "AssignmentReturned":
+                    participant.status = "returned"
                 if mturk_type == "AssignmentSubmitted":
                     participant.status = "submitted"
-                    session.commit()
+                session.commit()
 
             dlgr_event_type = self._translate_event_type(mturk_type)
             q.enqueue(worker_function, dlgr_event_type, assignment_id, participant.id)
