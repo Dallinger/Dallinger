@@ -11,6 +11,7 @@ from typing import Union
 
 import psycopg2
 from psycopg2.extensions import TransactionRollbackError
+from rq import Queue
 from sqlalchemy import Table, create_engine, event
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.compiler import compiles
@@ -65,6 +66,19 @@ Consult the developer guide for more information.
 *********************************************************
 
 """
+
+
+def get_queue(name="default"):
+    """Return an rq.Queue with a connection to redis.
+
+    Optional param "name" should be one of:
+        - "high"
+        - "default"
+        - "low"
+
+    as these are the names of the queues workers read from.
+    """
+    return Queue(name, connection=redis_conn)
 
 
 def check_connection(timeout_secs=3):

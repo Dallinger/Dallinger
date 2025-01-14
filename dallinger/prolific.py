@@ -77,7 +77,7 @@ class ProlificService:
         stop=tenacity.stop_after_attempt(5),
         reraise=True,
     )
-    def approve_participant_session(self, session_id: str) -> dict:
+    def approve_participant_submission(self, submission_id: str) -> dict:
         """Mark an assignment as approved.
 
         We do some retrying here, because our first attempt to approve will
@@ -85,19 +85,21 @@ class ProlificService:
         the study on Prolific. If we get there first, there will be an error
         because the submission hasn't happened yet.
         """
-        status = self.get_participant_session(session_id)["status"]
+        status = self.get_participant_submission(submission_id)["status"]
         if status != "AWAITING REVIEW":
             # This will trigger a retry from the decorator
             raise ProlificServiceException("Prolific session not yet submitted.")
 
         return self._req(
             method="POST",
-            endpoint=f"/submissions/{session_id}/transition/",
+            endpoint=f"/submissions/{submission_id}/transition/",
             json={"action": "APPROVE"},
         )
 
-    def get_participant_session(self, session_id: str) -> dict:
-        """Retrieve details of a participant Session
+    def get_participant_submission(self, submission_id: str) -> dict:
+        """Retrieve details of a participant Submission
+
+        See: https://docs.prolific.com/docs/api-docs/public/#tag/Submissions/Submission-object
 
         This is roughly equivalent to an Assignment on MTurk.
 
@@ -108,10 +110,41 @@ class ProlificService:
             "study_id": "60aca280709ee40ec37d4885",
             "participant": "60bf9310e8dec401be6e9615",
             "started_at": "2021-05-20T11:03:00.457Z",
-            "status": "ACTIVE"
+            "status": "ACTIVE",
         }
         """
-        return self._req(method="GET", endpoint=f"/submissions/{session_id}/")
+        response = self._req(method="GET", endpoint=f"/submissions/{submission_id}/")
+        if response:
+            return _translate_submission_from_get_submission(response)
+
+    def get_assignments_for_study(self, study_id: str) -> dict:
+        """Return all submissions for the current Prolific study, keyed by
+        assignment (Prolific "submission") ID.
+
+        Example return value:
+
+        {
+          "results": [
+            {
+              "id": "60d9aadeb86739de712faee0",
+              "participant_id": "60bf9310e8dec401be6e9615",
+              "started_at": "2021-05-20T11:03:00.457000Z",
+              "status": "ACTIVE",
+              "study_code": "ABC123"
+            }
+          ]
+        }
+        """
+
+        query_params = {"study": study_id}
+        response = self._req(
+            method="GET", endpoint="/submissions/", params=query_params
+        )
+
+        return {
+            s["participant_id"]: _translate_submission_from_get_submissions(s, study_id)
+            for s in response["results"]
+        }
 
     def get_workspaces(self):
         workspaces = self._req(
@@ -403,26 +436,59 @@ class ProlificService:
         return parsed
 
 
+def _translate_submission_from_get_submission(prolific_assignment_info):
+    # Convert from Prolific to Dallinger terminology
+    p = prolific_assignment_info
+    return {
+        "assignment_id": p["id"],
+        "hit_id": p["study_id"],
+        "worker_id": p["participant"],
+        "started_at": p["started_at"],
+        "status": p["status"],
+    }
+
+
+def _translate_submission_from_get_submissions(prolific_assignment_info, study_id):
+    # Convert from Prolific to Dallinger terminology
+    p = prolific_assignment_info
+    return {
+        "assignment_id": p["id"],
+        "hit_id": study_id,
+        "worker_id": p["participant_id"],
+        "started_at": p["started_at"],
+        "status": p["status"],
+    }
+
+
 class DevProlificService(ProlificService):
     """Wrapper that mocks the Prolific REST API and instead of making requests it writes to the log."""
 
     def _req(self, method: str, endpoint: str, **kw) -> dict:
         from uuid import uuid4
 
+        uuid4_str = str(uuid4())
+
         """Does NOT make any requests but instead writes to the log."""
         self.log_request(method=method, endpoint=endpoint, **kw)
         response = None
 
-        if endpoint.startswith("/studies/"):
+        # Bonuses
+        if endpoint.startswith("/bulk-bonus-payments/"):
+            if method == "POST":
+                # method="POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
+                response = {"id": uuid4_str}
+
+        # Studies
+        elif endpoint.startswith("/studies/"):
             if method == "GET":
-                # method="GET", endpoint=f"/studies/{study_id}/"
                 if re.match(r"/studies/[a-z0-9]+/", endpoint):
+                    # method="GET", endpoint=f"/studies/{study_id}/"
                     response = {
                         "total_available_places": 100,
                     }
 
-                # method="GET", endpoint="/studies/"
                 elif endpoint == "/studies/":
+                    # method="GET", endpoint="/studies/"
                     response = {
                         "results": [
                             {
@@ -436,15 +502,15 @@ class DevProlificService(ProlificService):
                     }
 
             elif method == "POST":
-                # method="POST", endpoint="/studies/", json=payload
                 if endpoint == "/studies/":
+                    # method="POST", endpoint="/studies/", json=payload
                     response = {
                         "id": "study-id",
                         "external_study_url": "external-study-url",
                     }
 
-                # method="POST", endpoint=f"/studies/{study_id}/transition/", json={"action": "PUBLISH"},
                 elif re.match(r"/studies/[a-z0-9]+/transition/", endpoint):
+                    # method="POST", endpoint=f"/studies/{study_id}/transition/", json={"action": "PUBLISH"},
                     response = True
 
             elif method == "PATCH":
@@ -454,32 +520,43 @@ class DevProlificService(ProlificService):
                     "message": "More info about this particular recruiter's process",
                 }
 
-            # method="DELETE", endpoint=f"/studies/{study_id}"
             elif method == "DELETE":
+                # method="DELETE", endpoint=f"/studies/{study_id}"
                 response = {"status_code": 204}
 
-        # method="POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
-        elif endpoint.startswith("/bulk-bonus-payments/"):
-            response = {"id": str(uuid4())}
-
-        # method="POST", endpoint="/submissions/bonus-payments/", json=payload
-        elif endpoint.startswith("/submissions/bonus-payments"):
-            response = {"id": str(uuid4())}
-
+        # Submissions
         elif endpoint.startswith("/submissions/"):
-            # method="POST", endpoint=f"/submissions/{session_id}/transition/", json={"action": "APPROVE"},
-            if re.match(r"/submissions/[A-Za-z0-9]+/transition/", endpoint):
-                response = True
+            if method == "GET":
+                if endpoint == "/submissions/":
+                    # method="GET", endpoint="/submissions/", params={"study": study_id}
+                    response = {
+                        "results": [
+                            {
+                                "id": uuid4_str,
+                                "study_id": "60aca280709ee40ec37d4885",
+                                "participant_id": "1",
+                                "started_at": "2021-05-20T11:03:00.457Z",
+                                "status": "ACTIVE",
+                            }
+                        ],
+                    }
+                elif re.match(r"/submissions/[A-Za-z0-9]+/", endpoint):
+                    # method="GET", endpoint="/submissions/{submission_id}/"
+                    response = {
+                        "id": uuid4_str,
+                        "study_id": "60aca280709ee40ec37d4885",
+                        "participant": "1",
+                        "started_at": "started-at-timestamp",
+                        "status": "AWAITING REVIEW",
+                    }
+            elif method == "POST":
+                if endpoint == "/submissions/bonus-payments/":
+                    # method="POST", endpoint="/submissions/bonus-payments/", json=payload
+                    response = {"id": uuid4_str}
 
-            # method="GET", endpoint=f"/submissions/{session_id}/"
-            elif re.match(r"/submissions/[A-Za-z0-9]+/", endpoint):
-                response = {
-                    "id": "id",
-                    "study_id": "study-id",
-                    "participant": "participant",
-                    "started_at": "started-at-timestamp",
-                    "status": "AWAITING REVIEW",
-                }
+                if re.match(r"/submissions/[A-Za-z0-9]+/transition/", endpoint):
+                    # method="POST", endpoint=f"/submissions/{submission_id}/transition/", json={"action": "APPROVE"},
+                    response = True
 
         elif endpoint.startswith("/workspaces/"):
             if method == "GET":
@@ -565,7 +642,9 @@ class DevProlificService(ProlificService):
                     }
 
         if response is None:
-            raise RuntimeError("Simulated Prolific API call could not be matched.")
+            raise RuntimeError(
+                f"Simulated Prolific API call could not be matched:\nmethod: {method}\nendpoint: {endpoint}\nkw: {kw}"
+            )
         self.log_response(response)
         return response
 

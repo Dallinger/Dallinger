@@ -9,16 +9,16 @@ import random
 import re
 import string
 import time
+from collections import defaultdict
 
 import flask
 import requests
 import tabulate
-from rq import Queue
 from sqlalchemy import func
 
 from dallinger.command_line.utils import Output
 from dallinger.config import get_config
-from dallinger.db import redis_conn, session
+from dallinger.db import get_queue, redis_conn, session
 from dallinger.experiment_server.utils import crossdomain, success_response
 from dallinger.experiment_server.worker_events import worker_function
 from dallinger.heroku import tools as heroku_tools
@@ -42,15 +42,37 @@ from dallinger.utils import ParticipationTime, generate_random_id, get_base_url
 logger = logging.getLogger(__file__)
 
 
-def _get_queue(name="default"):
-    # Connect to Redis Queue
-    return Queue(name, connection=redis_conn)
-
-
 # These are constants because other components may listen for these
 # messages in logs:
 NEW_RECRUIT_LOG_PREFIX = "New participant requested:"
 CLOSE_RECRUITMENT_LOG_PREFIX = "Close recruitment."
+
+
+def run_status_check():
+    """Update participant status via all active recruiters.
+
+    Queries database for all working participants and asks owning recruiter to
+    verify that the status we have for them matches the status on the
+    recruitment platform.
+
+    If a recruiter finds discrepancies, it will enqueue a command to correct the
+    status for each participant with a problem.
+    """
+    # from dallinger import experiment
+
+    # experiment.load()
+    participants_by_recruiter_nick = defaultdict(list)
+    for participant in Participant.query.all():
+        participants_by_recruiter_nick[participant.recruiter_id].append(participant)
+
+    logger.info(
+        "Checking status of all participants: {}".format(participants_by_recruiter_nick)
+    )
+
+    for nick, participants in participants_by_recruiter_nick.items():
+        recruiter = by_name(nick)
+        recruiter.verify_status_of(participants)
+        session.commit()
 
 
 class Recruiter(object):
@@ -249,6 +271,17 @@ class Recruiter(object):
         """Return the status of the recruiter as a dictionary."""
         return {}
 
+    def verify_status_of(self, participants: list[Participant]):
+        """Check locally recorded status of participants against the status
+        reported from external service (if such service is used), and enqueue
+        updates when necessary.
+
+        Args:
+            participants (list[Participant]): A list of participants for which
+            to verify the status.
+        """
+        raise NotImplementedError
+
     def validate_config(self, **kwargs):
         """Validates config variables, if implemented."""
         pass
@@ -300,7 +333,7 @@ def prolific_submission_listener():
     if participant is not None and participant.status != "submitted":
         participant.status = "submitted"
         session.commit()  # NB: commit releases lock
-        q = _get_queue()
+        q = get_queue()
         # Here we assume the participant has submitted on Prolific by now
         # and we express this by firing off the corresponding event:
         q.enqueue(
@@ -316,6 +349,22 @@ def prolific_submission_listener():
 # We provide these values in our /ad URL, and Prolific will replace the tokens
 # with the right values when they redirect participants to us
 PROLIFIC_AD_QUERYSTRING = "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
+
+
+def check_for_prolific_worker_status_discrepancy(local_status, prolific_status):
+    """Return an action/command name to correct a local vs. remote status
+    discrepancy, if there is one.
+
+    Currently we only make corrections for assignments we have marked as
+    "working" locally.
+    """
+    actions = {
+        # (local status, remote Prolific status): action to take
+        ("working", "TIMED-OUT"): "AssignmentAbandoned",
+        ("working", "RETURNED"): "AssignmentReturned",
+    }
+
+    return actions.get((local_status, prolific_status))
 
 
 class ProlificRecruiter(Recruiter):
@@ -418,8 +467,8 @@ class ProlificRecruiter(Recruiter):
     def approve_hit(self, assignment_id: str):
         """Approve a participant's assignment/submission on Prolific"""
         try:
-            return self.prolificservice.approve_participant_session(
-                session_id=assignment_id
+            return self.prolificservice.approve_participant_submission(
+                submission_id=assignment_id
             )
         except ProlificServiceException as ex:
             logger.exception(str(ex))
@@ -480,6 +529,34 @@ class ProlificRecruiter(Recruiter):
             "new_status": "recruiter_submission_started",
         }
 
+    def notify_duration_exceeded(self, participants, reference_time):
+        """The participant has exceed the maximum time for the activity,
+        defined in the "duration" config value. We need find out the Submission
+        status on Prolific and act based on this.
+        """
+        q = get_queue()
+
+        for participant in participants:
+            assignment_id = participant.assignment_id
+            participant_id = participant.id
+            submission = self.prolificservice.get_participant_submission(assignment_id)
+            status = submission["status"]
+
+            if status == "ACTIVE":
+                q.enqueue(
+                    worker_function,
+                    "AssignmentAbandoned",
+                    assignment_id,
+                    participant_id,
+                )
+            elif status == "RETURNED":
+                q.enqueue(
+                    worker_function,
+                    "AssignmentReturned",
+                    assignment_id,
+                    participant_id,
+                )
+
     @property
     def current_study_id(self):
         """Return the ID of the Study associated with the active experiment ID
@@ -491,6 +568,41 @@ class ProlificRecruiter(Recruiter):
     def is_in_progress(self):
         """Does an Study for the current experiment ID already exist?"""
         return self.current_study_id is not None
+
+    def verify_status_of(self, participants: list[Participant]):
+        """Compare local participant status against Prolific, and for any
+        discrepancies found, correct the local status by enqueuing an
+        asynchronous worker event.
+        """
+        q = get_queue()
+        assignments_by_id = self.prolificservice.get_assignments_for_study(
+            self.current_study_id
+        )
+
+        for participant in participants:
+            latest_data = assignments_by_id.get(participant.assignment_id)
+            if latest_data is None:
+                logger.warning(
+                    f"We found no assignment data for participant {participant.id} "
+                    f"with assignment ID {participant.assignment_id} on Prolific!"
+                )
+                continue
+
+            corrective_action = check_for_prolific_worker_status_discrepancy(
+                local_status=participant.status, prolific_status=latest_data["status"]
+            )
+            if corrective_action:
+                logger.warning(
+                    f"Taking corrective action on participant {participant.id}: {corrective_action}"
+                )
+                q.enqueue(
+                    worker_function,
+                    corrective_action,
+                    participant.assignment_id,
+                    participant.id,
+                )
+            else:
+                logger.info(f"Status already in sync for {participant.id}")
 
     @property
     def study_id_storage_key(self):
@@ -727,6 +839,15 @@ class CLIRecruiter(Recruiter):
             )
         )
 
+    def verify_status_of(self, participants: list[Participant]):
+        """We only track participants locally, so we have nothing to do."""
+        for p in participants:
+            logger.info("{} -> {}".format(p.id, p.status))
+        logger.info(
+            f"{self.__class__.__name__} implicitly verifying status "
+            "of all its participants. 👍"
+        )
+
     def _get_mode(self):
         return self.config.get("mode")
 
@@ -792,6 +913,10 @@ class SimulatedRecruiter(Recruiter):
         return []
 
     def close_recruitment(self):
+        """Do nothing."""
+        pass
+
+    def verify_status_of(self, participants: list[Participant]):
         """Do nothing."""
         pass
 
@@ -1124,7 +1249,7 @@ class MTurkRecruiter(Recruiter):
         @param qualifications  list of dict w/   `name`, `description` and
                                (optional) `score` keys
         """
-        q = _get_queue()
+        q = get_queue()
         q.enqueue(_run_mturk_qualification_assignment, worker_id, qualifications)
 
     def _assign_experiment_qualifications(self, worker_id, qualifications):
@@ -1236,7 +1361,7 @@ class MTurkRecruiter(Recruiter):
                     "but proceed with caution.".format(participant.id)
                 )
             else:
-                self._send_notification_missing_rest_notification_for(participant)
+                self._report_NotificationMissing_for(participant)
                 unsubmitted.append(summary)
 
         disable_hit = self.config.get("disable_when_duration_exceeded")
@@ -1274,6 +1399,13 @@ class MTurkRecruiter(Recruiter):
         return {
             "new_status": "recruiter_submission_started",
         }
+
+    def verify_status_of(self, participants: list[Participant]):
+        """We trust that locally recorded status is kept up to date,
+        because MTurk sends prompt SNS notifications when participants
+        submit, return, or abandon HITs.
+        """
+        logger.info("MTurkRecruiter assuming all is well with participant status...")
 
     def reward_bonus(self, participant, amount, reason):
         """Reward the Turker for a specified assignment with a bonus."""
@@ -1351,7 +1483,7 @@ class MTurkRecruiter(Recruiter):
     def _confirm_sns_subscription(self, token, topic):
         self.mturkservice.confirm_subscription(token=token, topic=topic)
 
-    def _translate_event_type(mturk_event_type):
+    def _translate_event_type(self, mturk_event_type):
         # If a translation exists, return it, otherwise return what we were given
         mturk_to_dallinger = {"AssignmentSubmitted": "RecruiterSubmissionComplete"}
 
@@ -1364,12 +1496,17 @@ class MTurkRecruiter(Recruiter):
         #
         # Note: this is an entry-point, so it's a reasonable place to commit a
         # transaction before passing off the async worker task.
-        q = _get_queue()
+        q = get_queue()
         for event in events:
             mturk_type = event.get("EventType")
             assignment_id = event.get("AssignmentId")
 
-            if mturk_type == "AssignmentSubmitted":
+            if mturk_type in [
+                "AssignmentAbandoned",
+                "AssignmentAccepted",
+                "AssignmentReturned",
+                "AssignmentSubmitted",
+            ]:
                 participant = (
                     Participant.query.filter_by(assignment_id=assignment_id)
                     .order_by(Participant.creation_time.desc())
@@ -1377,12 +1514,17 @@ class MTurkRecruiter(Recruiter):
                 )
                 if participant is None:
                     logger.error(
-                        "Received an AssignmentSubmitted notification from MTurk for assignment ID {}, "
-                        "which is not related to any participant.".format(assignment_id)
+                        f"Received an {mturk_type} notification from MTurk for assignment ID {assignment_id}, "
+                        "which is not related to any participant."
                     )
                     return
 
-                participant.status = "submitted"
+                if mturk_type == "AssignmentAbandoned":
+                    participant.status = "abandoned"
+                if mturk_type == "AssignmentReturned":
+                    participant.status = "returned"
+                if mturk_type == "AssignmentSubmitted":
+                    participant.status = "submitted"
                 session.commit()
 
             dlgr_event_type = self._translate_event_type(mturk_type)
@@ -1403,7 +1545,7 @@ class MTurkRecruiter(Recruiter):
         requests.patch(heroku_app.config_url, data=args, headers=headers)
 
     def _resend_submitted_rest_notification_for(self, participant):
-        q = _get_queue()
+        q = get_queue()
         q.enqueue(
             worker_function,
             "RecruiterSubmissionComplete",
@@ -1411,8 +1553,8 @@ class MTurkRecruiter(Recruiter):
             None,
         )
 
-    def _send_notification_missing_rest_notification_for(self, participant):
-        q = _get_queue()
+    def _report_NotificationMissing_for(self, participant):
+        q = get_queue()
         q.enqueue(
             worker_function, "NotificationMissing", participant.assignment_id, None
         )
@@ -1603,7 +1745,7 @@ class BotRecruiter(Recruiter):
         logger.info("Recruiting {} Bot participants".format(n))
         factory = self._get_bot_factory()
         urls = []
-        q = _get_queue(name="low")
+        q = get_queue(name="low")
         for _ in range(n):
             base_url = get_base_url()
             worker = generate_random_id()
@@ -1648,6 +1790,10 @@ class BotRecruiter(Recruiter):
             "new_status": "submitted",
             "action": "BotRecruiterSubmissionComplete",
         }
+
+    def verify_status_of(self, participants: list[Participant]):
+        """All our bots are belong to us, so we don't need to do anything."""
+        logger.info("BotRecruiter assuming all is well with participant status...")
 
     def _get_bot_factory(self):
         # Must be imported at run-time

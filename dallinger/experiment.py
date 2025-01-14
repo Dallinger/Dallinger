@@ -346,10 +346,7 @@ class Experiment(object):
         :param raw_message: a formatted message string ``'$channel_name:$data'``
         :type raw_message: str
         """
-        from dallinger.experiment_server.worker_events import (
-            _get_queue,
-            worker_function,
-        )
+        from dallinger.experiment_server.worker_events import worker_function
 
         receive_time = datetime.datetime.now()
         channel_name, message_string = raw_message.split(":", 1)
@@ -375,7 +372,7 @@ class Experiment(object):
             )
             return
 
-        q = _get_queue("high")
+        q = db.get_queue("high")
         q.enqueue(
             worker_function,
             "WebSocketMessage",
@@ -1169,14 +1166,11 @@ class Experiment(object):
         nodes = Node.query
         infos = Info.query
 
+        unique_statuses = set(participant.status for participant in participants.all())
         stats = OrderedDict()
-        stats["Participants"] = OrderedDict(
-            (
-                ("working", participants.filter_by(status="working").count()),
-                ("abandoned", participants.filter_by(status="abandoned").count()),
-                ("returned", participants.filter_by(status="returned").count()),
-                ("approved", participants.filter_by(status="approved").count()),
-            )
+        stats["Participants"] = dict(
+            (status, participants.filter_by(status=status).count())
+            for status in sorted(unique_statuses)
         )
 
         # Count up our networks by role

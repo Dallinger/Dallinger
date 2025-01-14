@@ -54,11 +54,12 @@ class TestClockScheduler(object):
 
     def test_scheduler_has_job(self, setup):
         jobs = self.clock.scheduler.get_jobs()
-        assert len(jobs) == 1
+        assert len(jobs) == 2
         assert (
             jobs[0].func_ref
             == "dallinger.heroku.clock:check_db_for_missing_notifications"
         )
+        assert jobs[1].func_ref == "dallinger.heroku.clock:async_recruiter_status_check"
 
     def test_launch_loads_config(self, patched_scheduler):
         self.clock.launch()
@@ -69,7 +70,7 @@ class TestClockScheduler(object):
         self, patched_scheduler, tasks_with_cleanup
     ):
         jobs = patched_scheduler.get_jobs()
-        assert len(jobs) == 1
+        assert len(jobs) == 2
 
         tasks_with_cleanup.append(
             {
@@ -81,9 +82,9 @@ class TestClockScheduler(object):
 
         self.clock.launch()
         jobs = patched_scheduler.get_jobs()
-        assert len(jobs) == 2
+        assert len(jobs) == 3
         assert (
-            jobs[1].func_ref
+            jobs[2].func_ref
             == "dallinger_experiment.dallinger_experiment:TestExperiment.test_task"
         )
 

@@ -318,7 +318,7 @@ def _new_webbrowser_profile():
 
 
 def struct_to_html(data):
-    parts = ["<ul>"]
+    parts = []
     if isinstance(data, (list, tuple)):
         for i in data:
             parts.append(struct_to_html(i))
@@ -332,21 +332,22 @@ def struct_to_html(data):
                 data["count"], data["failed"], failed_percentage
             )
             if failed_percentage == 100:
-                value = '<span class="all-failures">{}</span>'.format(value)
+                value = f'<span class="statistics-value all-failures">{value}</span>'
             elif failed_percentage > 0:
-                value = '<span class="some-failures">{}</span>'.format(value)
+                value = f'<span class="statistics-value some-failures">{value}</span>'
             elif data["count"]:
-                value = '<span class="no-failures">{}</span>'.format(value)
+                value = f'<span class="statistics-value no-failures">{value}</span>'
             return value
 
         for k in data:
             item = struct_to_html(data[k])
-            parts.append("<li>{}: {}</li>".format(k, item))
+            parts.append(
+                f'<span class="nowrap"><span class="statistics-key">{k}</span>: <span class="statistics-value">{item}</span></span>'
+            )
     else:
         return str(data)
 
-    parts.append("</ul>")
-    return "\n".join(parts)
+    return "<br>".join(parts)
 
 
 def abspath_from_egg(egg, path):
