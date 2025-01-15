@@ -43,6 +43,8 @@ By default the ``dallinger ec2`` commands will use an SSH key pair named
 created and added to your SSH keychain. You can use an existing SSH key pair by
 specifying the ``--pem`` option on the commandline, or by setting the
 ``ec2_default_pem`` value in your `~/.dallingerconfig` file.
+For more information about creating pem files in AWS, see
+https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html.
 
 AWS Region
 ----------
