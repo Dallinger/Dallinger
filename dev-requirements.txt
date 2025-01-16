@@ -102,7 +102,7 @@ cryptography==44.0.0
     # via
     #   paramiko
     #   pyopenssl
-debugpy==1.8.11
+debugpy==1.8.12
     # via ipykernel
 decorator==5.1.1
     # via ipython
