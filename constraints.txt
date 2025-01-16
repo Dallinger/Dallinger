@@ -46,9 +46,9 @@ bleach==6.2.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.35.98
+boto3==1.36.1
     # via dallinger
-botocore==1.35.98
+botocore==1.36.1
     # via
     #   boto3
     #   s3transfer
@@ -102,7 +102,7 @@ cryptography==44.0.0
     # via
     #   paramiko
     #   pyopenssl
-debugpy==1.8.11
+debugpy==1.8.12
     # via ipykernel
 decorator==5.1.1
     # via ipython
@@ -474,7 +474,7 @@ redis==5.2.1
     # via
     #   dallinger
     #   rq
-referencing==0.35.1
+referencing==0.36.0
     # via
     #   jsonschema
     #   jsonschema-specifications
@@ -500,7 +500,7 @@ rpds-py==0.22.3
     #   referencing
 rq==2.1.0
     # via dallinger
-s3transfer==0.10.4
+s3transfer==0.11.1
     # via boto3
 selenium==4.27.1
     # via dallinger
@@ -620,6 +620,7 @@ typing-extensions==4.12.2
     #   anyio
     #   faker
     #   pyopenssl
+    #   referencing
     #   selenium
 tzdata==2024.2
     # via pandas
@@ -644,7 +645,7 @@ urllib3==1.26.20
     #   selenium
 user-agents==2.2.0
     # via dallinger
-virtualenv==20.28.1
+virtualenv==20.29.0
     # via
     #   pre-commit
     #   tox
