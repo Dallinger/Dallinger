@@ -1,5 +1,10 @@
 # Change Log
 
+## [v11.0.1](https://github.com/dallinger/dallinger/tree/v11.0.1) (2025-01-16)
+
+#### Fixed
+- Fixed bug in `get_assignments_for_study` that prevented a participant's status from being updated in Prolific studies via the `async_recruiter_status_check` scheduled job
+
 ## [v11.0.0](https://github.com/dallinger/dallinger/tree/v11.0.0) (2025-01-14)
 
 #### Breaking changes
