@@ -587,7 +587,7 @@ tornado==6.4.2
     #   jupyterlab
     #   notebook
     #   terminado
-tox==4.23.2
+tox==4.24.1
     # via dallinger
 tqdm==4.67.1
     # via dallinger
