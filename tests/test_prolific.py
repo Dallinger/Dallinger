@@ -252,10 +252,19 @@ def test_can_add_to_available_place_count(subject):
     assert subject.delete_study(study_id=result["id"])
 
 
-def test_translate_workspace_does_not_exist_exception(subject):
-    """_translate_workspace raises ProlificServiceNoSuchWorkspaceException."""
+def test_translate_workspace_does_not_exist_exception_mode_debug(subject):
+    """_translate_workspace does NOT raise ProlificServiceNoSuchWorkspaceException in debug mode."""
 
-    # Mock out self._req.
+    subject._req = mock.MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
+
+    subject._translate_workspace("does not exist")
+
+
+def test_translate_workspace_does_not_exist_exception_mode_live(subject, active_config):
+    """_translate_workspace raises ProlificServiceNoSuchWorkspaceException in live mode."""
+
+    active_config.set("mode", "live")
+
     subject._req = mock.MagicMock(return_value=WORKSPACES_API_RETURN_VALUE)
 
     with pytest.raises(ProlificServiceNoSuchWorkspaceException) as exc_info:
