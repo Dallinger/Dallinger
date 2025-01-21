@@ -421,7 +421,9 @@ def launch():
         )
 
     recruitment_details = None
-    if _config().get("open_recruitment"):
+    if _config().get("open_recruitment") or (
+        _config().get("recruiter") == "prolific" and _config().get("mode") == "sandbox"
+    ):
         try:
             recruitment_details = exp.recruiter.open_recruitment(
                 n=exp.initial_recruitment_size
