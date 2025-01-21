@@ -157,6 +157,13 @@ class ProlificService:
         Validates the workspace for matching entries.
         Raises exceptions for multiple matches or no match.
         """
+        from dallinger.config import get_config
+
+        config = get_config()
+        config.load()
+        if config.get("mode") == "debug":
+            return
+
         if workspaces is None:
             workspaces = self.get_workspaces()
 
