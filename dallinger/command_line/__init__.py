@@ -252,6 +252,10 @@ def _deploy_in_mode(mode, verbose, open_recruitment=None, app=None, archive=None
     config.load()
     config.extend({"mode": mode, "logfile": "-"})
 
+    if open_recruitment is not None:
+        assert isinstance(open_recruitment, bool)
+        config.extend({"open_recruitment": open_recruitment})
+
     run_pre_launch_checks(**locals())
 
     prelaunch = []
