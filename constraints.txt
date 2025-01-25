@@ -26,7 +26,7 @@ asttokens==3.0.0
     # via stack-data
 async-lru==2.0.4
     # via jupyterlab
-attrs==24.3.0
+attrs==25.1.0
     # via
     #   jsonschema
     #   outcome
