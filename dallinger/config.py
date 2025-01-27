@@ -52,6 +52,7 @@ default_keys = (
     ("database_url", six.text_type, [], True),
     ("debug_recruiter", six.text_type, []),
     ("description", six.text_type, []),
+    ("disable_browser_autotranslate", bool, []),
     ("disable_when_duration_exceeded", bool, []),
     ("duration", float, []),
     ("dyno_type", six.text_type, []),
