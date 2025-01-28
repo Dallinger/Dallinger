@@ -312,7 +312,7 @@ myst-parser==3.0.1
     # via dallinger
 nbclient==0.10.2
     # via nbconvert
-nbconvert==7.16.5
+nbconvert==7.16.6
     # via
     #   jupyter
     #   jupyter-server
