@@ -5,6 +5,7 @@ services:
       POSTGRES_USER: dallinger
       POSTGRES_PASSWORD: dallinger
       POSTGRES_DB: dallinger
+      SKIP_CHECK_DALLINGER_VERSION: true
     volumes:
       - dallinger_{{ experiment_name }}_pg_data:/var/lib/postgresql/data
     healthcheck:

@@ -495,7 +495,9 @@ def _deploy_in_mode(
     set_dozzle_password(executor, sftp, dozzle_password)
 
     print("Launching http, postgresql and dozzle servers.")
-    executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
+    executor.run(
+        "SKIP_CHECK_DALLINGER_VERSION=1 docker compose -f ~/dallinger/docker-compose.yml up -d"
+    )
 
     if not update:
         print("Starting experiment.")
@@ -542,7 +544,7 @@ def _deploy_in_mode(
     # `docker compose` will honour `web`'s dependencies and block
     # until postgresql is ready. This way we can be sure we can start creating the database.
     executor.run(
-        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
+        f"SKIP_CHECK_DALLINGER_VERSION=1 docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
     )
     grant_roles_script = (
         f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
@@ -550,14 +552,14 @@ def _deploy_in_mode(
     if not update:
         print("Cleaning up db/user")
         executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
+            rf"""SKIP_CHECK_DALLINGER_VERSION=1 docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
         )
         executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
+            rf"""SKIP_CHECK_DALLINGER_VERSION=1 docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
         )
         print(f"Creating database {experiment_id}")
         executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
+            rf"""SKIP_CHECK_DALLINGER_VERSION=1 docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
         )
 
         if archive_path is not None:
@@ -576,33 +578,34 @@ def _deploy_in_mode(
         rf"""SELECT FROM pg_catalog.pg_roles WHERE rolname = '{experiment_id}'"""
     )
     query_user_result = executor.run(
-        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(test_user_script)}",
+        f"SKIP_CHECK_DALLINGER_VERSION=1 docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(test_user_script)}",
         raise_=False,
     )
     if "0 rows" in query_user_result:
         # Create the user: it doesn't exist yet
         create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
         executor.run(
-            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
+            f"SKIP_CHECK_DALLINGER_VERSION=1 docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
         )
     else:
         # Change the password of the existing user
         change_password_script = f"""ALTER USER "{experiment_id}" WITH ENCRYPTED PASSWORD '{postgresql_password}'"""
         executor.run(
-            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(change_password_script)}"
+            f"SKIP_CHECK_DALLINGER_VERSION=1 docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(change_password_script)}"
         )
 
     executor.run(
-        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
+        f"SKIP_CHECK_DALLINGER_VERSION=1 docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
     )
 
     executor.run(
-        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
+        f"SKIP_CHECK_DALLINGER_VERSION=1 docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
     )
     if archive_path is None and not update:
         print(f"Experiment {experiment_id} started. Initializing database")
+        print("PASSING SKIP_CHECK_DALLINGER_VERSION to docker compose")
         executor.run(
-            f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
+            f"SKIP_CHECK_DALLINGER_VERSION=1 docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
         )
         print("Database initialized")
 
@@ -780,7 +783,8 @@ def destroy(server, app):
     executor.reload_caddy()
 
     executor.run(
-        f"docker compose -f ~/dallinger/{app}/docker-compose.yml down", raise_=False
+        f"SKIP_CHECK_DALLINGER_VERSION=1 docker compose -f ~/dallinger/{app}/docker-compose.yml down",
+        raise_=False,
     )
     executor.run(f"rm -rf ~/dallinger/{app}/")
     print(f"App {app} removed")
@@ -865,7 +869,7 @@ class Executor:
         if self.app:
             channel = self.client.get_transport().open_session()
             channel.exec_command(
-                f'docker compose -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
+                f'SKIP_CHECK_DALLINGER_VERSION=1 docker compose -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
             )
             status = channel.recv_exit_status()
             if status != 0:
@@ -890,13 +894,15 @@ class Executor:
     def reload_caddy(self):
         with yaspin(text="Reloading Caddy config file", color="green"):
             self.run(
-                "docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
+                "SKIP_CHECK_DALLINGER_VERSION=1 docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
                 "caddy reload --config /etc/caddy/Caddyfile"
             )
 
     def restart_dozzle(self):
         with yaspin(text="Restarting Dozzle", color="green"):
-            self.run("docker compose -f ~/dallinger/docker-compose.yml restart dozzle")
+            self.run(
+                "SKIP_CHECK_DALLINGER_VERSION=1 docker compose -f ~/dallinger/docker-compose.yml restart dozzle"
+            )
 
     def run_and_echo(self, cmd):  # pragma: no cover
         """Execute the given command on the remote host and prints its output
