@@ -112,11 +112,6 @@ def sandbox(**kwargs):
 @docker.command()
 @click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
 @click.option("--app", default=None, help="Experiment id")
-@click.option(
-    "--open-recruitment",
-    is_flag=True,
-    help="Recruitment should start automatically when the experiment launches",
-)
 @require_exp_directory
 def deploy(**kwargs):
     """Deploy app using Heroku to MTurk."""
@@ -304,7 +299,7 @@ def deploy_image(image_name, mode, config_options):
     )
 
 
-def _deploy_in_mode(mode, verbose, open_recruitment=None, app=None):
+def _deploy_in_mode(mode, verbose, app=None):
     if app:
         verify_id(None, None, app)
 
