@@ -456,7 +456,7 @@ python-dateutil==2.9.0.post0
     #   pandas
 python-json-logger==3.2.1
     # via jupyter-events
-pytz==2024.2
+pytz==2025.1
     # via pandas
 pyyaml==6.0.2
     # via
