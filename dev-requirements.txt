@@ -26,7 +26,7 @@ asttokens==3.0.0
     # via stack-data
 async-lru==2.0.4
     # via jupyterlab
-attrs==24.3.0
+attrs==25.1.0
     # via
     #   jsonschema
     #   outcome
@@ -40,15 +40,15 @@ bcrypt==4.2.1
     # via paramiko
 beautifulsoup4==4.12.3
     # via nbconvert
-black==24.10.0
+black==25.1.0
     # via dallinger
 bleach==6.2.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.36.4
+boto3==1.36.10
     # via dallinger
-botocore==1.36.4
+botocore==1.36.10
     # via
     #   boto3
     #   s3transfer
@@ -62,7 +62,7 @@ cached-property==2.0.1
     # via dallinger
 cachetools==5.5.1
     # via tox
-certifi==2024.12.14
+certifi==2025.1.31
     # via
     #   httpcore
     #   httpx
@@ -123,7 +123,7 @@ et-xmlfile==2.0.0
     # via openpyxl
 executing==2.2.0
     # via stack-data
-faker==34.0.1
+faker==35.2.0
     # via dallinger
 fastjsonschema==2.21.1
     # via nbformat
@@ -204,7 +204,7 @@ ipywidgets==8.1.5
     #   jupyter
 isoduration==20.11.0
     # via jsonschema
-isort==5.13.2
+isort==6.0.0
     # via dallinger
 itsdangerous==2.2.0
     # via
@@ -270,7 +270,7 @@ jupyter-server==2.15.0
     #   notebook-shim
 jupyter-server-terminals==0.5.3
     # via jupyter-server
-jupyterlab==4.3.4
+jupyterlab==4.3.5
     # via
     #   jupyter
     #   notebook
@@ -304,7 +304,7 @@ mdit-py-plugins==0.4.2
     # via myst-parser
 mdurl==0.1.2
     # via markdown-it-py
-mistune==3.1.0
+mistune==3.1.1
     # via nbconvert
 mypy-extensions==1.0.0
     # via black
@@ -312,7 +312,7 @@ myst-parser==3.0.1
     # via dallinger
 nbclient==0.10.2
     # via nbconvert
-nbconvert==7.16.5
+nbconvert==7.16.6
     # via
     #   jupyter
     #   jupyter-server
@@ -456,7 +456,7 @@ python-dateutil==2.9.0.post0
     #   pandas
 python-json-logger==3.2.1
     # via jupyter-events
-pytz==2024.2
+pytz==2025.1
     # via pandas
 pyyaml==6.0.2
     # via
@@ -464,7 +464,7 @@ pyyaml==6.0.2
     #   myst-parser
     #   pre-commit
     #   tablib
-pyzmq==26.2.0
+pyzmq==26.2.1
     # via
     #   ipykernel
     #   jupyter-client
@@ -474,7 +474,7 @@ redis==5.2.1
     # via
     #   dallinger
     #   rq
-referencing==0.36.1
+referencing==0.36.2
     # via
     #   jsonschema
     #   jsonschema-specifications
@@ -500,9 +500,9 @@ rpds-py==0.22.3
     #   referencing
 rq==2.1.0
     # via dallinger
-s3transfer==0.11.1
+s3transfer==0.11.2
     # via boto3
-selenium==4.28.0
+selenium==4.28.1
     # via dallinger
 send2trash==1.8.3
     # via jupyter-server
