@@ -15,6 +15,7 @@ import paramiko
 import requests
 from botocore.exceptions import ClientError
 from paramiko.util import deflate_long
+from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 from tqdm import tqdm
 from yaspin import yaspin
 
@@ -301,15 +302,16 @@ def add_key_to_ssh_agent(key_name):
     subprocess.run(["ssh-add", pem_loc])
 
 
-def wait_for_instance(instance_name, host, user="ubuntu", n_tries=10):
-    for i in range(n_tries):
-        try:
-            executor = Executor(host, user)
-            return executor
-        except Exception:
-            time.sleep((i + 1) * 30)
-            print(f"Failed to connect to {instance_name}. Retrying...")
-    raise Exception(f"Failed to connect to {instance_name}.")
+def wait_for_instance(host, user="ubuntu", n_tries=10):
+    @retry(
+        stop=stop_after_attempt(n_tries),
+        wait=wait_fixed(5),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
+    def _wait_for_instance():
+        return Executor(host, user)
+
+    return _wait_for_instance()
 
 
 def get_image_id(ec2, image_name):
@@ -418,7 +420,7 @@ def increase_storage(
         "ubuntu",
         instance["PublicIpAddress"],
     )
-    executor = wait_for_instance(instance_name, host, user)
+    executor = wait_for_instance(host, user)
 
     volume_partition_list = [
         line for line in executor.run("lsblk -o name -n").split("\n") if line != ""
