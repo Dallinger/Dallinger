@@ -1,4 +1,4 @@
-""" This module provides the backend Flask server that serves an experiment. """
+"""This module provides the backend Flask server that serves an experiment."""
 
 import os
 import re
