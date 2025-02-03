@@ -91,6 +91,7 @@ default_keys = (
     ("prolific_is_custom_screening", bool, []),
     ("prolific_maximum_allowed_minutes", int, []),
     ("prolific_project", six.text_type, []),
+    ("prolific_publish_study", bool, []),
     ("prolific_recruitment_config", six.text_type, [], False, [is_valid_json]),
     ("prolific_workspace", six.text_type, []),
     ("protected_routes", six.text_type, [], False, [is_valid_json]),

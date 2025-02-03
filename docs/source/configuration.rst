@@ -239,6 +239,9 @@ Prolific Recruitment
     Whether or not this study includes a custom screening. Default is `False`.
     See https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/CreateStudy for more information.
 
+``prolific_publish_study`` *bool*
+    Whether the study should be published when deploying. If `False` a draft study will be created which later can be published via the Prolific web UI. Default is `True`.
+
 ``prolific_recruitment_config`` *unicode - JSON formatted*
     JSON data to add additional recruitment parameters
 
