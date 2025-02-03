@@ -434,7 +434,7 @@ class ProlificRecruiter(Recruiter):
             explicit_config = json.loads(self.config.get("prolific_recruitment_config"))
             study_request.update(explicit_config)
 
-        study_info = self.prolificservice.published_study(**study_request)
+        study_info = self.prolificservice.create_study(**study_request)
         self._record_current_study_id(study_info["id"])
 
         return {

@@ -282,7 +282,7 @@ class ProlificService:
 
         return self._req(method="POST", endpoint="/studies/", json=payload)
 
-    def published_study(
+    def create_study(
         self,
         completion_code: str,
         completion_option: str,
