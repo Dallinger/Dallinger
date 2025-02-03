@@ -395,7 +395,7 @@ class ProlificRecruiter(Recruiter):
         logger.info(f"Opening Prolific recruitment for {n} participants")
         if self.is_in_progress:
             raise ProlificRecruiterException(
-                "Tried to open_recruitment(), but a Prolific Study "
+                "Tried to open recruitment, but a Prolific Study "
                 f"(ID {self.current_study_id}) is already running for this experiment"
             )
 
@@ -1205,7 +1205,7 @@ class MTurkRecruiter(Recruiter):
         logger.info("Opening MTurk recruitment for {} participants".format(n))
         if self.is_in_progress:
             raise MTurkRecruiterException(
-                "Tried to open_recruitment on already open recruiter."
+                "Tried to open recruitment on already open recruiter."
             )
 
         if self.hit_domain is None:
@@ -1689,7 +1689,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
         logger.info("Opening MTurkLarge recruitment for {} participants".format(n))
         if self.is_in_progress:
             raise MTurkRecruiterException(
-                "Tried to open_recruitment on already open recruiter."
+                "Tried to open recruitment on already open recruiter."
             )
         self.counter.increment(n)
         to_recruit = max(n, self.pool_size)
