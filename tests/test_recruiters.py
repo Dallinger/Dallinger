@@ -397,6 +397,7 @@ def prolific_config(active_config):
         "prolific_api_version": "v1",
         "prolific_estimated_completion_minutes": 5,
         "prolific_is_custom_screening": True,
+        "prolific_publish_study": False,
         "prolific_project": "My project",
         "prolific_recruitment_config": json.dumps(
             {"peripheral_requirements": ["audio", "microphone"]}
@@ -1420,22 +1421,22 @@ class TestMTurkRecruiter(object):
     def test_validate_config_deploy_open_recruitment_missing_from_config_and_command(
         self, a, recruiter
     ):
-        recruiter.config["open_recruitment"] = False
+        recruiter.config["activate_recruiter_on_start"] = False
 
         with pytest.raises(MTurkRecruiterException) as ex_info:
             recruiter.validate_config(mode="live")
         assert ex_info.match(
-            "When deploying to MTurk `open_recruitment` must be `True` in the config."
+            "When deploying to MTurk `activate_recruiter_on_start` must be `True` in the config."
         )
 
     def test_validate_config_deploy_open_recruitment_set_in_config(self, a, recruiter):
-        recruiter.config["open_recruitment"] = True
+        recruiter.config["activate_recruiter_on_start"] = True
         recruiter.validate_config(mode="live")
 
     def test_validate_config_sandbox_open_recruitment_missing_from_config(
         self, a, recruiter
     ):
-        recruiter.config["open_recruitment"] = False
+        recruiter.config["activate_recruiter_on_start"] = False
         recruiter.validate_config(mode="sandbox")
 
 
