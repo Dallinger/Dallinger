@@ -937,8 +937,8 @@ def deferred_route_decorator(route, registered_routes):
     return new_func
 
 
-def disable_browser_autotranslate():
+def get_from_config(key):
     config = get_config()
     if not config.ready:
         config.load()
-    return config.get("disable_browser_autotranslate")
+    return config.get(key)

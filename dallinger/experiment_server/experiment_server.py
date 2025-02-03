@@ -28,7 +28,7 @@ from dallinger import db, experiment, models, recruiters
 from dallinger.config import get_config
 from dallinger.notifications import MessengerError, admin_notifier
 from dallinger.recruiters import ProlificRecruiter
-from dallinger.utils import disable_browser_autotranslate, generate_random_id
+from dallinger.utils import generate_random_id, get_from_config
 
 from . import dashboard
 from .replay import ReplayBackend
@@ -201,9 +201,7 @@ login.user_loader(dashboard.load_user)
 login.unauthorized_handler(dashboard.unauthorized)
 app.config["dashboard_tabs"] = dashboard.dashboard_tabs
 
-app.jinja_env.globals.update(
-    disable_browser_autotranslate=disable_browser_autotranslate
-)
+app.jinja_env.globals.update(get_from_config=get_from_config)
 
 """Basic routes."""
 

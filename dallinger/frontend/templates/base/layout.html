@@ -1,5 +1,5 @@
 <!doctype html>
-{% if disable_browser_autotranslate() %}
+{% if get_from_config("disable_browser_autotranslate") %}
     <html translate="no">
 {% else %}
     <html>
