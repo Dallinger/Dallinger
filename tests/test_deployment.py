@@ -656,7 +656,7 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
     def test_sets_app_properties(self, dsss, heroku_mock):
         dsss(log=mock.Mock())
         heroku_mock.set_multiple.assert_called_once_with(
-            open_recruitment=True,
+            activate_recruiter_on_start=True,
             auto_recruit=True,
             AWS_ACCESS_KEY_ID="fake aws key",
             AWS_DEFAULT_REGION="us-east-1",

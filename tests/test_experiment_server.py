@@ -1609,7 +1609,7 @@ class TestLaunchRoute(object):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
-            active_config.extend({"open_recruitment": False})
+            active_config.extend({"activate_recruiter_on_start": False})
             mock_exp = mock.Mock()
             mock_exp.protected_routes = []
             mock_exp.background_tasks = []
@@ -1642,7 +1642,7 @@ class TestLaunchRoute(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock()
-            active_config.extend({"open_recruitment": False})
+            active_config.extend({"activate_recruiter_on_start": False})
             mock_exp.protected_routes = []
             mock_exp.background_tasks = []
             mock_exp.channel = "special"
@@ -1665,7 +1665,7 @@ class TestLaunchRoute(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock()
-            active_config.extend({"open_recruitment": False})
+            active_config.extend({"activate_recruiter_on_start": False})
             mock_exp.protected_routes = []
             mock_exp.background_tasks = []
             mock_exp.channel = None
