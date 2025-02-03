@@ -1654,9 +1654,11 @@ class MTurkRecruiter(Recruiter):
         return service.get_study(hit_id)["QualificationRequirements"]
 
     def validate_config(self, **kwargs):
-        if kwargs.get("mode") == "live" and not self.config.get("open_recruitment"):
+        if kwargs.get("mode") == "live" and not self.config.get(
+            "activate_recruiter_on_start"
+        ):
             raise MTurkRecruiterException(
-                "When deploying to MTurk `open_recruitment` must be `True` in the config."
+                "When deploying to MTurk `activate_recruiter_on_start` must be `True` in the config."
             )
 
         mode = self.config.get("mode")
