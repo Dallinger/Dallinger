@@ -423,19 +423,18 @@ def launch():
         )
 
     recruitment_details = None
-    if _config().get("activate_recruiter_on_start"):
-        try:
-            recruitment_details = exp.recruiter.open_recruitment(
-                n=exp.initial_recruitment_size
-            )
-            session.commit()
-        except Exception as e:
-            return error_response(
-                error_text="Failed to open recruitment, check experiment server log "
-                "for details: {}".format(str(e)),
-                status=500,
-                simple=True,
-            )
+    try:
+        recruitment_details = exp.recruiter.open_recruitment(
+            n=exp.initial_recruitment_size
+        )
+        session.commit()
+    except Exception as e:
+        return error_response(
+            error_text="Failed to open recruitment, check experiment server log "
+            "for details: {}".format(str(e)),
+            status=500,
+            simple=True,
+        )
 
     for task in exp.background_tasks:
         try:

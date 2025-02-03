@@ -510,7 +510,6 @@ def _deploy_in_mode(
             "FLASK_SECRET_KEY": token_urlsafe(16),
             "AWS_DEFAULT_REGION": config["aws_region"],
             "smtp_username": config.get("smtp_username"),
-            "activate_recruiter_on_start": config["activate_recruiter_on_start"],
             "auto_recruit": config["auto_recruit"],
             "mode": mode,
             "CREATOR": f"{USER}@{HOSTNAME}",

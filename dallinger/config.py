@@ -27,7 +27,6 @@ def is_valid_json(value):
 
 default_keys = (
     # These are the keys allowed in a dallinger experiment config.txt file.
-    ("activate_recruiter_on_start", bool, []),
     ("ad_group", six.text_type, []),
     ("approve_requirement", int, []),
     ("assign_qualifications", bool, []),

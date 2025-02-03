@@ -1418,25 +1418,10 @@ class TestMTurkRecruiter(object):
             recruiter.validate_config()
         assert ex_info.match('"nonsense" is not a valid mode')
 
-    def test_validate_config_deploy_open_recruitment_missing_from_config_and_command(
-        self, a, recruiter
-    ):
-        recruiter.config["activate_recruiter_on_start"] = False
-
-        with pytest.raises(MTurkRecruiterException) as ex_info:
-            recruiter.validate_config(mode="live")
-        assert ex_info.match(
-            "When deploying to MTurk `activate_recruiter_on_start` must be `True` in the config."
-        )
-
-    def test_validate_config_deploy_open_recruitment_set_in_config(self, a, recruiter):
-        recruiter.config["activate_recruiter_on_start"] = True
+    def test_validate_config_deploy(self, a, recruiter):
         recruiter.validate_config(mode="live")
 
-    def test_validate_config_sandbox_open_recruitment_missing_from_config(
-        self, a, recruiter
-    ):
-        recruiter.config["activate_recruiter_on_start"] = False
+    def test_validate_config_sandbox(self, a, recruiter):
         recruiter.validate_config(mode="sandbox")
 
 

@@ -26,7 +26,6 @@ lock_table_when_creating_participant = True
 docker_worker_cpu_shares = 1024
 
 [Recruiter]
-activate_recruiter_on_start = True
 auto_recruit = False
 assign_qualifications = False
 us_only = False
