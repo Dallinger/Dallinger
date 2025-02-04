@@ -80,6 +80,7 @@ class Recruiter(object):
 
     nickname = None
     external_submission_url = None  # MTurkRecruiter, for one, overides this
+    supports_delayed_publishing = False
 
     def __init__(self):
         """For now, the contract of a Recruiter is that it takes no
@@ -283,8 +284,10 @@ class Recruiter(object):
         raise NotImplementedError
 
     def validate_config(self, **kwargs):
-        """Validates config variables, if implemented."""
-        pass
+        """Validates config variables. Override this method for recruiter-specific validation."""
+        assert not self.supports_delayed_publishing and self.config.get(
+            "publish_experiment"
+        )
 
 
 def alphanumeric_code(seed: str, length: int = 8):
@@ -371,6 +374,7 @@ class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.com/)"""
 
     nickname = "prolific"
+    supports_delayed_publishing = True
 
     def __init__(self, *args, **kwargs):
         super().__init__()
@@ -717,6 +721,7 @@ class ProlificRecruiter(Recruiter):
         }
 
     def validate_config(self, **kwargs):
+        super().validate_config()
         # Make sure Prolific config variables are present and validate the workspace
         self.config.get("prolific_project")
         workspace = self.config.get("prolific_workspace")
@@ -1655,6 +1660,7 @@ class MTurkRecruiter(Recruiter):
         return service.get_study(hit_id)["QualificationRequirements"]
 
     def validate_config(self, **kwargs):
+        super().validate_config()
         mode = self.config.get("mode")
         if mode not in ("sandbox", "live"):
             raise MTurkRecruiterException(
@@ -1898,6 +1904,7 @@ class MultiRecruiter(Recruiter):
             recruiter.close_recruitment()
 
     def validate_config(self, **kwargs):
+        super().validate_config()
         for name in set(name for name, count in self.spec):
             recruiter = by_name(name)
             recruiter.validate_config(**kwargs)
