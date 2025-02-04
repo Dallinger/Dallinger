@@ -285,9 +285,8 @@ class Recruiter(object):
 
     def validate_config(self, **kwargs):
         """Validates config variables. Override this method for recruiter-specific validation."""
-        assert not self.supports_delayed_publishing and self.config.get(
-            "publish_experiment"
-        )
+        if not self.supports_delayed_publishing:
+            assert self.config.get("publish_experiment")
 
 
 def alphanumeric_code(seed: str, length: int = 8):

@@ -402,7 +402,7 @@ def prolific_config(active_config):
             {"peripheral_requirements": ["audio", "microphone"]}
         ),
         "prolific_workspace": "My workspace",
-        "publish_experiment": False,
+        "publish_experiment": True,
     }
     active_config.extend(prolific_extensions)
 
@@ -741,6 +741,14 @@ class TestProlificRecruiter(object):
             ]
         )
 
+    def test_validate_config_assert_publishing(self, a, recruiter):
+        recruiter.config["publish_experiment"] = True
+        recruiter.validate_config()
+
+    def test_validate_config_assert_not_publishing(self, a, recruiter):
+        recruiter.config["publish_experiment"] = False
+        recruiter.validate_config()
+
 
 class TestMTurkRecruiterMessages(object):
     @pytest.fixture
@@ -955,6 +963,7 @@ class TestMTurkRecruiter(object):
             mocks["get_base_url"].return_value = "http://fake-domain"
             mocks["os"].getenv.return_value = "fake-host-domain"
             active_config.extend({"mode": "sandbox"})
+            active_config.extend({"publish_experiment": True})
             r = MTurkRecruiter(store=hit_id_store)
             r.notifies_admin = notifies_admin
             r.mailer = mailer
@@ -1417,6 +1426,15 @@ class TestMTurkRecruiter(object):
         with pytest.raises(MTurkRecruiterException) as ex_info:
             recruiter.validate_config()
         assert ex_info.match('"nonsense" is not a valid mode')
+
+    def test_validate_config_assert_publishing(self, a, recruiter):
+        recruiter.config["publish_experiment"] = True
+        recruiter.validate_config()
+
+    def test_validate_config_assert_not_publishing(self, a, recruiter):
+        recruiter.config["publish_experiment"] = False
+        with pytest.raises(AssertionError):
+            recruiter.validate_config()
 
     def test_validate_config_deploy(self, a, recruiter):
         recruiter.validate_config(mode="live")
