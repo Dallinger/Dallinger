@@ -1,5 +1,9 @@
 <!doctype html>
-<html>
+{% if get_from_config("disable_browser_autotranslate") %}
+    <html translate="no">
+{% else %}
+    <html>
+{% endif %}
     <head>
         <title>{% block title %}Experiment{% endblock %}</title>
         {% block head %}

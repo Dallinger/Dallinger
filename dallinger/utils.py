@@ -935,3 +935,10 @@ def deferred_route_decorator(route, registered_routes):
         return func
 
     return new_func
+
+
+def get_from_config(key):
+    config = get_config()
+    if not config.ready:
+        config.load()
+    return config.get(key)

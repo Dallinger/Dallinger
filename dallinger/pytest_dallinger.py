@@ -143,6 +143,7 @@ def stub_config():
         "contact_email_on_error": "error_contact@test.com",
         "dallinger_email_address": "test@example.com",
         "database_size": "standard-0",
+        "disable_browser_autotranslate": True,
         "disable_when_duration_exceeded": True,
         "enable_global_experiment_registry": False,
         "redis_size": "premium-0",
