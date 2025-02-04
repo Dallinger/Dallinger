@@ -1631,6 +1631,10 @@ class TestLaunchRoute(object):
             mock_exp.protected_routes = []
             mock_exp.background_tasks = []
             mock_exp.channel = "special"
+            mock_exp.recruiter.open_recruitment.return_value = {
+                "items": ["item"],
+                "message": "a message",
+            }
             mock_class.return_value = mock_exp
             with mock.patch(
                 "dallinger.experiment_server.sockets.chat_backend"
@@ -1653,6 +1657,10 @@ class TestLaunchRoute(object):
             mock_exp.protected_routes = []
             mock_exp.background_tasks = []
             mock_exp.channel = None
+            mock_exp.recruiter.open_recruitment.return_value = {
+                "items": ["item"],
+                "message": "a message",
+            }
             mock_class.return_value = mock_exp
             with mock.patch(
                 "dallinger.experiment_server.sockets.chat_backend"
