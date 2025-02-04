@@ -18,12 +18,13 @@ contact_email_on_error = ???
 dallinger_email_address = dallinger@mailinator.com
 
 [Experiment]
-replay = False
-mode = debug
+docker_worker_cpu_shares = 1024
 enable_global_experiment_registry = False
 language = en
 lock_table_when_creating_participant = True
-docker_worker_cpu_shares = 1024
+mode = debug
+publish_experiment = True
+replay = False
 
 [Recruiter]
 auto_recruit = False
@@ -48,7 +49,6 @@ prolific_api_token = Set your Prolific API token in ~/.dallingerconfig!
 prolific_api_version = v1
 prolific_estimated_completion_minutes = 0
 prolific_is_custom_screening = False
-prolific_publish_study = True
 prolific_recruitment_config = {}
 
 [Internationalization]

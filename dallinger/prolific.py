@@ -296,7 +296,7 @@ class ProlificService:
         name: str,
         project_name: str,
         prolific_id_option: str,
-        publish_study: bool,
+        publish_experiment: bool,
         reward: int,
         total_available_places: int,
         mode: str,
@@ -310,12 +310,12 @@ class ProlificService:
         is the required workflow for generating a working study on Prolific.
         """
         args = locals()
-        for arg in ["mode", "publish_study", "self"]:
+        for arg in ["mode", "publish_experiment", "self"]:
             del args[arg]
         draft = self.draft_study(**args)
 
         study_id = draft["id"]
-        if mode == "live" and publish_study:
+        if mode == "live" and publish_experiment:
             logger.info(f"Publishing study {study_id} on Prolific...")
             return self.publish_study(study_id)
         else:
