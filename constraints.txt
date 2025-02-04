@@ -38,7 +38,7 @@ babel==2.16.0
     #   sphinx
 bcrypt==4.2.1
     # via paramiko
-beautifulsoup4==4.12.3
+beautifulsoup4==4.13.3
     # via nbconvert
 black==24.10.0
     # via dallinger
