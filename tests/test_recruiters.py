@@ -429,7 +429,13 @@ def prolificservice(prolific_config, fake_parsed_prolific_study):
 class TestProlificRecruiter(object):
     @pytest.fixture
     def recruiter(
-        self, mailer, notifies_admin, prolificservice, hit_id_store, active_config
+        self,
+        request,
+        mailer,
+        notifies_admin,
+        prolificservice,
+        hit_id_store,
+        active_config,
     ):
         active_config.extend({"debug_recruiter": ""})
         from dallinger.recruiters import ProlificRecruiter
@@ -442,9 +448,36 @@ class TestProlificRecruiter(object):
             r = ProlificRecruiter(store=hit_id_store)
             r.notifies_admin = notifies_admin
             r.mailer = mailer
-            r.prolificservice = prolificservice
+
+            # We don't want to mock prolificservice in some tests
+            if not hasattr(request, "param"):
+                r.prolificservice = prolificservice
 
             return r
+
+    @pytest.mark.parametrize("recruiter", [], indirect=True)
+    def test_open_recruitment_and_publish(self, recruiter):
+        recruiter.config["mode"] = "live"
+        recruiter.config["publish_experiment"] = True
+        with mock.patch.multiple(
+            "dallinger.prolific.ProlificService",
+            draft_study=mock.DEFAULT,
+            publish_study=mock.DEFAULT,
+        ) as mocks:
+            recruiter.open_recruitment(n=1)
+        mocks["publish_study"].assert_called()
+
+    @pytest.mark.parametrize("recruiter", [], indirect=True)
+    def test_open_recruitment_but_do_not_publish(self, recruiter):
+        recruiter.config["mode"] = "live"
+        recruiter.config["publish_experiment"] = False
+        with mock.patch.multiple(
+            "dallinger.prolific.ProlificService",
+            draft_study=mock.DEFAULT,
+            publish_study=mock.DEFAULT,
+        ) as mocks:
+            recruiter.open_recruitment(n=1)
+        mocks["publish_study"].assert_not_called()
 
     def test_open_recruitment_with_valid_request(self, recruiter):
         result = recruiter.open_recruitment(n=5)
