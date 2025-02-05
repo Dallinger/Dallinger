@@ -1436,7 +1436,7 @@ class TestMTurkRecruiter(object):
         with pytest.raises(AssertionError) as ex_info:
             recruiter.validate_config()
         ex_info.match(
-            "MTurk does not support delayed experiment publishing. Set `publish_experiment=true` in your experiment config!"
+            "MTurkRecruiter does not support delayed experiment publishing. Set `publish_experiment=true` in your experiment config!"
         )
 
     def test_validate_config_deploy(self, a, recruiter):
