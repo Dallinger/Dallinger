@@ -286,7 +286,10 @@ class Recruiter(object):
     def validate_config(self, **kwargs):
         """Validates config variables. Override this method for recruiter-specific validation."""
         if not self.supports_delayed_publishing:
-            assert self.config.get("publish_experiment")
+            print("fewfaewfwdQQD")
+            assert self.config.get(
+                "publish_experiment"
+            ), "MTurk does not support delayed experiment publishing. Set `publish_experiment=true` in your experiment config!"
 
 
 def alphanumeric_code(seed: str, length: int = 8):
