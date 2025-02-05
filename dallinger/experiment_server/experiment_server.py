@@ -422,19 +422,21 @@ def launch():
             simple=True,
         )
 
+    config = _config()
     recruitment_details = None
-    try:
-        recruitment_details = exp.recruiter.open_recruitment(
-            n=exp.initial_recruitment_size
-        )
-        session.commit()
-    except Exception as e:
-        return error_response(
-            error_text="Failed to open recruitment, check experiment server log "
-            "for details: {}".format(str(e)),
-            status=500,
-            simple=True,
-        )
+    if _open_recruitment(config):
+        try:
+            recruitment_details = exp.recruiter.open_recruitment(
+                n=exp.initial_recruitment_size
+            )
+            session.commit()
+        except Exception as e:
+            return error_response(
+                error_text="Failed to open recruitment, check experiment server log "
+                "for details: {}".format(str(e)),
+                status=500,
+                simple=True,
+            )
 
     for task in exp.background_tasks:
         try:
@@ -447,7 +449,7 @@ def launch():
                 simple=True,
             )
 
-    if _config().get("replay", False):
+    if config.get("replay", False):
         try:
             task = ReplayBackend(exp)
             gevent.spawn(task)
@@ -489,6 +491,14 @@ def launch():
     else:
         message = "Recruitment hasn't been started yet. Please, initialize recruitment manually!"
     return success_response(recruitment_msg=message)
+
+
+def _open_recruitment(config):
+    return (
+        config.get("mode") == "live"
+        or config.get("mode") == "sandbox"
+        and config.get("recruiter") == "mturk"
+    )
 
 
 def prepare_advertisement():
