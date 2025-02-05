@@ -38,7 +38,7 @@ babel==2.17.0
     #   sphinx
 bcrypt==4.2.1
     # via paramiko
-beautifulsoup4==4.13.0
+beautifulsoup4==4.13.3
     # via nbconvert
 black==25.1.0
     # via dallinger
@@ -46,9 +46,9 @@ bleach==6.2.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.36.11
+boto3==1.36.13
     # via dallinger
-botocore==1.36.11
+botocore==1.36.13
     # via
     #   boto3
     #   s3transfer
@@ -256,7 +256,7 @@ jupyter-core==5.7.2
     #   nbclient
     #   nbconvert
     #   nbformat
-jupyter-events==0.11.0
+jupyter-events==0.12.0
     # via jupyter-server
 jupyter-lsp==2.2.5
     # via jupyterlab
@@ -349,6 +349,7 @@ packaging==24.2
     #   build
     #   gunicorn
     #   ipykernel
+    #   jupyter-events
     #   jupyter-server
     #   jupyterlab
     #   jupyterlab-server
@@ -364,7 +365,7 @@ pandas==2.2.3
     #   tablib
 pandocfilters==1.5.1
     # via nbconvert
-paramiko==3.5.0
+paramiko==3.5.1
     # via
     #   dallinger
     #   sshtunnel
