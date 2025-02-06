@@ -1601,6 +1601,7 @@ class TestLaunchRoute(object):
                 "message": "a message",
             }
             mock_class.return_value = mock_exp
+            active_config.extend({"mode": "live"})
             resp = webapp.post("/launch", data={})
         assert resp.status_code == 200
         mock_exp.recruiter.open_recruitment.assert_called()

@@ -24,6 +24,7 @@ class TestBartlett1932(object):
     def bartlett_config(self, active_config):
         active_config.register_extra_parameters()
         active_config.set("num_participants", 3)
+        active_config.extend({"mode": "live"})
         yield active_config
 
     @pytest.fixture
