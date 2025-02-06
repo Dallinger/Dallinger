@@ -18,15 +18,15 @@ contact_email_on_error = ???
 dallinger_email_address = dallinger@mailinator.com
 
 [Experiment]
-replay = False
-mode = debug
+docker_worker_cpu_shares = 1024
 enable_global_experiment_registry = False
 language = en
 lock_table_when_creating_participant = True
-docker_worker_cpu_shares = 1024
+mode = debug
+publish_experiment = True
+replay = False
 
 [Recruiter]
-open_recruitment = True
 auto_recruit = False
 assign_qualifications = False
 us_only = False

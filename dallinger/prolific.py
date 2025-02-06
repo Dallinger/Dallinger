@@ -282,7 +282,7 @@ class ProlificService:
 
         return self._req(method="POST", endpoint="/studies/", json=payload)
 
-    def published_study(
+    def create_study(
         self,
         completion_code: str,
         completion_option: str,
@@ -296,6 +296,7 @@ class ProlificService:
         name: str,
         project_name: str,
         prolific_id_option: str,
+        publish_experiment: bool,
         reward: int,
         total_available_places: int,
         mode: str,
@@ -309,17 +310,16 @@ class ProlificService:
         is the required workflow for generating a working study on Prolific.
         """
         args = locals()
-        del args["self"]
-        del args["mode"]
+        for arg in ["mode", "publish_experiment", "self"]:
+            del args[arg]
         draft = self.draft_study(**args)
+
         study_id = draft["id"]
-        if mode == "live":
-            logger.info(f"Publishing experiment {study_id} on Prolific...")
+        if mode == "live" and publish_experiment:
+            logger.info(f"Publishing study {study_id} on Prolific...")
             return self.publish_study(study_id)
         else:
-            logger.info(
-                f"Sandboxing experiment {study_id} in Prolific (saved as draft, not public)..."
-            )
+            logger.info(f"Created unpublished draft study {study_id} on Prolific.")
             return draft
 
     def get_hits(self):

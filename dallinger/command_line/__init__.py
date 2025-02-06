@@ -242,7 +242,7 @@ def prelaunch_db_bootstrapper(zip_path, log):
     return bootstrap_db
 
 
-def _deploy_in_mode(mode, verbose, open_recruitment=None, app=None, archive=None):
+def _deploy_in_mode(mode, verbose, app=None, archive=None):
     if app:
         verify_id(None, None, app)
 
@@ -304,11 +304,6 @@ def sandbox(**kwargs):
 @click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
 @click.option("--app", default=None, help="ID of the deployed experiment")
 @click.option("--archive", default=None, help="Optional path to an experiment archive")
-@click.option(
-    "--open-recruitment",
-    is_flag=True,
-    help="Recruitment should start automatically when the experiment launches",
-)
 @require_exp_directory
 @fail_on_unsupported_urls
 @report_idle_after(21600)

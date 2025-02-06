@@ -112,11 +112,6 @@ def sandbox(**kwargs):
 @docker.command()
 @click.option("--verbose", is_flag=True, flag_value=True, help="Verbose mode")
 @click.option("--app", default=None, help="Experiment id")
-@click.option(
-    "--open-recruitment",
-    is_flag=True,
-    help="Recruitment should start automatically when the experiment launches",
-)
 @require_exp_directory
 def deploy(**kwargs):
     """Deploy app using Heroku to MTurk."""
@@ -218,7 +213,6 @@ def deploy_image(image_name, mode, config_options):
         "AWS_SECRET_ACCESS_KEY": config.get("aws_secret_access_key"),
         "AWS_DEFAULT_REGION": config.get("aws_region"),
         "prolific_api_token": config["prolific_api_token"],
-        "open_recruitment": config.get("open_recruitment"),
         "auto_recruit": config.get("auto_recruit"),
         "smtp_username": config.get("smtp_username"),
         "smtp_password": config.get("smtp_password"),
@@ -304,7 +298,7 @@ def deploy_image(image_name, mode, config_options):
     )
 
 
-def _deploy_in_mode(mode, verbose, open_recruitment=None, app=None):
+def _deploy_in_mode(mode, verbose, app=None):
     if app:
         verify_id(None, None, app)
 
@@ -385,7 +379,6 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
         "AWS_SECRET_ACCESS_KEY": config["aws_secret_access_key"],
         "AWS_DEFAULT_REGION": config["aws_region"],
         "prolific_api_token": config["prolific_api_token"],
-        "open_recruitment": config.get("open_recruitment"),
         "auto_recruit": config["auto_recruit"],
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],

@@ -91,11 +91,6 @@ General
 Recruitment (General)
 ~~~~~~~~~~~~~~~~~~~~~
 
-``open_recruitment`` *boolean*
-    A boolean on whether recruitment should start automatically when the experiment launches.
-    If set to ``false`` the user has to manually initialize recruitment (e.g. via the Prolific panel).
-    Defaults to ``true``.
-
 ``auto_recruit`` *boolean*
     A boolean on whether recruitment should be automatic.
 
@@ -238,6 +233,9 @@ Prolific Recruitment
 ``prolific_is_custom_screening`` *bool*
     Whether or not this study includes a custom screening. Default is `False`.
     See https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/CreateStudy for more information.
+
+``publish_experiment`` *bool*
+    Whether the experiment should be published when deploying. Currently only used in Prolific recruitment; if `False` a draft study will be created which later can be published via the Prolific web UI. Default is `True`.
 
 ``prolific_recruitment_config`` *unicode - JSON formatted*
     JSON data to add additional recruitment parameters
