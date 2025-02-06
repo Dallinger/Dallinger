@@ -46,9 +46,9 @@ bleach==6.2.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.36.13
+boto3==1.36.15
     # via dallinger
-botocore==1.36.13
+botocore==1.36.15
     # via
     #   boto3
     #   s3transfer
