@@ -128,7 +128,6 @@ def stub_config():
     dallinger.config.get_config()
     """
     defaults = {
-        "open_recruitment": True,
         "ad_group": "Test ad group",
         "approve_requirement": 95,
         "assign_qualifications": True,
@@ -143,6 +142,7 @@ def stub_config():
         "contact_email_on_error": "error_contact@test.com",
         "dallinger_email_address": "test@example.com",
         "database_size": "standard-0",
+        "disable_browser_autotranslate": True,
         "disable_when_duration_exceeded": True,
         "enable_global_experiment_registry": False,
         "redis_size": "premium-0",
@@ -167,6 +167,7 @@ def stub_config():
         "num_dynos_web": 1,
         "num_dynos_worker": 1,
         "organization_name": "Monsters University",
+        "publish_experiment": True,
         "sentry": True,
         "smtp_host": "smtp.fakehost.com:587",
         "smtp_username": "fake email username",

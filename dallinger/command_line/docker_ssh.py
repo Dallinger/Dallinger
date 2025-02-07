@@ -210,11 +210,6 @@ option_dns_host = click.option(
     "--dns-host",
     help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
 )
-option_open_recruitment = click.option(
-    "--open-recruitment",
-    is_flag=True,
-    help="Recruitment should start automatically when the experiment launches",
-)
 option_server = click.option(
     "--server",
     required=True,
@@ -365,7 +360,6 @@ def sandbox(**kwargs):  # pragma: no cover
 @option_dns_host
 @option_server
 @option_update
-@option_open_recruitment
 @validate_update
 @build_and_push_image
 def deploy(**kwargs):  # pragma: no cover
@@ -382,7 +376,6 @@ def _deploy_in_mode(
     mode,
     server,
     update,
-    open_recruitment=None,
 ):
     config = get_config()
     config.load()
@@ -517,7 +510,6 @@ def _deploy_in_mode(
             "FLASK_SECRET_KEY": token_urlsafe(16),
             "AWS_DEFAULT_REGION": config["aws_region"],
             "smtp_username": config.get("smtp_username"),
-            "open_recruitment": config["open_recruitment"],
             "auto_recruit": config["auto_recruit"],
             "mode": mode,
             "CREATOR": f"{USER}@{HOSTNAME}",

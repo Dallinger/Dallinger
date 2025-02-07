@@ -80,6 +80,7 @@ class Recruiter(object):
 
     nickname = None
     external_submission_url = None  # MTurkRecruiter, for one, overides this
+    supports_delayed_publishing = False
 
     def __init__(self):
         """For now, the contract of a Recruiter is that it takes no
@@ -283,8 +284,11 @@ class Recruiter(object):
         raise NotImplementedError
 
     def validate_config(self, **kwargs):
-        """Validates config variables, if implemented."""
-        pass
+        """Validates config variables. Override this method for recruiter-specific validation."""
+        if not self.supports_delayed_publishing:
+            assert self.config.get(
+                "publish_experiment"
+            ), f"{type(self).__name__} does not support delayed experiment publishing. Set `publish_experiment=true` in your experiment config!"
 
 
 def alphanumeric_code(seed: str, length: int = 8):
@@ -371,6 +375,7 @@ class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.com/)"""
 
     nickname = "prolific"
+    supports_delayed_publishing = True
 
     def __init__(self, *args, **kwargs):
         super().__init__()
@@ -395,7 +400,7 @@ class ProlificRecruiter(Recruiter):
         logger.info(f"Opening Prolific recruitment for {n} participants")
         if self.is_in_progress:
             raise ProlificRecruiterException(
-                "Tried to open_recruitment(), but a Prolific Study "
+                "Tried to open recruitment, but a Prolific Study "
                 f"(ID {self.current_study_id}) is already running for this experiment"
             )
 
@@ -425,6 +430,7 @@ class ProlificRecruiter(Recruiter):
             "name": self.config.get("title"),
             "project_name": self.config.get("prolific_project"),
             "prolific_id_option": "url_parameters",
+            "publish_experiment": self.config.get("publish_experiment"),
             "reward": int(self.config.get("base_payment") * 100),
             "total_available_places": n,
             "workspace": self.config.get("prolific_workspace"),
@@ -434,7 +440,7 @@ class ProlificRecruiter(Recruiter):
             explicit_config = json.loads(self.config.get("prolific_recruitment_config"))
             study_request.update(explicit_config)
 
-        study_info = self.prolificservice.published_study(**study_request)
+        study_info = self.prolificservice.create_study(**study_request)
         self._record_current_study_id(study_info["id"])
 
         return {
@@ -716,6 +722,7 @@ class ProlificRecruiter(Recruiter):
         }
 
     def validate_config(self, **kwargs):
+        super().validate_config()
         # Make sure Prolific config variables are present and validate the workspace
         self.config.get("prolific_project")
         workspace = self.config.get("prolific_workspace")
@@ -1204,7 +1211,7 @@ class MTurkRecruiter(Recruiter):
         logger.info("Opening MTurk recruitment for {} participants".format(n))
         if self.is_in_progress:
             raise MTurkRecruiterException(
-                "Tried to open_recruitment on already open recruiter."
+                "Tried to open recruitment on already open recruiter."
             )
 
         if self.hit_domain is None:
@@ -1654,16 +1661,7 @@ class MTurkRecruiter(Recruiter):
         return service.get_study(hit_id)["QualificationRequirements"]
 
     def validate_config(self, **kwargs):
-        if (
-            kwargs.get("mode") == "live"
-            and not kwargs.get("open_recruitment")
-            and not self.config.get("open_recruitment")
-        ):
-            raise MTurkRecruiterException(
-                "When deploying to MTurk either `open_recruitment` must be `True` in the config "
-                "or the `--open-recruitment` flag must be provided in the deploy command."
-            )
-
+        super().validate_config()
         mode = self.config.get("mode")
         if mode not in ("sandbox", "live"):
             raise MTurkRecruiterException(
@@ -1698,7 +1696,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
         logger.info("Opening MTurkLarge recruitment for {} participants".format(n))
         if self.is_in_progress:
             raise MTurkRecruiterException(
-                "Tried to open_recruitment on already open recruiter."
+                "Tried to open recruitment on already open recruiter."
             )
         self.counter.increment(n)
         to_recruit = max(n, self.pool_size)
@@ -1907,6 +1905,7 @@ class MultiRecruiter(Recruiter):
             recruiter.close_recruitment()
 
     def validate_config(self, **kwargs):
+        super().validate_config()
         for name in set(name for name, count in self.spec):
             recruiter = by_name(name)
             recruiter.validate_config(**kwargs)

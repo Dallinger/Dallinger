@@ -28,7 +28,7 @@ from dallinger import db, experiment, models, recruiters
 from dallinger.config import get_config
 from dallinger.notifications import MessengerError, admin_notifier
 from dallinger.recruiters import ProlificRecruiter
-from dallinger.utils import generate_random_id
+from dallinger.utils import generate_random_id, get_from_config
 
 from . import dashboard
 from .replay import ReplayBackend
@@ -200,6 +200,8 @@ login.request_loader(dashboard.load_user_from_request)
 login.user_loader(dashboard.load_user)
 login.unauthorized_handler(dashboard.unauthorized)
 app.config["dashboard_tabs"] = dashboard.dashboard_tabs
+
+app.jinja_env.globals.update(get_from_config=get_from_config)
 
 """Basic routes."""
 
@@ -421,19 +423,18 @@ def launch():
         )
 
     recruitment_details = None
-    if _config().get("open_recruitment"):
-        try:
-            recruitment_details = exp.recruiter.open_recruitment(
-                n=exp.initial_recruitment_size
-            )
-            session.commit()
-        except Exception as e:
-            return error_response(
-                error_text="Failed to open recruitment, check experiment server log "
-                "for details: {}".format(str(e)),
-                status=500,
-                simple=True,
-            )
+    try:
+        recruitment_details = exp.recruiter.open_recruitment(
+            n=exp.initial_recruitment_size
+        )
+        session.commit()
+    except Exception as e:
+        return error_response(
+            error_text="Failed to open recruitment, check experiment server log "
+            "for details: {}".format(str(e)),
+            status=500,
+            simple=True,
+        )
 
     for task in exp.background_tasks:
         try:

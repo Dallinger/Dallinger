@@ -1605,20 +1605,6 @@ class TestLaunchRoute(object):
         assert resp.status_code == 200
         mock_exp.recruiter.open_recruitment.assert_called()
 
-    def test_launch_without_recruitment(self, webapp, active_config):
-        with mock.patch(
-            "dallinger.experiment_server.experiment_server.Experiment"
-        ) as mock_class:
-            active_config.extend({"open_recruitment": False})
-            mock_exp = mock.Mock()
-            mock_exp.protected_routes = []
-            mock_exp.background_tasks = []
-            mock_exp.channel = None
-            mock_class.return_value = mock_exp
-            resp = webapp.post("/launch", data={})
-        assert resp.status_code == 200
-        mock_exp.recruiter.open_recruitment.assert_not_called()
-
     def test_launch_logging_fails(self, webapp):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
@@ -1642,10 +1628,13 @@ class TestLaunchRoute(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock()
-            active_config.extend({"open_recruitment": False})
             mock_exp.protected_routes = []
             mock_exp.background_tasks = []
             mock_exp.channel = "special"
+            mock_exp.recruiter.open_recruitment.return_value = {
+                "items": ["item"],
+                "message": "a message",
+            }
             mock_class.return_value = mock_exp
             with mock.patch(
                 "dallinger.experiment_server.sockets.chat_backend"
@@ -1665,10 +1654,13 @@ class TestLaunchRoute(object):
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
             mock_exp = mock.Mock()
-            active_config.extend({"open_recruitment": False})
             mock_exp.protected_routes = []
             mock_exp.background_tasks = []
             mock_exp.channel = None
+            mock_exp.recruiter.open_recruitment.return_value = {
+                "items": ["item"],
+                "message": "a message",
+            }
             mock_class.return_value = mock_exp
             with mock.patch(
                 "dallinger.experiment_server.sockets.chat_backend"

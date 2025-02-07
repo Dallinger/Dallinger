@@ -402,6 +402,7 @@ def prolific_config(active_config):
             {"peripheral_requirements": ["audio", "microphone"]}
         ),
         "prolific_workspace": "My workspace",
+        "publish_experiment": True,
     }
     active_config.extend(prolific_extensions)
 
@@ -418,7 +419,7 @@ def prolificservice(prolific_config, fake_parsed_prolific_study):
         api_version=prolific_config.get("prolific_api_version"),
     )
 
-    service.published_study.return_value = fake_parsed_prolific_study
+    service.create_study.return_value = fake_parsed_prolific_study
     service.add_participants_to_study.return_value = fake_parsed_prolific_study
 
     return service
@@ -428,7 +429,13 @@ def prolificservice(prolific_config, fake_parsed_prolific_study):
 class TestProlificRecruiter(object):
     @pytest.fixture
     def recruiter(
-        self, mailer, notifies_admin, prolificservice, hit_id_store, active_config
+        self,
+        request,
+        mailer,
+        notifies_admin,
+        prolificservice,
+        hit_id_store,
+        active_config,
     ):
         active_config.extend({"debug_recruiter": ""})
         from dallinger.recruiters import ProlificRecruiter
@@ -441,9 +448,36 @@ class TestProlificRecruiter(object):
             r = ProlificRecruiter(store=hit_id_store)
             r.notifies_admin = notifies_admin
             r.mailer = mailer
-            r.prolificservice = prolificservice
+
+            # We don't want to mock prolificservice in some tests
+            if not hasattr(request, "param"):
+                r.prolificservice = prolificservice
 
             return r
+
+    @pytest.mark.parametrize("recruiter", [], indirect=True)
+    def test_open_recruitment_and_publish(self, recruiter):
+        recruiter.config["mode"] = "live"
+        recruiter.config["publish_experiment"] = True
+        with mock.patch.multiple(
+            "dallinger.prolific.ProlificService",
+            draft_study=mock.DEFAULT,
+            publish_study=mock.DEFAULT,
+        ) as mocks:
+            recruiter.open_recruitment(n=1)
+        mocks["publish_study"].assert_called()
+
+    @pytest.mark.parametrize("recruiter", [], indirect=True)
+    def test_open_recruitment_but_do_not_publish(self, recruiter):
+        recruiter.config["mode"] = "live"
+        recruiter.config["publish_experiment"] = False
+        with mock.patch.multiple(
+            "dallinger.prolific.ProlificService",
+            draft_study=mock.DEFAULT,
+            publish_study=mock.DEFAULT,
+        ) as mocks:
+            recruiter.open_recruitment(n=1)
+        mocks["publish_study"].assert_not_called()
 
     def test_open_recruitment_with_valid_request(self, recruiter):
         result = recruiter.open_recruitment(n=5)
@@ -740,6 +774,14 @@ class TestProlificRecruiter(object):
             ]
         )
 
+    def test_validate_config_assert_publishing(self, a, recruiter):
+        recruiter.config["publish_experiment"] = True
+        recruiter.validate_config()
+
+    def test_validate_config_assert_not_publishing(self, a, recruiter):
+        recruiter.config["publish_experiment"] = False
+        recruiter.validate_config()
+
 
 class TestMTurkRecruiterMessages(object):
     @pytest.fixture
@@ -954,6 +996,7 @@ class TestMTurkRecruiter(object):
             mocks["get_base_url"].return_value = "http://fake-domain"
             mocks["os"].getenv.return_value = "fake-host-domain"
             active_config.extend({"mode": "sandbox"})
+            active_config.extend({"publish_experiment": True})
             r = MTurkRecruiter(store=hit_id_store)
             r.notifies_admin = notifies_admin
             r.mailer = mailer
@@ -1417,32 +1460,23 @@ class TestMTurkRecruiter(object):
             recruiter.validate_config()
         assert ex_info.match('"nonsense" is not a valid mode')
 
-    def test_validate_config_deploy_open_recruitment_missing_from_config_and_command(
-        self, a, recruiter
-    ):
-        recruiter.config["open_recruitment"] = False
+    def test_validate_config_assert_publishing(self, a, recruiter):
+        recruiter.config["publish_experiment"] = True
+        recruiter.validate_config()
 
-        with pytest.raises(MTurkRecruiterException) as ex_info:
-            recruiter.validate_config(mode="live", open_recruitment=False)
-        assert ex_info.match(
-            "When deploying to MTurk either `open_recruitment` must be `True` in the config or the `--open-recruitment` flag must be provided in the deploy command."
+    def test_validate_config_assert_not_publishing(self, a, recruiter):
+        recruiter.config["publish_experiment"] = False
+        with pytest.raises(AssertionError) as ex_info:
+            recruiter.validate_config()
+        ex_info.match(
+            "MTurkRecruiter does not support delayed experiment publishing. Set `publish_experiment=true` in your experiment config!"
         )
 
-    def test_validate_config_deploy_open_recruitment_set_in_config(self, a, recruiter):
-        recruiter.config["open_recruitment"] = True
-        recruiter.validate_config(mode="live", open_recruitment=False)
+    def test_validate_config_deploy(self, a, recruiter):
+        recruiter.validate_config(mode="live")
 
-    def test_validate_config_deploy_open_recruitment_set_from_command(
-        self, a, recruiter
-    ):
-        recruiter.config["open_recruitment"] = False
-        recruiter.validate_config(mode="live", open_recruitment=True)
-
-    def test_validate_config_sandbox_open_recruitment_missing_from_config_and_command(
-        self, a, recruiter
-    ):
-        recruiter.config["open_recruitment"] = False
-        recruiter.validate_config(mode="sandbox", open_recruitment=False)
+    def test_validate_config_sandbox(self, a, recruiter):
+        recruiter.validate_config(mode="sandbox")
 
 
 class TestRedisTally(object):
