@@ -1,5 +1,24 @@
 # Change Log
 
+## [v11.1.0](https://github.com/dallinger/dallinger/tree/v11.1.0) (2025-02-11)
+
+#### Fixed
+- Fixed a bug in `DevProlificService` when debugging locally with `recruiter = prolific`. Previously, an exception was raised erroneously saying that no corresponding Prolific workspace was found
+
+#### Added
+- Added `disable_browser_autotranslate` config variable to prevent automatic translation when using the Google translator built into Chrome. `Default is False`
+- Added `publish_experiment` config variable to indicate if the experiment should be published when deploying. Currently only used in Prolific recruitment; if `False` a draft study will be created which later can be published via the Prolific web UI. Default is `True`
+- Added `Recruiter.supports_delayed_publishing` attribute
+
+#### Removed
+- Removed `--open-recruitment` config variable; removed `--open-recruitment` flag from `deploy` and `sandbox` commands
+
+#### Changed
+- Use `tenacity` for better logging in `wait_for_instance`
+
+#### Updated
+- Updated dependencies; update black, isort; minor reformatting
+
 ## [v11.0.1](https://github.com/dallinger/dallinger/tree/v11.0.1) (2025-01-16)
 
 #### Fixed
