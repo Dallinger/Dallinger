@@ -2,6 +2,7 @@ import json
 import logging
 import re
 from typing import List, Optional
+from uuid import uuid4
 
 import requests
 import tenacity
@@ -177,7 +178,6 @@ class ProlificService:
 
         An exception is raised if the project isn't found.
         """
-
         # Get all of this workspace's projects.
         projects = self._req(
             method="GET", endpoint=f"/workspaces/{workspace_id}/projects/"
@@ -463,11 +463,31 @@ def _translate_submission_from_get_submissions(prolific_assignment_info, study_i
 class DevProlificService(ProlificService):
     """Wrapper that mocks the Prolific REST API and instead of making requests it writes to the log."""
 
+    def __init__(self, *args, **kwargs):
+        self.owner_id = "60a42f4c693c29420793cb73"
+        self.project_id = "61798ab1f4a0bbfe7c050434"
+        self.study_id = "66b0f8e34632badef5c8d1db"
+        self.user_email = "joe.soap@gmail.com"
+        self.user_name = "Joe Soap"
+
+        from dallinger.config import get_config
+
+        config = get_config()
+        config.load()
+
+        workspace = config.get("prolific_workspace")
+        is_workspace_id = (
+            bool(re.match(r"^[A-Za-z0-9]+$", workspace)) and len(workspace) == 24
+        )
+
+        if is_workspace_id:
+            self.workspace_id = workspace
+            self.workspace_title = "My Prolific workspace"
+        else:
+            self.workspace_id = "dd883348cd40c69ccb1a7671"
+            self.workspace_title = workspace
+
     def _req(self, method: str, endpoint: str, **kw) -> dict:
-        from uuid import uuid4
-
-        uuid4_str = str(uuid4())
-
         """Does NOT make any requests but instead writes to the log."""
         self.log_request(method=method, endpoint=endpoint, **kw)
         response = None
@@ -476,7 +496,7 @@ class DevProlificService(ProlificService):
         if endpoint.startswith("/bulk-bonus-payments/"):
             if method == "POST":
                 # method="POST", endpoint=f"/bulk-bonus-payments/{setup_response['id']}/pay/"
-                response = {"id": uuid4_str}
+                response = {"id": str(uuid4())}
 
         # Studies
         elif endpoint.startswith("/studies/"):
@@ -505,7 +525,7 @@ class DevProlificService(ProlificService):
                 if endpoint == "/studies/":
                     # method="POST", endpoint="/studies/", json=payload
                     response = {
-                        "id": "study-id",
+                        "id": self.study_id,
                         "external_study_url": "external-study-url",
                     }
 
@@ -532,8 +552,8 @@ class DevProlificService(ProlificService):
                     response = {
                         "results": [
                             {
-                                "id": uuid4_str,
-                                "study_id": "60aca280709ee40ec37d4885",
+                                "id": str(uuid4()),
+                                "study_id": self.study_id,
                                 "participant_id": "1",
                                 "started_at": "2021-05-20T11:03:00.457Z",
                                 "status": "ACTIVE",
@@ -543,8 +563,8 @@ class DevProlificService(ProlificService):
                 elif re.match(r"/submissions/[A-Za-z0-9]+/", endpoint):
                     # method="GET", endpoint="/submissions/{submission_id}/"
                     response = {
-                        "id": uuid4_str,
-                        "study_id": "60aca280709ee40ec37d4885",
+                        "id": str(uuid4()),
+                        "study_id": self.study_id,
                         "participant": "1",
                         "started_at": "started-at-timestamp",
                         "status": "AWAITING REVIEW",
@@ -552,7 +572,7 @@ class DevProlificService(ProlificService):
             elif method == "POST":
                 if endpoint == "/submissions/bonus-payments/":
                     # method="POST", endpoint="/submissions/bonus-payments/", json=payload
-                    response = {"id": uuid4_str}
+                    response = {"id": str(uuid4())}
 
                 if re.match(r"/submissions/[A-Za-z0-9]+/transition/", endpoint):
                     # method="POST", endpoint=f"/submissions/{submission_id}/transition/", json={"action": "APPROVE"},
@@ -566,15 +586,15 @@ class DevProlificService(ProlificService):
                     response = {
                         "results": [
                             {
-                                "id": "62fce6fff0a78eb4f3ebc09c",
-                                "title": "My workspace",
+                                "id": self.workspace_id,
+                                "title": self.workspace_title,
                                 "description": "This workspace does...",
-                                "owner": "60a42f4c693c29420793cb73",
+                                "owner": self.owner_id,
                                 "users": [
                                     {
-                                        "id": "60a42f4c693c29420793cb73",
-                                        "name": "Joe Soap",
-                                        "email": "joe.soap@gmail.com",
+                                        "id": self.owner_id,
+                                        "name": self.user_name,
+                                        "email": self.user_email,
                                         "roles": ["WORKSPACE_ADMIN"],
                                     }
                                 ],
@@ -587,15 +607,15 @@ class DevProlificService(ProlificService):
                     response = {
                         "results": [
                             {
-                                "id": "62fce6fff0a78eb4f3ebc09c",
+                                "id": self.project_id,
                                 "title": "My project",
                                 "description": "This project is for...",
-                                "owner": "60a42f4c693c29420793cb73",
+                                "owner": self.owner_id,
                                 "users": [
                                     {
-                                        "id": "60a42f4c693c29420793cb73",
-                                        "name": "Joe Soap",
-                                        "email": "joe.soap@gmail.com",
+                                        "id": self.owner_id,
+                                        "name": self.user_name,
+                                        "email": self.user_email,
                                         "roles": ["PROJECT_EDITOR"],
                                     }
                                 ],
@@ -608,36 +628,36 @@ class DevProlificService(ProlificService):
                 # method="POST", endpoint=f"/workspaces/", json={"title": "My new workspace"}
                 if endpoint == "/workspaces/":
                     response = {
-                        "id": "62fce6fff0a78eb4f3ebc09c",
+                        "id": self.workspace_id,
                         "title": "My new workspace",
-                        "owner": "60a42f4c693c29420793cb73",
+                        "owner": self.owner_id,
                         "users": [
                             {
-                                "id": "60a42f4c693c29420793cb73",
-                                "name": "Joe Soap",
-                                "email": "joe.soap@gmail.com",
+                                "id": self.owner_id,
+                                "name": self.user_name,
+                                "email": self.user_email,
                                 "roles": [],
                             }
                         ],
-                        "projects": [{"id": "60a42f4c693c29420793cb73"}],
+                        "projects": [{"id": self.project_id}],
                         "wallet": "61a65c06b084910b3f0c00d6",
                     }
 
                 # method="POST", endpoint=f"/workspaces/{workspace_id}/projects/", json={"title": "My project"}
                 elif re.match(r"/workspaces/[A-Za-z0-9]+/projects/", endpoint):
                     response = {
-                        "id": "62fce6fff0a78eb4f3ebc09c",
+                        "id": self.project_id,
                         "title": "My project",
-                        "owner": "60a42f4c693c29420793cb73",
+                        "owner": self.owner_id,
                         "users": [
                             {
-                                "id": "60a42f4c693c29420793cb73",
-                                "name": "Joe Soap",
-                                "email": "joe.soap@gmail.com",
+                                "id": self.owner_id,
+                                "name": self.user_name,
+                                "email": self.user_email,
                                 "roles": ["PROJECT_EDITOR"],
                             }
                         ],
-                        "workspace": "60a42f4c693c29420793cb73",
+                        "workspace": self.workspace_id,
                         "naivety_distribution_rate": 0.5,
                     }
 
