@@ -14,7 +14,7 @@ asttokens==3.0.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   stack-data
-attrs==24.3.0
+attrs==25.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   outcome
@@ -23,11 +23,11 @@ blinker==1.9.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask
-boto3==1.35.94
+boto3==1.36.18
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-botocore==1.35.94
+botocore==1.36.18
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
@@ -41,7 +41,7 @@ cached-property==2.0.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-certifi==2024.12.14
+certifi==2025.1.31
     # via
     #   -c ../../../../dev-requirements.txt
     #   requests
@@ -62,21 +62,21 @@ click==8.1.8
     #   nltk
     #   pip-tools
     #   rq
-cryptography==44.0.0
+cryptography==44.0.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   pyopenssl
-dallinger==11.0.1
+dallinger==11.1.0
     # via -r requirements.txt
 decorator==5.1.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   ipython
-executing==2.1.0
+executing==2.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   stack-data
-faker==33.3.0
+faker==36.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -202,7 +202,7 @@ pip-tools==7.4.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-prompt-toolkit==3.0.48
+prompt-toolkit==3.0.50
     # via
     #   -c ../../../../dev-requirements.txt
     #   ipython
@@ -231,7 +231,7 @@ pygments==2.19.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   ipython
-pyopenssl==24.3.0
+pyopenssl==25.0.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -248,7 +248,6 @@ python-dateutil==2.9.0.post0
     # via
     #   -c ../../../../dev-requirements.txt
     #   botocore
-    #   faker
     #   heroku3
 redis==5.2.1
     # via
@@ -266,11 +265,11 @@ rq==2.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-s3transfer==0.10.4
+s3transfer==0.11.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
-selenium==4.27.1
+selenium==4.28.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -342,14 +341,18 @@ trio-websocket==0.11.1
 typing-extensions==4.12.2
     # via
     #   -c ../../../../dev-requirements.txt
-    #   faker
+    #   pyopenssl
     #   selenium
+tzdata==2025.1
+    # via
+    #   -c ../../../../dev-requirements.txt
+    #   faker
 tzlocal==5.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   apscheduler
     #   dallinger
-ua-parser==1.0.0
+ua-parser==1.0.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
