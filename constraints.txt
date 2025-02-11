@@ -26,29 +26,29 @@ asttokens==3.0.0
     # via stack-data
 async-lru==2.0.4
     # via jupyterlab
-attrs==24.3.0
+attrs==25.1.0
     # via
     #   jsonschema
     #   outcome
     #   referencing
     #   trio
-babel==2.16.0
+babel==2.17.0
     # via
     #   jupyterlab-server
     #   sphinx
 bcrypt==4.2.1
     # via paramiko
-beautifulsoup4==4.12.3
+beautifulsoup4==4.13.3
     # via nbconvert
-black==24.10.0
+black==25.1.0
     # via dallinger
 bleach==6.2.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.36.4
+boto3==1.36.18
     # via dallinger
-botocore==1.36.4
+botocore==1.36.18
     # via
     #   boto3
     #   s3transfer
@@ -62,7 +62,7 @@ cached-property==2.0.1
     # via dallinger
 cachetools==5.5.1
     # via tox
-certifi==2024.12.14
+certifi==2025.1.31
     # via
     #   httpcore
     #   httpx
@@ -92,13 +92,13 @@ comm==0.2.2
     # via
     #   ipykernel
     #   ipywidgets
-coverage==7.6.10
+coverage==7.6.12
     # via
     #   coverage-pth
     #   dallinger
 coverage-pth==0.0.2
     # via dallinger
-cryptography==44.0.0
+cryptography==44.0.1
     # via
     #   paramiko
     #   pyopenssl
@@ -123,7 +123,7 @@ et-xmlfile==2.0.0
     # via openpyxl
 executing==2.2.0
     # via stack-data
-faker==34.0.1
+faker==36.1.0
     # via dallinger
 fastjsonschema==2.21.1
     # via nbformat
@@ -173,7 +173,7 @@ httpcore==1.0.7
     # via httpx
 httpx==0.28.1
     # via jupyterlab
-identify==2.6.6
+identify==2.6.7
     # via pre-commit
 idna==3.10
     # via
@@ -204,7 +204,7 @@ ipywidgets==8.1.5
     #   jupyter
 isoduration==20.11.0
     # via jsonschema
-isort==5.13.2
+isort==6.0.0
     # via dallinger
 itsdangerous==2.2.0
     # via
@@ -256,7 +256,7 @@ jupyter-core==5.7.2
     #   nbclient
     #   nbconvert
     #   nbformat
-jupyter-events==0.11.0
+jupyter-events==0.12.0
     # via jupyter-server
 jupyter-lsp==2.2.5
     # via jupyterlab
@@ -270,7 +270,7 @@ jupyter-server==2.15.0
     #   notebook-shim
 jupyter-server-terminals==0.5.3
     # via jupyter-server
-jupyterlab==4.3.4
+jupyterlab==4.3.5
     # via
     #   jupyter
     #   notebook
@@ -304,7 +304,7 @@ mdit-py-plugins==0.4.2
     # via myst-parser
 mdurl==0.1.2
     # via markdown-it-py
-mistune==3.1.0
+mistune==3.1.1
     # via nbconvert
 mypy-extensions==1.0.0
     # via black
@@ -312,7 +312,7 @@ myst-parser==3.0.1
     # via dallinger
 nbclient==0.10.2
     # via nbconvert
-nbconvert==7.16.5
+nbconvert==7.16.6
     # via
     #   jupyter
     #   jupyter-server
@@ -349,6 +349,7 @@ packaging==24.2
     #   build
     #   gunicorn
     #   ipykernel
+    #   jupyter-events
     #   jupyter-server
     #   jupyterlab
     #   jupyterlab-server
@@ -364,7 +365,7 @@ pandas==2.2.3
     #   tablib
 pandocfilters==1.5.1
     # via nbconvert
-paramiko==3.5.0
+paramiko==3.5.1
     # via
     #   dallinger
     #   sshtunnel
@@ -450,13 +451,12 @@ python-dateutil==2.9.0.post0
     # via
     #   arrow
     #   botocore
-    #   faker
     #   heroku3
     #   jupyter-client
     #   pandas
 python-json-logger==3.2.1
     # via jupyter-events
-pytz==2024.2
+pytz==2025.1
     # via pandas
 pyyaml==6.0.2
     # via
@@ -464,7 +464,7 @@ pyyaml==6.0.2
     #   myst-parser
     #   pre-commit
     #   tablib
-pyzmq==26.2.0
+pyzmq==26.2.1
     # via
     #   ipykernel
     #   jupyter-client
@@ -474,7 +474,7 @@ redis==5.2.1
     # via
     #   dallinger
     #   rq
-referencing==0.36.1
+referencing==0.36.2
     # via
     #   jsonschema
     #   jsonschema-specifications
@@ -500,9 +500,9 @@ rpds-py==0.22.3
     #   referencing
 rq==2.1.0
     # via dallinger
-s3transfer==0.11.1
+s3transfer==0.11.2
     # via boto3
-selenium==4.28.0
+selenium==4.28.1
     # via dallinger
 send2trash==1.8.3
     # via jupyter-server
@@ -618,17 +618,19 @@ types-python-dateutil==2.9.0.20241206
 typing-extensions==4.12.2
     # via
     #   anyio
-    #   faker
+    #   beautifulsoup4
     #   pyopenssl
     #   referencing
     #   selenium
 tzdata==2025.1
-    # via pandas
+    # via
+    #   faker
+    #   pandas
 tzlocal==5.2
     # via
     #   apscheduler
     #   dallinger
-ua-parser==1.0.0
+ua-parser==1.0.1
     # via
     #   dallinger
     #   user-agents
@@ -645,7 +647,7 @@ urllib3==1.26.20
     #   selenium
 user-agents==2.2.0
     # via dallinger
-virtualenv==20.29.1
+virtualenv==20.29.2
     # via
     #   pre-commit
     #   tox
