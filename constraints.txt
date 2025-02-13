@@ -626,7 +626,7 @@ tzdata==2025.1
     # via
     #   faker
     #   pandas
-tzlocal==5.2
+tzlocal==5.3
     # via
     #   apscheduler
     #   dallinger
