@@ -607,7 +607,7 @@ traitlets==5.14.3
     #   nbclient
     #   nbconvert
     #   nbformat
-trio==0.28.0
+trio==0.29.0
     # via
     #   selenium
     #   trio-websocket
