@@ -131,7 +131,7 @@ filelock==3.17.0
     # via
     #   tox
     #   virtualenv
-flake8==7.1.1
+flake8==7.1.2
     # via dallinger
 flask==3.1.0
     # via
