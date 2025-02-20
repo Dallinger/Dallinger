@@ -349,6 +349,10 @@ class Recruiter(object):
         """
         raise NotImplementedError
 
+    def screen_out(self, *args, **kwargs):
+        """Screen-out a submission."""
+        raise NotImplementedError
+
     def validate_config(self, **kwargs):
         """Validates config variables. Override this method for recruiter-specific validation."""
         if not self.supports_delayed_publishing:
@@ -843,6 +847,17 @@ class ProlificRecruiter(Recruiter):
             "eligibility_requirements": details["eligibility_requirements"],
             "peripheral_requirements": details["peripheral_requirements"],
         }
+
+    def screen_out(self, assignment_id: str):
+        try:
+            return self.prolificservice.screen_out(
+                study_id=self.current_study_id,
+                submission_id=assignment_id,
+                bonus_per_submission=self.config.get("base_payment"),
+                increase_places=self.config.get("auto_recruit"),
+            )
+        except ProlificServiceException as ex:
+            logger.exception(str(ex))
 
     def validate_config(self, **kwargs):
         super().validate_config()

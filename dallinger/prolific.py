@@ -380,6 +380,27 @@ class ProlificService:
             json={"action": "PUBLISH"},
         )
 
+    def screen_out(
+        self,
+        study_id: str,
+        submission_id: str,
+        bonus_per_submission: float,
+        increase_places: bool,
+    ) -> dict:
+        """Screen-out a submission for a study."""
+
+        payload = {
+            "submission_ids": [submission_id],
+            "bonus_per_submission": bonus_per_submission,
+            "increase_places": increase_places,
+        }
+
+        return self._req(
+            method="POST",
+            endpoint=f"/studies/{study_id}/screen-out-submissions/",
+            json=payload,
+        )
+
     def delete_study(self, study_id: str) -> bool:
         """Delete a Study entirely. This is only possible on UNPUBLISHED studies."""
         response = self._req(method="DELETE", endpoint=f"/studies/{study_id}")
@@ -710,7 +731,7 @@ class DevProlificService(ProlificService):
         logger.info(f"Simulated Prolific API response: {response}")
 
 
-def prolific_service_from_config():  #
+def prolific_service_from_config():
     from dallinger.config import get_config
     from dallinger.prolific import ProlificService
 
