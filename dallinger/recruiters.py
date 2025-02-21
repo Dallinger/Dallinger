@@ -848,7 +848,7 @@ class ProlificRecruiter(Recruiter):
             "peripheral_requirements": details["peripheral_requirements"],
         }
 
-    def screen_out(self, assignment_id: str):
+    def screen_out(self, assignment_id: str, payment: float):
         if self.prolificservice.get_study(assignment_id)["is_custom_screening"]:
             raise ProlificRecruiterException(
                 f"Prolific study (ID {self.current_study_id}) doesn't allow screening-out of participants"
@@ -857,7 +857,7 @@ class ProlificRecruiter(Recruiter):
             return self.prolificservice.screen_out(
                 study_id=self.current_study_id,
                 submission_id=assignment_id,
-                bonus_per_submission=self.config.get("base_payment"),
+                bonus_per_submission=payment,
                 increase_places=self.config.get("auto_recruit"),
             )
         except ProlificServiceException as ex:
