@@ -580,6 +580,13 @@ class DevProlificService(ProlificService):
                         "external_study_url": "external-study-url",
                     }
 
+                elif re.match(r"/studies/[a-z0-9]+/screen-out-submissions/"):
+                    # method="POST", endpoint= "/studies/{study_id}/screen-out-submissions/", json=payload
+                    response = {
+                        "message": "The request to bulk screen out has been made successfully.",
+                        "payment_per_participant": {"amount": 15, "currency": "GBP"},
+                    }
+
                 elif re.match(r"/studies/[a-z0-9]+/transition/", endpoint):
                     # method="POST", endpoint=f"/studies/{study_id}/transition/", json={"action": "PUBLISH"},
                     response = True
