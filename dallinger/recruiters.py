@@ -849,6 +849,10 @@ class ProlificRecruiter(Recruiter):
         }
 
     def screen_out(self, assignment_id: str):
+        if self.prolificservice.get_study(assignment_id)["is_custom_screening"]:
+            raise ProlificRecruiterException(
+                f"Prolific study (ID {self.current_study_id}) doesn't allow screening-out of participants"
+            )
         try:
             return self.prolificservice.screen_out(
                 study_id=self.current_study_id,
