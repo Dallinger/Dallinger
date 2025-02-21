@@ -848,20 +848,30 @@ class ProlificRecruiter(Recruiter):
             "peripheral_requirements": details["peripheral_requirements"],
         }
 
-    def screen_out(self, assignment_id: str, payment: float):
+    def screen_out_allowed(self, assignment_id: str):
         if self.prolificservice.get_study(assignment_id)["is_custom_screening"]:
             raise ProlificRecruiterException(
                 f"Prolific study (ID {self.current_study_id}) doesn't allow screening-out of participants"
             )
-        try:
-            return self.prolificservice.screen_out(
-                study_id=self.current_study_id,
-                submission_id=assignment_id,
-                bonus_per_submission=payment,
-                increase_places=self.config.get("auto_recruit"),
+
+        # TODO Implement logic
+        if False:
+            logger.warning(
+                f"Participant with submission ID {assignment_id} does not satisfy the requirements to be screened-out!"
             )
-        except ProlificServiceException as ex:
-            logger.exception(str(ex))
+        return True
+
+    def screen_out(self, assignment_id: str, payment: float):
+        if self.screen_out_allowed():
+            try:
+                return self.prolificservice.screen_out(
+                    study_id=self.current_study_id,
+                    submission_id=assignment_id,
+                    bonus_per_submission=payment,
+                    increase_places=self.config.get("auto_recruit"),
+                )
+            except ProlificServiceException as ex:
+                logger.exception(str(ex))
 
     def validate_config(self, **kwargs):
         super().validate_config()
