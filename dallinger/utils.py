@@ -26,6 +26,7 @@ from flask import request
 from dallinger import db
 from dallinger.compat import is_command
 from dallinger.config import get_config
+from dallinger.models import Participant
 from dallinger.version import __version__
 
 try:
@@ -942,3 +943,23 @@ def get_from_config(key):
     if not config.ready:
         config.load()
     return config.get(key)
+
+
+def median_time_spent(participants: list[Participant]):
+    if not participants:
+        return 0
+
+    times = [
+        participant.end_time - participant.creation_time
+        for participant in participants
+        if participant.end_time is not None
+    ]
+    times.sort()
+
+    mid = len(times) // 2
+    if len(times) % 2 == 0:
+        median_time = (times[mid - 1] + times[mid]) / 2
+    else:
+        median_time = times[mid]
+
+    return median_time
