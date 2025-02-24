@@ -430,7 +430,7 @@ class ProlificRecruiter(Recruiter):
             "name": self.config.get("title"),
             "project_name": self.config.get("prolific_project"),
             "prolific_id_option": "url_parameters",
-            "publish_experiment": self.config.get("publish_experiment"),
+            "publish_experiment": self.config.get("publish_experiment", False),
             "reward": int(self.config.get("base_payment") * 100),
             "total_available_places": n,
             "workspace": self.config.get("prolific_workspace"),
