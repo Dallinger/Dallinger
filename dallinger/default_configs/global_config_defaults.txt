@@ -23,7 +23,6 @@ enable_global_experiment_registry = False
 language = en
 lock_table_when_creating_participant = True
 mode = debug
-publish_experiment = True
 replay = False
 
 [Recruiter]
