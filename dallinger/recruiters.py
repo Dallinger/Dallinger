@@ -80,6 +80,7 @@ class Recruiter(object):
 
     nickname = None
     external_submission_url = None  # MTurkRecruiter, for one, overides this
+    publish_experiment_default = True
     supports_delayed_publishing = False
 
     def __init__(self):
@@ -375,6 +376,7 @@ class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.com/)"""
 
     nickname = "prolific"
+    publish_experiment_default = False
     supports_delayed_publishing = True
 
     def __init__(self, *args, **kwargs):
@@ -430,7 +432,9 @@ class ProlificRecruiter(Recruiter):
             "name": self.config.get("title"),
             "project_name": self.config.get("prolific_project"),
             "prolific_id_option": "url_parameters",
-            "publish_experiment": self.config.get("publish_experiment", False),
+            "publish_experiment": self.config.get(
+                "publish_experiment", self.publish_experiment_default
+            ),
             "reward": int(self.config.get("base_payment") * 100),
             "total_available_places": n,
             "workspace": self.config.get("prolific_workspace"),
