@@ -80,8 +80,8 @@ class Recruiter(object):
 
     nickname = None
     external_submission_url = None  # MTurkRecruiter, for one, overides this
-    publish_experiment_default = True
     supports_delayed_publishing = False
+    publish_experiment_default = not supports_delayed_publishing
 
     def __init__(self):
         """For now, the contract of a Recruiter is that it takes no
