@@ -81,7 +81,6 @@ class Recruiter(object):
     nickname = None
     external_submission_url = None  # MTurkRecruiter, for one, overides this
     supports_delayed_publishing = False
-    publish_experiment_default = not supports_delayed_publishing
 
     def __init__(self):
         """For now, the contract of a Recruiter is that it takes no
@@ -94,6 +93,10 @@ class Recruiter(object):
         as a method rather than a property.
         """
         return self
+
+    @property
+    def publish_experiment_default(self):
+        return not self.supports_delayed_publishing
 
     def open_recruitment(self, n=1):
         """Return a list of one or more initial recruitment URLs and an initial
@@ -376,7 +379,6 @@ class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.com/)"""
 
     nickname = "prolific"
-    publish_experiment_default = False
     supports_delayed_publishing = True
 
     def __init__(self, *args, **kwargs):
