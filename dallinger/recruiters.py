@@ -288,7 +288,7 @@ class Recruiter(object):
         """Validates config variables. Override this method for recruiter-specific validation."""
         if not self.supports_delayed_publishing:
             assert self.config.get(
-                "publish_experiment", True
+                "publish_experiment", self.publish_experiment_default
             ), f"{type(self).__name__} does not support delayed experiment publishing. Set `publish_experiment=true` in your experiment config!"
 
 
