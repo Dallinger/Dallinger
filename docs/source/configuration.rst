@@ -235,7 +235,14 @@ Prolific Recruitment
     See https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/CreateStudy for more information.
 
 ``publish_experiment`` *bool*
-    Whether the experiment should be published when deploying. Currently only used in Prolific recruitment; if `False` a draft study will be created which later can be published via the Prolific web UI. Default is `True`.
+    Whether the experiment should be published when deploying.
+    By default this variable is unset, in which case sensible defaults will be used:
+    in particular, MTurk studies are always published
+    (because there is no way to create an MTurk study without publishing it),
+    whereas Prolific studies are created as draft studies
+    which later can be published via the Prolific web UI.
+    If ``publish_experiment`` is set to ``True``, then Prolific studies will instead
+    be automatically published upon deployment.
 
 ``prolific_recruitment_config`` *unicode - JSON formatted*
     JSON data to add additional recruitment parameters

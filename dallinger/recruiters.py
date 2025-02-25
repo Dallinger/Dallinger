@@ -94,6 +94,10 @@ class Recruiter(object):
         """
         return self
 
+    @property
+    def publish_experiment_default(self):
+        return not self.supports_delayed_publishing
+
     def open_recruitment(self, n=1):
         """Return a list of one or more initial recruitment URLs and an initial
         recruitment message:
@@ -287,7 +291,7 @@ class Recruiter(object):
         """Validates config variables. Override this method for recruiter-specific validation."""
         if not self.supports_delayed_publishing:
             assert self.config.get(
-                "publish_experiment"
+                "publish_experiment", self.publish_experiment_default
             ), f"{type(self).__name__} does not support delayed experiment publishing. Set `publish_experiment=true` in your experiment config!"
 
 
@@ -430,7 +434,9 @@ class ProlificRecruiter(Recruiter):
             "name": self.config.get("title"),
             "project_name": self.config.get("prolific_project"),
             "prolific_id_option": "url_parameters",
-            "publish_experiment": self.config.get("publish_experiment"),
+            "publish_experiment": self.config.get(
+                "publish_experiment", self.publish_experiment_default
+            ),
             "reward": int(self.config.get("base_payment") * 100),
             "total_available_places": n,
             "workspace": self.config.get("prolific_workspace"),
