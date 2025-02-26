@@ -1,5 +1,13 @@
 # Change Log
 
+## [v11.1.1](https://github.com/dallinger/dallinger/tree/v11.1.1) (2025-02-26)
+
+#### Changed
+- Config variable `publish_experiment` now defaults to `False` for Prolific recruitment
+
+#### Updated
+- Updated dependencies
+
 ## [v11.1.0](https://github.com/dallinger/dallinger/tree/v11.1.0) (2025-02-11)
 
 #### Fixed
