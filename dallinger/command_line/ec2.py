@@ -7,6 +7,7 @@ from .lib.ec2 import (
     _get_instance_row_from,
     create_dns_records,
     get_instances,
+    get_keys,
     increase_storage,
     list_instance_types,
     list_instances,
@@ -38,7 +39,7 @@ def get_instance_config():
 @click.pass_context
 def ec2(ctx):
     """Sub-commands for provisioning on AWS EC2"""
-    pass
+    get_keys()  # Loads the config file with strict=False in case additional keys are present in .dallingerconfig
 
 
 @ec2.group("ssh")
