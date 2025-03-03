@@ -315,7 +315,7 @@ class Configuration(object):
 
         localConfig = os.path.join(os.getcwd(), LOCAL_CONFIG)
         if os.path.exists(localConfig):
-            self.load_from_file(localConfig)
+            self.load_from_file(localConfig, strict)
 
         self.load_from_environment()
         self.ready = True
