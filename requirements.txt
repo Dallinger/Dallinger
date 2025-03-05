@@ -212,7 +212,7 @@ typing-extensions==4.12.2
     #   selenium
 tzdata==2025.1
     # via faker
-tzlocal==5.3
+tzlocal==5.3.1
     # via
     #   apscheduler
     #   dallinger
