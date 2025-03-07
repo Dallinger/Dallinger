@@ -388,6 +388,17 @@ class RecruitmentStatus:
         study_cost: float,
         meta_data: dict,
     ):
+        """
+        Class for standardized status reporting of recruitments of various recruiters.
+
+        Args:
+            participant_status (dict): A histogram in dictionary format where the keys are the statuses of submissions
+            (e.g., `"APPROVED"` or `"REJECTED"`) and the values are the respective counts
+            study_id (str): The ID used on the recruiting platform
+            study_status (str): Status of the recruitment, e.g.,  `"ACTIVE"` or `"AWAITING REVIEW"` are valid study statuses on Prolific
+            study_cost (float): Total cost for a recruitment this includes both base payments (rewards on Prolific) and bonuses as well as service fees and taxes if returned by the API
+            meta_data (dict): Dictionary of any information specific to the recruiter, e.g. for Prolific the median duration of approved participants and the wage_per_hour computed by the platform
+        """
         self.recruitment_participant_status = participant_status
         self.recruitment_study_id = study_id
         self.recruitment_study_status = study_status
