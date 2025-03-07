@@ -456,7 +456,7 @@ python-dateutil==2.9.0.post0
     #   heroku3
     #   jupyter-client
     #   pandas
-python-json-logger==3.2.1
+python-json-logger==3.3.0
     # via jupyter-events
 pytz==2025.1
     # via pandas
