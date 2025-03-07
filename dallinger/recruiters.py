@@ -379,6 +379,22 @@ def check_for_prolific_worker_status_discrepancy(local_status, prolific_status):
     return actions.get((local_status, prolific_status))
 
 
+class RecruitmentStatus:
+    def __init__(
+        self,
+        participant_status: dict,
+        study_id: str,
+        study_status: str,
+        study_cost: float,
+        meta_data: dict,
+    ):
+        self.recruitment_participant_status = participant_status
+        self.recruitment_study_id = study_id
+        self.recruitment_study_status = study_status
+        self.recruitment_study_cost = study_cost
+        self.recruitment_meta_data = meta_data
+
+
 class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.com/)"""
 
@@ -430,16 +446,18 @@ class ProlificRecruiter(Recruiter):
             real_wage_per_hour = total_reward / (sum(durations) / 60)
         return {
             **super().get_status(),
-            "recruitment_participant_status": submission_status_dict,
-            "recruitment_study_id": self.current_study_id,
-            "recruitment_study_status": study["status"],
-            "recruitment_study_cost": total_cost,
-            "recruitment_meta_data": {
-                "internal_name": study["internal_name"],
-                "reward": self.reward,
-                "median_duration": median_duration,
-                "real_wage_per_hour": real_wage_per_hour,
-            },
+            **RecruitmentStatus(
+                participant_status=submission_status_dict,
+                study_id=study["id"],
+                study_status=study["status"],
+                study_cost=total_cost,
+                meta_data={
+                    "internal_name": study["internal_name"],
+                    "reward": self.reward,
+                    "median_duration": median_duration,
+                    "real_wage_per_hour": real_wage_per_hour,
+                },
+            ).__dict__,
         }
 
     @property
