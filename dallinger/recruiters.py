@@ -9,7 +9,9 @@ import random
 import re
 import string
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
+from datetime import datetime
+from statistics import median
 
 import flask
 import requests
@@ -395,6 +397,50 @@ class ProlificRecruiter(Recruiter):
         self.notifies_admin = admin_notifier(self.config)
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
+
+    def get_status(self):
+        submissions = self.prolificservice.get_assignments_for_study(
+            self.current_study_id
+        )
+        submission_status_dict = dict(
+            Counter([s["status"] for s in submissions.values()])
+        )
+        study = self.prolificservice.get_study(self.current_study_id)
+        total_cost = self.prolificservice.get_total_cost(self.current_study_id)
+        approved_submissions = [
+            s for s in submissions.values() if s["status"] == "APPROVED"
+        ]
+        durations = []
+        for submission in approved_submissions:
+            try:
+                started_at = datetime.strptime(
+                    submission["started_at"], "%Y-%m-%dT%H:%M:%S.%fZ"
+                )
+                completed_at = datetime.strptime(
+                    submission["completed_at"], "%Y-%m-%dT%H:%M:%S.%fZ"
+                )
+                durations.append((completed_at - started_at).seconds / 60)
+            except ValueError:
+                pass
+        median_duration = None
+        real_wage_per_hour = None
+        if len(durations) > 0:
+            median_duration = median(durations)
+            total_reward = self.reward * len(durations)
+            real_wage_per_hour = total_reward / (sum(durations) / 60)
+        return {
+            **super().get_status(),
+            "recruitment_participant_status": submission_status_dict,
+            "recruitment_study_id": self.current_study_id,
+            "recruitment_study_status": study["status"],
+            "recruitment_study_cost": total_cost,
+            "recruitment_meta_data": {
+                "internal_name": study["internal_name"],
+                "reward": self.reward,
+                "median_duration": median_duration,
+                "real_wage_per_hour": real_wage_per_hour,
+            },
+        }
 
     @property
     def completion_code(self):
