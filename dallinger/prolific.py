@@ -118,6 +118,17 @@ class ProlificService:
         if response:
             return _translate_submission_from_get_submission(response)
 
+    def get_total_cost(self, study_id: str) -> float:
+        """Get the total cost of a study."""
+        response = self._req(method="GET", endpoint=f"/studies/{study_id}/cost/")
+        rewards = response.get("rewards", {})
+        bonuses = response.get("bonuses", {})
+
+        def get_amount(amount_dict) -> float:
+            return sum(item.get("amount", 0.0) for item in amount_dict.values())
+
+        return get_amount(rewards) + get_amount(bonuses)
+
     def get_assignments_for_study(self, study_id: str) -> dict:
         """Return all submissions for the current Prolific study, keyed by
         assignment (Prolific "submission") ID.
