@@ -49,7 +49,7 @@ from dallinger.models import Info, Network, Node, Participant, Transformation
 from dallinger.networks import Empty
 from dallinger.nodes import Agent, Environment, Source
 from dallinger.transformations import Compression, Mutation, Replication, Response
-from dallinger.utils import deferred_route_decorator, struct_to_html
+from dallinger.utils import classproperty, deferred_route_decorator, struct_to_html
 
 logger = logging.getLogger(__file__)
 
@@ -112,7 +112,13 @@ class Experiment(object):
 
     #: Sequence of dashboard route/function names that should be excluded from
     #: rendering as tabs in the dashboard view.
-    hidden_dashboards = ()
+    @classproperty
+    def hidden_dashboards(cls):
+        return []
+
+    @classmethod
+    def sort_dashboard_tabs(cls, tabs):
+        return tabs
 
     def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
