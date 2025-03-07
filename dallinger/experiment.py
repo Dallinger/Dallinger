@@ -116,6 +116,10 @@ class Experiment(object):
     def hidden_dashboards(cls):
         return []
 
+    @classmethod
+    def sort_dashboard_tabs(cls, tabs):
+        return tabs
+
     def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
 
