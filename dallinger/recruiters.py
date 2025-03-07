@@ -400,6 +400,10 @@ class ProlificRecruiter(Recruiter):
     def completion_code(self):
         return alphanumeric_code(self.config.get("id"))
 
+    @property
+    def reward(self):
+        return int(self.config.get("base_payment") * 100)
+
     def open_recruitment(self, n: int = 1) -> dict:
         """Create a Study on Prolific."""
 
@@ -439,7 +443,7 @@ class ProlificRecruiter(Recruiter):
             "publish_experiment": self.config.get(
                 "publish_experiment", self.publish_experiment_default
             ),
-            "reward": int(self.config.get("base_payment") * 100),
+            "reward": self.reward,
             "total_available_places": n,
             "workspace": self.config.get("prolific_workspace"),
         }
