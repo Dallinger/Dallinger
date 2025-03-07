@@ -274,7 +274,9 @@ class Recruiter(object):
 
     def get_status(self):
         """Return the status of the recruiter as a dictionary."""
-        return {}
+        return {
+            "recruiter": self.nickname,
+        }
 
     def verify_status_of(self, participants: list[Participant]):
         """Check locally recorded status of participants against the status
