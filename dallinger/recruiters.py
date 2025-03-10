@@ -474,9 +474,10 @@ class ProlificRecruiter(Recruiter):
                 pass
         median_duration = None
         real_wage_per_hour = None
+        reward = self.compute_reward()
         if len(durations) > 0:
             median_duration = median(durations)
-            total_reward = self.reward * len(durations)
+            total_reward = reward * len(durations)
             real_wage_per_hour = total_reward / (sum(durations) / 60)
         return RecruitmentStatus(
             recruiter_name=self.nickname,
@@ -486,7 +487,7 @@ class ProlificRecruiter(Recruiter):
             study_cost=total_cost,
             metadata={
                 "internal_name": study["internal_name"],
-                "reward": self.reward,
+                "reward": reward,
                 "median_duration": median_duration,
                 "real_wage_per_hour": real_wage_per_hour,
             },
@@ -496,8 +497,7 @@ class ProlificRecruiter(Recruiter):
     def completion_code(self):
         return alphanumeric_code(self.config.get("id"))
 
-    @property
-    def reward(self):
+    def compute_reward(self):
         return int(self.config.get("base_payment") * 100)
 
     def open_recruitment(self, n: int = 1) -> dict:
@@ -539,7 +539,7 @@ class ProlificRecruiter(Recruiter):
             "publish_experiment": self.config.get(
                 "publish_experiment", self.publish_experiment_default
             ),
-            "reward": self.reward,
+            "reward": self.compute_reward(),
             "total_available_places": n,
             "workspace": self.config.get("prolific_workspace"),
         }
