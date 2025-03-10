@@ -276,9 +276,7 @@ class Recruiter(object):
 
     def get_status(self):
         """Return the status of the recruiter as a dictionary."""
-        return {
-            "recruiter": self.nickname,
-        }
+        return {}
 
     def verify_status_of(self, participants: list[Participant]):
         """Check locally recorded status of participants against the status
@@ -382,6 +380,7 @@ def check_for_prolific_worker_status_discrepancy(local_status, prolific_status):
 class RecruitmentStatus:
     def __init__(
         self,
+        recruiter_name: str,
         participant_status: dict,
         study_id: str,
         study_status: str,
@@ -399,6 +398,7 @@ class RecruitmentStatus:
             study_cost (float): Total cost for a recruitment this includes both base payments (rewards on Prolific) and bonuses as well as service fees and taxes if returned by the API
             meta_data (dict): Dictionary of any information specific to the recruiter, e.g. for Prolific the median duration of approved participants and the wage_per_hour computed by the platform
         """
+        self.recruiter = recruiter_name
         self.recruitment_participant_status = participant_status
         self.recruitment_study_id = study_id
         self.recruitment_study_status = study_status
@@ -458,6 +458,7 @@ class ProlificRecruiter(Recruiter):
         return {
             **super().get_status(),
             **RecruitmentStatus(
+                recruiter_name=self.nickname,
                 participant_status=submission_status_dict,
                 study_id=study["id"],
                 study_status=study["status"],
