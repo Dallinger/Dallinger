@@ -381,7 +381,7 @@ class RecruitmentStatus:
     def __init__(
         self,
         recruiter_name: str,
-        participant_status: dict,
+        participant_status_counts: dict,
         study_id: str,
         study_status: str,
         study_cost: float,
@@ -392,7 +392,7 @@ class RecruitmentStatus:
 
         Args:
             recruiter_name (str): The name of the recruiter
-            participant_status (dict): A histogram in dictionary format where the keys are the statuses of submissions
+            participant_status_counts (dict): A histogram in dictionary format where the keys are the statuses of submissions
             (e.g., `"APPROVED"` or `"REJECTED"`) and the values are the respective counts
             study_id (str): The ID used on the recruiting platform
             study_status (str): Status of the recruitment, e.g.,  `"ACTIVE"` or `"AWAITING REVIEW"` are valid study statuses on Prolific
@@ -400,7 +400,7 @@ class RecruitmentStatus:
             meta_data (dict): Dictionary of any information specific to the recruiter, e.g. for Prolific the median duration of approved participants and the wage_per_hour computed by the platform
         """
         self.recruiter = recruiter_name
-        self.recruitment_participant_status = participant_status
+        self.recruitment_participant_status_counts = participant_status_counts
         self.recruitment_study_id = study_id
         self.recruitment_study_status = study_status
         self.recruitment_study_cost = study_cost
@@ -460,7 +460,7 @@ class ProlificRecruiter(Recruiter):
             **super().get_status(),
             **RecruitmentStatus(
                 recruiter_name=self.nickname,
-                participant_status=submission_status_dict,
+                participant_status_counts=submission_status_dict,
                 study_id=study["id"],
                 study_status=study["status"],
                 study_cost=total_cost,
