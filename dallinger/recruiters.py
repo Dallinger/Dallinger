@@ -391,6 +391,7 @@ class RecruitmentStatus:
         Class for standardized status reporting of recruitments of various recruiters.
 
         Args:
+            recruiter_name (str): The name of the recruiter
             participant_status (dict): A histogram in dictionary format where the keys are the statuses of submissions
             (e.g., `"APPROVED"` or `"REJECTED"`) and the values are the respective counts
             study_id (str): The ID used on the recruiting platform
