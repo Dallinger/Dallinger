@@ -124,8 +124,8 @@ class ProlificService:
         rewards = response.get("rewards", {})
         bonuses = response.get("bonuses", {})
 
-        def get_amount(amount_dict) -> float:
-            return sum(item.get("amount", 0.0) for item in amount_dict.values())
+        def get_amount(amounts: dict) -> float:
+            return sum(item.get("amount", 0.0) for item in amounts.values())
 
         return get_amount(rewards) + get_amount(bonuses)
 
