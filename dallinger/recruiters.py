@@ -10,6 +10,7 @@ import re
 import string
 import time
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from datetime import datetime
 from statistics import median
 
@@ -75,6 +76,38 @@ def run_status_check():
         recruiter = by_name(nick)
         recruiter.verify_status_of(participants)
         session.commit()
+
+
+@dataclass
+class RecruitmentStatus:
+    """
+    Class for standardized status reporting of recruitments of various recruiters.
+
+    Args:
+        recruiter_name (str): The name of the recruiter
+        participant_status_counts (dict): A histogram in dictionary format where the keys are the statuses of submissions
+        (e.g., `"APPROVED"` or `"REJECTED"`) and the values are the respective counts
+        study_id (str): The ID used on the recruiting platform
+        study_status (str): Status of the recruitment, e.g.,  `"ACTIVE"` or `"AWAITING REVIEW"` are valid study statuses on Prolific
+        study_cost (float): Total cost for a recruitment that includes both base payments (rewards on Prolific) and bonuses as well as service fees and taxes if returned by the API
+        metadata (dict): Dictionary of any information specific to the recruiter, e.g. for Prolific the median duration of approved participants and the wage_per_hour computed by the platform
+    """
+
+    recruiter_name: str
+    participant_status_counts: dict
+    study_id: str
+    study_status: str
+    study_cost: float
+    metadata: dict
+
+    def to_dict(self):
+        data = super().__dict__
+        recruiter_name = data.pop("recruiter_name")
+        data = {"recruitment_" + k: v for k, v in data.items()}
+        return {
+            **data,
+            "recruiter": recruiter_name,
+        }
 
 
 class Recruiter(object):
@@ -274,9 +307,28 @@ class Recruiter(object):
         """Return the JSON file containing rules to filter participants."""
         raise NotImplementedError
 
-    def get_status(self):
-        """Return the status of the recruiter as a dictionary."""
-        return {}
+    def get_status(self) -> RecruitmentStatus:
+        """Return the status of the recruiter as a RecruitmentStatus."""
+        all_participants = Participant.query().all()
+        statuses = [participant.status for participant in all_participants]
+        status_counts = dict(Counter(statuses))
+        hit_ids = list(set([participant.hit_id for participant in all_participants]))
+        study_id = hit_ids[0] if len(hit_ids) == 1 else ""
+        study_cost = sum(
+            [
+                participant.__getattribute__("base_pay", 0.0)
+                + participant.__getattribute__("bonus", 0.0)
+                for participant in all_participants
+            ]
+        )
+        return RecruitmentStatus(
+            recruiter_name=self.nickname,
+            participant_status_counts=status_counts,
+            study_id=study_id,
+            study_status="",
+            study_cost=study_cost,
+            metadata={},
+        )
 
     def verify_status_of(self, participants: list[Participant]):
         """Check locally recorded status of participants against the status
@@ -377,36 +429,6 @@ def check_for_prolific_worker_status_discrepancy(local_status, prolific_status):
     return actions.get((local_status, prolific_status))
 
 
-class RecruitmentStatus:
-    def __init__(
-        self,
-        recruiter_name: str,
-        participant_status_counts: dict,
-        study_id: str,
-        study_status: str,
-        study_cost: float,
-        metadata: dict,
-    ):
-        """
-        Class for standardized status reporting of recruitments of various recruiters.
-
-        Args:
-            recruiter_name (str): The name of the recruiter
-            participant_status_counts (dict): A histogram in dictionary format where the keys are the statuses of submissions
-            (e.g., `"APPROVED"` or `"REJECTED"`) and the values are the respective counts
-            study_id (str): The ID used on the recruiting platform
-            study_status (str): Status of the recruitment, e.g.,  `"ACTIVE"` or `"AWAITING REVIEW"` are valid study statuses on Prolific
-            study_cost (float): Total cost for a recruitment that includes both base payments (rewards on Prolific) and bonuses as well as service fees and taxes if returned by the API
-            metadata (dict): Dictionary of any information specific to the recruiter, e.g. for Prolific the median duration of approved participants and the wage_per_hour computed by the platform
-        """
-        self.recruiter = recruiter_name
-        self.recruitment_participant_status_counts = participant_status_counts
-        self.recruitment_study_id = study_id
-        self.recruitment_study_status = study_status
-        self.recruitment_study_cost = study_cost
-        self.recruitment_metadata = metadata
-
-
 class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.com/)"""
 
@@ -426,7 +448,7 @@ class ProlificRecruiter(Recruiter):
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
 
-    def get_status(self):
+    def get_status(self) -> RecruitmentStatus:
         submissions = self.prolificservice.get_assignments_for_study(
             self.current_study_id
         )
@@ -456,22 +478,19 @@ class ProlificRecruiter(Recruiter):
             median_duration = median(durations)
             total_reward = self.reward * len(durations)
             real_wage_per_hour = total_reward / (sum(durations) / 60)
-        return {
-            **super().get_status(),
-            **RecruitmentStatus(
-                recruiter_name=self.nickname,
-                participant_status_counts=submission_status_dict,
-                study_id=study["id"],
-                study_status=study["status"],
-                study_cost=total_cost,
-                metadata={
-                    "internal_name": study["internal_name"],
-                    "reward": self.reward,
-                    "median_duration": median_duration,
-                    "real_wage_per_hour": real_wage_per_hour,
-                },
-            ).__dict__,
-        }
+        return RecruitmentStatus(
+            recruiter_name=self.nickname,
+            participant_status_counts=submission_status_dict,
+            study_id=study["id"],
+            study_status=study["status"],
+            study_cost=total_cost,
+            metadata={
+                "internal_name": study["internal_name"],
+                "reward": self.reward,
+                "median_duration": median_duration,
+                "real_wage_per_hour": real_wage_per_hour,
+            },
+        )
 
     @property
     def completion_code(self):
