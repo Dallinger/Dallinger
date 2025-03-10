@@ -101,7 +101,7 @@ class RecruitmentStatus:
     metadata: dict
 
     def to_dict(self):
-        data = super().__dict__
+        data = self.__dict__
         recruiter_name = data.pop("recruiter_name")
         data = {"recruitment_" + k: v for k, v in data.items()}
         return {
@@ -309,18 +309,17 @@ class Recruiter(object):
 
     def get_status(self) -> RecruitmentStatus:
         """Return the status of the recruiter as a RecruitmentStatus."""
-        all_participants = Participant.query().all()
+        all_participants = Participant.query.all()
         statuses = [participant.status for participant in all_participants]
         status_counts = dict(Counter(statuses))
         hit_ids = list(set([participant.hit_id for participant in all_participants]))
         study_id = hit_ids[0] if len(hit_ids) == 1 else ""
-        study_cost = sum(
-            [
-                participant.__getattribute__("base_pay", 0.0)
-                + participant.__getattribute__("bonus", 0.0)
-                for participant in all_participants
-            ]
-        )
+        study_cost = 0
+        for participant in all_participants:
+            base_pay = 0 if participant.base_pay is None else participant.base_pay
+            bonus = 0 if participant.bonus is None else participant.bonus
+            study_cost += base_pay + bonus
+
         return RecruitmentStatus(
             recruiter_name=self.nickname,
             participant_status_counts=status_counts,
