@@ -117,7 +117,8 @@ class Experiment(object):
         return []
 
     @classmethod
-    def sort_dashboard_tabs(cls, tabs):
+    def organize_dashboard_tabs(cls, tabs):
+        """A hook for custom organization of dashboard tabs in subclasses."""
         return tabs
 
     def __init__(self, session=None):
