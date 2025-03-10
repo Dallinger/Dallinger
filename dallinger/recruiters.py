@@ -396,7 +396,7 @@ class RecruitmentStatus:
             (e.g., `"APPROVED"` or `"REJECTED"`) and the values are the respective counts
             study_id (str): The ID used on the recruiting platform
             study_status (str): Status of the recruitment, e.g.,  `"ACTIVE"` or `"AWAITING REVIEW"` are valid study statuses on Prolific
-            study_cost (float): Total cost for a recruitment this includes both base payments (rewards on Prolific) and bonuses as well as service fees and taxes if returned by the API
+            study_cost (float): Total cost for a recruitment that includes both base payments (rewards on Prolific) and bonuses as well as service fees and taxes if returned by the API
             meta_data (dict): Dictionary of any information specific to the recruiter, e.g. for Prolific the median duration of approved participants and the wage_per_hour computed by the platform
         """
         self.recruiter = recruiter_name
