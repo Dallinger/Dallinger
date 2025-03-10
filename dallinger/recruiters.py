@@ -385,7 +385,7 @@ class RecruitmentStatus:
         study_id: str,
         study_status: str,
         study_cost: float,
-        meta_data: dict,
+        metadata: dict,
     ):
         """
         Class for standardized status reporting of recruitments of various recruiters.
@@ -397,14 +397,14 @@ class RecruitmentStatus:
             study_id (str): The ID used on the recruiting platform
             study_status (str): Status of the recruitment, e.g.,  `"ACTIVE"` or `"AWAITING REVIEW"` are valid study statuses on Prolific
             study_cost (float): Total cost for a recruitment that includes both base payments (rewards on Prolific) and bonuses as well as service fees and taxes if returned by the API
-            meta_data (dict): Dictionary of any information specific to the recruiter, e.g. for Prolific the median duration of approved participants and the wage_per_hour computed by the platform
+            metadata (dict): Dictionary of any information specific to the recruiter, e.g. for Prolific the median duration of approved participants and the wage_per_hour computed by the platform
         """
         self.recruiter = recruiter_name
         self.recruitment_participant_status_counts = participant_status_counts
         self.recruitment_study_id = study_id
         self.recruitment_study_status = study_status
         self.recruitment_study_cost = study_cost
-        self.recruitment_meta_data = meta_data
+        self.recruitment_metadata = metadata
 
 
 class ProlificRecruiter(Recruiter):
@@ -464,7 +464,7 @@ class ProlificRecruiter(Recruiter):
                 study_id=study["id"],
                 study_status=study["status"],
                 study_cost=total_cost,
-                meta_data={
+                metadata={
                     "internal_name": study["internal_name"],
                     "reward": self.reward,
                     "median_duration": median_duration,
