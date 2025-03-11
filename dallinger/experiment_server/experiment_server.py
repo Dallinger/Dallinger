@@ -184,6 +184,9 @@ if exp_klass is not None:  # pragma: no cover
     hidden_dashboards = getattr(exp_klass, "hidden_dashboards", ())
     for route_name in hidden_dashboards:
         dashboard.dashboard_tabs.remove(route_name)
+    dashboard.dashboard_tabs = exp_klass.organize_dashboard_tabs(
+        dashboard.dashboard_tabs
+    )
 
 
 # Ideally, we'd only load recruiter routes if the recruiter is active, but
