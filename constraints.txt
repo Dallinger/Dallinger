@@ -551,7 +551,7 @@ sphinxcontrib-serializinghtml==2.0.0
     # via sphinx
 sphinxcontrib-spelling==8.0.0
     # via dallinger
-sqlalchemy==1.4.54
+sqlalchemy==2.0.39
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
