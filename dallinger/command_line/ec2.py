@@ -21,12 +21,17 @@ from .lib.ec2 import (
 )
 
 
-def get_instance_config():
+def get_config(strict=True):
     from dallinger.config import get_config
 
     config = get_config()
     if not config.ready:
-        config.load()
+        config.load(strict=strict)
+    return config
+
+
+def get_instance_config():
+    config = get_config(False)
     return {
         "pem": config.get("ec2_default_pem", "dallinger"),
         "security_group_name": config.get("ec2_default_security_group", "dallinger"),
@@ -38,7 +43,9 @@ def get_instance_config():
 @click.pass_context
 def ec2(ctx):
     """Sub-commands for provisioning on AWS EC2"""
-    pass
+    # Load the config with strict=False so that experimenters don't encounter an error
+    # if they are using custom config parameters that are not supported in Dallinger
+    get_config(strict=False)
 
 
 @ec2.group("ssh")

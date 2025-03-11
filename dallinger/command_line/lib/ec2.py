@@ -32,7 +32,7 @@ def get_keys(region_name=None):
 
     config = get_config()
     if not config.ready:
-        config.load()
+        config.load(strict=False)
     keys = {}
     # If keys are not set let boto get them from ~/.aws/config or other standard places
     if config.get("aws_access_key_id"):

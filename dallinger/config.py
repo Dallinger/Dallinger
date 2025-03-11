@@ -263,13 +263,13 @@ class Configuration(object):
         if sensitive:
             self.sensitive.add(key)
 
-    def load_from_file(self, filename):
+    def load_from_file(self, filename, strict=True):
         parser = configparser.ConfigParser()
         parser.read(filename)
         data = {}
         for section in parser.sections():
             data.update(dict(parser.items(section)))
-        self.extend(data, cast_types=True, strict=True)
+        self.extend(data, cast_types=True, strict=strict)
 
     def write(self, filter_sensitive=False, directory=None):
         parser = configparser.ConfigParser()
@@ -288,7 +288,7 @@ class Configuration(object):
     def load_from_environment(self):
         self.extend(os.environ, cast_types=True)
 
-    def load_defaults(self):
+    def load_defaults(self, strict=True):
         """Load default configuration values"""
         # Apply extra parameters before loading the configs
         if experiment_available():
@@ -305,17 +305,17 @@ class Configuration(object):
 
         # Load the configuration, with local parameters overriding global ones.
         for config_file in [global_defaults_file, local_defaults_file, global_config]:
-            self.load_from_file(config_file)
+            self.load_from_file(config_file, strict)
 
         if experiment_available():
             self.load_experiment_config_defaults()
 
-    def load(self):
-        self.load_defaults()
+    def load(self, strict=True):
+        self.load_defaults(strict)
 
         localConfig = os.path.join(os.getcwd(), LOCAL_CONFIG)
         if os.path.exists(localConfig):
-            self.load_from_file(localConfig)
+            self.load_from_file(localConfig, strict)
 
         self.load_from_environment()
         self.ready = True
