@@ -90,7 +90,6 @@ class RecruitmentStatus:
         study_id (str): The ID used on the recruiting platform
         study_status (str): Status of the recruitment, e.g.,  `"ACTIVE"` or `"AWAITING REVIEW"` are valid study statuses on Prolific
         study_cost (float): Total cost for a recruitment that includes both base payments (rewards on Prolific) and bonuses as well as service fees and taxes if returned by the API
-        metadata (dict): Dictionary of any information specific to the recruiter, e.g. for Prolific the median duration of approved participants and the wage_per_hour computed by the platform
     """
 
     recruiter_name: str
@@ -98,16 +97,24 @@ class RecruitmentStatus:
     study_id: str
     study_status: str
     study_cost: float
-    metadata: dict
 
-    def to_dict(self):
-        data = self.__dict__
-        recruiter_name = data.pop("recruiter_name")
-        data = {"recruitment_" + k: v for k, v in data.items()}
-        return {
-            **data,
-            "recruiter": recruiter_name,
-        }
+
+@dataclass
+class ProlificRecruitmentStatus(RecruitmentStatus):
+    """
+    Class for status reporting of Prolific recruitments. Adds additional fields to the base class specific to Prolific.
+
+    Args:
+        internal_name: str - The internal name of the study
+        reward: float - The reward per approved participant
+        median_duration: float - The median duration of approved participants in the study
+        wage_per_hour: float - The wage per hour of approved participants in the study
+    """
+
+    internal_name: str
+    reward: float
+    median_duration: float
+    wage_per_hour: float
 
 
 class Recruiter(object):
@@ -478,18 +485,16 @@ class ProlificRecruiter(Recruiter):
             median_duration = median(durations)
             total_reward = reward * len(durations)
             real_wage_per_hour = total_reward / (sum(durations) / 60)
-        return RecruitmentStatus(
+        return ProlificRecruitmentStatus(
             recruiter_name=self.nickname,
             participant_status_counts=submission_status_dict,
             study_id=study["id"],
             study_status=study["status"],
             study_cost=total_cost,
-            metadata={
-                "internal_name": study["internal_name"],
-                "reward": reward,
-                "median_duration": median_duration,
-                "real_wage_per_hour": real_wage_per_hour,
-            },
+            internal_name=study["internal_name"],
+            reward=reward,
+            median_duration=median_duration,
+            wage_per_hour=real_wage_per_hour,
         )
 
     @property
