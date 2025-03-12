@@ -333,7 +333,6 @@ class Recruiter(object):
             study_id=study_id,
             study_status="",
             study_cost=study_cost,
-            metadata={},
         )
 
     def verify_status_of(self, participants: list[Participant]):
