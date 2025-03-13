@@ -1,0 +1,256 @@
+{% extends "base/dashboard.html" %}
+
+{% block body %}
+    <h1>Logger</h1>
+    <span id="info-text">
+    Below are the logs for the experiment. You can filter the logs by log level. By clicking on the line number, you can
+    get a link to that specific line.
+    </span>
+    <form id="search-form" class="mb-3">
+        <div class="input-group">
+            <input type="text" class="form-control" name="query"
+                   placeholder="Search the logs for a particular substring (case sensitive)...">
+            <button class="btn btn-primary" type="submit">Search</button>
+        </div>
+    </form>
+
+    <div id="filters"></div>
+    <div>
+    </div>
+    <div id="log-container">
+        <table id="log" class="monospace">
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+
+    <style>
+        #log-container {
+            overflow: auto;
+            height: 80vh;
+            font-size: .875em;
+            background: #f6f8fa;
+            padding: 16px;
+            color: #1f2328;
+        }
+
+        #log-container pre {
+            font-size: 1em;
+        }
+
+        .monospace {
+            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+        }
+
+        #log {
+            caption-side: bottom;
+        }
+
+        #log a {
+            color: inherit;
+        }
+
+        #log tr {
+            vertical-align: top;
+        }
+
+        #log tr.highlight {
+            background: lightyellow;
+        }
+
+        .level-checkbox {
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+    </style>
+
+    <script>
+
+        let logLevels = ["DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"];
+        let colors = {
+            "blue": "#4d98cc",
+            "green": "#79b25f",
+            "yellow": "#ddaa2d",
+            "red": "#cf3f61",
+            "gray": "#6c757d"
+        }
+
+        // Create filter checkboxes for each of the log levels where the color of the text is the associated color
+        logLevels.forEach(level => {
+            let color = colors.gray;
+            if (level === 'DEBUG') {
+                color = colors.blue;
+            } else if (level === 'SUCCESS') {
+                color = colors.green;
+            } else if (level === 'WARNING') {
+                color = colors.yellow;
+            } else if (['ERROR', 'CRITICAL'].includes(level)) {
+                color = colors.red;
+            }
+
+            const checkbox = `<label class="level-checkbox" style="color: ${color};">
+                                <input  type="checkbox" value="${level}" checked> ${level}
+                              </label>`;
+            document.getElementById('filters').innerHTML += checkbox;
+        });
+
+        // Add event listener to each checkbox to toggle the visibility of the log lines
+        document.querySelectorAll('.level-checkbox input').forEach(checkbox => {
+            checkbox.addEventListener('change', function () {
+                const level = this.value;
+                const rows = document.querySelectorAll(`.status-${level.toLowerCase()}`);
+                rows.forEach(row => {
+                    row.style.display = this.checked ? 'table-row' : 'none';
+                });
+            });
+        });
+
+        function escapeHTML(unsafe) {
+            return unsafe.replace(/[&<"']/g, function (m) {
+                switch (m) {
+                    case '&':
+                        return '&amp;';
+                    case '<':
+                        return '&lt;';
+                    case '"':
+                        return '&quot;';
+                    default:
+                        return '&#039;';
+                }
+            });
+        }
+
+        // store in GET => highlight=line_number
+        const highlightLine = new URLSearchParams(window.location.search).get('highlight');
+
+        function printLine(data) {
+            let out;
+            let color = 'inherit';
+
+            if (data.levelname === 'DEBUG') {
+                color = colors.blue
+            } else if (data.levelname === 'SUCCESS') {
+                color = colors.green;
+            } else if (data.levelname === 'WARNING') {
+                color = colors.yellow;
+            } else if (['ERROR', 'CRITICAL'].includes(data.levelname)) {
+                color = colors.red;
+            }
+
+            let source, message = data.message;
+            if (data.name === "werkzeug") {
+                source = "werkzeug";
+            } else {
+                let name = data.name || "";
+                source = `${data.filename}`
+                if (name) {
+                    source += `:${name}`;
+                }
+                source += `:${data.lineno}`;
+            }
+            let tooltipText = escapeHTML(`
+                <span style='font-weight: bold'>Time</span> <span class='monospace'>${data.asctime}</span><br>
+                <span style='font-weight: bold'>Source</span> <span class='monospace'>${source}</span>
+            `);
+
+            let trClass = `status-${data.levelname.toLowerCase()}`
+            if (parseInt(highlightLine) === parseInt(data.log_line_number)) {
+                trClass += ' highlight';
+            }
+            out = `<tr id="line-${data.log_line_number}" class="${trClass}">`;
+
+            let lineNumber = data.log_line_number;
+            let lineNumberHref = window.location.pathname + `?highlight=${lineNumber}&start=${lineNumber - 10}&end=${lineNumber + 10}`;
+            let lineNumberContent = `<a href="${lineNumberHref}">${lineNumber}</a>`;
+            out += `<td>${lineNumberContent}</td>`;
+            out += `<td data-bs-toggle="tooltip" data-bs-html="true"  data-bs-placement="left" title="${tooltipText}" style="color: ${color};font-weight: bold">${data.levelname}</td>`;
+
+            if (['ERROR', 'CRITICAL'].includes(data.levelname)) {
+                color = colors.red;
+                message = `<span style="background: ${colors.red}; color:white">${message}</span>`
+                if (data.exc_info) {
+                    message += `<pre>${data.exc_info}</pre>`
+                }
+
+            } else {
+                message = `<span style="color: ${color}">${message}</span>`
+            }
+            out += `<td>${message}</td>`;
+            out += `</tr>`;
+            return out;
+        }
+
+        function activateTooltips() {
+            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+            const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl, {
+                boundary: 'viewport',
+                sanitize: false,
+                html: true
+            }))
+        }
+
+        function moveToHighlight() {
+            if (highlightLine) {
+                const line = document.getElementById(`line-${highlightLine}`);
+                if (line) {
+                    line.scrollIntoView();
+                }
+            }
+        }
+
+        if (window.location.search.includes('query')) {
+            // set the search input value to the query string
+            document.querySelector('input[name="query"]').value = new URLSearchParams(window.location.search).get('query');
+            let infoText = document.getElementById('info-text');
+            let resetButton = document.createElement('button');
+            resetButton.innerHTML = "Reset search";
+            resetButton.className = "btn btn-secondary btn-small my-3";
+            resetButton.onclick = function () {
+                window.location.href = window.location.pathname;
+            }
+            infoText.innerHTML = infoText.innerHTML + " The logs have been filtered by the search query.<br>";
+            infoText.appendChild(resetButton);
+        }
+        if (window.location.search.includes('start') || window.location.search.includes('end')) {
+            let badResponse = false;
+            fetch("/log" + window.location.search)
+                .then(response => {
+                    if (!response.ok) {
+                        badResponse = true;
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (badResponse) {
+                        throw new Error(data.msg);
+                    }
+                    data.forEach(function (line) {
+                        $("#log tbody").append(printLine(line));
+                    });
+                    activateTooltips();
+                    moveToHighlight();
+                })
+                .catch(error => {
+                    console.error('There has been a problem with your fetch operation:', error);
+                    $("#log tbody").append(`<tr><td colspan="3" style="color: ${colors.red};">Error: ${error.message}</td></tr>`);
+                });
+
+        } else {
+            var source = new EventSource("/log" + window.location.search);
+            source.onmessage = function (event) {
+                let data = JSON.parse(event.data);
+                if (data.stop) {
+                    moveToHighlight();
+                    source.close();
+                } else {
+                    $("#log tbody").prepend(printLine(data));
+                    activateTooltips()
+                }
+            }
+        }
+
+
+    </script>
+
+{% endblock %}
