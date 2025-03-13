@@ -34,7 +34,7 @@ from dallinger.utils import deferred_route_decorator
 
 from .utils import date_handler, error_response, success_response
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dallinger")
 
 
 class User(UserMixin):

@@ -9,7 +9,7 @@ from flask import Response, current_app, make_response, render_template, request
 
 from dallinger.config import get_config
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dallinger")
 
 
 def crossdomain(

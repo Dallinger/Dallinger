@@ -3,7 +3,7 @@ import logging
 import click
 from tabulate import tabulate
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dallinger")
 
 
 # Prolific-specific commands
