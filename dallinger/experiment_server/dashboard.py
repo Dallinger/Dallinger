@@ -225,7 +225,7 @@ dashboard_tabs = DashboardTabs(
         DashboardTab("Monitoring", "dashboard.monitoring"),
         DashboardTab("Lifecycle", "dashboard.lifecycle"),
         DashboardTab("Database", "dashboard.database", database_children),
-        DashboardTab("Logger", "dashboard.logger"),
+        DashboardTab("Logger", "dashboard.dashboard_logger"),
         DashboardTab("Development", "dashboard.develop"),
     ]
 )
