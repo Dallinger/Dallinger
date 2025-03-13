@@ -225,6 +225,7 @@ dashboard_tabs = DashboardTabs(
         DashboardTab("Monitoring", "dashboard.monitoring"),
         DashboardTab("Lifecycle", "dashboard.lifecycle"),
         DashboardTab("Database", "dashboard.database", database_children),
+        DashboardTab("Logger", "dashboard.logger"),
         DashboardTab("Development", "dashboard.develop"),
     ]
 )
@@ -791,6 +792,15 @@ def database():
             datatables_options, default=date_handler, indent=True
         ),
     )
+
+
+@dashboard.route("/logger")
+@login_required
+def dashboard_logger():
+    """Assemble links from Heroku add-on info, stored in config, plus some
+    standard dashboard links.
+    """
+    return render_template("dashboard_logger.html", links=[])
 
 
 @dashboard.route("/develop", methods=["GET", "POST"])
