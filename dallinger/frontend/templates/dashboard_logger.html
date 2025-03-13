@@ -193,6 +193,7 @@
             }
 
             let lineNumber = data.log_line_number;
+            row.id = `line-${lineNumber}`;
             let url = `?highlight=${data.log_line_number}&start=${data.log_line_number - 10}&end=${data.log_line_number + 10}`
             row.innerHTML = `<td><a href="${url}">${data.log_line_number}</a></td>`
             row.innerHTML += `<td data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="left" title="${tooltipText}" style="color: ${color}; font-weight: bold">${data.levelname}</td>`
