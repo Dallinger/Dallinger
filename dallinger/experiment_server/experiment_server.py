@@ -252,7 +252,6 @@ def clean_line_dict(line_dict, log_line_number):
     line_dict["message"] = msg
     if log_line_number is not None:
         line_dict["log_line_number"] = log_line_number
-
     return line_dict
 
 
@@ -266,22 +265,21 @@ def live_log():
 
     def generate():
         global line_number
-        if line_number is None:
-            line_number = 0
-        if isinstance(line_number, bytes):
-            line_number = int(line_number.decode("utf-8"))
+        line_number = (
+            int(line_number.decode("utf-8"))
+            if isinstance(line_number, bytes)
+            else (line_number or 0)
+        )
         for line in Pygtail(LOG_FILE):
             line_number += 1
             redis_conn.set("line_number", line_number)
             try:
                 line_dict = clean_line_dict(json.loads(line), line_number)
-                yield "data:" + json.dumps(line_dict) + "\n\n"
+                yield f"data:{json.dumps(line_dict)}\n\n"
             except json.decoder.JSONDecodeError:
-                yield "data:" + str(line_number) + " | " + str(line) + "\n\n"
+                yield f"data:{line_number} | {line}\n\n"
 
-    return Response(
-        generate(), mimetype="text/event-stream"
-    )  # Return streaming response
+    return Response(generate(), mimetype="text/event-stream")
 
 
 def log_read_lines(line_range):
@@ -294,7 +292,6 @@ def log_read_lines(line_range):
                 lines.append(line_dict)
             if number > max_line:
                 break
-
     return lines
 
 
@@ -303,22 +300,18 @@ def log_search_substring(substring):
         for number, line in enumerate(f):
             if substring in line:
                 line_dict = clean_line_dict(json.loads(line), number)
-                yield "data:" + json.dumps(line_dict) + "\n\n"
-    yield "data:" + json.dumps({"stop": True}) + "\n\n"
+                yield f"data:{json.dumps(line_dict)}\n\n"
+    yield f"data:{json.dumps({'stop': True})}\n\n"
 
 
 @app.route("/log", methods=["GET"])
 def progress_log():
-    # GET params: "start" and "end"
     params = request.args
-    start = params.get("start", None)
-    end = params.get("end", None)
-    n_nulled_params = sum([param is None for param in [start, end]])
+    start, end = params.get("start", None), params.get("end", None)
+    n_nulled_params = sum(param is None for param in [start, end])
 
-    if params.get("query", None):
-        return Response(
-            log_search_substring(params["query"]), mimetype="text/event-stream"
-        )
+    if query := params.get("query"):
+        return Response(log_search_substring(query), mimetype="text/event-stream")
     if n_nulled_params == 2:
         return live_log()
     if n_nulled_params == 1:
@@ -330,10 +323,10 @@ def progress_log():
             ),
             400,
         )
-    start = int(start)
+
+    start, end = int(start), int(end)
     if start < 1:
         return jsonify({"msg": "'start' must be greater than 0."}), 400
-    end = int(end)
     current_line_number = int(redis_conn.get("line_number"))
     if end > current_line_number:
         return (
@@ -353,6 +346,7 @@ def progress_log():
             ),
             400,
         )
+
     return log_read_lines(range(start, end + 1))
 
 
