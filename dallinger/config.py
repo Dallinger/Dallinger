@@ -13,7 +13,7 @@ import six
 from setuptools.dist import strtobool
 from six.moves import configparser
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger("dallinger")
 
 marker = object()
 

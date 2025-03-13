@@ -7,7 +7,7 @@ from importlib.metadata import entry_points
 
 from ..experiment import Experiment
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dallinger")
 logger.addHandler(logging.NullHandler())
 
 # Avoid PEP-8 warning, we want this to be importable from this location
