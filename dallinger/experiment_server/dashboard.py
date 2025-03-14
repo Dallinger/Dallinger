@@ -907,10 +907,10 @@ def database():
 @dashboard.route("/logger")
 @login_required
 def dashboard_logger():
-    """Assemble links from Heroku add-on info, stored in config, plus some
-    standard dashboard links.
     """
-    return render_template("dashboard_logger.html", links=[])
+    Streams the tail of the log file to the dashboard or shows selected lines
+    """
+    return render_template("dashboard_logger.html")
 
 
 @dashboard.route("/develop", methods=["GET", "POST"])
