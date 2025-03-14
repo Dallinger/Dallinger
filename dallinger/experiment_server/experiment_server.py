@@ -214,7 +214,7 @@ def index():
     html = (
         "<html><head></head><body><h1>Dallinger Experiment in progress</h1>"
         "<p><a href={}>Dashboard</a></p></body></html>".format(
-            url_for("dashboard.index")
+            url_for("dashboard.dashboard_index")
         )
     )
 

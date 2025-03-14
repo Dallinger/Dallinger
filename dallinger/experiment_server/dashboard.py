@@ -872,6 +872,9 @@ def dashboard_tab(title, **kwargs):
     }
 
     def route_name_from_func_name(func_name: str) -> str:
-        return func_name.replace("dashboard_", "")
+        key = "dashboard_"
+        if func_name.startswith(key):
+            return func_name[len(key) :]
+        return func_name
 
     return deferred_route_decorator(route, registered_routes, route_name_from_func_name)
