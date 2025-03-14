@@ -143,7 +143,7 @@
             if (window.location.search.includes('start') || window.location.search.includes('end')) {
                 let badResponse = false;
                 const logContainer = document.querySelector("#log tbody");
-                fetch("/log" + window.location.search)
+                fetch("/logs" + window.location.search)
                     .then(response => {
                         if (!response.ok) {
                             badResponse = true;
@@ -165,7 +165,7 @@
                     });
 
             } else {
-                var source = new EventSource("/log" + window.location.search);
+                var source = new EventSource("/logs" + window.location.search);
                 source.onmessage = function (event) {
                     let data = JSON.parse(event.data);
                     if (data.stop) {

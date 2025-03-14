@@ -305,6 +305,7 @@ def log_search_substring(substring):
 
 
 @app.route("/log", methods=["GET"])
+@app.route("/logs", methods=["GET"])
 def progress_log():
     params = request.args
     start, end = params.get("start", None), params.get("end", None)
