@@ -208,7 +208,7 @@ def database_children():
     for cls_name, cls_info in mapped_classes:
         yield DashboardTab(
             cls_name,
-            "dashboard.database",
+            "dashboard.dashboard_database",
             None,
             {
                 "table": cls_info["table"],
@@ -219,13 +219,13 @@ def database_children():
 
 dashboard_tabs = DashboardTabs(
     [
-        DashboardTab("Config", "dashboard.index"),
-        DashboardTab("Heroku", "dashboard.heroku"),
-        DashboardTab("MTurk", "dashboard.mturk"),
-        DashboardTab("Monitoring", "dashboard.monitoring"),
-        DashboardTab("Lifecycle", "dashboard.lifecycle"),
-        DashboardTab("Database", "dashboard.database", database_children),
-        DashboardTab("Development", "dashboard.develop"),
+        DashboardTab("Config", "dashboard.dashboard_index"),
+        DashboardTab("Heroku", "dashboard.dashboard_heroku"),
+        DashboardTab("MTurk", "dashboard.dashboard_mturk"),
+        DashboardTab("Monitoring", "dashboard.dashboard_monitoring"),
+        DashboardTab("Lifecycle", "dashboard.dashboard_lifecycle"),
+        DashboardTab("Database", "dashboard.dashboard_database", database_children),
+        DashboardTab("Development", "dashboard.dashboard_develop"),
     ]
 )
 
@@ -296,7 +296,9 @@ def is_safe_url(url):
 def login():
     next_url = request.form.get("next", request.args.get("next"))
     next_url = (
-        next_url if next_url and is_safe_url(next_url) else url_for("dashboard.index")
+        next_url
+        if next_url and is_safe_url(next_url)
+        else url_for("dashboard.dashboard_index")
     )
     if current_user.is_authenticated:
         return redirect(next_url)
@@ -320,13 +322,13 @@ def login():
 @dashboard.route("/logout")
 def logout():
     logout_user()
-    return redirect(url_for("dashboard.index"))
+    return redirect(url_for("dashboard.dashboard_index"))
 
 
 @dashboard.route("/")
 @dashboard.route("/index")
 @login_required
-def index():
+def dashboard_index():
     """Displays active experiment configuation"""
     config = get_config()
     config.load()
@@ -343,7 +345,7 @@ def index():
 
 @dashboard.route("/heroku")
 @login_required
-def heroku():
+def dashboard_heroku():
     """Assemble links from Heroku add-on info, stored in config, plus some
     standard dashboard links.
     """
@@ -541,7 +543,7 @@ def mturk_data_source(config):
 
 @dashboard.route("/mturk")
 @login_required
-def mturk():
+def dashboard_mturk():
     config = get_config()
     try:
         data_source = mturk_data_source(config)
@@ -581,7 +583,7 @@ def auto_recruit(bool_val):
 
 @dashboard.route("/monitoring")
 @login_required
-def monitoring():
+def dashboard_monitoring():
     from sqlalchemy import distinct, func
 
     from dallinger.experiment_server.experiment_server import Experiment, session
@@ -630,7 +632,7 @@ def init_db():
 
 @dashboard.route("/lifecycle")
 @login_required
-def lifecycle():
+def dashboard_lifecycle():
     config = get_config()
 
     try:
@@ -723,7 +725,7 @@ def prep_datatables_options(table_data):
 
 @dashboard.route("/database")
 @login_required
-def database():
+def dashboard_database():
     from dallinger.db import get_polymorphic_mapping
     from dallinger.experiment_server.experiment_server import Experiment, session
 
@@ -795,7 +797,7 @@ def database():
 
 @dashboard.route("/develop", methods=["GET", "POST"])
 @login_required
-def develop():
+def dashboard_develop():
     """Dashboard for working with ``dallinger develop`` Flask server."""
     return render_template(
         "dashboard_develop.html",
@@ -869,4 +871,10 @@ def dashboard_tab(title, **kwargs):
         "tab": full_tab,
     }
 
-    return deferred_route_decorator(route, registered_routes)
+    def route_name_from_func_name(func_name: str) -> str:
+        key = "dashboard_"
+        if func_name.startswith(key):
+            return func_name[len(key) :]
+        return func_name
+
+    return deferred_route_decorator(route, registered_routes, route_name_from_func_name)

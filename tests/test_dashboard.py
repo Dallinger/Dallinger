@@ -24,81 +24,92 @@ class TestDashboardTabs(object):
     def dashboard_tabs(self):
         from dallinger.experiment_server.dashboard import DashboardTabs
 
-        return DashboardTabs([DashboardTab("Home", "dashboard.index")])
+        return DashboardTabs([DashboardTab("Home", "dashboard.dashboard_index")])
 
     def test_dashboard_iter(self):
         from dallinger.experiment_server.dashboard import DashboardTabs
 
         dashboard_tabs = DashboardTabs(
-            [DashboardTab("Home", "index"), DashboardTab("Second", "dashboard.second")]
+            [
+                DashboardTab("Home", "dashboard.dashboard_index"),
+                DashboardTab("Second", "dashboard.dashboard_second"),
+            ]
         )
         tab_list = list(dashboard_tabs)
         assert len(tab_list) == 2
         assert tab_list[0].title == "Home"
-        assert tab_list[0].route_name == "dashboard.index"
+        assert tab_list[0].route_name == "dashboard.dashboard_index"
         assert tab_list[1].title == "Second"
-        assert tab_list[1].route_name == "dashboard.second"
+        assert tab_list[1].route_name == "dashboard.dashboard_second"
 
     def test_dashboard_insert(self, dashboard_tabs):
-        dashboard_tabs.insert("Next", "next")
+        dashboard_tabs.insert("Next", "dashboard.dashboard_next")
         assert list(dashboard_tabs) == [
-            DashboardTab("Home", "dashboard.index"),
-            DashboardTab("Next", "dashboard.next"),
+            DashboardTab("Home", "dashboard.dashboard_index"),
+            DashboardTab("Next", "dashboard.dashboard_next"),
         ]
 
-        dashboard_tabs.insert("Previous", "dashboard.previous", 1)
+        dashboard_tabs.insert("Previous", "dashboard.dashboard_previous", 1)
         assert list(dashboard_tabs) == [
-            DashboardTab("Home", "dashboard.index"),
-            DashboardTab("Previous", "dashboard.previous"),
-            DashboardTab("Next", "dashboard.next"),
+            DashboardTab("Home", "dashboard.dashboard_index"),
+            DashboardTab("Previous", "dashboard.dashboard_previous"),
+            DashboardTab("Next", "dashboard.dashboard_next"),
         ]
 
     def test_dashboard_insert_before(self, dashboard_tabs):
-        dashboard_tabs.insert_before_route("First", "first", "index")
+        dashboard_tabs.insert_before_route(
+            "First", "dashboard.dashboard_first", "dashboard.dashboard_index"
+        )
         assert list(dashboard_tabs) == [
-            DashboardTab("First", "dashboard.first"),
-            DashboardTab("Home", "dashboard.index"),
+            DashboardTab("First", "dashboard.dashboard_first"),
+            DashboardTab("Home", "dashboard.dashboard_index"),
         ]
 
         dashboard_tabs.insert_before_route(
-            "Second", "dashboard.second", "dashboard.index"
+            "Second", "dashboard.dashboard_second", "dashboard.dashboard_index"
         )
         assert list(dashboard_tabs) == [
-            DashboardTab("First", "dashboard.first"),
-            DashboardTab("Second", "dashboard.second"),
-            DashboardTab("Home", "dashboard.index"),
+            DashboardTab("First", "dashboard.dashboard_first"),
+            DashboardTab("Second", "dashboard.dashboard_second"),
+            DashboardTab("Home", "dashboard.dashboard_index"),
         ]
 
     def test_dashboard_insert_after(self, dashboard_tabs):
-        dashboard_tabs.insert_after_route("Last", "last", "index")
+        dashboard_tabs.insert_after_route(
+            "Last", "dashboard.dashboard_last", "dashboard.dashboard_index"
+        )
         assert list(dashboard_tabs) == [
-            DashboardTab("Home", "dashboard.index"),
-            DashboardTab("Last", "dashboard.last"),
+            DashboardTab("Home", "dashboard.dashboard_index"),
+            DashboardTab("Last", "dashboard.dashboard_last"),
         ]
 
         dashboard_tabs.insert_after_route(
-            "Second", "dashboard.second", "dashboard.index"
+            "Second", "dashboard.dashboard_second", "dashboard.dashboard_index"
         )
         assert list(dashboard_tabs) == [
-            DashboardTab("Home", "dashboard.index"),
-            DashboardTab("Second", "dashboard.second"),
-            DashboardTab("Last", "dashboard.last"),
+            DashboardTab("Home", "dashboard.dashboard_index"),
+            DashboardTab("Second", "dashboard.dashboard_second"),
+            DashboardTab("Last", "dashboard.dashboard_last"),
         ]
 
     def test_dashboard_remove(self, dashboard_tabs):
-        dashboard_tabs.insert("Last", "last")
+        dashboard_tabs.insert("Last", "dashboard.dashboard_last")
         assert len(list(dashboard_tabs)) == 2
 
-        dashboard_tabs.remove("last")
-        assert list(dashboard_tabs) == [DashboardTab("Home", "dashboard.index")]
+        dashboard_tabs.remove("dashboard.dashboard_last")
+        assert list(dashboard_tabs) == [
+            DashboardTab("Home", "dashboard.dashboard_index")
+        ]
 
-        dashboard_tabs.insert("Last", "last")
+        dashboard_tabs.insert("Last", "dashboard.dashboard_last")
         assert len(list(dashboard_tabs)) == 2
 
-        dashboard_tabs.remove("dashboard.last")
-        assert list(dashboard_tabs) == [DashboardTab("Home", "dashboard.index")]
+        dashboard_tabs.remove("dashboard.dashboard_last")
+        assert list(dashboard_tabs) == [
+            DashboardTab("Home", "dashboard.dashboard_index")
+        ]
 
-        dashboard_tabs.remove("index")
+        dashboard_tabs.remove("dashboard.dashboard_index")
         assert len(list(dashboard_tabs)) == 0
 
     def test_deferred_tab_decorator(self, cleared_tab_routes):
@@ -124,6 +135,7 @@ class TestDashboardTabs(object):
             "tab": None,
             "kwargs": (("methods", ["POST", "GET"]),),
             "func_name": "fake_route",
+            "name": "fake_route",
         }
 
 
