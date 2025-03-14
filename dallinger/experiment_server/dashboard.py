@@ -36,9 +36,7 @@ from dallinger.db import get_all_mapped_classes
 from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import (
     deferred_route_decorator,
-    get_log_line_number,
     get_logger_filename,
-    set_log_line_number,
 )
 
 from .utils import date_handler, error_response, success_response
@@ -660,7 +658,7 @@ def lifecycle():
     )
 
 
-def clean_line_dict(line_dict, log_line_number):
+def clean_line_dict(line_dict, log_line_number=None):
     msg = line_dict["message"]
     if msg.endswith("-") and ("GET " in msg or " POST" in msg):
         msg = '"'.join(msg.split('"')[1:])
@@ -682,15 +680,13 @@ def live_log():
     """
 
     def generate():
-        line_number = get_log_line_number()
         for line in Pygtail(LOG_FILE):
-            line_number += 1
-            set_log_line_number(line_number)
             try:
-                line_dict = clean_line_dict(json.loads(line), line_number)
+                line_dict = clean_line_dict(json.loads(line))
+                line_dict["original_line"] = line
                 yield f"data:{json.dumps(line_dict)}\n\n"
             except json.decoder.JSONDecodeError:
-                yield f"data:{line_number} | {line}\n\n"
+                continue
 
     return Response(generate(), mimetype="text/event-stream")
 
@@ -698,14 +694,25 @@ def live_log():
 def log_read_lines(line_range):
     lines = []
     max_line = max(line_range)
+    early_stop = False
     with open(LOG_FILE) as f:
-        for number, line in enumerate(f):
+        for i, line in enumerate(f):
+            number = i + 1
             if number in line_range:
                 line_dict = clean_line_dict(json.loads(line), number)
                 lines.append(line_dict)
             if number > max_line:
+                early_stop = True
                 break
-    return lines
+    return lines, early_stop, i
+
+
+def find_log_line_number(substring):
+    with open(get_logger_filename()) as f:
+        for number, line in enumerate(f):
+            if substring in line:
+                return number
+    return None
 
 
 def log_search_substring(substring):
@@ -723,9 +730,26 @@ def progress_log():
     params = request.args
     start, end = params.get("start", None), params.get("end", None)
     n_nulled_params = sum(param is None for param in [start, end])
+    query = params.get("query", None)
 
-    if query := params.get("query"):
-        return Response(log_search_substring(query), mimetype="text/event-stream")
+    if query:
+        query_type = params.get("type", "lines")
+        if query_type == "lines":
+            return Response(log_search_substring(query), mimetype="text/event-stream")
+        elif query_type == "line_number":
+            line_number = find_log_line_number(query)
+            if line_number is not None:
+                return jsonify({"line_number": line_number})
+            return jsonify({"msg": "No line found."}), 404
+        else:
+            return (
+                jsonify(
+                    {
+                        "msg": f"Invalid query type '{query_type}'. Must be 'line' or 'line_number'."
+                    }
+                ),
+                400,
+            )
     if n_nulled_params == 2:
         return live_log()
     if n_nulled_params == 1:
@@ -741,16 +765,7 @@ def progress_log():
     start, end = int(start), int(end)
     if start < 1:
         return jsonify({"msg": "'start' must be greater than 0."}), 400
-    current_line_number = get_log_line_number()
-    if end > current_line_number:
-        return (
-            jsonify(
-                {
-                    "msg": f"'end' must be less than the current line number {current_line_number}."
-                }
-            ),
-            400,
-        )
+
     if start > end:
         return (
             jsonify(
@@ -761,7 +776,18 @@ def progress_log():
             400,
         )
 
-    return log_read_lines(range(start, end + 1))
+    lines, early_stop, last_line = log_read_lines(range(start, end + 1))
+    if not early_stop and start > last_line:
+        return (
+            jsonify(
+                {
+                    "msg": f"'start' must be less than the current line number {last_line}."
+                }
+            ),
+            400,
+        )
+
+    return lines
 
 
 TABLE_DEFAULTS = {

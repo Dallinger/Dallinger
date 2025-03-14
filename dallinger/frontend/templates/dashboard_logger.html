@@ -117,7 +117,7 @@
 
         function moveToHighlight() {
             if (highlightLine) {
-                const line = document.getElementById(`line-${highlightLine}`);
+                const line = document.getElementsByClassName('highlight')[0];
                 if (line) {
                     line.scrollIntoView();
                 }
@@ -192,23 +192,49 @@
             }
         }
 
+        let lineOffset, firstLine
+        let nPrintedRows = 0;
+
         // Function to generate log row HTML
         function printLogLine(data) {
+            nPrintedRows += 1;
             const color = colors[data.levelname] || "inherit";
             const source = data.name === "werkzeug" ? "werkzeug" : `${data.filename}:${data.name || ""}:${data.lineno}`;
             const tooltipText = `<span style='font-weight: bold'>Time</span> <span class='monospace'>${data.asctime}</span><br>
                          <span style='font-weight: bold'>Source</span> <span class='monospace'>${source}</span>`;
+            let lineNumber = data.log_line_number;
 
             const row = document.createElement("tr");
             row.classList.add(`status-${data.levelname.toLowerCase()}`);
-            if (parseInt(new URLSearchParams(window.location.search).get('highlight')) === parseInt(data.log_line_number)) {
+            if (parseInt(new URLSearchParams(window.location.search).get('highlight')) === parseInt(lineNumber)) {
                 row.classList.add("highlight");
             }
-
-            let lineNumber = data.log_line_number;
-            row.id = `line-${lineNumber}`;
-            let url = `?highlight=${data.log_line_number}&start=${data.log_line_number - 10}&end=${data.log_line_number + 10}`
-            row.innerHTML = `<td><a href="${url}">${data.log_line_number}</a></td>`
+            function makeUrl(lineNumber) {
+                let url = `?highlight=${lineNumber}&start=${lineNumber - 10}&end=${lineNumber + 10}`
+                return `<a href="${url}">${lineNumber}</a>`
+            }
+            if (!firstLine) {
+                firstLine = data.original_line;
+                fetch(endpoint + '?query=' + firstLine + '&type=line_number')
+                    .then(response => {
+                        return response.json();
+                    })
+                    .then(data => {
+                        lineOffset = data.line_number;
+                        console.log(lineOffset, firstLine, nPrintedRows);
+                        $('.line_number.pending').each(function (index) {
+                            $(this).html(makeUrl(lineOffset + nPrintedRows - index));
+                        });
+                    })
+            }
+            if (lineOffset) {
+                lineNumber = lineOffset + nPrintedRows;
+            }
+            if (lineNumber) {
+                row.innerHTML = `<td class="line_number">${makeUrl(lineNumber)}</td>`
+            } else {
+                row.innerHTML = `<td class="line_number pending">PENDING</td>`
+            }
             row.innerHTML += `<td data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="left" title="${tooltipText}" style="color: ${color}; font-weight: bold">${data.levelname}</td>`
             let message = data.message.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
             message = `<span style="color: ${color}">${message}</span>`
