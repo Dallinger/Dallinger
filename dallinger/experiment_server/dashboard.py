@@ -33,7 +33,12 @@ from dallinger import recruiters
 from dallinger.config import get_config
 from dallinger.db import get_all_mapped_classes
 from dallinger.heroku.tools import HerokuApp
-from dallinger.utils import deferred_route_decorator, get_logger_filename
+from dallinger.utils import (
+    deferred_route_decorator,
+    get_log_line_number,
+    get_logger_filename,
+    set_log_line_number,
+)
 
 from .utils import date_handler, error_response, success_response
 
@@ -674,18 +679,10 @@ def live_log():
     """
 
     def generate():
-        from dallinger.db import redis_conn
-
-        line_number = redis_conn.get("line_number")
-
-        line_number = (
-            int(line_number.decode("utf-8"))
-            if isinstance(line_number, bytes)
-            else (line_number or 0)
-        )
+        line_number = get_log_line_number()
         for line in Pygtail(LOG_FILE):
             line_number += 1
-            redis_conn.set("line_number", line_number)
+            set_log_line_number(line_number)
             try:
                 line_dict = clean_line_dict(json.loads(line), line_number)
                 yield f"data:{json.dumps(line_dict)}\n\n"
@@ -720,8 +717,6 @@ def log_search_substring(substring):
 @dashboard.route("/logs")
 @login_required
 def progress_log():
-    from dallinger.db import redis_conn
-
     params = request.args
     start, end = params.get("start", None), params.get("end", None)
     n_nulled_params = sum(param is None for param in [start, end])
@@ -743,7 +738,7 @@ def progress_log():
     start, end = int(start), int(end)
     if start < 1:
         return jsonify({"msg": "'start' must be greater than 0."}), 400
-    current_line_number = int(redis_conn.get("line_number"))
+    current_line_number = get_log_line_number()
     if end > current_line_number:
         return (
             jsonify(

@@ -40,6 +40,24 @@ def get_logger_filename():
     return "dallinger.log"
 
 
+def get_log_line_number():
+    from dallinger.db import redis_conn
+
+    line_number = redis_conn.get("line_number")
+
+    return (
+        int(line_number.decode("utf-8"))
+        if isinstance(line_number, bytes)
+        else (line_number or 0)
+    )
+
+
+def set_log_line_number(line_number):
+    from dallinger.db import redis_conn
+
+    redis_conn.set("line_number", line_number)
+
+
 def get_base_url():
     """Returns the base url for the experiment.
     Looks into environment variable HOST first, then in the
