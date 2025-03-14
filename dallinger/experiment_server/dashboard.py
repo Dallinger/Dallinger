@@ -31,7 +31,7 @@ from wtforms.validators import DataRequired, ValidationError
 import dallinger.db
 from dallinger import recruiters
 from dallinger.config import get_config
-from dallinger.db import get_all_mapped_classes, redis_conn
+from dallinger.db import get_all_mapped_classes
 from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import deferred_route_decorator, get_logger_filename
 
@@ -575,6 +575,8 @@ def mturk():
 @dashboard.route("/auto_recruit/<bool_val>", methods=["POST"])
 @login_required
 def auto_recruit(bool_val):
+    from dallinger.db import redis_conn
+
     num_val = int(bool_val)
     assert num_val in [0, 1]
     redis_conn.set("auto_recruit", num_val)
@@ -663,9 +665,6 @@ def clean_line_dict(line_dict, log_line_number):
     return line_dict
 
 
-line_number = redis_conn.get("line_number")
-
-
 LOG_FILE = get_logger_filename()
 
 
@@ -675,7 +674,10 @@ def live_log():
     """
 
     def generate():
-        global line_number
+        from dallinger.db import redis_conn
+
+        line_number = redis_conn.get("line_number")
+
         line_number = (
             int(line_number.decode("utf-8"))
             if isinstance(line_number, bytes)
@@ -718,6 +720,8 @@ def log_search_substring(substring):
 @dashboard.route("/logs")
 @login_required
 def progress_log():
+    from dallinger.db import redis_conn
+
     params = request.args
     start, end = params.get("start", None), params.get("end", None)
     n_nulled_params = sum(param is None for param in [start, end])
