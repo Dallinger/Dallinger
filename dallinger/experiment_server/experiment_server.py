@@ -304,8 +304,8 @@ def log_search_substring(substring):
     yield f"data:{json.dumps({'stop': True})}\n\n"
 
 
-@app.route("/log", methods=["GET"])
 @app.route("/logs", methods=["GET"])
+@login_required
 def progress_log():
     params = request.args
     start, end = params.get("start", None), params.get("end", None)
