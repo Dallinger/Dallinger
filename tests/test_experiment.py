@@ -409,6 +409,7 @@ class TestTaskRegistration(object):
         assert len(tasks_with_cleanup) == 1
         assert tasks_with_cleanup[0] == {
             "func_name": "fake_task",
+            "name": "fake_task",
             "trigger": "interval",
             "kwargs": (("minutes", 15),),
         }
@@ -441,4 +442,5 @@ class TestRouteRegistration(object):
             "rule": "/route",
             "kwargs": (("methods", ["POST", "GET"]),),
             "func_name": "fake_route",
+            "name": "fake_route",
         }
