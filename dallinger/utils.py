@@ -36,6 +36,10 @@ except ImportError:
 fake = Faker()
 
 
+def get_logger_filename():
+    return "dallinger.log"
+
+
 def get_base_url():
     """Returns the base url for the experiment.
     Looks into environment variable HOST first, then in the

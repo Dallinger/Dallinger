@@ -1,5 +1,6 @@
 """This module provides the backend Flask server that serves an experiment."""
 
+import logging
 import os
 import re
 from datetime import datetime
@@ -19,6 +20,7 @@ from flask import (
 from flask_login import LoginManager, current_user, login_required
 from jinja2 import TemplateNotFound
 from psycopg2.extensions import TransactionRollbackError
+from pythonjsonlogger import jsonlogger
 from rq import Queue
 from sqlalchemy import exc, func
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
@@ -28,7 +30,7 @@ from dallinger import db, experiment, models, recruiters
 from dallinger.config import get_config
 from dallinger.notifications import MessengerError, admin_notifier
 from dallinger.recruiters import ProlificRecruiter
-from dallinger.utils import generate_random_id, get_from_config
+from dallinger.utils import generate_random_id, get_from_config, get_logger_filename
 
 from . import dashboard
 from .replay import ReplayBackend
@@ -95,6 +97,21 @@ def Experiment(args):
     klass = experiment.load()
     return klass(args)
 
+
+log = logging.getLogger()
+SEP = "#########################"
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+logging.basicConfig(
+    level=logging.INFO,
+    datefmt=DATE_FORMAT,
+)
+
+fmt = jsonlogger.JsonFormatter(
+    "%(name)s %(asctime)s %(levelname)s %(filename)s %(lineno)s %(message)s"
+)
+handler = logging.FileHandler(get_logger_filename())
+handler.setFormatter(fmt)
+log.addHandler(handler)
 
 # Load the experiment's extra routes, if any.
 try:
@@ -249,7 +266,6 @@ def handle_exp_error(exception):
 def shutdown_session(_=None):
     """Rollback and close session at end of a request."""
     session.remove()
-    db.logger.debug("Closing Dallinger DB session at flask request end")
 
 
 @app.context_processor

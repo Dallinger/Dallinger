@@ -10,7 +10,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from dallinger.config import get_config
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger("dallinger")
 
 WORKER_CLASS = "gevent"
 

@@ -15,7 +15,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from dallinger.bots import BotBase
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger("bot")
 
 
 class Bot(BotBase):
