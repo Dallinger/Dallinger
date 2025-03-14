@@ -1,6 +1,5 @@
 """This module provides the backend Flask server that serves an experiment."""
 
-import json
 import logging
 import os
 import re
@@ -8,12 +7,10 @@ from datetime import datetime
 from json import dumps, loads
 
 import gevent
-from ansi2html import Ansi2HTMLConverter
 from flask import (
     Flask,
     Response,
     abort,
-    jsonify,
     redirect,
     render_template,
     request,
@@ -23,7 +20,6 @@ from flask import (
 from flask_login import LoginManager, current_user, login_required
 from jinja2 import TemplateNotFound
 from psycopg2.extensions import TransactionRollbackError
-from pygtail import Pygtail
 from pythonjsonlogger import jsonlogger
 from rq import Queue
 from sqlalchemy import exc, func
@@ -34,7 +30,7 @@ from dallinger import db, experiment, models, recruiters
 from dallinger.config import get_config
 from dallinger.notifications import MessengerError, admin_notifier
 from dallinger.recruiters import ProlificRecruiter
-from dallinger.utils import generate_random_id, get_from_config
+from dallinger.utils import generate_random_id, get_from_config, get_logger_filename
 
 from . import dashboard
 from .replay import ReplayBackend
@@ -102,7 +98,6 @@ def Experiment(args):
     return klass(args)
 
 
-LOG_FILE = "dallinger.log"
 log = logging.getLogger()
 SEP = "#########################"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -114,7 +109,7 @@ logging.basicConfig(
 fmt = jsonlogger.JsonFormatter(
     "%(name)s %(asctime)s %(levelname)s %(filename)s %(lineno)s %(message)s"
 )
-handler = logging.FileHandler(LOG_FILE)
+handler = logging.FileHandler(get_logger_filename())
 handler.setFormatter(fmt)
 log.addHandler(handler)
 
@@ -242,113 +237,6 @@ def index():
     )
 
     return html
-
-
-def clean_line_dict(line_dict, log_line_number):
-    msg = line_dict["message"]
-    if msg.endswith("-") and ("GET " in msg or " POST" in msg):
-        msg = '"'.join(msg.split('"')[1:])
-    msg = Ansi2HTMLConverter().convert(msg)
-    line_dict["message"] = msg
-    if log_line_number is not None:
-        line_dict["log_line_number"] = log_line_number
-    return line_dict
-
-
-line_number = redis_conn.get("line_number")
-
-
-def live_log():
-    """
-    Route that streams log file updates using SSE
-    """
-
-    def generate():
-        global line_number
-        line_number = (
-            int(line_number.decode("utf-8"))
-            if isinstance(line_number, bytes)
-            else (line_number or 0)
-        )
-        for line in Pygtail(LOG_FILE):
-            line_number += 1
-            redis_conn.set("line_number", line_number)
-            try:
-                line_dict = clean_line_dict(json.loads(line), line_number)
-                yield f"data:{json.dumps(line_dict)}\n\n"
-            except json.decoder.JSONDecodeError:
-                yield f"data:{line_number} | {line}\n\n"
-
-    return Response(generate(), mimetype="text/event-stream")
-
-
-def log_read_lines(line_range):
-    lines = []
-    max_line = max(line_range)
-    with open(LOG_FILE) as f:
-        for number, line in enumerate(f):
-            if number in line_range:
-                line_dict = clean_line_dict(json.loads(line), number)
-                lines.append(line_dict)
-            if number > max_line:
-                break
-    return lines
-
-
-def log_search_substring(substring):
-    with open(LOG_FILE) as f:
-        for number, line in enumerate(f):
-            if substring in line:
-                line_dict = clean_line_dict(json.loads(line), number)
-                yield f"data:{json.dumps(line_dict)}\n\n"
-    yield f"data:{json.dumps({'stop': True})}\n\n"
-
-
-@app.route("/logs", methods=["GET"])
-@login_required
-def progress_log():
-    params = request.args
-    start, end = params.get("start", None), params.get("end", None)
-    n_nulled_params = sum(param is None for param in [start, end])
-
-    if query := params.get("query"):
-        return Response(log_search_substring(query), mimetype="text/event-stream")
-    if n_nulled_params == 2:
-        return live_log()
-    if n_nulled_params == 1:
-        return (
-            jsonify(
-                {
-                    "msg": "You should either provide both 'start' and 'end' or none of them."
-                }
-            ),
-            400,
-        )
-
-    start, end = int(start), int(end)
-    if start < 1:
-        return jsonify({"msg": "'start' must be greater than 0."}), 400
-    current_line_number = int(redis_conn.get("line_number"))
-    if end > current_line_number:
-        return (
-            jsonify(
-                {
-                    "msg": f"'end' must be less than the current line number {current_line_number}."
-                }
-            ),
-            400,
-        )
-    if start > end:
-        return (
-            jsonify(
-                {
-                    "msg": "The 'end' parameter should be less than the 'start' parameter."
-                }
-            ),
-            400,
-        )
-
-    return log_read_lines(range(start, end + 1))
 
 
 @app.route("/robots.txt")

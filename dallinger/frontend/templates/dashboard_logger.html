@@ -138,12 +138,13 @@
             }
         }
 
+        const endpoint = "/dashboard/logs";
         // Fetch logs and append them dynamically
         function fetchLogData() {
             if (window.location.search.includes('start') || window.location.search.includes('end')) {
                 let badResponse = false;
                 const logContainer = document.querySelector("#log tbody");
-                fetch("/logs" + window.location.search)
+                fetch(endpoint + window.location.search)
                     .then(response => {
                         if (!response.ok) {
                             badResponse = true;
@@ -165,7 +166,7 @@
                     });
 
             } else {
-                var source = new EventSource("/logs" + window.location.search);
+                var source = new EventSource(endpoint + window.location.search);
                 source.onmessage = function (event) {
                     let data = JSON.parse(event.data);
                     if (data.stop) {
