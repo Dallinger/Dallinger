@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 from xml.sax.saxutils import escape
 
+import bs4
 import six
 import timeago
 from ansi2html import Ansi2HTMLConverter
@@ -664,6 +665,8 @@ def clean_line_dict(line_dict, log_line_number):
     if msg.endswith("-") and ("GET " in msg or " POST" in msg):
         msg = '"'.join(msg.split('"')[1:])
     msg = Ansi2HTMLConverter().convert(msg)
+    parsed_msg = bs4.BeautifulSoup(msg, "html.parser")
+    msg = f"<html>{parsed_msg.head}{parsed_msg.body}</html>"
     line_dict["message"] = msg
     if log_line_number is not None:
         line_dict["log_line_number"] = log_line_number
