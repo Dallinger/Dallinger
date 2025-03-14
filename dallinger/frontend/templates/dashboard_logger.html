@@ -138,6 +138,18 @@
             }
         }
 
+        function removeCredsFromUrl() {
+            let url = new URL(document.URL);
+            if (url.username !== "" && url.password !== "") {
+                url = window.location.href;
+                // Forward to url
+                console.log("Redirecting to: " + url);
+                window.location.replace(url);
+            }
+        }
+
+        removeCredsFromUrl();
+
         const endpoint = "/dashboard/logs";
         // Fetch logs and append them dynamically
         function fetchLogData() {
