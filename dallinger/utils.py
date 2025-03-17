@@ -938,13 +938,20 @@ def build_and_place(source: str, destination: str) -> str:
     return package_path.name
 
 
-def deferred_route_decorator(route, registered_routes):
+def route_name_from_func_name(func_name: str) -> str:
+    return func_name
+
+
+def deferred_route_decorator(
+    route, registered_routes, rename_route_name=route_name_from_func_name
+):
     def new_func(func):
         # Check `__func__` in case we have a classmethod or staticmethod
         base_func = getattr(func, "__func__", func)
-        name = getattr(base_func, "__name__", None)
-        if name is not None:
-            route["func_name"] = name
+        func_name = getattr(base_func, "__name__", None)
+        if func_name is not None:
+            route["func_name"] = func_name
+            route["name"] = rename_route_name(func_name)
             if route not in registered_routes:
                 registered_routes.append(route)
         return func
