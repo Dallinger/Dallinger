@@ -106,6 +106,8 @@ def launch():
     error_logger.propagate = False
     access_logger = logging.getLogger("gunicorn.access")
     access_logger.propagate = False
+    attach_json_logger(error_logger)
+    attach_json_logger(access_logger)
 
     # Set up logging to file
     # (We're not using gunicorn's errorlog and accesslog settings
