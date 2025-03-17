@@ -660,7 +660,7 @@ def lifecycle():
 
 def clean_line_dict(line_dict, log_line_number=None):
     msg = line_dict["message"]
-    if msg.endswith("-") and ("GET " in msg or " POST" in msg):
+    if msg.endswith(("-", '"')) and ("GET " in msg or " POST" in msg):
         msg = '"'.join(msg.split('"')[1:])
     msg = Ansi2HTMLConverter().convert(msg)
     parsed_msg = bs4.BeautifulSoup(msg, "html.parser")
