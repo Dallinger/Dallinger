@@ -20,7 +20,6 @@ from flask import (
 from flask_login import LoginManager, current_user, login_required
 from jinja2 import TemplateNotFound
 from psycopg2.extensions import TransactionRollbackError
-from pythonjsonlogger import jsonlogger
 from rq import Queue
 from sqlalchemy import exc, func
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
@@ -30,7 +29,7 @@ from dallinger import db, experiment, models, recruiters
 from dallinger.config import get_config
 from dallinger.notifications import MessengerError, admin_notifier
 from dallinger.recruiters import ProlificRecruiter
-from dallinger.utils import generate_random_id, get_from_config, get_logger_filename
+from dallinger.utils import attach_json_logger, generate_random_id, get_from_config
 
 from . import dashboard
 from .replay import ReplayBackend
@@ -99,19 +98,12 @@ def Experiment(args):
 
 
 log = logging.getLogger()
-SEP = "#########################"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 logging.basicConfig(
     level=logging.INFO,
     datefmt=DATE_FORMAT,
 )
-
-fmt = jsonlogger.JsonFormatter(
-    "%(name)s %(asctime)s %(levelname)s %(filename)s %(lineno)s %(message)s"
-)
-handler = logging.FileHandler(get_logger_filename())
-handler.setFormatter(fmt)
-log.addHandler(handler)
+attach_json_logger(log)
 
 # Load the experiment's extra routes, if any.
 try:

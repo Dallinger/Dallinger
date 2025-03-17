@@ -9,6 +9,7 @@ from gunicorn.app.base import Application
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from dallinger.config import get_config
+from dallinger.utils import attach_json_logger
 
 logger = logging.getLogger("dallinger")
 
@@ -99,7 +100,7 @@ def launch():
     ]
     LOG_LEVEL = LOG_LEVELS[config.get("loglevel")]
     logging.basicConfig(format="%(asctime)s %(message)s", level=LOG_LEVEL)
-
+    attach_json_logger(logging.getLogger())
     # Avoid duplicate logging to stderr
     error_logger = logging.getLogger("gunicorn.error")
     error_logger.propagate = False
