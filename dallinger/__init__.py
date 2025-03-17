@@ -20,7 +20,7 @@ from . import (
 )
 from .patches import patch
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dallinger")
 logger.addHandler(NullHandler())
 
 patch()

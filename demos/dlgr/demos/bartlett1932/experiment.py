@@ -12,7 +12,7 @@ from dallinger.config import get_config
 from dallinger.experiment import Experiment
 from dallinger.networks import Chain
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger("experiment")
 
 
 class Bartlett1932(Experiment):

@@ -8,7 +8,7 @@ from sqlalchemy.exc import DataError, InternalError
 from dallinger import db, information, models
 from dallinger.config import get_config
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dallinger")
 
 
 def _config():

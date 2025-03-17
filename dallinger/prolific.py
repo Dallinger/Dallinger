@@ -10,7 +10,7 @@ from dateutil import parser
 
 from dallinger.version import __version__
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger("dallinger")
 
 
 #####################
