@@ -4,13 +4,16 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 from xml.sax.saxutils import escape
 
+import bs4
 import six
 import timeago
+from ansi2html import Ansi2HTMLConverter
 from flask import (
     Blueprint,
     abort,
     current_app,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -20,6 +23,7 @@ from flask.wrappers import Response
 from flask_login import UserMixin, current_user, login_required, login_user, logout_user
 from flask_login.utils import login_url as make_login_url
 from flask_wtf import FlaskForm
+from pygtail import Pygtail
 from six.moves.urllib.parse import urlencode
 from tzlocal import get_localzone
 from wtforms import BooleanField, HiddenField, PasswordField, StringField, SubmitField
@@ -30,7 +34,10 @@ from dallinger import recruiters
 from dallinger.config import get_config
 from dallinger.db import get_all_mapped_classes
 from dallinger.heroku.tools import HerokuApp
-from dallinger.utils import deferred_route_decorator
+from dallinger.utils import (
+    deferred_route_decorator,
+    get_logger_filename,
+)
 
 from .utils import date_handler, error_response, success_response
 
@@ -208,7 +215,7 @@ def database_children():
     for cls_name, cls_info in mapped_classes:
         yield DashboardTab(
             cls_name,
-            "dashboard.database",
+            "dashboard.dashboard_database",
             None,
             {
                 "table": cls_info["table"],
@@ -219,14 +226,14 @@ def database_children():
 
 dashboard_tabs = DashboardTabs(
     [
-        DashboardTab("Config", "dashboard.index"),
-        DashboardTab("Heroku", "dashboard.heroku"),
-        DashboardTab("MTurk", "dashboard.mturk"),
-        DashboardTab("Monitoring", "dashboard.monitoring"),
-        DashboardTab("Lifecycle", "dashboard.lifecycle"),
-        DashboardTab("Database", "dashboard.database", database_children),
-        DashboardTab("Logger", "dashboard.logger"),
-        DashboardTab("Development", "dashboard.develop"),
+        DashboardTab("Config", "dashboard.dashboard_index"),
+        DashboardTab("Heroku", "dashboard.dashboard_heroku"),
+        DashboardTab("MTurk", "dashboard.dashboard_mturk"),
+        DashboardTab("Monitoring", "dashboard.dashboard_monitoring"),
+        DashboardTab("Lifecycle", "dashboard.dashboard_lifecycle"),
+        DashboardTab("Database", "dashboard.dashboard_database", database_children),
+        DashboardTab("Logger", "dashboard.dashboard_logger"),
+        DashboardTab("Development", "dashboard.dashboard_develop"),
     ]
 )
 
@@ -297,7 +304,9 @@ def is_safe_url(url):
 def login():
     next_url = request.form.get("next", request.args.get("next"))
     next_url = (
-        next_url if next_url and is_safe_url(next_url) else url_for("dashboard.index")
+        next_url
+        if next_url and is_safe_url(next_url)
+        else url_for("dashboard.dashboard_index")
     )
     if current_user.is_authenticated:
         return redirect(next_url)
@@ -321,13 +330,13 @@ def login():
 @dashboard.route("/logout")
 def logout():
     logout_user()
-    return redirect(url_for("dashboard.index"))
+    return redirect(url_for("dashboard.dashboard_index"))
 
 
 @dashboard.route("/")
 @dashboard.route("/index")
 @login_required
-def index():
+def dashboard_index():
     """Displays active experiment configuation"""
     config = get_config()
     config.load()
@@ -344,7 +353,7 @@ def index():
 
 @dashboard.route("/heroku")
 @login_required
-def heroku():
+def dashboard_heroku():
     """Assemble links from Heroku add-on info, stored in config, plus some
     standard dashboard links.
     """
@@ -542,7 +551,7 @@ def mturk_data_source(config):
 
 @dashboard.route("/mturk")
 @login_required
-def mturk():
+def dashboard_mturk():
     config = get_config()
     try:
         data_source = mturk_data_source(config)
@@ -582,7 +591,7 @@ def auto_recruit(bool_val):
 
 @dashboard.route("/monitoring")
 @login_required
-def monitoring():
+def dashboard_monitoring():
     from sqlalchemy import distinct, func
 
     from dallinger.experiment_server.experiment_server import Experiment, session
@@ -631,7 +640,7 @@ def init_db():
 
 @dashboard.route("/lifecycle")
 @login_required
-def lifecycle():
+def dashboard_lifecycle():
     config = get_config()
 
     try:
@@ -649,6 +658,141 @@ def lifecycle():
     return render_template(
         "dashboard_lifecycle.html", title="Experiment lifecycle Dashboard", **data
     )
+
+
+def clean_line_dict(line_dict, log_line_number=None):
+    msg = line_dict["message"]
+    if msg.endswith(("-", '"')) and ("GET " in msg or " POST" in msg):
+        msg = '"'.join(msg.split('"')[1:])
+    msg = Ansi2HTMLConverter().convert(msg)
+    parsed_msg = bs4.BeautifulSoup(msg, "html.parser")
+    msg = f"<html>{parsed_msg.head}{parsed_msg.body}</html>"
+    line_dict["message"] = msg
+    if log_line_number is not None:
+        line_dict["log_line_number"] = log_line_number
+    return line_dict
+
+
+LOG_FILE = get_logger_filename()
+
+
+def live_log():
+    """
+    Route that streams log file updates using SSE
+    """
+
+    def generate():
+        for line in Pygtail(LOG_FILE):
+            try:
+                line_dict = clean_line_dict(json.loads(line))
+                line_dict["original_line"] = line
+                yield f"data:{json.dumps(line_dict)}\n\n"
+            except json.decoder.JSONDecodeError:
+                continue
+
+    return Response(generate(), mimetype="text/event-stream")
+
+
+def log_read_lines(line_range):
+    lines = []
+    max_line = max(line_range)
+    early_stop = False
+    with open(LOG_FILE) as f:
+        for i, line in enumerate(f):
+            number = i + 1
+            if number in line_range:
+                line_dict = clean_line_dict(json.loads(line), number)
+                lines.append(line_dict)
+            if number > max_line:
+                early_stop = True
+                break
+    return lines, early_stop, i
+
+
+def find_log_line_number(substring):
+    with open(get_logger_filename()) as f:
+        for number, line in enumerate(f):
+            if substring in line:
+                return number
+    return None
+
+
+def log_search_substring(substring):
+    with open(LOG_FILE) as f:
+        for number, line in enumerate(f):
+            if substring in line:
+                line_dict = clean_line_dict(json.loads(line), number)
+                yield f"data:{json.dumps(line_dict)}\n\n"
+    yield f"data:{json.dumps({'stop': True})}\n\n"
+
+
+@dashboard.route("/logs", methods=["GET", "POST"])
+@login_required
+def progress_log():
+    if request.method == "POST":
+        params = request.json
+    else:
+        params = request.args
+    start, end = params.get("start", None), params.get("end", None)
+    n_nulled_params = sum(param is None for param in [start, end])
+    query = params.get("query", None)
+
+    if query:
+        query_type = params.get("type", "lines")
+        if query_type == "lines":
+            return Response(log_search_substring(query), mimetype="text/event-stream")
+        elif query_type == "line_number":
+            line_number = find_log_line_number(query)
+            if line_number is not None:
+                return jsonify({"line_number": line_number})
+            return jsonify({"msg": "No line found."}), 404
+        else:
+            return (
+                jsonify(
+                    {
+                        "msg": f"Invalid query type '{query_type}'. Must be 'line' or 'line_number'."
+                    }
+                ),
+                400,
+            )
+    if n_nulled_params == 2:
+        return live_log()
+    if n_nulled_params == 1:
+        return (
+            jsonify(
+                {
+                    "msg": "You should either provide both 'start' and 'end' or none of them."
+                }
+            ),
+            400,
+        )
+
+    start, end = int(start), int(end)
+    if start < 1:
+        return jsonify({"msg": "'start' must be greater than 0."}), 400
+
+    if start > end:
+        return (
+            jsonify(
+                {
+                    "msg": "The 'end' parameter should be less than the 'start' parameter."
+                }
+            ),
+            400,
+        )
+
+    lines, early_stop, last_line = log_read_lines(range(start, end + 1))
+    if not early_stop and start > last_line:
+        return (
+            jsonify(
+                {
+                    "msg": f"'start' must be less than the current line number {last_line}."
+                }
+            ),
+            400,
+        )
+
+    return lines
 
 
 TABLE_DEFAULTS = {
@@ -724,7 +868,7 @@ def prep_datatables_options(table_data):
 
 @dashboard.route("/database")
 @login_required
-def database():
+def dashboard_database():
     from dallinger.db import get_polymorphic_mapping
     from dallinger.experiment_server.experiment_server import Experiment, session
 
@@ -797,15 +941,15 @@ def database():
 @dashboard.route("/logger")
 @login_required
 def dashboard_logger():
-    """Assemble links from Heroku add-on info, stored in config, plus some
-    standard dashboard links.
     """
-    return render_template("dashboard_logger.html", links=[])
+    Streams the tail of the log file to the dashboard or shows selected lines
+    """
+    return render_template("dashboard_logger.html")
 
 
 @dashboard.route("/develop", methods=["GET", "POST"])
 @login_required
-def develop():
+def dashboard_develop():
     """Dashboard for working with ``dallinger develop`` Flask server."""
     return render_template(
         "dashboard_develop.html",
@@ -879,4 +1023,10 @@ def dashboard_tab(title, **kwargs):
         "tab": full_tab,
     }
 
-    return deferred_route_decorator(route, registered_routes)
+    def route_name_from_func_name(func_name: str) -> str:
+        key = "dashboard_"
+        if func_name.startswith(key):
+            return func_name[len(key) :]
+        return func_name
+
+    return deferred_route_decorator(route, registered_routes, route_name_from_func_name)

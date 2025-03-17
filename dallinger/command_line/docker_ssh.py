@@ -35,7 +35,7 @@ from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import handle_launch_data, setup_experiment
-from dallinger.utils import abspath_from_egg, check_output
+from dallinger.utils import abspath_from_egg, check_output, get_logger_filename
 
 # A couple of constants to colour console output
 RED = "\033[31m"
@@ -525,7 +525,7 @@ def _deploy_in_mode(
     sftp.putfo(
         BytesIO(
             get_docker_compose_yml(
-                cfg, experiment_id, image_name, postgresql_password
+                cfg, experiment_id, image_name, postgresql_password, executor
             ).encode()
         ),
         f"dallinger/{experiment_id}/docker-compose.yml",
@@ -778,48 +778,6 @@ def destroy(server, app):
     print(f"App {app} removed")
 
 
-def get_docker_compose_yml(
-    config: Dict[str, str],
-    experiment_id: str,
-    experiment_image: str,
-    postgresql_password: str,
-) -> str:
-    """Generate a docker-compose.yml file based on the given"""
-    docker_volumes = config.get("docker_volumes", "")
-    config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
-
-    return DOCKER_COMPOSE_EXP_TPL.render(
-        experiment_id=experiment_id,
-        experiment_image=experiment_image,
-        config=config_str,
-        docker_volumes=docker_volumes,
-        postgresql_password=postgresql_password,
-    )
-
-
-def get_retrying_http_client():
-    parameter_name = "method_whitelist"
-    if hasattr(Retry.DEFAULT, "allowed_methods"):
-        parameter_name = "allowed_methods"
-
-    retry_strategy = Retry(
-        total=30,
-        backoff_factor=0.2,
-        status_forcelist=[429, 500, 502, 503, 504],
-        **{parameter_name: ["POST"]},
-    )
-    adapter = HTTPAdapter(max_retries=retry_strategy)
-    http = requests.Session()
-    http.mount("https://", adapter)
-    http.mount("http://", adapter)
-    return http
-
-
-def get_dns_host(ssh_host):
-    ip_addr = gethostbyname_ex(ssh_host)[2][0]
-    return f"{ip_addr}.nip.io"
-
-
 class Executor:
     """Execute remote commands using paramiko"""
 
@@ -925,6 +883,54 @@ class Executor:
                 x = sys.stdin.read(1)
                 if len(x) == 0 or x in "qQ":
                     break
+
+
+def get_docker_compose_yml(
+    config: Dict[str, str],
+    experiment_id: str,
+    experiment_image: str,
+    postgresql_password: str,
+    executor: Executor,
+) -> str:
+    """Generate a docker-compose.yml file based on the given"""
+    docker_volumes = config.get("docker_volumes", "")
+    logger_filename = get_logger_filename()
+    # touch the logger file so that it exists when the container starts
+    executor.run(f"touch {get_logger_filename()}")
+    if logger_filename:
+        docker_volumes += f",./{logger_filename}:/experiment/{logger_filename}"
+    config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
+
+    return DOCKER_COMPOSE_EXP_TPL.render(
+        experiment_id=experiment_id,
+        experiment_image=experiment_image,
+        config=config_str,
+        docker_volumes=docker_volumes,
+        postgresql_password=postgresql_password,
+    )
+
+
+def get_retrying_http_client():
+    parameter_name = "method_whitelist"
+    if hasattr(Retry.DEFAULT, "allowed_methods"):
+        parameter_name = "allowed_methods"
+
+    retry_strategy = Retry(
+        total=30,
+        backoff_factor=0.2,
+        status_forcelist=[429, 500, 502, 503, 504],
+        **{parameter_name: ["POST"]},
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    http = requests.Session()
+    http.mount("https://", adapter)
+    http.mount("http://", adapter)
+    return http
+
+
+def get_dns_host(ssh_host):
+    ip_addr = gethostbyname_ex(ssh_host)[2][0]
+    return f"{ip_addr}.nip.io"
 
 
 class ExecuteException(Exception):

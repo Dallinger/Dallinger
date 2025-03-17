@@ -31,6 +31,7 @@ classifiers = [
 dependencies = [
     "ansi2html",
     "apscheduler",
+    "beautifulsoup4",
     "boto3",
     "build",
     "cached-property",

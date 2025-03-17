@@ -24,7 +24,6 @@ from flask_login import LoginManager, current_user, login_required
 from jinja2 import TemplateNotFound
 from psycopg2.extensions import TransactionRollbackError
 from pygtail import Pygtail
-from pythonjsonlogger import jsonlogger
 from rq import Queue
 from sqlalchemy import exc, func
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
@@ -34,7 +33,12 @@ from dallinger import db, experiment, models, recruiters
 from dallinger.config import get_config
 from dallinger.notifications import MessengerError, admin_notifier
 from dallinger.recruiters import ProlificRecruiter
-from dallinger.utils import generate_random_id, get_from_config
+from dallinger.utils import (
+    attach_json_logger,
+    generate_random_id,
+    get_from_config,
+    get_logger_filename,
+)
 
 from . import dashboard
 from .replay import ReplayBackend
@@ -102,21 +106,13 @@ def Experiment(args):
     return klass(args)
 
 
-LOG_FILE = "dallinger.log"
 log = logging.getLogger()
-SEP = "#########################"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 logging.basicConfig(
     level=logging.INFO,
     datefmt=DATE_FORMAT,
 )
-
-fmt = jsonlogger.JsonFormatter(
-    "%(name)s %(asctime)s %(levelname)s %(filename)s %(lineno)s %(message)s"
-)
-handler = logging.FileHandler(LOG_FILE)
-handler.setFormatter(fmt)
-log.addHandler(handler)
+attach_json_logger(log)
 
 # Load the experiment's extra routes, if any.
 try:
@@ -175,10 +171,11 @@ if exp_klass is not None:  # pragma: no cover
         if route_func is not None:
             # All dashboard routes require login
             route_func = login_required(route_func)
-            route_name = route["func_name"]
+            route_name = route["name"]
+            endpoint = route["func_name"]
             dashboard.dashboard.add_url_rule(
                 "/" + route_name,
-                endpoint=route_name,
+                endpoint=endpoint,
                 view_func=route_func,
                 **dict(route["kwargs"]),
             )
@@ -188,18 +185,16 @@ if exp_klass is not None:  # pragma: no cover
                 tabs.insert_tab_before_route(full_tab, route["before_route"])
             elif route.get("before_route"):
                 tabs.insert_before_route(
-                    route["title"], route_name, route["before_route"]
+                    route["title"], endpoint, route["before_route"]
                 )
             elif route.get("after_route") and full_tab:
                 tabs.insert_tab_after_route(full_tab, route["after_route"])
             elif route.get("after_route"):
-                tabs.insert_after_route(
-                    route["title"], route_name, route["after_route"]
-                )
+                tabs.insert_after_route(route["title"], endpoint, route["after_route"])
             elif full_tab:
                 tabs.insert(full_tab)
             else:
-                tabs.insert(route["title"], route_name)
+                tabs.insert(route["title"], endpoint)
 
     # This hides dashboard tabs from view, but doesn't prevent the routes from
     # being registered
@@ -237,7 +232,7 @@ def index():
     html = (
         "<html><head></head><body><h1>Dallinger Experiment in progress</h1>"
         "<p><a href={}>Dashboard</a></p></body></html>".format(
-            url_for("dashboard.index")
+            url_for("dashboard.dashboard_index")
         )
     )
 
@@ -257,6 +252,7 @@ def clean_line_dict(line_dict, log_line_number):
 
 
 line_number = redis_conn.get("line_number")
+LOG_FILE = get_logger_filename()
 
 
 def live_log():
