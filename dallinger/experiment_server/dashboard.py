@@ -724,10 +724,13 @@ def log_search_substring(substring):
     yield f"data:{json.dumps({'stop': True})}\n\n"
 
 
-@dashboard.route("/logs")
+@dashboard.route("/logs", methods=["GET", "POST"])
 @login_required
 def progress_log():
-    params = request.args
+    if request.method == "POST":
+        params = request.json
+    else:
+        params = request.args
     start, end = params.get("start", None), params.get("end", None)
     n_nulled_params = sum(param is None for param in [start, end])
     query = params.get("query", None)

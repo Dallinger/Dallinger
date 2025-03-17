@@ -215,10 +215,14 @@
             }
             if (!firstLine) {
                 firstLine = data.original_line;
-                fetch(endpoint + '?query=' + firstLine + '&type=line_number')
-                    .then(response => {
-                        return response.json();
+                fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ query: firstLine, type: 'line_number' })
                     })
+                .then(response => response.json())
                     .then(data => {
                         lineOffset = data.line_number;
                         console.log(lineOffset, firstLine, nPrintedRows);
