@@ -713,7 +713,7 @@ def find_log_line_number(substring):
     with open(get_logger_filename()) as f:
         for number, line in enumerate(f):
             if substring in line:
-                return number
+                return number + 1
     return None
 
 
