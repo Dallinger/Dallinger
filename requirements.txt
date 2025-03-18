@@ -10,15 +10,15 @@ apscheduler==3.11.0
     # via dallinger
 asttokens==3.0.0
     # via stack-data
-attrs==25.1.0
+attrs==25.3.0
     # via
     #   outcome
     #   trio
 blinker==1.9.0
     # via flask
-boto3==1.37.1
+boto3==1.37.14
     # via dallinger
-botocore==1.37.1
+botocore==1.37.14
     # via
     #   boto3
     #   s3transfer
@@ -42,13 +42,13 @@ click==8.1.8
     #   flask
     #   pip-tools
     #   rq
-cryptography==44.0.1
+cryptography==44.0.2
     # via pyopenssl
 decorator==5.2.1
     # via ipython
 executing==2.2.0
     # via stack-data
-faker==36.1.1
+faker==37.0.0
     # via dallinger
 flask==3.1.0
     # via
@@ -94,7 +94,7 @@ itsdangerous==2.2.0
     #   flask-wtf
 jedi==0.19.2
     # via ipython
-jinja2==3.1.5
+jinja2==3.1.6
     # via flask
 jmespath==1.0.1
     # via
@@ -165,7 +165,7 @@ requests==2.32.3
     #   heroku3
 rq==2.1.0
     # via dallinger
-s3transfer==0.11.2
+s3transfer==0.11.4
     # via boto3
 selenium==4.29.0
     # via dallinger
@@ -212,7 +212,7 @@ typing-extensions==4.12.2
     #   selenium
 tzdata==2025.1
     # via faker
-tzlocal==5.3
+tzlocal==5.3.1
     # via
     #   apscheduler
     #   dallinger
