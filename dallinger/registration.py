@@ -7,7 +7,7 @@ import requests
 
 from dallinger.config import get_config
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger("dallinger")
 root = "https://api.osf.io/v2"
 
 

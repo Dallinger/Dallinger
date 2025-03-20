@@ -586,7 +586,7 @@ interacts directly with the server.
 
 	from dallinger.bots import BotBase, HighPerformanceBotBase
 
-	logger = logging.getLogger(__file__)
+	logger = logging.getLogger("bot")
 
 The bot code first imports the bot base classes, along with some
 webdriver code for the regular bot, and the `requests` library, for

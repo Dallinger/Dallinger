@@ -4,13 +4,16 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 from xml.sax.saxutils import escape
 
+import bs4
 import six
 import timeago
+from ansi2html import Ansi2HTMLConverter
 from flask import (
     Blueprint,
     abort,
     current_app,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -20,6 +23,7 @@ from flask.wrappers import Response
 from flask_login import UserMixin, current_user, login_required, login_user, logout_user
 from flask_login.utils import login_url as make_login_url
 from flask_wtf import FlaskForm
+from pygtail import Pygtail
 from six.moves.urllib.parse import urlencode
 from tzlocal import get_localzone
 from wtforms import BooleanField, HiddenField, PasswordField, StringField, SubmitField
@@ -30,11 +34,14 @@ from dallinger import recruiters
 from dallinger.config import get_config
 from dallinger.db import get_all_mapped_classes
 from dallinger.heroku.tools import HerokuApp
-from dallinger.utils import deferred_route_decorator
+from dallinger.utils import (
+    deferred_route_decorator,
+    get_logger_filename,
+)
 
 from .utils import date_handler, error_response, success_response
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dallinger")
 
 
 class User(UserMixin):
@@ -225,6 +232,7 @@ dashboard_tabs = DashboardTabs(
         DashboardTab("Monitoring", "dashboard.dashboard_monitoring"),
         DashboardTab("Lifecycle", "dashboard.dashboard_lifecycle"),
         DashboardTab("Database", "dashboard.dashboard_database", database_children),
+        DashboardTab("Logger", "dashboard.dashboard_logger"),
         DashboardTab("Development", "dashboard.dashboard_develop"),
     ]
 )
@@ -652,6 +660,141 @@ def dashboard_lifecycle():
     )
 
 
+def clean_line_dict(line_dict, log_line_number=None):
+    msg = line_dict["message"]
+    if msg.endswith(("-", '"')) and ("GET " in msg or " POST" in msg):
+        msg = '"'.join(msg.split('"')[1:])
+    msg = Ansi2HTMLConverter().convert(msg)
+    parsed_msg = bs4.BeautifulSoup(msg, "html.parser")
+    msg = f"<html>{parsed_msg.head}{parsed_msg.body}</html>"
+    line_dict["message"] = msg
+    if log_line_number is not None:
+        line_dict["log_line_number"] = log_line_number
+    return line_dict
+
+
+LOG_FILE = get_logger_filename()
+
+
+def live_log():
+    """
+    Route that streams log file updates using SSE
+    """
+
+    def generate():
+        for line in Pygtail(LOG_FILE):
+            try:
+                line_dict = clean_line_dict(json.loads(line))
+                line_dict["original_line"] = line
+                yield f"data:{json.dumps(line_dict)}\n\n"
+            except json.decoder.JSONDecodeError:
+                continue
+
+    return Response(generate(), mimetype="text/event-stream")
+
+
+def log_read_lines(line_range):
+    lines = []
+    max_line = max(line_range)
+    early_stop = False
+    with open(LOG_FILE) as f:
+        for i, line in enumerate(f):
+            number = i + 1
+            if number in line_range:
+                line_dict = clean_line_dict(json.loads(line), number)
+                lines.append(line_dict)
+            if number > max_line:
+                early_stop = True
+                break
+    return lines, early_stop, i
+
+
+def find_log_line_number(substring):
+    with open(get_logger_filename()) as f:
+        for number, line in enumerate(f):
+            if substring in line:
+                return number + 1
+    return None
+
+
+def log_search_substring(substring):
+    with open(LOG_FILE) as f:
+        for number, line in enumerate(f):
+            if substring in line:
+                line_dict = clean_line_dict(json.loads(line), number)
+                yield f"data:{json.dumps(line_dict)}\n\n"
+    yield f"data:{json.dumps({'stop': True})}\n\n"
+
+
+@dashboard.route("/logs", methods=["GET", "POST"])
+@login_required
+def progress_log():
+    if request.method == "POST":
+        params = request.json
+    else:
+        params = request.args
+    start, end = params.get("start", None), params.get("end", None)
+    n_nulled_params = sum(param is None for param in [start, end])
+    query = params.get("query", None)
+
+    if query:
+        query_type = params.get("type", "lines")
+        if query_type == "lines":
+            return Response(log_search_substring(query), mimetype="text/event-stream")
+        elif query_type == "line_number":
+            line_number = find_log_line_number(query)
+            if line_number is not None:
+                return jsonify({"line_number": line_number})
+            return jsonify({"msg": "No line found."}), 404
+        else:
+            return (
+                jsonify(
+                    {
+                        "msg": f"Invalid query type '{query_type}'. Must be 'line' or 'line_number'."
+                    }
+                ),
+                400,
+            )
+    if n_nulled_params == 2:
+        return live_log()
+    if n_nulled_params == 1:
+        return (
+            jsonify(
+                {
+                    "msg": "You should either provide both 'start' and 'end' or none of them."
+                }
+            ),
+            400,
+        )
+
+    start, end = int(start), int(end)
+    if start < 1:
+        return jsonify({"msg": "'start' must be greater than 0."}), 400
+
+    if start > end:
+        return (
+            jsonify(
+                {
+                    "msg": "The 'end' parameter should be less than the 'start' parameter."
+                }
+            ),
+            400,
+        )
+
+    lines, early_stop, last_line = log_read_lines(range(start, end + 1))
+    if not early_stop and start > last_line:
+        return (
+            jsonify(
+                {
+                    "msg": f"'start' must be less than the current line number {last_line}."
+                }
+            ),
+            400,
+        )
+
+    return lines
+
+
 TABLE_DEFAULTS = {
     "dom": "frtilBpP",
     "ordering": True,
@@ -793,6 +936,15 @@ def dashboard_database():
             datatables_options, default=date_handler, indent=True
         ),
     )
+
+
+@dashboard.route("/logger")
+@login_required
+def dashboard_logger():
+    """
+    Streams the tail of the log file to the dashboard or shows selected lines
+    """
+    return render_template("dashboard_logger.html")
 
 
 @dashboard.route("/develop", methods=["GET", "POST"])

@@ -24,7 +24,7 @@ from ..config import store_host as dallinger_store_host
 from ..docker_ssh import Executor
 from ..docker_ssh import prepare_server as dallinger_prepare_server
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dallinger")
 
 
 def get_keys(region_name=None):

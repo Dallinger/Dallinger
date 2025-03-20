@@ -1,3 +1,5 @@
+from dallinger.utils import attach_json_logger
+
 listen = ["high", "default", "low"]
 
 
@@ -39,6 +41,7 @@ def main():
         format="%(asctime)s %(message)s",
         level=LOG_LEVEL,
     )
+    attach_json_logger(logging.getLogger())
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
     # Specify queue class for improved performance with gevent.
     # see http://carsonip.me/posts/10x-faster-python-gevent-redis-connection-pool/
