@@ -119,7 +119,7 @@ class ProlificService:
             return _translate_submission_from_get_submission(response)
 
     def get_total_cost(self, study_id: str) -> float:
-        """Get the total cost of a study."""
+        """Get the total cost of a study including platform fees in cents."""
         response = self._req(method="GET", endpoint=f"/studies/{study_id}/cost/")
         rewards = response.get("rewards", {})
         bonuses = response.get("bonuses", {})
@@ -128,6 +128,13 @@ class ProlificService:
             return sum(item.get("amount", 0.0) for item in amounts.values())
 
         return get_amount(rewards) + get_amount(bonuses)
+
+    def get_submissions(self, study_id: str) -> dict:
+        """Return /submissions endpoint for a given study_id."""
+        query_params = {"study": study_id}
+        return self._req(method="GET", endpoint="/submissions/", params=query_params)[
+            "results"
+        ]
 
     def get_assignments_for_study(self, study_id: str) -> dict:
         """Return all submissions for the current Prolific study, keyed by
@@ -148,14 +155,10 @@ class ProlificService:
         }
         """
 
-        query_params = {"study": study_id}
-        response = self._req(
-            method="GET", endpoint="/submissions/", params=query_params
-        )
-
+        response = self.get_submissions(study_id)
         return {
             s["id"]: _translate_submission_from_get_submissions(s, study_id)
-            for s in response["results"]
+            for s in response
         }
 
     def get_workspaces(self):

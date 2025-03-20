@@ -11,7 +11,6 @@ import string
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import datetime
 from statistics import median
 
 import flask
@@ -454,36 +453,26 @@ class ProlificRecruiter(Recruiter):
         self.store = kwargs.get("store") or RedisStore()
 
     def get_status(self) -> RecruitmentStatus:
-        submissions = self.prolificservice.get_assignments_for_study(
-            self.current_study_id
-        )
-        submission_status_dict = dict(
-            Counter([s["status"] for s in submissions.values()])
-        )
+        submissions = self.prolificservice.get_submissions(self.current_study_id)
+
+        submission_status_dict = dict(Counter([s["status"] for s in submissions]))
         study = self.prolificservice.get_study(self.current_study_id)
-        total_cost = self.prolificservice.get_total_cost(self.current_study_id)
-        approved_submissions = [
-            s for s in submissions.values() if s["status"] == "APPROVED"
-        ]
+        total_cost = self.prolificservice.get_total_cost(self.current_study_id) / 100
+        approved_submissions = [s for s in submissions if s["status"] == "APPROVED"]
         durations = []
+        total_reward = 0
         for submission in approved_submissions:
-            try:
-                started_at = datetime.strptime(
-                    submission["started_at"], "%Y-%m-%dT%H:%M:%S.%fZ"
-                )
-                completed_at = datetime.strptime(
-                    submission["completed_at"], "%Y-%m-%dT%H:%M:%S.%fZ"
-                )
-                durations.append((completed_at - started_at).seconds / 60)
-            except ValueError:
-                pass
+            time_taken = submission.get("time_taken", None)
+            if time_taken:
+                durations.append(time_taken / 60)
+                # Note: Prolific rewards are in 100 cents
+                total_reward += submission.get("reward", 0) / 10000
         median_duration = None
         real_wage_per_hour = None
-        reward = self.compute_reward()
         if len(durations) > 0:
             median_duration = median(durations)
-            total_reward = reward * len(durations)
-            real_wage_per_hour = total_reward / (sum(durations) / 60)
+            pay_per_submission = total_reward / len(durations)
+            real_wage_per_hour = pay_per_submission / (median_duration / 60)
         return ProlificRecruitmentStatus(
             recruiter_name=self.nickname,
             participant_status_counts=submission_status_dict,
@@ -491,7 +480,7 @@ class ProlificRecruiter(Recruiter):
             study_status=study["status"],
             study_cost=total_cost,
             internal_name=study["internal_name"],
-            reward=reward,
+            reward=self.compute_reward(),
             median_duration=median_duration,
             wage_per_hour=real_wage_per_hour,
         )
@@ -859,6 +848,29 @@ class DevProlificRecruiter(ProlificRecruiter):
         response = "http://127.0.0.1:5000/dashboard/develop"
         self.prolificservice.log_response(response)
         return response
+
+
+class MockRecruiter(Recruiter):
+    def open_recruitment(self, n: int = 1) -> dict:
+        """
+        Open recruitment for the current experiment.
+        """
+        logger.info(f"Mock recruiter {self.nickname} NOT opening aby recruitment")
+        self.register_study()
+        return {"items": [], "message": ""}
+
+    def register_study(self):
+        raise NotImplementedError
+
+
+class MockProlificRecruiter(MockRecruiter, ProlificRecruiter):
+    nickname = "mockprolific"
+
+    def register_study(self):
+        config = get_config()
+        prolific_config = json.loads(config.get("prolific_recruitment_config"))
+        study_id = prolific_config.get("study_id")
+        self._record_current_study_id(study_id)
 
 
 class CLIRecruiter(Recruiter):
@@ -2056,6 +2068,8 @@ def from_config(config):
     # Special case 3: if we're not using bots and we're in debug mode,
     # if present, use the configured debug_recruiter or else fallback to HotAirRecruiter:
     if debug_mode:
+        if isinstance(recruiter, MockRecruiter):
+            return recruiter
         if isinstance(recruiter, ProlificRecruiter):
             return by_name("devprolific")
 
