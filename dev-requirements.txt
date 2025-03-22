@@ -500,7 +500,7 @@ rpds-py==0.23.1
     # via
     #   jsonschema
     #   referencing
-rq==2.1.0
+rq==2.2.0
     # via dallinger
 s3transfer==0.11.2
     # via boto3
