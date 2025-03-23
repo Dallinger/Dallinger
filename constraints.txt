@@ -624,7 +624,7 @@ typing-extensions==4.12.2
     #   pyopenssl
     #   referencing
     #   selenium
-tzdata==2025.1
+tzdata==2025.2
     # via
     #   faker
     #   pandas
