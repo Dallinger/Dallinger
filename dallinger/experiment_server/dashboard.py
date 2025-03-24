@@ -688,7 +688,75 @@ def clean_line_info(line_info: dict, log_line_number: int = None) -> dict:
 LOG_FILE = get_logger_filename()
 
 
-def live_log():
+def log_read_lines(line_start: int, line_end: int) -> tuple[list[dict], bool, int]:
+    """
+    Read the log file and return the lines in the specified range.
+
+    :param line_start: The line number to start reading from
+    :type line_start: int
+
+    :param line_end: The line number to stop reading at
+    :type line_end: int
+
+    :return: A tuple containing the lines, a boolean indicating if the end of the file was reached, and the last line number
+
+    :Note: The line numbers are 1-based
+
+    """
+    lines = []
+    line_range = range(line_start, line_end)
+    early_stop = False
+    with open(LOG_FILE) as f:
+        for i, line in enumerate(f):
+            number = i + 1
+            if number in line_range:
+                line_dict = clean_line_info(json.loads(line), number)
+                lines.append(line_dict)
+            if number > line_end:
+                early_stop = True
+                break
+    return lines, early_stop, i
+
+
+def find_log_line_number(substring) -> int | None:
+    """
+    Find the line number in the log file that contains a substring.
+
+    :param substring: The substring to search for
+    :type substring: str
+
+    :return: The line number (1-based) or None if the substring was not found
+    """
+    with open(get_logger_filename()) as f:
+        for number, line in enumerate(f):
+            if substring in line:
+                return number + 1
+    return None
+
+
+def log_search_substring(substring: str):
+    """
+    Search the log file for a substring and return the matching lines.
+
+    :param substring: The substring to search for
+    :type substring: str
+
+    :return: A generator that yields the matching lines
+
+    :Note: The line numbers are 1-based
+    :Note: The generator will yield a 'stop' message when the end of the file is reached
+    """
+    with open(LOG_FILE) as f:
+        for number, line in enumerate(f):
+            if substring in line:
+                line_dict = clean_line_info(json.loads(line), number)
+                yield f"data:{json.dumps(line_dict)}\n\n"
+    yield f"data:{json.dumps({'stop': True})}\n\n"
+
+
+@dashboard.route("/logs/live", methods=["GET"])
+@login_required
+def logs_live():
     """Stream log file updates to the dashboard using Server-Sent Events (SSE).
 
     Creates a streaming response that pushes new log entries to connected clients
@@ -729,48 +797,12 @@ def live_log():
     return Response(generate(), mimetype="text/event-stream")
 
 
-def log_read_lines(line_range):
-    lines = []
-    max_line = max(line_range)
-    early_stop = False
-    with open(LOG_FILE) as f:
-        for i, line in enumerate(f):
-            number = i + 1
-            if number in line_range:
-                line_dict = clean_line_info(json.loads(line), number)
-                lines.append(line_dict)
-            if number > max_line:
-                early_stop = True
-                break
-    return lines, early_stop, i
-
-
-def find_log_line_number(substring):
-    with open(get_logger_filename()) as f:
-        for number, line in enumerate(f):
-            if substring in line:
-                return number + 1
-    return None
-
-
-def log_search_substring(substring):
-    with open(LOG_FILE) as f:
-        for number, line in enumerate(f):
-            if substring in line:
-                line_dict = clean_line_info(json.loads(line), number)
-                yield f"data:{json.dumps(line_dict)}\n\n"
-    yield f"data:{json.dumps({'stop': True})}\n\n"
-
-
-@dashboard.route("/logs/live", methods=["GET"])
-@login_required
-def logs_live():
-    return live_log()
-
-
 @dashboard.route("/logs/range", methods=["GET"])
 @login_required
 def logs_range():
+    """
+    Return a range of log lines from the log file.
+    """
     params = request.args
     start, end = params.get("start", None), params.get("end", None)
     if start is None or end is None:
@@ -782,7 +814,7 @@ def logs_range():
     if start > end:
         return json_error_response("'start' must be <= 'end'.")
 
-    lines, early_stop, last_line = log_read_lines(range(start, end + 1))
+    lines, early_stop, last_line = log_read_lines(start, end + 1)
     if not early_stop and start > last_line:
         return json_error_response(
             f"'start' must be less than the current line number {last_line}."
@@ -798,6 +830,9 @@ def json_error_response(message, status_code=400):
 @dashboard.route("/logs/find_lines", methods=["GET"])
 @login_required
 def logs_find_lines():
+    """
+    Find lines in the log file that contain a substring (GET parameter 'query').
+    """
     params = request.args
     query = params.get("query", None)
     if query is None:
@@ -808,6 +843,9 @@ def logs_find_lines():
 @dashboard.route("/logs/find_line_number", methods=["POST"])
 @login_required
 def logs_find_line_number():
+    """
+    Find the line number in the log file that contains a substring (POST parameter 'query').
+    """
     params = request.json
     query = params.get("query", None)
     if query is None:
