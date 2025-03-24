@@ -787,7 +787,7 @@ def clean_line_info(line_info: dict, log_line_number: Optional[int] = None) -> d
     return line_info
 
 
-LOG_FILE = get_logger_filename()
+JSON_LOGFILE = get_logger_filename()
 
 
 def log_read_lines(line_start: int, line_end: int) -> tuple[list[dict], bool, int]:
@@ -808,7 +808,7 @@ def log_read_lines(line_start: int, line_end: int) -> tuple[list[dict], bool, in
     lines = []
     line_range = range(line_start, line_end)
     early_stop = False
-    with open(LOG_FILE) as f:
+    with open(JSON_LOGFILE) as f:
         for i, line in enumerate(f):
             number = i + 1
             if number in line_range:
@@ -848,7 +848,7 @@ def log_search_substring(substring: str):
     :Note: The line numbers are 1-based
     :Note: The generator will yield a 'stop' message when the end of the file is reached
     """
-    with open(LOG_FILE) as f:
+    with open(JSON_LOGFILE) as f:
         for number, line in enumerate(f):
             if substring in line:
                 line_dict = clean_line_info(json.loads(line), number)
@@ -888,7 +888,7 @@ def logs_live():
     """
 
     def generate():
-        for line in Pygtail(LOG_FILE):
+        for line in Pygtail(JSON_LOGFILE):
             try:
                 line_dict = clean_line_info(json.loads(line))
                 line_dict["original_line"] = line
