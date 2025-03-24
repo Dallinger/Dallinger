@@ -2,7 +2,7 @@ import json
 import logging
 from copy import deepcopy
 from datetime import datetime, timedelta
-from typing import Union
+from typing import Optional, Union
 from xml.sax.saxutils import escape
 
 import bs4
@@ -661,7 +661,7 @@ def dashboard_lifecycle():
     )
 
 
-def clean_http_request_log(msg: str) -> str:
+def clean_http_request(msg: str) -> str:
     """Remove redundant prefix from HTTP request log messages.
 
     Parameters
@@ -677,38 +677,113 @@ def clean_http_request_log(msg: str) -> str:
     Examples
     --------
     >>> msg = '127.0.0.1 - - [20/Mar/2024:10:00:00] "GET /dashboard HTTP/1.1" 200 -'
-    >>> clean_http_request_log(msg)
+    >>> clean_http_request(msg)
     'GET /dashboard HTTP/1.1" 200 -'
-    """
-    is_http_request = "GET " in msg or " POST" in msg
-    has_expected_ending = msg.endswith(("-", '"'))
 
-    if is_http_request and has_expected_ending:
+    >>> msg = 'Regular log message without HTTP request'
+    >>> clean_http_request(msg)
+    'Regular log message without HTTP request'
+    """
+    has_http_method = any(f" {method} " in msg for method in ("GET", "POST"))
+    if has_http_method and msg.endswith(("-", '"')):
         return '"'.join(msg.split('"')[1:])
     return msg
 
 
-def clean_line_info(line_info: dict, log_line_number: int = None) -> dict:
+def convert_ansi_to_html(msg: str) -> str:
+    """Convert ANSI terminal colors to HTML formatted text.
+
+    Parameters
+    ----------
+    msg : str
+        Message potentially containing ANSI color codes
+
+    Returns
+    -------
+    str
+        HTML-formatted message with ANSI codes converted to CSS
+
+    Examples
+    --------
+    >>> msg = '\033[31mError:\033[0m Database connection failed'
+    >>> convert_ansi_to_html(msg)
+    '<span style="color: red">Error:</span> Database connection failed'
+
+    >>> msg = 'Plain text without ANSI codes'
+    >>> convert_ansi_to_html(msg)
+    'Plain text without ANSI codes'
     """
-    Clean the line info for the log viewer. Convert ANSI to HTML (e.g. ANSI bold to HTML bold) and remove the leading
-    timestamp and log level (because it is already displayed in the table) and add the log's line number if provided.
+    return Ansi2HTMLConverter().convert(msg)
 
-    :param line_info: The line info to clean
-    :type line_info: dict
 
-    :param log_line_number: The line number in the log file (optional)
-    :type log_line_number: int
+def ensure_html_structure(html: str) -> str:
+    """Ensure HTML has proper structure with head and body tags.
 
-    :return: The cleaned line info
+    Parameters
+    ----------
+    html : str
+        HTML content to structure
+
+    Returns
+    -------
+    str
+        Properly structured HTML document
+
+    Examples
+    --------
+    >>> html = '<span style="color: red">Error</span>'
+    >>> ensure_html_structure(html)
+    '<html><head></head><body><span style="color: red">Error</span></body></html>'
+
+    >>> html = '<head><style>...</style></head><body>Content</body>'
+    >>> ensure_html_structure(html)
+    '<html><head><style>...</style></head><body>Content</body></html>'
+    """
+    soup = bs4.BeautifulSoup(html, "html.parser")
+    return f"<html>{soup.head or ''}{soup.body or ''}</html>"
+
+
+def clean_line_info(line_info: dict, log_line_number: Optional[int] = None) -> dict:
+    """Clean and format a log message dictionary for dashboard display.
+
+    Parameters
+    ----------
+    line_info : dict
+        Dictionary containing log message data with at least a 'message' key
+    log_line_number : int, optional
+        Line number in the log file
+
+    Returns
+    -------
+    dict
+        Cleaned dictionary with HTML-formatted message
+
+    Examples
+    --------
+    >>> line_dict = {
+    ...     'message': '\033[31mError:\033[0m GET /dashboard failed',
+    ...     'level': 'ERROR'
+    ... }
+    >>> cleaned = clean_line_dict(line_info, log_line_number=42)
+    >>> cleaned
+    {
+        'message': '<html><head>...</head><body><span style="color: red">Error:</span> GET /dashboard failed</body></html>',
+        'level': 'ERROR',
+        'log_line_number': 42
+    }
     """
     msg = line_info["message"]
-    msg = clean_http_request_log(msg)
-    msg = Ansi2HTMLConverter().convert(msg)
-    parsed_msg = bs4.BeautifulSoup(msg, "html.parser")
-    msg = f"<html>{parsed_msg.head}{parsed_msg.body}</html>"
+
+    # Clean and format the message
+    msg = clean_http_request(msg)
+    msg = convert_ansi_to_html(msg)
+    msg = ensure_html_structure(msg)
+
+    # Finalize the dictionary
     line_info["message"] = msg
     if log_line_number is not None:
         line_info["log_line_number"] = log_line_number
+
     return line_info
 
 
