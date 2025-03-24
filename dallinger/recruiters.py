@@ -39,7 +39,12 @@ from dallinger.prolific import (
     dev_prolific_service_from_config,
     prolific_service_from_config,
 )
-from dallinger.utils import ParticipationTime, generate_random_id, get_base_url
+from dallinger.utils import (
+    ParticipationTime,
+    generate_random_id,
+    get_base_url,
+    median_time_spent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -848,30 +853,44 @@ class ProlificRecruiter(Recruiter):
             "peripheral_requirements": details["peripheral_requirements"],
         }
 
-    def screen_out_allowed(self, assignment_id: str):
+    def screen_out(
+        self,
+        assignment_id: str,
+        participants: list[Participant],
+        reward: float,
+        wage_per_hour: float,
+    ):
+        if self.screen_out_allowed(assignment_id, participants, reward, wage_per_hour):
+            try:
+                return self.prolificservice.screen_out(
+                    study_id=self.current_study_id,
+                    submission_id=assignment_id,
+                    bonus_per_submission=reward,
+                    increase_places=self.config.get("auto_recruit"),
+                )
+            except ProlificServiceException as ex:
+                logger.exception(str(ex))
+
+    def screen_out_allowed(
+        self,
+        assignment_id: str,
+        participants: list[Participant],
+        reward: float,
+        wage_per_hour: float,
+    ):
         if self.prolificservice.get_study(assignment_id)["is_custom_screening"]:
             raise ProlificRecruiterException(
                 f"Prolific study (ID {self.current_study_id}) doesn't allow screening-out of participants"
             )
 
-        # TODO Implement logic
+        _median_time_spent = median_time_spent(participants)
+        print(_median_time_spent)
+
         if False:
             logger.warning(
                 f"Participant with submission ID {assignment_id} does not satisfy the requirements to be screened-out!"
             )
         return True
-
-    def screen_out(self, assignment_id: str, payment: float):
-        if self.screen_out_allowed():
-            try:
-                return self.prolificservice.screen_out(
-                    study_id=self.current_study_id,
-                    submission_id=assignment_id,
-                    bonus_per_submission=payment,
-                    increase_places=self.config.get("auto_recruit"),
-                )
-            except ProlificServiceException as ex:
-                logger.exception(str(ex))
 
     def validate_config(self, **kwargs):
         super().validate_config()
