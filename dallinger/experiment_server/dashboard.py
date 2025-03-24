@@ -700,7 +700,7 @@ def live_log():
                 line_dict["original_line"] = line
                 yield f"data:{json.dumps(line_dict)}\n\n"
             except json.decoder.JSONDecodeError:
-                continue
+                yield f"data:{json.dumps({'message': line})}\n\n"
 
     return Response(generate(), mimetype="text/event-stream")
 
