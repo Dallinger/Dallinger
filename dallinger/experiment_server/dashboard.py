@@ -762,73 +762,61 @@ def log_search_substring(substring):
     yield f"data:{json.dumps({'stop': True})}\n\n"
 
 
-@dashboard.route("/logs", methods=["GET", "POST"])
+@dashboard.route("/logs/live", methods=["GET"])
 @login_required
-def progress_log():
-    if request.method == "POST":
-        params = request.json
-    else:
-        params = request.args
+def logs_live():
+    return live_log()
+
+
+@dashboard.route("/logs/range", methods=["GET"])
+@login_required
+def logs_range():
+    params = request.args
     start, end = params.get("start", None), params.get("end", None)
-    n_nulled_params = sum(param is None for param in [start, end])
-    query = params.get("query", None)
-
-    if query:
-        query_type = params.get("type", "lines")
-        if query_type == "lines":
-            return Response(log_search_substring(query), mimetype="text/event-stream")
-        elif query_type == "line_number":
-            line_number = find_log_line_number(query)
-            if line_number is not None:
-                return jsonify({"line_number": line_number})
-            return jsonify({"msg": "No line found."}), 404
-        else:
-            return (
-                jsonify(
-                    {
-                        "msg": f"Invalid query type '{query_type}'. Must be 'line' or 'line_number'."
-                    }
-                ),
-                400,
-            )
-    if n_nulled_params == 2:
-        return live_log()
-    if n_nulled_params == 1:
-        return (
-            jsonify(
-                {
-                    "msg": "You should either provide both 'start' and 'end' or none of them."
-                }
-            ),
-            400,
-        )
-
+    if start is None or end is None:
+        return json_error_response("Both 'start' and 'end' parameters are required.")
     start, end = int(start), int(end)
     if start < 1:
-        return jsonify({"msg": "'start' must be greater than 0."}), 400
+        return json_error_response("'start' must be > 0.")
 
     if start > end:
-        return (
-            jsonify(
-                {
-                    "msg": "The 'end' parameter should be less than the 'start' parameter."
-                }
-            ),
-            400,
-        )
+        return json_error_response("'start' must be <= 'end'.")
 
     lines, early_stop, last_line = log_read_lines(range(start, end + 1))
     if not early_stop and start > last_line:
-        return (
-            jsonify(
-                {
-                    "msg": f"'start' must be less than the current line number {last_line}."
-                }
-            ),
-            400,
+        return json_error_response(
+            f"'start' must be less than the current line number {last_line}."
         )
 
     return lines
+
+
+def json_error_response(message, status_code=400):
+    return jsonify({"msg": message}), status_code
+
+
+@dashboard.route("/logs/find_lines", methods=["GET"])
+@login_required
+def logs_find_lines():
+    params = request.args
+    query = params.get("query", None)
+    if query is None:
+        return json_error_response("No query provided.")
+    return Response(log_search_substring(query), mimetype="text/event-stream")
+
+
+@dashboard.route("/logs/find_line_number", methods=["POST"])
+@login_required
+def logs_find_line_number():
+    params = request.json
+    query = params.get("query", None)
+    if query is None:
+        return json_error_response("No query provided.")
+
+    line_number = find_log_line_number(query)
+    if line_number is not None:
+        return jsonify({"line_number": line_number})
+    return json_error_response("No line found.", 404)
 
 
 TABLE_DEFAULTS = {
