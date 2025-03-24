@@ -661,6 +661,33 @@ def dashboard_lifecycle():
     )
 
 
+def clean_http_request_log(msg: str) -> str:
+    """Remove redundant prefix from HTTP request log messages.
+
+    Parameters
+    ----------
+    msg : str
+        The log message to clean
+
+    Returns
+    -------
+    str
+        The cleaned message with redundant prefix removed
+
+    Examples
+    --------
+    >>> msg = '127.0.0.1 - - [20/Mar/2024:10:00:00] "GET /dashboard HTTP/1.1" 200 -'
+    >>> clean_http_request_log(msg)
+    'GET /dashboard HTTP/1.1" 200 -'
+    """
+    is_http_request = "GET " in msg or " POST" in msg
+    has_expected_ending = msg.endswith(("-", '"'))
+
+    if is_http_request and has_expected_ending:
+        return '"'.join(msg.split('"')[1:])
+    return msg
+
+
 def clean_line_info(line_info: dict, log_line_number: int = None) -> dict:
     """
     Clean the line info for the log viewer. Convert ANSI to HTML (e.g. ANSI bold to HTML bold) and remove the leading
@@ -675,8 +702,7 @@ def clean_line_info(line_info: dict, log_line_number: int = None) -> dict:
     :return: The cleaned line info
     """
     msg = line_info["message"]
-    if msg.endswith(("-", '"')) and ("GET " in msg or " POST" in msg):
-        msg = '"'.join(msg.split('"')[1:])
+    msg = clean_http_request_log(msg)
     msg = Ansi2HTMLConverter().convert(msg)
     parsed_msg = bs4.BeautifulSoup(msg, "html.parser")
     msg = f"<html>{parsed_msg.head}{parsed_msg.body}</html>"
