@@ -890,13 +890,14 @@ def get_docker_compose_yml(
     experiment_id: str,
     experiment_image: str,
     postgresql_password: str,
-    executor: Executor,
+    executor: Executor = None,
 ) -> str:
     """Generate a docker-compose.yml file based on the given"""
     docker_volumes = config.get("docker_volumes", "")
     logger_filename = get_logger_filename()
     # touch the logger file so that it exists when the container starts
-    executor.run(f"touch {get_logger_filename()}")
+    if executor:
+        executor.run(f"touch {get_logger_filename()}")
     if logger_filename:
         docker_volumes += f",./{logger_filename}:/experiment/{logger_filename}"
     config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
