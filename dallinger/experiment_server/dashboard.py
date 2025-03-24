@@ -840,7 +840,7 @@ def log_search_substring(substring: str):
     :param substring: The substring to search for
     :type substring: str
 
-    :return: A generator that yields the matching lines
+    :return: A generator that yields the matching lines in the right format (i.e. f"data:{json.dumps(obj)}\n\n")
 
     :Note: The line numbers are 1-based
     :Note: The generator will yield a 'stop' message when the end of the file is reached
