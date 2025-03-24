@@ -663,8 +663,8 @@ def dashboard_lifecycle():
 
 def clean_line_info(line_info: dict, log_line_number: int = None) -> dict:
     """
-    Clean the line info for the log viewer. Convert ANSI to HTML (e.g. ANSI bold to HTML bold) and remove the
-    leading timestamp and log level (because it is already displayed in the table).
+    Clean the line info for the log viewer. Convert ANSI to HTML (e.g. ANSI bold to HTML bold) and remove the leading
+    timestamp and log level (because it is already displayed in the table) and add the log's line number if provided.
 
     :param line_info: The line info to clean
     :type line_info: dict
