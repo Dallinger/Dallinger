@@ -35,7 +35,7 @@ from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import handle_launch_data, setup_experiment
-from dallinger.utils import abspath_from_egg, check_output, get_json_logfile_name
+from dallinger.utils import JSON_LOGFILE, abspath_from_egg, check_output
 
 # A couple of constants to colour console output
 RED = "\033[31m"
@@ -894,7 +894,7 @@ def get_docker_compose_yml(
 ) -> str:
     """Generate a docker-compose.yml file based on the given"""
     docker_volumes = config.get("docker_volumes", "")
-    logger_filename = get_json_logfile_name()
+    logger_filename = JSON_LOGFILE
     # touch the logger file so that it exists when the container starts
     if executor:
         executor.run(f"touch {logger_filename}")

@@ -36,8 +36,8 @@ from dallinger.config import get_config
 from dallinger.db import get_all_mapped_classes
 from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import (
+    JSON_LOGFILE,
     deferred_route_decorator,
-    get_json_logfile_name,
 )
 
 from .utils import date_handler, error_response, success_response
@@ -760,11 +760,11 @@ def clean_line_info(line_info: dict, log_line_number: Optional[int] = None) -> d
 
     Examples
     --------
-    >>> line_dict = {
+    >>> line_info = {
     ...     'message': '\033[31mError:\033[0m GET /dashboard failed',
     ...     'level': 'ERROR'
     ... }
-    >>> cleaned = clean_line_dict(line_info, log_line_number=42)
+    >>> cleaned = clean_line_info(line_info, log_line_number=42)
     >>> cleaned
     {
         'message': '<html><head>...</head><body><span style="color: red">Error:</span> GET /dashboard failed</body></html>',
@@ -785,9 +785,6 @@ def clean_line_info(line_info: dict, log_line_number: Optional[int] = None) -> d
         line_info["log_line_number"] = log_line_number
 
     return line_info
-
-
-JSON_LOGFILE = get_json_logfile_name()
 
 
 def log_read_lines(line_start: int, line_end: int) -> tuple[list[dict], bool, int]:
@@ -812,8 +809,8 @@ def log_read_lines(line_start: int, line_end: int) -> tuple[list[dict], bool, in
         for i, line in enumerate(f):
             number = i + 1
             if number in line_range:
-                line_dict = clean_line_info(json.loads(line), number)
-                lines.append(line_dict)
+                line_info = clean_line_info(json.loads(line), number)
+                lines.append(line_info)
             if number > line_end:
                 early_stop = True
                 break
@@ -851,8 +848,8 @@ def log_search_substring(substring: str):
     with open(JSON_LOGFILE) as f:
         for number, line in enumerate(f):
             if substring in line:
-                line_dict = clean_line_info(json.loads(line), number)
-                yield f"data:{json.dumps(line_dict)}\n\n"
+                line_info = clean_line_info(json.loads(line), number)
+                yield f"data:{json.dumps(line_info)}\n\n"
     yield f"data:{json.dumps({'stop': True})}\n\n"
 
 
@@ -890,9 +887,9 @@ def logs_live():
     def generate():
         for line in Pygtail(JSON_LOGFILE):
             try:
-                line_dict = clean_line_info(json.loads(line))
-                line_dict["original_line"] = line
-                yield f"data:{json.dumps(line_dict)}\n\n"
+                line_info = clean_line_info(json.loads(line))
+                line_info["original_line"] = line
+                yield f"data:{json.dumps(line_info)}\n\n"
             except json.decoder.JSONDecodeError:
                 yield f"data:{json.dumps({'message': line})}\n\n"
 
