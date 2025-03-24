@@ -66,6 +66,7 @@
     </style>
 
     <script>
+        // Constants
         const logLevels = ["DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"];
         const colors = {
             "DEBUG": "#4d98cc",
@@ -75,8 +76,18 @@
             "CRITICAL": "#cf3f61",
             "DEFAULT": "#6c757d"
         };
+        const infoText = document.getElementById('info-text');
+        const highlightLine = new URLSearchParams(window.location.search).get('highlight');
 
-        // Function to create checkboxes dynamically
+        // Variables
+        let lineOffset, firstLine
+        let nPrintedRows = 0;
+
+        /**
+         * Function to create checkboxes dynamically
+         * @param {string} level - The log level for the checkbox
+         * @returns {string} - The HTML string for the checkbox
+         */
         function createCheckbox(level) {
             const color = colors[level] || colors.DEFAULT;
             return `<label class="level-checkbox" style="color: ${color};">
@@ -103,7 +114,9 @@
             fetchLogData();
         });
 
-        // Function to activate Bootstrap tooltips
+        /**
+         * Function to activate Bootstrap tooltips
+         */
         function activateTooltips() {
             const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
             [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl, {
@@ -113,8 +126,9 @@
             }));
         }
 
-        const highlightLine = new URLSearchParams(window.location.search).get('highlight');
-
+        /**
+         * Function to scroll to the highlighted line
+         */
         function moveToHighlight() {
             if (highlightLine) {
                 const line = document.getElementsByClassName('highlight')[0];
@@ -124,25 +138,40 @@
             }
         }
 
-        // Function to reset search query
+        /**
+         * Function to add a reset button to the info text
+         */
+        function addResetButton() {
+            const resetButton = document.createElement('button');
+            resetButton.innerHTML = "Go back to the live logs";
+            resetButton.className = "btn btn-secondary btn-small my-3";
+            resetButton.onclick = () => window.location.href = window.location.pathname;
+            infoText.innerHTML += "<br>";
+            infoText.appendChild(resetButton);
+        }
+
+        /**
+         * Function to reset search query
+         */
         function setupSearchReset() {
             if (window.location.search.includes('query')) {
-                document.querySelector('input[name="query"]').value = new URLSearchParams(window.location.search).get('query');
-                const infoText = document.getElementById('info-text');
-                const resetButton = document.createElement('button');
-                resetButton.innerHTML = "Reset search";
-                resetButton.className = "btn btn-secondary btn-small my-3";
-                resetButton.onclick = () => window.location.href = window.location.pathname;
-                infoText.innerHTML += " The logs have been filtered by the search query.<br>";
-                infoText.appendChild(resetButton);
+                infoText.innerHTML += ` The logs have been filtered by the search query "<strong>${new URLSearchParams(window.location.search).get('query')}</strong>".`;
+                addResetButton();
+            } else if (window.location.search.includes('highlight')) {
+                infoText.innerHTML += ` Line <strong>${highlightLine}</strong> is highlighted. Click on another line to view this line in context.`;
+                addResetButton();
+            } else {
+                infoText.innerHTML += " The logs are live and will update automatically.";
             }
         }
 
+        /**
+         * Function to remove credentials from the URL
+         */
         function removeCredsFromUrl() {
             let url = new URL(document.URL);
             if (url.username !== "" && url.password !== "") {
                 url = window.location.href;
-                // Forward to url
                 console.log("Redirecting to: " + url);
                 window.location.replace(url);
             }
@@ -150,13 +179,15 @@
 
         removeCredsFromUrl();
 
-        const endpoint = "/dashboard/logs";
-        // Fetch logs and append them dynamically
+        /**
+         * Function to fetch logs and append them dynamically
+         */
         function fetchLogData() {
             if (window.location.search.includes('start') || window.location.search.includes('end')) {
+
                 let badResponse = false;
                 const logContainer = document.querySelector("#log tbody");
-                fetch(endpoint + window.location.search)
+                fetch("/dashboard/logs/range" + window.location.search)
                     .then(response => {
                         if (!response.ok) {
                             badResponse = true;
@@ -178,7 +209,12 @@
                     });
 
             } else {
-                var source = new EventSource(endpoint + window.location.search);
+                var source;
+                if (window.location.search.includes('query')) {
+                    source = new EventSource("/dashboard/logs/find_lines" + window.location.search);
+                } else {
+                    source = new EventSource("/dashboard/logs/live");
+                }
                 source.onmessage = function (event) {
                     let data = JSON.parse(event.data);
                     if (data.stop) {
@@ -192,10 +228,19 @@
             }
         }
 
-        let lineOffset, firstLine
-        let nPrintedRows = 0;
+        /**
+         * Function to check if the logs are live
+         * @returns {boolean} - True if the logs are live, false otherwise
+         */
+        function isLive() {
+            return !(window.location.search.includes('query') || window.location.search.includes('highlight'));
+        }
 
-        // Function to generate log row HTML
+        /**
+         * Function to generate log row HTML
+         * @param {Object} data - The log data
+         * @returns {HTMLElement} - The log row element
+         */
         function printLogLine(data) {
             nPrintedRows += 1;
             const color = colors[data.levelname] || "inherit";
@@ -213,9 +258,9 @@
                 let url = `?highlight=${lineNumber}&start=${lineNumber - 10}&end=${lineNumber + 10}`
                 return `<a href="${url}">${lineNumber}</a>`
             }
-            if (!firstLine) {
+            if (isLive() && !firstLine) {
                 firstLine = data.original_line;
-                fetch(endpoint, {
+                fetch("/dashboard/logs/find_line_number", {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
