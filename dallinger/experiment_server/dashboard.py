@@ -14,7 +14,6 @@ from flask import (
     abort,
     current_app,
     flash,
-    jsonify,
     redirect,
     render_template,
     request,
@@ -923,7 +922,7 @@ def logs_range():
 
 
 def json_error_response(message, status_code=400):
-    return jsonify({"msg": message}), status_code
+    return {"msg": message}, status_code
 
 
 @dashboard.route("/logs/find_lines", methods=["GET"])
@@ -952,7 +951,7 @@ def logs_find_line_number():
 
     line_number = find_log_line_number(query)
     if line_number is not None:
-        return jsonify({"line_number": line_number})
+        return {"line_number": line_number}
     return json_error_response("No line found.", 404)
 
 
