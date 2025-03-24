@@ -689,8 +689,32 @@ LOG_FILE = get_logger_filename()
 
 
 def live_log():
-    """
-    Route that streams log file updates using SSE
+    """Stream log file updates to the dashboard using Server-Sent Events (SSE).
+
+    Creates a streaming response that pushes new log entries to connected clients
+    in real-time. Each log entry is:
+    - Read from the log file using Pygtail
+    - Parsed from JSON
+    - Cleaned and formatted for display
+    - Sent as an SSE message
+
+    Returns
+    -------
+    Response
+        A Flask response object with mimetype 'text/event-stream' containing
+        the event stream of log updates. Each event contains:
+        - message : str
+            The formatted log message with ANSI codes converted to HTML
+        - original_line : str
+            The raw log line before processing
+        - log_line_number : int, optional
+            The line number in the log file
+
+    Notes
+    -----
+
+    The client should connect to this endpoint using an EventSource object
+    to receive the updates.
     """
 
     def generate():
