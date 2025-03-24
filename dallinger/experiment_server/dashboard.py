@@ -2,6 +2,7 @@ import json
 import logging
 from copy import deepcopy
 from datetime import datetime, timedelta
+from typing import Union
 from xml.sax.saxutils import escape
 
 import bs4
@@ -718,7 +719,7 @@ def log_read_lines(line_start: int, line_end: int) -> tuple[list[dict], bool, in
     return lines, early_stop, i
 
 
-def find_log_line_number(substring) -> int | None:
+def find_log_line_number(substring) -> Union[int, None]:
     """
     Find the line number in the log file that contains a substring.
 
