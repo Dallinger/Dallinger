@@ -6,7 +6,7 @@ import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 from cached_property import cached_property
 
-logger = logging.getLogger("dallinger")
+logger = logging.getLogger(__name__)
 PERCENTAGE_APPROVED_REQUIREMENT_ID = "000000000000000000L0"
 LOCALE_REQUIREMENT_ID = "00000000000000000071"
 MAX_SUPPORTED_BATCH_SIZE = 100

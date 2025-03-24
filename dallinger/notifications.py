@@ -5,7 +5,7 @@ from email.mime.text import MIMEText
 import six
 from cached_property import cached_property
 
-logger = logging.getLogger("dallinger")
+logger = logging.getLogger(__name__)
 CONFIG_PLACEHOLDER = "???"
 
 

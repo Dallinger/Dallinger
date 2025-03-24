@@ -24,7 +24,7 @@ from dallinger.heroku.tools import HerokuApp
 
 from .config import get_config
 
-logger = logging.getLogger("dallinger")
+logger = logging.getLogger(__name__)
 
 with warnings.catch_warnings():
     warnings.simplefilter(action="ignore", category=FutureWarning)

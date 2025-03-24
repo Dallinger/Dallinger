@@ -41,7 +41,7 @@ from dallinger.utils import (
 
 from .utils import date_handler, error_response, success_response
 
-logger = logging.getLogger("dallinger")
+logger = logging.getLogger(__name__)
 
 
 class User(UserMixin):
