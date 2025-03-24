@@ -660,17 +660,29 @@ def dashboard_lifecycle():
     )
 
 
-def clean_line_dict(line_dict, log_line_number=None):
-    msg = line_dict["message"]
+def clean_line_info(line_info: dict, log_line_number: int = None) -> dict:
+    """
+    Clean the line info for the log viewer. Convert ANSI to HTML (e.g. ANSI bold to HTML bold) and remove the
+    leading timestamp and log level (because it is already displayed in the table).
+
+    :param line_info: The line info to clean
+    :type line_info: dict
+
+    :param log_line_number: The line number in the log file (optional)
+    :type log_line_number: int
+
+    :return: The cleaned line info
+    """
+    msg = line_info["message"]
     if msg.endswith(("-", '"')) and ("GET " in msg or " POST" in msg):
         msg = '"'.join(msg.split('"')[1:])
     msg = Ansi2HTMLConverter().convert(msg)
     parsed_msg = bs4.BeautifulSoup(msg, "html.parser")
     msg = f"<html>{parsed_msg.head}{parsed_msg.body}</html>"
-    line_dict["message"] = msg
+    line_info["message"] = msg
     if log_line_number is not None:
-        line_dict["log_line_number"] = log_line_number
-    return line_dict
+        line_info["log_line_number"] = log_line_number
+    return line_info
 
 
 LOG_FILE = get_logger_filename()
@@ -684,7 +696,7 @@ def live_log():
     def generate():
         for line in Pygtail(LOG_FILE):
             try:
-                line_dict = clean_line_dict(json.loads(line))
+                line_dict = clean_line_info(json.loads(line))
                 line_dict["original_line"] = line
                 yield f"data:{json.dumps(line_dict)}\n\n"
             except json.decoder.JSONDecodeError:
@@ -701,7 +713,7 @@ def log_read_lines(line_range):
         for i, line in enumerate(f):
             number = i + 1
             if number in line_range:
-                line_dict = clean_line_dict(json.loads(line), number)
+                line_dict = clean_line_info(json.loads(line), number)
                 lines.append(line_dict)
             if number > max_line:
                 early_stop = True
@@ -721,7 +733,7 @@ def log_search_substring(substring):
     with open(LOG_FILE) as f:
         for number, line in enumerate(f):
             if substring in line:
-                line_dict = clean_line_dict(json.loads(line), number)
+                line_dict = clean_line_info(json.loads(line), number)
                 yield f"data:{json.dumps(line_dict)}\n\n"
     yield f"data:{json.dumps({'stop': True})}\n\n"
 
