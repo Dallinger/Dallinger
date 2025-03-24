@@ -39,7 +39,7 @@ fake = Faker()
 
 
 def get_logger_filename():
-    return "dallinger.log"
+    return "logs.jsonl"
 
 
 def attach_json_logger(log):
