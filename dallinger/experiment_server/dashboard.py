@@ -37,7 +37,7 @@ from dallinger.db import get_all_mapped_classes
 from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import (
     deferred_route_decorator,
-    get_logger_filename,
+    get_json_logfile_name,
 )
 
 from .utils import date_handler, error_response, success_response
@@ -787,7 +787,7 @@ def clean_line_info(line_info: dict, log_line_number: Optional[int] = None) -> d
     return line_info
 
 
-JSON_LOGFILE = get_logger_filename()
+JSON_LOGFILE = get_json_logfile_name()
 
 
 def log_read_lines(line_start: int, line_end: int) -> tuple[list[dict], bool, int]:
@@ -829,7 +829,7 @@ def find_log_line_number(substring) -> Union[int, None]:
 
     :return: The line number (1-based) or None if the substring was not found
     """
-    with open(get_logger_filename()) as f:
+    with open(JSON_LOGFILE) as f:
         for number, line in enumerate(f):
             if substring in line:
                 return number + 1

@@ -38,7 +38,7 @@ except ImportError:
 fake = Faker()
 
 
-def get_logger_filename():
+def get_json_logfile_name():
     return "logs.jsonl"
 
 
@@ -46,7 +46,7 @@ def attach_json_logger(log):
     fmt = jsonlogger.JsonFormatter(
         "%(name)s %(asctime)s %(levelname)s %(filename)s %(lineno)s %(message)s"
     )
-    handler = logging.FileHandler(get_logger_filename())
+    handler = logging.FileHandler(get_json_logfile_name())
     handler.setFormatter(fmt)
     log.addHandler(handler)
 
