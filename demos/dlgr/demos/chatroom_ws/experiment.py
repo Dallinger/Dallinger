@@ -17,7 +17,7 @@ try:
 except ImportError:
     pass
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger("experiment")
 
 
 def extra_parameters():

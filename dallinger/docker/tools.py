@@ -12,7 +12,11 @@ from pip._internal.network.session import PipSession
 from pip._internal.req import parse_requirements
 
 from dallinger.docker.wheel_filename import parse_wheel_filename
-from dallinger.utils import abspath_from_egg, get_editable_dallinger_path
+from dallinger.utils import (
+    JSON_LOGFILE,
+    abspath_from_egg,
+    get_editable_dallinger_path,
+)
 
 docker_compose_template = Template(
     abspath_from_egg("dallinger", "dallinger/docker/docker-compose.yml.j2").read_text()
@@ -59,10 +63,15 @@ class DockerComposeWrapper(object):
 
     def copy_docker_compose_files(self):
         """Prepare a docker-compose.yml file and place it in the experiment tmp dir"""
+        logger_filename = JSON_LOGFILE
         volumes = [
             f"{self.original_dir}:{self.original_dir}",
             f"{self.tmp_dir}:/experiment",
+            f"./{logger_filename}:/experiment/{logger_filename}",
         ]
+        with open(f"{self.tmp_dir}/{logger_filename}", "w") as f:  # noqa: F841
+            pass
+
         editable_dallinger_path = get_editable_dallinger_path()
         if editable_dallinger_path:
             volumes.append(f"{editable_dallinger_path}/dallinger:/dallinger/dallinger")

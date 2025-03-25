@@ -29,7 +29,9 @@ classifiers = [
 ]
 
 dependencies = [
+    "ansi2html",
     "apscheduler",
+    "beautifulsoup4",
     "boto3",
     "build",
     "cached-property",
@@ -53,7 +55,9 @@ dependencies = [
     "pip-tools",
     "psycopg2",
     "psutil",
+    "pygtail",
     "pyopenssl",
+    "python-json-logger",
     "redis",
     "requests",
     "rq",

@@ -1,0 +1,299 @@
+{% extends "base/dashboard.html" %}
+
+{% block body %}
+    <h1>Logger</h1>
+    <span id="info-text">
+    Below are the logs for the experiment. You can filter the logs by log level. By clicking on the line number, you can
+    get a link to that specific line.
+    </span>
+    <form id="search-form" class="mb-3">
+        <div class="input-group">
+            <input type="text" class="form-control" name="query"
+                   placeholder="Search the logs for a particular substring (case sensitive)...">
+            <button class="btn btn-primary" type="submit">Search</button>
+        </div>
+    </form>
+
+    <div id="filters"></div>
+    <div>
+    </div>
+    <div id="log-container">
+        <table id="log" class="monospace">
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+
+    <style>
+        #log-container {
+            overflow: auto;
+            height: 80vh;
+            font-size: .875em;
+            background: #f6f8fa;
+            padding: 16px;
+            color: #1f2328;
+        }
+
+        #log-container pre {
+            font-size: 1em;
+        }
+
+        .monospace {
+            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+        }
+
+        #log {
+            caption-side: bottom;
+        }
+
+        #log a {
+            color: inherit;
+        }
+
+        #log tr {
+            vertical-align: top;
+        }
+
+        #log tr.highlight {
+            background: lightyellow;
+        }
+
+        .level-checkbox {
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+    </style>
+
+    <script>
+        // Constants
+        const logLevels = ["DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"];
+        const colors = {
+            "DEBUG": "#4d98cc",
+            "SUCCESS": "#79b25f",
+            "WARNING": "#ddaa2d",
+            "ERROR": "#cf3f61",
+            "CRITICAL": "#cf3f61",
+            "DEFAULT": "#6c757d"
+        };
+        const infoText = document.getElementById('info-text');
+        const highlightLine = new URLSearchParams(window.location.search).get('highlight');
+
+        // Variables
+        let lineOffset, firstLine
+        let nPrintedRows = 0;
+
+        /**
+         * Function to create checkboxes dynamically
+         * @param {string} level - The log level for the checkbox
+         * @returns {string} - The HTML string for the checkbox
+         */
+        function createCheckbox(level) {
+            const color = colors[level] || colors.DEFAULT;
+            return `<label class="level-checkbox" style="color: ${color};">
+                <input type="checkbox" value="${level}" checked> ${level}
+            </label>`;
+        }
+
+        // Append checkboxes to the filter div
+        document.addEventListener("DOMContentLoaded", () => {
+            const filtersDiv = document.getElementById("filters");
+            logLevels.forEach(level => {
+                filtersDiv.innerHTML += createCheckbox(level);
+            });
+
+            document.querySelectorAll('.level-checkbox input').forEach(checkbox => {
+                checkbox.addEventListener('change', function () {
+                    document.querySelectorAll(`.status-${this.value.toLowerCase()}`)
+                        .forEach(row => row.style.display = this.checked ? "table-row" : "none");
+                });
+            });
+
+            activateTooltips();
+            setupSearchReset();
+            fetchLogData();
+        });
+
+        /**
+         * Function to activate Bootstrap tooltips
+         */
+        function activateTooltips() {
+            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+            [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl, {
+                boundary: 'viewport',
+                sanitize: false,
+                html: true
+            }));
+        }
+
+        /**
+         * Function to scroll to the highlighted line
+         */
+        function moveToHighlight() {
+            if (highlightLine) {
+                const line = document.getElementsByClassName('highlight')[0];
+                if (line) {
+                    line.scrollIntoView();
+                }
+            }
+        }
+
+        /**
+         * Function to add a reset button to the info text
+         */
+        function addResetButton() {
+            const resetButton = document.createElement('button');
+            resetButton.innerHTML = "Go back to the live logs";
+            resetButton.className = "btn btn-secondary btn-small my-3";
+            resetButton.onclick = () => window.location.href = window.location.pathname;
+            infoText.innerHTML += "<br>";
+            infoText.appendChild(resetButton);
+        }
+
+        /**
+         * Function to reset search query
+         */
+        function setupSearchReset() {
+            if (window.location.search.includes('query')) {
+                infoText.innerHTML += ` The logs have been filtered by the search query "<strong>${new URLSearchParams(window.location.search).get('query')}</strong>".`;
+                addResetButton();
+            } else if (window.location.search.includes('highlight')) {
+                infoText.innerHTML += ` Line <strong>${highlightLine}</strong> is highlighted. Click on another line to view this line in context.`;
+                addResetButton();
+            } else {
+                infoText.innerHTML += " The logs are live and will update automatically.";
+            }
+        }
+
+        /**
+         * Function to remove credentials from the URL
+         */
+        function removeCredsFromUrl() {
+            let url = new URL(document.URL);
+            if (url.username !== "" && url.password !== "") {
+                url = window.location.href;
+                console.log("Redirecting to: " + url);
+                window.location.replace(url);
+            }
+        }
+
+        removeCredsFromUrl();
+
+        /**
+         * Function to fetch logs and append them dynamically
+         */
+        function fetchLogData() {
+            if (window.location.search.includes('start') || window.location.search.includes('end')) {
+
+                let badResponse = false;
+                const logContainer = document.querySelector("#log tbody");
+                fetch("/dashboard/logs/range" + window.location.search)
+                    .then(response => {
+                        if (!response.ok) {
+                            badResponse = true;
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (badResponse) {
+                            throw new Error(data.msg);
+                        }
+                        logContainer.innerHTML = "";
+                        data.forEach(line => logContainer.appendChild(printLogLine(line)));
+                        activateTooltips();
+                        moveToHighlight();
+                    })
+                    .catch(error => {
+                        console.error('There has been a problem with your fetch operation:', error);
+                        $("#log tbody").append(`<tr><td colspan="3" style="color: ${colors.red};">Error: ${error.message}</td></tr>`);
+                    });
+
+            } else {
+                var source;
+                if (window.location.search.includes('query')) {
+                    source = new EventSource("/dashboard/logs/find_lines" + window.location.search);
+                } else {
+                    source = new EventSource("/dashboard/logs/live");
+                }
+                source.onmessage = function (event) {
+                    let data = JSON.parse(event.data);
+                    if (data.stop) {
+                        moveToHighlight();
+                        source.close();
+                    } else {
+                        $("#log tbody").prepend(printLogLine(data));
+                        activateTooltips()
+                    }
+                }
+            }
+        }
+
+        /**
+         * Function to check if the logs are live
+         * @returns {boolean} - True if the logs are live, false otherwise
+         */
+        function isLive() {
+            return !(window.location.search.includes('query') || window.location.search.includes('highlight'));
+        }
+
+        /**
+         * Function to generate log row HTML
+         * @param {Object} data - The log data
+         * @returns {HTMLElement} - The log row element
+         */
+        function printLogLine(data) {
+            nPrintedRows += 1;
+            const color = colors[data.levelname] || "inherit";
+            const source = data.name === "werkzeug" ? "werkzeug" : `${data.filename}:${data.name || ""}:${data.lineno}`;
+            const tooltipText = `<span style='font-weight: bold'>Time</span> <span class='monospace'>${data.asctime}</span><br>
+                         <span style='font-weight: bold'>Source</span> <span class='monospace'>${source}</span>`;
+            let lineNumber = data.log_line_number;
+
+            const row = document.createElement("tr");
+            row.classList.add(`status-${data.levelname.toLowerCase()}`);
+            if (parseInt(new URLSearchParams(window.location.search).get('highlight')) === parseInt(lineNumber)) {
+                row.classList.add("highlight");
+            }
+            function makeUrl(lineNumber) {
+                let url = `?highlight=${lineNumber}&start=${lineNumber - 10}&end=${lineNumber + 10}`
+                return `<a href="${url}">${lineNumber}</a>`
+            }
+            if (isLive() && !firstLine) {
+                firstLine = data.original_line;
+                fetch("/dashboard/logs/find_line_number", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ query: firstLine, type: 'line_number' })
+                    })
+                .then(response => response.json())
+                    .then(data => {
+                        lineOffset = data.line_number;
+                        console.log(lineOffset, firstLine, nPrintedRows);
+                        $('.line_number.pending').each(function (index) {
+                            $(this).html(makeUrl(lineOffset + nPrintedRows - index));
+                        });
+                    })
+            }
+            if (lineOffset) {
+                lineNumber = lineOffset + nPrintedRows;
+            }
+            if (lineNumber) {
+                row.innerHTML = `<td class="line_number">${makeUrl(lineNumber)}</td>`
+            } else {
+                row.innerHTML = `<td class="line_number pending">PENDING</td>`
+            }
+            row.innerHTML += `<td data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="left" title="${tooltipText}" style="color: ${color}; font-weight: bold">${data.levelname}</td>`
+            let message = data.message.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+            message = `<span style="color: ${color}">${message}</span>`
+            if (data.exc_info) {
+                message += `<pre>${data.exc_info}</pre>`
+            }
+            row.innerHTML += `<td>${message}</td>`;
+
+            return row;
+        }
+    </script>
+
+{% endblock %}

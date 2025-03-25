@@ -22,7 +22,7 @@ from sqlalchemy.schema import DropTable
 from dallinger.config import initialize_experiment_package
 from dallinger.redis_utils import connect_to_redis
 
-logger = logging.getLogger("dallinger.db")
+logger = logging.getLogger(__name__)
 
 
 def corrected_db_url(db_url):

@@ -1,5 +1,6 @@
 """This module provides the backend Flask server that serves an experiment."""
 
+import logging
 import os
 import re
 from datetime import datetime
@@ -28,7 +29,7 @@ from dallinger import db, experiment, models, recruiters
 from dallinger.config import get_config
 from dallinger.notifications import MessengerError, admin_notifier
 from dallinger.recruiters import ProlificRecruiter
-from dallinger.utils import generate_random_id, get_from_config
+from dallinger.utils import attach_json_logger, generate_random_id, get_from_config
 
 from . import dashboard
 from .replay import ReplayBackend
@@ -95,6 +96,14 @@ def Experiment(args):
     klass = experiment.load()
     return klass(args)
 
+
+log = logging.getLogger()
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+logging.basicConfig(
+    level=logging.INFO,
+    datefmt=DATE_FORMAT,
+)
+attach_json_logger(log)
 
 # Load the experiment's extra routes, if any.
 try:
@@ -248,7 +257,6 @@ def handle_exp_error(exception):
 def shutdown_session(_=None):
     """Rollback and close session at end of a request."""
     session.remove()
-    db.logger.debug("Closing Dallinger DB session at flask request end")
 
 
 @app.context_processor

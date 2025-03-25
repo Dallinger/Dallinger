@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 import functools
 import io
 import locale
+import logging
 import os
 import random
 import re
@@ -22,6 +23,7 @@ from unicodedata import normalize
 import requests
 from faker import Faker
 from flask import request
+from pythonjsonlogger import jsonlogger
 
 from dallinger import db
 from dallinger.compat import is_command
@@ -34,6 +36,17 @@ except ImportError:
     pkg_resources = None
 
 fake = Faker()
+
+JSON_LOGFILE = "logs.jsonl"
+
+
+def attach_json_logger(log):
+    fmt = jsonlogger.JsonFormatter(
+        "%(name)s %(asctime)s %(levelname)s %(filename)s %(lineno)s %(message)s"
+    )
+    handler = logging.FileHandler(JSON_LOGFILE)
+    handler.setFormatter(fmt)
+    log.addHandler(handler)
 
 
 def get_base_url():
