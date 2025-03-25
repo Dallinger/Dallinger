@@ -13,9 +13,9 @@ from pip._internal.req import parse_requirements
 
 from dallinger.docker.wheel_filename import parse_wheel_filename
 from dallinger.utils import (
+    JSON_LOGFILE,
     abspath_from_egg,
     get_editable_dallinger_path,
-    get_logger_filename,
 )
 
 docker_compose_template = Template(
@@ -63,7 +63,7 @@ class DockerComposeWrapper(object):
 
     def copy_docker_compose_files(self):
         """Prepare a docker-compose.yml file and place it in the experiment tmp dir"""
-        logger_filename = get_logger_filename()
+        logger_filename = JSON_LOGFILE
         volumes = [
             f"{self.original_dir}:{self.original_dir}",
             f"{self.tmp_dir}:/experiment",

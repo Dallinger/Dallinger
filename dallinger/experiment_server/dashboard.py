@@ -2,6 +2,7 @@ import json
 import logging
 from copy import deepcopy
 from datetime import datetime, timedelta
+from typing import Optional, Union
 from xml.sax.saxutils import escape
 
 import bs4
@@ -13,7 +14,6 @@ from flask import (
     abort,
     current_app,
     flash,
-    jsonify,
     redirect,
     render_template,
     request,
@@ -35,13 +35,13 @@ from dallinger.config import get_config
 from dallinger.db import get_all_mapped_classes
 from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import (
+    JSON_LOGFILE,
     deferred_route_decorator,
-    get_logger_filename,
 )
 
 from .utils import date_handler, error_response, success_response
 
-logger = logging.getLogger("dallinger")
+logger = logging.getLogger(__name__)
 
 
 class User(UserMixin):
@@ -660,139 +660,299 @@ def dashboard_lifecycle():
     )
 
 
-def clean_line_dict(line_dict, log_line_number=None):
-    msg = line_dict["message"]
-    if msg.endswith(("-", '"')) and ("GET " in msg or " POST" in msg):
-        msg = '"'.join(msg.split('"')[1:])
-    msg = Ansi2HTMLConverter().convert(msg)
-    parsed_msg = bs4.BeautifulSoup(msg, "html.parser")
-    msg = f"<html>{parsed_msg.head}{parsed_msg.body}</html>"
-    line_dict["message"] = msg
+def clean_http_request(msg: str) -> str:
+    """Remove redundant prefix from HTTP request log messages.
+
+    Parameters
+    ----------
+    msg : str
+        The log message to clean
+
+    Returns
+    -------
+    str
+        The cleaned message with redundant prefix removed
+
+    Examples
+    --------
+    >>> msg = '127.0.0.1 - - [20/Mar/2024:10:00:00] "GET /dashboard HTTP/1.1" 200 -'
+    >>> clean_http_request(msg)
+    'GET /dashboard HTTP/1.1" 200 -'
+
+    >>> msg = 'Regular log message without HTTP request'
+    >>> clean_http_request(msg)
+    'Regular log message without HTTP request'
+    """
+    has_http_method = any(f" {method} " in msg for method in ("GET", "POST"))
+    if has_http_method and msg.endswith(("-", '"')):
+        return '"'.join(msg.split('"')[1:])
+    return msg
+
+
+def convert_ansi_to_html(msg: str) -> str:
+    """Convert ANSI terminal colors to HTML formatted text.
+
+    Parameters
+    ----------
+    msg : str
+        Message potentially containing ANSI color codes
+
+    Returns
+    -------
+    str
+        HTML-formatted message with ANSI codes converted to CSS
+
+    Examples
+    --------
+    >>> msg = '\033[31mError:\033[0m Database connection failed'
+    >>> convert_ansi_to_html(msg)
+    '<span style="color: red">Error:</span> Database connection failed'
+
+    >>> msg = 'Plain text without ANSI codes'
+    >>> convert_ansi_to_html(msg)
+    'Plain text without ANSI codes'
+    """
+    return Ansi2HTMLConverter().convert(msg)
+
+
+def ensure_html_structure(html: str) -> str:
+    """Ensure HTML has proper structure with head and body tags.
+
+    Parameters
+    ----------
+    html : str
+        HTML content to structure
+
+    Returns
+    -------
+    str
+        Properly structured HTML document
+
+    Examples
+    --------
+    >>> html = '<span style="color: red">Error</span>'
+    >>> ensure_html_structure(html)
+    '<html><head></head><body><span style="color: red">Error</span></body></html>'
+
+    >>> html = '<head><style>...</style></head><body>Content</body>'
+    >>> ensure_html_structure(html)
+    '<html><head><style>...</style></head><body>Content</body></html>'
+    """
+    soup = bs4.BeautifulSoup(html, "html.parser")
+    return f"<html>{soup.head or ''}{soup.body or ''}</html>"
+
+
+def clean_line_info(line_info: dict, log_line_number: Optional[int] = None) -> dict:
+    """Clean and format a log message dictionary for dashboard display.
+
+    Parameters
+    ----------
+    line_info : dict
+        Dictionary containing log message data with at least a 'message' key
+    log_line_number : int, optional
+        Line number in the log file
+
+    Returns
+    -------
+    dict
+        Cleaned dictionary with HTML-formatted message
+
+    Examples
+    --------
+    >>> line_info = {
+    ...     'message': '\033[31mError:\033[0m GET /dashboard failed',
+    ...     'level': 'ERROR'
+    ... }
+    >>> cleaned = clean_line_info(line_info, log_line_number=42)
+    >>> cleaned
+    {
+        'message': '<html><head>...</head><body><span style="color: red">Error:</span> GET /dashboard failed</body></html>',
+        'level': 'ERROR',
+        'log_line_number': 42
+    }
+    """
+    msg = line_info["message"]
+
+    # Clean and format the message
+    msg = clean_http_request(msg)
+    msg = convert_ansi_to_html(msg)
+    msg = ensure_html_structure(msg)
+
+    # Finalize the dictionary
+    line_info["message"] = msg
     if log_line_number is not None:
-        line_dict["log_line_number"] = log_line_number
-    return line_dict
+        line_info["log_line_number"] = log_line_number
+
+    return line_info
 
 
-LOG_FILE = get_logger_filename()
-
-
-def live_log():
+def log_read_lines(line_start: int, line_end: int) -> tuple[list[dict], bool, int]:
     """
-    Route that streams log file updates using SSE
+    Read the log file and return the lines in the specified range.
+
+    :param line_start: The line number to start reading from
+    :type line_start: int
+
+    :param line_end: The line number to stop reading at
+    :type line_end: int
+
+    :return: A tuple containing the lines, a boolean indicating if the end of the file was reached, and the last line number
+
+    :Note: The line numbers are 1-based
+
     """
-
-    def generate():
-        for line in Pygtail(LOG_FILE):
-            try:
-                line_dict = clean_line_dict(json.loads(line))
-                line_dict["original_line"] = line
-                yield f"data:{json.dumps(line_dict)}\n\n"
-            except json.decoder.JSONDecodeError:
-                continue
-
-    return Response(generate(), mimetype="text/event-stream")
-
-
-def log_read_lines(line_range):
     lines = []
-    max_line = max(line_range)
+    line_range = range(line_start, line_end)
     early_stop = False
-    with open(LOG_FILE) as f:
+    with open(JSON_LOGFILE) as f:
         for i, line in enumerate(f):
             number = i + 1
             if number in line_range:
-                line_dict = clean_line_dict(json.loads(line), number)
-                lines.append(line_dict)
-            if number > max_line:
+                line_info = clean_line_info(json.loads(line), number)
+                lines.append(line_info)
+            if number > line_end:
                 early_stop = True
                 break
     return lines, early_stop, i
 
 
-def find_log_line_number(substring):
-    with open(get_logger_filename()) as f:
+def find_log_line_number(substring) -> Union[int, None]:
+    """
+    Find the line number in the log file that contains a substring.
+
+    :param substring: The substring to search for
+    :type substring: str
+
+    :return: The line number (1-based) or None if the substring was not found
+    """
+    with open(JSON_LOGFILE) as f:
         for number, line in enumerate(f):
             if substring in line:
                 return number + 1
     return None
 
 
-def log_search_substring(substring):
-    with open(LOG_FILE) as f:
+def log_search_substring(substring: str):
+    """
+    Search the log file for a substring and return the matching lines.
+
+    :param substring: The substring to search for
+    :type substring: str
+
+    :return: A generator that yields the matching lines in the right format (i.e. f"data:{json.dumps(obj)}\n\n")
+
+    :Note: The line numbers are 1-based
+    :Note: The generator will yield a 'stop' message when the end of the file is reached
+    """
+    with open(JSON_LOGFILE) as f:
         for number, line in enumerate(f):
             if substring in line:
-                line_dict = clean_line_dict(json.loads(line), number)
-                yield f"data:{json.dumps(line_dict)}\n\n"
+                line_info = clean_line_info(json.loads(line), number)
+                yield f"data:{json.dumps(line_info)}\n\n"
     yield f"data:{json.dumps({'stop': True})}\n\n"
 
 
-@dashboard.route("/logs", methods=["GET", "POST"])
+@dashboard.route("/logs/live", methods=["GET"])
 @login_required
-def progress_log():
-    if request.method == "POST":
-        params = request.json
-    else:
-        params = request.args
+def logs_live():
+    """Stream log file updates to the dashboard using Server-Sent Events (SSE).
+
+    Creates a streaming response that pushes new log entries to connected clients
+    in real-time. Each log entry is:
+    - Read from the log file using Pygtail
+    - Parsed from JSON
+    - Cleaned and formatted for display
+    - Sent as an SSE message
+
+    Returns
+    -------
+    Response
+        A Flask response object with mimetype 'text/event-stream' containing
+        the event stream of log updates. Each event contains:
+        - message : str
+            The formatted log message with ANSI codes converted to HTML
+        - original_line : str
+            The raw log line before processing
+        - log_line_number : int, optional
+            The line number in the log file
+
+    Notes
+    -----
+
+    The client should connect to this endpoint using an EventSource object
+    to receive the updates.
+    """
+
+    def generate():
+        for line in Pygtail(JSON_LOGFILE):
+            try:
+                line_info = clean_line_info(json.loads(line))
+                line_info["original_line"] = line
+                yield f"data:{json.dumps(line_info)}\n\n"
+            except json.decoder.JSONDecodeError:
+                yield f"data:{json.dumps({'message': line})}\n\n"
+
+    return Response(generate(), mimetype="text/event-stream")
+
+
+@dashboard.route("/logs/range", methods=["GET"])
+@login_required
+def logs_range():
+    """
+    Return a range of log lines from the log file.
+    """
+    params = request.args
     start, end = params.get("start", None), params.get("end", None)
-    n_nulled_params = sum(param is None for param in [start, end])
-    query = params.get("query", None)
-
-    if query:
-        query_type = params.get("type", "lines")
-        if query_type == "lines":
-            return Response(log_search_substring(query), mimetype="text/event-stream")
-        elif query_type == "line_number":
-            line_number = find_log_line_number(query)
-            if line_number is not None:
-                return jsonify({"line_number": line_number})
-            return jsonify({"msg": "No line found."}), 404
-        else:
-            return (
-                jsonify(
-                    {
-                        "msg": f"Invalid query type '{query_type}'. Must be 'line' or 'line_number'."
-                    }
-                ),
-                400,
-            )
-    if n_nulled_params == 2:
-        return live_log()
-    if n_nulled_params == 1:
-        return (
-            jsonify(
-                {
-                    "msg": "You should either provide both 'start' and 'end' or none of them."
-                }
-            ),
-            400,
-        )
-
+    if start is None or end is None:
+        return json_error_response("Both 'start' and 'end' parameters are required.")
     start, end = int(start), int(end)
     if start < 1:
-        return jsonify({"msg": "'start' must be greater than 0."}), 400
+        return json_error_response("'start' must be > 0.")
 
     if start > end:
-        return (
-            jsonify(
-                {
-                    "msg": "The 'end' parameter should be less than the 'start' parameter."
-                }
-            ),
-            400,
-        )
+        return json_error_response("'start' must be <= 'end'.")
 
-    lines, early_stop, last_line = log_read_lines(range(start, end + 1))
+    lines, early_stop, last_line = log_read_lines(start, end + 1)
     if not early_stop and start > last_line:
-        return (
-            jsonify(
-                {
-                    "msg": f"'start' must be less than the current line number {last_line}."
-                }
-            ),
-            400,
+        return json_error_response(
+            f"'start' must be less than the current line number {last_line}."
         )
 
     return lines
+
+
+def json_error_response(message, status_code=400):
+    return {"msg": message}, status_code
+
+
+@dashboard.route("/logs/find_lines", methods=["GET"])
+@login_required
+def logs_find_lines():
+    """
+    Find lines in the log file that contain a substring (GET parameter 'query').
+    """
+    params = request.args
+    query = params.get("query", None)
+    if query is None:
+        return json_error_response("No query provided.")
+    return Response(log_search_substring(query), mimetype="text/event-stream")
+
+
+@dashboard.route("/logs/find_line_number", methods=["POST"])
+@login_required
+def logs_find_line_number():
+    """
+    Find the line number in the log file that contains a substring (POST parameter 'query').
+    """
+    params = request.json
+    query = params.get("query", None)
+    if query is None:
+        return json_error_response("No query provided.")
+
+    line_number = find_log_line_number(query)
+    if line_number is not None:
+        return {"line_number": line_number}
+    return json_error_response("No line found.", 404)
 
 
 TABLE_DEFAULTS = {

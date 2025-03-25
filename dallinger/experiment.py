@@ -51,7 +51,7 @@ from dallinger.nodes import Agent, Environment, Source
 from dallinger.transformations import Compression, Mutation, Replication, Response
 from dallinger.utils import classproperty, deferred_route_decorator, struct_to_html
 
-logger = logging.getLogger("dallinger")
+logger = logging.getLogger(__name__)
 
 
 def exp_class_working_dir(meth):

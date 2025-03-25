@@ -16,7 +16,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from six.moves import urllib
 
-logger = logging.getLogger("dallinger")
+logger = logging.getLogger(__name__)
 
 DRIVER_MAP = {
     "firefox": webdriver.Firefox,

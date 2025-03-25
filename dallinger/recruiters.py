@@ -41,7 +41,7 @@ from dallinger.prolific import (
 )
 from dallinger.utils import ParticipationTime, generate_random_id, get_base_url
 
-logger = logging.getLogger("dallinger")
+logger = logging.getLogger(__name__)
 
 
 # These are constants because other components may listen for these

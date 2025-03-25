@@ -5,7 +5,7 @@ import gevent
 
 from dallinger.utils import get_base_url
 
-logger = logging.getLogger("dallinger")
+logger = logging.getLogger(__name__)
 
 
 class ReplayBackend(object):
