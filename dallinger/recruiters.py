@@ -855,7 +855,7 @@ class MockRecruiter(Recruiter):
         """
         Open recruitment for the current experiment.
         """
-        logger.info(f"Mock recruiter {self.nickname} NOT opening aby recruitment")
+        logger.info(f"Mock recruiter {self.nickname} NOT opening any recruitment")
         self.register_study()
         return {"items": [], "message": ""}
 
