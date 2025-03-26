@@ -206,7 +206,7 @@ trio==0.29.0
     #   trio-websocket
 trio-websocket==0.12.2
     # via selenium
-typing-extensions==4.12.2
+typing-extensions==4.13.0
     # via
     #   pyopenssl
     #   selenium
