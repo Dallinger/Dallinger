@@ -999,7 +999,7 @@ def classproperty(func):
     return ClassPropertyDescriptor(func)
 
 
-def median_time_spent_in_seconds(participants: list[Participant]):
+def median_time_spent_in_hours(participants: list[Participant]):
     if not participants:
         return 0
 
@@ -1016,4 +1016,4 @@ def median_time_spent_in_seconds(participants: list[Participant]):
     else:
         median_time = times[mid]
 
-    return median_time.total_seconds()
+    return median_time.total_seconds() / 3600
