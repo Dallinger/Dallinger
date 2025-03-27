@@ -43,7 +43,7 @@ from dallinger.utils import (
     ParticipationTime,
     generate_random_id,
     get_base_url,
-    median_time_spent_in_seconds,
+    median_time_spent_in_hours,
 )
 
 logger = logging.getLogger(__name__)
@@ -883,11 +883,11 @@ class ProlificRecruiter(Recruiter):
                 f"Prolific study (ID {self.current_study_id}) doesn't allow screening-out of participants"
             )
 
-        median_time_spent_in_hours = median_time_spent_in_seconds(participants) / 3600
-
         # Minimum wage thresholds: https://researcher-help.prolific.com/en/article/2273bd
         min_wage_per_hour = 6
-        min_required_reward = median_time_spent_in_hours * min_wage_per_hour
+        min_required_reward = (
+            median_time_spent_in_hours(participants) * min_wage_per_hour
+        )
 
         if reward < min_required_reward:
             message = (

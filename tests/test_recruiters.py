@@ -2,13 +2,18 @@ import json
 import os
 from datetime import datetime
 from unittest import mock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from dallinger.experiment import Experiment
 from dallinger.models import Participant
 from dallinger.mturk import MTurkQualificationRequirements, MTurkQuestions
-from dallinger.recruiters import MTurkRecruiterException
+from dallinger.recruiters import (
+    MTurkRecruiterException,
+    ProlificRecruiter,
+    ProlificRecruiterException,
+)
 
 
 class TestModuleFunctions(object):
@@ -781,6 +786,64 @@ class TestProlificRecruiter(object):
     def test_validate_config_assert_not_publishing(self, a, recruiter):
         recruiter.config["publish_experiment"] = False
         recruiter.validate_config()
+
+    @pytest.mark.usefixtures("prolific_config")
+    class TestProlificRecruiterScreenOutAllowed:
+        @pytest.fixture
+        def recruiter(self, prolificservice):
+            recruiter = ProlificRecruiter()
+            recruiter.prolificservice = prolificservice
+            return recruiter
+
+        def test_screen_out_allowed_custom_screening(self, recruiter):
+            recruiter.prolificservice.get_study.return_value = {
+                "is_custom_screening": True
+            }
+            participants = [MagicMock(spec=Participant)]
+            with pytest.raises(ProlificRecruiterException):
+                recruiter.screen_out_allowed("assignment123", participants, 10.0, 6.0)
+
+        def test_screen_out_allowed_below_minimum_reward(self, recruiter):
+            # Reward is below the minimum required reward.
+            recruiter.prolificservice.get_study.return_value = {
+                "is_custom_screening": False
+            }
+            with patch(
+                "dallinger.recruiters.median_time_spent_in_hours", return_value=2
+            ):
+                participants = [MagicMock(spec=Participant)]
+                allowed = recruiter.screen_out_allowed(
+                    "assignment123", participants, 10.0, 6.0
+                )
+                assert not allowed
+
+        def test_screen_out_allowed_above_minimum_reward(self, recruiter):
+            # Reward is above the minimum required reward.
+            recruiter.prolificservice.get_study.return_value = {
+                "is_custom_screening": False
+            }
+            with patch(
+                "dallinger.recruiters.median_time_spent_in_hours", return_value=1
+            ):
+                participants = [MagicMock(spec=Participant)]
+                allowed = recruiter.screen_out_allowed(
+                    "assignment123", participants, 10.0, 6.0
+                )
+                assert allowed
+
+        def test_screen_out_allowed_equal_minimum_reward(self, recruiter):
+            # Reward is equal to the minimum required reward.
+            recruiter.prolificservice.get_study.return_value = {
+                "is_custom_screening": False
+            }
+            with patch(
+                "dallinger.recruiters.median_time_spent_in_hours", return_value=2
+            ):
+                participants = [MagicMock(spec=Participant)]
+                allowed = recruiter.screen_out_allowed(
+                    "assignment123", participants, 12.0, 6.0
+                )
+                assert allowed
 
 
 class TestMTurkRecruiterMessages(object):
