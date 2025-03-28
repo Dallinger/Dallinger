@@ -456,12 +456,7 @@ class ProlificRecruiter(Recruiter):
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
 
-    def get_status(self) -> ProlificRecruitmentStatus:
-        submissions = self.prolificservice.get_submissions(self.current_study_id)
-
-        submission_status_dict = dict(Counter([s["status"] for s in submissions]))
-        study = self.prolificservice.get_study(self.current_study_id)
-        total_cost = self.prolificservice.get_total_cost(self.current_study_id) / 100
+    def get_durations_and_total_reward(self, submissions):
         approved_submissions = [s for s in submissions if s["status"] == "APPROVED"]
         durations = []
         total_reward = 0
@@ -471,12 +466,31 @@ class ProlificRecruiter(Recruiter):
                 durations.append(time_taken / 60)
                 # Note: Prolific rewards are in 100 cents
                 total_reward += submission.get("reward", 0) / 10000
-        median_session_duration = None
-        real_wage_per_hour = None
+        return durations, total_reward
+
+    def get_median_duration(self, durations):
         if len(durations) > 0:
-            median_session_duration = median(durations)
-            pay_per_submission = total_reward / len(durations)
-            real_wage_per_hour = pay_per_submission / (median_session_duration / 60)
+            return median(durations)
+        return None
+
+    def get_real_wage_per_hour(self, median_session_duration, durations, total_reward):
+        if median_session_duration is None:
+            return None
+        pay_per_submission = total_reward / len(durations)
+        return pay_per_submission / (median_session_duration / 60)
+
+    def get_status(self) -> ProlificRecruitmentStatus:
+        submissions = self.prolificservice.get_submissions(self.current_study_id)
+        submission_status_dict = dict(Counter([s["status"] for s in submissions]))
+        study = self.prolificservice.get_study(self.current_study_id)
+        total_cost = self.prolificservice.get_total_cost(self.current_study_id) / 100
+
+        durations, total_reward = self.get_durations_and_total_reward(submissions)
+        median_session_duration = self.get_median_duration(durations)
+        real_wage_per_hour = self.get_real_wage_per_hour(
+            median_session_duration, durations, total_reward
+        )
+
         return ProlificRecruitmentStatus(
             recruiter_name=self.nickname,
             participant_status_counts=submission_status_dict,
