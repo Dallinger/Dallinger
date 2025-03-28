@@ -499,7 +499,7 @@ class ProlificRecruiter(Recruiter):
             study_cost=total_cost,
             currency="£",
             internal_name=study["internal_name"],
-            base_payment_cents=int(self.config.get("base_payment") * 100),
+            base_payment_cents=self.compute_reward(),
             median_session_duration=median_session_duration,
             real_wage_per_hour=real_wage_per_hour,
         )
@@ -507,6 +507,9 @@ class ProlificRecruiter(Recruiter):
     @property
     def completion_code(self):
         return alphanumeric_code(self.config.get("id"))
+
+    def compute_reward(self):
+        return int(self.config.get("base_payment") * 100)
 
     def open_recruitment(self, n: int = 1) -> dict:
         """Create a Study on Prolific."""
