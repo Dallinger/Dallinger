@@ -459,14 +459,14 @@ class ProlificRecruiter(Recruiter):
     def get_durations_and_total_reward(self, submissions):
         approved_submissions = [s for s in submissions if s["status"] == "APPROVED"]
         durations = []
-        total_reward = 0
+        total_reward_pounds = 0
         for submission in approved_submissions:
             time_taken = submission.get("time_taken", None)
             if time_taken:
                 durations.append(time_taken / 60)
-                # Note: Prolific rewards are in 100 cents
-                total_reward += submission.get("reward", 0) / 10000
-        return durations, total_reward
+                # Due to a potential bug in the Prolific API the reward specified in get_submissions are in hundredths of a cent
+                total_reward_pounds += submission.get("reward", 0) / (100 * 100)
+        return durations, total_reward_pounds
 
     def get_median_duration(self, durations):
         if len(durations) > 0:
