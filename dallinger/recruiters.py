@@ -481,7 +481,7 @@ class ProlificRecruiter(Recruiter):
 
     def get_status(self) -> ProlificRecruitmentStatus:
         submissions = self.prolificservice.get_submissions(self.current_study_id)
-        submission_status_dict = dict(Counter([s["status"] for s in submissions]))
+        submission_status_counts = dict(Counter([s["status"] for s in submissions]))
         study = self.prolificservice.get_study(self.current_study_id)
         total_cost = self.prolificservice.get_total_cost(self.current_study_id) / 100
 
@@ -493,7 +493,7 @@ class ProlificRecruiter(Recruiter):
 
         return ProlificRecruitmentStatus(
             recruiter_name=self.nickname,
-            participant_status_counts=submission_status_dict,
+            participant_status_counts=submission_status_counts,
             study_id=study["id"],
             study_status=study["status"],
             study_cost=total_cost,
