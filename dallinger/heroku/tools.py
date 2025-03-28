@@ -58,9 +58,10 @@ def request_headers(auth_token):
 class HerokuCommandRunner(object):
     """Heroku command runner base class"""
 
-    def __init__(self, output=None, team=None):
+    def __init__(self, output=None, team=None, region=None):
         self.out = output
         self.team = team
+        self.region = region
         self.out_muted = open(os.devnull, "w")
 
     @property
@@ -101,6 +102,8 @@ class HerokuInfo(HerokuCommandRunner):
         cmd = ["heroku", "apps", "--json"]
         if self.team:
             cmd.extend(["--team", self.team])
+        if self.region:
+            cmd.extend(["--region", self.team])
         return json.loads(self._result(cmd))
 
     def my_apps(self):
@@ -120,9 +123,9 @@ class HerokuInfo(HerokuCommandRunner):
 class HerokuApp(HerokuCommandRunner):
     """Representation of a Heroku app"""
 
-    def __init__(self, dallinger_uid, output=None, team=None):
+    def __init__(self, dallinger_uid, output=None, team=None, region=None):
         self.dallinger_uid = dallinger_uid
-        super(HerokuApp, self).__init__(output, team)
+        super(HerokuApp, self).__init__(output, team, region)
 
     def bootstrap(self, buildpack="heroku/python"):
         """Creates the heroku app and local git remote. Call this once you're
@@ -135,6 +138,10 @@ class HerokuApp(HerokuCommandRunner):
         # If a team is specified, assign the app to the team.
         if self.team:
             cmd.extend(["--team", self.team])
+
+        # If a region is specified, create the app in the specified region
+        if self.region:
+            cmd.extend(["--region", self.region])
 
         self._run(cmd)
         # Set HOST value
