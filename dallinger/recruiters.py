@@ -89,7 +89,7 @@ class RecruitmentStatus:
         study_id (str): The ID used on the recruiting platform
         study_status (str): Status of the recruitment, e.g.,  `"ACTIVE"` or `"AWAITING REVIEW"` are valid study statuses on Prolific
         study_cost (float): Total cost for a recruitment that includes both base payments (rewards on Prolific) and bonuses as well as service fees and taxes if returned by the API
-        currency (str): The currency used in the study_cost field. Default is "$"
+        currency (str): The currency used in the study_cost field.
     """
 
     recruiter_name: str
@@ -97,10 +97,10 @@ class RecruitmentStatus:
     study_id: str
     study_status: str
     study_cost: float
-    currency: str = "$"
+    currency: str
 
 
-@dataclass(kw_only=True)
+@dataclass
 class ProlificRecruitmentStatus(RecruitmentStatus):
     """
     Class for status reporting of Prolific recruitments. Adds additional fields to the base class specific to Prolific.
@@ -334,6 +334,7 @@ class Recruiter(object):
             study_id=study_id,
             study_status="",
             study_cost=study_cost,
+            currency="$",  # Default currency
         )
 
     def verify_status_of(self, participants: list[Participant]):
