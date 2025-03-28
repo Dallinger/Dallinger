@@ -109,12 +109,14 @@ class ProlificRecruitmentStatus(RecruitmentStatus):
         internal_name: str - The internal name of the study
         reward: float - The reward per approved participant
         median_duration: float - The median duration of approved participants in the study
+        base_payment_cents: float - The base_payment in cents per approved participant (in Prolific this is called
+            "reward")
         wage_per_hour: float - The wage per hour of approved participants in the study
     """
 
     internal_name: str
-    reward: float
-    median_duration: float
+    base_payment_cents: float
+    median_session_duration: float
     wage_per_hour: float
 
 
@@ -486,15 +488,13 @@ class ProlificRecruiter(Recruiter):
             internal_name=study["internal_name"],
             reward=self.compute_reward(),
             median_duration=median_duration,
+            base_payment_cents=int(self.config.get("base_payment") * 100),
             wage_per_hour=real_wage_per_hour,
         )
 
     @property
     def completion_code(self):
         return alphanumeric_code(self.config.get("id"))
-
-    def compute_reward(self):
-        return int(self.config.get("base_payment") * 100)
 
     def open_recruitment(self, n: int = 1) -> dict:
         """Create a Study on Prolific."""
