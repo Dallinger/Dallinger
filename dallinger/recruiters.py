@@ -867,6 +867,13 @@ class DevProlificRecruiter(ProlificRecruiter):
 
 
 class MockRecruiter(Recruiter):
+    """
+    A mock recruiter for testing purposes.
+
+    This recruiter does not actually recruit participants, but it does attach an existing recruitment to the experiment.
+    This is useful for testing the experiment dashboard functionalities without actually recruiting new participants.
+    """
+
     def open_recruitment(self, n: int = 1) -> dict:
         """
         Open recruitment for the current experiment.
