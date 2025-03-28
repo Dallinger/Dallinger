@@ -109,13 +109,13 @@ class ProlificRecruitmentStatus(RecruitmentStatus):
         internal_name: str - The internal name of the study
         base_payment_cents: float - The base_payment in cents per approved participant (in Prolific this is called
             "reward")
-        median_session_duration: float - The median duration of approved participants in the study
+        median_session_duration_minutes: float - The median duration in minutes of approved participants in the study
         real_wage_per_hour: float - The wage per hour of approved participants in the study
     """
 
     internal_name: str
     base_payment_cents: float
-    median_session_duration: float
+    median_session_duration_minutes: float
     real_wage_per_hour: float
 
 
@@ -461,6 +461,7 @@ class ProlificRecruiter(Recruiter):
         durations = []
         total_reward_pounds = 0
         for submission in approved_submissions:
+
             time_taken = submission.get("time_taken", None)
             if time_taken:
                 durations.append(time_taken / 60)
@@ -468,12 +469,14 @@ class ProlificRecruiter(Recruiter):
                 total_reward_pounds += submission.get("reward", 0) / (100 * 100)
         return durations, total_reward_pounds
 
-    def get_median_duration(self, durations):
+    @staticmethod
+    def get_median_duration(durations):
         if len(durations) > 0:
             return median(durations)
         return None
 
-    def get_real_wage_per_hour(self, median_session_duration, durations, total_reward):
+    @staticmethod
+    def get_real_wage_per_hour(median_session_duration, durations, total_reward):
         if median_session_duration is None:
             return None
         pay_per_submission = total_reward / len(durations)
@@ -485,10 +488,12 @@ class ProlificRecruiter(Recruiter):
         study = self.prolificservice.get_study(self.current_study_id)
         total_cost = self.prolificservice.get_total_cost(self.current_study_id) / 100
 
-        durations, total_reward = self.get_durations_and_total_reward(submissions)
-        median_session_duration = self.get_median_duration(durations)
+        durations_minutes, total_reward = self.get_durations_and_total_reward(
+            submissions
+        )
+        median_session_duration_minutes = self.get_median_duration(durations_minutes)
         real_wage_per_hour = self.get_real_wage_per_hour(
-            median_session_duration, durations, total_reward
+            median_session_duration_minutes, durations_minutes, total_reward
         )
 
         return ProlificRecruitmentStatus(
@@ -500,7 +505,7 @@ class ProlificRecruiter(Recruiter):
             currency="£",
             internal_name=study["internal_name"],
             base_payment_cents=self.compute_reward(),
-            median_session_duration=median_session_duration,
+            median_session_duration_minutes=median_session_duration_minutes,
             real_wage_per_hour=real_wage_per_hour,
         )
 
