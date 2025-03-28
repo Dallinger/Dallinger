@@ -110,13 +110,13 @@ class ProlificRecruitmentStatus(RecruitmentStatus):
         base_payment_cents: float - The base_payment in cents per approved participant (in Prolific this is called
             "reward")
         median_session_duration: float - The median duration of approved participants in the study
-        wage_per_hour: float - The wage per hour of approved participants in the study
+        real_wage_per_hour: float - The wage per hour of approved participants in the study
     """
 
     internal_name: str
     base_payment_cents: float
     median_session_duration: float
-    wage_per_hour: float
+    real_wage_per_hour: float
 
 
 class Recruiter(object):
@@ -487,7 +487,7 @@ class ProlificRecruiter(Recruiter):
             internal_name=study["internal_name"],
             base_payment_cents=int(self.config.get("base_payment") * 100),
             median_session_duration=median_session_duration,
-            wage_per_hour=real_wage_per_hour,
+            real_wage_per_hour=real_wage_per_hour,
         )
 
     @property
