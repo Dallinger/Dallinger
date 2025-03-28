@@ -130,7 +130,23 @@ class ProlificService:
         return get_amount(rewards) + get_amount(bonuses)
 
     def get_submissions(self, study_id: str) -> dict:
-        """Return /submissions endpoint for a given study_id."""
+        """
+        Fetch /submissions endpoint for a given study_id and return the result
+
+        Returns basic information of the submissions, including the study id, participant id, status and start timestamp
+
+        Example return value:
+
+        [
+            {
+              "id": "60d9aadeb86739de712faee0",
+              "participant_id": "60bf9310e8dec401be6e9615",
+              "started_at": "2021-05-20T11:03:00.457000Z",
+              "status": "ACTIVE",
+              "study_code": "ABC123"
+            }
+        ]
+        """
         query_params = {"study": study_id}
         return self._req(method="GET", endpoint="/submissions/", params=query_params)[
             "results"
