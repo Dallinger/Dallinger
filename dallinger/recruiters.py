@@ -858,9 +858,10 @@ class ProlificRecruiter(Recruiter):
         assignment_id: str,
         participants: list[Participant],
         reward: float,
-        wage_per_hour: float,
     ):
-        if self.screen_out_allowed(assignment_id, participants, reward, wage_per_hour):
+        if self.screen_out_allowed(
+            assignment_id, participants, reward, self.config.get("wage_per_hour")
+        ):
             try:
                 return self.prolificservice.screen_out(
                     study_id=self.current_study_id,
@@ -876,17 +877,34 @@ class ProlificRecruiter(Recruiter):
         assignment_id: str,
         participants: list[Participant],
         reward: float,
-        wage_per_hour: float,
-    ):
+        wage_per_hour: float,  # TODO
+    ) -> bool:
+        """
+        Check if the participant satisfies the requirements to be screened-out.
+
+        Parameters:
+            assignment_id: str
+                The assignment ID of the participant.
+            participants: list[Participant]
+                A list of participants to check.
+            reward: float
+                The reward for the participant.
+            wage_per_hour: float
+                The wage per hour for the participant.
+
+        Returns:
+            bool
+                ``True`` if the participant satisfies the requirements to be screened-out, ``False`` otherwise.
+        """
         if self.prolificservice.get_study(assignment_id)["is_custom_screening"]:
             raise ProlificRecruiterException(
                 f"Prolific study (ID {self.current_study_id}) doesn't allow screening-out of participants"
             )
 
         # Minimum wage thresholds: https://researcher-help.prolific.com/en/article/2273bd
-        min_wage_per_hour = 6
+        prolific_min_wage_per_hour = 6
         min_required_reward = (
-            median_time_spent_in_hours(participants) * min_wage_per_hour
+            median_time_spent_in_hours(participants) * prolific_min_wage_per_hour
         )
 
         if reward < min_required_reward:
