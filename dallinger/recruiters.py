@@ -354,7 +354,7 @@ class Recruiter(object):
         """
         raise NotImplementedError
 
-    def screen_out(self, *args, **kwargs):
+    def screen_out(self, participant: Participant):
         """Screen-out a submission."""
         raise NotImplementedError
 
@@ -855,18 +855,21 @@ class ProlificRecruiter(Recruiter):
 
     def screen_out(
         self,
-        assignment_id: str,
-        participants: list[Participant],
-        reward: float,
+        participant: Participant,
     ):
-        if self.screen_out_allowed(
-            assignment_id, participants, reward, self.config.get("wage_per_hour")
-        ):
+        """
+        Screen-out a participant.
+
+        Parameters:
+            participant: Participant
+                The participant to screen-out.
+        """
+        if self.screen_out_allowed(participant):
             try:
                 return self.prolificservice.screen_out(
                     study_id=self.current_study_id,
-                    submission_id=assignment_id,
-                    bonus_per_submission=reward,
+                    submission_id=participant.assignment_id,
+                    bonus_per_submission=participant.base_pay + participant.bonus,
                     increase_places=self.config.get("auto_recruit"),
                 )
             except ProlificServiceException as ex:
@@ -874,42 +877,36 @@ class ProlificRecruiter(Recruiter):
 
     def screen_out_allowed(
         self,
-        assignment_id: str,
-        participants: list[Participant],
-        reward: float,
-        wage_per_hour: float,  # TODO
+        participant: Participant,
     ) -> bool:
         """
         Check if the participant satisfies the requirements to be screened-out.
 
         Parameters:
-            assignment_id: str
-                The assignment ID of the participant.
-            participants: list[Participant]
-                A list of participants to check.
-            reward: float
-                The reward for the participant.
-            wage_per_hour: float
-                The wage per hour for the participant.
-
+            participant: Participant
+                The participant to check.
         Returns:
             bool
                 ``True`` if the participant satisfies the requirements to be screened-out, ``False`` otherwise.
         """
-        if self.prolificservice.get_study(assignment_id)["is_custom_screening"]:
+        if self.prolificservice.get_study(participant.assignment_id)[
+            "is_custom_screening"
+        ]:
             raise ProlificRecruiterException(
                 f"Prolific study (ID {self.current_study_id}) doesn't allow screening-out of participants"
             )
 
         # Minimum wage thresholds: https://researcher-help.prolific.com/en/article/2273bd
         prolific_min_wage_per_hour = 6
+        participants = Participant.query.all()  # TODO only get relevant participants
         min_required_reward = (
             median_time_spent_in_hours(participants) * prolific_min_wage_per_hour
         )
+        reward = participant.base_pay + participant.bonus
 
         if reward < min_required_reward:
             message = (
-                f"Participant with submission ID {assignment_id} does not satisfy the requirements "
+                f"Participant with submission ID {participant.assignment_id} does not satisfy the requirements "
                 f"to be screened-out! Reward: {reward}, Minimum required reward: {min_required_reward}"
             )
             logger.warning(message)
