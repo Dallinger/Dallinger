@@ -999,7 +999,16 @@ def classproperty(func):
     return ClassPropertyDescriptor(func)
 
 
-def median_time_spent_in_hours(participants: list[Participant]):
+def median_time_spent_in_hours(participants: list[Participant]) -> float:
+    """
+    Parameters:
+        participants: list[Participant]
+            A list of participants to calculate the median time spent in hours for.
+
+    Returns:
+        float
+            The median time spent in hours by participants in a list of participants.
+    """
     if not participants:
         return 0
 
