@@ -28,6 +28,7 @@ from pythonjsonlogger import jsonlogger
 from dallinger import db
 from dallinger.compat import is_command
 from dallinger.config import get_config
+from dallinger.models import Participant
 from dallinger.version import __version__
 
 try:
@@ -996,3 +997,32 @@ def classproperty(func):
         func = classmethod(func)
 
     return ClassPropertyDescriptor(func)
+
+
+def median_time_spent_in_hours(participants: list[Participant]) -> float:
+    """
+    Parameters:
+        participants: list[Participant]
+            A list of participants to calculate the median time spent in hours for.
+
+    Returns:
+        float
+            The median time spent in hours by participants in a list of participants.
+    """
+    if not participants:
+        return 0
+
+    times = [
+        participant.end_time - participant.creation_time
+        for participant in participants
+        if participant.end_time is not None
+    ]
+    times.sort()
+
+    mid = len(times) // 2
+    if len(times) % 2 == 0:
+        median_time = (times[mid - 1] + times[mid]) / 2
+    else:
+        median_time = times[mid]
+
+    return median_time.total_seconds() / 3600
