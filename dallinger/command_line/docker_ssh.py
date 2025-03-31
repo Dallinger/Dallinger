@@ -898,6 +898,7 @@ def get_docker_compose_yml(
     # touch the logger file so that it exists when the container starts
     if executor:
         executor.run(f"touch {logger_filename}")
+        executor.run(f"touch /experiment/{logger_filename}")
     if logger_filename:
         docker_volumes += f",./{logger_filename}:/experiment/{logger_filename}"
     config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
