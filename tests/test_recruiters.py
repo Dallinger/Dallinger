@@ -800,6 +800,7 @@ class TestProlificRecruiter(object):
                 "is_custom_screening": True
             }
             participant = a.participant()
+            participant.status = "working"
 
             with pytest.raises(ProlificRecruiterException) as exc_info:
                 recruiter.screen_out_allowed(participant)
@@ -809,12 +810,32 @@ class TestProlificRecruiter(object):
                 in str(exc_info.value)
             )
 
+        def test_screen_out_not_allowed_for_non_working_status(self, a, recruiter):
+            """Test that participants not in 'working' status cannot be screened out"""
+            recruiter.prolificservice.get_study.return_value = {
+                "is_custom_screening": False
+            }
+
+            for status in ["submitted", "approved", "rejected", "abandoned"]:
+                participant = a.participant()
+                participant.status = status
+                participant.base_pay = 2.0
+                participant.bonus = 11.0  # Would normally qualify for screen out
+
+                with patch(
+                    "dallinger.recruiters.median_time_spent_in_hours", return_value=2.0
+                ):
+                    allowed = recruiter.screen_out_allowed(participant)
+
+                assert not allowed, f"Should not allow screen out for status '{status}'"
+
         def test_screen_out_allowed_below_minimum_reward(self, a, recruiter):
             # Reward is below the minimum required reward.
             recruiter.prolificservice.get_study.return_value = {
                 "is_custom_screening": False
             }
             participant = a.participant()
+            participant.status = "working"
             participant.base_pay = 2.0
             participant.bonus = 9.0
 
@@ -831,6 +852,7 @@ class TestProlificRecruiter(object):
                 "is_custom_screening": False
             }
             participant = a.participant()
+            participant.status = "working"
             participant.base_pay = 2.0
             participant.bonus = 11.0
 
@@ -847,6 +869,7 @@ class TestProlificRecruiter(object):
                 "is_custom_screening": False
             }
             participant = a.participant()
+            participant.status = "working"
             participant.base_pay = 2.0
             participant.bonus = 10.0
 

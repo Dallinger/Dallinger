@@ -853,12 +853,8 @@ class ProlificRecruiter(Recruiter):
             "peripheral_requirements": details["peripheral_requirements"],
         }
 
-    def screen_out(
-        self,
-        participant: Participant,
-    ):
-        """
-        Screen-out a participant.
+    def screen_out(self, participant: Participant):
+        """Screen-out a participant.
 
         Parameters:
             participant: Participant
@@ -875,30 +871,27 @@ class ProlificRecruiter(Recruiter):
             except ProlificServiceException as ex:
                 logger.exception(str(ex))
 
-    def screen_out_allowed(
-        self,
-        participant: Participant,
-    ) -> bool:
-        """
-        Check if the participant satisfies the requirements to be screened-out.
+    def screen_out_allowed(self, participant):
+        """Check if a participant can be screened out.
 
-        Parameters:
-            participant: Participant
-                The participant to check.
-        Returns:
-            bool
-                ``True`` if the participant satisfies the requirements to be screened-out, ``False`` otherwise.
+        Returns False if:
+        - participant is not in 'working' status
+        - custom screening is enabled
+        - reward is below minimum required
         """
-        if self.prolificservice.get_study(participant.assignment_id)[
-            "is_custom_screening"
-        ]:
+        if participant.status != "working":
+            return False
+
+        study = self.prolificservice.get_study(self.current_study_id)
+
+        if study.get("is_custom_screening", False):
             raise ProlificRecruiterException(
                 f"Prolific study (ID {self.current_study_id}) doesn't allow screening-out of participants"
             )
 
         # Minimum wage thresholds: https://researcher-help.prolific.com/en/article/2273bd
         prolific_min_wage_per_hour = 6
-        participants = Participant.query.all()  # TODO only get relevant participants
+        participants = Participant.query.filter_by(status="working").all()
         min_required_reward = (
             median_time_spent_in_hours(participants) * prolific_min_wage_per_hour
         )
