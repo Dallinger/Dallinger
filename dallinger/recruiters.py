@@ -9,7 +9,9 @@ import random
 import re
 import string
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
+from dataclasses import dataclass
+from statistics import median
 
 import flask
 import requests
@@ -73,6 +75,48 @@ def run_status_check():
         recruiter = by_name(nick)
         recruiter.verify_status_of(participants)
         session.commit()
+
+
+@dataclass
+class RecruitmentStatus:
+    """
+    Class for standardized status reporting of recruitments of various recruiters.
+
+    Args:
+        recruiter_name (str): The name of the recruiter
+        participant_status_counts (dict): A histogram in dictionary format where the keys are the statuses of submissions
+        (e.g., `"APPROVED"` or `"REJECTED"`) and the values are the respective counts
+        study_id (str): The ID used on the recruiting platform
+        study_status (str): Status of the recruitment, e.g.,  `"ACTIVE"` or `"AWAITING REVIEW"` are valid study statuses on Prolific
+        study_cost (float): Total cost for a recruitment that includes both base payments (rewards on Prolific) and bonuses as well as service fees and taxes if returned by the API
+        currency (str): The currency used in the study_cost field.
+    """
+
+    recruiter_name: str
+    participant_status_counts: dict
+    study_id: str
+    study_status: str
+    study_cost: float
+    currency: str
+
+
+@dataclass
+class ProlificRecruitmentStatus(RecruitmentStatus):
+    """
+    Class for status reporting of Prolific recruitments. Adds additional fields to the base class specific to Prolific.
+
+    Args:
+        internal_name: str - The internal name of the study
+        base_payment_cents: float - The base_payment in cents per approved participant (in Prolific this is called
+            "reward")
+        median_session_duration_minutes: float - The median duration in minutes of approved participants in the study
+        real_wage_per_hour_excluding_bonuses: float - The wage per hour of approved participants in the study without any bonus
+    """
+
+    internal_name: str
+    base_payment_cents: float
+    median_session_duration_minutes: float
+    real_wage_per_hour_excluding_bonuses: float
 
 
 class Recruiter(object):
@@ -272,9 +316,27 @@ class Recruiter(object):
         """Return the JSON file containing rules to filter participants."""
         raise NotImplementedError
 
-    def get_status(self):
-        """Return the status of the recruiter as a dictionary."""
-        return {}
+    def get_status(self) -> RecruitmentStatus:
+        """Return the status of the recruiter as a RecruitmentStatus."""
+        all_participants = Participant.query.all()
+        statuses = [participant.status for participant in all_participants]
+        status_counts = dict(Counter(statuses))
+        hit_ids = list(set([participant.hit_id for participant in all_participants]))
+        study_id = hit_ids[0] if len(hit_ids) == 1 else ""
+        study_cost = 0
+        for participant in all_participants:
+            base_pay = 0 if participant.base_pay is None else participant.base_pay
+            bonus = 0 if participant.bonus is None else participant.bonus
+            study_cost += base_pay + bonus
+
+        return RecruitmentStatus(
+            recruiter_name=self.nickname,
+            participant_status_counts=status_counts,
+            study_id=study_id,
+            study_status="",
+            study_cost=study_cost,
+            currency="$",  # Default currency
+        )
 
     def verify_status_of(self, participants: list[Participant]):
         """Check locally recorded status of participants against the status
@@ -394,9 +456,64 @@ class ProlificRecruiter(Recruiter):
         self.mailer = get_mailer(self.config)
         self.store = kwargs.get("store") or RedisStore()
 
+    def get_durations_and_total_reward(self, submissions):
+        approved_submissions = [s for s in submissions if s["status"] == "APPROVED"]
+        durations = []
+        total_reward_pounds = 0
+        for submission in approved_submissions:
+
+            time_taken = submission.get("time_taken", None)
+            if time_taken:
+                durations.append(time_taken / 60)
+                # Due to a potential bug in the Prolific API the reward specified in get_submissions are in hundredths of a cent
+                total_reward_pounds += submission.get("reward", 0) / (100 * 100)
+        return durations, total_reward_pounds
+
+    @staticmethod
+    def get_median_duration(durations):
+        if len(durations) > 0:
+            return median(durations)
+        return None
+
+    @staticmethod
+    def get_real_wage_per_hour(median_session_duration, durations, total_reward):
+        if median_session_duration is None:
+            return None
+        pay_per_submission = total_reward / len(durations)
+        return pay_per_submission / (median_session_duration / 60)
+
+    def get_status(self) -> ProlificRecruitmentStatus:
+        submissions = self.prolificservice.get_submissions(self.current_study_id)
+        submission_status_counts = dict(Counter([s["status"] for s in submissions]))
+        study = self.prolificservice.get_study(self.current_study_id)
+        total_cost = self.prolificservice.get_total_cost(self.current_study_id) / 100
+
+        durations_minutes, total_reward = self.get_durations_and_total_reward(
+            submissions
+        )
+        median_session_duration_minutes = self.get_median_duration(durations_minutes)
+        real_wage_per_hour_excluding_bonuses = self.get_real_wage_per_hour(
+            median_session_duration_minutes, durations_minutes, total_reward
+        )
+        return ProlificRecruitmentStatus(
+            recruiter_name=self.nickname,
+            participant_status_counts=submission_status_counts,
+            study_id=study["id"],
+            study_status=study["status"],
+            study_cost=total_cost,
+            currency="£",
+            internal_name=study["internal_name"],
+            base_payment_cents=self.compute_reward(),
+            median_session_duration_minutes=median_session_duration_minutes,
+            real_wage_per_hour_excluding_bonuses=real_wage_per_hour_excluding_bonuses,
+        )
+
     @property
     def completion_code(self):
         return alphanumeric_code(self.config.get("id"))
+
+    def compute_reward(self):
+        return int(self.config.get("base_payment") * 100)
 
     def open_recruitment(self, n: int = 1) -> dict:
         """Create a Study on Prolific."""
@@ -437,7 +554,7 @@ class ProlificRecruiter(Recruiter):
             "publish_experiment": self.config.get(
                 "publish_experiment", self.publish_experiment_default
             ),
-            "reward": int(self.config.get("base_payment") * 100),
+            "reward": self.compute_reward(),
             "total_available_places": n,
             "workspace": self.config.get("prolific_workspace"),
         }
@@ -754,6 +871,36 @@ class DevProlificRecruiter(ProlificRecruiter):
         response = "http://127.0.0.1:5000/dashboard/develop"
         self.prolificservice.log_response(response)
         return response
+
+
+class MockRecruiter(Recruiter):
+    """
+    A mock recruiter for testing purposes.
+
+    This recruiter does not actually recruit participants, but it does attach an existing recruitment to the experiment.
+    This is useful for testing the experiment dashboard functionalities without actually recruiting new participants.
+    """
+
+    def open_recruitment(self, n: int = 1) -> dict:
+        """
+        Open recruitment for the current experiment.
+        """
+        logger.info(f"Mock recruiter {self.nickname} NOT opening any recruitment")
+        self.register_study()
+        return {"items": [], "message": ""}
+
+    def register_study(self):
+        raise NotImplementedError
+
+
+class MockProlificRecruiter(MockRecruiter, ProlificRecruiter):
+    nickname = "mockprolific"
+
+    def register_study(self):
+        config = get_config()
+        prolific_config = json.loads(config.get("prolific_recruitment_config"))
+        study_id = prolific_config.get("study_id")
+        self._record_current_study_id(study_id)
 
 
 class CLIRecruiter(Recruiter):
@@ -1951,6 +2098,8 @@ def from_config(config):
     # Special case 3: if we're not using bots and we're in debug mode,
     # if present, use the configured debug_recruiter or else fallback to HotAirRecruiter:
     if debug_mode:
+        if isinstance(recruiter, MockRecruiter):
+            return recruiter
         if isinstance(recruiter, ProlificRecruiter):
             return by_name("devprolific")
 
