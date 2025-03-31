@@ -657,7 +657,7 @@ urllib3==1.26.20
     #   selenium
 user-agents==2.2.0
     # via dallinger
-virtualenv==20.29.3
+virtualenv==20.30.0
     # via
     #   pre-commit
     #   tox
