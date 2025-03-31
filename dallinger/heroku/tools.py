@@ -103,7 +103,7 @@ class HerokuInfo(HerokuCommandRunner):
         if self.team:
             cmd.extend(["--team", self.team])
         if self.region:
-            cmd.extend(["--region", self.team])
+            cmd.extend(["--region", self.region])
         return json.loads(self._result(cmd))
 
     def my_apps(self):

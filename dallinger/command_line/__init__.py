@@ -899,8 +899,7 @@ def apps():
     if not config.ready:
         config.load()
     team = config.get("heroku_team", None)
-    region = config.get("heroku_region", None)
-    command_runner = HerokuInfo(team=team, region=region)
+    command_runner = HerokuInfo(team=team)
     my_apps = command_runner.my_apps()
     my_user = command_runner.login_name()
     listing = []
