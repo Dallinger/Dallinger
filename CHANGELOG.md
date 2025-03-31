@@ -1,5 +1,30 @@
 # Change Log
 
+## [v11.2.0](https://github.com/dallinger/dallinger/tree/v11.2.0) (2025-04-04)
+
+#### Added
+- Ported `classproperty` decorator from PsyNet to Dallinger
+- Added a hook for overriding hidden dashboard tabs and a hook for sorting the dashboard tabs
+- Added option to disable strict config variable loading, which is useful for cross-compatibility with PsyNet
+- Added new dashboard tab 'Logger' by dumping logs in `jsonl` format and streaming them to the frontend, incl. search functionality and added new dependencies ansi2html, beautifulsoup4, pygtail, and python-json-logger
+- Added standardized status reporting across recruiters:
+  - Introduced new class `RecruitmentStatus` which reports standardized status across recruiters. The class contains the following entries:
+    - `participant_status`: this is a histogram in dictionary format where the keys are the statuses of submissions (e.g. "APPROVED" or "REJECTED") and the values are the respective counts
+    - `study_id`: the ID used on the recruiting platform
+    - `study_status`: status of the recruitment, e.g. "ACTIVE" or "AWAITING REVIEW" are valid study statuses on Prolific
+    - `study_cost`: total cost for a recruitment this includes both base payments (rewards on Prolific) and bonuses as well as service fees and taxes if returned by the API
+    - `meta_information`: dictionary of any information specific to the recruiter, e.g. for Prolific the median duration of approved participants and the `wage_per_hour` computed by the platform
+    - Additional changes:
+      - Make `reward` a property of the Prolific recruiter
+      - Always emit the recruiter name (nickname) in `get_status`
+- Added support for Heroku regions via new config variable `heroku_region`
+
+#### Changed
+- Renamed all functions used for rendering dashboard tabs to use the prefix `dashboard_` and removed this prefix in the final route used in Flask (i.e. instead of `/dashboard/dashboard_func` →  `/dashboard/func`)
+
+#### Updated
+- Updated dependencies; updated black, flake8
+
 ## [v11.1.1](https://github.com/dallinger/dallinger/tree/v11.1.1) (2025-02-26)
 
 #### Changed
