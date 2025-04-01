@@ -896,7 +896,7 @@ def logs_live():
     """
 
     def generate():
-        for line in Pygtail(JSON_LOGFILE):
+        for line in Pygtail(JSON_LOGFILE, paranoid=True, every_n=10):
             try:
                 line_info = clean_line_info(json.loads(line))
                 line_info["original_line"] = line
