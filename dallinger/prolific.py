@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from typing import List, Optional
+from typing import List, Optional, Union
 from uuid import uuid4
 
 import requests
@@ -383,12 +383,18 @@ class ProlificService:
     def screen_out(
         self,
         study_id: str,
-        submission_id: str,
+        submission_ids: Union[str, List[str]],
         bonus_per_submission: float,
         increase_places: bool,
     ) -> dict:
         """
-        Screen-out a submission for a study.
+        Screen-out one or more submissions for a study.
+
+        Args:
+            study_id: The ID of the study
+            submission_ids: A single submission ID or list of submission IDs
+            bonus_per_submission: The bonus amount to pay per submission, in your study currency.
+            increase_places: Whether to increase available study places
 
         Calls the 'Bulk screen out submissions' route in the Prolific API (see https://docs.prolific.com/docs/api-docs/public/#tag/Submissions/operation/BulkScreenOutSubmissions). The Prolific documentation for this route is reproduced below:
 
@@ -400,9 +406,12 @@ class ProlificService:
 
         It is our understanding that Prolific will reject such requests if the bonus is not large enough to cover the median participant session time multiplied by Prolific's minimum hourly wage.
         """
+        submission_ids = (
+            [submission_ids] if isinstance(submission_ids, str) else submission_ids
+        )
 
         payload = {
-            "submission_ids": [submission_id],
+            "submission_ids": submission_ids,
             "bonus_per_submission": bonus_per_submission,
             "increase_places": increase_places,
         }
