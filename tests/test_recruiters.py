@@ -797,7 +797,9 @@ class TestDevProlificRecruiterScreenOutAllowed:
         return recruiter
 
     def test_screen_out_allowed_custom_screening(self, a, recruiter):
-        recruiter.prolificservice.get_study.return_value = {"is_custom_screening": True}
+        recruiter.prolificservice.get_study.return_value = {
+            "is_custom_screening": False
+        }
         participant = a.participant()
         participant.status = "working"
 
@@ -811,9 +813,7 @@ class TestDevProlificRecruiterScreenOutAllowed:
 
     def test_screen_out_not_allowed_for_non_working_status(self, a, recruiter):
         """Test that participants not in 'working' status cannot be screened out"""
-        recruiter.prolificservice.get_study.return_value = {
-            "is_custom_screening": False
-        }
+        recruiter.prolificservice.get_study.return_value = {"is_custom_screening": True}
 
         for status in ["submitted", "approved", "rejected", "abandoned"]:
             participant = a.participant()
@@ -830,9 +830,7 @@ class TestDevProlificRecruiterScreenOutAllowed:
 
     def test_screen_out_allowed_below_minimum_reward(self, a, recruiter):
         # Reward is below the minimum required reward.
-        recruiter.prolificservice.get_study.return_value = {
-            "is_custom_screening": False
-        }
+        recruiter.prolificservice.get_study.return_value = {"is_custom_screening": True}
         participant = a.participant()
         participant.status = "working"
         participant.base_pay = 2.0
@@ -845,9 +843,7 @@ class TestDevProlificRecruiterScreenOutAllowed:
 
     def test_screen_out_allowed_above_minimum_reward(self, a, recruiter):
         # Reward is above the minimum required reward.
-        recruiter.prolificservice.get_study.return_value = {
-            "is_custom_screening": False
-        }
+        recruiter.prolificservice.get_study.return_value = {"is_custom_screening": True}
         participant = a.participant()
         participant.status = "working"
         participant.base_pay = 2.0
@@ -860,9 +856,7 @@ class TestDevProlificRecruiterScreenOutAllowed:
 
     def test_screen_out_allowed_equal_minimum_reward(self, a, recruiter):
         # Reward is equal to the minimum required reward.
-        recruiter.prolificservice.get_study.return_value = {
-            "is_custom_screening": False
-        }
+        recruiter.prolificservice.get_study.return_value = {"is_custom_screening": True}
         participant = a.participant()
         participant.status = "working"
         participant.base_pay = 2.0

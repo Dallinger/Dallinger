@@ -903,7 +903,7 @@ class DevProlificRecruiter(ProlificRecruiter):
 
         Returns False if:
         - participant is not in 'working' status
-        - custom screening is enabled
+        - custom screening is disabled
         - reward is below minimum required
         """
         if participant.status != "working":
@@ -911,7 +911,7 @@ class DevProlificRecruiter(ProlificRecruiter):
 
         study = self.prolificservice.get_study(self.current_study_id)
 
-        if study.get("is_custom_screening", False):
+        if not study.get("is_custom_screening", False):
             raise ProlificRecruiterException(
                 f"Prolific study (ID {self.current_study_id}) doesn't allow screening-out of participants"
             )
