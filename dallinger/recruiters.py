@@ -860,16 +860,15 @@ class ProlificRecruiter(Recruiter):
             participant: Participant
                 The participant to screen-out.
         """
-        if self.screen_out_allowed(participant):
-            try:
-                return self.prolificservice.screen_out(
-                    study_id=self.current_study_id,
-                    submission_id=participant.assignment_id,
-                    bonus_per_submission=participant.base_pay + participant.bonus,
-                    increase_places=self.config.get("auto_recruit"),
-                )
-            except ProlificServiceException as ex:
-                logger.exception(str(ex))
+        try:
+            return self.prolificservice.screen_out(
+                study_id=self.current_study_id,
+                submission_id=participant.assignment_id,
+                bonus_per_submission=participant.base_pay + participant.bonus,
+                increase_places=self.config.get("auto_recruit"),
+            )
+        except ProlificServiceException as ex:
+            logger.exception(str(ex))
 
     def screen_out_allowed(self, participant):
         """Check if a participant can be screened out.
