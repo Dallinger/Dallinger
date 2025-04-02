@@ -35,6 +35,7 @@ from dallinger.mturk import (
 )
 from dallinger.notifications import MessengerError, admin_notifier, get_mailer
 from dallinger.prolific import (
+    ProlificScreenOutDenied,
     ProlificServiceException,
     dev_prolific_service_from_config,
     prolific_service_from_config,
@@ -860,12 +861,19 @@ class ProlificRecruiter(Recruiter):
             participant: Participant
                 The participant to screen-out.
         """
-        return self.prolificservice.screen_out(
+        response = self.prolificservice.screen_out(
             study_id=self.current_study_id,
             submission_id=participant.assignment_id,
             bonus_per_submission=participant.base_pay + participant.bonus,
             increase_places=self.config.get("auto_recruit"),
         )
+
+        if response["status"] == 204:
+            return response
+        else:
+            raise ProlificScreenOutDenied(
+                f"Prolific denied screen-out request for participant {participant.id}: {response}"
+            )
 
     def validate_config(self, **kwargs):
         super().validate_config()

@@ -34,6 +34,10 @@ class ProlificServiceMultipleWorkspacesException(Exception):
     """A specified workspace name already exists multiple times for this user."""
 
 
+class ProlificScreenOutDenied(Exception):
+    """Raised when Prolific denies a screen-out request."""
+
+
 ########
 # code #
 ########
