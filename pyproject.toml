@@ -95,7 +95,7 @@ dev = [
     "pypandoc",
     "pytest",
     "pytest-rerunfailures",
-    "sphinx",
+    "sphinx < 8.2",
     "sphinx_rtd_theme",
     "sphinxcontrib-spelling",
     "tox",

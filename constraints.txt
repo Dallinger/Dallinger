@@ -505,8 +505,6 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
-roman-numerals-py==3.1.0
-    # via sphinx
 rpds-py==0.24.0
     # via
     #   jsonschema
@@ -537,7 +535,7 @@ sortedcontainers==2.4.0
     # via trio
 soupsieve==2.6
     # via beautifulsoup4
-sphinx==8.2.3
+sphinx==8.1.3
     # via
     #   dallinger
     #   myst-parser
