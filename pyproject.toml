@@ -47,7 +47,7 @@ dependencies = [
     "greenlet",
     "gunicorn[gevent]",
     "heroku3",
-    "ipython",
+    "ipython < 9",
     "localconfig",
     "numpy",
     "pexpect",
