@@ -90,10 +90,8 @@ idna==3.10
     # via
     #   requests
     #   trio
-ipython==9.0.2
+ipython==8.34.0
     # via dallinger
-ipython-pygments-lexers==1.1.1
-    # via ipython
 itsdangerous==2.2.0
     # via
     #   flask
@@ -148,9 +146,7 @@ pure-eval==0.2.3
 pycparser==2.22
     # via cffi
 pygments==2.19.1
-    # via
-    #   ipython
-    #   ipython-pygments-lexers
+    # via ipython
 pygtail==0.14.0
     # via dallinger
 pyopenssl==25.0.0

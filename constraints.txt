@@ -195,15 +195,13 @@ ipykernel==6.29.5
     #   jupyter
     #   jupyter-console
     #   jupyterlab
-ipython==9.0.2
+ipython==8.34.0
     # via
     #   black
     #   dallinger
     #   ipykernel
     #   ipywidgets
     #   jupyter-console
-ipython-pygments-lexers==1.1.1
-    # via ipython
 ipywidgets==8.1.5
     # via
     #   dallinger
@@ -432,7 +430,6 @@ pyflakes==3.3.2
 pygments==2.19.1
     # via
     #   ipython
-    #   ipython-pygments-lexers
     #   jupyter-console
     #   nbconvert
     #   sphinx
