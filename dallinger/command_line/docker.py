@@ -356,7 +356,8 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
 
     out = None if verbose else open(os.devnull, "w")
     team = config.get("heroku_team", None)
-    heroku_app = HerokuApp(dallinger_uid=heroku_app_id, output=out, team=team)
+    region = config.get("heroku_region", None)
+    heroku_app = HerokuApp(dallinger_uid=heroku_app_id, output=out, team=team, region=region)
     heroku_app.bootstrap(buildpack=None)
 
     # Set up add-ons and AWS environment variables.
