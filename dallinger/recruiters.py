@@ -870,6 +870,34 @@ class ProlificRecruiter(Recruiter):
         except ProlificServiceException as ex:
             logger.exception(str(ex))
 
+    def validate_config(self, **kwargs):
+        super().validate_config()
+        # Make sure Prolific config variables are present and validate the workspace
+        self.config.get("prolific_project")
+        workspace = self.config.get("prolific_workspace")
+        self.prolificservice.validate_workspace(workspace)
+
+
+class DevProlificRecruiter(ProlificRecruiter):
+    """A debug recruiter for [Prolific](https://app.prolific.com/)"""
+
+    nickname = "devprolific"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prolificservice = dev_prolific_service_from_config()
+
+    @property
+    def external_submission_url(self):
+        self.prolificservice.log_request(
+            "GET",
+            f"https://app.prolific.com/submissions/complete?cc={self.completion_code}",
+            message="Exiting by sending browser to dashboard on localhost (external submission URL).\n",
+        )
+        response = "http://127.0.0.1:5000/dashboard/develop"
+        self.prolificservice.log_response(response)
+        return response
+
     def screen_out_allowed(self, participant):
         """Check if a participant can be screened out.
 
@@ -905,34 +933,6 @@ class ProlificRecruiter(Recruiter):
             return False
 
         return True
-
-    def validate_config(self, **kwargs):
-        super().validate_config()
-        # Make sure Prolific config variables are present and validate the workspace
-        self.config.get("prolific_project")
-        workspace = self.config.get("prolific_workspace")
-        self.prolificservice.validate_workspace(workspace)
-
-
-class DevProlificRecruiter(ProlificRecruiter):
-    """A debug recruiter for [Prolific](https://app.prolific.com/)"""
-
-    nickname = "devprolific"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.prolificservice = dev_prolific_service_from_config()
-
-    @property
-    def external_submission_url(self):
-        self.prolificservice.log_request(
-            "GET",
-            f"https://app.prolific.com/submissions/complete?cc={self.completion_code}",
-            message="Exiting by sending browser to dashboard on localhost (external submission URL).\n",
-        )
-        response = "http://127.0.0.1:5000/dashboard/develop"
-        self.prolificservice.log_response(response)
-        return response
 
 
 class MockRecruiter(Recruiter):
