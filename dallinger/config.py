@@ -67,7 +67,6 @@ default_keys = (
     ("heroku_auth_token", six.text_type, [], True),
     ("heroku_python_version", six.text_type, []),
     ("heroku_team", six.text_type, ["team"]),
-    ("heroku_region", six.text_type, []),
     ("host", six.text_type, []),
     ("id", six.text_type, []),
     ("infrastructure_debug_details", six.text_type, [], False),
