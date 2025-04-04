@@ -6,6 +6,10 @@
 #
 # from the root of the dallinger repository
 #
+ansi2html==1.9.2
+    # via
+    #   -c ../../../../dev-requirements.txt
+    #   dallinger
 apscheduler==3.11.0
     # via
     #   -c ../../../../dev-requirements.txt
@@ -14,20 +18,24 @@ asttokens==3.0.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   stack-data
-attrs==25.1.0
+attrs==25.3.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   outcome
     #   trio
+beautifulsoup4==4.13.3
+    # via
+    #   -c ../../../../dev-requirements.txt
+    #   dallinger
 blinker==1.9.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask
-boto3==1.37.1
+boto3==1.37.23
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-botocore==1.37.1
+botocore==1.37.23
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
@@ -62,11 +70,11 @@ click==8.1.8
     #   nltk
     #   pip-tools
     #   rq
-cryptography==44.0.1
+cryptography==44.0.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   pyopenssl
-dallinger==11.1.1
+dallinger==11.2.0
     # via -r requirements.txt
 decorator==5.2.1
     # via
@@ -76,7 +84,7 @@ executing==2.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   stack-data
-faker==36.1.1
+faker==37.1.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -149,7 +157,7 @@ jedi==0.19.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   ipython
-jinja2==3.1.5
+jinja2==3.1.6
     # via
     #   -c ../../../../dev-requirements.txt
     #   flask
@@ -232,6 +240,10 @@ pygments==2.19.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   ipython
+pygtail==0.14.0
+    # via
+    #   -c ../../../../dev-requirements.txt
+    #   dallinger
 pyopenssl==25.0.0
     # via
     #   -c ../../../../dev-requirements.txt
@@ -250,6 +262,10 @@ python-dateutil==2.9.0.post0
     #   -c ../../../../dev-requirements.txt
     #   botocore
     #   heroku3
+python-json-logger==3.3.0
+    # via
+    #   -c ../../../../dev-requirements.txt
+    #   dallinger
 redis==5.2.1
     # via
     #   -c ../../../../dev-requirements.txt
@@ -262,15 +278,15 @@ requests==2.32.3
     #   -c ../../../../dev-requirements.txt
     #   dallinger
     #   heroku3
-rq==2.1.0
+rq==2.2.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-s3transfer==0.11.2
+s3transfer==0.11.4
     # via
     #   -c ../../../../dev-requirements.txt
     #   boto3
-selenium==4.29.0
+selenium==4.30.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
@@ -292,6 +308,10 @@ sortedcontainers==2.4.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   trio
+soupsieve==2.6
+    # via
+    #   -c ../../../../dev-requirements.txt
+    #   beautifulsoup4
 sqlalchemy==1.4.54
     # via
     #   -c ../../../../dev-requirements.txt
@@ -339,16 +359,17 @@ trio-websocket==0.12.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   selenium
-typing-extensions==4.12.2
+typing-extensions==4.13.0
     # via
     #   -c ../../../../dev-requirements.txt
+    #   beautifulsoup4
     #   pyopenssl
     #   selenium
-tzdata==2025.1
+tzdata==2025.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   faker
-tzlocal==5.3
+tzlocal==5.3.1
     # via
     #   -c ../../../../dev-requirements.txt
     #   apscheduler
