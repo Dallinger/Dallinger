@@ -895,11 +895,10 @@ def get_docker_compose_yml(
     """Generate a docker-compose.yml file based on the given"""
     docker_volumes = config.get("docker_volumes", "")
     logger_filename = JSON_LOGFILE
-    # touch the logger file so that it exists when the container starts
-    if executor:
-        executor.run(f"cd dallinger/{experiment_id}; touch ./{logger_filename}")
-        # executor.run(f"touch /experiment/{logger_filename}")
     if logger_filename:
+        if executor:
+            # touch the logger file so that it exists when the container starts
+            executor.run(f"touch $HOME/dallinger/{experiment_id}/{logger_filename}")
         docker_volumes += f",./{logger_filename}:/experiment/{logger_filename}"
     config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
 
