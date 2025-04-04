@@ -50,9 +50,9 @@ bleach==6.2.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.37.23
+boto3==1.37.27
     # via dallinger
-botocore==1.37.23
+botocore==1.37.27
     # via
     #   boto3
     #   s3transfer
@@ -229,7 +229,7 @@ jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-json5==0.10.0
+json5==0.12.0
     # via jupyterlab-server
 jsonpointer==3.0.0
     # via jsonschema
@@ -474,7 +474,7 @@ pyyaml==6.0.2
     #   myst-parser
     #   pre-commit
     #   tablib
-pyzmq==26.3.0
+pyzmq==26.4.0
     # via
     #   ipykernel
     #   jupyter-client
@@ -508,7 +508,7 @@ rpds-py==0.24.0
     # via
     #   jsonschema
     #   referencing
-rq==2.2.0
+rq==2.3.1
     # via dallinger
 s3transfer==0.11.4
     # via boto3
@@ -575,7 +575,7 @@ tabulate==0.9.0
     # via
     #   dallinger
     #   tablib
-tenacity==9.0.0
+tenacity==9.1.2
     # via dallinger
 termcolor==2.3.0
     # via yaspin
@@ -625,7 +625,7 @@ trio-websocket==0.12.2
     # via selenium
 types-python-dateutil==2.9.0.20241206
     # via arrow
-typing-extensions==4.13.0
+typing-extensions==4.13.1
     # via
     #   anyio
     #   beautifulsoup4
@@ -657,7 +657,7 @@ urllib3==1.26.20
     #   selenium
 user-agents==2.2.0
     # via dallinger
-virtualenv==20.29.3
+virtualenv==20.30.0
     # via
     #   pre-commit
     #   tox
