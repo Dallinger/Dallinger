@@ -1,5 +1,3 @@
-from dallinger.utils import attach_json_logger
-
 listen = ["high", "default", "low"]
 
 
@@ -22,6 +20,7 @@ def main():
 
     from dallinger.config import get_config, initialize_experiment_package
     from dallinger.heroku.rq_gevent_worker import GeventWorker as Worker
+    from dallinger.utils import attach_json_logger
 
     initialize_experiment_package(os.getcwd())
 
