@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from typing import List, Optional
+from typing import List, Optional, Union
 from uuid import uuid4
 
 import requests
@@ -32,6 +32,10 @@ class ProlificServiceNoSuchWorkspaceException(Exception):
 
 class ProlificServiceMultipleWorkspacesException(Exception):
     """A specified workspace name already exists multiple times for this user."""
+
+
+class ProlificScreenOutDenied(Exception):
+    """Raised when Prolific denies a screen-out request."""
 
 
 ########
@@ -380,6 +384,48 @@ class ProlificService:
             json={"action": "PUBLISH"},
         )
 
+    def screen_out(
+        self,
+        study_id: str,
+        submission_ids: Union[str, List[str]],
+        bonus_per_submission: float,
+        increase_places: bool,
+    ) -> dict:
+        """
+        Screen-out one or more submissions for a study.
+
+        Args:
+            study_id: The ID of the study
+            submission_ids: A single submission ID or list of submission IDs
+            bonus_per_submission: The bonus amount to pay per submission, in your study currency.
+            increase_places: Whether to increase available study places
+
+        Calls the 'Bulk screen out submissions' route in the Prolific API (see https://docs.prolific.com/docs/api-docs/public/#tag/Submissions/operation/BulkScreenOutSubmissions). The Prolific documentation for this route is reproduced below:
+
+        This endpoint is designed to be used as part of a custom screening study (a study that has been created with 'is_custom_screening:true'). If a participant has taken part in a study where you have asked screening questions and has not met your screening requirements, this endpoint allows you to screen out multiple participants at once. The endpoint accepts a list of submission ID's and a bonus amount and will perform the following actions:
+
+        - Change the status of the submission to SCREENED_OUT which is equivalent to returning the submission.
+        - Pay the participant a bonus, specified by you.
+        - Send the participant a message explaining that they have been screened out and showing their bonus amount. All submission ID's must belong to the specified study. Bonus per submission is a decimal value in your study currency, e.g. 1.50 for £1.50.
+
+        It is our understanding that Prolific will reject such requests if the bonus is not large enough to cover the median participant session time multiplied by Prolific's minimum hourly wage.
+        """
+        submission_ids = (
+            [submission_ids] if isinstance(submission_ids, str) else submission_ids
+        )
+
+        payload = {
+            "submission_ids": submission_ids,
+            "bonus_per_submission": bonus_per_submission,
+            "increase_places": increase_places,
+        }
+
+        return self._req(
+            method="POST",
+            endpoint=f"/studies/{study_id}/screen-out-submissions/",
+            json=payload,
+        )
+
     def delete_study(self, study_id: str) -> bool:
         """Delete a Study entirely. This is only possible on UNPUBLISHED studies."""
         response = self._req(method="DELETE", endpoint=f"/studies/{study_id}")
@@ -559,6 +605,13 @@ class DevProlificService(ProlificService):
                         "external_study_url": "external-study-url",
                     }
 
+                elif re.match(r"/studies/[a-z0-9]+/screen-out-submissions/"):
+                    # method="POST", endpoint= "/studies/{study_id}/screen-out-submissions/", json=payload
+                    response = {
+                        "message": "The request to bulk screen out has been made successfully.",
+                        "payment_per_participant": {"amount": 15, "currency": "GBP"},
+                    }
+
                 elif re.match(r"/studies/[a-z0-9]+/transition/", endpoint):
                     # method="POST", endpoint=f"/studies/{study_id}/transition/", json={"action": "PUBLISH"},
                     response = True
@@ -710,7 +763,7 @@ class DevProlificService(ProlificService):
         logger.info(f"Simulated Prolific API response: {response}")
 
 
-def prolific_service_from_config():  #
+def prolific_service_from_config():
     from dallinger.config import get_config
     from dallinger.prolific import ProlificService
 

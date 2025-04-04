@@ -35,11 +35,17 @@ from dallinger.mturk import (
 )
 from dallinger.notifications import MessengerError, admin_notifier, get_mailer
 from dallinger.prolific import (
+    ProlificScreenOutDenied,
     ProlificServiceException,
     dev_prolific_service_from_config,
     prolific_service_from_config,
 )
-from dallinger.utils import ParticipationTime, generate_random_id, get_base_url
+from dallinger.utils import (
+    ParticipationTime,
+    generate_random_id,
+    get_base_url,
+    median_time_spent_in_hours,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -347,6 +353,10 @@ class Recruiter(object):
             participants (list[Participant]): A list of participants for which
             to verify the status.
         """
+        raise NotImplementedError
+
+    def screen_out(self, participant: Participant):
+        """Screen-out a submission."""
         raise NotImplementedError
 
     def validate_config(self, **kwargs):
@@ -844,6 +854,27 @@ class ProlificRecruiter(Recruiter):
             "peripheral_requirements": details["peripheral_requirements"],
         }
 
+    def screen_out(self, participant: Participant):
+        """Screen-out a participant.
+
+        Parameters:
+            participant: Participant
+                The participant to screen-out.
+        """
+        response = self.prolificservice.screen_out(
+            study_id=self.current_study_id,
+            submission_id=participant.assignment_id,
+            bonus_per_submission=participant.base_pay + participant.bonus,
+            increase_places=self.config.get("auto_recruit"),
+        )
+
+        if response["status"] == 204:
+            return response
+        else:
+            raise ProlificScreenOutDenied(
+                f"Prolific denied screen-out request for participant {participant.id}: {response}"
+            )
+
     def validate_config(self, **kwargs):
         super().validate_config()
         # Make sure Prolific config variables are present and validate the workspace
@@ -871,6 +902,42 @@ class DevProlificRecruiter(ProlificRecruiter):
         response = "http://127.0.0.1:5000/dashboard/develop"
         self.prolificservice.log_response(response)
         return response
+
+    def screen_out_allowed(self, participant):
+        """Check if a participant can be screened out.
+
+        Returns False if:
+        - participant is not in 'working' status
+        - custom screening is disabled
+        - reward is below minimum required
+        """
+        if participant.status != "working":
+            return False
+
+        study = self.prolificservice.get_study(self.current_study_id)
+
+        if not study.get("is_custom_screening", False):
+            raise ProlificRecruiterException(
+                f"Prolific study (ID {self.current_study_id}) doesn't allow screening-out of participants"
+            )
+
+        # Minimum wage thresholds: https://researcher-help.prolific.com/en/article/2273bd
+        prolific_min_wage_per_hour = 6
+        participants = Participant.query.filter_by(status="working").all()
+        min_required_reward = (
+            median_time_spent_in_hours(participants) * prolific_min_wage_per_hour
+        )
+        reward = participant.base_pay + participant.bonus
+
+        if reward < min_required_reward:
+            message = (
+                f"Participant with submission ID {participant.assignment_id} does not satisfy the requirements "
+                f"to be screened-out! Reward: {reward}, Minimum required reward: {min_required_reward}"
+            )
+            logger.warning(message)
+            return False
+
+        return True
 
 
 class MockRecruiter(Recruiter):

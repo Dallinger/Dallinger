@@ -422,3 +422,57 @@ def test_translate_draft_study(
     config.write(filter_sensitive=False)
 
     assert subject.draft_study(**study_request) == expected_project_id
+
+
+def test_screen_out_multiple_ids(subject):
+    """Test that screen_out sends the correct payload to Prolific's API when given multiple submission IDs."""
+    study_id = "study_123"
+    submission_ids = ["submission_456", "submission_789"]
+    bonus = 2.50
+    increase_places = True
+
+    subject._req = mock.MagicMock()
+
+    subject.screen_out(
+        study_id=study_id,
+        submission_ids=submission_ids,
+        bonus_per_submission=bonus,
+        increase_places=increase_places,
+    )
+
+    subject._req.assert_called_once_with(
+        method="POST",
+        endpoint=f"/studies/{study_id}/screen-out-submissions/",
+        json={
+            "submission_ids": submission_ids,
+            "bonus_per_submission": bonus,
+            "increase_places": increase_places,
+        },
+    )
+
+
+def test_screen_out_single_id(subject):
+    """Test that screen_out sends the correct payload to Prolific's API when given a single submission ID."""
+    study_id = "study_123"
+    submission_id = "submission_456"
+    bonus = 2.50
+    increase_places = True
+
+    subject._req = mock.MagicMock()
+
+    subject.screen_out(
+        study_id=study_id,
+        submission_ids=submission_id,
+        bonus_per_submission=bonus,
+        increase_places=increase_places,
+    )
+
+    subject._req.assert_called_once_with(
+        method="POST",
+        endpoint=f"/studies/{study_id}/screen-out-submissions/",
+        json={
+            "submission_ids": [submission_id],
+            "bonus_per_submission": bonus,
+            "increase_places": increase_places,
+        },
+    )
