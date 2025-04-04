@@ -152,7 +152,13 @@ class DashboardTabs(object):
         :raises ValueError: When ``before_route`` is not found in registered tabs
 
         """
-        before_check = frozenset((before_route, "dashboard." + before_route))
+        before_check = frozenset(
+            (
+                before_route,
+                "dashboard." + before_route,
+                "dashboard.dashboard_" + before_route,
+            )
+        )
         for i, cur_tab in enumerate(self.tabs):
             if cur_tab.route_name in before_check:
                 position = i
@@ -186,7 +192,13 @@ class DashboardTabs(object):
         :raises ValueError: When ``after_route`` is not found in registered tabs
 
         """
-        after_check = frozenset((after_route, "dashboard." + after_route))
+        after_check = frozenset(
+            (
+                after_route,
+                "dashboard." + after_route,
+                "dashboard.dashboard_" + after_route,
+            )
+        )
         for i, cur_tab in enumerate(self.tabs):
             if cur_tab.route_name in after_check:
                 position = i + 1
