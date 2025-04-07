@@ -925,9 +925,6 @@ class DevProlificRecruiter(ProlificRecruiter):
         )
 
         for participant in participants:
-            if participant.status != "working":
-                continue
-
             reward = participant.base_pay + participant.bonus
             if reward < min_required_reward:
                 logger.warning(
