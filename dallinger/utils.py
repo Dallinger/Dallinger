@@ -1009,6 +1009,8 @@ def median_time_spent_in_hours(participants: list[Participant]) -> float:
         float
             The median time spent in hours by participants in a list of participants.
     """
+    from statistics import median
+
     if not participants:
         return 0
 
@@ -1019,10 +1021,6 @@ def median_time_spent_in_hours(participants: list[Participant]) -> float:
     ]
     times.sort()
 
-    mid = len(times) // 2
-    if len(times) % 2 == 0:
-        median_time = (times[mid - 1] + times[mid]) / 2
-    else:
-        median_time = times[mid]
+    median_time = median(times)
 
     return median_time.total_seconds() / 3600
