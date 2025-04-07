@@ -419,6 +419,21 @@ class ProlificService:
 
         It is our understanding that Prolific will reject such requests if the bonus is not large enough to
         cover the median participant session time multiplied by Prolific's minimum hourly wage.
+
+        Returns a dictionary with the following keys when the request was successful:
+        - "message": "The request to bulk screen out has been made successfully."
+        - "payment_per_participant": A dictionary with the following keys:
+          - "amount": The bonus amount in your study currency
+          - "currency": The currency of the bonus
+
+        Returns a dictionary with the following keys when the request was not successful:
+        - "status": Status code of the response
+        - "error_code": Error code of the response
+        - "title": Title of the error
+        - "detail": Details of the error
+        - "additional_information": Additional information from Prolific
+        - "traceback": Traceback from Prolific
+        - "interactive": Whether the error is interactive
         """
         submission_ids = (
             [submission_ids] if isinstance(submission_ids, str) else submission_ids
