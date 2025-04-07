@@ -1019,7 +1019,6 @@ def median_time_spent_in_hours(participants: list[Participant]) -> float:
         for participant in participants
         if participant.end_time is not None
     ]
-    times.sort()
 
     median_time = median(times)
 
