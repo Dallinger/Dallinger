@@ -1012,7 +1012,7 @@ def median_time_spent_in_hours(participants: list[Participant]) -> float:
     from statistics import median
 
     if not participants:
-        return 0
+        return None
 
     times = [
         participant.end_time - participant.creation_time
