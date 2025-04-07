@@ -400,15 +400,25 @@ class ProlificService:
             bonus_per_submission: The bonus amount to pay per submission, in your study currency.
             increase_places: Whether to increase available study places
 
-        Calls the 'Bulk screen out submissions' route in the Prolific API (see https://docs.prolific.com/docs/api-docs/public/#tag/Submissions/operation/BulkScreenOutSubmissions). The Prolific documentation for this route is reproduced below:
+        Calls the 'Bulk screen out submissions' route in the Prolific API
+        (see https://docs.prolific.com/docs/api-docs/public/#tag/Submissions/operation/BulkScreenOutSubmissions).
 
-        This endpoint is designed to be used as part of a custom screening study (a study that has been created with 'is_custom_screening:true'). If a participant has taken part in a study where you have asked screening questions and has not met your screening requirements, this endpoint allows you to screen out multiple participants at once. The endpoint accepts a list of submission ID's and a bonus amount and will perform the following actions:
+        The Prolific documentation for this route is reproduced below:
+
+        This endpoint is designed to be used as part of a custom screening study
+        (a study that has been created with 'is_custom_screening:true'). If a participant has taken part in a
+        study where you have asked screening questions and has not met your screening requirements, this
+        endpoint allows you to screen out multiple participants at once. The endpoint accepts a list of
+        submission IDs and a bonus amount and will perform the following actions:
 
         - Change the status of the submission to SCREENED_OUT which is equivalent to returning the submission.
         - Pay the participant a bonus, specified by you.
-        - Send the participant a message explaining that they have been screened out and showing their bonus amount. All submission ID's must belong to the specified study. Bonus per submission is a decimal value in your study currency, e.g. 1.50 for £1.50.
+        - Send the participant a message explaining that they have been screened out and showing their bonus
+          amount. All submission IDs must belong to the specified study. Bonus per submission is a decimal
+          value in your study currency, e.g. 1.50 for £1.50.
 
-        It is our understanding that Prolific will reject such requests if the bonus is not large enough to cover the median participant session time multiplied by Prolific's minimum hourly wage.
+        It is our understanding that Prolific will reject such requests if the bonus is not large enough to
+        cover the median participant session time multiplied by Prolific's minimum hourly wage.
         """
         submission_ids = (
             [submission_ids] if isinstance(submission_ids, str) else submission_ids
