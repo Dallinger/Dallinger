@@ -913,7 +913,9 @@ class DevProlificRecruiter(ProlificRecruiter):
 
         if not study.get("is_custom_screening", False):
             raise ProlificRecruiterException(
-                f"Prolific study (ID {self.current_study_id}) doesn't allow screening-out of participants"
+                f"Prolific study (ID {self.current_study_id}) doesn't allow screening-out of participants. "
+                "Set 'is_custom_screening' to 'True' in your experiment config.txt file (or alternatively in "
+                "~/.dallingerconfig) to enable screening-out."
             )
 
         # Minimum wage thresholds: https://researcher-help.prolific.com/en/article/2273bd
