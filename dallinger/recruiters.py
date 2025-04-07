@@ -903,17 +903,12 @@ class DevProlificRecruiter(ProlificRecruiter):
         self.prolificservice.log_response(response)
         return response
 
-    def screen_out_allowed(self, participant):
-        """Check if a participant can be screened out.
-
-        Returns False if:
-        - participant is not in 'working' status
-        - custom screening is disabled
-        - reward is below minimum required
+    def screen_out_allowed(self, participants: list[Participant]):
         """
-        if participant.status != "working":
-            return False
+        Check which participants in a list of participants can be screened out.
 
+        Returns a list of participants that can be screened out.
+        """
         study = self.prolificservice.get_study(self.current_study_id)
 
         if not study.get("is_custom_screening", False):
@@ -923,21 +918,26 @@ class DevProlificRecruiter(ProlificRecruiter):
 
         # Minimum wage thresholds: https://researcher-help.prolific.com/en/article/2273bd
         prolific_min_wage_per_hour = 6
-        participants = Participant.query.filter_by(status="working").all()
         min_required_reward = (
             median_time_spent_in_hours(participants) * prolific_min_wage_per_hour
         )
-        reward = participant.base_pay + participant.bonus
+        screen_out_participants = []
+        for participant in participants:
+            if participant.status != "working":
+                continue
 
-        if reward < min_required_reward:
-            message = (
-                f"Participant with submission ID {participant.assignment_id} does not satisfy the requirements "
-                f"to be screened-out! Reward: {reward}, Minimum required reward: {min_required_reward}"
-            )
-            logger.warning(message)
-            return False
+            reward = (
+                participant.base_pay + participant.bonus
+            )  # TODO: Check if this is correct
+            if reward >= min_required_reward:
+                screen_out_participants.append(participant)
+            else:
+                logger.warning(
+                    f"Participant with submission ID {participant.assignment_id} does not satisfy the requirements "
+                    f"to be screened-out! Reward: {reward}, Minimum required reward: {min_required_reward}"
+                )
 
-        return True
+        return screen_out_participants
 
 
 class MockRecruiter(Recruiter):
