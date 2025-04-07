@@ -903,11 +903,11 @@ class DevProlificRecruiter(ProlificRecruiter):
         self.prolificservice.log_response(response)
         return response
 
-    def screen_out_allowed(self, participants: list[Participant]):
+    def screen_out_allowed(self, participants: list[Participant]) -> bool:
         """
-        Check which participants in a list of participants can be screened out.
+        Check if all participants in a list of participants can be screened out.
 
-        Returns a list of participants that can be screened out.
+        Returns True if all participants can be screened out, False otherwise.
         """
         study = self.prolificservice.get_study(self.current_study_id)
 
@@ -923,23 +923,20 @@ class DevProlificRecruiter(ProlificRecruiter):
         min_required_reward = (
             median_time_spent_in_hours(participants) * prolific_min_wage_per_hour
         )
-        screen_out_participants = []
+
         for participant in participants:
             if participant.status != "working":
                 continue
 
-            reward = (
-                participant.base_pay + participant.bonus
-            )  # TODO: Check if this is correct
-            if reward >= min_required_reward:
-                screen_out_participants.append(participant)
-            else:
+            reward = participant.base_pay + participant.bonus
+            if reward < min_required_reward:
                 logger.warning(
                     f"Participant with submission ID {participant.assignment_id} does not satisfy the requirements "
                     f"to be screened-out! Reward: {reward}, Minimum required reward: {min_required_reward}"
                 )
+                return False
 
-        return screen_out_participants
+        return True
 
 
 class MockRecruiter(Recruiter):
