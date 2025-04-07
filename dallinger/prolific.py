@@ -634,7 +634,10 @@ class DevProlificService(ProlificService):
                     # method="POST", endpoint= "/studies/{study_id}/screen-out-submissions/", json=payload
                     response = {
                         "message": "The request to bulk screen out has been made successfully.",
-                        "payment_per_participant": {"amount": 15, "currency": "GBP"},
+                        "payment_per_participant": {
+                            "amount": kw["json"]["bonus_per_submission"],
+                            "currency": "GBP",
+                        },
                     }
 
                 elif re.match(r"/studies/[a-z0-9]+/transition/", endpoint):
