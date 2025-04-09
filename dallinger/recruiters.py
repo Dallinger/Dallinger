@@ -903,11 +903,19 @@ class DevProlificRecruiter(ProlificRecruiter):
         self.prolificservice.log_response(response)
         return response
 
-    def screen_out_allowed(self, participants: list[Participant]) -> bool:
+    def screen_out_allowed(
+        self, participants: list[Participant], payment_per_participant: float
+    ) -> bool:
         """
         Check if all participants in a list of participants can be screened out.
+        This is done by checking if the payment per participant is greater than the minimum required reward.
 
-        Returns True if all participants can be screened out, False otherwise.
+        Args:
+            participants: list[Participant] - A list of participants to check.
+            payment_per_participant: float - The payment per participant is supposed to be awarded.
+
+        Returns:
+            bool - True if all participants can be screened out, False otherwise.
         """
         study = self.prolificservice.get_study(self.current_study_id)
 
@@ -924,14 +932,12 @@ class DevProlificRecruiter(ProlificRecruiter):
             median_time_spent_in_hours(participants) * prolific_min_wage_per_hour
         )
 
-        for participant in participants:
-            reward = participant.base_pay + participant.bonus
-            if reward < min_required_reward:
-                logger.warning(
-                    f"Participant with submission ID {participant.assignment_id} does not satisfy the requirements "
-                    f"to be screened-out! Reward: {reward}, Minimum required reward: {min_required_reward}"
-                )
-                return False
+        if payment_per_participant < min_required_reward:
+            logger.warning(
+                f"The participants with submission IDs {[p.assignment_id for p in participants]} do not satisfy the requirements "
+                f"to be screened-out! Reward per participant: {payment_per_participant}, Minimum required reward: {min_required_reward}"
+            )
+            return False
 
         return True
 
