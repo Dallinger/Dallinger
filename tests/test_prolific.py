@@ -1,11 +1,14 @@
 """Prolific module tests."""
 
+from datetime import datetime, timedelta
 from unittest import mock
 
 import pytest
 
 from dallinger.config import get_config
 from dallinger.prolific import (
+    DevProlificService,
+    ProlificServiceException,
     ProlificServiceMultipleWorkspacesException,
     ProlificServiceNoSuchProject,
     ProlificServiceNoSuchWorkspaceException,
@@ -189,6 +192,13 @@ def subject(prolific_creds):
         api_token=prolific_creds["prolific_api_token"],
         api_version=prolific_creds["prolific_api_version"],
         referer_header=referer,
+    )
+
+
+@pytest.fixture
+def prolific():
+    return DevProlificService(
+        api_token="fake-token", api_version="v1", referer_header="test-header"
     )
 
 
@@ -476,3 +486,84 @@ def test_screen_out_single_id(subject):
             "increase_places": increase_places,
         },
     )
+
+
+class TestDevProlificServiceScreenOut:
+    @pytest.fixture
+    def participants(self, a):
+        # Create test participants with 30-minute sessions
+        participants = []
+        creation_time = datetime.now()
+
+        for i in range(3):
+            p = a.participant()
+            p.creation_time = creation_time
+            p.end_time = creation_time + timedelta(minutes=30)
+            p.base_pay = 2.0
+            p.status = "working"
+            participants.append(p)
+
+        return participants
+
+    def test_screen_out_allowed_above_minimum_wage(self, prolific, participants):
+        prolific.get_study = lambda *args: {"is_custom_screening": True}
+
+        result = prolific.screen_out_allowed(participants, bonus_per_submission=4.0)
+        assert result is True
+
+    def test_screen_out_allowed_equal_to_minimum_wage(self, prolific, participants):
+        prolific.get_study = lambda *args: {"is_custom_screening": True}
+
+        result = prolific.screen_out_allowed(participants, bonus_per_submission=3.0)
+        assert result is True
+
+    def test_screen_out_allowed_below_minimum_wage(self, prolific, participants):
+        prolific.get_study = lambda *args: {"is_custom_screening": True}
+
+        result = prolific.screen_out_allowed(participants, bonus_per_submission=2.0)
+        assert result is False
+
+    def test_screen_out_not_allowed_custom_screening_disabled(
+        self, prolific, participants
+    ):
+        prolific.get_study = lambda *args: {"is_custom_screening": False}
+
+        with pytest.raises(ProlificServiceException) as exc_info:
+            prolific.screen_out_allowed(participants, bonus_per_submission=4.0)
+
+        assert "doesn't allow screening-out of participants" in str(exc_info.value)
+        assert "Set 'is_custom_screening' to 'True'" in str(exc_info.value)
+
+    def test_screen_out_allowed_empty_participants(self, prolific):
+        prolific.get_study = lambda *args: {"is_custom_screening": True}
+
+        # Using empty participants list should return False (can't screen out with no participants)
+        result = prolific.screen_out_allowed([], bonus_per_submission=4.0)
+        assert result is False, "Should not allow screen out with no participants"
+
+    def test_screen_out_allowed_mixed_participants(self, prolific, a):
+        prolific.get_study = lambda *args: {"is_custom_screening": True}
+
+        creation_time = datetime.now()
+
+        p1 = a.participant()
+        p1.creation_time = creation_time
+        p1.end_time = creation_time + timedelta(minutes=30)
+        p1.base_pay = 2.0
+        p1.status = "working"
+
+        p2 = a.participant()
+        p2.creation_time = creation_time
+        p2.end_time = creation_time + timedelta(minutes=60)
+        p2.base_pay = 2.0
+        p2.status = "working"
+
+        participants = [p1, p2]
+
+        # Median of 30 and 60 minutes = 45 minutes = 0.75 hours
+        # Minimum wage: £6/hour * 0.75 hours = £4.50
+        # Bonus of £4.0 is below minimum, so should not allow screen out
+        result = prolific.screen_out_allowed(participants, bonus_per_submission=4.0)
+        assert (
+            result is False
+        ), "Should not allow screen out if bonus is below minimum reward"

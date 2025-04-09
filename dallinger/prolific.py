@@ -604,6 +604,9 @@ class DevProlificService(ProlificService):
         Returns:
             bool - True if all participants can be screened out, False otherwise.
         """
+        if not participants:
+            return False
+
         study = self.get_study(self.study_id)
 
         if not study.get("is_custom_screening", False):
