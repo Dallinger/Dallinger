@@ -633,7 +633,7 @@ class DevProlificService(ProlificService):
 
                 elif re.match(r"/studies/[a-z0-9]+/screen-out-submissions/"):
                     # method="POST", endpoint= "/studies/{study_id}/screen-out-submissions/", json=payload
-                    from dallinger.recruiters import ProlificRecruiter
+                    from dallinger.recruiters import DevProlificRecruiter
 
                     # Get all participants whose assignment IDs match the submission IDs in the request
                     participants = [
@@ -643,7 +643,7 @@ class DevProlificService(ProlificService):
                         ).all()
                     ]
 
-                    screen_out_allowed = ProlificRecruiter.screen_out_allowed(
+                    screen_out_allowed = DevProlificRecruiter.screen_out_allowed(
                         self,
                         participants=participants,
                         payment_per_participant=kw["json"]["bonus_per_submission"],
