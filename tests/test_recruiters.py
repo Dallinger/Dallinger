@@ -8,9 +8,7 @@ import pytest
 from dallinger.experiment import Experiment
 from dallinger.models import Participant
 from dallinger.mturk import MTurkQualificationRequirements, MTurkQuestions
-from dallinger.recruiters import (
-    MTurkRecruiterException,
-)
+from dallinger.recruiters import MTurkRecruiterException
 
 
 class TestModuleFunctions(object):
