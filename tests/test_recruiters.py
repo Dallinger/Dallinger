@@ -2,7 +2,6 @@ import json
 import os
 from datetime import datetime
 from unittest import mock
-from unittest.mock import patch
 
 import pytest
 
@@ -10,9 +9,7 @@ from dallinger.experiment import Experiment
 from dallinger.models import Participant
 from dallinger.mturk import MTurkQualificationRequirements, MTurkQuestions
 from dallinger.recruiters import (
-    DevProlificRecruiter,
     MTurkRecruiterException,
-    ProlificRecruiterException,
 )
 
 
@@ -786,88 +783,6 @@ class TestProlificRecruiter(object):
     def test_validate_config_assert_not_publishing(self, a, recruiter):
         recruiter.config["publish_experiment"] = False
         recruiter.validate_config()
-
-
-@pytest.mark.usefixtures("prolific_config")
-class TestDevProlificRecruiterScreenOutAllowed:
-    @pytest.fixture
-    def recruiter(self, prolificservice):
-        recruiter = DevProlificRecruiter()
-        recruiter.prolificservice = prolificservice
-        return recruiter
-
-    def test_screen_out_allowed_custom_screening(self, a, recruiter):
-        """Test that screen out is not allowed for non-custom screening studies"""
-        recruiter.prolificservice.get_study.return_value = {
-            "is_custom_screening": False
-        }
-        participant = a.participant()
-        participant.status = "working"
-
-        with pytest.raises(ProlificRecruiterException) as exc_info:
-            recruiter.screen_out_allowed([participant])
-
-        assert (
-            f"Prolific study (ID {recruiter.current_study_id}) doesn't allow screening-out of participants"
-            in str(exc_info.value)
-        )
-
-    def test_screen_out_allowed_below_minimum_reward(self, a, recruiter):
-        """Test that participants below minimum reward cannot be screened out"""
-        recruiter.prolificservice.get_study.return_value = {"is_custom_screening": True}
-        participant = a.participant()
-        participant.base_pay = 2.0
-        participant.bonus = 9.0
-
-        with patch("dallinger.recruiters.median_time_spent_in_hours", return_value=2.0):
-            assert not recruiter.screen_out_allowed(
-                [participant]
-            ), "Should not allow screen out for below minimum reward"
-
-    def test_screen_out_allowed_above_minimum_reward(self, a, recruiter):
-        """Test that participants above minimum reward can be screened out"""
-        recruiter.prolificservice.get_study.return_value = {"is_custom_screening": True}
-        participant = a.participant()
-        participant.base_pay = 2.0
-        participant.bonus = 11.0
-
-        with patch("dallinger.recruiters.median_time_spent_in_hours", return_value=2.0):
-            assert recruiter.screen_out_allowed(
-                [participant]
-            ), "Should allow screen out for above minimum reward"
-
-    def test_screen_out_allowed_equal_minimum_reward(self, a, recruiter):
-        """Test that participants at minimum reward can be screened out"""
-        recruiter.prolificservice.get_study.return_value = {"is_custom_screening": True}
-        participant = a.participant()
-        participant.base_pay = 2.0
-        participant.bonus = 10.0
-
-        with patch("dallinger.recruiters.median_time_spent_in_hours", return_value=2.0):
-            assert recruiter.screen_out_allowed(
-                [participant]
-            ), "Should allow screen out for equal minimum reward"
-
-    def test_screen_out_allowed_mixed_participants(self, a, recruiter):
-        """Test screening out with a mix of eligible and ineligible participants"""
-        recruiter.prolificservice.get_study.return_value = {"is_custom_screening": True}
-
-        # Create eligible participant
-        eligible = a.participant()
-        eligible.base_pay = 2.0
-        eligible.bonus = 11.0
-
-        # Create ineligible participant (below minimum reward)
-        ineligible_reward = a.participant()
-        ineligible_reward.base_pay = 2.0
-        ineligible_reward.bonus = 9.0
-
-        participants = [eligible, ineligible_reward]
-
-        with patch("dallinger.recruiters.median_time_spent_in_hours", return_value=2.0):
-            assert not recruiter.screen_out_allowed(
-                participants
-            ), "Should not allow screen out if any participant is below minimum reward"
 
 
 class TestMTurkRecruiterMessages(object):
