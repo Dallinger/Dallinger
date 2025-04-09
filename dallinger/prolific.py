@@ -591,7 +591,7 @@ class DevProlificService(ProlificService):
             self.workspace_title = workspace
 
     def screen_out_allowed(
-        self, participants: list[Participant], payment_per_participant: float
+        self, participants: list[Participant], bonus_per_submission: float
     ) -> bool:
         """
         Check if all participants in a list of participants can be screened out.
@@ -599,7 +599,7 @@ class DevProlificService(ProlificService):
 
         Args:
             participants: list[Participant] - A list of participants to check.
-            payment_per_participant: float - The payment per participant is supposed to be awarded.
+            bonus_per_submission: float - The bonus per submission that is supposed to be awarded.
 
         Returns:
             bool - True if all participants can be screened out, False otherwise.
@@ -619,10 +619,10 @@ class DevProlificService(ProlificService):
             median_time_spent_in_hours(participants) * prolific_min_wage_per_hour
         )
 
-        if payment_per_participant < min_required_reward:
+        if bonus_per_submission < min_required_reward:
             logger.warning(
                 f"The participants with submission IDs {[p.assignment_id for p in participants]} do not satisfy the requirements "
-                f"to be screened-out! Reward per participant: {payment_per_participant}, Minimum required reward: {min_required_reward}"
+                f"to be screened-out! Reward per participant: {bonus_per_submission}, Minimum required reward: {min_required_reward}"
             )
             return False
 
@@ -681,7 +681,7 @@ class DevProlificService(ProlificService):
 
                     screen_out_allowed = self.screen_out_allowed(
                         participants=participants,
-                        payment_per_participant=kw["json"]["bonus_per_submission"],
+                        bonus_per_submission=kw["json"]["bonus_per_submission"],
                     )
                     if screen_out_allowed:
                         response = {
