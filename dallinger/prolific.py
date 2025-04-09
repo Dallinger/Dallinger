@@ -9,6 +9,7 @@ import tenacity
 from dateutil import parser
 
 from dallinger.models import Participant
+from dallinger.utils import median_time_spent_in_hours
 from dallinger.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -589,6 +590,44 @@ class DevProlificService(ProlificService):
             self.workspace_id = "dd883348cd40c69ccb1a7671"
             self.workspace_title = workspace
 
+    def screen_out_allowed(
+        self, participants: list[Participant], payment_per_participant: float
+    ) -> bool:
+        """
+        Check if all participants in a list of participants can be screened out.
+        This is done by checking if the payment per participant is greater than the minimum required reward.
+
+        Args:
+            participants: list[Participant] - A list of participants to check.
+            payment_per_participant: float - The payment per participant is supposed to be awarded.
+
+        Returns:
+            bool - True if all participants can be screened out, False otherwise.
+        """
+        study = self.get_study(self.study_id)
+
+        if not study.get("is_custom_screening", False):
+            raise ProlificServiceException(
+                f"Prolific study (ID {self.study_id}) doesn't allow screening-out of participants. "
+                "Set 'is_custom_screening' to 'True' in your experiment config.txt file (or alternatively in "
+                "~/.dallingerconfig) to enable screening-out."
+            )
+
+        # Minimum wage thresholds: https://researcher-help.prolific.com/en/article/2273bd
+        prolific_min_wage_per_hour = 6
+        min_required_reward = (
+            median_time_spent_in_hours(participants) * prolific_min_wage_per_hour
+        )
+
+        if payment_per_participant < min_required_reward:
+            logger.warning(
+                f"The participants with submission IDs {[p.assignment_id for p in participants]} do not satisfy the requirements "
+                f"to be screened-out! Reward per participant: {payment_per_participant}, Minimum required reward: {min_required_reward}"
+            )
+            return False
+
+        return True
+
     def _req(self, method: str, endpoint: str, **kw) -> dict:
         """Does NOT make any requests but instead writes to the log."""
         self.log_request(method=method, endpoint=endpoint, **kw)
@@ -633,9 +672,6 @@ class DevProlificService(ProlificService):
 
                 elif re.match(r"/studies/[a-z0-9]+/screen-out-submissions/"):
                     # method="POST", endpoint= "/studies/{study_id}/screen-out-submissions/", json=payload
-                    from dallinger.recruiters import DevProlificRecruiter
-
-                    # Get all participants whose assignment IDs match the submission IDs in the request
                     participants = [
                         p
                         for p in Participant.query.filter(
@@ -643,8 +679,7 @@ class DevProlificService(ProlificService):
                         ).all()
                     ]
 
-                    screen_out_allowed = DevProlificRecruiter.screen_out_allowed(
-                        self,
+                    screen_out_allowed = self.screen_out_allowed(
                         participants=participants,
                         payment_per_participant=kw["json"]["bonus_per_submission"],
                     )
