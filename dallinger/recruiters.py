@@ -1978,7 +1978,7 @@ class BotRecruiter(Recruiter):
 
     def _get_bot_factory(self):
         # Must be imported at run-time
-        from dallinger_experiment.experiment import Bot
+        from dallinger_experiment.experiment import Bot  # type: ignore
 
         return Bot
 
