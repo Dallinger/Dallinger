@@ -853,15 +853,18 @@ class ProlificRecruiter(Recruiter):
             "peripheral_requirements": details["peripheral_requirements"],
         }
 
-    def screen_out(self, participant):
+    def screen_out(self, participant_id: str):
         """Screen out a participant from a Prolific study."""
         if not self.current_study_id:
             raise RuntimeError("No current study in progress")
 
+        participant = Participant.query.get(participant_id)
+
         response = self.prolificservice.screen_out(
             study_id=self.current_study_id,
             submission_ids=[participant.assignment_id],
-            bonus_per_submission=participant.base_pay + (participant.bonus or 0.0),
+            bonus_per_submission=(participant.base_pay or 0.0)
+            + (participant.bonus or 0.0),
             increase_places=self.config.get("auto_recruit", False),
         )
 

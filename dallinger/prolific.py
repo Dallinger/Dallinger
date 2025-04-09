@@ -612,7 +612,7 @@ class DevProlificService(ProlificService):
         if not study.get("is_custom_screening", False):
             raise ProlificServiceException(
                 f"Prolific study (ID {self.study_id}) doesn't allow screening-out of participants. "
-                "Set 'is_custom_screening' to 'True' in your experiment config.txt file (or alternatively in "
+                "Set 'prolific_is_custom_screening' to 'True' in your experiment config.txt file (or alternatively in "
                 "~/.dallingerconfig) to enable screening-out."
             )
 
@@ -673,7 +673,7 @@ class DevProlificService(ProlificService):
                         "external_study_url": "external-study-url",
                     }
 
-                elif re.match(r"/studies/[a-z0-9]+/screen-out-submissions/"):
+                elif re.match(r"/studies/[a-z0-9]+/screen-out-submissions/", endpoint):
                     # method="POST", endpoint= "/studies/{study_id}/screen-out-submissions/", json=payload
                     participants = [
                         p
