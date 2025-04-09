@@ -853,25 +853,26 @@ class ProlificRecruiter(Recruiter):
             "peripheral_requirements": details["peripheral_requirements"],
         }
 
-    def screen_out(self, participant: Participant):
-        """Screen-out a participant.
+    def screen_out(self, participant):
+        """Screen out a participant from a Prolific study."""
+        if not self.current_study_id:
+            raise RuntimeError("No current study in progress")
 
-        Parameters:
-            participant: Participant
-                The participant to screen-out.
-        """
         response = self.prolificservice.screen_out(
             study_id=self.current_study_id,
-            submission_id=participant.assignment_id,
-            bonus_per_submission=participant.base_pay + participant.bonus,
-            increase_places=self.config.get("auto_recruit"),
+            submission_ids=[participant.assignment_id],
+            bonus_per_submission=participant.base_pay + (participant.bonus or 0.0),
+            increase_places=self.config.get("auto_recruit", False),
         )
 
-        if response["status"] == 204:
+        if response.get("status") == 204 or (
+            "message" in response and "successfully" in response["message"].lower()
+        ):
             return response
         else:
+            error_msg = response.get("message", str(response))
             raise ProlificScreenOutDenied(
-                f"Prolific denied screen-out request for participant {participant.id}: {response}"
+                f"Prolific denied screen-out request for participant {participant.id}: {error_msg}"
             )
 
     def validate_config(self, **kwargs):
