@@ -8,6 +8,7 @@ import requests
 import tenacity
 from dateutil import parser
 
+from dallinger.models import Participant
 from dallinger.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -632,13 +633,39 @@ class DevProlificService(ProlificService):
 
                 elif re.match(r"/studies/[a-z0-9]+/screen-out-submissions/"):
                     # method="POST", endpoint= "/studies/{study_id}/screen-out-submissions/", json=payload
-                    response = {
-                        "message": "The request to bulk screen out has been made successfully.",
-                        "payment_per_participant": {
-                            "amount": kw["json"]["bonus_per_submission"],
-                            "currency": "GBP",
-                        },
-                    }
+                    from dallinger.recruiters import ProlificRecruiter
+
+                    # Get all participants whose assignment IDs match the submission IDs in the request
+                    participants = [
+                        p
+                        for p in Participant.query.filter(
+                            Participant.assignment_id.in_(kw["json"]["submission_ids"])
+                        ).all()
+                    ]
+
+                    screen_out_allowed = ProlificRecruiter.screen_out_allowed(
+                        self,
+                        participants=participants,
+                        payment_per_participant=kw["json"]["bonus_per_submission"],
+                    )
+                    if screen_out_allowed:
+                        response = {
+                            "message": "The request to bulk screen out has been made successfully.",
+                            "payment_per_participant": {
+                                "amount": kw["json"]["bonus_per_submission"],
+                                "currency": "GBP",
+                            },
+                        }
+                    else:
+                        response = {
+                            "status": 0,
+                            "error_code": 0,
+                            "title": "The request to bulk screen out was not successful.",
+                            "detail": "Details about the error.",
+                            "additional_information": "Additional information about the error.",
+                            "traceback": "Traceback of the error.",
+                            "interactive": False,
+                        }
 
                 elif re.match(r"/studies/[a-z0-9]+/transition/", endpoint):
                     # method="POST", endpoint=f"/studies/{study_id}/transition/", json={"action": "PUBLISH"},
