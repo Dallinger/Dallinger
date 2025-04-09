@@ -195,13 +195,6 @@ def subject(prolific_creds):
     )
 
 
-@pytest.fixture
-def prolific():
-    return DevProlificService(
-        api_token="fake-token", api_version="v1", referer_header="test-header"
-    )
-
-
 @pytest.mark.skip(reason="Cannot clean up after itself")
 def test_make_quick_study(subject):
     subject.create_study(**private_study_request)
@@ -504,6 +497,16 @@ class TestDevProlificServiceScreenOut:
             participants.append(p)
 
         return participants
+
+    @pytest.fixture
+    def prolific(self, active_config):
+        # Set required config values
+        active_config.extend(
+            {"prolific_workspace": "My Workspace", "prolific_project": "My Project"}
+        )
+        return DevProlificService(
+            api_token="fake-token", api_version="v1", referer_header="test-header"
+        )
 
     def test_screen_out_allowed_above_minimum_wage(self, prolific, participants):
         prolific.get_study = lambda *args: {"is_custom_screening": True}
