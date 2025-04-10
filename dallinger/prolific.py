@@ -648,7 +648,43 @@ class DevProlificService(ProlificService):
                 if re.match(r"/studies/[a-z0-9]+/", endpoint):
                     # method="GET", endpoint=f"/studies/{study_id}/"
                     response = {
+                        "id": "60d9aadeb86739de712faee0",
+                        "name": "Study about API's",
+                        "internal_name": "WIT-2021 Study about API's version 2",
+                        "description": "This study aims to determine how to make a good public API",
+                        "external_study_url": "https://some-experiment.com?participant={{%PROLIFIC_PID%}}",
+                        "prolific_id_option": "url_parameters",
+                        "completion_codes": [
+                            {
+                                "code": "ABC123",
+                                "code_type": "COMPLETED",
+                                "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
+                            },
+                            {
+                                "code": "DEF234",
+                                "code_type": "FOLLOW_UP_STUDY",
+                                "actions": [
+                                    {"action": "AUTOMATICALLY_APPROVE"},
+                                    {
+                                        "action": "ADD_TO_PARTICIPANT_GROUP",
+                                        "participant_group": "619e049f7648a4e1f8f3645b",
+                                    },
+                                ],
+                            },
+                        ],
                         "total_available_places": 100,
+                        "estimated_completion_time": 5,
+                        "maximum_allowed_time": 25,
+                        "reward": 100,
+                        "device_compatibility": ["desktop"],
+                        "peripheral_requirements": [],
+                        "filters": [],
+                        "filter_set_id": None,
+                        "filter_set_version": None,
+                        "status": "UNPUBLISHED",
+                        "study_labels": ["interview"],
+                        "content_warnings": ["sensitive"],
+                        "content_warning_details": "Experiences with hateful activities, experiences with self-injury and harmful behaviour",
                         "is_custom_screening": True,
                     }
 
