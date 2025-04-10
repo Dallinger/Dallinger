@@ -106,7 +106,7 @@ cryptography==44.0.2
     # via
     #   paramiko
     #   pyopenssl
-debugpy==1.8.13
+debugpy==1.8.14
     # via ipykernel
 decorator==5.2.1
     # via ipython
