@@ -649,6 +649,7 @@ class DevProlificService(ProlificService):
                     # method="GET", endpoint=f"/studies/{study_id}/"
                     response = {
                         "total_available_places": 100,
+                        "is_custom_screening": True,
                     }
 
                 elif endpoint == "/studies/":
