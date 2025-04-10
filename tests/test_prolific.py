@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta
 from unittest import mock
+from unittest.mock import patch
 
 import pytest
 
@@ -484,14 +485,13 @@ def test_screen_out_single_id(subject):
 class TestDevProlificServiceScreenOut:
     @pytest.fixture
     def participants(self, a):
-        # Create test participants with 30-minute sessions
         participants = []
-        creation_time = datetime.now()
+        creation_time = datetime(2024, 1, 1, 10, 0)
 
         for i in range(3):
             p = a.participant()
             p.creation_time = creation_time
-            p.end_time = creation_time + timedelta(minutes=30)
+            p.end_time = None
             p.base_pay = 2.0
             p.status = "working"
             participants.append(p)
@@ -511,20 +511,35 @@ class TestDevProlificServiceScreenOut:
     def test_screen_out_allowed_above_minimum_wage(self, prolific, participants):
         prolific.get_study = lambda *args: {"is_custom_screening": True}
 
-        result = prolific.screen_out_allowed(participants, bonus_per_submission=4.0)
-        assert result is True
+        mock_now = participants[0].creation_time + timedelta(minutes=30)
+        with patch("dallinger.utils.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            mock_datetime.side_effect = datetime
+
+            result = prolific.screen_out_allowed(participants, bonus_per_submission=4.0)
+            assert result is True
 
     def test_screen_out_allowed_equal_to_minimum_wage(self, prolific, participants):
         prolific.get_study = lambda *args: {"is_custom_screening": True}
 
-        result = prolific.screen_out_allowed(participants, bonus_per_submission=3.0)
-        assert result is True
+        mock_now = participants[0].creation_time + timedelta(minutes=30)
+        with patch("dallinger.utils.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            mock_datetime.side_effect = datetime
+
+            result = prolific.screen_out_allowed(participants, bonus_per_submission=3.0)
+            assert result is True
 
     def test_screen_out_allowed_below_minimum_wage(self, prolific, participants):
         prolific.get_study = lambda *args: {"is_custom_screening": True}
 
-        result = prolific.screen_out_allowed(participants, bonus_per_submission=2.0)
-        assert result is False
+        mock_now = participants[0].creation_time + timedelta(minutes=30)
+        with patch("dallinger.utils.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            mock_datetime.side_effect = datetime
+
+            result = prolific.screen_out_allowed(participants, bonus_per_submission=2.0)
+            assert result is False
 
     def test_screen_out_not_allowed_custom_screening_disabled(
         self, prolific, participants
@@ -535,7 +550,7 @@ class TestDevProlificServiceScreenOut:
             prolific.screen_out_allowed(participants, bonus_per_submission=4.0)
 
         assert "doesn't allow screening-out of participants" in str(exc_info.value)
-        assert "Set 'is_custom_screening' to 'True'" in str(exc_info.value)
+        assert "Set 'prolific_is_custom_screening' to 'True'" in str(exc_info.value)
 
     def test_screen_out_allowed_empty_participants(self, prolific):
         prolific.get_study = lambda *args: {"is_custom_screening": True}
@@ -545,28 +560,35 @@ class TestDevProlificServiceScreenOut:
         assert result is False, "Should not allow screen out with no participants"
 
     def test_screen_out_allowed_mixed_participants(self, prolific, a):
-        prolific.get_study = lambda *args: {"is_custom_screening": True}
-
-        creation_time = datetime.now()
+        mock_now = datetime(2024, 1, 1, 11, 0)  # 11:00 AM
 
         p1 = a.participant()
-        p1.creation_time = creation_time
-        p1.end_time = creation_time + timedelta(minutes=30)
+        p1.creation_time = mock_now - timedelta(minutes=30)
+        p1.end_time = None  # Still active
         p1.base_pay = 2.0
         p1.status = "working"
 
         p2 = a.participant()
-        p2.creation_time = creation_time
-        p2.end_time = creation_time + timedelta(minutes=60)
+        p2.creation_time = mock_now - timedelta(minutes=60)
+        p2.end_time = None  # Still active
         p2.base_pay = 2.0
         p2.status = "working"
 
         participants = [p1, p2]
 
-        # Median of 30 and 60 minutes = 45 minutes = 0.75 hours
-        # Minimum wage: £6/hour * 0.75 hours = £4.50
-        # Bonus of £4.0 is below minimum, so should not allow screen out
-        result = prolific.screen_out_allowed(participants, bonus_per_submission=4.0)
-        assert (
-            result is False
-        ), "Should not allow screen out if bonus is below minimum reward"
+        prolific.get_study = lambda *args: {"is_custom_screening": True}
+
+        with patch("dallinger.utils.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            mock_datetime.side_effect = datetime
+
+            p1_duration = (mock_now - p1.creation_time).total_seconds() / 3600
+            p2_duration = (mock_now - p2.creation_time).total_seconds() / 3600
+            assert p1_duration == 0.5  # 30 minutes = 0.5 hours
+            assert p2_duration == 1.0  # 60 minutes = 1.0 hours
+
+            result = prolific.screen_out_allowed(participants, bonus_per_submission=4.0)
+            assert result is False, (
+                "Should not allow screen out if bonus (£4.00) is below "
+                "minimum reward requirement (£4.50 = £6/hour * 0.75 hours)"
+            )
