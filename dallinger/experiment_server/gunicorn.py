@@ -46,10 +46,6 @@ def worker_exit(server, worker):
     return experiment_hook("gunicorn_worker_exit", server, worker)
 
 
-def worker_abort(worker):
-    return experiment_hook("gunicorn_worker_abort", worker)
-
-
 def post_worker_init(worker):
     return experiment_hook("gunicorn_post_worker_init", worker)
 
@@ -120,7 +116,6 @@ class StandaloneServer(Application):
             "when_ready": when_ready,
             "on_exit": on_exit,
             "worker_exit": worker_exit,
-            "worker_abort": worker_abort,
             "post_worker_init": post_worker_init,
         }
 
