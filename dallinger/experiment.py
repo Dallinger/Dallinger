@@ -202,6 +202,22 @@ class Experiment(object):
     def after_request(request, response):
         return response
 
+    @staticmethod
+    def gunicorn_when_ready(server):
+        pass
+
+    @staticmethod
+    def gunicorn_on_exit(server):
+        pass
+
+    @staticmethod
+    def gunicorn_worker_exit(server, worker):
+        pass
+
+    @staticmethod
+    def gunicorn_post_worker_init(worker):
+        pass
+
     @classmethod
     def get_status(cls):
         """
