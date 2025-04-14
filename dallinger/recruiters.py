@@ -853,12 +853,18 @@ class ProlificRecruiter(Recruiter):
             "peripheral_requirements": details["peripheral_requirements"],
         }
 
-    def screen_out(self, participant_id: str):
+    def screen_out(self, assignment_id: str):
         """Screen out a participant from a Prolific study."""
         if not self.current_study_id:
             raise RuntimeError("No current study in progress")
 
-        participant = Participant.query.get(participant_id)
+        participant = Participant.query.filter_by(
+            assignment_id=assignment_id
+        ).one_or_none()
+        if participant is None:
+            raise ProlificRecruiterException(
+                f"No participant found for assignment ID '{assignment_id}' during screen-out."
+            )
 
         response = self.prolificservice.screen_out(
             study_id=self.current_study_id,
