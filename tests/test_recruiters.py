@@ -786,7 +786,7 @@ class TestProlificRecruiter(object):
     def test_screen_out_calls_service_with_correct_args(self, a, recruiter):
         participant = a.participant()
         participant.assignment_id = "test_submission_id"
-        participant.base_pay = 2.00
+        participant.base_payment = 2.00
         participant.bonus = 1.50
 
         mock_response = {
@@ -818,7 +818,7 @@ class TestProlificRecruiter(object):
     def test_screen_out_handles_rejection(self, a, recruiter):
         participant = a.participant()
         participant.assignment_id = "test_submission_id"
-        participant.base_pay = 2.00
+        participant.base_payment = 2.00
         participant.bonus = 1.50
 
         error_response = dict(
