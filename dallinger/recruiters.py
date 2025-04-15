@@ -877,6 +877,7 @@ class ProlificRecruiter(Recruiter):
             "message" in response and "successfully" in response["message"].lower()
         ):
             participant.status = "screened_out"
+            session.commit()
             return response
         else:
             error_msg = response.get("message", str(response))
