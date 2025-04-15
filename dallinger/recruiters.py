@@ -869,8 +869,7 @@ class ProlificRecruiter(Recruiter):
         response = self.prolificservice.screen_out(
             study_id=self.current_study_id,
             submission_ids=[participant.assignment_id],
-            bonus_per_submission=(participant.base_pay or 0.0)
-            + (participant.bonus or 0.0),
+            bonus_per_submission=participant.base_payment + (participant.bonus or 0.0),
             increase_places=self.config.get("auto_recruit", False),
         )
 
