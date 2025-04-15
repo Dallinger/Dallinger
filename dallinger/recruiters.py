@@ -873,8 +873,9 @@ class ProlificRecruiter(Recruiter):
             increase_places=self.config.get("auto_recruit", False),
         )
 
-        if response.get("status") == 204 or (
-            "message" in response and "successfully" in response["message"].lower()
+        if (
+            response["message"]
+            == "The request to bulk screen out has been made successfully."
         ):
             participant.status = "screened_out"
             session.commit()

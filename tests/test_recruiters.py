@@ -844,15 +844,14 @@ class TestProlificRecruiter(object):
         expected_error = f"Prolific denied screen-out request for participant {participant.id}: {error_response['message']}"
         assert str(exc_info.value) == expected_error
 
-        # Status should not be changed if screen out was rejected
-        assert participant.status != "screened_out"
-
         recruiter.prolificservice.screen_out.assert_called_once_with(
             study_id="test_study_id",
             submission_ids=[participant.assignment_id],
             bonus_per_submission=3.50,
             increase_places=recruiter.config.get("auto_recruit", False),
         )
+
+        assert participant.status != "screened_out"
 
 
 class TestMTurkRecruiterMessages(object):
