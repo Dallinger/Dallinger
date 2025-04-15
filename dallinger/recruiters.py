@@ -876,6 +876,7 @@ class ProlificRecruiter(Recruiter):
         if response.get("status") == 204 or (
             "message" in response and "successfully" in response["message"].lower()
         ):
+            participant.status = "screened_out"
             return response
         else:
             error_msg = response.get("message", str(response))
