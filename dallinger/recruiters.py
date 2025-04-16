@@ -43,6 +43,20 @@ from dallinger.utils import ParticipationTime, generate_random_id, get_base_url
 
 logger = logging.getLogger(__name__)
 
+# By default, Dallinger logs recruitment errors, but does not raise them. Here, we override the logger.exception method
+# to assign a custom error handler (Experiment.handle_error)
+logger._exception = logger.exception
+
+
+def handle_recruitment_error(ex):
+    logger._exception(str(ex))
+    from dallinger.experiment_server.experiment_server import Experiment, session
+
+    exp = Experiment(session)
+    exp.handle_recruitment_error(ex)
+
+
+logger.exception = handle_recruitment_error
 
 # These are constants because other components may listen for these
 # messages in logs:

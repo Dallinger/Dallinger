@@ -410,6 +410,10 @@ class Experiment(object):
             queue_name="high",
         )
 
+    @classmethod
+    def handle_recruitment_error(cls, error, **kwargs):
+        pass
+
     def receive_message(
         self, message, channel_name=None, participant=None, node=None, receive_time=None
     ):
