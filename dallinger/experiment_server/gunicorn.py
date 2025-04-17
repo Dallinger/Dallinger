@@ -16,9 +16,38 @@ logger = logging.getLogger(__name__)
 WORKER_CLASS = "gevent"
 
 
+def get_exp_klass():
+    from dallinger import experiment
+
+    try:
+        return experiment.load()
+    except ImportError:
+        return None  # pragma: no cover
+
+
+def experiment_hook(func_name, *args, **kwargs):
+    exp_klass = get_exp_klass()
+    if exp_klass is not None:
+        return getattr(exp_klass, func_name)(*args, **kwargs)
+    return None
+
+
 def when_ready(arbiter):
     # Signal to parent process that server has started
     logger.warning("Ready.")
+    return experiment_hook("gunicorn_when_ready", arbiter)
+
+
+def on_exit(server):
+    return experiment_hook("gunicorn_on_exit", server)
+
+
+def worker_exit(server, worker):
+    return experiment_hook("gunicorn_worker_exit", server, worker)
+
+
+def post_worker_init(worker):
+    return experiment_hook("gunicorn_post_worker_init", worker)
 
 
 class StandaloneServer(Application):
@@ -85,6 +114,9 @@ class StandaloneServer(Application):
             "proc_name": "dallinger_experiment_server",
             "limit_request_line": "0",
             "when_ready": when_ready,
+            "on_exit": on_exit,
+            "worker_exit": worker_exit,
+            "post_worker_init": post_worker_init,
         }
 
 
