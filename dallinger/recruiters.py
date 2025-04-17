@@ -866,7 +866,13 @@ class ProlificRecruiter(Recruiter):
         self.prolificservice.validate_workspace(workspace)
 
 
-class DevProlificRecruiter(ProlificRecruiter):
+class DevRecruiter(Recruiter):
+    """
+    A dev recruiter class for detecting dev recruiters
+    """
+
+
+class DevProlificRecruiter(DevRecruiter, ProlificRecruiter):
     """A debug recruiter for [Prolific](https://app.prolific.com/)"""
 
     nickname = "devprolific"
