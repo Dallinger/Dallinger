@@ -1,11 +1,15 @@
 """Prolific module tests."""
 
+from datetime import datetime, timedelta
 from unittest import mock
+from unittest.mock import patch
 
 import pytest
 
 from dallinger.config import get_config
 from dallinger.prolific import (
+    DevProlificService,
+    ProlificServiceException,
     ProlificServiceMultipleWorkspacesException,
     ProlificServiceNoSuchProject,
     ProlificServiceNoSuchWorkspaceException,
@@ -422,3 +426,169 @@ def test_translate_draft_study(
     config.write(filter_sensitive=False)
 
     assert subject.draft_study(**study_request) == expected_project_id
+
+
+def test_screen_out_multiple_ids(subject):
+    """Test that screen_out sends the correct payload to Prolific's API when given multiple submission IDs."""
+    study_id = "study_123"
+    submission_ids = ["submission_456", "submission_789"]
+    bonus = 2.50
+    increase_places = True
+
+    subject._req = mock.MagicMock()
+
+    subject.screen_out(
+        study_id=study_id,
+        submission_ids=submission_ids,
+        bonus_per_submission=bonus,
+        increase_places=increase_places,
+    )
+
+    subject._req.assert_called_once_with(
+        method="POST",
+        endpoint=f"/studies/{study_id}/screen-out-submissions/",
+        json={
+            "submission_ids": submission_ids,
+            "bonus_per_submission": bonus,
+            "increase_places": increase_places,
+        },
+    )
+
+
+def test_screen_out_single_id(subject):
+    """Test that screen_out sends the correct payload to Prolific's API when given a single submission ID."""
+    study_id = "study_123"
+    submission_id = "submission_456"
+    bonus = 2.50
+    increase_places = True
+
+    subject._req = mock.MagicMock()
+
+    subject.screen_out(
+        study_id=study_id,
+        submission_ids=submission_id,
+        bonus_per_submission=bonus,
+        increase_places=increase_places,
+    )
+
+    subject._req.assert_called_once_with(
+        method="POST",
+        endpoint=f"/studies/{study_id}/screen-out-submissions/",
+        json={
+            "submission_ids": [submission_id],
+            "bonus_per_submission": bonus,
+            "increase_places": increase_places,
+        },
+    )
+
+
+class TestDevProlificServiceScreenOut:
+    @pytest.fixture
+    def participants(self, a):
+        participants = []
+        creation_time = datetime(2024, 1, 1, 10, 0)
+
+        for i in range(3):
+            p = a.participant()
+            p.creation_time = creation_time
+            p.end_time = None
+            p.base_pay = 2.0
+            p.status = "working"
+            participants.append(p)
+
+        return participants
+
+    @pytest.fixture
+    def prolific(self, active_config):
+        # Set required config values
+        active_config.extend(
+            {"prolific_workspace": "My Workspace", "prolific_project": "My Project"}
+        )
+        return DevProlificService(
+            api_token="fake-token", api_version="v1", referer_header="test-header"
+        )
+
+    def test_screen_out_allowed_above_minimum_wage(self, prolific, participants):
+        prolific.get_study = lambda *args: {"is_custom_screening": True}
+
+        mock_now = participants[0].creation_time + timedelta(minutes=30)
+        with patch("dallinger.utils.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            mock_datetime.side_effect = datetime
+
+            result = prolific.screen_out_allowed(participants, bonus_per_submission=4.0)
+            assert result is True
+
+    def test_screen_out_allowed_equal_to_minimum_wage(self, prolific, participants):
+        prolific.get_study = lambda *args: {"is_custom_screening": True}
+
+        mock_now = participants[0].creation_time + timedelta(minutes=30)
+        with patch("dallinger.utils.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            mock_datetime.side_effect = datetime
+
+            result = prolific.screen_out_allowed(participants, bonus_per_submission=3.0)
+            assert result is True
+
+    def test_screen_out_allowed_below_minimum_wage(self, prolific, participants):
+        prolific.get_study = lambda *args: {"is_custom_screening": True}
+
+        mock_now = participants[0].creation_time + timedelta(minutes=30)
+        with patch("dallinger.utils.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            mock_datetime.side_effect = datetime
+
+            result = prolific.screen_out_allowed(participants, bonus_per_submission=2.0)
+            assert result is False
+
+    def test_screen_out_not_allowed_custom_screening_disabled(
+        self, prolific, participants
+    ):
+        prolific.get_study = lambda *args: {"is_custom_screening": False}
+
+        with pytest.raises(ProlificServiceException) as exc_info:
+            prolific.screen_out_allowed(participants, bonus_per_submission=4.0)
+
+        assert "doesn't allow screening-out of participants" in str(exc_info.value)
+        assert "Set 'prolific_is_custom_screening' to 'True'" in str(exc_info.value)
+
+    def test_screen_out_allowed_empty_participants(self, prolific):
+        prolific.get_study = lambda *args: {"is_custom_screening": True}
+
+        # Using empty participants list should return False (can't screen out with no participants)
+        result = prolific.screen_out_allowed([], bonus_per_submission=4.0)
+        assert result is False, "Should not allow screen out with no participants"
+
+    def test_screen_out_allowed_mixed_participants(self, prolific, a):
+        mock_now = datetime(2024, 1, 1, 11, 0)  # 11:00 AM
+
+        p1 = a.participant()
+        p1.creation_time = mock_now - timedelta(minutes=30)
+        p1.end_time = None  # Still active
+        p1.base_pay = 2.0
+        p1.status = "working"
+
+        p2 = a.participant()
+        p2.creation_time = mock_now - timedelta(minutes=60)
+        p2.end_time = None  # Still active
+        p2.base_pay = 2.0
+        p2.status = "working"
+
+        participants = [p1, p2]
+
+        prolific.get_study = lambda *args: {"is_custom_screening": True}
+
+        with patch("dallinger.utils.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            mock_datetime.side_effect = datetime
+
+            p1_duration = (mock_now - p1.creation_time).total_seconds() / 3600
+            p2_duration = (mock_now - p2.creation_time).total_seconds() / 3600
+            assert p1_duration == 0.5  # 30 minutes = 0.5 hours
+            assert p2_duration == 1.0  # 60 minutes = 1.0 hours
+
+            result = prolific.screen_out_allowed(participants, bonus_per_submission=4.0)
+            assert result is False, (
+                "Should not allow screen out if bonus (£4.00) is below "
+                "minimum reward requirement (£4.50 = £6/hour * 0.75 hours)"
+            )

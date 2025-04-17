@@ -239,36 +239,39 @@ class Participant(Base, SharedMixin):
 
     #: String representing the current status of the participant, can be:
     #:
-    #:    - ``working`` - participant is working
-    #:    - ``overrecruited`` - number of recruited participants exceed number required for the experiment, so this participant will not be used
-    #:    - ``recruiter_submission_started`` - participant has submitted their assignment to their recruiter, but the recruiter is still processing it
-    #:    - ``submitted`` - participant's assignment submission processing has been completed by their recruiter
-    #:    - ``approved`` - their work has been approved and they have been paid
-    #:    - ``rejected`` - their work has been rejected
-    #:    - ``returned`` - they returned the hit before finishing
     #:    - ``abandoned`` - they ran out of time
-    #:    - ``did_not_attend`` - the participant finished, but failed the
-    #:      attention check
+    #:    - ``approved`` - their work has been approved and they have been paid
     #:    - ``bad_data`` - the participant finished, but their data was
     #:      malformed
+    #:    - ``did_not_attend`` - the participant finished, but failed the
+    #:      attention check
     #:    - ``missing_notification`` - this indicates that Dallinger has
     #:      inferred that a Mechanical Turk notification corresponding to this
     #:      participant failed to arrive. This is an uncommon, but potentially
     #:      serious issue.
+    #:    - ``overrecruited`` - number of recruited participants exceed number required for the experiment, so this participant will not be used
+    #:    - ``recruiter_submission_started`` - participant has submitted their assignment to their recruiter, but the recruiter is still processing it
+    #:    - ``rejected`` - their work has been rejected
+    #:    - ``replaced`` - they have been replaced by another participant
+    #:    - ``returned`` - they returned the hit before finishing
+    #:    - ``screened_out`` - they were screened out (Prolific only)
+    #:    - ``submitted`` - participant's assignment submission processing has been completed by their recruiter
+    #:    - ``working`` - participant is working
     status = Column(
         Enum(
-            "working",
+            "abandoned",
+            "approved",
+            "bad_data",
+            "did_not_attend",
+            "missing_notification",
             "overrecruited",
             "recruiter_submission_started",
-            "submitted",
-            "approved",
             "rejected",
-            "returned",
-            "abandoned",
-            "did_not_attend",
-            "bad_data",
-            "missing_notification",
             "replaced",
+            "returned",
+            "screened_out",
+            "submitted",
+            "working",
             name="participant_status",
         ),
         nullable=False,
