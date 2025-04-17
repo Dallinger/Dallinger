@@ -45,7 +45,6 @@ logger = logging.getLogger(__name__)
 
 
 def handle_recruitment_error(ex):
-    logger.exception(str(ex))
     from dallinger.experiment_server.experiment_server import Experiment, session
 
     exp = Experiment(session)

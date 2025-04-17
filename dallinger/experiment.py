@@ -421,6 +421,7 @@ class Experiment(object):
         :type error: Exception
         :param kwargs: Additional context or metadata about the error.
         """
+        logger.exception(str(error))
 
     def receive_message(
         self, message, channel_name=None, participant=None, node=None, receive_time=None
