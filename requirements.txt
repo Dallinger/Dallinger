@@ -119,7 +119,7 @@ outcome==1.3.0.post0
     # via
     #   trio
     #   trio-websocket
-packaging==24.2
+packaging==25.0
     # via
     #   build
     #   gunicorn
