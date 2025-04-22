@@ -44,6 +44,13 @@ from dallinger.utils import ParticipationTime, generate_random_id, get_base_url
 logger = logging.getLogger(__name__)
 
 
+def handle_recruitment_error(ex):
+    from dallinger.experiment_server.experiment_server import Experiment, session
+
+    exp = Experiment(session)
+    exp.handle_recruitment_error(ex)
+
+
 # These are constants because other components may listen for these
 # messages in logs:
 NEW_RECRUIT_LOG_PREFIX = "New participant requested:"
@@ -600,7 +607,7 @@ class ProlificRecruiter(Recruiter):
                 submission_id=assignment_id
             )
         except ProlificServiceException as ex:
-            logger.exception(str(ex))
+            handle_recruitment_error(ex)
 
     def close_recruitment(self):
         """Do nothing.
@@ -645,7 +652,7 @@ class ProlificRecruiter(Recruiter):
                 amount=amount,
             )
         except ProlificServiceException as ex:
-            logger.exception(str(ex))
+            handle_recruitment_error(ex)
 
     def on_task_completion(self):
         """We cannot perform post-submission actions (approval, bonus payment)
@@ -852,7 +859,13 @@ class ProlificRecruiter(Recruiter):
         self.prolificservice.validate_workspace(workspace)
 
 
-class DevProlificRecruiter(ProlificRecruiter):
+class DevRecruiter(Recruiter):
+    """
+    A dev recruiter class for detecting dev recruiters
+    """
+
+
+class DevProlificRecruiter(DevRecruiter, ProlificRecruiter):
     """A debug recruiter for [Prolific](https://app.prolific.com/)"""
 
     nickname = "devprolific"
@@ -1494,7 +1507,7 @@ class MTurkRecruiter(Recruiter):
                 hit_id, number=n, duration_hours=self.config.get("duration")
             )
         except MTurkServiceException as ex:
-            logger.exception(str(ex))
+            handle_recruitment_error(ex)
 
     def notify_duration_exceeded(self, participants, reference_time):
         """The participant has exceed the maximum time for the activity,
@@ -1536,7 +1549,7 @@ class MTurkRecruiter(Recruiter):
             try:
                 self.mturkservice.expire_hit(pick_one.participant.hit_id)
             except MTurkServiceException as ex:
-                logger.exception(ex)
+                handle_recruitment_error(ex)
 
     def rejects_questionnaire_from(self, participant):
         """Mechanical Turk participants submit their HITs on the MTurk site
@@ -1574,7 +1587,7 @@ class MTurkRecruiter(Recruiter):
                 participant.assignment_id, amount, reason
             )
         except MTurkServiceException as ex:
-            logger.exception(str(ex))
+            handle_recruitment_error(ex)
 
     @property
     def is_in_progress(self):
@@ -1591,7 +1604,7 @@ class MTurkRecruiter(Recruiter):
         try:
             return self.mturkservice.approve_assignment(assignment_id)
         except MTurkServiceException as ex:
-            logger.exception(str(ex))
+            handle_recruitment_error(ex)
 
     def close_recruitment(self):
         """Do nothing.
@@ -1793,7 +1806,7 @@ class MTurkRecruiter(Recruiter):
         try:
             self.notifies_admin.send(message["subject"], message["body"])
         except MessengerError as ex:
-            logger.exception(ex)
+            handle_recruitment_error(ex)
 
     def load_service(self, sandbox):
         from dallinger.command_line import _mturk_service_from_config
