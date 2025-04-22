@@ -12,6 +12,7 @@ import string
 import subprocess
 import sys
 import tempfile
+import warnings
 import webbrowser
 from hashlib import md5
 from importlib.metadata import files as files_metadata
@@ -29,6 +30,41 @@ from dallinger import db
 from dallinger.compat import is_command
 from dallinger.config import get_config
 from dallinger.version import __version__
+
+
+def bold(msg):
+    return f"\033[1m{msg}\033[0m"
+
+
+def show_deprecation_warnings_once(
+    warning, category, filename, lineno, file=None, line=None
+):
+    if issubclass(category, DeprecationWarning):
+        from dallinger import db
+
+        message = str(warning)
+        # Check if message in redis_conn if yes, fall back to the default behaviour?
+        if db.redis_conn.exists(message):
+            # If the message is already logged, don't log it again
+            return
+
+        # Log the warning message to Redis
+        db.redis_conn.set(message, "Logged")
+
+        # Default behaviour
+        from warnings import formatwarning
+
+        print(
+            bold("DeprecationWarning:")
+            + " (future occurrences will not be printed again)"
+        )
+        print(formatwarning(warning, category, filename, lineno, line))
+
+
+def setup_warning_hooks():
+    warnings.showwarning = show_deprecation_warnings_once
+    warnings.simplefilter("default", DeprecationWarning)
+
 
 try:
     from pip._vendor import pkg_resources
