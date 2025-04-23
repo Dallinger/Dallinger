@@ -909,6 +909,14 @@ class MockRecruiter(Recruiter):
         return {"items": [], "message": ""}
 
     def register_study(self, **kwargs):
+        """
+        Register a study with the mock recruiter.
+
+        This method is a placeholder and does not register any actual recruitment.
+
+        Args:
+            **kwargs: Additional keyword arguments for study registration, e.g. study_id.
+        """
         raise NotImplementedError
 
 
