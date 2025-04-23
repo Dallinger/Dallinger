@@ -9,20 +9,11 @@ from gunicorn.app.base import Application
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from dallinger.config import get_config
-from dallinger.utils import attach_json_logger
+from dallinger.utils import attach_json_logger, get_exp_klass
 
 logger = logging.getLogger(__name__)
 
 WORKER_CLASS = "gevent"
-
-
-def get_exp_klass():
-    from dallinger import experiment
-
-    try:
-        return experiment.load()
-    except ImportError:
-        return None  # pragma: no cover
 
 
 def experiment_hook(func_name, *args, **kwargs):
