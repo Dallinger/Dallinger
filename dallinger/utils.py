@@ -32,15 +32,6 @@ from dallinger.compat import is_command
 from dallinger.config import get_config
 from dallinger.version import __version__
 
-
-def bold(msg):
-    return f"\033[1m{msg}\033[0m"
-
-
-def red(msg):
-    return f"\033[31m{msg}\033[0m"
-
-
 local_warning_cache = {}
 
 
@@ -70,10 +61,7 @@ def show_warnings_once(warning, category, filename, lineno, file=None, line=None
         # Default behaviour
         from warnings import formatwarning
 
-        print(
-            red(bold("WARNING:") + " (future occurrences will not be printed again)\n")
-            + bold(formatwarning(warning, category, filename, lineno, line))
-        )
+        print(formatwarning(warning, category, filename, lineno, line))
 
 
 def setup_warning_hooks():
