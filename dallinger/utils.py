@@ -36,20 +36,28 @@ def bold(msg):
     return f"\033[1m{msg}\033[0m"
 
 
+local_redis_cache = {}
+
+
 def show_deprecation_warnings_once(
     warning, category, filename, lineno, file=None, line=None
 ):
     if issubclass(category, DeprecationWarning):
-        from dallinger import db
+        redis_conn = db.redis_conn
 
-        message = str(warning)
-        # Check if message in redis_conn if yes, fall back to the default behaviour?
-        if db.redis_conn.exists(message):
+        if filename is not None and lineno is not None:
+            # The same DeprecationWarning can be raised using different messages, e.g. if it contains variables
+            redis_key = f"{filename}:{lineno}"
+        else:
+            redis_key = str(warning)
+        # Check if message in redis_conn if yes, fall back to the default behaviour
+        if redis_key in local_redis_cache or redis_conn.exists(redis_key):
             # If the message is already logged, don't log it again
             return
 
         # Log the warning message to Redis
-        db.redis_conn.set(message, "Logged")
+        local_redis_cache[redis_key] = "Logged"
+        redis_conn.set(redis_key, "Logged")
 
         # Default behaviour
         from warnings import formatwarning
