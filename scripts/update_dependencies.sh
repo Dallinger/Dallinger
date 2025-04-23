@@ -1,6 +1,6 @@
 #!/bin/sh
 compat=""
-if [[ "$OSTYPE" == "darwin"* ]]; then
+if [ "$OSTYPE" = "darwin"* ]; then
     compat=" "
 fi
 
