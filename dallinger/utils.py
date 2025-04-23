@@ -93,6 +93,15 @@ def attach_json_logger(log):
     log.addHandler(handler)
 
 
+def get_exp_klass():
+    from dallinger import experiment
+
+    try:
+        return experiment.load()
+    except ImportError:
+        return None  # pragma: no cover
+
+
 def get_base_url():
     """Returns the base url for the experiment.
     Looks into environment variable HOST first, then in the

@@ -39,16 +39,22 @@ from dallinger.prolific import (
     dev_prolific_service_from_config,
     prolific_service_from_config,
 )
-from dallinger.utils import ParticipationTime, generate_random_id, get_base_url
+from dallinger.utils import (
+    ParticipationTime,
+    generate_random_id,
+    get_base_url,
+    get_exp_klass,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def handle_recruitment_error(ex):
-    from dallinger.experiment_server.experiment_server import Experiment, session
-
-    exp = Experiment(session)
-    exp.handle_recruitment_error(ex)
+    # Default behavior for backward compatibility
+    logger.exception(str(ex))
+    exp_klass = get_exp_klass()
+    if exp_klass is not None:
+        exp_klass.handle_recruitment_error(ex)
 
 
 # These are constants because other components may listen for these

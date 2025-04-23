@@ -414,14 +414,13 @@ class Experiment(object):
     def handle_recruitment_error(cls, error, **kwargs):
         """Handle errors that occur during recruitment.
 
-        This method provides a default implementation that logs the error.
-        Subclasses can override this method to implement custom error handling.
+        This method provides a hook which is called upon a recruitment error.
 
         :param error: The exception or error object that occurred.
         :type error: Exception
         :param kwargs: Additional context or metadata about the error.
         """
-        logger.exception(str(error))
+        pass
 
     def receive_message(
         self, message, channel_name=None, participant=None, node=None, receive_time=None
