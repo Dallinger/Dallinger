@@ -99,19 +99,7 @@ class TestShowDeprecationWarningsOnce(object):
 
     @pytest.fixture(autouse=True)
     def clear_local_cache(self):
-        utils.local_redis_cache.clear()
-
-    def test_non_deprecation_warning_not_logged(self, redis_conn):
-        """Test that non-DeprecationWarning is not logged to Redis."""
-        warning = "user warning"
-        category = Warning  # Use the base Warning class
-        filename = "test.py"
-        lineno = 42
-
-        utils.show_deprecation_warnings_once(warning, category, filename, lineno)
-
-        redis_conn.exists.assert_not_called()
-        redis_conn.set.assert_not_called()
+        utils.local_warning_cache.clear()
 
     def test_deprecation_warning_logged_once(self, redis_conn):
         """Test that DeprecationWarning is logged only once to Redis."""
@@ -122,16 +110,16 @@ class TestShowDeprecationWarningsOnce(object):
         key = f"{filename}:{lineno}"
 
         # First call should log to Redis
-        utils.show_deprecation_warnings_once(warning, category, filename, lineno)
+        utils.show_warnings_once(warning, category, filename, lineno)
         redis_conn.exists.assert_called_once_with(key)
         redis_conn.set.assert_called_once_with(key, "Logged")
-        assert key in utils.local_redis_cache
+        assert key in utils.local_warning_cache
 
         # Reset mock to check second call
         redis_conn.reset_mock()
 
         # Second call should not check Redis at all because it's in local cache
-        utils.show_deprecation_warnings_once(warning, category, filename, lineno)
+        utils.show_warnings_once(warning, category, filename, lineno)
         redis_conn.exists.assert_not_called()
         redis_conn.set.assert_not_called()
 
@@ -142,7 +130,7 @@ class TestShowDeprecationWarningsOnce(object):
         filename = None
         lineno = None
 
-        utils.show_deprecation_warnings_once(warning, category, filename, lineno)
+        utils.show_warnings_once(warning, category, filename, lineno)
         redis_conn.exists.assert_called_once_with(warning)
         redis_conn.set.assert_called_once_with(warning, "Logged")
 

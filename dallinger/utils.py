@@ -37,31 +37,33 @@ def bold(msg):
     return f"\033[1m{msg}\033[0m"
 
 
-local_redis_cache = {}
+def red(msg):
+    return f"\033[31m{msg}\033[0m"
 
 
-def show_deprecation_warnings_once(
-    warning, category, filename, lineno, file=None, line=None
-):
-    if issubclass(category, DeprecationWarning):
+local_warning_cache = {}
+
+
+def show_warnings_once(warning, category, filename, lineno, file=None, line=None):
+    if issubclass(category, Warning):
         redis_conn = db.redis_conn
 
         if filename is not None and lineno is not None:
-            # The same DeprecationWarning can be raised using different messages, e.g. if it contains variables
+            # The same Warning can be raised using different messages, e.g. if it contains variables
             redis_key = f"{filename}:{lineno}"
         else:
             redis_key = str(warning)
         # Check if message in redis_conn if yes, fall back to the default behaviour
         redis_available = True
         try:
-            if redis_key in local_redis_cache or redis_conn.exists(redis_key):
+            if redis_key in local_warning_cache or redis_conn.exists(redis_key):
                 # If the message is already logged, don't log it again
                 return
         except redis.exceptions.ConnectionError:
             redis_available = False
 
         # Log the warning message to Redis
-        local_redis_cache[redis_key] = "Logged"
+        local_warning_cache[redis_key] = "Logged"
         if redis_available:
             redis_conn.set(redis_key, "Logged")
 
@@ -69,15 +71,14 @@ def show_deprecation_warnings_once(
         from warnings import formatwarning
 
         print(
-            bold("DeprecationWarning:")
-            + " (future occurrences will not be printed again)"
+            red(bold("WARNING:") + " (future occurrences will not be printed again)\n")
+            + bold(formatwarning(warning, category, filename, lineno, line))
         )
-        print(formatwarning(warning, category, filename, lineno, line))
 
 
 def setup_warning_hooks():
-    warnings.showwarning = show_deprecation_warnings_once
-    warnings.simplefilter("default", DeprecationWarning)
+    warnings.showwarning = show_warnings_once
+    warnings.simplefilter("default", Warning)
 
 
 try:
