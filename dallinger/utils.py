@@ -21,6 +21,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unicodedata import normalize
 
+import redis
 import requests
 from faker import Faker
 from flask import request
@@ -51,13 +52,18 @@ def show_deprecation_warnings_once(
         else:
             redis_key = str(warning)
         # Check if message in redis_conn if yes, fall back to the default behaviour
-        if redis_key in local_redis_cache or redis_conn.exists(redis_key):
-            # If the message is already logged, don't log it again
-            return
+        redis_available = True
+        try:
+            if redis_key in local_redis_cache or redis_conn.exists(redis_key):
+                # If the message is already logged, don't log it again
+                return
+        except redis.exceptions.ConnectionError:
+            redis_available = False
 
         # Log the warning message to Redis
         local_redis_cache[redis_key] = "Logged"
-        redis_conn.set(redis_key, "Logged")
+        if redis_available:
+            redis_conn.set(redis_key, "Logged")
 
         # Default behaviour
         from warnings import formatwarning
