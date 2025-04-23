@@ -908,17 +908,19 @@ class MockRecruiter(Recruiter):
         self.register_study()
         return {"items": [], "message": ""}
 
-    def register_study(self):
+    def register_study(self, **kwargs):
         raise NotImplementedError
 
 
 class MockProlificRecruiter(MockRecruiter, ProlificRecruiter):
     nickname = "mockprolific"
 
-    def register_study(self):
-        config = get_config()
-        prolific_config = json.loads(config.get("prolific_recruitment_config"))
-        study_id = prolific_config.get("study_id")
+    def register_study(self, **kwargs):
+        study_id = kwargs.get("study_id", None)
+        if study_id is None:
+            config = get_config()
+            prolific_config = json.loads(config.get("prolific_recruitment_config"))
+            study_id = prolific_config.get("study_id")
         self._record_current_study_id(study_id)
 
 
