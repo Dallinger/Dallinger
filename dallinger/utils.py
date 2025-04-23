@@ -26,6 +26,7 @@ import requests
 from faker import Faker
 from flask import request
 from pythonjsonlogger import jsonlogger
+from sqlalchemy import exc as sa_exc
 
 from dallinger import db
 from dallinger.compat import is_command
@@ -66,6 +67,7 @@ def show_warnings_once(warning, category, filename, lineno, file=None, line=None
 def setup_warning_hooks():
     warnings.showwarning = show_warnings_once
     warnings.simplefilter("default", Warning)
+    warnings.simplefilter("ignore", category=sa_exc.SAWarning)
 
 
 try:
