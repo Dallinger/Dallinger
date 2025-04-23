@@ -36,32 +36,31 @@ local_warning_cache = {}
 
 
 def show_warnings_once(warning, category, filename, lineno, file=None, line=None):
-    if issubclass(category, Warning):
-        redis_conn = db.redis_conn
+    redis_conn = db.redis_conn
 
-        if filename is not None and lineno is not None:
-            # The same Warning can be raised using different messages, e.g. if it contains variables
-            redis_key = f"{filename}:{lineno}"
-        else:
-            redis_key = str(warning)
-        # Check if message in redis_conn if yes, fall back to the default behaviour
-        redis_available = True
-        try:
-            if redis_key in local_warning_cache or redis_conn.exists(redis_key):
-                # If the message is already logged, don't log it again
-                return
-        except redis.exceptions.ConnectionError:
-            redis_available = False
+    if filename is not None and lineno is not None:
+        # The same Warning can be raised using different messages, e.g. if it contains variables
+        redis_key = f"{filename}:{lineno}"
+    else:
+        redis_key = str(warning)
+    # Check if message in redis_conn if yes, fall back to the default behaviour
+    redis_available = True
+    try:
+        if redis_key in local_warning_cache or redis_conn.exists(redis_key):
+            # If the message is already logged, don't log it again
+            return
+    except redis.exceptions.ConnectionError:
+        redis_available = False
 
-        # Log the warning message to Redis
-        local_warning_cache[redis_key] = "Logged"
-        if redis_available:
-            redis_conn.set(redis_key, "Logged")
+    # Log the warning message to Redis
+    local_warning_cache[redis_key] = "Logged"
+    if redis_available:
+        redis_conn.set(redis_key, "Logged")
 
-        # Default behaviour
-        from warnings import formatwarning
+    # Default behaviour
+    from warnings import formatwarning
 
-        print(formatwarning(warning, category, filename, lineno, line))
+    print(formatwarning(warning, category, filename, lineno, line))
 
 
 def setup_warning_hooks():
