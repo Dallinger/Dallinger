@@ -166,6 +166,7 @@ jobs:
           load: false
           target: dallinger
           tags: |
+            ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }}
             ghcr.io/dallinger/dallinger:latest-slim
           cache-from: type=local,mode=max,src=/tmp/.buildx-cache/dallinger
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new/dallinger
@@ -177,6 +178,7 @@ jobs:
           load: false
           target: dallinger-bot
           tags: |
+            ghcr.io/dallinger/dallinger-bot:${{ steps.vars.outputs.version }}
             ghcr.io/dallinger/dallinger-bot:latest-slim
           cache-from: type=local,mode=max,src=/tmp/.buildx-cache/dallinger-bot
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new/dallinger-bot
