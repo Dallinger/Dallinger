@@ -5,43 +5,6 @@ on:
       - v*
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    environment: pypi
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Ubuntu packages
-        run: sudo apt-get --yes install curl enchant-2 pandoc
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: 3.2
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Install node packages
-        run: yarn --frozen-lockfile --ignore-engines
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-            ${{ runner.os }}-
-      - name: Python Installers
-        run: pip install --upgrade pip wheel tox
-      - name: Set up deployment
-        run: |
-          pandoc --from=markdown --to=rst --output=README.rst README.md
-          pip install build
-          python -m build --sdist --wheel .
-      - name: Deploy
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
-
   docker-images:
     runs-on: ubuntu-latest
     environment: ghcr
@@ -65,8 +28,7 @@ jobs:
           load: false
           target: dallinger
           tags: |
-            ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }}
-            ghcr.io/dallinger/dallinger:latest
+            ghcr.io/dallinger/dallinger:latest-slim
       - name: Build ghcr.io/dallinger/dallinger-bot docker image
         uses: docker/build-push-action@v5
         with:
@@ -74,5 +36,4 @@ jobs:
           load: false
           target: dallinger-bot
           tags: |
-            ghcr.io/dallinger/dallinger-bot:${{ steps.vars.outputs.version }}
-            ghcr.io/dallinger/dallinger:latest
+            ghcr.io/dallinger/dallinger-bot:latest-slim

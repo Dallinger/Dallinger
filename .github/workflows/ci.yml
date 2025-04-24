@@ -151,24 +151,29 @@ jobs:
           key: ${{ runner.os }}-buildx3-${{ hashFiles('Dockerfile', 'requirements.txt', 'constraints.txt') }}
           restore-keys: |
             ${{ runner.os }}-buildx3-
-      - name: Build ghcr.io/dallinger/dallinger docker image
+
+      - name: Build and push dallinger docker image
         uses: docker/build-push-action@v5
         with:
-          push: false
-          load: true
+          push: true
+          load: false
           target: dallinger
-          tags: ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }}
+          tags: |
+            ghcr.io/dallinger/dallinger:latest-slim
           cache-from: type=local,mode=max,src=/tmp/.buildx-cache/dallinger
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new/dallinger
-      - name: Build ghcr.io/dallinger/dallinger-bot docker image
+
+      - name: Build and push dallinger-bot docker image
         uses: docker/build-push-action@v5
         with:
-          push: false
-          load: true
+          push: true
+          load: false
           target: dallinger-bot
-          tags: ghcr.io/dallinger/dallinger-bot:${{ steps.vars.outputs.version }}
+          tags: |
+            ghcr.io/dallinger/dallinger-bot:latest-slim
           cache-from: type=local,mode=max,src=/tmp/.buildx-cache/dallinger-bot
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new/dallinger-bot
+
       - name: Move docker cache
         run: |
           rm -rf /tmp/.buildx-cache
