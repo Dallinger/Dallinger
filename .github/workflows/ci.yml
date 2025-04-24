@@ -163,7 +163,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           push: true
-          load: false
+          load: true
           target: dallinger
           tags: |
             ghcr.io/dallinger/dallinger:latest-slim
@@ -174,7 +174,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           push: true
-          load: false
+          load: true
           target: dallinger-bot
           tags: |
             ghcr.io/dallinger/dallinger-bot:latest-slim
