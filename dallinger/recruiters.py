@@ -891,6 +891,20 @@ class DevProlificRecruiter(DevRecruiter, ProlificRecruiter):
         self.prolificservice.log_response(response)
         return response
 
+    def get_status(self) -> ProlificRecruitmentStatus:
+        return ProlificRecruitmentStatus(
+            recruiter_name=self.nickname,
+            participant_status_counts={},
+            study_id="DEV-STUDY-ID",
+            study_status="DEV-STUDY-STATUS",
+            study_cost=0,
+            currency="£",
+            internal_name="DEV-STUDY-INTERNAL-NAME",
+            base_payment_cents=self.compute_reward(),
+            median_session_duration_minutes=0,
+            real_wage_per_hour_excluding_bonuses=0,
+        )
+
 
 class MockRecruiter(Recruiter):
     """
