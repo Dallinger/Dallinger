@@ -901,7 +901,7 @@ class DevProlificRecruiter(DevRecruiter, ProlificRecruiter):
             study_cost=0,
             currency="£",
             internal_name="DEV-STUDY-INTERNAL-NAME",
-            base_payment_cents=self.base_payment_cents(),
+            base_payment_cents=self.base_payment_cents,
             median_session_duration_minutes=0,
             real_wage_per_hour_excluding_bonuses=0,
         )
