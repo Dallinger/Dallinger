@@ -305,11 +305,13 @@ class Configuration(object):
         )
 
         # Load the configuration, with local parameters overriding global ones.
-        for config_file in [global_defaults_file, local_defaults_file, global_config]:
+        for config_file in [global_defaults_file, local_defaults_file]:
             self.load_from_file(config_file, strict)
 
         if experiment_available():
             self.load_experiment_config_defaults()
+
+        self.load_from_file(global_config, strict)
 
     def load(self, strict=True):
         self.load_defaults(strict)
