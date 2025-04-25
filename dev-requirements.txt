@@ -50,9 +50,9 @@ bleach==6.2.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.38.0
+boto3==1.38.2
     # via dallinger
-botocore==1.38.0
+botocore==1.38.2
     # via
     #   boto3
     #   s3transfer
@@ -156,7 +156,7 @@ fqdn==1.5.1
     # via jsonschema
 future==1.0.0
     # via dallinger
-gevent==25.4.1
+gevent==25.4.2
     # via
     #   dallinger
     #   gunicorn
@@ -167,13 +167,13 @@ greenlet==3.2.1
     #   sqlalchemy
 gunicorn==23.0.0
     # via dallinger
-h11==0.14.0
+h11==0.16.0
     # via
     #   httpcore
     #   wsproto
 heroku3==5.2.1
     # via dallinger
-httpcore==1.0.8
+httpcore==1.0.9
     # via httpx
 httpx==0.28.1
     # via jupyterlab
