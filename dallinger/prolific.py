@@ -8,7 +8,6 @@ import requests
 import tenacity
 from dateutil import parser
 
-from dallinger.recruiters import handle_and_raise_recruitment_error
 from dallinger.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -98,6 +97,8 @@ class ProlificService:
         the study on Prolific. If we get there first, there will be an error
         because the submission hasn't happened yet.
         """
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         status = self.get_participant_submission(submission_id)["status"]
         if status != "AWAITING REVIEW":
             # This will trigger a retry from the decorator
@@ -451,6 +452,8 @@ class ProlificService:
           out of our "beta" period with Prolific)
         * Parses response and does error handling
         """
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         headers = {
             "Authorization": f"Token {self.api_token}",
             "Referer": self.referer_header,

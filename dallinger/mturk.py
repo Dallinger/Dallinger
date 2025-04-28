@@ -6,8 +6,6 @@ import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 from cached_property import cached_property
 
-from dallinger.recruiters import handle_and_raise_recruitment_error
-
 logger = logging.getLogger(__name__)
 PERCENTAGE_APPROVED_REQUIREMENT_ID = "000000000000000000L0"
 LOCALE_REQUIREMENT_ID = "00000000000000000071"
@@ -73,6 +71,8 @@ class SNSService(object):
         )
 
     def create_subscription(self, experiment_id, notification_url):
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         logger.warning(
             "Creating new SNS subscription for {}...".format(notification_url)
         )
@@ -280,6 +280,8 @@ class MTurkService(object):
 
     def check_credentials(self):
         """Verifies key/secret/host combination by making a balance inquiry"""
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         try:
             return bool(self.mturk.get_account_balance())
         except NoCredentialsError:
@@ -301,6 +303,8 @@ class MTurkService(object):
 
     def create_qualification_type(self, name, description, status="Active"):
         """Create a new qualification Workers can be scored for."""
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         try:
             response = self.mturk.create_qualification_type(
                 Name=name, Description=description, QualificationTypeStatus=status
@@ -321,6 +325,8 @@ class MTurkService(object):
         match the provided name exactly. If there's an exact match, return
         that Qualification. Otherwise, raise an exception.
         """
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         max_fuzzy_matches_to_check = 100
         query = name.upper()
         args = {
@@ -365,6 +371,8 @@ class MTurkService(object):
 
     def assign_named_qualification(self, name, worker_id, score, notify=False):
         """Score a worker for a specific named qualification"""
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         qtype = self.get_qualification_type_by_name(name)
         if qtype is None:
             handle_and_raise_recruitment_error(
@@ -417,6 +425,8 @@ class MTurkService(object):
 
     def current_qualification_score(self, qualification_id, worker_id):
         """Return a worker's qualification score as an iteger."""
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         try:
             response = self.mturk.get_qualification_score(
                 QualificationTypeId=qualification_id, WorkerId=worker_id
@@ -447,6 +457,8 @@ class MTurkService(object):
         """Return the current score for a worker, on a qualification with the
         provided name.
         """
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         qtype = self.get_qualification_type_by_name(name)
         if qtype is None:
             handle_and_raise_recruitment_error(
@@ -510,6 +522,7 @@ class MTurkService(object):
         do_subscribe=True,
     ):
         """Create the actual HIT and return a dict with its useful properties."""
+        from dallinger.recruiters import handle_and_raise_recruitment_error
 
         # We need a HIT_Type in order to register for notifications
         hit_type_id = self._register_hit_type(
@@ -548,6 +561,8 @@ class MTurkService(object):
         return self.get_hit(hit_id)
 
     def create_additional_assignments_for_hit(self, hit_id, number):
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         try:
             response = self.mturk.create_additional_assignments_for_hit(
                 HITId=hit_id,
@@ -565,6 +580,8 @@ class MTurkService(object):
         return self._is_ok(response)
 
     def update_expiration_for_hit(self, hit_id, hours):
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         hit = self.get_hit(hit_id)
         expiration = datetime.timedelta(hours=hours) + hit["expiration"]
         try:
@@ -602,6 +619,8 @@ class MTurkService(object):
         """Expire a HIT, which will change its status to "Reviewable",
         allowing it to be deleted.
         """
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         try:
             self.mturk.update_expiration_for_hit(HITId=hit_id, ExpireAt=0)
         except Exception as ex:
@@ -646,6 +665,8 @@ class MTurkService(object):
         reward you pay to the Worker when you approve the Worker's
         assignment.
         """
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         assignment = self.get_assignment(assignment_id)
         worker_id = assignment["worker_id"]
         amount_str = "{:.2f}".format(amount)
@@ -682,6 +703,8 @@ class MTurkService(object):
                the reward specified in the HIT.
             2. Amazon Mechanical Turk fees are debited.
         """
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         try:
             return self._is_ok(
                 self.mturk.approve_assignment(AssignmentId=assignment_id)
