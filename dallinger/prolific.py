@@ -8,6 +8,7 @@ import requests
 import tenacity
 from dateutil import parser
 
+from dallinger.recruiters import handle_and_raise_recruitment_error
 from dallinger.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -100,7 +101,9 @@ class ProlificService:
         status = self.get_participant_submission(submission_id)["status"]
         if status != "AWAITING REVIEW":
             # This will trigger a retry from the decorator
-            raise ProlificServiceException("Prolific session not yet submitted.")
+            handle_and_raise_recruitment_error(
+                ProlificServiceException("Prolific session not yet submitted.")
+            )
 
         return self._req(
             method="POST",
@@ -467,8 +470,10 @@ class ProlificService:
         try:
             parsed = response.json()
         except requests.exceptions.JSONDecodeError as err:
-            raise ProlificServiceException(
-                f"Failed to parse the following JSON response from Prolific: {err.doc}"
+            handle_and_raise_recruitment_error(
+                ProlificServiceException(
+                    f"Failed to parse the following JSON response from Prolific: {err.doc}"
+                )
             )
 
         if "error" in parsed:
@@ -479,7 +484,9 @@ class ProlificService:
                 "args": kw,
                 "response": parsed,
             }
-            raise ProlificServiceException(json.dumps(error))
+            handle_and_raise_recruitment_error(
+                ProlificServiceException(json.dumps(error))
+            )
 
         return parsed
 
