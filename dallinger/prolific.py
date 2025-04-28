@@ -394,6 +394,10 @@ class ProlificService:
         """Fetch details of an existing Study"""
         return self._req(method="GET", endpoint=f"/studies/{study_id}/")
 
+    def get_unread_messages(self) -> dict:
+        """Fetch unread messages"""
+        return self._req(method="GET", endpoint="/messages/unread/")["results"]
+
     def publish_study(self, study_id: str) -> dict:
         """Publish a previously created UNPUBLISHED study."""
         return self._req(
