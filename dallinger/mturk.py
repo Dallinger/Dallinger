@@ -6,6 +6,8 @@ import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 from cached_property import cached_property
 
+from dallinger.recruiters import handle_and_raise_recruitment_error
+
 logger = logging.getLogger(__name__)
 PERCENTAGE_APPROVED_REQUIREMENT_ID = "000000000000000000L0"
 LOCALE_REQUIREMENT_ID = "00000000000000000071"
@@ -87,7 +89,7 @@ class SNSService(object):
         while self._awaiting_confirmation(subscription):
             elapsed = time.time() - start
             if elapsed > self.max_wait_secs:
-                raise RemoteAPICallTimedOut("Too long")
+                handle_and_raise_recruitment_error(RemoteAPICallTimedOut("Too long"))
             logger.warning("Awaiting SNS subscription confirmation...")
             time.sleep(1)
 
@@ -281,12 +283,16 @@ class MTurkService(object):
         try:
             return bool(self.mturk.get_account_balance())
         except NoCredentialsError:
-            raise MTurkServiceException("No AWS credentials set!")
+            handle_and_raise_recruitment_error(
+                MTurkServiceException("No AWS credentials set!")
+            )
         except ClientError:
-            raise MTurkServiceException("Invalid AWS credentials!")
+            handle_and_raise_recruitment_error(
+                MTurkServiceException("Invalid AWS credentials!")
+            )
         except Exception as ex:
-            raise MTurkServiceException(
-                "Error checking credentials: {}".format(str(ex))
+            handle_and_raise_recruitment_error(
+                MTurkServiceException("Error checking credentials: {}".format(str(ex)))
             )
 
     def confirm_subscription(self, token, topic):
@@ -301,7 +307,9 @@ class MTurkService(object):
             )
         except Exception as ex:
             if "already created a QualificationType with this name" in str(ex):
-                raise DuplicateQualificationNameError(str(ex))
+                handle_and_raise_recruitment_error(
+                    DuplicateQualificationNameError(str(ex))
+                )
             else:
                 raise
 
@@ -338,7 +346,9 @@ class MTurkService(object):
                 if qualification["name"].upper() == query:
                     return qualification
 
-            raise MTurkServiceException("{} was not a unique name".format(query))
+            handle_and_raise_recruitment_error(
+                MTurkServiceException("{} was not a unique name".format(query))
+            )
 
         return qualifications[0]
 
@@ -357,8 +367,10 @@ class MTurkService(object):
         """Score a worker for a specific named qualification"""
         qtype = self.get_qualification_type_by_name(name)
         if qtype is None:
-            raise QualificationNotFoundException(
-                'No Qualification exists with name "{}"'.format(name)
+            handle_and_raise_recruitment_error(
+                QualificationNotFoundException(
+                    'No Qualification exists with name "{}"'.format(name)
+                )
             )
         return self._is_ok(
             self.mturk.associate_qualification_with_worker(
@@ -412,19 +424,23 @@ class MTurkService(object):
         except ClientError as ex:
             error = str(ex)
             if "does not exist" in error:
-                raise WorkerLacksQualification(
-                    "Worker {} does not have qualification {}.".format(
-                        worker_id, qualification_id
+                handle_and_raise_recruitment_error(
+                    WorkerLacksQualification(
+                        "Worker {} does not have qualification {}.".format(
+                            worker_id, qualification_id
+                        )
                     )
                 )
             if "operation can be called with a status of: Granted" in error:
-                raise RevokedQualification(
-                    "Worker {} has had qualification {} revoked.".format(
-                        worker_id, qualification_id
+                handle_and_raise_recruitment_error(
+                    RevokedQualification(
+                        "Worker {} has had qualification {} revoked.".format(
+                            worker_id, qualification_id
+                        )
                     )
                 )
 
-            raise MTurkServiceException(error)
+            handle_and_raise_recruitment_error(MTurkServiceException(error))
         return response["Qualification"]["IntegerValue"]
 
     def current_named_qualification_score(self, name, worker_id):
@@ -433,8 +449,10 @@ class MTurkService(object):
         """
         qtype = self.get_qualification_type_by_name(name)
         if qtype is None:
-            raise QualificationNotFoundException(
-                'No Qualification exists with name "{}"'.format(name)
+            handle_and_raise_recruitment_error(
+                QualificationNotFoundException(
+                    'No Qualification exists with name "{}"'.format(name)
+                )
             )
         try:
             score = self.current_qualification_score(qtype["id"], worker_id)
@@ -515,7 +533,9 @@ class MTurkService(object):
 
         response = self.mturk.create_hit_with_hit_type(**params)
         if "HIT" not in response:
-            raise MTurkServiceException("HIT request was invalid for unknown reason.")
+            handle_and_raise_recruitment_error(
+                MTurkServiceException("HIT request was invalid for unknown reason.")
+            )
         return self._translate_hit(response["HIT"])
 
     def extend_hit(self, hit_id, number, duration_hours=None):
@@ -535,8 +555,12 @@ class MTurkService(object):
                 UniqueRequestToken=self._request_token(),
             )
         except Exception as ex:
-            raise MTurkServiceException(
-                "Error: failed to add {} assignments to HIT: {}".format(number, str(ex))
+            handle_and_raise_recruitment_error(
+                MTurkServiceException(
+                    "Error: failed to add {} assignments to HIT: {}".format(
+                        number, str(ex)
+                    )
+                )
             )
         return self._is_ok(response)
 
@@ -548,9 +572,11 @@ class MTurkService(object):
                 HITId=hit_id, ExpireAt=expiration
             )
         except Exception as ex:
-            raise MTurkServiceException(
-                "Failed to extend time until expiration of HIT: {}\n{}".format(
-                    expiration, str(ex)
+            handle_and_raise_recruitment_error(
+                MTurkServiceException(
+                    "Failed to extend time until expiration of HIT: {}\n{}".format(
+                        expiration, str(ex)
+                    )
                 )
             )
         return self._is_ok(response)
@@ -579,8 +605,10 @@ class MTurkService(object):
         try:
             self.mturk.update_expiration_for_hit(HITId=hit_id, ExpireAt=0)
         except Exception as ex:
-            raise MTurkServiceException(
-                "Failed to expire HIT {}: {}".format(hit_id, str(ex))
+            handle_and_raise_recruitment_error(
+                MTurkServiceException(
+                    "Failed to expire HIT {}: {}".format(hit_id, str(ex))
+                )
             )
         return True
 
@@ -635,7 +663,7 @@ class MTurkService(object):
             error = "Failed to pay assignment {} bonus of {}: {}".format(
                 assignment_id, amount_str, str(ex)
             )
-            raise MTurkServiceException(error)
+            handle_and_raise_recruitment_error(MTurkServiceException(error))
 
     def get_assignment(self, assignment_id):
         """Get an assignment by ID and reformat the response."""
@@ -660,9 +688,11 @@ class MTurkService(object):
             )
         except ClientError as ex:
             assignment = self.get_assignment(assignment_id)
-            raise MTurkServiceException(
-                "Failed to approve assignment {}, {}: {}".format(
-                    assignment_id, str(assignment), str(ex)
+            handle_and_raise_recruitment_error(
+                MTurkServiceException(
+                    "Failed to approve assignment {}, {}: {}".format(
+                        assignment_id, str(assignment), str(ex)
+                    )
                 )
             )
 
