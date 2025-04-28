@@ -38,6 +38,17 @@ class ProlificServiceMultipleWorkspacesException(Exception):
 # code #
 ########
 
+AVAILABLE_STATES = [
+    "ACTIVE",
+    "PAUSED",
+    "UNPUBLISHED",
+    "PUBLISHING",
+    "COMPLETED",
+    "AWAITING REVIEW",
+    "UNKNOWN",
+    "SCHEDULED",
+]
+
 
 class ProlificService:
     """
@@ -151,6 +162,13 @@ class ProlificService:
         return self._req(method="GET", endpoint="/submissions/", params=query_params)[
             "results"
         ]
+
+    def get_studies(self, states: List[str] = None) -> List[dict]:
+        if not states:
+            states = AVAILABLE_STATES
+        assert all([state in AVAILABLE_STATES for state in states])
+        studies = self._req(method="GET", endpoint="/studies/")["results"]
+        return [study for study in studies if study["status"] in states]
 
     def get_assignments_for_study(self, study_id: str) -> dict:
         """Return all submissions for the current Prolific study, keyed by
@@ -710,12 +728,12 @@ class DevProlificService(ProlificService):
         logger.info(f"Simulated Prolific API response: {response}")
 
 
-def prolific_service_from_config():  #
+def prolific_service_from_config(strict=False):  #
     from dallinger.config import get_config
     from dallinger.prolific import ProlificService
 
     config = get_config()
-    config.load()
+    config.load(strict=strict)
     return ProlificService(
         api_token=config.get("prolific_api_token"),
         api_version=config.get("prolific_api_version"),
