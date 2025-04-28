@@ -29,7 +29,12 @@ from dallinger import db, experiment, models, recruiters
 from dallinger.config import get_config
 from dallinger.notifications import MessengerError, admin_notifier
 from dallinger.recruiters import ProlificRecruiter
-from dallinger.utils import attach_json_logger, generate_random_id, get_from_config
+from dallinger.utils import (
+    attach_json_logger,
+    generate_random_id,
+    get_from_config,
+    setup_warning_hooks,
+)
 
 from . import dashboard
 from .replay import ReplayBackend
@@ -43,6 +48,8 @@ from .utils import (
     success_response,
 )
 from .worker_events import worker_function
+
+setup_warning_hooks()
 
 # Initialize the Dallinger database.
 session = db.session

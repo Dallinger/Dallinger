@@ -88,6 +88,53 @@ class TestSubprocessWrapper(object):
         sys.stderr.write.assert_called_once_with(b"Output")
 
 
+class TestShowDeprecationWarningsOnce(object):
+    @pytest.fixture
+    def redis_conn(self):
+        with mock.patch("dallinger.utils.db.redis_conn") as redis:
+            redis.exists.return_value = (
+                False  # Make exists() return False so set() will be called
+            )
+            yield redis
+
+    @pytest.fixture(autouse=True)
+    def clear_local_cache(self):
+        utils.local_warning_cache.clear()
+
+    def test_deprecation_warning_logged_once(self, redis_conn):
+        """Test that DeprecationWarning is logged only once to Redis."""
+        warning = str(datetime.now())
+        category = DeprecationWarning  # Use the built-in DeprecationWarning class
+        filename = "test.py"
+        lineno = 42
+        key = f"{filename}:{lineno}"
+
+        # First call should log to Redis
+        utils.show_warnings_once(warning, category, filename, lineno)
+        redis_conn.exists.assert_called_once_with(key)
+        redis_conn.set.assert_called_once_with(key, "Logged")
+        assert key in utils.local_warning_cache
+
+        # Reset mock to check second call
+        redis_conn.reset_mock()
+
+        # Second call should not check Redis at all because it's in local cache
+        utils.show_warnings_once(warning, category, filename, lineno)
+        redis_conn.exists.assert_not_called()
+        redis_conn.set.assert_not_called()
+
+    def test_deprecation_warning_without_filename_lineno(self, redis_conn):
+        """Test that DeprecationWarning without filename/lineno uses warning message as key."""
+        warning = "warning"
+        category = DeprecationWarning  # Use the built-in DeprecationWarning class
+        filename = None
+        lineno = None
+
+        utils.show_warnings_once(warning, category, filename, lineno)
+        redis_conn.exists.assert_called_once_with(warning)
+        redis_conn.set.assert_called_once_with(warning, "Logged")
+
+
 @pytest.mark.usefixtures("in_tempdir")
 class TestGitClient(object):
     @pytest.fixture
