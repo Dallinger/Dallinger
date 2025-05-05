@@ -202,7 +202,7 @@ ipython==8.18.1
     #   ipykernel
     #   ipywidgets
     #   jupyter-console
-ipywidgets==8.1.5
+ipywidgets==8.1.7
     # via
     #   dallinger
     #   jupyter
