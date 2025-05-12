@@ -804,7 +804,7 @@ class TestProlificRecruiter(object):
 
         recruiter._record_current_study_id("test_study_id")
 
-        result = recruiter.screen_out(participant.assignment_id)
+        result = recruiter.screen_out(participant, bonus=3.50)
 
         recruiter.prolificservice.screen_out.assert_called_once_with(
             study_id="test_study_id",
@@ -839,7 +839,7 @@ class TestProlificRecruiter(object):
         recruiter._record_current_study_id("test_study_id")
 
         with pytest.raises(ProlificScreenOutDenied) as exc_info:
-            recruiter.screen_out(participant.assignment_id)
+            recruiter.screen_out(participant, bonus=3.50)
 
         expected_error = f"Prolific denied screen-out request for participant {participant.id}: {error_response['message']}"
         assert str(exc_info.value) == expected_error
