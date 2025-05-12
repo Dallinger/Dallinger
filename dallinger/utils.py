@@ -12,6 +12,7 @@ import string
 import subprocess
 import sys
 import tempfile
+import warnings
 import webbrowser
 from datetime import datetime
 from hashlib import md5
@@ -21,16 +22,55 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unicodedata import normalize
 
+import redis
 import requests
 from faker import Faker
 from flask import request
 from pythonjsonlogger import jsonlogger
+from sqlalchemy import exc as sa_exc
 
 from dallinger import db
 from dallinger.compat import is_command
 from dallinger.config import get_config
 from dallinger.models import Participant
 from dallinger.version import __version__
+
+local_warning_cache = {}
+
+
+def show_warnings_once(warning, category, filename, lineno, file=None, line=None):
+    redis_conn = db.redis_conn
+
+    if filename is not None and lineno is not None:
+        # The same Warning can be raised using different messages, e.g. if it contains variables
+        redis_key = f"{filename}:{lineno}"
+    else:
+        redis_key = str(warning)
+    # Check if message in redis_conn if yes, fall back to the default behaviour
+    redis_available = True
+    try:
+        if redis_key in local_warning_cache or redis_conn.exists(redis_key):
+            # If the message is already logged, don't log it again
+            return
+    except redis.exceptions.ConnectionError:
+        redis_available = False
+
+    # Log the warning message to Redis
+    local_warning_cache[redis_key] = "Logged"
+    if redis_available:
+        redis_conn.set(redis_key, "Logged")
+
+    # Default behaviour
+    from warnings import formatwarning
+
+    print(formatwarning(warning, category, filename, lineno, line))
+
+
+def setup_warning_hooks():
+    warnings.showwarning = show_warnings_once
+    warnings.simplefilter("default", Warning)
+    warnings.simplefilter("ignore", category=sa_exc.SAWarning)
+
 
 try:
     from pip._vendor import pkg_resources
@@ -49,6 +89,15 @@ def attach_json_logger(log):
     handler = logging.FileHandler(JSON_LOGFILE)
     handler.setFormatter(fmt)
     log.addHandler(handler)
+
+
+def get_exp_klass():
+    from dallinger import experiment
+
+    try:
+        return experiment.load()
+    except ImportError:
+        return None  # pragma: no cover
 
 
 def get_base_url():

@@ -44,9 +44,18 @@ from dallinger.utils import (
     ParticipationTime,
     generate_random_id,
     get_base_url,
+    get_exp_klass,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def handle_recruitment_error(ex):
+    # Default behavior for backward compatibility
+    logger.exception(str(ex))
+    exp_klass = get_exp_klass()
+    if exp_klass is not None:
+        exp_klass.handle_recruitment_error(ex)
 
 
 # These are constants because other components may listen for these
@@ -517,7 +526,7 @@ class ProlificRecruiter(Recruiter):
             study_cost=total_cost,
             currency="£",
             internal_name=study["internal_name"],
-            base_payment_cents=self.compute_reward(),
+            base_payment_cents=self.base_payment_cents,
             median_session_duration_minutes=median_session_duration_minutes,
             real_wage_per_hour_excluding_bonuses=real_wage_per_hour_excluding_bonuses,
         )
@@ -526,7 +535,8 @@ class ProlificRecruiter(Recruiter):
     def completion_code(self):
         return alphanumeric_code(self.config.get("id"))
 
-    def compute_reward(self):
+    @property
+    def base_payment_cents(self):
         return int(self.config.get("base_payment") * 100)
 
     def open_recruitment(self, n: int = 1) -> dict:
@@ -568,7 +578,7 @@ class ProlificRecruiter(Recruiter):
             "publish_experiment": self.config.get(
                 "publish_experiment", self.publish_experiment_default
             ),
-            "reward": self.compute_reward(),
+            "reward": self.base_payment_cents,
             "total_available_places": n,
             "workspace": self.config.get("prolific_workspace"),
         }
@@ -614,7 +624,7 @@ class ProlificRecruiter(Recruiter):
                 submission_id=assignment_id
             )
         except ProlificServiceException as ex:
-            logger.exception(str(ex))
+            handle_recruitment_error(ex)
 
     def close_recruitment(self):
         """Do nothing.
@@ -659,7 +669,7 @@ class ProlificRecruiter(Recruiter):
                 amount=amount,
             )
         except ProlificServiceException as ex:
-            logger.exception(str(ex))
+            handle_recruitment_error(ex)
 
     def on_task_completion(self):
         """We cannot perform post-submission actions (approval, bonus payment)
@@ -899,7 +909,13 @@ class ProlificRecruiter(Recruiter):
         self.prolificservice.validate_workspace(workspace)
 
 
-class DevProlificRecruiter(ProlificRecruiter):
+class DevRecruiter(Recruiter):
+    """
+    A dev recruiter class for detecting dev recruiters
+    """
+
+
+class DevProlificRecruiter(DevRecruiter, ProlificRecruiter):
     """A debug recruiter for [Prolific](https://app.prolific.com/)"""
 
     nickname = "devprolific"
@@ -919,6 +935,20 @@ class DevProlificRecruiter(ProlificRecruiter):
         self.prolificservice.log_response(response)
         return response
 
+    def get_status(self) -> ProlificRecruitmentStatus:
+        return ProlificRecruitmentStatus(
+            recruiter_name=self.nickname,
+            participant_status_counts={},
+            study_id="DEV-STUDY-ID",
+            study_status="DEV-STUDY-STATUS",
+            study_cost=0,
+            currency="£",
+            internal_name="DEV-STUDY-INTERNAL-NAME",
+            base_payment_cents=self.base_payment_cents,
+            median_session_duration_minutes=0,
+            real_wage_per_hour_excluding_bonuses=0,
+        )
+
 
 class MockRecruiter(Recruiter):
     """
@@ -936,17 +966,27 @@ class MockRecruiter(Recruiter):
         self.register_study()
         return {"items": [], "message": ""}
 
-    def register_study(self):
+    def register_study(self, **kwargs):
+        """
+        Register a study with the mock recruiter.
+
+        This method is a placeholder and does not register any actual recruitment.
+
+        Args:
+            **kwargs: Additional keyword arguments for study registration, e.g. study_id.
+        """
         raise NotImplementedError
 
 
 class MockProlificRecruiter(MockRecruiter, ProlificRecruiter):
     nickname = "mockprolific"
 
-    def register_study(self):
-        config = get_config()
-        prolific_config = json.loads(config.get("prolific_recruitment_config"))
-        study_id = prolific_config.get("study_id")
+    def register_study(self, **kwargs):
+        study_id = kwargs.get("study_id", None)
+        if study_id is None:
+            config = get_config()
+            prolific_config = json.loads(config.get("prolific_recruitment_config"))
+            study_id = prolific_config.get("study_id")
         self._record_current_study_id(study_id)
 
 
@@ -1541,7 +1581,7 @@ class MTurkRecruiter(Recruiter):
                 hit_id, number=n, duration_hours=self.config.get("duration")
             )
         except MTurkServiceException as ex:
-            logger.exception(str(ex))
+            handle_recruitment_error(ex)
 
     def notify_duration_exceeded(self, participants, reference_time):
         """The participant has exceed the maximum time for the activity,
@@ -1583,7 +1623,7 @@ class MTurkRecruiter(Recruiter):
             try:
                 self.mturkservice.expire_hit(pick_one.participant.hit_id)
             except MTurkServiceException as ex:
-                logger.exception(ex)
+                handle_recruitment_error(ex)
 
     def rejects_questionnaire_from(self, participant):
         """Mechanical Turk participants submit their HITs on the MTurk site
@@ -1621,7 +1661,7 @@ class MTurkRecruiter(Recruiter):
                 participant.assignment_id, amount, reason
             )
         except MTurkServiceException as ex:
-            logger.exception(str(ex))
+            handle_recruitment_error(ex)
 
     @property
     def is_in_progress(self):
@@ -1638,7 +1678,7 @@ class MTurkRecruiter(Recruiter):
         try:
             return self.mturkservice.approve_assignment(assignment_id)
         except MTurkServiceException as ex:
-            logger.exception(str(ex))
+            handle_recruitment_error(ex)
 
     def close_recruitment(self):
         """Do nothing.
@@ -1840,7 +1880,7 @@ class MTurkRecruiter(Recruiter):
         try:
             self.notifies_admin.send(message["subject"], message["body"])
         except MessengerError as ex:
-            logger.exception(ex)
+            handle_recruitment_error(ex)
 
     def load_service(self, sandbox):
         from dallinger.command_line import _mturk_service_from_config
