@@ -354,8 +354,13 @@ class Recruiter(object):
         """
         raise NotImplementedError
 
-    def screen_out(self, participant: Participant):
-        """Screen-out a submission."""
+    def screen_out(self, participant: Participant, bonus: float):
+        """Screen-out a submission.
+
+        Args:
+            participant: The participant to screen out
+            bonus: Bonus amount to pay to the participant
+        """
         raise NotImplementedError
 
     def validate_config(self, **kwargs):
@@ -853,23 +858,23 @@ class ProlificRecruiter(Recruiter):
             "peripheral_requirements": details["peripheral_requirements"],
         }
 
-    def screen_out(self, assignment_id: str):
-        """Screen out a participant from a Prolific study."""
+    def screen_out(self, participant: Participant, bonus: float):
+        """Screen out a participant from a Prolific study.
+
+        Args:
+            participant: The participant to screen out
+            bonus: Bonus amount to pay to the participant
+        """
         if not self.current_study_id:
             raise RuntimeError("No current study in progress")
 
-        participant = Participant.query.filter_by(
-            assignment_id=assignment_id
-        ).one_or_none()
         if participant is None:
-            raise ProlificRecruiterException(
-                f"No participant found for assignment ID '{assignment_id}' during screen-out."
-            )
+            raise ProlificRecruiterException("No participant provided for screen-out.")
 
         response = self.prolificservice.screen_out(
             study_id=self.current_study_id,
             submission_ids=[participant.assignment_id],
-            bonus_per_submission=participant.base_payment + (participant.bonus or 0.0),
+            bonus_per_submission=bonus,
             increase_places=self.config.get("auto_recruit", False),
         )
 
