@@ -35,7 +35,7 @@ dependencies = [
     "boto3",
     "build",
     "cached-property",
-    "click",
+    "click < 8.2",
     "faker",
     "flask-sock",
     "flask",
