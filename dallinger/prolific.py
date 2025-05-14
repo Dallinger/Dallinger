@@ -647,6 +647,7 @@ class DevProlificService(ProlificService):
             if method == "GET":
                 if re.match(r"/studies/[a-z0-9]+/", endpoint):
                     # method="GET", endpoint=f"/studies/{study_id}/"
+                    # Response based on example at https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/GetStudy
                     response = {
                         "id": "60d9aadeb86739de712faee0",
                         "name": "Study about API's",
