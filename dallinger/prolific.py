@@ -1,13 +1,15 @@
 import json
 import logging
 import re
-from typing import List, Optional
+from typing import List, Optional, Union
 from uuid import uuid4
 
 import requests
 import tenacity
 from dateutil import parser
 
+from dallinger.models import Participant
+from dallinger.utils import median_time_spent_in_hours
 from dallinger.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,10 @@ class ProlificServiceNoSuchWorkspaceException(Exception):
 
 class ProlificServiceMultipleWorkspacesException(Exception):
     """A specified workspace name already exists multiple times for this user."""
+
+
+class ProlificScreenOutDenied(Exception):
+    """Raised when Prolific denies a screen-out request."""
 
 
 ########
@@ -380,6 +386,73 @@ class ProlificService:
             json={"action": "PUBLISH"},
         )
 
+    def screen_out(
+        self,
+        study_id: str,
+        submission_ids: Union[str, List[str]],
+        bonus_per_submission: float,
+        increase_places: bool,
+    ) -> dict:
+        """
+        Screen-out one or more submissions for a study.
+
+        Args:
+            study_id: The ID of the study
+            submission_ids: A single submission ID or list of submission IDs
+            bonus_per_submission: The bonus amount to pay per submission, in your study currency.
+            increase_places: Whether to increase available study places
+
+        Calls the 'Bulk screen out submissions' route in the Prolific API
+        (see https://docs.prolific.com/docs/api-docs/public/#tag/Submissions/operation/BulkScreenOutSubmissions).
+
+        The Prolific documentation for this route is reproduced below:
+
+        This endpoint is designed to be used as part of a custom screening study
+        (a study that has been created with 'is_custom_screening:true'). If a participant has taken part in a
+        study where you have asked screening questions and has not met your screening requirements, this
+        endpoint allows you to screen out multiple participants at once. The endpoint accepts a list of
+        submission IDs and a bonus amount and will perform the following actions:
+
+        - Change the status of the submission to SCREENED_OUT which is equivalent to returning the submission.
+        - Pay the participant a bonus, specified by you.
+        - Send the participant a message explaining that they have been screened out and showing their bonus
+          amount. All submission IDs must belong to the specified study. Bonus per submission is a decimal
+          value in your study currency, e.g. 1.50 for £1.50.
+
+        It is our understanding that Prolific will reject such requests if the bonus is not large enough to
+        cover the median participant session time multiplied by Prolific's minimum hourly wage.
+
+        Returns a dictionary with the following keys when the request was successful:
+        - "message": "The request to bulk screen out has been made successfully."
+        - "payment_per_participant": A dictionary with the following keys:
+          - "amount": The bonus amount in your study currency
+          - "currency": The currency of the bonus
+
+        Returns a dictionary with the following keys when the request was not successful:
+        - "status": Status code of the response
+        - "error_code": Error code of the response
+        - "title": Title of the error
+        - "detail": Details of the error
+        - "additional_information": Additional information from Prolific
+        - "traceback": Traceback from Prolific
+        - "interactive": Whether the error is interactive
+        """
+        submission_ids = (
+            [submission_ids] if isinstance(submission_ids, str) else submission_ids
+        )
+
+        payload = {
+            "submission_ids": submission_ids,
+            "bonus_per_submission": bonus_per_submission,
+            "increase_places": increase_places,
+        }
+
+        return self._req(
+            method="POST",
+            endpoint=f"/studies/{study_id}/screen-out-submissions/",
+            json=payload,
+        )
+
     def delete_study(self, study_id: str) -> bool:
         """Delete a Study entirely. This is only possible on UNPUBLISHED studies."""
         response = self._req(method="DELETE", endpoint=f"/studies/{study_id}")
@@ -517,6 +590,47 @@ class DevProlificService(ProlificService):
             self.workspace_id = "dd883348cd40c69ccb1a7671"
             self.workspace_title = workspace
 
+    def screen_out_allowed(
+        self, participants: list[Participant], bonus_per_submission: float
+    ) -> bool:
+        """
+        Check if all participants in a list of participants can be screened out.
+        This is done by checking if the payment per participant is greater than the minimum required reward.
+
+        Args:
+            participants: list[Participant] - A list of participants to check.
+            bonus_per_submission: float - The bonus per submission that is supposed to be awarded.
+
+        Returns:
+            bool - True if all participants can be screened out, False otherwise.
+        """
+        if not participants:
+            return False
+
+        study = self.get_study(self.study_id)
+
+        if not study.get("is_custom_screening", False):
+            raise ProlificServiceException(
+                f"Prolific study (ID {self.study_id}) doesn't allow screening-out of participants. "
+                "Set 'prolific_is_custom_screening' to 'True' in your experiment config.txt file (or alternatively in "
+                "~/.dallingerconfig) to enable screening-out."
+            )
+
+        # Minimum wage thresholds: https://researcher-help.prolific.com/en/article/2273bd
+        prolific_min_wage_per_hour = 6
+        min_required_reward = (
+            median_time_spent_in_hours(participants) * prolific_min_wage_per_hour
+        )
+
+        if bonus_per_submission < min_required_reward:
+            logger.warning(
+                f"The participants with submission IDs {[p.assignment_id for p in participants]} do not satisfy the requirements "
+                f"to be screened-out! Reward per participant: {bonus_per_submission}, Minimum required reward: {min_required_reward}"
+            )
+            return False
+
+        return True
+
     def _req(self, method: str, endpoint: str, **kw) -> dict:
         """Does NOT make any requests but instead writes to the log."""
         self.log_request(method=method, endpoint=endpoint, **kw)
@@ -533,8 +647,46 @@ class DevProlificService(ProlificService):
             if method == "GET":
                 if re.match(r"/studies/[a-z0-9]+/", endpoint):
                     # method="GET", endpoint=f"/studies/{study_id}/"
+                    # Response based on example at https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/GetStudy
                     response = {
+                        "id": "60d9aadeb86739de712faee0",
+                        "name": "Study about API's",
+                        "internal_name": "WIT-2021 Study about API's version 2",
+                        "description": "This study aims to determine how to make a good public API",
+                        "external_study_url": "https://some-experiment.com?participant={{%PROLIFIC_PID%}}",
+                        "prolific_id_option": "url_parameters",
+                        "completion_codes": [
+                            {
+                                "code": "ABC123",
+                                "code_type": "COMPLETED",
+                                "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
+                            },
+                            {
+                                "code": "DEF234",
+                                "code_type": "FOLLOW_UP_STUDY",
+                                "actions": [
+                                    {"action": "AUTOMATICALLY_APPROVE"},
+                                    {
+                                        "action": "ADD_TO_PARTICIPANT_GROUP",
+                                        "participant_group": "619e049f7648a4e1f8f3645b",
+                                    },
+                                ],
+                            },
+                        ],
                         "total_available_places": 100,
+                        "estimated_completion_time": 5,
+                        "maximum_allowed_time": 25,
+                        "reward": 100,
+                        "device_compatibility": ["desktop"],
+                        "peripheral_requirements": [],
+                        "filters": [],
+                        "filter_set_id": None,
+                        "filter_set_version": None,
+                        "status": "UNPUBLISHED",
+                        "study_labels": ["interview"],
+                        "content_warnings": ["sensitive"],
+                        "content_warning_details": "Experiences with hateful activities, experiences with self-injury and harmful behaviour",
+                        "is_custom_screening": True,
                     }
 
                 elif endpoint == "/studies/":
@@ -558,6 +710,38 @@ class DevProlificService(ProlificService):
                         "id": self.study_id,
                         "external_study_url": "external-study-url",
                     }
+
+                elif re.match(r"/studies/[a-z0-9]+/screen-out-submissions/", endpoint):
+                    # method="POST", endpoint= "/studies/{study_id}/screen-out-submissions/", json=payload
+                    participants = [
+                        p
+                        for p in Participant.query.filter(
+                            Participant.assignment_id.in_(kw["json"]["submission_ids"])
+                        ).all()
+                    ]
+
+                    screen_out_allowed = self.screen_out_allowed(
+                        participants=participants,
+                        bonus_per_submission=kw["json"]["bonus_per_submission"],
+                    )
+                    if screen_out_allowed:
+                        response = {
+                            "message": "The request to bulk screen out has been made successfully.",
+                            "payment_per_participant": {
+                                "amount": kw["json"]["bonus_per_submission"],
+                                "currency": "GBP",
+                            },
+                        }
+                    else:
+                        response = {
+                            "status": 0,
+                            "error_code": 0,
+                            "title": "The request to bulk screen out was not successful.",
+                            "detail": "Details about the error.",
+                            "additional_information": "Additional information about the error.",
+                            "traceback": "Traceback of the error.",
+                            "interactive": False,
+                        }
 
                 elif re.match(r"/studies/[a-z0-9]+/transition/", endpoint):
                     # method="POST", endpoint=f"/studies/{study_id}/transition/", json={"action": "PUBLISH"},
@@ -710,7 +894,7 @@ class DevProlificService(ProlificService):
         logger.info(f"Simulated Prolific API response: {response}")
 
 
-def prolific_service_from_config():  #
+def prolific_service_from_config():
     from dallinger.config import get_config
     from dallinger.prolific import ProlificService
 

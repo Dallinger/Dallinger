@@ -14,6 +14,7 @@ import sys
 import tempfile
 import warnings
 import webbrowser
+from datetime import datetime
 from hashlib import md5
 from importlib.metadata import files as files_metadata
 from importlib.util import find_spec
@@ -31,6 +32,7 @@ from sqlalchemy import exc as sa_exc
 from dallinger import db
 from dallinger.compat import is_command
 from dallinger.config import get_config
+from dallinger.models import Participant
 from dallinger.version import __version__
 
 local_warning_cache = {}
@@ -1045,3 +1047,25 @@ def classproperty(func):
         func = classmethod(func)
 
     return ClassPropertyDescriptor(func)
+
+
+def median_time_spent_in_hours(participants: list[Participant]) -> float:
+    """
+    Parameters:
+        participants: list[Participant]
+            A list of participants to calculate the median time spent in hours for.
+
+    Returns:
+        float
+            The median time spent in hours up to the current time by participants from the provided list of participants.
+    """
+    from statistics import median
+
+    if not participants:
+        return None
+
+    times = [datetime.now() - participant.creation_time for participant in participants]
+
+    median_time = median(times)
+
+    return median_time.total_seconds() / 3600
