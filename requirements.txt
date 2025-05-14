@@ -190,7 +190,7 @@ sortedcontainers==2.4.0
     # via trio
 soupsieve==2.6
     # via beautifulsoup4
-sqlalchemy==1.4.54
+sqlalchemy==2.0.41
     # via
     #   dallinger
     #   sqlalchemy-postgres-copy
