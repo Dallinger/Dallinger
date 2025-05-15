@@ -115,9 +115,10 @@ def report_idle_after(seconds):
     return decorator
 
 
-@click.group(context_settings=CONTEXT_SETTINGS)
+@click.group(context_settings=CONTEXT_SETTINGS, invoke_without_command=True)
 @click.version_option(__version__, "--version", "-v", message="%(version)s")
-def dallinger():
+@click.pass_context
+def dallinger(ctx):
     """Dallinger command-line utility."""
     from logging.config import fileConfig
 
@@ -125,6 +126,11 @@ def dallinger():
         os.path.join(os.path.dirname(__file__), "..", "logging.ini"),
         disable_existing_loggers=False,
     )
+
+    # If no subcommand is provided, show help and return 0
+    if ctx.invoked_subcommand is None:
+        click.echo(dallinger.get_help(ctx))
+        return 0
 
 
 dallinger.add_command(develop)
