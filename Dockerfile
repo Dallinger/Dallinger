@@ -1,6 +1,6 @@
 # syntax = docker/dockerfile:1.2
 ###################### Image with build tools to compile wheels ###############
-FROM python:3.12-bookworm as wheels
+FROM python:3.13-bookworm as wheels
 ENV DEBIAN_FRONTEND=noninteractive
 
 LABEL Description="Dallinger base docker image" Version="1.0"
