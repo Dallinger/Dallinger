@@ -50,9 +50,9 @@ bleach==6.2.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.38.15
+boto3==1.38.17
     # via dallinger
-botocore==1.38.15
+botocore==1.38.17
     # via
     #   boto3
     #   s3transfer
@@ -127,7 +127,7 @@ et-xmlfile==2.0.0
     # via openpyxl
 executing==2.2.0
     # via stack-data
-faker==37.1.0
+faker==37.3.0
     # via dallinger
 fastjsonschema==2.21.1
     # via nbformat
@@ -392,7 +392,7 @@ platformdirs==4.3.8
     #   jupyter-core
     #   tox
     #   virtualenv
-pluggy==1.5.0
+pluggy==1.6.0
     # via
     #   pytest
     #   tox
@@ -505,7 +505,7 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
-rpds-py==0.24.0
+rpds-py==0.25.0
     # via
     #   jsonschema
     #   referencing
@@ -590,7 +590,7 @@ tinycss2==1.4.0
     # via bleach
 tokenize-rt==6.1.0
     # via black
-tornado==6.4.2
+tornado==6.5
     # via
     #   ipykernel
     #   jupyter-client
@@ -624,7 +624,7 @@ trio==0.30.0
     #   trio-websocket
 trio-websocket==0.12.2
     # via selenium
-types-python-dateutil==2.9.0.20241206
+types-python-dateutil==2.9.0.20250516
     # via arrow
 typing-extensions==4.13.2
     # via
