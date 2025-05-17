@@ -149,7 +149,7 @@ pygments==2.19.1
     # via ipython
 pygtail==0.14.0
     # via dallinger
-pyopenssl==25.0.0
+pyopenssl==25.1.0
     # via dallinger
 pyproject-hooks==1.2.0
     # via
