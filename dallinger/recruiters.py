@@ -35,6 +35,7 @@ from dallinger.mturk import (
 )
 from dallinger.notifications import MessengerError, admin_notifier, get_mailer
 from dallinger.prolific import (
+    ProlificScreenOutDenied,
     ProlificServiceException,
     dev_prolific_service_from_config,
     prolific_service_from_config,
@@ -364,6 +365,15 @@ class Recruiter(object):
         Args:
             participants (list[Participant]): A list of participants for which
             to verify the status.
+        """
+        raise NotImplementedError
+
+    def screen_out(self, participant: Participant, bonus: float):
+        """Screen-out a submission.
+
+        Args:
+            participant: The participant to screen out
+            bonus: Bonus amount to pay to the participant
         """
         raise NotImplementedError
 
@@ -862,6 +872,39 @@ class ProlificRecruiter(Recruiter):
             "eligibility_requirements": details["eligibility_requirements"],
             "peripheral_requirements": details["peripheral_requirements"],
         }
+
+    def screen_out(self, participant: Participant, bonus: float):
+        """Screen out a participant from a Prolific study.
+
+        Args:
+            participant: The participant to screen out
+            bonus: Bonus amount to pay to the participant
+        """
+        if not self.current_study_id:
+            raise RuntimeError("No current study in progress")
+
+        if participant is None:
+            raise ProlificRecruiterException("No participant provided for screen-out.")
+
+        response = self.prolificservice.screen_out(
+            study_id=self.current_study_id,
+            submission_ids=[participant.assignment_id],
+            bonus_per_submission=bonus,
+            increase_places=self.config.get("auto_recruit", False),
+        )
+
+        if (
+            response["message"]
+            == "The request to bulk screen out has been made successfully."
+        ):
+            participant.status = "screened_out"
+            session.commit()
+            return response
+        else:
+            error_msg = response.get("message", str(response))
+            raise ProlificScreenOutDenied(
+                f"Prolific denied screen-out request for participant {participant.id}: {error_msg}"
+            )
 
     def validate_config(self, **kwargs):
         super().validate_config()
@@ -1997,7 +2040,7 @@ class BotRecruiter(Recruiter):
 
     def _get_bot_factory(self):
         # Must be imported at run-time
-        from dallinger_experiment.experiment import Bot
+        from dallinger_experiment.experiment import Bot  # type: ignore
 
         return Bot
 

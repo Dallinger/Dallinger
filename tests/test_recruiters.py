@@ -8,6 +8,7 @@ import pytest
 from dallinger.experiment import Experiment
 from dallinger.models import Participant
 from dallinger.mturk import MTurkQualificationRequirements, MTurkQuestions
+from dallinger.prolific import ProlificScreenOutDenied
 from dallinger.recruiters import MTurkRecruiterException
 
 
@@ -781,6 +782,76 @@ class TestProlificRecruiter(object):
     def test_validate_config_assert_not_publishing(self, a, recruiter):
         recruiter.config["publish_experiment"] = False
         recruiter.validate_config()
+
+    def test_screen_out_calls_service_with_correct_args(self, a, recruiter):
+        participant = a.participant()
+        participant.assignment_id = "test_submission_id"
+        participant.base_payment = 2.00
+        participant.bonus = 1.50
+
+        mock_response = {
+            "status": 204,
+            "message": "The request to bulk screen out has been made successfully.",
+            "payment_per_participant": {"amount": 3.50, "currency": "GBP"},
+        }
+
+        recruiter.prolificservice = mock.Mock()
+        recruiter.prolificservice.get_study = mock.Mock(
+            return_value={"is_custom_screening": True}
+        )
+        recruiter.prolificservice.screen_out = mock.Mock()
+        recruiter.prolificservice.screen_out.return_value = mock_response
+
+        recruiter._record_current_study_id("test_study_id")
+
+        result = recruiter.screen_out(participant, bonus=3.50)
+
+        recruiter.prolificservice.screen_out.assert_called_once_with(
+            study_id="test_study_id",
+            submission_ids=[participant.assignment_id],
+            bonus_per_submission=3.50,
+            increase_places=recruiter.config.get("auto_recruit", False),
+        )
+
+        assert participant.status == "screened_out"
+        assert result == mock_response
+
+    def test_screen_out_handles_rejection(self, a, recruiter):
+        participant = a.participant()
+        participant.assignment_id = "test_submission_id"
+        participant.base_payment = 2.00
+        participant.bonus = 1.50
+
+        error_response = dict(
+            {
+                "status": 400,
+                "message": "Screen out request denied",
+                "error": "Payment too low",
+            }
+        )
+
+        recruiter.prolificservice = mock.Mock()
+        recruiter.prolificservice.get_study = mock.Mock(
+            return_value={"is_custom_screening": True}
+        )
+        recruiter.prolificservice.screen_out = mock.Mock(return_value=error_response)
+
+        recruiter._record_current_study_id("test_study_id")
+
+        with pytest.raises(ProlificScreenOutDenied) as exc_info:
+            recruiter.screen_out(participant, bonus=3.50)
+
+        expected_error = f"Prolific denied screen-out request for participant {participant.id}: {error_response['message']}"
+        assert str(exc_info.value) == expected_error
+
+        recruiter.prolificservice.screen_out.assert_called_once_with(
+            study_id="test_study_id",
+            submission_ids=[participant.assignment_id],
+            bonus_per_submission=3.50,
+            increase_places=recruiter.config.get("auto_recruit", False),
+        )
+
+        assert participant.status != "screened_out"
 
 
 class TestMTurkRecruiterMessages(object):
