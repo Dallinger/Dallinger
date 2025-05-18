@@ -80,8 +80,15 @@ def red(text):
     return f"\033[91m{text}\033[0m"
 
 
+sort_by_choices = ["date_created", "total_cost"]
+
+
 @list.command("studies")
-@click.option("--sort_by", default=None, help="Sort by this column")
+@click.option(
+    "--sort_by",
+    default=None,
+    help=f"Sort by this column. Select from {sort_by_choices}",
+)
 @click.option("--published", is_flag=True, help="Only include published studies")
 @click.pass_context
 def list_studies(ctx, sort_by, published):
@@ -90,7 +97,7 @@ def list_studies(ctx, sort_by, published):
 
     logger.info("Getting studies...")
     if sort_by is not None:
-        assert sort_by in ["date_created", "total_cost"]
+        assert sort_by in sort_by_choices
     studies = prolific_service_from_config().get_studies()
     msg = f"Found {len(studies)} studies"
     if sort_by is not None:
