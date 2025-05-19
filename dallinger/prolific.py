@@ -44,6 +44,17 @@ class ProlificScreenOutDenied(Exception):
 # code #
 ########
 
+AVAILABLE_STATES = [
+    "ACTIVE",
+    "PAUSED",
+    "UNPUBLISHED",
+    "PUBLISHING",
+    "COMPLETED",
+    "AWAITING REVIEW",
+    "UNKNOWN",
+    "SCHEDULED",
+]
+
 
 class ProlificService:
     """
@@ -92,10 +103,14 @@ class ProlificService:
         the study on Prolific. If we get there first, there will be an error
         because the submission hasn't happened yet.
         """
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         status = self.get_participant_submission(submission_id)["status"]
         if status != "AWAITING REVIEW":
             # This will trigger a retry from the decorator
-            raise ProlificServiceException("Prolific session not yet submitted.")
+            handle_and_raise_recruitment_error(
+                ProlificServiceException("Prolific session not yet submitted.")
+            )
 
         return self._req(
             method="POST",
@@ -157,6 +172,13 @@ class ProlificService:
         return self._req(method="GET", endpoint="/submissions/", params=query_params)[
             "results"
         ]
+
+    def get_studies(self, states: List[str] = None) -> List[dict]:
+        if not states:
+            states = AVAILABLE_STATES
+        assert all([state in AVAILABLE_STATES for state in states])
+        studies = self._req(method="GET", endpoint="/studies/")["results"]
+        return [study for study in studies if study["status"] in states]
 
     def get_assignments_for_study(self, study_id: str) -> dict:
         """Return all submissions for the current Prolific study, keyed by
@@ -378,6 +400,10 @@ class ProlificService:
         """Fetch details of an existing Study"""
         return self._req(method="GET", endpoint=f"/studies/{study_id}/")
 
+    def get_unread_messages(self) -> dict:
+        """Fetch unread messages"""
+        return self._req(method="GET", endpoint="/messages/unread/")["results"]
+
     def publish_study(self, study_id: str) -> dict:
         """Publish a previously created UNPUBLISHED study."""
         return self._req(
@@ -503,6 +529,8 @@ class ProlificService:
           out of our "beta" period with Prolific)
         * Parses response and does error handling
         """
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         headers = {
             "Authorization": f"Token {self.api_token}",
             "Referer": self.referer_header,
@@ -522,8 +550,10 @@ class ProlificService:
         try:
             parsed = response.json()
         except requests.exceptions.JSONDecodeError as err:
-            raise ProlificServiceException(
-                f"Failed to parse the following JSON response from Prolific: {err.doc}"
+            handle_and_raise_recruitment_error(
+                ProlificServiceException(
+                    f"Failed to parse the following JSON response from Prolific: {err.doc}"
+                )
             )
 
         if "error" in parsed:
@@ -534,7 +564,9 @@ class ProlificService:
                 "args": kw,
                 "response": parsed,
             }
-            raise ProlificServiceException(json.dumps(error))
+            handle_and_raise_recruitment_error(
+                ProlificServiceException(json.dumps(error))
+            )
 
         return parsed
 
@@ -894,12 +926,12 @@ class DevProlificService(ProlificService):
         logger.info(f"Simulated Prolific API response: {response}")
 
 
-def prolific_service_from_config():
+def prolific_service_from_config(strict=False):  #
     from dallinger.config import get_config
     from dallinger.prolific import ProlificService
 
     config = get_config()
-    config.load()
+    config.load(strict=strict)
     return ProlificService(
         api_token=config.get("prolific_api_token"),
         api_version=config.get("prolific_api_version"),

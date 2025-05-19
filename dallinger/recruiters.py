@@ -58,6 +58,11 @@ def handle_recruitment_error(ex):
         exp_klass.handle_recruitment_error(ex)
 
 
+def handle_and_raise_recruitment_error(ex):
+    handle_recruitment_error(ex)
+    raise ex
+
+
 # These are constants because other components may listen for these
 # messages in logs:
 NEW_RECRUIT_LOG_PREFIX = "New participant requested:"
