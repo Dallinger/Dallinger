@@ -8,6 +8,7 @@ from unittest import mock
 import pytest
 
 from dallinger import config, utils
+from dallinger.config import strtobool
 from dallinger.utils import check_experiment_dependencies
 
 
@@ -373,3 +374,30 @@ def test_check_experiment_dependencies_unsuccessful():
             str(e.value)
             == "Please install the 'NOTINSTALLED' package to run this experiment."
         )
+
+
+def test_strtobool_true_values():
+    """Test that all true values return 1."""
+    true_values = ["y", "yes", "t", "true", "on", "1"]
+    for val in true_values:
+        assert strtobool(val) == 1
+        # Test case insensitivity
+        assert strtobool(val.upper()) == 1
+
+
+def test_strtobool_false_values():
+    """Test that all false values return 0."""
+    false_values = ["n", "no", "f", "false", "off", "0"]
+    for val in false_values:
+        assert strtobool(val) == 0
+        # Test case insensitivity
+        assert strtobool(val.upper()) == 0
+
+
+def test_strtobool_invalid_values():
+    """Test that invalid values raise ValueError."""
+    invalid_values = ["maybe", "sometimes", "2", "", " "]
+    for val in invalid_values:
+        with pytest.raises(ValueError) as excinfo:
+            strtobool(val)
+        assert "invalid truth value" in str(excinfo.value)
