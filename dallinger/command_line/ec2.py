@@ -117,8 +117,8 @@ def list__instance_types(ctx, region):
 )
 @click.option(
     "--image_name",
-    default="ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-20230516",
-    help="Image name; default is Ubuntu 22.04",
+    default="ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-20250516",
+    help="Image name; default is Ubuntu 24.04",
 )
 @click.option(
     "--security_group_name",
