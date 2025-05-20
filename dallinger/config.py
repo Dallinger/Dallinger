@@ -24,7 +24,7 @@ def is_valid_json(value):
     json.loads(value)
 
 
-def strtobool(val):
+def strtobool(val: str) -> int:
     """Convert a string representation of truth to true (1) or false (0).
 
     True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
@@ -44,10 +44,9 @@ def strtobool(val):
     val = val.lower()
     if val in ("y", "yes", "t", "true", "on", "1"):
         return 1
-    elif val in ("n", "no", "f", "false", "off", "0"):
+    if val in ("n", "no", "f", "false", "off", "0"):
         return 0
-    else:
-        raise ValueError("invalid truth value {!r}".format(val))
+    raise ValueError(f"invalid truth value {val!r}")
 
 
 default_keys = (
