@@ -822,7 +822,7 @@ class FileSource(object):
         raise NotImplementedError()
 
 
-def is_broken_symlink(path):
+def is_broken_symlink(path: str) -> bool:
     """Check if the given path is a broken symlink.
     Relies on the documented behavior of ``os.path.exists``:
     "Return True if path refers to an existing path. Returns False for broken symbolic links".
