@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import io
 import locale
+import os
+import tempfile
 from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
 from unittest import mock
@@ -338,6 +340,41 @@ class TestIsolatedWebbrowser(object):
             patches["sys"].platform = 'anything but "darwin"'
             isolated = utils._new_webbrowser_profile()
         assert isolated == webbrowser
+
+
+class TestIsBrokenSymlink(object):
+    @pytest.fixture
+    def temp_dir(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield tmpdir
+
+    def test_regular_file_is_not_broken_symlink(self, temp_dir):
+        """Test that a regular file is not considered a broken symlink."""
+        file_path = os.path.join(temp_dir, "test.txt")
+        with open(file_path, "w") as f:
+            f.write("test")
+        assert not utils.is_broken_symlink(file_path)
+
+    def test_working_symlink_is_not_broken(self, temp_dir):
+        """Test that a working symlink is not considered broken."""
+        target_path = os.path.join(temp_dir, "target.txt")
+        with open(target_path, "w") as f:
+            f.write("test")
+        symlink_path = os.path.join(temp_dir, "symlink.txt")
+        os.symlink(target_path, symlink_path)
+        assert not utils.is_broken_symlink(symlink_path)
+
+    def test_broken_symlink_is_detected(self, temp_dir):
+        """Test that a broken symlink is correctly detected."""
+        target_path = os.path.join(temp_dir, "nonexistent.txt")
+        symlink_path = os.path.join(temp_dir, "broken_symlink.txt")
+        os.symlink(target_path, symlink_path)
+        assert utils.is_broken_symlink(symlink_path)
+
+    def test_nonexistent_path_is_not_broken_symlink(self, temp_dir):
+        """Test that a nonexistent path is not considered a broken symlink."""
+        path = os.path.join(temp_dir, "nonexistent.txt")
+        assert not utils.is_broken_symlink(path)
 
 
 def test_check_experiment_dependencies_successful():
