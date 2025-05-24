@@ -243,6 +243,30 @@ class GitClient(object):
         result = {item for item in raw.split("\0") if item}
         return result
 
+    @property
+    def client_available(self):
+        """Check if the git client is available on the system.
+
+        :returns: True if git is installed and accessible, False otherwise.
+        """
+        try:
+            check_output(["git", "--version"], stderr=subprocess.STDOUT)
+            return True
+        except Exception:
+            return False
+
+    @property
+    def repository_available(self):
+        """Check if there is a git repository available in the current directory.
+
+        :returns: True if the repository can be accessed, False otherwise.
+        """
+        try:
+            check_output(["git", "rev-parse", "--git-dir"], stderr=subprocess.STDOUT)
+            return True
+        except Exception:
+            return False
+
     def _run(self, cmd):
         self._log(cmd)
         try:

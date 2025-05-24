@@ -195,6 +195,15 @@ class TestGitClient(object):
     def test_files_on_non_git_repo(self, git):
         assert git.files() == set()
 
+    def test_git_availability(self, git):
+        assert git.client_available
+        assert not git.repository_available
+
+        config = {"user.name": "Test User", "user.email": "test@example.com"}
+        git.init(config=config)
+
+        assert git.repository_available
+
     def test_includes_details_in_exceptions(self, git):
         with pytest.raises(Exception) as ex_info:
             git.push("foo", "bar")
