@@ -14,6 +14,7 @@ import sys
 import tempfile
 import warnings
 import webbrowser
+from contextlib import contextmanager
 from datetime import datetime
 from hashlib import md5
 from importlib.metadata import files as files_metadata
@@ -279,6 +280,26 @@ class GitClient(object):
         if self.encoding:
             msg = msg.encode(self.encoding)
         self.out.write(msg)
+
+    @classmethod
+    @contextmanager
+    def with_temporary_repository(cls, config=None):
+        """Create a temporary git repository in the current directory and clean it up when done.
+
+        :param config: Git configuration to apply to the repository
+        :type config: dict, optional
+        :yields: A GitClient instance with an initialized repository
+        :type yields: GitClient
+        :raises: GitError if a repository already exists
+        """
+        git = cls()
+        if git.repository_available:
+            raise GitError("A git repository already exists in this directory")
+        git.init(config=config)
+        try:
+            yield git
+        finally:
+            shutil.rmtree(".git")
 
 
 class ParticipationTime(object):

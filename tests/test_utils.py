@@ -11,7 +11,7 @@ import pytest
 
 from dallinger import config, utils
 from dallinger.config import strtobool
-from dallinger.utils import check_experiment_dependencies
+from dallinger.utils import GitClient, GitError, check_experiment_dependencies
 
 
 class TestSubprocessWrapper(object):
@@ -225,6 +225,35 @@ class TestGitClient(object):
         runner.assert_called_once_with(
             ["git", "clone", "https://some-fake-repo", tempdir], mock.ANY
         )
+
+    def test_with_temporary_repository(self):
+        config = {"user.name": "Test User", "user.email": "test@example.com"}
+
+        with GitClient.with_temporary_repository(config) as git:
+            assert git.repository_available
+
+            with open("test.txt", "w", encoding="utf-8") as f:
+                f.write("test")
+
+            assert "test.txt" in git.files()
+
+            git_dir = ".git"
+            assert os.path.exists(git_dir)
+
+        assert not os.path.exists(git_dir)
+
+    def test_with_temporary_repository_raises_if_repo_exists(self, git):
+        config = {"user.name": "Test User", "user.email": "test@example.com"}
+
+        # Create a repository first
+        git.init(config=config)
+
+        # Try to create another repository in the same directory
+        with pytest.raises(GitError) as exc_info:
+            with GitClient.with_temporary_repository(config) as git:
+                pass
+
+        assert "already exists" in str(exc_info.value)
 
 
 class TestParticipationTime(object):
