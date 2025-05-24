@@ -293,7 +293,7 @@ class GitClient(object):
         :raises: GitError if a repository already exists
         """
         git = cls()
-        if git.repository_available:
+        if os.path.isdir(".git"):
             raise GitError("A git repository already exists in this directory")
         git.init(config=config)
         try:
