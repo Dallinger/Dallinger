@@ -79,9 +79,6 @@ def run_status_check():
     If a recruiter finds discrepancies, it will enqueue a command to correct the
     status for each participant with a problem.
     """
-    # from dallinger import experiment
-
-    # experiment.load()
     participants_by_recruiter_nick = defaultdict(list)
     for participant in Participant.query.all():
         participants_by_recruiter_nick[participant.recruiter_id].append(participant)
