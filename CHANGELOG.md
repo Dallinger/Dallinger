@@ -1,5 +1,10 @@
 # Change Log
 
+## [v11.3.1](https://github.com/dallinger/dallinger/tree/v11.3.1) (2025-05-25)
+
+#### Fixed
+- Disable (temporarily) `scheduled_job` `async_recruiter_status_check` as it is causing database deadlocks.
+
 ## [v11.3.0](https://github.com/dallinger/dallinger/tree/v11.3.0) (2025-05-22)
 
 #### Added
