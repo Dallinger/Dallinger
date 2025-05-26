@@ -256,7 +256,7 @@ class GitClient(object):
         :returns: True if git is installed and accessible, False otherwise.
         """
         try:
-            check_output(["git", "--version"], stderr=subprocess.STDOUT)
+            check_output(["git", "--version"])
             return True
         except Exception:
             return False
@@ -268,13 +268,13 @@ class GitClient(object):
         :returns: True if the repository can be accessed, False otherwise.
         """
         try:
-            check_output(["git", "rev-parse", "--git-dir"], stderr=subprocess.STDOUT)
+            check_output(["git", "rev-parse", "--git-dir"])
             return True
         except Exception:
             return False
 
     def _run(self, cmd):
-        self._log(cmd)
+        # self._log(cmd)
         try:
             run_command(cmd, self.out)
         except CommandError as e:
