@@ -243,10 +243,10 @@ class TestGitClient(object):
             ["git", "clone", "https://some-fake-repo", tempdir], mock.ANY
         )
 
-    def test_with_temporary_repository(self, git):
+    def test_temporary_repository(self, git):
         config = {"user.name": "Test User", "user.email": "test@example.com"}
 
-        with git.with_temporary_repository(config) as git:
+        with git.temporary_repository(config) as git:
             assert git.repository_available
 
             with open("test.txt", "w", encoding="utf-8") as f:
@@ -259,7 +259,7 @@ class TestGitClient(object):
 
         assert not os.path.exists(git_dir)
 
-    def test_with_temporary_repository_raises_if_repo_exists(self, git):
+    def test_temporary_repository_raises_if_repo_exists(self, git):
         config = {"user.name": "Test User", "user.email": "test@example.com"}
 
         # Create a repository first
@@ -267,7 +267,7 @@ class TestGitClient(object):
 
         # Try to create another repository in the same directory
         with pytest.raises(GitError) as exc_info:
-            with GitClient.with_temporary_repository(config) as git:
+            with GitClient.temporary_repository(config) as git:
                 pass
 
         assert "already exists" in str(exc_info.value)

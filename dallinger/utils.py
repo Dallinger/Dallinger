@@ -287,7 +287,7 @@ class GitClient(object):
         self.out.write(msg)
 
     @contextmanager
-    def with_temporary_repository(self, config=None):
+    def temporary_repository(self, config=None):
         """Create a temporary git repository in the current directory and clean it up when done.
 
         :param config: Git configuration to apply to the repository
@@ -938,7 +938,7 @@ class ExperimentFileSource(FileSource):
         if self.git.repository_available:
             git_files = self.git.files()
         else:
-            with self.git.with_temporary_repository():
+            with self.git.temporary_repository():
                 git_files = self.git.files()
 
         git_files = {os.path.join(self.root, normalize("NFC", f)) for f in git_files}
