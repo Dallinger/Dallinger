@@ -369,10 +369,10 @@ def wrap_subprocess_call(func, wrap_stdout=True):
         finally:
             if replay_out:
                 kwargs["stdout"].seek(0)
-                sys.stdout.write(kwargs["stdout"].read())
+                sys.stdout.write(kwargs["stdout"].read().decode("utf-8"))
             if replay_err:
                 kwargs["stderr"].seek(0)
-                sys.stderr.write(kwargs["stderr"].read())
+                sys.stderr.write(kwargs["stderr"].read().decode("utf-8"))
 
     return wrapper
 
