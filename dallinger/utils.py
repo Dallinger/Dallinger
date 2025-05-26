@@ -203,8 +203,6 @@ class GitError(Exception):
 
 
 class GitClient(object):
-    """Minimal wrapper, mostly for mocking"""
-
     def __init__(self, output=None):
         self.encoding = None
         if output is None:
@@ -234,13 +232,27 @@ class GitClient(object):
         self._run(cmd)
         return tempdir
 
-    def files(self):
-        cmd = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
-        try:
-            raw = check_output(cmd).decode(locale.getpreferredencoding())
-        except Exception:
-            return set()
+    def files(self, ensure_repo_exists=False):
+        """
+        List all files in the repository.
 
+        :param ensure_repo_exists: If True, and no repository exists, then a temporary repository will be created to run the command.
+        :type ensure_repo_exists: bool
+        :returns: A set of file paths
+        """
+        if not self.client_available:
+            raise GitError("Git client is not available")
+        if not self.repository_available:
+            if ensure_repo_exists:
+                with self.with_temporary_repository():
+                    return self.files(ensure_repo_exists=False)
+            else:
+                raise GitError(
+                    "No Git repository found, and ensure_repo_exists is False"
+                )
+
+        cmd = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
+        raw = check_output(cmd).decode(locale.getpreferredencoding())
         result = {item for item in raw.split("\0") if item}
         return result
 
