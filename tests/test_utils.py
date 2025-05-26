@@ -202,15 +202,15 @@ class TestGitClient(object):
         with open("subdir/test3.txt", "w", encoding="utf-8") as f:
             f.write("test3")
 
-        # Without ensure_repo_exists, should raise GitError
+        # Should raise GitError when no repository exists
         with pytest.raises(GitError) as exc_info:
             git.files()
         assert "No Git repository found" in str(exc_info.value)
 
-        # With ensure_repo_exists=True, should create temp repo and return all files
-        files = git.files(ensure_repo_exists=True)
+        # After creating a repository, should return all files
+        git.init()
+        files = git.files()
         assert files == {"test1.txt", "test2.txt", "subdir/test3.txt"}
-        assert not os.path.exists(".git")  # Temp repo should be cleaned up
 
     def test_git_availability(self, git):
         assert git.client_available

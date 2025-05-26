@@ -232,24 +232,17 @@ class GitClient(object):
         self._run(cmd)
         return tempdir
 
-    def files(self, ensure_repo_exists=False):
+    def files(self):
         """
         List all files in the repository.
 
-        :param ensure_repo_exists: If True, and no repository exists, then a temporary repository will be created to run the command.
-        :type ensure_repo_exists: bool
         :returns: A set of file paths
+        :raises: GitError if no repository exists or git client is not available
         """
         if not self.client_available:
             raise GitError("Git client is not available")
         if not self.repository_available:
-            if ensure_repo_exists:
-                with self.with_temporary_repository():
-                    return self.files(ensure_repo_exists=False)
-            else:
-                raise GitError(
-                    "No Git repository found, and ensure_repo_exists is False"
-                )
+            raise GitError("No Git repository found")
 
         cmd = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
         raw = check_output(cmd).decode(locale.getpreferredencoding())
@@ -941,9 +934,14 @@ class ExperimentFileSource(FileSource):
         # list(from_os_walk)
         # ['a', '̊', ' ', 'f', 'i', 'l', 'e', '.', 't', 'x', 't']
         exclusions = exclusion_policy()
-        git_files = {
-            os.path.join(self.root, normalize("NFC", f)) for f in self.git.files()
-        }
+
+        if self.git.repository_available:
+            git_files = self.git.files()
+        else:
+            with self.git.with_temporary_repository():
+                git_files = self.git.files()
+
+        git_files = {os.path.join(self.root, normalize("NFC", f)) for f in git_files}
         for dirpath, dirnames, filenames in os.walk(self.root, topdown=True):
             current_exclusions = exclusions(dirpath, os.listdir(dirpath))
 
