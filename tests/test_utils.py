@@ -226,10 +226,10 @@ class TestGitClient(object):
             ["git", "clone", "https://some-fake-repo", tempdir], mock.ANY
         )
 
-    def test_with_temporary_repository(self):
+    def test_with_temporary_repository(self, git):
         config = {"user.name": "Test User", "user.email": "test@example.com"}
 
-        with GitClient.with_temporary_repository(config) as git:
+        with git.with_temporary_repository(config) as git:
             assert git.repository_available
 
             with open("test.txt", "w", encoding="utf-8") as f:

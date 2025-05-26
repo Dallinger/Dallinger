@@ -281,9 +281,8 @@ class GitClient(object):
             msg = msg.encode(self.encoding)
         self.out.write(msg)
 
-    @classmethod
     @contextmanager
-    def with_temporary_repository(cls, config=None):
+    def with_temporary_repository(self, config=None):
         """Create a temporary git repository in the current directory and clean it up when done.
 
         :param config: Git configuration to apply to the repository
@@ -292,12 +291,11 @@ class GitClient(object):
         :type yields: GitClient
         :raises: GitError if a repository already exists
         """
-        git = cls()
         if os.path.isdir(".git"):
             raise GitError("A git repository already exists in this directory")
-        git.init(config=config)
+        self.init(config=config)
         try:
-            yield git
+            yield self
         finally:
             shutil.rmtree(".git")
 
