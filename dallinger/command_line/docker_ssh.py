@@ -108,15 +108,16 @@ def list_servers():
     "--host", required=True, help="IP address or dns name of the remote server"
 )
 @click.option("--user", help="User to use when connecting to remote host")
-def add(host, user):
+@click.option("--server-pem", help="Path to the PEM file for SSH authentication")
+def add(host, user, server_pem):
     """Add a server to deploy experiments through ssh using docker.
     The server needs `docker` and `docker compose` usable by the current user.
     Port 80 and 443 must be free for dallinger to use.
     In case `docker` and/or `docker compose` are missing, dallinger will try to
     install them using `sudo`. The given user must have passwordless sudo rights.
     """
-    prepare_server(host, user)
-    store_host(dict(host=host, user=user))
+    prepare_server(host, user, server_pem)
+    store_host(dict(host=host, user=user, server_pem=server_pem))
 
 
 @servers.command()
@@ -130,11 +131,11 @@ def remove(host):
     remove_host(host)
 
 
-def prepare_server(host, user):
+def prepare_server(host, user, server_pem=None):
     import paramiko.ssh_exception
 
     try:
-        executor = Executor(host, user)
+        executor = Executor(host, user, server_pem=server_pem)
     except paramiko.ssh_exception.AuthenticationException as exc:
         if user is None:
             raise paramiko.ssh_exception.AuthenticationException(
@@ -152,13 +153,13 @@ def prepare_server(host, user):
         executor.run("sudo -n adduser $(id --user --name) docker")
         print("Docker installed")
         # Log in again in case we need to be part of the `docker` group
-        executor = Executor(host, user)
+        executor = Executor(host, user, server_pem=server_pem)
     else:
         print("Docker daemon already installed")
 
 
-def copy_docker_config(host, user):
-    executor = Executor(host, user)
+def copy_docker_config(host, user, server_pem=None):
+    executor = Executor(host, user, server_pem=server_pem)
 
     local_docker_conf_path = os.path.expanduser("~/.docker/config.json")
     if os.path.exists(local_docker_conf_path):
@@ -175,7 +176,7 @@ def copy_docker_config(host, user):
                 executor.run(
                     "mv ~/.docker/config.json  ~/.docker/config.json.$(date +%d-%m-%Y-%H:%M.bak)"
                 ).split()
-        sftp = get_sftp(host, user=user)
+        sftp = get_sftp(host, user=user, server_pem=server_pem)
         try:
             # Create the .docker directory if it doesn't exist
             sftp.mkdir(".docker")
@@ -332,9 +333,10 @@ def set_dozzle_password_cmd(server, password):
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
+    server_pem = server_info.get("server_pem")
 
-    executor = Executor(ssh_host, user=ssh_user)
-    sftp = get_sftp(ssh_host, user=ssh_user)
+    executor = Executor(ssh_host, user=ssh_user, server_pem=server_pem)
+    sftp = get_sftp(ssh_host, user=ssh_user, server_pem=server_pem)
 
     set_dozzle_password(executor, sftp, password)
 
@@ -385,6 +387,7 @@ def _deploy_in_mode(
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
+    server_pem = server_info.get("server_pem")
     dashboard_user = config.get("dashboard_user", "admin")
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
@@ -439,7 +442,7 @@ def _deploy_in_mode(
             )
             print(f"It currently resolves to {ipaddr_experiment}")
             raise click.Abort
-    executor = Executor(ssh_host, user=ssh_user, app=app_name)
+    executor = Executor(ssh_host, user=ssh_user, app=app_name, server_pem=server_pem)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
     if not update:
@@ -475,7 +478,7 @@ def _deploy_in_mode(
             )
             raise click.Abort
 
-    sftp = get_sftp(ssh_host, user=ssh_user)
+    sftp = get_sftp(ssh_host, user=ssh_user, server_pem=server_pem)
     sftp.putfo(BytesIO(DOCKER_COMPOSE_SERVER), "dallinger/docker-compose.yml")
     sftp.putfo(
         BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
@@ -669,7 +672,8 @@ def apps(server):
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
-    executor = Executor(ssh_host, user=ssh_user)
+    server_pem = server_info.get("server_pem")
+    executor = Executor(ssh_host, user=ssh_user, server_pem=server_pem)
     # The caddy configuration files are used as source of truth
     # to get the list of installed apps
     apps = executor.run("ls ~/dallinger/caddy.d")
@@ -685,7 +689,8 @@ def stats(server):
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
-    executor = Executor(ssh_host, user=ssh_user)
+    server_pem = server_info.get("server_pem")
+    executor = Executor(ssh_host, user=ssh_user, server_pem=server_pem)
     executor.run_and_echo("docker stats")
 
 
@@ -726,7 +731,8 @@ def remote_postgres(server_info, app):
     try:
         ssh_host = server_info["host"]
         ssh_user = server_info.get("user")
-        executor = Executor(ssh_host, user=ssh_user, app=app)
+        server_pem = server_info.get("server_pem")
+        executor = Executor(ssh_host, user=ssh_user, app=app, server_pem=server_pem)
         # Prepare a tunnel to be able to pass a postgresql URL to the databse
         # on the remote docker container. First we need to find the IP of the
         # container running docker
@@ -738,6 +744,7 @@ def remote_postgres(server_info, app):
             ssh_host,
             ssh_username=ssh_user,
             remote_bind_address=(postgresql_remote_ip, 5432),
+            ssh_pkey=server_pem,
         )
         tunnel.start()
         yield f"postgresql://dallinger:dallinger@localhost:{tunnel.local_bind_port}/{app}"
@@ -753,7 +760,8 @@ def destroy(server, app):
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
-    executor = Executor(ssh_host, user=ssh_user, app=app)
+    server_pem = server_info.get("server_pem")
+    executor = Executor(ssh_host, user=ssh_user, app=app, server_pem=server_pem)
 
     # Check if either the caddy config or the docker compose exist
     # If not, the app is not deployed
@@ -781,7 +789,7 @@ def destroy(server, app):
 class Executor:
     """Execute remote commands using paramiko"""
 
-    def __init__(self, host, user=None, app=None):
+    def __init__(self, host, user=None, app=None, server_pem=None):
         import paramiko
 
         self.app = app
@@ -791,7 +799,10 @@ class Executor:
         self.client.load_system_host_keys()
         self.host = host
         print(f"Connecting to {host}")
-        self.client.connect(host, username=user)
+        if server_pem:
+            self.client.connect(host, username=user, key_filename=server_pem)
+        else:
+            self.client.connect(host, username=user)
         print("Connected.")
 
     def run(self, cmd, raise_=True):
@@ -938,14 +949,17 @@ class ExecuteException(Exception):
     pass
 
 
-def get_sftp(host, user=None):
+def get_sftp(host, user=None, server_pem=None):
     import paramiko
 
     client = paramiko.SSHClient()
     # For convenience we always trust the remote host
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.load_system_host_keys()
-    client.connect(host, username=user)
+    if server_pem:
+        client.connect(host, username=user, key_filename=server_pem)
+    else:
+        client.connect(host, username=user)
     return client.open_sftp()
 
 
