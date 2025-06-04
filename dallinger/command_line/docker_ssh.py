@@ -350,6 +350,7 @@ def set_dozzle_password_cmd(server, password):
 @option_update
 @validate_update
 @build_and_push_image
+@click.option("--server-pem", help="Path to the PEM file for SSH authentication")
 def sandbox(**kwargs):  # pragma: no cover
     """Sandbox a dallinger experiment docker image to a server using ssh."""
     return _deploy_in_mode(mode="sandbox", **kwargs)
@@ -364,6 +365,7 @@ def sandbox(**kwargs):  # pragma: no cover
 @option_update
 @validate_update
 @build_and_push_image
+@click.option("--server-pem", help="Path to the PEM file for SSH authentication")
 def deploy(**kwargs):  # pragma: no cover
     """Deploy a dallinger experiment docker image to a server using ssh."""
     return _deploy_in_mode(mode="live", **kwargs)
@@ -378,6 +380,7 @@ def _deploy_in_mode(
     mode,
     server,
     update,
+    server_pem=None,
 ):
     config = get_config()
     config.load()
@@ -387,7 +390,8 @@ def _deploy_in_mode(
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
-    server_pem = server_info.get("server_pem")
+    # Use the provided server_pem if available, otherwise try to get it from server_info
+    server_pem = server_pem or server_info.get("server_pem")
     dashboard_user = config.get("dashboard_user", "admin")
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
