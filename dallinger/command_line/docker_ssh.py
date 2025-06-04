@@ -114,6 +114,12 @@ def add(host, user):
     Port 80 and 443 must be free for dallinger to use.
     In case `docker` and/or `docker compose` are missing, dallinger will try to
     install them using `sudo`. The given user must have passwordless sudo rights.
+
+    You can configure SSH authentication using a PEM file by setting the `server_pem`
+    configuration variable in your config.txt or ~/.dallingerconfig:
+
+    [Parameters]
+    server_pem = /path/to/your/key.pem
     """
     prepare_server(host, user)
     store_host(dict(host=host, user=user))
@@ -385,6 +391,7 @@ def _deploy_in_mode(
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
+    server_pem = config.get("server_pem")
     dashboard_user = config.get("dashboard_user", "admin")
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
@@ -439,7 +446,7 @@ def _deploy_in_mode(
             )
             print(f"It currently resolves to {ipaddr_experiment}")
             raise click.Abort
-    executor = Executor(ssh_host, user=ssh_user, app=app_name)
+    executor = Executor(ssh_host, user=ssh_user, app=app_name, server_pem=server_pem)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
     if not update:
@@ -475,7 +482,7 @@ def _deploy_in_mode(
             )
             raise click.Abort
 
-    sftp = get_sftp(ssh_host, user=ssh_user)
+    sftp = get_sftp(ssh_host, user=ssh_user, server_pem=server_pem)
     sftp.putfo(BytesIO(DOCKER_COMPOSE_SERVER), "dallinger/docker-compose.yml")
     sftp.putfo(
         BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
@@ -781,7 +788,7 @@ def destroy(server, app):
 class Executor:
     """Execute remote commands using paramiko"""
 
-    def __init__(self, host, user=None, app=None):
+    def __init__(self, host, user=None, app=None, server_pem=None):
         import paramiko
 
         self.app = app
@@ -791,7 +798,10 @@ class Executor:
         self.client.load_system_host_keys()
         self.host = host
         print(f"Connecting to {host}")
-        self.client.connect(host, username=user)
+        if server_pem:
+            self.client.connect(host, username=user, key_filename=server_pem)
+        else:
+            self.client.connect(host, username=user)
         print("Connected.")
 
     def run(self, cmd, raise_=True):
@@ -938,14 +948,17 @@ class ExecuteException(Exception):
     pass
 
 
-def get_sftp(host, user=None):
+def get_sftp(host, user=None, server_pem=None):
     import paramiko
 
     client = paramiko.SSHClient()
     # For convenience we always trust the remote host
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.load_system_host_keys()
-    client.connect(host, username=user)
+    if server_pem:
+        client.connect(host, username=user, key_filename=server_pem)
+    else:
+        client.connect(host, username=user)
     return client.open_sftp()
 
 
