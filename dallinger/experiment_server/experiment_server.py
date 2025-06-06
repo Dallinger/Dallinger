@@ -878,10 +878,16 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
     if fingerprint_hash and fingerprint_found:
         db.logger.warning("Same browser fingerprint detected.")
 
-        if mode == "live":
-            return error_response(
-                error_type="/participant POST: Same participant dectected.", status=403
-            )
+        # if mode == "live":
+        #     return error_response(
+        #         error_type="/participant POST: Same participant dectected.", status=403
+        #     )
+        # We previously used to throw an error in such cases in a deployed experiment,
+        # but we found this behaviour problematic in HotAirRecruiter (when we might have participants
+        # legitimately taking the same experiment twice) and also sometimes problematic in other
+        # recruiters (e.g. it is possible to configure a Prolific study to allow repeat participation).
+        # If this proves to be a problem, we can make this configurable via a config parameter in the future.
+        # For now we just log a warning.
 
     already_participated = models.Participant.query.filter_by(
         worker_id=worker_id
