@@ -785,14 +785,29 @@ def destroy(server, app):
     print(f"App {app} removed")
 
 
-def connect_ssh_client(client, host, user):
-    """Helper function to connect an SSH client with proper authentication."""
-    from dallinger.config import get_config
+def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
+    """Create and connect an SSH client with proper authentication.
 
+    Args:
+        host (str): The hostname or IP address to connect to
+        user (str, optional): The username to use for authentication. Defaults to None.
+
+    Returns:
+        paramiko.SSHClient: A connected SSH client instance
+
+    Note:
+        The client is configured to automatically trust the remote host's key.
+        This is a deliberate choice to simplify the connection process, as the server
+        is expected to be under our control.
+    """
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.load_system_host_keys()
+
+    print(f"Connecting to {host}...")
     config = get_config()
     config.load()
     server_pem = config.get("server_pem", None)
-
     if server_pem:
         if not os.path.exists(server_pem):
             raise FileNotFoundError(
@@ -805,6 +820,9 @@ def connect_ssh_client(client, host, user):
         client.connect(host, username=user, key_filename=server_pem)
     else:
         client.connect(host, username=user)
+    print("Connected.")
+
+    return client
 
 
 class Executor:
@@ -812,14 +830,8 @@ class Executor:
 
     def __init__(self, host, user=None, app=None):
         self.app = app
-        self.client = paramiko.SSHClient()
-        # For convenience we always trust the remote host
-        self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.client.load_system_host_keys()
+        self.client = get_connected_ssh_client(host, user)
         self.host = host
-        print(f"Connecting to {host}")
-        connect_ssh_client(self.client, host, user)
-        print("Connected.")
 
     def run(self, cmd, raise_=True):
         """Run the given command and block until it completes.
@@ -970,11 +982,7 @@ class ExecuteException(Exception):
 
 
 def get_sftp(host, user=None):
-    client = paramiko.SSHClient()
-    # For convenience we always trust the remote host
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.load_system_host_keys()
-    connect_ssh_client(client, host, user)
+    client = get_connected_ssh_client(host, user)
     return client.open_sftp()
 
 
