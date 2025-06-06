@@ -23,6 +23,7 @@ from typing import Dict
 from uuid import uuid4
 
 import click
+import paramiko
 import requests
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
@@ -131,8 +132,6 @@ def remove(host):
 
 
 def prepare_server(host, user):
-    import paramiko.ssh_exception
-
     try:
         executor = Executor(host, user)
     except paramiko.ssh_exception.AuthenticationException as exc:
@@ -778,21 +777,36 @@ def destroy(server, app):
     print(f"App {app} removed")
 
 
+def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
+    """Create and connect an SSH client with proper authentication.
+
+    Args:
+        host (str): The hostname or IP address to connect to
+        user (str, optional): The username to use for authentication. Defaults to None.
+
+    Returns:
+        paramiko.SSHClient: A connected SSH client instance
+
+    Note:
+        The client is configured to automatically trust the remote host's key.
+        This is a deliberate choice to simplify the connection process, as the server is expected to be under our control.
+    """
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.load_system_host_keys()
+    print(f"Connecting to {host}...")
+    client.connect(host, username=user)
+    print("Connected.")
+    return client
+
+
 class Executor:
     """Execute remote commands using paramiko"""
 
     def __init__(self, host, user=None, app=None):
-        import paramiko
-
         self.app = app
-        self.client = paramiko.SSHClient()
-        # For convenience we always trust the remote host
-        self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.client.load_system_host_keys()
+        self.client = get_connected_ssh_client(host, user)
         self.host = host
-        print(f"Connecting to {host}")
-        self.client.connect(host, username=user)
-        print("Connected.")
 
     def run(self, cmd, raise_=True):
         """Run the given command and block until it completes.
@@ -885,6 +899,11 @@ class Executor:
                     break
 
 
+def get_sftp(host, user=None) -> paramiko.SFTPClient:
+    client = get_connected_ssh_client(host, user)
+    return client.open_sftp()
+
+
 def get_docker_compose_yml(
     config: Dict[str, str],
     experiment_id: str,
@@ -940,17 +959,6 @@ def get_dns_host(ssh_host):
 
 class ExecuteException(Exception):
     pass
-
-
-def get_sftp(host, user=None):
-    import paramiko
-
-    client = paramiko.SSHClient()
-    # For convenience we always trust the remote host
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.load_system_host_keys()
-    client.connect(host, username=user)
-    return client.open_sftp()
 
 
 logging.getLogger("paramiko.transport").setLevel(logging.ERROR)
