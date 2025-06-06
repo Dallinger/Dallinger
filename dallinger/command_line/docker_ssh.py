@@ -785,12 +785,32 @@ def destroy(server, app):
     print(f"App {app} removed")
 
 
+def connect_ssh_client(client, host, user):
+    """Helper function to connect an SSH client with proper authentication."""
+    from dallinger.config import get_config
+
+    config = get_config()
+    config.load()
+    server_pem = config.get("server_pem", None)
+
+    if server_pem:
+        if not os.path.exists(server_pem):
+            raise FileNotFoundError(
+                f"SSH key file not found: {server_pem}\n"
+                "Please check that the path in your config file is correct.\n"
+                "You can set the path in either:\n"
+                "  - Your experiment's config.txt: server_pem = /path/to/key.pem\n"
+                "  - Your global config ~/.dallingerconfig: server_pem = /path/to/key.pem"
+            )
+        client.connect(host, username=user, key_filename=server_pem)
+    else:
+        client.connect(host, username=user)
+
+
 class Executor:
     """Execute remote commands using paramiko"""
 
     def __init__(self, host, user=None, app=None):
-        from dallinger.config import get_config
-
         self.app = app
         self.client = paramiko.SSHClient()
         # For convenience we always trust the remote host
@@ -798,23 +818,7 @@ class Executor:
         self.client.load_system_host_keys()
         self.host = host
         print(f"Connecting to {host}")
-
-        config = get_config()
-        config.load()
-        server_pem = config.get("server_pem", None)
-
-        if server_pem:
-            if not os.path.exists(server_pem):
-                raise FileNotFoundError(
-                    f"SSH key file not found: {server_pem}\n"
-                    "Please check that the path in your config file is correct.\n"
-                    "You can set the path in either:\n"
-                    "  - Your experiment's config.txt: server_pem = /path/to/key.pem\n"
-                    "  - Your global config ~/.dallingerconfig: server_pem = /path/to/key.pem"
-                )
-            self.client.connect(host, username=user, key_filename=server_pem)
-        else:
-            self.client.connect(host, username=user)
+        connect_ssh_client(self.client, host, user)
         print("Connected.")
 
     def run(self, cmd, raise_=True):
@@ -962,29 +966,11 @@ class ExecuteException(Exception):
 
 
 def get_sftp(host, user=None):
-    from dallinger.config import get_config
-
     client = paramiko.SSHClient()
     # For convenience we always trust the remote host
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.load_system_host_keys()
-
-    config = get_config()
-    config.load()
-    server_pem = config.get("server_pem", None)
-
-    if server_pem:
-        if not os.path.exists(server_pem):
-            raise FileNotFoundError(
-                f"SSH key file not found: {server_pem}\n"
-                "Please check that the path in your config file is correct.\n"
-                "You can set the path in either:\n"
-                "  - Your experiment's config.txt: server_pem = /path/to/key.pem\n"
-                "  - Your global config ~/.dallingerconfig: server_pem = /path/to/key.pem"
-            )
-        client.connect(host, username=user, key_filename=server_pem)
-    else:
-        client.connect(host, username=user)
+    connect_ssh_client(client, host, user)
     return client.open_sftp()
 
 
