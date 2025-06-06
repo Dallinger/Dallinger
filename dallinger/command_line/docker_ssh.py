@@ -977,9 +977,10 @@ def get_sftp(host, user=None):
         if not os.path.exists(server_pem):
             raise FileNotFoundError(
                 f"SSH key file not found: {server_pem}\n"
-                "Please check that the path in your global config file is correct.\n"
-                "Set the path in ~/.dallingerconfig:\n"
-                "  server_pem = /path/to/key.pem"
+                "Please check that the path in your config file is correct.\n"
+                "You can set the path in either:\n"
+                "  - Your experiment's config.txt: server_pem = /path/to/key.pem\n"
+                "  - Your global config ~/.dallingerconfig: server_pem = /path/to/key.pem"
             )
         client.connect(host, username=user, key_filename=server_pem)
     else:
