@@ -981,7 +981,7 @@ class ExecuteException(Exception):
     pass
 
 
-def get_sftp(host, user=None):
+def get_sftp(host, user=None) -> paramiko.SFTPClient:
     client = get_connected_ssh_client(host, user)
     return client.open_sftp()
 
