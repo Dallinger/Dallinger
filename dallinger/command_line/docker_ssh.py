@@ -23,6 +23,7 @@ from typing import Dict
 from uuid import uuid4
 
 import click
+import paramiko
 import requests
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
@@ -788,10 +789,6 @@ class Executor:
     """Execute remote commands using paramiko"""
 
     def __init__(self, host, user=None, app=None):
-        import os
-
-        import paramiko
-
         from dallinger.config import get_config
 
         self.app = app
@@ -965,10 +962,6 @@ class ExecuteException(Exception):
 
 
 def get_sftp(host, user=None):
-    import os
-
-    import paramiko
-
     from dallinger.config import get_config
 
     client = paramiko.SSHClient()
