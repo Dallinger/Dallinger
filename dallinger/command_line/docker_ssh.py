@@ -391,7 +391,6 @@ def _deploy_in_mode(
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
-    server_pem = config.get("server_pem", None)
     dashboard_user = config.get("dashboard_user", "admin")
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
@@ -446,7 +445,7 @@ def _deploy_in_mode(
             )
             print(f"It currently resolves to {ipaddr_experiment}")
             raise click.Abort
-    executor = Executor(ssh_host, user=ssh_user, app=app_name, server_pem=server_pem)
+    executor = Executor(ssh_host, user=ssh_user, app=app_name)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
     if not update:
@@ -482,7 +481,7 @@ def _deploy_in_mode(
             )
             raise click.Abort
 
-    sftp = get_sftp(ssh_host, user=ssh_user, server_pem=server_pem)
+    sftp = get_sftp(ssh_host, user=ssh_user)
     sftp.putfo(BytesIO(DOCKER_COMPOSE_SERVER), "dallinger/docker-compose.yml")
     sftp.putfo(
         BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
@@ -788,8 +787,12 @@ def destroy(server, app):
 class Executor:
     """Execute remote commands using paramiko"""
 
-    def __init__(self, host, user=None, app=None, server_pem=None):
+    def __init__(self, host, user=None, app=None):
+        import os
+
         import paramiko
+
+        from dallinger.config import get_config
 
         self.app = app
         self.client = paramiko.SSHClient()
@@ -798,6 +801,11 @@ class Executor:
         self.client.load_system_host_keys()
         self.host = host
         print(f"Connecting to {host}")
+
+        config = get_config()
+        config.load()
+        server_pem = config.get("server_pem", None)
+
         if server_pem:
             if not os.path.exists(server_pem):
                 raise FileNotFoundError(
@@ -956,14 +964,30 @@ class ExecuteException(Exception):
     pass
 
 
-def get_sftp(host, user=None, server_pem=None):
+def get_sftp(host, user=None):
+    import os
+
     import paramiko
+
+    from dallinger.config import get_config
 
     client = paramiko.SSHClient()
     # For convenience we always trust the remote host
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.load_system_host_keys()
+
+    config = get_config()
+    config.load()
+    server_pem = config.get("server_pem", None)
+
     if server_pem:
+        if not os.path.exists(server_pem):
+            raise FileNotFoundError(
+                f"SSH key file not found: {server_pem}\n"
+                "Please check that the path in your global config file is correct.\n"
+                "Set the path in ~/.dallingerconfig:\n"
+                "  server_pem = /path/to/key.pem"
+            )
         client.connect(host, username=user, key_filename=server_pem)
     else:
         client.connect(host, username=user)
