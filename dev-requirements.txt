@@ -160,7 +160,7 @@ gevent==25.5.1
     # via
     #   dallinger
     #   gunicorn
-greenlet==3.2.2
+greenlet==3.2.3
     # via
     #   dallinger
     #   gevent
