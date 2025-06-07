@@ -774,7 +774,7 @@ class Testhandle_launch_data(object):
                     "Experiment launch failed. Trying again (attempt 3 of 3) in 0.2 seconds ..."
                 ),
                 mock.call("Error accessing /some-launch-url (500):\nFailure"),
-                mock.call("Experiment launch failed, check server logs for details."),
+                mock.call("Experiment launch failed after multiple attempts."),
                 mock.call("msg!"),
             ]
         )
@@ -791,7 +791,7 @@ class Testhandle_launch_data(object):
                 mock.call(
                     "Error parsing response from https://httpbin.org/status/500, check server logs for details.\n"
                 ),
-                mock.call("Experiment launch failed, check server logs for details."),
+                mock.call("Experiment launch failed after multiple attempts."),
             ]
         )
 
@@ -962,7 +962,7 @@ class TestDebugServer(object):
                 mock.call(
                     "Error accessing http://localhost:5000/launch (500):\nFailure"
                 ),
-                mock.call("Experiment launch failed, check server logs for details."),
+                mock.call("Experiment launch failed after multiple attempts."),
                 mock.call("msg!"),
             ]
         )
