@@ -618,7 +618,7 @@ def _deploy_in_mode(
     else:
         print("Launching experiment")
         launch_data = handle_launch_data(
-            f"https://{experiment_id}.{dns_host}/launchS",
+            f"https://{experiment_id}.{dns_host}/launch",
             print,
             dns_host=dns_host,
             dozzle_password=dozzle_password,
