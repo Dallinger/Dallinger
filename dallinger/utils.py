@@ -1083,3 +1083,11 @@ def median_time_spent_in_hours(participants: list[Participant]) -> float:
     median_time = median(times)
 
     return median_time.total_seconds() / 3600
+
+
+# Terminal color constants
+RED = "\033[31m"
+END = "\033[0m"
+GREEN = "\033[32m"
+BLUE = "\033[34m"
+BOLD = "\033[1m"
