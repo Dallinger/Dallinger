@@ -37,13 +37,13 @@ from dallinger.db import create_db_engine
 from dallinger.deployment import handle_launch_data, setup_experiment
 from dallinger.utils import (
     BLUE,
-    BOLD,
     END,
     GREEN,
     JSON_LOGFILE,
     RED,
     abspath_from_egg,
     check_output,
+    print_bold,
 )
 
 # Find an identifier for the current user to use as CREATOR of the experiment
@@ -963,8 +963,3 @@ def get_sftp(host, user=None):
 
 logging.getLogger("paramiko.transport").setLevel(logging.ERROR)
 logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
-
-
-def print_bold(message):
-    """Print deployment information with bold formatting."""
-    print(f"{BOLD}{message}{END}")

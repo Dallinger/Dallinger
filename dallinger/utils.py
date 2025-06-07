@@ -1091,3 +1091,8 @@ END = "\033[0m"
 GREEN = "\033[32m"
 BLUE = "\033[34m"
 BOLD = "\033[1m"
+
+
+def print_bold(message):
+    """Print deployment information with bold formatting."""
+    print(f"{BOLD}{message}{END}")
