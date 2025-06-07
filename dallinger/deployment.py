@@ -19,6 +19,8 @@ from dallinger.config import get_config
 from dallinger.heroku.tools import HerokuApp, HerokuLocalWrapper
 from dallinger.redis_utils import connect_to_redis
 from dallinger.utils import (
+    BOLD,
+    END,
     GitClient,
     bootstrap_development_session,
     get_base_url,
@@ -31,7 +33,14 @@ BACKOFF_FACTOR = 2
 MAX_ATTEMPTS = 6
 
 
-def handle_launch_data(url, error, delay=DEFAULT_DELAY, attempts=MAX_ATTEMPTS):
+def handle_launch_data(
+    url,
+    error,
+    delay=DEFAULT_DELAY,
+    attempts=MAX_ATTEMPTS,
+    dns_host=None,
+    dozzle_password=None,
+):
     """Sends a POST request to te given `url`, retrying it with exponential backoff.
     The passed `error` function is invoked to give feedback as each error occurs,
     possibly multiple times.
@@ -87,9 +96,13 @@ def handle_launch_data(url, error, delay=DEFAULT_DELAY, attempts=MAX_ATTEMPTS):
             )
         time.sleep(delay)
 
-    error("Experiment launch failed, check server logs for details.")
+    error("Experiment launch failed after multiple attempts.")
     if launch_data and launch_data.get("message"):
         error(launch_data["message"])
+    if dns_host and dozzle_password:
+        error(
+            f"{BOLD}Check the detailed server logs at https://logs.{dns_host} (user = dallinger, password = {dozzle_password}){END}"
+        )
     if launch_request is not None:
         launch_request.raise_for_status()
 

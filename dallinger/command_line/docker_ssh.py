@@ -35,15 +35,16 @@ from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import handle_launch_data, setup_experiment
-from dallinger.utils import JSON_LOGFILE, abspath_from_egg, check_output
-
-# A couple of constants to colour console output
-RED = "\033[31m"
-END = "\033[0m"
-GREEN = "\033[32m"
-BLUE = "\033[34m"
-BOLD = "\033[1m"
-
+from dallinger.utils import (
+    BLUE,
+    BOLD,
+    END,
+    GREEN,
+    JSON_LOGFILE,
+    RED,
+    abspath_from_egg,
+    check_output,
+)
 
 # Find an identifier for the current user to use as CREATOR of the experiment
 HOSTNAME = gethostname()
@@ -497,7 +498,7 @@ def _deploy_in_mode(
         print("Restarting experiment.")
 
     print_bold(
-        f"To view the logs for this experiment head to https://logs.{dns_host} (user = dallinger, password = {dozzle_password})"
+        f"To view the logs for this experiment go to https://logs.{dns_host} (user = dallinger, password = {dozzle_password})"
     )
     cfg = config.as_dict(include_sensitive=True)
 
@@ -617,7 +618,10 @@ def _deploy_in_mode(
     else:
         print("Launching experiment")
         launch_data = handle_launch_data(
-            f"https://{experiment_id}.{dns_host}/launch", print
+            f"https://{experiment_id}.{dns_host}/launchS",
+            print,
+            dns_host=dns_host,
+            dozzle_password=dozzle_password,
         )
         print(launch_data.get("recruitment_msg"))
 
