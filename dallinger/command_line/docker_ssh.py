@@ -42,6 +42,7 @@ RED = "\033[31m"
 END = "\033[0m"
 GREEN = "\033[32m"
 BLUE = "\033[34m"
+BOLD = "\033[1m"
 
 
 # Find an identifier for the current user to use as CREATOR of the experiment
@@ -495,6 +496,9 @@ def _deploy_in_mode(
     else:
         print("Restarting experiment.")
 
+    print_bold(
+        f"To view the logs for this experiment head to https://logs.{dns_host} (user = dallinger, password = {dozzle_password})"
+    )
     cfg = config.as_dict(include_sensitive=True)
 
     # AWS credential keys need to be converted to upper case
@@ -624,11 +628,11 @@ def _deploy_in_mode(
         f"Deployed Docker image name: {image_name}",
         "To display the logs for this experiment you can run:",
         log_command,
-        f"Or you can head to http://logs.{dns_host} (user = dallinger, password = {dozzle_password})",
+        f"Or you can head to https://logs.{dns_host} (user = dallinger, password = {dozzle_password})",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
     ]
     for line in deployment_infos:
-        print(line)
+        print_bold(line)
 
     deploy_log_path = Path("deploy_logs") / f"{experiment_id}.txt"
     deploy_log_path.parent.mkdir(exist_ok=True)
@@ -955,3 +959,8 @@ def get_sftp(host, user=None):
 
 logging.getLogger("paramiko.transport").setLevel(logging.ERROR)
 logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
+
+
+def print_bold(message):
+    """Print deployment information with bold formatting."""
+    print(f"{BOLD}{message}{END}")
