@@ -1094,5 +1094,5 @@ BOLD = "\033[1m"
 
 
 def print_bold(message):
-    """Print deployment information with bold formatting."""
+    """Print with bold formatting."""
     print(f"{BOLD}{message}{END}")
