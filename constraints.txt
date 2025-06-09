@@ -18,7 +18,7 @@ anyio==4.9.0
     #   jupyter-server
 apscheduler==3.11.0
     # via dallinger
-argon2-cffi==23.1.0
+argon2-cffi==25.1.0
     # via jupyter-server
 argon2-cffi-bindings==21.2.0
     # via argon2-cffi
@@ -50,9 +50,9 @@ bleach==6.2.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.38.16
+boto3==1.38.32
     # via dallinger
-botocore==1.38.16
+botocore==1.38.32
     # via
     #   boto3
     #   s3transfer
@@ -64,7 +64,7 @@ bump2version==1.0.1
     # via dallinger
 cached-property==2.0.1
     # via dallinger
-cachetools==5.5.2
+cachetools==6.0.0
     # via tox
 certifi==2025.4.26
     # via
@@ -83,7 +83,7 @@ chardet==5.2.0
     # via tox
 charset-normalizer==3.4.2
     # via requests
-click==8.2.0
+click==8.2.1
     # via
     #   black
     #   dallinger
@@ -96,13 +96,13 @@ comm==0.2.2
     # via
     #   ipykernel
     #   ipywidgets
-coverage==7.8.0
+coverage==7.8.2
     # via
     #   coverage-pth
     #   dallinger
 coverage-pth==0.0.2
     # via dallinger
-cryptography==44.0.3
+cryptography==45.0.3
     # via
     #   paramiko
     #   pyopenssl
@@ -160,7 +160,7 @@ gevent==25.5.1
     # via
     #   dallinger
     #   gunicorn
-greenlet==3.2.2
+greenlet==3.2.3
     # via
     #   dallinger
     #   gevent
@@ -177,7 +177,7 @@ httpcore==1.0.9
     # via httpx
 httpx==0.28.1
     # via jupyterlab
-identify==2.6.10
+identify==2.6.12
     # via pre-commit
 idna==3.10
     # via
@@ -195,7 +195,7 @@ ipykernel==6.29.5
     #   jupyter
     #   jupyter-console
     #   jupyterlab
-ipython==8.36.0
+ipython==8.37.0
     # via
     #   black
     #   dallinger
@@ -233,7 +233,7 @@ json5==0.12.0
     # via jupyterlab-server
 jsonpointer==3.0.0
     # via jsonschema
-jsonschema==4.23.0
+jsonschema==4.24.0
     # via
     #   jupyter-events
     #   jupyterlab-server
@@ -250,7 +250,7 @@ jupyter-client==8.6.3
     #   nbclient
 jupyter-console==6.6.3
     # via jupyter
-jupyter-core==5.7.2
+jupyter-core==5.8.1
     # via
     #   ipykernel
     #   jupyter-client
@@ -274,7 +274,7 @@ jupyter-server==2.16.0
     #   notebook-shim
 jupyter-server-terminals==0.5.3
     # via jupyter-server
-jupyterlab==4.4.2
+jupyterlab==4.4.3
     # via
     #   jupyter
     #   notebook
@@ -330,13 +330,13 @@ nest-asyncio==1.6.0
     # via ipykernel
 nodeenv==1.9.1
     # via pre-commit
-notebook==7.4.2
+notebook==7.4.3
     # via jupyter
 notebook-shim==0.2.4
     # via
     #   jupyterlab
     #   notebook
-numpy==2.2.5
+numpy==2.3.0
     # via
     #   dallinger
     #   pandas
@@ -366,7 +366,7 @@ packaging==25.0
     #   pytest-rerunfailures
     #   sphinx
     #   tox
-pandas==2.2.3
+pandas==2.3.0
     # via
     #   dallinger
     #   tablib
@@ -392,13 +392,13 @@ platformdirs==4.3.8
     #   jupyter-core
     #   tox
     #   virtualenv
-pluggy==1.5.0
+pluggy==1.6.0
     # via
     #   pytest
     #   tox
 pre-commit==4.2.0
     # via dallinger
-prometheus-client==0.21.1
+prometheus-client==0.22.1
     # via jupyter-server
 prompt-toolkit==3.0.51
     # via
@@ -433,12 +433,13 @@ pygments==2.19.1
     #   ipython
     #   jupyter-console
     #   nbconvert
+    #   pytest
     #   sphinx
 pygtail==0.14.0
     # via dallinger
 pynacl==1.5.0
     # via paramiko
-pyopenssl==25.0.0
+pyopenssl==25.1.0
     # via dallinger
 pypandoc==1.15
     # via dallinger
@@ -450,7 +451,7 @@ pyproject-hooks==1.2.0
     #   pip-tools
 pysocks==1.7.1
     # via urllib3
-pytest==8.3.5
+pytest==8.4.0
     # via
     #   dallinger
     #   pytest-rerunfailures
@@ -481,7 +482,7 @@ pyzmq==26.4.0
     #   jupyter-client
     #   jupyter-console
     #   jupyter-server
-redis==6.1.0
+redis==6.2.0
     # via
     #   dallinger
     #   rq
@@ -506,13 +507,13 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
-rpds-py==0.24.0
+rpds-py==0.25.1
     # via
     #   jsonschema
     #   referencing
 rq==2.3.3
     # via dallinger
-s3transfer==0.12.0
+s3transfer==0.13.0
     # via boto3
 selenium==4.32.0
     # via dallinger
@@ -589,9 +590,9 @@ timeago==1.0.16
     # via dallinger
 tinycss2==1.4.0
     # via bleach
-tokenize-rt==6.1.0
+tokenize-rt==6.2.0
     # via black
-tornado==6.4.2
+tornado==6.5.1
     # via
     #   ipykernel
     #   jupyter-client
@@ -625,9 +626,9 @@ trio==0.30.0
     #   trio-websocket
 trio-websocket==0.12.2
     # via selenium
-types-python-dateutil==2.9.0.20241206
+types-python-dateutil==2.9.0.20250516
     # via arrow
-typing-extensions==4.13.2
+typing-extensions==4.14.0
     # via
     #   beautifulsoup4
     #   selenium
