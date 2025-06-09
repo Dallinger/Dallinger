@@ -115,7 +115,9 @@ class TestAppConfiguration(object):
     ):
         active_config.set("protected_routes", '["/robots.txt"]')
 
-        assert webapp_admin.get("/robots.txt").status == "200 OK"
+        resp = webapp_admin.get("/robots.txt")
+        assert resp.status == "200 OK"
+        resp.close()
 
 
 @pytest.mark.usefixtures("experiment_dir")
@@ -608,10 +610,12 @@ class TestSimpleGETRoutes(object):
         resp = webapp.get("/favicon.ico")
         assert resp.content_type == "image/x-icon"
         assert resp.content_length > 0
+        resp.close()
 
     def test_robots(self, webapp):
         resp = webapp.get("/robots.txt")
         assert b"User-agent" in resp.data
+        resp.close()
 
     def test_consent(self, webapp):
         resp = webapp.get(

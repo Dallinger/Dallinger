@@ -64,6 +64,11 @@ class HerokuCommandRunner(object):
         self.region = region
         self.out_muted = open(os.devnull, "w")
 
+    def __del__(self):
+        # Make sure we close our filehandle when object deleted
+        if hasattr(self, "out_muted") and self.out_muted and not self.out_muted.closed:
+            self.out_muted.close()
+
     @property
     def sys_encoding(self):
         # Encoding of strings returned from subprocess calls. The Click
@@ -491,12 +496,26 @@ class HerokuLocalWrapper(object):
             return
 
         try:
-            os.killpg(os.getpgid(self._process.pid), signal)
-            self.out.log("Local Heroku process terminated.")
+            # Only send signal if process is still running
+            if self._process.poll() is None:
+                os.killpg(os.getpgid(self._process.pid), signal)
+                self.out.log("Local Heroku process terminated.")
+            else:
+                self.out.log("Local Heroku was already terminated.")
         except OSError:
             self.out.log("Local Heroku was already terminated.")
             self.out.log(traceback.format_exc())
         finally:
+            # Always wait for the process to reap it, even if already terminated.
+            # Hopefully 5 seconds is long enough?
+            try:
+                if self._process:
+                    self._process.wait(timeout=5)
+            except Exception:
+                self.out.log("Process did not terminate within timeout.")
+            # Close stdout to avoid ResourceWarning
+            if self._process and self._process.stdout:
+                self._process.stdout.close()
             self._process = None
 
     def monitor(self, listener):
