@@ -118,11 +118,6 @@ def handle_launch_data(
         print_bold(
             f"Check the detailed server logs at https://logs.{dns_host} (user = dallinger, password = {dozzle_password})"
         )
-    elif context == "ssh":
-        parsed_url = urlparse(url)
-        print_bold(
-            f"For detailed server logs, check the logs on the remote server at {parsed_url.netloc}"
-        )
 
     if launch_request is not None:
         launch_request.raise_for_status()

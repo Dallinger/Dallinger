@@ -816,6 +816,52 @@ class Testhandle_launch_data(object):
             "Big, unexpected problem."
         )
 
+    def test_error_log_messages(self, handler):
+        log = mock.Mock()
+        with (
+            mock.patch("dallinger.deployment.requests.post") as mock_post,
+            mock.patch("dallinger.deployment.print_bold") as mock_print,
+        ):
+            mock_response = mock.Mock(
+                ok=False,
+                json=mock.Mock(return_value={"message": "msg!"}),
+                status_code=500,
+                text="Failure",
+            )
+            mock_response.raise_for_status = mock.Mock(
+                side_effect=requests.exceptions.HTTPError
+            )
+            mock_post.return_value = mock_response
+
+            # Test Heroku context
+            with pytest.raises(requests.exceptions.HTTPError):
+                handler(
+                    "https://example.com/some-launch-url", error=log, context="heroku"
+                )
+            mock_print.assert_called_once_with(
+                "For detailed server logs, visit the Papertrail add-on in your Heroku dashboard"
+            )
+
+            # Test SSH context with Dozzle
+            mock_print.reset_mock()
+            with pytest.raises(requests.exceptions.HTTPError):
+                handler(
+                    "https://example.com/some-launch-url",
+                    error=log,
+                    context="ssh",
+                    dns_host="example.com",
+                    dozzle_password="secret",
+                )
+            mock_print.assert_called_once_with(
+                "Check the detailed server logs at https://logs.example.com (user = dallinger, password = secret)"
+            )
+
+            # Test local context
+            mock_print.reset_mock()
+            with pytest.raises(requests.exceptions.HTTPError):
+                handler("/some-launch-url", error=log, context="local")
+            mock_print.assert_not_called()
+
 
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
