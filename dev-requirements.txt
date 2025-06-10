@@ -195,15 +195,13 @@ ipykernel==6.29.5
     #   jupyter
     #   jupyter-console
     #   jupyterlab
-ipython==9.3.0
+ipython==8.37.0
     # via
     #   black
     #   dallinger
     #   ipykernel
     #   ipywidgets
     #   jupyter-console
-ipython-pygments-lexers==1.1.1
-    # via ipython
 ipywidgets==8.1.7
     # via
     #   dallinger
@@ -433,7 +431,6 @@ pyflakes==3.3.2
 pygments==2.19.1
     # via
     #   ipython
-    #   ipython-pygments-lexers
     #   jupyter-console
     #   nbconvert
     #   pytest
