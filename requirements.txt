@@ -168,7 +168,7 @@ redis==6.1.0
     # via
     #   dallinger
     #   rq
-requests==2.32.3
+requests==2.32.4
     # via
     #   dallinger
     #   heroku3
