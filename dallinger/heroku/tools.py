@@ -498,26 +498,30 @@ class HerokuLocalWrapper(object):
             return
 
         try:
-            # Only send signal if process is still running
-            if self._process.poll() is None:
+            # Try to kill the process group if still running
+            try:
                 os.killpg(os.getpgid(self._process.pid), signal)
                 self.out.log("Local Heroku process terminated.")
-            else:
+            except OSError:
                 self.out.log("Local Heroku was already terminated.")
-        except OSError:
-            self.out.log("Local Heroku was already terminated.")
-            self.out.log(traceback.format_exc())
-        finally:
-            # Always wait for the process to reap it, even if already terminated.
-            # Hopefully 5 seconds is long enough?
+            except Exception:
+                self.out.log("Unexpected error while terminating local Heroku.")
+                self.out.log(traceback.format_exc())
+
+            # Ensure the process is fully cleaned up by calling wait(),
+            # even if it has already terminated.
             try:
-                if self._process:
-                    self._process.wait(timeout=5)
+                self._process.wait(timeout=5)
             except Exception:
                 self.out.log("Process did not terminate within timeout.")
+
             # Close stdout to avoid ResourceWarning
-            if self._process and self._process.stdout:
+            try:
                 self._process.stdout.close()
+            except Exception:
+                pass
+
+        finally:
             self._process = None
 
     def monitor(self, listener):
