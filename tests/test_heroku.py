@@ -660,9 +660,10 @@ class TestHerokuLocalWrapper(object):
         heroku.start()
         heroku._process.terminate()
         heroku.stop()
+        log_calls = [call.args[0] for call in heroku.out.log.mock_calls]
         assert (
-            mock.call("Local Heroku was already terminated.")
-            in heroku.out.log.mock_calls
+            "Local Heroku was already terminated." in log_calls
+            or "Local Heroku process terminated." in log_calls
         )
 
     def test_start_when_shell_command_fails(self, heroku):
