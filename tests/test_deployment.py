@@ -821,6 +821,7 @@ class Testhandle_launch_data(object):
         with (
             mock.patch("dallinger.deployment.requests.post") as mock_post,
             mock.patch("dallinger.deployment.print_bold") as mock_print,
+            mock.patch("dallinger.deployment.time.sleep"),
         ):
             mock_response = mock.Mock(
                 ok=False,
