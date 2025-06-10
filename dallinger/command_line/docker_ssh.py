@@ -622,6 +622,7 @@ def _deploy_in_mode(
             print,
             dns_host=dns_host,
             dozzle_password=dozzle_password,
+            context="ssh",
         )
         print(launch_data.get("recruitment_msg"))
 
