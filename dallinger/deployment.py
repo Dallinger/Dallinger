@@ -272,16 +272,10 @@ class DevelopmentDeployment(object):
 
     def run(self):
         """Bootstrap the environment and reset the database."""
-        self.out.log("Preparing your pristine development environment...")
         experiment_uid, dst = bootstrap_development_session(
             self.exp_config, os.getcwd(), self.out.log
         )
         db.init_db(drop_all=True)
-        self.out.log(
-            f"Files symlinked in {dst}.\n"
-            "Run './run.sh' in that directory to start Flask, "
-            "plus the worker and clock processes."
-        )
 
 
 class HerokuLocalDeployment(object):

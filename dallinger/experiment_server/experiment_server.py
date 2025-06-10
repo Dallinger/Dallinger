@@ -420,14 +420,6 @@ def launch():
             status=500,
             simple=True,
         )
-    try:
-        exp.log("Launching experiment...", "-----")
-    except IOError as ex:
-        return error_response(
-            error_text="IOError writing to experiment log: {}".format(str(ex)),
-            status=500,
-            simple=True,
-        )
 
     try:
         exp.on_launch()

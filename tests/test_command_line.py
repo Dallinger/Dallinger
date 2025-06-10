@@ -207,7 +207,6 @@ class TestDevelopCommand(object):
         result = CliRunner().invoke(develop, ["bootstrap"])
 
         assert result.exit_code == 0
-        assert "Preparing your pristine development environment" in result.output
         assert found_in("app.py", develop_directory)
         assert found_in("run.sh", develop_directory)
         assert found_in("experiment.py", develop_directory)

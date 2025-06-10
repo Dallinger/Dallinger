@@ -1609,24 +1609,6 @@ class TestLaunchRoute(object):
         assert resp.status_code == 200
         mock_exp.recruiter.open_recruitment.assert_called()
 
-    def test_launch_logging_fails(self, webapp):
-        with mock.patch(
-            "dallinger.experiment_server.experiment_server.Experiment"
-        ) as mock_class:
-            bad_log = mock.Mock(side_effect=IOError)
-            mock_exp = mock.Mock(log=bad_log)
-            mock_exp.protected_routes = []
-            mock_exp.channel = None
-            mock_class.return_value = mock_exp
-            resp = webapp.post("/launch", data={})
-
-        assert resp.status_code == 500
-        data = json.loads(resp.get_data())
-        assert data == {
-            "message": "IOError writing to experiment log: ",
-            "status": "error",
-        }
-
     def test_launch_establishes_channel_subscription(self, webapp, active_config):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
