@@ -99,17 +99,24 @@ def handle_launch_data(
     if launch_data and launch_data.get("message"):
         error(launch_data["message"])
 
-    # Check if this is a Heroku deployment by looking at the host
-    parsed_url = urlparse(url)
-    if parsed_url.netloc.endswith("herokuapp.com"):
-        print_bold(
-            "For detailed server logs, visit the Papertrail add-on in your Heroku dashboard"
-        )
-    # If this is a Docker deployment, we can use Dozzle to view the logs
-    elif dns_host and dozzle_password:
+    # If this is a Docker SSH deployment, we can use Dozzle to view the logs
+    if dns_host and dozzle_password:
         print_bold(
             f"Check the detailed server logs at https://logs.{dns_host} (user = dallinger, password = {dozzle_password})"
         )
+    else:
+        parsed_url = urlparse(url)
+        # For Heroku deployments, we can use Papertrail to view the logs
+        if parsed_url.netloc.endswith("herokuapp.com"):
+            print_bold(
+                "For detailed server logs, visit the Papertrail add-on in your Heroku dashboard"
+            )
+        # For SSH deployments in general, logs are on the remote server
+        elif parsed_url.netloc not in ("localhost", "127.0.0.1"):
+            print_bold(
+                f"For detailed server logs, check the logs on the remote server at {parsed_url.netloc}"
+            )
+
     if launch_request is not None:
         launch_request.raise_for_status()
 
