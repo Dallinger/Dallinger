@@ -432,6 +432,9 @@ def launch():
         )
 
     recruitment_details = None
+    config = _config()
+    loglevel = config.get("loglevel", 0)
+    recruiters.set_log_level(loglevel)
     try:
         recruitment_details = exp.recruiter.open_recruitment(
             n=exp.initial_recruitment_size
@@ -456,7 +459,7 @@ def launch():
                 simple=True,
             )
 
-    if _config().get("replay", False):
+    if config.get("replay", False):
         try:
             task = ReplayBackend(exp)
             gevent.spawn(task)

@@ -50,6 +50,34 @@ from dallinger.utils import (
 logger = logging.getLogger(__name__)
 
 
+def set_log_level(level):
+    """Set the logging level for this module's logger at runtime.
+
+    Args:
+        level (int): An integer from 0 to 4, corresponding to the desired logging level.
+        This is the scale used by Dallinger's ``loglevel`` config variable.
+
+    Notes:
+        - If an invalid level is provided, the logger will be set to NOTSET,
+          which inherits the parent logger's level.
+        - This only affects logging output from this module, not globally.
+    """
+
+    loglevels = [
+        logging.DEBUG,
+        logging.INFO,
+        logging.WARNING,
+        logging.ERROR,
+        logging.CRITICAL,
+    ]
+    try:
+        new_level = loglevels[level]
+    except IndexError:
+        new_level = logging.NOTSET
+
+    logger.setLevel(new_level)
+
+
 def handle_recruitment_error(ex):
     # Default behavior for backward compatibility
     logger.exception(str(ex))
