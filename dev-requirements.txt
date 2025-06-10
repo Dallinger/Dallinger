@@ -195,13 +195,15 @@ ipykernel==6.29.5
     #   jupyter
     #   jupyter-console
     #   jupyterlab
-ipython==8.37.0
+ipython==9.3.0
     # via
     #   black
     #   dallinger
     #   ipykernel
     #   ipywidgets
     #   jupyter-console
+ipython-pygments-lexers==1.1.1
+    # via ipython
 ipywidgets==8.1.7
     # via
     #   dallinger
@@ -431,6 +433,7 @@ pyflakes==3.3.2
 pygments==2.19.1
     # via
     #   ipython
+    #   ipython-pygments-lexers
     #   jupyter-console
     #   nbconvert
     #   pytest
@@ -507,6 +510,8 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
+roman-numerals-py==3.1.0
+    # via sphinx
 rpds-py==0.25.1
     # via
     #   jsonschema
@@ -537,7 +542,7 @@ sortedcontainers==2.4.0
     # via trio
 soupsieve==2.7
     # via beautifulsoup4
-sphinx==8.1.3
+sphinx==8.2.3
     # via
     #   dallinger
     #   myst-parser
