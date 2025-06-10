@@ -23,6 +23,7 @@ from typing import Dict
 from uuid import uuid4
 
 import click
+import paramiko
 import requests
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
@@ -114,6 +115,12 @@ def add(host, user):
     Port 80 and 443 must be free for dallinger to use.
     In case `docker` and/or `docker compose` are missing, dallinger will try to
     install them using `sudo`. The given user must have passwordless sudo rights.
+
+    You can configure SSH authentication using a PEM file by setting the `server_pem`
+    configuration variable in your config.txt or ~/.dallingerconfig:
+
+    [Parameters]
+    server_pem = /path/to/your/key.pem
     """
     prepare_server(host, user)
     store_host(dict(host=host, user=user))
@@ -778,21 +785,54 @@ def destroy(server, app):
     print(f"App {app} removed")
 
 
+def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
+    """Create and connect an SSH client with proper authentication.
+
+    Args:
+        host (str): The hostname or IP address to connect to
+        user (str, optional): The username to use for authentication. Defaults to None.
+
+    Returns:
+        paramiko.SSHClient: A connected SSH client instance
+
+    Note:
+        The client is configured to automatically trust the remote host's key.
+        This is a deliberate choice to simplify the connection process, as the server
+        is expected to be under our control.
+    """
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.load_system_host_keys()
+
+    print(f"Connecting to {host}")
+    with yaspin() as spinner:
+        config = get_config()
+        config.load()
+        server_pem = config.get("server_pem", None)
+        if server_pem:
+            if not os.path.exists(server_pem):
+                raise FileNotFoundError(
+                    f"SSH key file not found: {server_pem}\n"
+                    "Please check that the path in your config file is correct.\n"
+                    "You can set the path in either:\n"
+                    "  - Your experiment's config.txt: server_pem = /path/to/key.pem\n"
+                    "  - Your global config ~/.dallingerconfig: server_pem = /path/to/key.pem"
+                )
+            client.connect(host, username=user, key_filename=server_pem)
+        else:
+            client.connect(host, username=user)
+        spinner.ok("Connected.")
+
+    return client
+
+
 class Executor:
     """Execute remote commands using paramiko"""
 
     def __init__(self, host, user=None, app=None):
-        import paramiko
-
         self.app = app
-        self.client = paramiko.SSHClient()
-        # For convenience we always trust the remote host
-        self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.client.load_system_host_keys()
+        self.client = get_connected_ssh_client(host, user)
         self.host = host
-        print(f"Connecting to {host}")
-        self.client.connect(host, username=user)
-        print("Connected.")
 
     def run(self, cmd, raise_=True):
         """Run the given command and block until it completes.
@@ -942,14 +982,8 @@ class ExecuteException(Exception):
     pass
 
 
-def get_sftp(host, user=None):
-    import paramiko
-
-    client = paramiko.SSHClient()
-    # For convenience we always trust the remote host
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.load_system_host_keys()
-    client.connect(host, username=user)
+def get_sftp(host, user=None) -> paramiko.SFTPClient:
+    client = get_connected_ssh_client(host, user)
     return client.open_sftp()
 
 

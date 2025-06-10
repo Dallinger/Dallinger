@@ -176,11 +176,20 @@ First you need to tell dallinger a server you can use. There are some prerequisi
     * ssh should be configured to enable passwordless login
     * The user on the server needs passwordless sudo
 
-Given an IP address or a DNS name of te server and a username, add the host to the list of known dallinger servers:
+Given an IP address or a DNS name of the server and a username, add the host to the list of known dallinger servers:
 
 .. code-block:: shell
 
     dallinger docker-ssh servers add --user $SERVER_USER --host $SERVER_HOSTNAME_OR_IP
+
+You can configure SSH authentication using a PEM file by setting the `server_pem` configuration variable in your config.txt or ~/.dallingerconfig:
+
+.. code-block:: ini
+
+    [Parameters]
+    server_pem = /path/to/your/key.pem
+
+The PEM file will be used for SSH authentication when connecting to the server.
 
 Dallinger verifies that ``docker`` and ``docker compose`` are installed, and installs them if they are not.
 The installation should take a couple of minutes.
@@ -191,7 +200,7 @@ Now you can deploy an experiment image to the server:
 
     dallinger docker-ssh deploy --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5 -c recruiter hotair -c dashboard_password foobar
 
-In this example we use the ``hotair`` recriuter and set the dashboard password to ``foobar``.
+In this example we use the ``hotair`` recruiter and set the dashboard password to ``foobar``.
 The above command will output:
 
 .. code-block:: shell

@@ -139,6 +139,7 @@ default_keys = (
     ("docker_image_name", six.text_type, [], ""),
     ("docker_volumes", six.text_type, [], ""),
     ("docker_worker_cpu_shares", int, [], ""),
+    ("server_pem", six.text_type, []),
 )
 
 
