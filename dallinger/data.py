@@ -477,7 +477,8 @@ class Table(object):
     """Dallinger data-table object."""
 
     def __init__(self, path):
-        self.tablib_dataset = tablib.Dataset().load(open(path).read(), "csv")
+        with open(path) as f:
+            self.tablib_dataset = tablib.Dataset().load(f.read(), "csv")
 
     @property
     def csv(self):

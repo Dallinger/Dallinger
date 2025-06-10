@@ -557,12 +557,7 @@ class TestHerokuLocalWrapper(object):
 
         wrapper = HerokuLocalWrapper(config, output, env=env)
         yield wrapper
-        try:
-            print("Calling stop() on {}".format(wrapper))
-            print(wrapper._record[-1])
-            wrapper.stop(signal.SIGKILL)
-        except (IndexError, TypeError):
-            pass
+        wrapper.stop()
 
     def test_start(self, heroku):
         assert heroku.start()
@@ -619,7 +614,7 @@ class TestHerokuLocalWrapper(object):
         heroku._stream = mock.Mock(
             return_value=["real", "stopped", heroku.STREAM_SENTINEL]
         )
-        heroku._process = mock.Mock()
+        heroku._process = mock.Mock(pid=12345)
         heroku._process.poll = mock.Mock(return_value=1)
         heroku._log_failure()
         heroku._process.poll.assert_called_once()
@@ -635,7 +630,7 @@ class TestHerokuLocalWrapper(object):
                 heroku.STREAM_SENTINEL,
             ]
         )
-        heroku._process = mock.Mock()
+        heroku._process = mock.Mock(pid=12345)
         heroku._process.poll = mock.Mock(return_value=None)
         heroku._log_failure()
         assert heroku._record == ["real", "more"]
@@ -649,7 +644,7 @@ class TestHerokuLocalWrapper(object):
             yield heroku.STREAM_SENTINEL
 
         heroku._stream = mock.Mock(return_value=timeout_stream())
-        heroku._process = mock.Mock()
+        heroku._process = mock.Mock(pid=12345)
         heroku._process.poll = mock.Mock(return_value=None)
         start_time = time.time()
         heroku._log_failure()
@@ -665,7 +660,11 @@ class TestHerokuLocalWrapper(object):
         heroku.start()
         heroku._process.terminate()
         heroku.stop()
-        mock.call("Local Heroku was already terminated.") in heroku.out.log.mock_calls
+        log_calls = [call.args[0] for call in heroku.out.log.mock_calls]
+        assert (
+            "Local Heroku was already terminated." in log_calls
+            or "Local Heroku process terminated." in log_calls
+        )
 
     def test_start_when_shell_command_fails(self, heroku):
         heroku.shell_command = "nonsense"

@@ -50,6 +50,34 @@ from dallinger.utils import (
 logger = logging.getLogger(__name__)
 
 
+def set_log_level(level):
+    """Set the logging level for this module's logger at runtime.
+
+    Args:
+        level (int): An integer from 0 to 4, corresponding to the desired logging level.
+        This is the scale used by Dallinger's ``loglevel`` config variable.
+
+    Notes:
+        - If an invalid level is provided, the logger will be set to NOTSET,
+          which inherits the parent logger's level.
+        - This only affects logging output from this module, not globally.
+    """
+
+    loglevels = [
+        logging.DEBUG,
+        logging.INFO,
+        logging.WARNING,
+        logging.ERROR,
+        logging.CRITICAL,
+    ]
+    try:
+        new_level = loglevels[level]
+    except IndexError:
+        new_level = logging.NOTSET
+
+    logger.setLevel(new_level)
+
+
 def handle_recruitment_error(ex):
     # Default behavior for backward compatibility
     logger.exception(str(ex))
@@ -83,7 +111,7 @@ def run_status_check():
     for participant in Participant.query.all():
         participants_by_recruiter_nick[participant.recruiter_id].append(participant)
 
-    logger.info(
+    logger.debug(
         "Checking status of all participants: {}".format(participants_by_recruiter_nick)
     )
 
@@ -538,7 +566,7 @@ class ProlificRecruiter(Recruiter):
     def open_recruitment(self, n: int = 1) -> dict:
         """Create a Study on Prolific."""
 
-        logger.info(f"Opening Prolific recruitment for {n} participants")
+        logger.debug(f"Opening Prolific recruitment for {n} participants")
         if self.is_in_progress:
             raise ProlificRecruiterException(
                 "Tried to open recruitment, but a Prolific Study "
@@ -606,7 +634,7 @@ class ProlificRecruiter(Recruiter):
     def recruit(self, n: int = 1):
         """Recruit `n` new participants to an existing Prolific Study"""
         if not self.config.get("auto_recruit"):
-            logger.info("auto_recruit is False: recruitment suppressed")
+            logger.debug("auto_recruit is False: recruitment suppressed")
             return
 
         return self.prolificservice.add_participants_to_study(
@@ -751,7 +779,7 @@ class ProlificRecruiter(Recruiter):
                     participant.id,
                 )
             else:
-                logger.info(f"Status already in sync for {participant.id}")
+                logger.debug(f"Status already in sync for {participant.id}")
 
     @property
     def study_id_storage_key(self):
@@ -958,7 +986,7 @@ class MockRecruiter(Recruiter):
         """
         Open recruitment for the current experiment.
         """
-        logger.info(f"Mock recruiter {self.nickname} NOT opening any recruitment")
+        logger.debug(f"Mock recruiter {self.nickname} NOT opening any recruitment")
         self.register_study()
         return {"items": [], "message": ""}
 
@@ -1022,7 +1050,7 @@ class CLIRecruiter(Recruiter):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiment logs.
         """
-        logger.info("Opening CLI recruitment for {} participants".format(n))
+        logger.debug("Opening CLI recruitment for {} participants".format(n))
         recruitments = self.recruit(n)
         message = (
             "\nSingle recruitment link: {}/ad?recruiter={}&generate_tokens=1&mode={}\n\n"
@@ -1040,7 +1068,7 @@ class CLIRecruiter(Recruiter):
 
     def recruit(self, n=1):
         """Generate experiment URLs and print them to the console."""
-        logger.info("Recruiting {} CLI participants".format(n))
+        logger.debug("Recruiting {} CLI participants".format(n))
         urls = []
         template = "{}/ad?recruiter={}&assignmentId={}&hitId={}&workerId={}&mode={}"
         for i in range(n):
@@ -1063,12 +1091,12 @@ class CLIRecruiter(Recruiter):
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
-        logger.info("Assignment {} has been marked for approval".format(assignment_id))
+        logger.debug("Assignment {} has been marked for approval".format(assignment_id))
         return True
 
     def assign_experiment_qualifications(self, worker_id, qualifications):
         """Assigns recruiter-specific qualifications to a worker."""
-        logger.info(
+        logger.debug(
             "Worker ID {} earned these qualifications: {}".format(
                 worker_id, qualifications
             )
@@ -1076,7 +1104,7 @@ class CLIRecruiter(Recruiter):
 
     def reward_bonus(self, participant, amount, reason):
         """Print out bonus info for the assignment"""
-        logger.info(
+        logger.debug(
             'Award ${} for assignment {}, with reason "{}"'.format(
                 amount, participant.assignment_id, reason
             )
@@ -1085,8 +1113,8 @@ class CLIRecruiter(Recruiter):
     def verify_status_of(self, participants: list[Participant]):
         """We only track participants locally, so we have nothing to do."""
         for p in participants:
-            logger.info("{} -> {}".format(p.id, p.status))
-        logger.info(
+            logger.debug("{} -> {}".format(p.id, p.status))
+        logger.debug(
             f"{self.__class__.__name__} implicitly verifying status "
             "of all its participants. 👍"
         )
@@ -1108,7 +1136,7 @@ class HotAirRecruiter(CLIRecruiter):
         """Return initial experiment URL list, plus instructions
         for finding subsequent recruitment events in experiment logs.
         """
-        logger.info("Opening HotAir recruitment for {} participants".format(n))
+        logger.debug("Opening HotAir recruitment for {} participants".format(n))
         recruitments = self.recruit(n)
         message = (
             "\nSingle recruitment link: {}/ad?recruiter={}&generate_tokens=1&mode={}\n\n"
@@ -1121,7 +1149,7 @@ class HotAirRecruiter(CLIRecruiter):
 
     def reward_bonus(self, participant, amount, reason):
         """Logging-only, Hot Air implementation"""
-        logger.info(
+        logger.debug(
             "Were this a real Recruiter, we'd be awarding ${} for assignment {}, "
             'with reason "{}"'.format(amount, participant.assignment_id, reason)
         )
@@ -1147,12 +1175,12 @@ class SimulatedRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Open recruitment."""
-        logger.info("Opening Sim recruitment for {} participants".format(n))
+        logger.debug("Opening Sim recruitment for {} participants".format(n))
         return {"items": self.recruit(n), "message": "Simulated recruitment only"}
 
     def recruit(self, n=1):
         """Recruit n participants."""
-        logger.info("Recruiting {} Sim participants".format(n))
+        logger.debug("Recruiting {} Sim participants".format(n))
         return []
 
     def close_recruitment(self):
@@ -1444,7 +1472,7 @@ class MTurkRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Open a connection to AWS MTurk and create a HIT."""
-        logger.info("Opening MTurk recruitment for {} participants".format(n))
+        logger.debug("Opening MTurk recruitment for {} participants".format(n))
         if self.is_in_progress:
             raise MTurkRecruiterException(
                 "Tried to open recruitment on already open recruiter."
@@ -1562,14 +1590,14 @@ class MTurkRecruiter(Recruiter):
 
     def recruit(self, n=1):
         """Recruit n new participants to an existing HIT"""
-        logger.info("Recruiting {} MTurk participants".format(n))
+        logger.debug("Recruiting {} MTurk participants".format(n))
         if not self.config.get("auto_recruit"):
-            logger.info("auto_recruit is False: recruitment suppressed")
+            logger.debug("auto_recruit is False: recruitment suppressed")
             return
 
         hit_id = self.current_hit_id()
         if hit_id is None:
-            logger.info("no HIT in progress: recruitment aborted")
+            logger.debug("no HIT in progress: recruitment aborted")
             return
 
         try:
@@ -1648,7 +1676,7 @@ class MTurkRecruiter(Recruiter):
         because MTurk sends prompt SNS notifications when participants
         submit, return, or abandon HITs.
         """
-        logger.info("MTurkRecruiter assuming all is well with participant status...")
+        logger.debug("MTurkRecruiter assuming all is well with participant status...")
 
     def reward_bonus(self, participant, amount, reason):
         """Reward the Turker for a specified assignment with a bonus."""
@@ -1929,7 +1957,7 @@ class MTurkLargeRecruiter(MTurkRecruiter):
         super(MTurkLargeRecruiter, self).__init__(*args, **kwargs)
 
     def open_recruitment(self, n=1):
-        logger.info("Opening MTurkLarge recruitment for {} participants".format(n))
+        logger.debug("Opening MTurkLarge recruitment for {} participants".format(n))
         if self.is_in_progress:
             raise MTurkRecruiterException(
                 "Tried to open recruitment on already open recruiter."
@@ -1939,9 +1967,9 @@ class MTurkLargeRecruiter(MTurkRecruiter):
         return super(MTurkLargeRecruiter, self).open_recruitment(to_recruit)
 
     def recruit(self, n=1):
-        logger.info("Recruiting {} MTurkLarge participants".format(n))
+        logger.debug("Recruiting {} MTurkLarge participants".format(n))
         if not self.config.get("auto_recruit"):
-            logger.info("auto_recruit is False: recruitment suppressed")
+            logger.debug("auto_recruit is False: recruitment suppressed")
             return
 
         needed = max(0, n - self.remaining_pool)
@@ -1966,7 +1994,7 @@ class BotRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Start recruiting right away."""
-        logger.info("Opening Bot recruitment for {} participants".format(n))
+        logger.debug("Opening Bot recruitment for {} participants".format(n))
         factory = self._get_bot_factory()
         bot_class_name = factory("", "", "").__class__.__name__
         return {
@@ -1976,7 +2004,7 @@ class BotRecruiter(Recruiter):
 
     def recruit(self, n=1):
         """Recruit n new participant bots to the queue"""
-        logger.info("Recruiting {} Bot participants".format(n))
+        logger.debug("Recruiting {} Bot participants".format(n))
         factory = self._get_bot_factory()
         urls = []
         q = get_queue(name="low")
@@ -2017,7 +2045,7 @@ class BotRecruiter(Recruiter):
 
     def reward_bonus(self, participant, amount, reason):
         """Logging only. These are bots."""
-        logger.info("Bots don't get bonuses. Sorry, bots.")
+        logger.debug("Bots don't get bonuses. Sorry, bots.")
 
     def on_task_completion(self):
         return {
@@ -2027,7 +2055,7 @@ class BotRecruiter(Recruiter):
 
     def verify_status_of(self, participants: list[Participant]):
         """All our bots are belong to us, so we don't need to do anything."""
-        logger.info("BotRecruiter assuming all is well with participant status...")
+        logger.debug("BotRecruiter assuming all is well with participant status...")
 
     def _get_bot_factory(self):
         # Must be imported at run-time
@@ -2101,7 +2129,7 @@ class MultiRecruiter(Recruiter):
 
     def open_recruitment(self, n=1):
         """Return initial experiment URL list."""
-        logger.info("Multi recruitment running for {} participants".format(n))
+        logger.debug("Multi recruitment running for {} participants".format(n))
         recruitments = []
         messages = {}
         remaining = n
@@ -2120,7 +2148,7 @@ class MultiRecruiter(Recruiter):
             if remaining <= 0:
                 break
 
-        logger.info(
+        logger.debug(
             (
                 "Multi-recruited {} out of {} participants, " "using {} recruiters."
             ).format(n - remaining, n, len(messages))

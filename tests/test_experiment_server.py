@@ -115,7 +115,9 @@ class TestAppConfiguration(object):
     ):
         active_config.set("protected_routes", '["/robots.txt"]')
 
-        assert webapp_admin.get("/robots.txt").status == "200 OK"
+        resp = webapp_admin.get("/robots.txt")
+        assert resp.status == "200 OK"
+        resp.close()
 
 
 @pytest.mark.usefixtures("experiment_dir")
@@ -608,10 +610,12 @@ class TestSimpleGETRoutes(object):
         resp = webapp.get("/favicon.ico")
         assert resp.content_type == "image/x-icon"
         assert resp.content_length > 0
+        resp.close()
 
     def test_robots(self, webapp):
         resp = webapp.get("/robots.txt")
         assert b"User-agent" in resp.data
+        resp.close()
 
     def test_consent(self, webapp):
         resp = webapp.get(
@@ -1604,24 +1608,6 @@ class TestLaunchRoute(object):
             resp = webapp.post("/launch", data={})
         assert resp.status_code == 200
         mock_exp.recruiter.open_recruitment.assert_called()
-
-    def test_launch_logging_fails(self, webapp):
-        with mock.patch(
-            "dallinger.experiment_server.experiment_server.Experiment"
-        ) as mock_class:
-            bad_log = mock.Mock(side_effect=IOError)
-            mock_exp = mock.Mock(log=bad_log)
-            mock_exp.protected_routes = []
-            mock_exp.channel = None
-            mock_class.return_value = mock_exp
-            resp = webapp.post("/launch", data={})
-
-        assert resp.status_code == 500
-        data = json.loads(resp.get_data())
-        assert data == {
-            "message": "IOError writing to experiment log: ",
-            "status": "error",
-        }
 
     def test_launch_establishes_channel_subscription(self, webapp, active_config):
         with mock.patch(

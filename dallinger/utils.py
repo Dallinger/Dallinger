@@ -442,10 +442,9 @@ def get_editable_dallinger_path():
 def check_local_db_connection(log):
     """Verify that the local Postgres server is running."""
     try:
-        log("Checking your local Postgres database connection...")
         db.check_connection()
     except Exception:
-        log("There was a problem connecting!")
+        log("There was a problem connecting to the local Postgres server!")
         raise
 
 
@@ -530,7 +529,6 @@ def bootstrap_development_session(exp_config, experiment_path, log):
     source_path = Path(dallinger_package_path()) / "dev_server"
     destination_path = develop_target_path(config)
 
-    log("Wiping develop directory and re-writing it...")
     ensure_directory(destination_path)
     expunge_directory(destination_path)
     collate_experiment_files(

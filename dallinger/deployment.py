@@ -268,20 +268,14 @@ class DevelopmentDeployment(object):
     def __init__(self, output, exp_config):
         self.out = output
         self.exp_config = exp_config or {}
-        self.exp_config.update({"mode": "debug", "loglevel": 0})
+        self.exp_config.update({"mode": "debug"})
 
     def run(self):
         """Bootstrap the environment and reset the database."""
-        self.out.log("Preparing your pristine development environment...")
         experiment_uid, dst = bootstrap_development_session(
             self.exp_config, os.getcwd(), self.out.log
         )
         db.init_db(drop_all=True)
-        self.out.log(
-            f"Files symlinked in {dst}.\n"
-            "Run './run.sh' in that directory to start Flask, "
-            "plus the worker and clock processes."
-        )
 
 
 class HerokuLocalDeployment(object):
@@ -295,7 +289,7 @@ class HerokuLocalDeployment(object):
     DO_INIT_DB = True
 
     def configure(self):
-        self.exp_config.update({"mode": "debug", "loglevel": 0})
+        self.exp_config.update({"mode": "debug"})
 
     def setup(self):
         self.exp_id, self.tmp_dir = setup_experiment(
