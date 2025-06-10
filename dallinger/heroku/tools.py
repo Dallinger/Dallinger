@@ -66,8 +66,10 @@ class HerokuCommandRunner(object):
 
     def __del__(self):
         # Make sure we close our filehandle when object deleted
-        if hasattr(self, "out_muted") and self.out_muted and not self.out_muted.closed:
+        try:
             self.out_muted.close()
+        except Exception:
+            pass
 
     @property
     def sys_encoding(self):
