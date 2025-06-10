@@ -58,6 +58,11 @@ def handle_recruitment_error(ex):
         exp_klass.handle_recruitment_error(ex)
 
 
+def handle_and_raise_recruitment_error(ex):
+    handle_recruitment_error(ex)
+    raise ex
+
+
 # These are constants because other components may listen for these
 # messages in logs:
 NEW_RECRUIT_LOG_PREFIX = "New participant requested:"
@@ -74,9 +79,6 @@ def run_status_check():
     If a recruiter finds discrepancies, it will enqueue a command to correct the
     status for each participant with a problem.
     """
-    # from dallinger import experiment
-
-    # experiment.load()
     participants_by_recruiter_nick = defaultdict(list)
     for participant in Participant.query.all():
         participants_by_recruiter_nick[participant.recruiter_id].append(participant)
@@ -139,12 +141,6 @@ class Recruiter(object):
     nickname = None
     external_submission_url = None  # MTurkRecruiter, for one, overides this
     supports_delayed_publishing = False
-
-    def __init__(self):
-        """For now, the contract of a Recruiter is that it takes no
-        arguments.
-        """
-        logger.info("Initializing {}...".format(self.__class__.__name__))
 
     def __call__(self):
         """For backward compatibility with experiments invoking recruiter()

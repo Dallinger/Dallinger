@@ -1,5 +1,35 @@
 # Change Log
 
+## [v11.3.1](https://github.com/dallinger/dallinger/tree/v11.3.1) (2025-05-25)
+
+#### Fixed
+- Disable (temporarily) `scheduled_job` `async_recruiter_status_check` as it is causing database deadlocks.
+
+## [v11.3.0](https://github.com/dallinger/dallinger/tree/v11.3.0) (2025-05-22)
+
+#### Added
+- Added support for screen-out-submissions in ProlificRecruiter
+- Added experiment hooks for server setup and termination, as well as worker termination and startup
+- Added experiment hook for recruiter error by overriding `logger.exception` in `recruiters.py`
+- Added `DevRecruiter` class for easily distinguishing between `MockRecruiter` or a regular `Recruiter`
+- Prolific command line improvements:
+  - Added `dallinger prolific list studies ` to list all studies associated with an account (across workspaces and projects)
+  - Added `dallinger prolific delete-drafts` delete all unpublished draft surveys in the account
+
+## Changed
+- Only show deprecation warnings once
+- When loading the defaults, load `.dallingerconfig` last
+- Give a more informative error message when `FileSource` tries to copy a broken symlink
+- Make `scripts/update_dependencies.sh` POSIX compliant
+
+#### Updated
+- Update AMI image for EC2 provisioning to use Ubuntu 24.04
+- Updated dependencies; pin click < 8.2
+
+#### Removed
+- Removed dependency on `setuptools.dist.strtobool`, which was causing a deprecation warning
+- Removed unnecessary 'Initializing recruiter' messages
+
 ## [v11.2.0](https://github.com/dallinger/dallinger/tree/v11.2.0) (2025-04-04)
 
 #### Added

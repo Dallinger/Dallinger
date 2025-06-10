@@ -806,6 +806,12 @@ class FileSource(object):
             ensure_directory(target_folder)
             if os.path.exists(to_path):
                 continue
+            if is_broken_symlink(from_path):
+                raise OSError(
+                    f"Cannot copy broken symlink: {from_path}. "
+                    "If this file comes from a virtual environment directory (e.g. .venv), we recommend adding that "
+                    "virtual environment directory to your .gitignore file."
+                )
             copy_func(from_path, to_path)
 
     def map_locations_to(self, destination):
@@ -814,6 +820,14 @@ class FileSource(object):
         target location under @dst.
         """
         raise NotImplementedError()
+
+
+def is_broken_symlink(path: str) -> bool:
+    """Check if the given path is a broken symlink.
+    Relies on the documented behavior of ``os.path.exists``:
+    "Return True if path refers to an existing path. Returns False for broken symbolic links".
+    """
+    return os.path.islink(path) and not os.path.exists(path)
 
 
 class DallingerFileSource(FileSource):

@@ -276,7 +276,6 @@ class DevelopmentDeployment(object):
         experiment_uid, dst = bootstrap_development_session(
             self.exp_config, os.getcwd(), self.out.log
         )
-        self.out.log("Re-initializing database...")
         db.init_db(drop_all=True)
         self.out.log(
             f"Files symlinked in {dst}.\n"

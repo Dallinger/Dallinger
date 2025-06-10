@@ -44,12 +44,12 @@ def check_db_for_missing_notifications():
     db.session.commit()
 
 
-@scheduler.scheduled_job("interval", minutes=0.5)
-def async_recruiter_status_check():
-    """Ask recruiters to check the status of their participants"""
+# @scheduler.scheduled_job("interval", minutes=0.5)
+# def async_recruiter_status_check():
+#     """Ask recruiters to check the status of their participants"""
 
-    q = db.get_queue()
-    q.enqueue(recruiters.run_status_check)
+#     q = db.get_queue()
+#     q.enqueue(recruiters.run_status_check)
 
 
 def launch():

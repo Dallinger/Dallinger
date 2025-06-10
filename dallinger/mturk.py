@@ -71,6 +71,8 @@ class SNSService(object):
         )
 
     def create_subscription(self, experiment_id, notification_url):
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         logger.warning(
             "Creating new SNS subscription for {}...".format(notification_url)
         )
@@ -87,7 +89,7 @@ class SNSService(object):
         while self._awaiting_confirmation(subscription):
             elapsed = time.time() - start
             if elapsed > self.max_wait_secs:
-                raise RemoteAPICallTimedOut("Too long")
+                handle_and_raise_recruitment_error(RemoteAPICallTimedOut("Too long"))
             logger.warning("Awaiting SNS subscription confirmation...")
             time.sleep(1)
 
@@ -278,15 +280,21 @@ class MTurkService(object):
 
     def check_credentials(self):
         """Verifies key/secret/host combination by making a balance inquiry"""
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         try:
             return bool(self.mturk.get_account_balance())
         except NoCredentialsError:
-            raise MTurkServiceException("No AWS credentials set!")
+            handle_and_raise_recruitment_error(
+                MTurkServiceException("No AWS credentials set!")
+            )
         except ClientError:
-            raise MTurkServiceException("Invalid AWS credentials!")
+            handle_and_raise_recruitment_error(
+                MTurkServiceException("Invalid AWS credentials!")
+            )
         except Exception as ex:
-            raise MTurkServiceException(
-                "Error checking credentials: {}".format(str(ex))
+            handle_and_raise_recruitment_error(
+                MTurkServiceException("Error checking credentials: {}".format(str(ex)))
             )
 
     def confirm_subscription(self, token, topic):
@@ -295,13 +303,17 @@ class MTurkService(object):
 
     def create_qualification_type(self, name, description, status="Active"):
         """Create a new qualification Workers can be scored for."""
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         try:
             response = self.mturk.create_qualification_type(
                 Name=name, Description=description, QualificationTypeStatus=status
             )
         except Exception as ex:
             if "already created a QualificationType with this name" in str(ex):
-                raise DuplicateQualificationNameError(str(ex))
+                handle_and_raise_recruitment_error(
+                    DuplicateQualificationNameError(str(ex))
+                )
             else:
                 raise
 
@@ -313,6 +325,8 @@ class MTurkService(object):
         match the provided name exactly. If there's an exact match, return
         that Qualification. Otherwise, raise an exception.
         """
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         max_fuzzy_matches_to_check = 100
         query = name.upper()
         args = {
@@ -338,7 +352,9 @@ class MTurkService(object):
                 if qualification["name"].upper() == query:
                     return qualification
 
-            raise MTurkServiceException("{} was not a unique name".format(query))
+            handle_and_raise_recruitment_error(
+                MTurkServiceException("{} was not a unique name".format(query))
+            )
 
         return qualifications[0]
 
@@ -355,10 +371,14 @@ class MTurkService(object):
 
     def assign_named_qualification(self, name, worker_id, score, notify=False):
         """Score a worker for a specific named qualification"""
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         qtype = self.get_qualification_type_by_name(name)
         if qtype is None:
-            raise QualificationNotFoundException(
-                'No Qualification exists with name "{}"'.format(name)
+            handle_and_raise_recruitment_error(
+                QualificationNotFoundException(
+                    'No Qualification exists with name "{}"'.format(name)
+                )
             )
         return self._is_ok(
             self.mturk.associate_qualification_with_worker(
@@ -405,6 +425,8 @@ class MTurkService(object):
 
     def current_qualification_score(self, qualification_id, worker_id):
         """Return a worker's qualification score as an iteger."""
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         try:
             response = self.mturk.get_qualification_score(
                 QualificationTypeId=qualification_id, WorkerId=worker_id
@@ -412,29 +434,37 @@ class MTurkService(object):
         except ClientError as ex:
             error = str(ex)
             if "does not exist" in error:
-                raise WorkerLacksQualification(
-                    "Worker {} does not have qualification {}.".format(
-                        worker_id, qualification_id
+                handle_and_raise_recruitment_error(
+                    WorkerLacksQualification(
+                        "Worker {} does not have qualification {}.".format(
+                            worker_id, qualification_id
+                        )
                     )
                 )
             if "operation can be called with a status of: Granted" in error:
-                raise RevokedQualification(
-                    "Worker {} has had qualification {} revoked.".format(
-                        worker_id, qualification_id
+                handle_and_raise_recruitment_error(
+                    RevokedQualification(
+                        "Worker {} has had qualification {} revoked.".format(
+                            worker_id, qualification_id
+                        )
                     )
                 )
 
-            raise MTurkServiceException(error)
+            handle_and_raise_recruitment_error(MTurkServiceException(error))
         return response["Qualification"]["IntegerValue"]
 
     def current_named_qualification_score(self, name, worker_id):
         """Return the current score for a worker, on a qualification with the
         provided name.
         """
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         qtype = self.get_qualification_type_by_name(name)
         if qtype is None:
-            raise QualificationNotFoundException(
-                'No Qualification exists with name "{}"'.format(name)
+            handle_and_raise_recruitment_error(
+                QualificationNotFoundException(
+                    'No Qualification exists with name "{}"'.format(name)
+                )
             )
         try:
             score = self.current_qualification_score(qtype["id"], worker_id)
@@ -492,6 +522,7 @@ class MTurkService(object):
         do_subscribe=True,
     ):
         """Create the actual HIT and return a dict with its useful properties."""
+        from dallinger.recruiters import handle_and_raise_recruitment_error
 
         # We need a HIT_Type in order to register for notifications
         hit_type_id = self._register_hit_type(
@@ -515,7 +546,9 @@ class MTurkService(object):
 
         response = self.mturk.create_hit_with_hit_type(**params)
         if "HIT" not in response:
-            raise MTurkServiceException("HIT request was invalid for unknown reason.")
+            handle_and_raise_recruitment_error(
+                MTurkServiceException("HIT request was invalid for unknown reason.")
+            )
         return self._translate_hit(response["HIT"])
 
     def extend_hit(self, hit_id, number, duration_hours=None):
@@ -528,6 +561,8 @@ class MTurkService(object):
         return self.get_hit(hit_id)
 
     def create_additional_assignments_for_hit(self, hit_id, number):
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         try:
             response = self.mturk.create_additional_assignments_for_hit(
                 HITId=hit_id,
@@ -535,12 +570,18 @@ class MTurkService(object):
                 UniqueRequestToken=self._request_token(),
             )
         except Exception as ex:
-            raise MTurkServiceException(
-                "Error: failed to add {} assignments to HIT: {}".format(number, str(ex))
+            handle_and_raise_recruitment_error(
+                MTurkServiceException(
+                    "Error: failed to add {} assignments to HIT: {}".format(
+                        number, str(ex)
+                    )
+                )
             )
         return self._is_ok(response)
 
     def update_expiration_for_hit(self, hit_id, hours):
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         hit = self.get_hit(hit_id)
         expiration = datetime.timedelta(hours=hours) + hit["expiration"]
         try:
@@ -548,9 +589,11 @@ class MTurkService(object):
                 HITId=hit_id, ExpireAt=expiration
             )
         except Exception as ex:
-            raise MTurkServiceException(
-                "Failed to extend time until expiration of HIT: {}\n{}".format(
-                    expiration, str(ex)
+            handle_and_raise_recruitment_error(
+                MTurkServiceException(
+                    "Failed to extend time until expiration of HIT: {}\n{}".format(
+                        expiration, str(ex)
+                    )
                 )
             )
         return self._is_ok(response)
@@ -576,11 +619,15 @@ class MTurkService(object):
         """Expire a HIT, which will change its status to "Reviewable",
         allowing it to be deleted.
         """
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         try:
             self.mturk.update_expiration_for_hit(HITId=hit_id, ExpireAt=0)
         except Exception as ex:
-            raise MTurkServiceException(
-                "Failed to expire HIT {}: {}".format(hit_id, str(ex))
+            handle_and_raise_recruitment_error(
+                MTurkServiceException(
+                    "Failed to expire HIT {}: {}".format(hit_id, str(ex))
+                )
             )
         return True
 
@@ -618,6 +665,8 @@ class MTurkService(object):
         reward you pay to the Worker when you approve the Worker's
         assignment.
         """
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         assignment = self.get_assignment(assignment_id)
         worker_id = assignment["worker_id"]
         amount_str = "{:.2f}".format(amount)
@@ -635,7 +684,7 @@ class MTurkService(object):
             error = "Failed to pay assignment {} bonus of {}: {}".format(
                 assignment_id, amount_str, str(ex)
             )
-            raise MTurkServiceException(error)
+            handle_and_raise_recruitment_error(MTurkServiceException(error))
 
     def get_assignment(self, assignment_id):
         """Get an assignment by ID and reformat the response."""
@@ -654,15 +703,19 @@ class MTurkService(object):
                the reward specified in the HIT.
             2. Amazon Mechanical Turk fees are debited.
         """
+        from dallinger.recruiters import handle_and_raise_recruitment_error
+
         try:
             return self._is_ok(
                 self.mturk.approve_assignment(AssignmentId=assignment_id)
             )
         except ClientError as ex:
             assignment = self.get_assignment(assignment_id)
-            raise MTurkServiceException(
-                "Failed to approve assignment {}, {}: {}".format(
-                    assignment_id, str(assignment), str(ex)
+            handle_and_raise_recruitment_error(
+                MTurkServiceException(
+                    "Failed to approve assignment {}, {}: {}".format(
+                        assignment_id, str(assignment), str(ex)
+                    )
                 )
             )
 

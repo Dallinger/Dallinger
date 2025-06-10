@@ -10,7 +10,6 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import six
-from setuptools.dist import strtobool
 from six.moves import configparser
 
 logger = logging.getLogger(__name__)
@@ -23,6 +22,31 @@ SENSITIVE_KEY_NAMES = ("access_id", "access_key", "password", "secret", "token")
 
 def is_valid_json(value):
     json.loads(value)
+
+
+def strtobool(val: str) -> int:
+    """Convert a string representation of truth to true (1) or false (0).
+
+    True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
+    are 'n', 'no', 'f', 'false', 'off', and '0'.  Raises ValueError if
+    'val' is anything else.
+
+    Notes
+    -----
+    This implementation is derived from the `strtobool` function in setuptools,
+    which itself is based on the original in Python's distutils.
+
+    Source: https://github.com/pypa/setuptools/blob/main/setuptools/dist.py
+
+    Copyright (c) 2016-2024 Python Packaging Authority (PyPA)
+    Licensed under the MIT License.
+    """
+    val = val.lower()
+    if val in ("y", "yes", "t", "true", "on", "1"):
+        return 1
+    if val in ("n", "no", "f", "false", "off", "0"):
+        return 0
+    raise ValueError(f"invalid truth value {val!r}")
 
 
 default_keys = (

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dallinger"
-version = "11.3.0a1"
+version = "11.4.0a1"
 maintainers = [
   {name = "Jordan Suchow", email = "jws@stevens.edu"},
   {name = "Peter Harrison", email = "pmch2@cam.ac.uk"},
@@ -35,7 +35,7 @@ dependencies = [
     "boto3",
     "build",
     "cached-property",
-    "click",
+    "click < 8.2",
     "faker",
     "flask-sock",
     "flask",
