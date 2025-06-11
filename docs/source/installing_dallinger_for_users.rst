@@ -95,7 +95,7 @@ Postgresql can then be started and stopped using:
 
 
 Create the databases
-~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^
 
 After installing Postgres, you will need to create two databases:
 one for your experiments to use, and a second to support importing saved
@@ -216,7 +216,7 @@ Change into your new directory with:
     cd Dallinger
 
 Set up a virtual environment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Why use virtualenv?
 
@@ -317,7 +317,7 @@ do that type:
 From then on, you only need to use the ``workon`` command before starting.
 
 Install Python dependencies
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Now we need to install the dependencies using pip:
 ::
@@ -380,7 +380,7 @@ To run postgres, use the following command:
     sudo service postgresql start
 
 Create the databases
-~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^
 
 Make sure that postgres is running. Switch to the postgres user:
 
@@ -487,7 +487,7 @@ Change into your new directory with:
     cd Dallinger
 
 Set up a virtual environment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Why use virtualenv?
 
@@ -588,7 +588,7 @@ do that type:
 From then on, you only need to use the ``workon`` command before starting.
 
 Install Python dependencies
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Now we need to install the dependencies using pip:
 ::
