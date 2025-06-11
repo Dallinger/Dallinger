@@ -1,21 +1,20 @@
 Developer Installation
 ======================
 
-Dallinger is tested with Ubuntu 18.04 LTS, 16.04 LTS, 14.04 LTS and Mac OS X locally.
-If you are attempting to use Dallinger on Microsoft Windows, running Ubuntu in a virtual machine is the recommend method.
+Dallinger is tested on recent Ubuntu-based Linux distributions and on MacOS locally.
+If you are attempting to use Dallinger on Microsoft Windows, running Ubuntu in a virtual machine is the recommended method.
 
 If you are interested in using Dallinger with Docker, read more :doc:`here <docker_support>`.
 
 
-Mac OS X
+MacOS
 --------
 
 Install Python
 ~~~~~~~~~~~~~~
 
-Dallinger is written in the language Python. For it to work, you will need
-to have Python 3.9 or higher. You can check what version of Python you
-have by running:
+Dallinger is written in Python. To determine the exact supported Python versions, please refer to the `pyproject.toml on GitHub <https://github.com/Dallinger/Dallinger/blob/master/pyproject.toml>`__ file in the repository.
+You can check what version of Python you have by running:
 ::
 
     python --version
@@ -32,7 +31,7 @@ Using Homebrew will install the latest version of Python and pip by default.
 
     brew install python
 
-This will install the latest Python3 and pip3.
+This will install the latest Python 3 and pip3.
 
 If you installed Python 3 with Homebrew, you should now be able to run the ``python3`` command from the terminal.
 If the command cannot be found, check the Homebrew installation log to see
@@ -45,7 +44,7 @@ Should that not work for whatever reason, you can search `here <https://docs.pyt
 Install Postgresql
 ~~~~~~~~~~~~~~~~~~
 
-On Mac OS X, we recommend installing using Homebrew:
+On MacOS, we recommend installing using Homebrew:
 ::
 
     brew install postgresql
@@ -65,7 +64,7 @@ After installing Postgres, you will need to create two databases:
 one for your experiments to use, and a second to support importing saved
 experiments. It is recommended that you also create a database user.
 
-Naviagate to a terminal and type:
+Navigate to a terminal and type:
 ::
 
     createuser -P dallinger --createdb
@@ -130,7 +129,7 @@ server running.
 
     brew install redis
 
-Start Redis on Mac OS X with:
+Start Redis on MacOS with:
 ::
 
     brew services start redis
@@ -160,87 +159,6 @@ Replace ``you@example.com`` and ``Your Name`` with your email and name to set yo
 Omit --global to set the identity only in this repository. You can read more about configuring Git `here <https://git-scm.com/book/en/v2/Getting-Started-First-Time-Git-Setup/>`__.
 
 
-Set up a virtual environment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Why use virtualenv?
-
-Virtualenv solves a very specific problem: it allows multiple Python projects
-that have different (and often conflicting) requirements, to coexist on the same computer.
-If you want to understand this in detail, you can read more about it `here <https://www.dabapps.com/blog/introduction-to-pip-and-virtualenv-python/>`__.
-
-Now let's set up a virtual environment by running the following commands:
-::
-
-
-    pip3 install virtualenv
-    pip3 install virtualenvwrapper
-    export WORKON_HOME=$HOME/.virtualenvs
-    mkdir -p $WORKON_HOME
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.9)
-    source $(which virtualenvwrapper.sh)
-
-
-Now create the virtual environment using:
-::
-
-
-    mkvirtualenv dlgr_env --python <specify_your_python_path_here>
-
-
-Example:
-::
-
-
-    mkvirtualenv dlgr_env --python /usr/local/bin/python3.9
-
-Virtualenvwrapper provides an easy way to switch between virtual environments
-by simply typing: ``workon [virtual environment name]``.
-
-The technical details:
-
-These commands use ``pip/pip3``, the Python package manager, to install two
-packages ``virtualenv`` and ``virtualenvwrapper``. They set up an
-environmental variable named ``WORKON_HOME`` with a string that gives a
-path to a subfolder of your home directory (``~``) called ``Envs``,
-which the next command (``mkdir``) then makes according to the path
-described in ``$WORKON_HOME`` (recursively, due to the ``-p`` flag).
-That is where your environments will be stored. The ``source`` command
-will run the command that follows, which in this case locates the
-``virtualenvwrapper.sh`` shell script, the contents of which are beyond
-the scope of this setup tutorial. If you want to know what it does, a
-more in depth description can be found on the `documentation site for virtualenvwrapper <http://virtualenvwrapper.readthedocs.io/en/latest/install.html#python-interpreter-virtualenv-and-path>`__.
-
-Finally, the ``mkvirtualenv`` makes your first virtual environment which
-you've named ``dlgr_env``. We have explicitly passed it the location of the Python
-that the virtualenv should use. This Python has been mapped to the ``python``
-command inside the virtual environment.
-
-The how-to:
-
-In the future, you can work on your virtual environment by running:
-::
-
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.9)
-    source $(which virtualenvwrapper.sh)
-    workon dlgr_env
-
-
-NB: To stop working in the virtual environment, run ``deactivate``. To
-list all available virtual environments, run ``workon`` with no
-arguments.
-
-If you plan to do a lot of work with Dallinger, you can make your shell
-execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
-do that type:
-::
-
-    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.9)" >> ~/.bash_profile
-    echo "source $(which virtualenvwrapper.sh)" >> ~/.bash_profile
-
-
-From then on, you only need to use the ``workon`` command before starting.
-
 Install prerequisites for building documentation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -251,7 +169,7 @@ Please follow the instructions `here <https://yarnpkg.com/lang/en/docs/install>`
 Install Dallinger
 ~~~~~~~~~~~~~~~~~
 
-Next, navigate to the directory where you want to house your development
+Navigate to the directory where you want to house your development
 work on Dallinger. Once there, clone the Git repository using:
 ::
 
@@ -260,14 +178,114 @@ work on Dallinger. Once there, clone the Git repository using:
 This will create a directory called ``Dallinger`` in your current
 directory.
 
-Change into your the new directory and make sure you are still in your
-virtual environment before installing the dependencies. If you want to
-be extra careful, run the command ``workon dlgr_env``, which will ensure
-that you are in the right virtual environment.
+Change into your new directory with:
 
 ::
 
     cd Dallinger
+
+Set up a virtual environment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Why use virtualenv?
+
+Virtualenv solves a very specific problem: it allows multiple Python projects
+that have different (and often conflicting) requirements, to coexist on the same computer.
+If you want to understand this in detail, you can read more about it `here <https://www.dabapps.com/blog/introduction-to-pip-and-virtualenv-python/>`__.
+
+We recommend using Python's built-in `venv` module to create a virtual environment:
+
+.. note::
+
+    These instructions assume you're using the bash shell. If you're using zsh or another shell, adjust paths accordingly.
+
+::
+
+    python3 -m venv .venv
+    source .venv/bin/activate
+
+To deactivate the virtual environment later, run:
+::
+
+    deactivate
+
+.. note::
+
+    If you're already familiar with `virtualenv` and `virtualenvwrapper`, you can still use them. Here's an example using `mkvirtualenv`:
+
+    ::
+
+
+        pip3 install virtualenv
+        pip3 install virtualenvwrapper
+        export WORKON_HOME=$HOME/.virtualenvs
+        mkdir -p $WORKON_HOME
+        export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
+        source $(which virtualenvwrapper.sh)
+
+
+    Now create the virtual environment using:
+    ::
+
+
+        mkvirtualenv dlgr_env --python <specify_your_python_path_here>
+
+
+    Example:
+    ::
+
+
+        mkvirtualenv dlgr_env --python /usr/local/bin/python3.12
+
+    Virtualenvwrapper provides an easy way to switch between virtual environments
+    by simply typing: ``workon [virtual environment name]``.
+
+    The technical details:
+
+    These commands use ``pip/pip3``, the Python package manager, to install two
+    packages ``virtualenv`` and ``virtualenvwrapper``. They set up an
+    environmental variable named ``WORKON_HOME`` with a string that gives a
+    path to a subfolder of your home directory (``~``) called ``Envs``,
+    which the next command (``mkdir``) then makes according to the path
+    described in ``$WORKON_HOME`` (recursively, due to the ``-p`` flag).
+    That is where your environments will be stored. The ``source`` command
+    will run the command that follows, which in this case locates the
+    ``virtualenvwrapper.sh`` shell script, the contents of which are beyond
+    the scope of this setup tutorial. If you want to know what it does, a
+    more in depth description can be found on the `documentation site for virtualenvwrapper <http://virtualenvwrapper.readthedocs.io/en/latest/install.html#python-interpreter-virtualenv-and-path>`__.
+
+    Finally, the ``mkvirtualenv`` makes your first virtual environment which
+    you've named ``dlgr_env``. We have explicitly passed it the location of the Python
+    that the virtualenv should use. This Python has been mapped to the ``python``
+    command inside the virtual environment.
+
+    The how-to:
+
+    In the future, you can work on your virtual environment by running:
+    ::
+
+        export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
+        source $(which virtualenvwrapper.sh)
+        workon dlgr_env
+
+
+    NB: To stop working in the virtual environment, run ``deactivate``. To
+    list all available virtual environments, run ``workon`` with no
+    arguments.
+
+    If you plan to do a lot of work with Dallinger, you can make your shell
+    execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
+    do that type:
+    ::
+
+        echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)" >> ~/.bash_profile
+        echo "source $(which virtualenvwrapper.sh)" >> ~/.bash_profile
+
+
+    From then on, you only need to use the ``workon`` command before starting.
+
+Install Python dependencies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Now we need to install the dependencies using pip:
 
@@ -353,24 +371,16 @@ Ubuntu
 Install Python
 ~~~~~~~~~~~~~~
 
-Dallinger is written in the language Python. For it to work, you will need
-to have Python 3.9 or higher. Python 3 is the preferred option.
+Dallinger is written in Python. To determine the exact supported Python versions, please refer to the `pyproject.toml on GitHub <https://github.com/Dallinger/Dallinger/blob/master/pyproject.toml>`__ file in the repository.
 You can check what version of Python you have by running:
 ::
 
     python --version
 
-
-Ubuntu 18.04 LTS ships with Python 3.6.
-
-Ubuntu 16.04 LTS ships with Python 3.5, while Ubuntu 14.04 LTS ships with Python 3.4.
-In case you are using one of these distributions of Ubuntu, you will need to
-upgrade to the latest Python 3.x on your own.
-
 If you do not have Python 3 installed, you can install it from the
 `Python website <https://www.python.org/downloads/>`__.
 
-Also make sure you have the python headers installed. The python-dev package
+Also make sure you have the python headers installed. The ``python-dev`` package
 contains the header files you need to build Python extensions appropriate to the Python version you will be using.
 
 .. note::
@@ -389,40 +399,16 @@ Install Postgresql
 
 The lowest version of Postgresql that Dallinger v5 supports is 9.4.
 
-This is fine for Ubuntu 18.04 LTS and 16.04 LTS as they
-ship with Postgresql 10.4 and 9.5 respectively, however Ubuntu 14.04 LTS ships with Postgresql 9.3
-
 Postgres can be installed using the following instructions:
 
-**Ubuntu 18.04 LTS** or **Ubuntu 16.04 LTS:**
 ::
 
-    sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib
+    sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib libpq-dev
 
 To run postgres, use the following command:
 ::
 
     sudo service postgresql start
-
-
-**Ubuntu 14.04 LTS:**
-
-Create the file /etc/apt/sources.list.d/pgdg.list and add a line for the repository:
-::
-
-    sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ `lsb_release -cs`-pgdg main" >> /etc/apt/sources.list.d/pgdg.list'
-
-Import the repository signing key, update the package lists and install postgresql:
-::
-
-    wget -q https://www.postgresql.org/media/keys/ACCC4CF8.asc -O - | sudo apt-key add -
-    sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib
-
-To run postgres, use the following command:
-::
-
-    sudo service postgresql start
-
 
 Create the databases
 ~~~~~~~~~~~~~~~~~~~~
@@ -512,91 +498,6 @@ You will need to configure your Git name and email:
 Replace ``you@example.com`` and ``Your Name`` with your email and name to set your account's default identity.
 Omit --global to set the identity only in this repository. You can read more about configuring Git `here <https://git-scm.com/book/en/v2/Getting-Started-First-Time-Git-Setup/>`__.
 
-
-Set up a virtual environment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Why use virtualenv?
-
-Virtualenv solves a very specific problem: it allows multiple Python projects
-that have different (and often conflicting) requirements, to coexist on the same computer.
-If you want to understand this in detail, you can read more about it `here <https://www.dabapps.com/blog/introduction-to-pip-and-virtualenv-python/>`__.
-
-Now let's set up a virtual environment by running the following commands:
-::
-
-    sudo pip3 install virtualenv
-    sudo pip3 install virtualenvwrapper
-    export WORKON_HOME=$HOME/.virtualenvs
-    mkdir -p $WORKON_HOME
-    export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
-    source /usr/local/bin/virtualenvwrapper.sh
-
-.. note::
-
-    If the last line failed with "No such file or directory". Try using ``source /usr/local/bin/virtualenvwrapper.sh`` instead. Pip installs `virtualenvwrapper.sh` to different locations depending on the Ubuntu version.
-
-
-Now create the virtualenv using the ``mkvirtualenv`` command as follows:
-
-If you are using Python 3 that is part of your Ubuntu installation (Ubuntu 18.04):
-::
-
-    mkvirtualenv dlgr_env --python /usr/bin/python3
-
-If you are using Python 2 that is part of your Ubuntu installation:
-::
-
-    mkvirtualenv dlgr_env --python /usr/bin/python
-
-If you are using another Python version
-(eg. custom installed Python 3.x on Ubuntu 16.04 or Ubuntu 14.04):
-::
-
-    mkvirtualenv dlgr_env --python <specify_your_python_path_here>
-
-
-Virtualenvwrapper provides an easy way to switch between virtual environments
-by simply typing: ``workon [virtual environment name]``.
-
-The technical details:
-
-These commands use ``pip``, the Python package manager, to install two
-packages ``virtualenv`` and ``virtualenvwrapper``. They set up an
-environmental variable named ``WORKON_HOME`` with a string that gives a
-path to a subfolder of your home directory (``~``) called ``Envs``,
-which the next command (``mkdir``) then makes according to the path
-described in ``$WORKON_HOME`` (recursively, due to the ``-p`` flag).
-That is where your environments will be stored. The ``source`` command
-will run the command that follows, which in this case locates the
-``virtualenvwrapper.sh`` shell script, the contents of which are beyond
-the scope of this setup tutorial. If you want to know what it does, a
-more in depth description can be found on the `documentation site for virtualenvwrapper <http://virtualenvwrapper.readthedocs.io/en/latest/install.html#python-interpreter-virtualenv-and-path>`__.
-
-Finally, the ``mkvirtualenv`` makes your first virtual environment which
-you've named ``dlgr_env``. We have explicitly passed it the location of the Python
-that the virtualenv should use. This Python has been mapped to the ``python``
-command inside the virtual environment.
-
-The how-to:
-::
-
-    source /usr/local/bin/virtualenvwrapper.sh
-    workon dlgr_env
-
-NB: To stop working in the virtual environment, run ``deactivate``. To
-list all available virtual environments, run ``workon`` with no
-arguments.
-
-If you plan to do a lot of work with Dallinger, you can make your shell
-execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
-do that:
-::
-
-    echo "source /usr/local/bin/virtualenvwrapper.sh" >> ~/.bashrc
-
-From then on, you only need to use the ``workon`` command before starting.
-
 Install prerequisites for building documentation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -607,7 +508,7 @@ Please follow the instructions `here <https://yarnpkg.com/lang/en/docs/install>`
 Install Dallinger
 ~~~~~~~~~~~~~~~~~
 
-Next, navigate to the directory where you want to house your development
+Navigate to the directory where you want to house your development
 work on Dallinger. Once there, clone the Git repository using:
 ::
 
@@ -616,14 +517,114 @@ work on Dallinger. Once there, clone the Git repository using:
 This will create a directory called ``Dallinger`` in your current
 directory.
 
-Change into your the new directory and make sure you are still in your
-virtual environment before installing the dependencies. If you want to
-be extra careful, run the command ``workon dlgr_env``, which will ensure
-that you are in the right virtual environment.
+Change into your new directory with:
 
 ::
 
     cd Dallinger
+
+Set up a virtual environment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Why use virtualenv?
+
+Virtualenv solves a very specific problem: it allows multiple Python projects
+that have different (and often conflicting) requirements, to coexist on the same computer.
+If you want to understand this in detail, you can read more about it `here <https://www.dabapps.com/blog/introduction-to-pip-and-virtualenv-python/>`__.
+
+We recommend using Python's built-in `venv` module to create a virtual environment:
+
+.. note::
+
+    These instructions assume you're using the bash shell. If you're using zsh or another shell, adjust paths accordingly.
+
+::
+
+    python3 -m venv .venv
+    source .venv/bin/activate
+
+To deactivate the virtual environment later, run:
+::
+
+    deactivate
+
+.. note::
+
+    If you're already familiar with `virtualenv` and `virtualenvwrapper`, you can still use them. Here's an example using `mkvirtualenv`:
+
+    ::
+
+
+        pip3 install virtualenv
+        pip3 install virtualenvwrapper
+        export WORKON_HOME=$HOME/.virtualenvs
+        mkdir -p $WORKON_HOME
+        export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
+        source $(which virtualenvwrapper.sh)
+
+
+    Now create the virtual environment using:
+    ::
+
+
+        mkvirtualenv dlgr_env --python <specify_your_python_path_here>
+
+
+    Example:
+    ::
+
+
+        mkvirtualenv dlgr_env --python /usr/local/bin/python3.12
+
+    Virtualenvwrapper provides an easy way to switch between virtual environments
+    by simply typing: ``workon [virtual environment name]``.
+
+    The technical details:
+
+    These commands use ``pip/pip3``, the Python package manager, to install two
+    packages ``virtualenv`` and ``virtualenvwrapper``. They set up an
+    environmental variable named ``WORKON_HOME`` with a string that gives a
+    path to a subfolder of your home directory (``~``) called ``Envs``,
+    which the next command (``mkdir``) then makes according to the path
+    described in ``$WORKON_HOME`` (recursively, due to the ``-p`` flag).
+    That is where your environments will be stored. The ``source`` command
+    will run the command that follows, which in this case locates the
+    ``virtualenvwrapper.sh`` shell script, the contents of which are beyond
+    the scope of this setup tutorial. If you want to know what it does, a
+    more in depth description can be found on the `documentation site for virtualenvwrapper <http://virtualenvwrapper.readthedocs.io/en/latest/install.html#python-interpreter-virtualenv-and-path>`__.
+
+    Finally, the ``mkvirtualenv`` makes your first virtual environment which
+    you've named ``dlgr_env``. We have explicitly passed it the location of the Python
+    that the virtualenv should use. This Python has been mapped to the ``python``
+    command inside the virtual environment.
+
+    The how-to:
+
+    In the future, you can work on your virtual environment by running:
+    ::
+
+        export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
+        source $(which virtualenvwrapper.sh)
+        workon dlgr_env
+
+
+    NB: To stop working in the virtual environment, run ``deactivate``. To
+    list all available virtual environments, run ``workon`` with no
+    arguments.
+
+    If you plan to do a lot of work with Dallinger, you can make your shell
+    execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
+    do that type:
+    ::
+
+        echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)" >> ~/.bash_profile
+        echo "source $(which virtualenvwrapper.sh)" >> ~/.bash_profile
+
+
+    From then on, you only need to use the ``workon`` command before starting.
+
+Install Python dependencies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Now we need to install the dependencies using pip:
 
