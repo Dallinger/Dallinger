@@ -3,6 +3,8 @@ on:
   push:
     tags:
       - v*
+    branches:
+      - upgrade-to-python3.13  # Replace this with your actual branch name
 
 jobs:
   release:
@@ -67,6 +69,7 @@ jobs:
           tags: |
             ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }}
             ghcr.io/dallinger/dallinger:latest
+            ghcr.io/dallinger/dallinger:python3.13
       - name: Build ghcr.io/dallinger/dallinger-bot docker image
         uses: docker/build-push-action@v5
         with:
@@ -75,4 +78,5 @@ jobs:
           target: dallinger-bot
           tags: |
             ghcr.io/dallinger/dallinger-bot:${{ steps.vars.outputs.version }}
-            ghcr.io/dallinger/dallinger:latest
+            ghcr.io/dallinger/dallinger-bot:latest
+            ghcr.io/dallinger/dallinger-bot:python3.13
