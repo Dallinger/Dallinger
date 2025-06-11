@@ -99,12 +99,12 @@ def check_connection(timeout_secs=3):
 
 
 @contextmanager
-def sessions_scope(local_session, commit=False):
+def sessions_scope(session_=session, commit=False):
     """Provide a transactional scope around a series of operations."""
     try:
-        yield local_session
+        yield session_
         if commit:
-            local_session.commit()
+            session_.commit()
             logger.debug("DB session auto-committed as requested")
     except Exception as e:
         # We log the exception before re-raising it, in case the rollback also
@@ -113,10 +113,10 @@ def sessions_scope(local_session, commit=False):
         # This rollback is potentially redundant with the remove call below,
         # depending on how the scoped session is configured, but we'll be
         # explicit here.
-        local_session.rollback()
+        session_.rollback()
         raise e
     finally:
-        local_session.remove()
+        session_.remove()
         logger.debug("Session complete, db session closed")
 
 
@@ -125,7 +125,7 @@ def scoped_session_decorator(func):
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        with sessions_scope(session):
+        with sessions_scope():
             # The session used in func comes from the funcs globals, but
             # it will be a proxied thread local var from the session
             # registry, and will therefore be identical to the one returned
