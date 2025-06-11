@@ -273,8 +273,8 @@ class Experiment(object):
 
     @property
     def background_tasks(self):
-        """An experiment may define functions or methods to be started as
-        background tasks upon experiment launch.
+        """Optional list of functions that will be run at launch time in
+        separate threads.
         """
         return []
 
