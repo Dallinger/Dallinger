@@ -226,11 +226,9 @@ def get_base_image(experiment_tmp_path: str, needs_chrome: bool = False) -> str:
     Returns a docker image name and tag. For example:
     `ghcr.io/dallinger/dallinger-bot:7.1.0`
     """
-    dallinger_version = get_required_dallinger_version(experiment_tmp_path)
-    base_image_name = "ghcr.io/dallinger/dallinger"
     if needs_chrome:
-        base_image_name += "-bot"
-    return f"{base_image_name}:{dallinger_version or 'latest'}"
+        return "ghcr.io/dallinger/dallinger-bot:python3.13"
+    return "ghcr.io/dallinger/dallinger:python3.13"
 
 
 def get_required_dallinger_version(experiment_tmp_path: str) -> str:
