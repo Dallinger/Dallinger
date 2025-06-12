@@ -316,6 +316,32 @@ do that type:
 
 From then on, you only need to use the ``workon`` command before starting.
 
+Remove a Virtual Environment
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If you no longer need the virtual environment, you can safely delete it.
+
+If you used Python's built-in ``venv``:
+::
+
+    deactivate  # If it's still active
+    rm -rf .venv
+
+This will remove the entire virtual environment folder. You can recreate it later if needed.
+
+If you used ``virtualenvwrapper``:
+::
+
+    deactivate  # If it's still active
+    rmvirtualenv dlgr_env
+
+This will delete the ``dlgr_env`` environment from the ``WORKON_HOME`` directory.
+
+.. note::
+
+    The ``rmvirtualenv`` command is only available when ``virtualenvwrapper.sh`` has been sourced.
+    If it's unavailable, you can manually delete the folder inside ``$WORKON_HOME``.
+
 Install Python dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -586,6 +612,33 @@ do that type:
 
 
 From then on, you only need to use the ``workon`` command before starting.
+
+Remove a Virtual Environment
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If you no longer need the virtual environment, you can safely delete it.
+
+If you used Python's built-in ``venv``:
+::
+
+    deactivate  # If it's still active
+    rm -rf .venv
+
+This will remove the entire virtual environment folder. You can recreate it later if needed.
+
+If you used ``virtualenvwrapper``:
+::
+
+    deactivate  # If it's still active
+    rmvirtualenv dlgr_env
+
+This will delete the ``dlgr_env`` environment from the ``WORKON_HOME`` directory.
+
+.. note::
+
+    The ``rmvirtualenv`` command is only available when ``virtualenvwrapper.sh`` has been sourced.
+    If it's unavailable, you can manually delete the folder inside ``$WORKON_HOME``.
+
 
 Install Python dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
