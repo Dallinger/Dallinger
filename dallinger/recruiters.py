@@ -20,7 +20,7 @@ from sqlalchemy import func
 
 from dallinger.command_line.utils import Output
 from dallinger.config import get_config
-from dallinger.db import get_queue, redis_conn, session
+from dallinger.db import get_queue, redis_conn, scoped_session_decorator, session
 from dallinger.experiment_server.utils import crossdomain, success_response
 from dallinger.experiment_server.worker_events import worker_function
 from dallinger.heroku import tools as heroku_tools
@@ -97,6 +97,7 @@ NEW_RECRUIT_LOG_PREFIX = "New participant requested:"
 CLOSE_RECRUITMENT_LOG_PREFIX = "Close recruitment."
 
 
+@scoped_session_decorator
 def run_status_check():
     """Update participant status via all active recruiters.
 
