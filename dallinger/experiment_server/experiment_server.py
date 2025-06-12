@@ -261,8 +261,23 @@ def handle_exp_error(exception):
 
 
 @app.teardown_request
-def shutdown_session(_=None):
-    """Rollback and close session at end of a request."""
+def shutdown_session(exception=None):
+    """Flask teardown handler to manage SQLAlchemy session lifecycle.
+
+    This function is called automatically by Flask after every request, whether
+    the request completed successfully or with an error.
+
+    - If an exception occurred during request processing, any uncommitted
+      changes in the current database session are rolled back to prevent partial
+      or inconsistent writes.
+    - The session is always removed at the end of the request to ensure that
+      database connections are closed and that no session state leaks
+      between requests.
+
+    This pattern is recommended when using SQLAlchemy's scoped_session.
+    """
+    if exception is not None:
+        session.rollback()
     session.remove()
 
 
