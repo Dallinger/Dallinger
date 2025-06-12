@@ -121,7 +121,7 @@ class Experiment(object):
         """A hook for custom organization of dashboard tabs in subclasses."""
         return tabs
 
-    def __init__(self, session=None):
+    def __init__(self, session):
         """Create the experiment class. Sets the default value of attributes."""
 
         #: Boolean, determines whether the experiment logs output when
@@ -511,16 +511,18 @@ class Experiment(object):
 
         if full == "all":
             if role == "all":
-                return Network.query.all()
+                return self.session.query(Network).all()
             else:
-                return Network.query.filter_by(role=role).all()
+                return self.session.query(Network).filter_by(role=role).all()
         else:
             if role == "all":
-                return Network.query.filter_by(full=full).all()
+                return self.session.query(Network).filter_by(full=full).all()
             else:
-                return Network.query.filter(
-                    and_(Network.role == role, Network.full == full)
-                ).all()
+                return (
+                    self.session.query(Network)
+                    .filter(and_(Network.role == role, Network.full == full))
+                    .all()
+                )
 
     def get_network_for_participant(self, participant):
         """Find a network for a participant.
@@ -533,11 +535,11 @@ class Experiment(object):
         """
         key = participant.id
         networks_with_space = (
-            Network.query.filter_by(full=False).order_by(Network.id).all()
+            self.session.query(Network).filter_by(full=False).order_by(Network.id).all()
         )
         networks_participated_in = [
             node.network_id
-            for node in Node.query.with_entities(Node.network_id)
+            for node in self.session.query(Node.network_id)
             .filter_by(participant_id=participant.id)
             .all()
         ]
@@ -672,7 +674,11 @@ class Experiment(object):
                   single matching participant.
         """
         try:
-            return Participant.query.filter_by(assignment_id=assignment_id).one()
+            return (
+                self.session.query(Participant)
+                .filter_by(assignment_id=assignment_id)
+                .one()
+            )
         except (NoResultFound, MultipleResultsFound):
             return None
 
@@ -880,7 +886,7 @@ class Experiment(object):
 
     def log_summary(self):
         """Log a summary of all the participants' status codes."""
-        participants = Participant.query.with_entities(Participant.status).all()
+        participants = self.session.query(Participant.status).all()
         counts = Counter([p.status for p in participants])
         sorted_counts = sorted(counts.items(), key=itemgetter(0))
         self.log("Status summary: {}".format(str(sorted_counts)))
@@ -1343,7 +1349,7 @@ class Experiment(object):
 
         if polymorphic_identity is None and "type" in table.columns:
             observed_types = [
-                r.type for r in db.session.query(table.columns.type).distinct().all()
+                r.type for r in self.session.query(table.columns.type).distinct().all()
             ]
             obj_by_type = [
                 self.pull_table(

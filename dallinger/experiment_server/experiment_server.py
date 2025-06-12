@@ -294,7 +294,7 @@ def render_error():
     participant_id = request.form.get("participant_id")
     participant = None
     if participant_id:
-        participant = models.Participant.query.get(participant_id)
+        participant = session.query(models.Participant).get(participant_id)
     return error_page(participant=participant, request_data=request_data)
 
 
@@ -563,9 +563,9 @@ def prepare_advertisement():
     if worker_id is not None:
         # Check if this workerId has completed the task before
         already_participated = (
-            models.Participant.query.filter(
-                models.Participant.worker_id == worker_id
-            ).first()
+            session.query(models.Participant)
+            .filter(models.Participant.worker_id == worker_id)
+            .first()
             is not None
         )
 
@@ -899,9 +899,9 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         # If this proves to be a problem, we can make this configurable via a config parameter in the future.
         # For now we just log a warning.
 
-    already_participated = models.Participant.query.filter_by(
-        worker_id=worker_id
-    ).one_or_none()
+    already_participated = (
+        session.query(models.Participant).filter_by(worker_id=worker_id).one_or_none()
+    )
 
     if already_participated:
         db.logger.warning("Worker has already participated.")
@@ -909,9 +909,11 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
             error_type="/participant POST: worker has already participated.", status=403
         )
 
-    duplicate = models.Participant.query.filter_by(
-        assignment_id=assignment_id, status="working"
-    ).one_or_none()
+    duplicate = (
+        session.query(models.Participant)
+        .filter_by(assignment_id=assignment_id, status="working")
+        .one_or_none()
+    )
 
     if duplicate:
         msg = """
@@ -923,13 +925,15 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
 
     # Count working or beyond participants.
     nonfailed_count = (
-        models.Participant.query.filter(
+        session.query(models.Participant)
+        .filter(
             (models.Participant.status == "working")
             | (models.Participant.status == "recruiter_submission_started")
             | (models.Participant.status == "overrecruited")
             | (models.Participant.status == "submitted")
             | (models.Participant.status == "approved")
-        ).count()
+        )
+        .count()
         + 1
     )
 
@@ -998,7 +1002,7 @@ def post_participant():
 def get_participant(participant_id):
     """Get the participant with the given id."""
     try:
-        ppt = models.Participant.query.filter_by(id=participant_id).one()
+        ppt = session.query(models.Participant).filter_by(id=participant_id).one()
     except NoResultFound:
         return error_response(
             error_type="/participant GET: no participant found", status=403
@@ -1036,7 +1040,7 @@ def load_participant():
 def get_network(network_id):
     """Get the network with the given id."""
     try:
-        net = models.Network.query.filter_by(id=network_id).one()
+        net = session.query(models.Network).filter_by(id=network_id).one()
     except NoResultFound:
         return error_response(error_type="/network GET: no network found", status=403)
 
@@ -1055,7 +1059,7 @@ def create_question(participant_id):
     """
     # Get the participant.
     try:
-        ppt = models.Participant.query.filter_by(id=participant_id).one()
+        ppt = session.query(models.Participant).filter_by(id=participant_id).one()
     except NoResultFound:
         return error_response(
             error_type="/question POST no participant found", status=403
@@ -1736,9 +1740,11 @@ def check_for_duplicate_assignments(participant):
 
     If it isnt the older participants will be failed.
     """
-    participants = models.Participant.query.filter_by(
-        assignment_id=participant.assignment_id
-    ).all()
+    participants = (
+        session.query(models.Participant)
+        .filter_by(assignment_id=participant.assignment_id)
+        .all()
+    )
     duplicates = [
         p for p in participants if (p.id != participant.id and p.status == "working")
     ]
@@ -1778,7 +1784,8 @@ def _worker_complete(participant_id):
     # Lock the participant row, then check and update status to avoid
     # double-submits:
     participant = (
-        models.Participant.query.populate_existing()
+        session.query(models.Participant)
+        .populate_existing()
         .with_for_update(of=models.Participant)
         .get(participant_id)
     )
@@ -1840,7 +1847,7 @@ def worker_failed():
 
 
 def _worker_failed(participant_id):
-    participants = models.Participant.query.filter_by(id=participant_id).all()
+    participants = session.query(models.Participant).filter_by(id=participant_id).all()
     if not participants:
         raise KeyError()
 

@@ -109,7 +109,7 @@ def run_status_check():
     status for each participant with a problem.
     """
     participants_by_recruiter_nick = defaultdict(list)
-    for participant in Participant.query.all():
+    for participant in session.query(Participant).all():
         participants_by_recruiter_nick[participant.recruiter_id].append(participant)
 
     logger.debug(
@@ -357,7 +357,7 @@ class Recruiter(object):
 
     def get_status(self) -> RecruitmentStatus:
         """Return the status of the recruiter as a RecruitmentStatus."""
-        all_participants = Participant.query.all()
+        all_participants = session.query(Participant).all()
         statuses = [participant.status for participant in all_participants]
         status_counts = dict(Counter(statuses))
         hit_ids = list(set([participant.hit_id for participant in all_participants]))
@@ -444,7 +444,8 @@ def prolific_submission_listener():
 
     # Lock the participant row, then check and update status to avoid double-submits:
     participant = (
-        Participant.query.populate_existing()
+        session.query(Participant)
+        .populate_existing()
         .with_for_update(of=Participant)
         .get(participant_id)
     )
@@ -1780,7 +1781,8 @@ class MTurkRecruiter(Recruiter):
                 "AssignmentSubmitted",
             ]:
                 participant = (
-                    Participant.query.filter_by(assignment_id=assignment_id)
+                    session.query(Participant)
+                    .filter_by(assignment_id=assignment_id)
                     .order_by(Participant.creation_time.desc())
                     .first()
                 )
