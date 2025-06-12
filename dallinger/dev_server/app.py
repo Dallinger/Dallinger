@@ -1,15 +1,15 @@
-import atexit
-import subprocess
+import gevent.monkey  # noqa: E402
 
-import gevent.monkey
-import werkzeug
-
-gevent.monkey.patch_all()  # Patch before importing app and all its dependencies
-
+gevent.monkey.patch_all()
+# ^ patch must happen at top of file before other imports
+import atexit  # noqa: E402
 import codecs  # noqa: E402
 import os  # noqa: E402
+import subprocess  # noqa: E402
 
-from dallinger.experiment_server.experiment_server import app  # noqa: E402, F401
+import werkzeug  # noqa: E402
+
+from dallinger.experiment_server.experiment_server import app  # noqa: #402, F401
 
 os.environ["FLASK_SECRET_KEY"] = codecs.encode(os.urandom(16), "hex").decode("ascii")
 
