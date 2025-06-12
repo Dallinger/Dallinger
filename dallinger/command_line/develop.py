@@ -89,7 +89,7 @@ def launch_app_and_open_dashboard(port):
 
 def _launch_app(port):
     url = BASE_URL.format(port) + "launch"
-    handle_launch_data(url, error=log, delay=1.0)
+    handle_launch_data(url, error=log, delay=1.0, context="local")
 
 
 def _open_dashboard(port):
