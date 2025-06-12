@@ -19,11 +19,7 @@ class TestExperimentBaseClass(object):
         return Experiment
 
     @pytest.fixture
-    def exp(self, klass):
-        return klass()
-
-    @pytest.fixture
-    def exp_with_session(self, klass, db_session):
+    def exp(self, klass, db_session):
         return klass(db_session)
 
     def test_recruiter_delegates(self, exp, active_config):
@@ -55,12 +51,12 @@ class TestExperimentBaseClass(object):
         exp.quorum = 1
         assert not exp.is_overrecruited(waiting_count=1)
 
-    def test_create_participant(self, exp_with_session):
+    def test_create_participant(self, exp):
         from dallinger.models import Participant
 
         assert len(Participant.query.filter(Participant.hit_id == "1").all()) == 0
 
-        p = exp_with_session.create_participant(
+        p = exp.create_participant(
             "1", "1", "1", "debug", entry_information={"some_key": "some_value"}
         )
 
@@ -72,14 +68,14 @@ class TestExperimentBaseClass(object):
         assert p.entry_information == {"some_key": "some_value"}
         assert len(Participant.query.filter(Participant.hit_id == "1").all()) == 1
 
-    def test_create_participant_with_custom_class(self, exp_with_session):
+    def test_create_participant_with_custom_class(self, exp):
         from dallinger.models import Participant
 
         class MyParticipant(Participant):
             pass
 
-        exp_with_session.participant_constructor = MyParticipant
-        p = exp_with_session.create_participant("1", "1", "1", "debug")
+        exp.participant_constructor = MyParticipant
+        p = exp.create_participant("1", "1", "1", "debug")
 
         assert isinstance(p, MyParticipant)
 
@@ -87,7 +83,7 @@ class TestExperimentBaseClass(object):
         p = a.participant()
         assert exp.load_participant(p.assignment_id) == p
 
-    def test_dashboard_fail(self, exp_with_session, a):
+    def test_dashboard_fail(self, exp, a):
         p = a.participant()
         p2 = a.participant()
         n = a.node()
@@ -103,7 +99,7 @@ class TestExperimentBaseClass(object):
             {"id": n.id, "object_type": "Node"},
             {"id": n2.id, "object_type": "Node"},
         ]
-        result = exp_with_session.dashboard_fail(data)
+        result = exp.dashboard_fail(data)
         assert result == {"message": "Failed 1 Nodes, 2 Participants"}
         assert p.failed is True
         assert p2.failed is True

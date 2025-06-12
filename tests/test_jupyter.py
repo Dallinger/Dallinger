@@ -11,10 +11,10 @@ except ImportError:
 @pytest.mark.skipif(ipywidgets is None, reason="ipywidgets is not installed")
 class TestExperimentWidget(object):
     @pytest.fixture
-    def exp(self):
+    def exp(db_session):
         from dallinger.experiment import Experiment
 
-        return Experiment()
+        return Experiment(db_session)
 
     def test_experiment_initializes_widget(self, exp):
         assert exp.widget is not None
