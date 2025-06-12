@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
 
+import configparser
 import os
 import re
 import shutil
@@ -15,9 +15,7 @@ from unittest import mock
 import pexpect
 import pytest
 import requests
-import six
 from pytest import raises
-from six.moves import configparser
 
 from dallinger import recruiters
 from dallinger.config import get_config
@@ -49,8 +47,8 @@ def faster(tempdir, active_config):
         # setup_experiment normally sets the dashboard credentials if unset
         active_config.extend(
             {
-                "dashboard_user": six.text_type("admin"),
-                "dashboard_password": six.text_type("DUMBPASSWORD"),
+                "dashboard_user": "admin",
+                "dashboard_password": "DUMBPASSWORD",
             }
         )
         yield mocks
@@ -310,7 +308,7 @@ class TestSetupExperiment(object):
     ):
         exp_id, dst = setup_experiment(log=mock.Mock())
 
-        assert active_config.get("dashboard_user") == six.text_type("admin")
+        assert active_config.get("dashboard_user") == "admin"
         assert active_config.get("dashboard_password") == mock.ANY
 
     def test_setup_merges_frontend_files_from_core_and_experiment(
@@ -430,11 +428,11 @@ class TestSetupExperiment(object):
     def test_setup_excludes_sensitive_config(self, setup_experiment):
         config = get_config()
         # Auto detected as sensitive
-        config.register("a_password", six.text_type)
+        config.register("a_password", str)
         # Manually registered as sensitive
-        config.register("something_sensitive", six.text_type, sensitive=True)
+        config.register("something_sensitive", str, sensitive=True)
         # Not sensitive at all
-        config.register("something_normal", six.text_type)
+        config.register("something_normal", str)
 
         config.extend(
             {

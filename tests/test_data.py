@@ -15,7 +15,6 @@ import psycopg2
 import pytest
 
 import dallinger
-from dallinger.compat import open_for_csv
 from dallinger.utils import generate_random_id
 
 
@@ -179,7 +178,7 @@ class TestDataLocally(object):
         )
         network_table_path = os.path.join(export_dir, "network.csv")
         assert os.path.isfile(network_table_path)
-        with open_for_csv(network_table_path, "r") as f:
+        with open(network_table_path, "r") as f:
             reader = csv.reader(f, delimiter=",")
             header = next(reader)
             assert "creation_time" in header
@@ -197,7 +196,7 @@ class TestDataLocally(object):
     def test_scrub_pii(self):
         path_to_data = os.path.join("tests", "datasets", "pii")
         dallinger.data._scrub_participant_table(path_to_data)
-        with open_for_csv(os.path.join(path_to_data, "participant.csv"), "r") as f:
+        with open(os.path.join(path_to_data, "participant.csv"), "r") as f:
             reader = csv.reader(f, delimiter=",")
             next(reader)  # Skip the header
             for row in reader:
@@ -221,7 +220,7 @@ class TestDataLocally(object):
         )
         participant_table_path = os.path.join(export_dir, "participant.csv")
         assert os.path.isfile(participant_table_path)
-        with open_for_csv(participant_table_path, "r") as f:
+        with open(participant_table_path, "r") as f:
             reader = csv.reader(f, delimiter=",")
             header = next(reader)
             row1 = next(reader)
@@ -237,7 +236,7 @@ class TestDataLocally(object):
         )
         participant_table_path = os.path.join(export_dir, "participant.csv")
         assert os.path.isfile(participant_table_path)
-        with open_for_csv(participant_table_path, "r") as f:
+        with open(participant_table_path, "r") as f:
             reader = csv.reader(f, delimiter=",")
             header = next(reader)
             row1 = next(reader)

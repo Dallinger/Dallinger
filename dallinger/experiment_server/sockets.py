@@ -1,13 +1,10 @@
 """Handles relaying websocket messages between processes using redis."""
 
-from __future__ import unicode_literals
-
 import json
 import os
 import socket
 
 import gevent
-import six
 from flask import request
 from flask_sock import Sock
 from gevent.lock import Semaphore
@@ -92,7 +89,7 @@ class Channel(object):
         """
         pubsub = redis_conn.pubsub()
         name = self.name
-        if isinstance(name, six.text_type):
+        if isinstance(name, str):
             name = name.encode("utf-8")
         try:
             pubsub.subscribe([name])

@@ -7,9 +7,7 @@ from hashlib import sha1
 from unittest import mock
 
 import pytest
-import six
 from botocore.exceptions import ClientError
-from six.moves import input
 from tzlocal import get_localzone
 
 from dallinger.mturk import (
@@ -110,7 +108,7 @@ def fake_balance_response():
 
 def fake_hit_type_response():
     return {
-        "HITTypeId": six.text_type(generate_random_id(size=32)),
+        "HITTypeId": str(generate_random_id(size=32)),
         "ResponseMetadata": response_metadata()["ResponseMetadata"],
     }
 
@@ -182,7 +180,7 @@ def fake_worker_qualification_response():
         "Qualification": {
             "GrantTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
             "IntegerValue": 2,
-            "QualificationTypeId": six.text_type(generate_random_id(size=32)),
+            "QualificationTypeId": str(generate_random_id(size=32)),
             "Status": "Granted",
             "WorkerId": "FAKE_WORKER_ID",
         },
@@ -597,7 +595,7 @@ class TestMTurkService(object):
             status="Active",
         )
 
-        assert isinstance(result["id"], six.text_type)
+        assert isinstance(result["id"], str)
         assert result["status"] == "Active"
         assert with_cleanup.dispose_qualification_type(result["id"])
 

@@ -1,7 +1,5 @@
 """The base experiment class."""
 
-from __future__ import print_function, unicode_literals
-
 import datetime
 import inspect
 import json

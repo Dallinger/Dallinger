@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import functools
 import io
 import locale
@@ -30,7 +28,6 @@ from pythonjsonlogger import jsonlogger
 from sqlalchemy import exc as sa_exc
 
 from dallinger import db
-from dallinger.compat import is_command
 from dallinger.config import get_config
 from dallinger.models import Participant
 from dallinger.version import __version__
@@ -355,9 +352,9 @@ def _make_chrome(path):
 
 
 def _new_webbrowser_profile():
-    if is_command("google-chrome"):
+    if shutil.which("google-chrome"):
         return _make_chrome("google-chrome")
-    elif is_command("firefox"):
+    elif shutil.which("firefox"):
         new_firefox = webbrowser.Mozilla()
         new_firefox.name = "firefox"
         profile_directory = tempfile.mkdtemp()

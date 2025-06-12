@@ -3,10 +3,10 @@ import logging
 from copy import deepcopy
 from datetime import datetime, timedelta
 from typing import Optional, Union
+from urllib.parse import urlencode
 from xml.sax.saxutils import escape
 
 import bs4
-import six
 import timeago
 from ansi2html import Ansi2HTMLConverter
 from flask import (
@@ -24,7 +24,6 @@ from flask_login import UserMixin, current_user, login_required, login_user, log
 from flask_login.utils import login_url as make_login_url
 from flask_wtf import FlaskForm
 from pygtail import Pygtail
-from six.moves.urllib.parse import urlencode
 from tzlocal import get_localzone
 from wtforms import BooleanField, HiddenField, PasswordField, StringField, SubmitField
 from wtforms.validators import DataRequired, ValidationError
@@ -382,9 +381,7 @@ def dashboard_heroku():
         {"url": heroku_app.dashboard_url, "title": "Heroku dashboard"},
         {"url": heroku_app.dashboard_metrics_url, "title": "Heroku metrics"},
     ]
-    details = json.loads(
-        config.get("infrastructure_debug_details", six.text_type("{}"))
-    )
+    details = json.loads(config.get("infrastructure_debug_details", "{}"))
     links.extend(
         [{"title": v["title"].title(), "url": v["url"]} for v in details.values()]
     )
@@ -1000,7 +997,7 @@ def prep_datatables_options(table_data):
 
             display_key = key + "_display"
             value = row[key]
-            if not isinstance(value, (six.text_type, six.binary_type)):
+            if not isinstance(value, (str, bytes)):
                 row[display_key] = "<code>{}</code>".format(
                     escape(json.dumps(value, default=date_handler))
                 )

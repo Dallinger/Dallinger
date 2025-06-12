@@ -2,7 +2,6 @@ import logging
 import smtplib
 from email.mime.text import MIMEText
 
-import six
 from cached_property import cached_property
 
 logger = logging.getLogger(__name__)
@@ -32,9 +31,9 @@ class SMTPMailer(object):
             self.server.sendmail(sender, recipients, msg.as_string())
             self.server.quit()
         except smtplib.SMTPException as ex:
-            six.raise_from(MessengerError("SMTP error sending HIT error email."), ex)
+            raise MessengerError("SMTP error sending HIT error email.") from ex
         except Exception as ex:
-            six.raise_from(MessengerError("Unknown error sending HIT error email."), ex)
+            raise MessengerError("Unknown error sending HIT error email.") from ex
 
         self._sent.append(msg)
 

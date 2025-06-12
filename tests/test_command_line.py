@@ -9,7 +9,6 @@ from uuid import UUID
 
 import click
 import pytest
-import six
 from click.testing import CliRunner
 
 import dallinger.command_line
@@ -447,7 +446,7 @@ class TestQualify(object):
                 "--qualification",
                 "some qid",
                 "--value",
-                six.text_type(qual_value),
+                str(qual_value),
                 "some worker id",
             ],
         )
@@ -468,7 +467,7 @@ class TestQualify(object):
                     "--qualification",
                     "some qid",
                     "--value",
-                    six.text_type(qual_value),
+                    str(qual_value),
                     "some worker id",
                 ],
             )
@@ -478,7 +477,7 @@ class TestQualify(object):
         qual_value = 1
         result = CliRunner().invoke(
             qualify,
-            ["--qualification", "some qid", "--value", six.text_type(qual_value)],
+            ["--qualification", "some qid", "--value", str(qual_value)],
         )
         assert result.exit_code != 0
         assert "at least one worker ID" in result.output
@@ -491,7 +490,7 @@ class TestQualify(object):
                 "--qualification",
                 "some qid",
                 "--value",
-                six.text_type(qual_value),
+                str(qual_value),
                 "--notify",
                 "some worker id",
             ],
@@ -509,7 +508,7 @@ class TestQualify(object):
                 "--qualification",
                 "some qid",
                 "--value",
-                six.text_type(qual_value),
+                str(qual_value),
                 "worker1",
                 "worker2",
             ],
@@ -531,7 +530,7 @@ class TestQualify(object):
                 "--qualification",
                 "some qual name",
                 "--value",
-                six.text_type(qual_value),
+                str(qual_value),
                 "--by_name",
                 "some worker id",
             ],
@@ -551,7 +550,7 @@ class TestQualify(object):
                 "--qualification",
                 "some qual name",
                 "--value",
-                six.text_type(qual_value),
+                str(qual_value),
                 "--by_name",
                 "some worker id",
             ],

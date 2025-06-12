@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
 
 import codecs
 import json
@@ -8,11 +7,10 @@ import re
 import threading
 import time
 from shlex import quote
+from urllib.parse import urlparse, urlunparse
 
 import redis
 import requests
-import six
-from six.moves.urllib.parse import urlparse, urlunparse
 
 from dallinger import data, db, heroku, recruiters, registration
 from dallinger.config import get_config
@@ -227,8 +225,6 @@ def deploy_sandbox_shared_setup(
     log("Generating dashboard links...")
     heroku_addons = heroku_app.addon_parameters()
     heroku_addons = json.dumps(heroku_addons)
-    if six.PY2:
-        heroku_addons = heroku_addons.decode("utf-8")
     config.extend({"infrastructure_debug_details": heroku_addons})
     config.write()
     git.add("config.txt")

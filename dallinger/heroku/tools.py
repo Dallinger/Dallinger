@@ -1,7 +1,5 @@
 """Miscellaneous tools for Heroku."""
 
-from __future__ import unicode_literals
-
 import json
 import netrc
 import os
@@ -11,11 +9,10 @@ import subprocess
 import sys
 import time
 import traceback
+from shlex import quote
 
 import psutil
-import six
 from cached_property import cached_property
-from six.moves import shlex_quote as quote
 
 from dallinger.config import SENSITIVE_KEY_NAMES
 from dallinger.utils import check_call, check_output
@@ -607,8 +604,6 @@ class HerokuLocalWrapper(object):
                 "env": self.env,
                 "preexec_fn": os.setsid,
             }
-            if six.PY3:
-                options["encoding"] = "utf-8"
             self._process = subprocess.Popen(commands, **options)
         except OSError:
             self.out.error("Couldn't start Heroku for local debugging.")
