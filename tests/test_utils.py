@@ -11,7 +11,7 @@ import pytest
 
 from dallinger import config, utils
 from dallinger.config import strtobool
-from dallinger.utils import check_experiment_dependencies
+from dallinger.utils import GitClient, GitError, check_experiment_dependencies
 
 
 class TestSubprocessWrapper(object):
@@ -193,7 +193,33 @@ class TestGitClient(object):
         assert git.files() == {filename.decode(locale.getpreferredencoding())}
 
     def test_files_on_non_git_repo(self, git):
-        assert git.files() == set()
+        # Create some test files
+        with open("test1.txt", "w", encoding="utf-8") as f:
+            f.write("test1")
+        with open("test2.txt", "w", encoding="utf-8") as f:
+            f.write("test2")
+        os.mkdir("subdir")
+        with open("subdir/test3.txt", "w", encoding="utf-8") as f:
+            f.write("test3")
+
+        # Should raise GitError when no repository exists
+        with pytest.raises(GitError) as exc_info:
+            git.files()
+        assert "No Git repository found" in str(exc_info.value)
+
+        # After creating a repository, should return all files
+        git.init()
+        files = git.files()
+        assert files == {"test1.txt", "test2.txt", "subdir/test3.txt"}
+
+    def test_git_availability(self, git):
+        assert git.client_available
+        assert not git.repository_available
+
+        config = {"user.name": "Test User", "user.email": "test@example.com"}
+        git.init(config=config)
+
+        assert git.repository_available
 
     def test_includes_details_in_exceptions(self, git):
         with pytest.raises(Exception) as ex_info:
@@ -216,6 +242,35 @@ class TestGitClient(object):
         runner.assert_called_once_with(
             ["git", "clone", "https://some-fake-repo", tempdir], mock.ANY
         )
+
+    def test_temporary_repository(self, git):
+        config = {"user.name": "Test User", "user.email": "test@example.com"}
+
+        with git.temporary_repository(config) as git:
+            assert git.repository_available
+
+            with open("test.txt", "w", encoding="utf-8") as f:
+                f.write("test")
+
+            assert "test.txt" in git.files()
+
+            git_dir = ".git"
+            assert os.path.exists(git_dir)
+
+        assert not os.path.exists(git_dir)
+
+    def test_temporary_repository_raises_if_repo_exists(self, git):
+        config = {"user.name": "Test User", "user.email": "test@example.com"}
+
+        # Create a repository first
+        git.init(config=config)
+
+        # Try to create another repository in the same directory
+        with pytest.raises(GitError) as exc_info:
+            with GitClient.temporary_repository(config) as git:
+                pass
+
+        assert "already exists" in str(exc_info.value)
 
 
 class TestParticipationTime(object):

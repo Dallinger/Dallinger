@@ -14,6 +14,7 @@ import sys
 import tempfile
 import warnings
 import webbrowser
+from contextlib import contextmanager
 from datetime import datetime
 from hashlib import md5
 from importlib.metadata import files as files_metadata
@@ -202,8 +203,6 @@ class GitError(Exception):
 
 
 class GitClient(object):
-    """Minimal wrapper, mostly for mocking"""
-
     def __init__(self, output=None):
         self.encoding = None
         if output is None:
@@ -234,17 +233,48 @@ class GitClient(object):
         return tempdir
 
     def files(self):
-        cmd = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
-        try:
-            raw = check_output(cmd).decode(locale.getpreferredencoding())
-        except Exception:
-            return set()
+        """
+        List all files in the repository.
 
+        :returns: A set of file paths
+        :raises: GitError if no repository exists or git client is not available
+        """
+        if not self.client_available:
+            raise GitError("Git client is not available")
+        if not self.repository_available:
+            raise GitError("No Git repository found")
+
+        cmd = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
+        raw = check_output(cmd).decode(locale.getpreferredencoding())
         result = {item for item in raw.split("\0") if item}
         return result
 
+    @property
+    def client_available(self):
+        """Check if the git client is available on the system.
+
+        :returns: True if git is installed and accessible, False otherwise.
+        """
+        try:
+            check_output(["git", "--version"])
+            return True
+        except Exception:
+            return False
+
+    @property
+    def repository_available(self):
+        """Check if there is a git repository available in the current directory.
+
+        :returns: True if the repository can be accessed, False otherwise.
+        """
+        try:
+            check_output(["git", "rev-parse", "--git-dir"])
+            return True
+        except Exception:
+            return False
+
     def _run(self, cmd):
-        self._log(cmd)
+        # self._log(cmd)
         try:
             run_command(cmd, self.out)
         except CommandError as e:
@@ -255,6 +285,24 @@ class GitClient(object):
         if self.encoding:
             msg = msg.encode(self.encoding)
         self.out.write(msg)
+
+    @contextmanager
+    def temporary_repository(self, config=None):
+        """Create a temporary git repository in the current directory and clean it up when done.
+
+        :param config: Git configuration to apply to the repository
+        :type config: dict, optional
+        :yields: A GitClient instance with an initialized repository
+        :type yields: GitClient
+        :raises: GitError if a repository already exists
+        """
+        if os.path.isdir(".git"):
+            raise GitError("A git repository already exists in this directory")
+        self.init(config=config)
+        try:
+            yield self
+        finally:
+            shutil.rmtree(".git")
 
 
 class ParticipationTime(object):
@@ -884,9 +932,14 @@ class ExperimentFileSource(FileSource):
         # list(from_os_walk)
         # ['a', '̊', ' ', 'f', 'i', 'l', 'e', '.', 't', 'x', 't']
         exclusions = exclusion_policy()
-        git_files = {
-            os.path.join(self.root, normalize("NFC", f)) for f in self.git.files()
-        }
+
+        if self.git.repository_available:
+            git_files = self.git.files()
+        else:
+            with self.git.temporary_repository():
+                git_files = self.git.files()
+
+        git_files = {os.path.join(self.root, normalize("NFC", f)) for f in git_files}
         for dirpath, dirnames, filenames in os.walk(self.root, topdown=True):
             current_exclusions = exclusions(dirpath, os.listdir(dirpath))
 
