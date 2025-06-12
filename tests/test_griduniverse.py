@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-from __future__ import print_function
 
 import os
 import shutil
@@ -9,7 +8,7 @@ import sys
 import pytest
 
 
-class TestGridUniverse(object):
+class TestGridUniverse:
     @pytest.mark.usefixtures("check_griduniverse")
     def test_tests(self):
         from dallinger.utils import GitClient, run_command

@@ -4,8 +4,6 @@
 # Vendored copy from git://github.com/reallistic/rq-gevent-worker.git
 # because there isn't a working release.
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 from gevent import monkey
 from gevent.hub import LoopExit
 
