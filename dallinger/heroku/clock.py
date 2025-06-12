@@ -37,11 +37,10 @@ def run_check(participants, config, reference_time):
 def check_db_for_missing_notifications():
     """Check the database for missing notifications."""
     config = dallinger.config.get_config()
-    participants = Participant.query.filter_by(status="working").all()
     reference_time = datetime.now()
-
-    run_check(participants, config, reference_time)
-    db.session.commit()
+    with db.sessions_scope() as session:
+        participants = session.query(Participant).filter_by(status="working").all()
+        run_check(participants, config, reference_time)
 
 
 # @scheduler.scheduled_job("interval", minutes=0.5)
