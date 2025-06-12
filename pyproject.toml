@@ -63,7 +63,6 @@ dependencies = [
     "requests",
     "rq",
     "selenium",
-    "six",
     "sqlalchemy < 2",
     "sqlalchemy-postgres-copy",
     "tabulate",

@@ -14,7 +14,7 @@ def zip_path():
 
 
 @pytest.mark.slow
-class TestReplayState(object):
+class TestReplayState:
     @pytest.fixture
     def cleanup(self):
         yield

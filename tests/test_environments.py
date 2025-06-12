@@ -1,7 +1,7 @@
 from dallinger import information, models, nodes
 
 
-class TestEnvironments(object):
+class TestEnvironments:
     def test_create_environment(self, db_session):
         """Create an environment"""
         net = models.Network()
