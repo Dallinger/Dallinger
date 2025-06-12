@@ -1,7 +1,5 @@
 """Miscellaneous tools for Heroku."""
 
-from __future__ import unicode_literals
-
 import json
 import netrc
 import os
@@ -11,11 +9,10 @@ import subprocess
 import sys
 import time
 import traceback
+from shlex import quote
 
 import psutil
-import six
 from cached_property import cached_property
-from six.moves import shlex_quote as quote
 
 from dallinger.config import SENSITIVE_KEY_NAMES
 from dallinger.utils import check_call, check_output, port_is_open
@@ -55,7 +52,7 @@ def request_headers(auth_token):
     return headers
 
 
-class HerokuCommandRunner(object):
+class HerokuCommandRunner:
     """Heroku command runner base class"""
 
     def __init__(self, output=None, team=None, region=None):
@@ -408,7 +405,7 @@ class HerokuTimeoutError(HerokuStartupError):
     """
 
 
-class HerokuLocalWrapper(object):
+class HerokuLocalWrapper:
     """Wrapper around a heroku local subprocess.
 
     Provides for verified startup and shutdown, and allows observers to register
@@ -606,8 +603,6 @@ class HerokuLocalWrapper(object):
                 "env": self.env,
                 "preexec_fn": os.setsid,
             }
-            if six.PY3:
-                options["encoding"] = "utf-8"
             self._process = subprocess.Popen(commands, **options)
         except OSError:
             self.out.error("Couldn't start Heroku for local debugging.")

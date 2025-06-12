@@ -1,5 +1,4 @@
-from __future__ import unicode_literals
-
+import configparser
 import io
 import json
 import logging
@@ -8,9 +7,6 @@ import sys
 from collections import deque
 from contextlib import contextmanager
 from pathlib import Path
-
-import six
-from six.moves import configparser
 
 logger = logging.getLogger(__name__)
 
@@ -51,100 +47,100 @@ def strtobool(val: str) -> int:
 
 default_keys = (
     # These are the keys allowed in a dallinger experiment config.txt file.
-    ("ad_group", six.text_type, []),
+    ("ad_group", str, []),
     ("approve_requirement", int, []),
     ("assign_qualifications", bool, []),
     ("auto_recruit", bool, []),
-    ("aws_access_key_id", six.text_type, ["AWS_ACCESS_KEY_ID"], True),
+    ("aws_access_key_id", str, ["AWS_ACCESS_KEY_ID"], True),
     (
         "aws_region",
-        six.text_type,
+        str,
         ["AWS_REGION", "AWS_DEFAULT_REGION", "aws_default_region"],
     ),
-    ("aws_secret_access_key", six.text_type, ["AWS_SECRET_ACCESS_KEY"], True),
+    ("aws_secret_access_key", str, ["AWS_SECRET_ACCESS_KEY"], True),
     ("base_payment", float, []),
     ("base_port", int, []),
-    ("browser_exclude_rule", six.text_type, []),
+    ("browser_exclude_rule", str, []),
     ("clock_on", bool, []),
-    ("contact_email_on_error", six.text_type, []),
-    ("chrome-path", six.text_type, []),
-    ("dallinger_develop_directory", six.text_type, []),
-    ("dallinger_email_address", six.text_type, []),
-    ("dashboard_password", six.text_type, [], True),
-    ("dashboard_user", six.text_type, [], True),
-    ("database_size", six.text_type, []),
-    ("database_url", six.text_type, [], True),
-    ("debug_recruiter", six.text_type, []),
-    ("description", six.text_type, []),
+    ("contact_email_on_error", str, []),
+    ("chrome-path", str, []),
+    ("dallinger_develop_directory", str, []),
+    ("dallinger_email_address", str, []),
+    ("dashboard_password", str, [], True),
+    ("dashboard_user", str, [], True),
+    ("database_size", str, []),
+    ("database_url", str, [], True),
+    ("debug_recruiter", str, []),
+    ("description", str, []),
     ("disable_browser_autotranslate", bool, []),
     ("disable_when_duration_exceeded", bool, []),
     ("duration", float, []),
-    ("dyno_type", six.text_type, []),
-    ("dyno_type_web", six.text_type, []),
-    ("dyno_type_worker", six.text_type, []),
-    ("ec2_default_pem", six.text_type, []),
-    ("ec2_default_security_group", six.text_type, []),
+    ("dyno_type", str, []),
+    ("dyno_type_web", str, []),
+    ("dyno_type_worker", str, []),
+    ("ec2_default_pem", str, []),
+    ("ec2_default_security_group", str, []),
     ("enable_global_experiment_registry", bool, []),
-    ("EXPERIMENT_CLASS_NAME", six.text_type, []),
-    ("group_name", six.text_type, []),
-    ("heroku_app_id_root", six.text_type, []),
-    ("heroku_auth_token", six.text_type, [], True),
-    ("heroku_python_version", six.text_type, []),
-    ("heroku_team", six.text_type, ["team"]),
-    ("heroku_region", six.text_type, []),
-    ("host", six.text_type, []),
-    ("id", six.text_type, []),
-    ("infrastructure_debug_details", six.text_type, [], False),
-    ("keywords", six.text_type, []),
-    ("language", six.text_type, []),
+    ("EXPERIMENT_CLASS_NAME", str, []),
+    ("group_name", str, []),
+    ("heroku_app_id_root", str, []),
+    ("heroku_auth_token", str, [], True),
+    ("heroku_python_version", str, []),
+    ("heroku_team", str, ["team"]),
+    ("heroku_region", str, []),
+    ("host", str, []),
+    ("id", str, []),
+    ("infrastructure_debug_details", str, [], False),
+    ("keywords", str, []),
+    ("language", str, []),
     ("lifetime", int, []),
     ("lock_table_when_creating_participant", bool, []),
-    ("logfile", six.text_type, []),
+    ("logfile", str, []),
     ("loglevel", int, []),
     ("loglevel_worker", int, []),
-    ("mode", six.text_type, []),
-    ("mturk_qualification_blocklist", six.text_type, ["qualification_blacklist"]),
-    ("mturk_qualification_requirements", six.text_type, [], False, [is_valid_json]),
+    ("mode", str, []),
+    ("mturk_qualification_blocklist", str, ["qualification_blacklist"]),
+    ("mturk_qualification_requirements", str, [], False, [is_valid_json]),
     ("num_dynos_web", int, []),
     ("num_dynos_worker", int, []),
-    ("organization_name", six.text_type, []),
+    ("organization_name", str, []),
     ("port", int, ["PORT"]),
-    ("prolific_api_token", six.text_type, ["PROLIFIC_RESEARCHER_API_TOKEN"], True),
-    ("prolific_api_version", six.text_type, []),
+    ("prolific_api_token", str, ["PROLIFIC_RESEARCHER_API_TOKEN"], True),
+    ("prolific_api_version", str, []),
     ("prolific_estimated_completion_minutes", int, []),
     ("prolific_is_custom_screening", bool, []),
     ("prolific_maximum_allowed_minutes", int, []),
-    ("prolific_project", six.text_type, []),
-    ("prolific_recruitment_config", six.text_type, [], False, [is_valid_json]),
-    ("prolific_workspace", six.text_type, []),
-    ("protected_routes", six.text_type, [], False, [is_valid_json]),
+    ("prolific_project", str, []),
+    ("prolific_recruitment_config", str, [], False, [is_valid_json]),
+    ("prolific_workspace", str, []),
+    ("protected_routes", str, [], False, [is_valid_json]),
     ("publish_experiment", bool, []),
-    ("recruiter", six.text_type, []),
-    ("recruiters", six.text_type, []),
-    ("redis_size", six.text_type, []),
+    ("recruiter", str, []),
+    ("recruiters", str, []),
+    ("redis_size", str, []),
     ("replay", bool, []),
     ("sentry", bool, []),
-    ("smtp_host", six.text_type, []),
-    ("smtp_username", six.text_type, []),
-    ("smtp_password", six.text_type, ["dallinger_email_password"], True),
-    ("threads", six.text_type, []),
-    ("title", six.text_type, []),
+    ("smtp_host", str, []),
+    ("smtp_username", str, []),
+    ("smtp_password", str, ["dallinger_email_password"], True),
+    ("threads", str, []),
+    ("title", str, []),
     ("question_max_length", int, []),
     ("us_only", bool, []),
-    ("webdriver_type", six.text_type, []),
-    ("webdriver_url", six.text_type, []),
+    ("webdriver_type", str, []),
+    ("webdriver_url", str, []),
     ("whimsical", bool, []),
     ("worker_multiplier", float, []),
-    ("docker_image_base_name", six.text_type, [], ""),
-    ("docker_image_name", six.text_type, [], ""),
-    ("docker_volumes", six.text_type, [], ""),
+    ("docker_image_base_name", str, [], ""),
+    ("docker_image_name", str, [], ""),
+    ("docker_volumes", str, [], ""),
     ("docker_worker_cpu_shares", int, [], ""),
-    ("server_pem", six.text_type, []),
+    ("server_pem", str, []),
 )
 
 
-class Configuration(object):
-    SUPPORTED_TYPES = {six.binary_type, six.text_type, int, float, bool}
+class Configuration:
+    SUPPORTED_TYPES = {bytes, str, int, float, bool}
     _experiment_params_loaded = False
     _module_params_loaded = False
 
@@ -182,7 +178,7 @@ class Configuration(object):
                 continue
             expected_type = self.types.get(key)
             if cast_types:
-                if isinstance(value, six.text_type) and value.startswith("file:"):
+                if isinstance(value, str) and value.startswith("file:"):
                     # Load this value from a file
                     _, filename = value.split(":", 1)
                     with io.open(filename, "rt", encoding="utf-8") as source_file:
@@ -232,7 +228,7 @@ class Configuration(object):
         for layer in self.data:
             try:
                 value = layer[key]
-                if isinstance(value, six.text_type):
+                if isinstance(value, str):
                     value = value.strip()
                 return value
             except KeyError:
@@ -304,7 +300,7 @@ class Configuration(object):
             for k, v in layer.items():
                 if filter_sensitive and self.is_sensitive(k):
                     continue
-                parser.set("Parameters", k, six.text_type(v))
+                parser.set("Parameters", k, str(v))
 
         directory = directory or os.getcwd()
         destination = os.path.join(directory, LOCAL_CONFIG)

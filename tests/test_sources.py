@@ -1,7 +1,7 @@
 from dallinger import models, nodes
 
 
-class TestSources(object):
+class TestSources:
     def add(self, session, *args):
         session.add_all(args)
         session.commit()

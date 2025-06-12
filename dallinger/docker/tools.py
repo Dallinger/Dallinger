@@ -23,7 +23,7 @@ docker_compose_template = Template(
 )
 
 
-class DockerComposeWrapper(object):
+class DockerComposeWrapper:
     """Wrapper around a docker compose local daemon, modeled after HerokuLocalWrapper.
 
     Provides for verified startup and shutdown, and allows observers to register

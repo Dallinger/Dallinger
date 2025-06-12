@@ -5,7 +5,7 @@ import pytest
 from selenium import webdriver
 
 
-class TestBots(object):
+class TestBots:
     def test_create_bot(self, active_config):
         """Create a bot."""
         from dallinger.bots import BotBase
@@ -98,7 +98,7 @@ class TestBots(object):
         assert bot.driver.capabilities["browserName"] == "chrome"
 
 
-class TestHighPerformanceBot(object):
+class TestHighPerformanceBot:
     @pytest.fixture
     def bot(self, active_config):
         from dallinger.bots import HighPerformanceBotBase

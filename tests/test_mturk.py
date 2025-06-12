@@ -7,9 +7,7 @@ from hashlib import sha1
 from unittest import mock
 
 import pytest
-import six
 from botocore.exceptions import ClientError
-from six.moves import input
 from tzlocal import get_localzone
 
 from dallinger.mturk import (
@@ -110,7 +108,7 @@ def fake_balance_response():
 
 def fake_hit_type_response():
     return {
-        "HITTypeId": six.text_type(generate_random_id(size=32)),
+        "HITTypeId": str(generate_random_id(size=32)),
         "ResponseMetadata": response_metadata()["ResponseMetadata"],
     }
 
@@ -182,7 +180,7 @@ def fake_worker_qualification_response():
         "Qualification": {
             "GrantTime": datetime.datetime(2018, 1, 1).replace(tzinfo=tz),
             "IntegerValue": 2,
-            "QualificationTypeId": six.text_type(generate_random_id(size=32)),
+            "QualificationTypeId": str(generate_random_id(size=32)),
             "Status": "Granted",
             "WorkerId": "FAKE_WORKER_ID",
         },
@@ -375,7 +373,7 @@ def sns_iso(sns):
 
 @pytest.mark.mturk
 @pytest.mark.usefixtures("check_mturkfull")
-class TestSNSService(object):
+class TestSNSService:
     def test_creates_and_cancel_subscription(self, sns):
         always_returns_200OK = "https://www.example.com/makebelieve-endpoint"
         topic_arn = sns.create_subscription("some-exp", always_returns_200OK)
@@ -390,7 +388,7 @@ class TestSNSService(object):
             sns.cancel_subscription("some-exp")
 
 
-class TestSNSServiceIsolation(object):
+class TestSNSServiceIsolation:
     def test_create_subscription(self, sns_iso):
         sns_iso.create_subscription("some-exp", "https://some-url")
 
@@ -413,7 +411,7 @@ class TestSNSServiceIsolation(object):
 @pytest.mark.mturk
 @pytest.mark.mturkworker
 @pytest.mark.slow
-class TestMTurkServiceIntegrationSmokeTest(object):
+class TestMTurkServiceIntegrationSmokeTest:
     """Hits about 75% of the MTurkService class with actual boto.mturk network
     calls. For comprehensive system tests, run with the --mturkfull option.
     """
@@ -472,7 +470,7 @@ class TestMTurkServiceIntegrationSmokeTest(object):
 
 @pytest.mark.mturk
 @pytest.mark.usefixtures("check_mturkfull")
-class TestMTurkService(object):
+class TestMTurkService:
     def loop_until_2_quals(self, mturk_helper, query):
         args = {
             "Query": query,
@@ -597,7 +595,7 @@ class TestMTurkService(object):
             status="Active",
         )
 
-        assert isinstance(result["id"], six.text_type)
+        assert isinstance(result["id"], str)
         assert result["status"] == "Active"
         assert with_cleanup.dispose_qualification_type(result["id"])
 
@@ -652,7 +650,7 @@ class TestMTurkService(object):
 @pytest.mark.mturkworker
 @pytest.mark.usefixtures("check_mturkfull")
 @pytest.mark.slow
-class TestMTurkServiceWithRequesterAndWorker(object):
+class TestMTurkServiceWithRequesterAndWorker:
     def test_can_assign_new_qualification(self, with_cleanup, worker_id, qtype):
         assert with_cleanup.assign_qualification(qtype["id"], worker_id, score=2)
         assert with_cleanup.current_qualification_score(qtype["id"], worker_id) == 2
@@ -768,7 +766,7 @@ class TestMTurkServiceWithRequesterAndWorker(object):
 @pytest.mark.mturkworker
 @pytest.mark.usefixtures("check_manual")
 @pytest.mark.slow
-class TestInteractive(object):
+class TestInteractive:
     def test_worker_can_see_hit_when_blocklist_not_in_qualifications(
         self, with_cleanup, worker_id, qtype, hit_config
     ):
@@ -835,7 +833,7 @@ def with_mock(mturk):
     return mturk
 
 
-class TestMTurkServiceWithFakeConnection(object):
+class TestMTurkServiceWithFakeConnection:
     def test_is_sandbox_by_default(self, with_mock):
         assert with_mock.is_sandbox
 

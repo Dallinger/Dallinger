@@ -5,7 +5,7 @@ import gevent
 import pytest
 
 
-class DummyEvent(object):
+class DummyEvent:
     creation_time = None
     type = "event"
     id = 1
@@ -19,7 +19,7 @@ class DummyEvents(list):
         return len(self)
 
 
-class DummyExperiment(object):
+class DummyExperiment:
     replay_path = "/replay"
     _events = DummyEvents()
     replayed = []

@@ -4,7 +4,7 @@ import time
 
 import click
 from rq import Queue
-from six.moves.urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse, urlunparse
 
 from dallinger.command_line.utils import (
     Output,

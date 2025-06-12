@@ -4,6 +4,7 @@
 #
 #    ./scripts/update_dependencies.sh
 #
+
     # via -r requirements.in
 ansi2html==1.9.2
     # via dallinger

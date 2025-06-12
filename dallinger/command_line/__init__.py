@@ -3,8 +3,6 @@
 
 """The Dallinger command-line utility."""
 
-from __future__ import print_function, unicode_literals
-
 import json
 import os
 import shutil
@@ -61,7 +59,6 @@ from dallinger.utils import (
 )
 from dallinger.version import __version__
 
-click.disable_unicode_literals_warning = True
 warnings.simplefilter("ignore", category=sa_exc.SAWarning)
 
 

@@ -50,7 +50,7 @@ def error(msg, chevrons=True, verbose=True):
             click.secho(msg, err=True, fg="red")
 
 
-class Output(object):
+class Output:
     """Utility Output class used by click CLI commands"""
 
     def __init__(self, log=log, error=error, blather=None):

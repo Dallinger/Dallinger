@@ -4,9 +4,9 @@ import re
 from copy import deepcopy
 from datetime import datetime, timedelta
 from typing import Optional, Union
+from urllib.parse import urlencode
 
 import bs4
-import six
 import timeago
 from ansi2html import Ansi2HTMLConverter
 from flask import (
@@ -24,7 +24,6 @@ from flask_login import UserMixin, current_user, login_required, login_user, log
 from flask_login.utils import login_url as make_login_url
 from flask_wtf import FlaskForm
 from pygtail import Pygtail
-from six.moves.urllib.parse import urlencode
 from tzlocal import get_localzone
 from wtforms import BooleanField, HiddenField, PasswordField, StringField, SubmitField
 from wtforms.validators import DataRequired, ValidationError
@@ -50,7 +49,7 @@ class User(UserMixin):
         self.password = password
 
 
-class DashboardTab(object):
+class DashboardTab:
     def __init__(self, title, route_name, children_function=None, params=None):
         """Creates a new dashboard tab
 
@@ -93,7 +92,7 @@ class DashboardTab(object):
                 yield child
 
 
-class DashboardTabs(object):
+class DashboardTabs:
     tabs = ()
 
     def __init__(self, tabs):
@@ -381,9 +380,7 @@ def dashboard_heroku():
         {"url": heroku_app.dashboard_url, "title": "Heroku dashboard"},
         {"url": heroku_app.dashboard_metrics_url, "title": "Heroku metrics"},
     ]
-    details = json.loads(
-        config.get("infrastructure_debug_details", six.text_type("{}"))
-    )
+    details = json.loads(config.get("infrastructure_debug_details", "{}"))
     links.extend(
         [{"title": v["title"].title(), "url": v["url"]} for v in details.values()]
     )
@@ -404,7 +401,7 @@ class NotUsingMTurkRecruiter(Exception):
     """The experiment does not use the MTurk Recruiter"""
 
 
-class MTurkDataSource(object):
+class MTurkDataSource:
     def __init__(self, recruiter):
         self._recruiter = recruiter
         try:
@@ -470,7 +467,7 @@ _fake_hit_data = {
 }
 
 
-class FakeMTurkDataSource(object):
+class FakeMTurkDataSource:
     account_balance = 1234.5
     ad_url = "http://unicodesnowmanforyou.com/"
     requester_url = "https://fakerequesterurl.com"
@@ -481,7 +478,7 @@ class FakeMTurkDataSource(object):
         self.current_hit = _fake_hit_data.copy()
 
 
-class MTurkDashboardInformation(object):
+class MTurkDashboardInformation:
     def __init__(self, config, data_source):
         self._config = config
         self._source = data_source

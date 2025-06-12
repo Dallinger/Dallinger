@@ -4,6 +4,7 @@ import json
 import logging
 import random
 import uuid
+from urllib import parse
 
 import gevent
 import requests
@@ -14,7 +15,6 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from six.moves import urllib
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ CAPABILITY_MAP = {
 }
 
 
-class BotBase(object):
+class BotBase:
     """A base class for bots that works with the built-in demos.
 
     This kind of bot uses Selenium to interact with the experiment
@@ -45,8 +45,8 @@ class BotBase(object):
         logger.info("Creating bot with URL: %s." % URL)
         self.URL = URL
 
-        parts = urllib.parse.urlparse(URL)
-        query = urllib.parse.parse_qs(parts.query)
+        parts = parse.urlparse(URL)
+        query = parse.parse_qs(parts.query)
 
         if not assignment_id:
             # Dallinger experiments are not always consistent in whether the participant recruitment URL
@@ -206,7 +206,7 @@ class BotBase(object):
         to the experiment server.
         """
         url = self.driver.current_url
-        p = urllib.parse.urlparse(url)
+        p = parse.urlparse(url)
         complete_url = "%s://%s/%s?participant_id=%s"
         complete_url = complete_url % (p.scheme, p.netloc, status, self.participant_id)
         self.driver.get(complete_url)
@@ -238,8 +238,8 @@ class HighPerformanceBotBase(BotBase):
 
     @property
     def host(self):
-        parsed = urllib.parse.urlparse(self.URL)
-        return urllib.parse.urlunparse([parsed.scheme, parsed.netloc, "", "", "", ""])
+        parsed = parse.urlparse(self.URL)
+        return parse.urlunparse([parsed.scheme, parsed.netloc, "", "", "", ""])
 
     def run_experiment(self):
         """Runs the phases of interacting with the experiment
