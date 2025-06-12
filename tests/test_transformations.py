@@ -1,7 +1,7 @@
 from dallinger import models
 
 
-class TestTransformations(object):
+class TestTransformations:
     def test_identity_transformation(self, db_session):
         net = models.Network()
         db_session.add(net)

@@ -6,7 +6,7 @@ import pytest
 from dallinger import models, networks, nodes
 
 
-class TestNetworks(object):
+class TestNetworks:
     def test_create_network(self, db_session):
         net = models.Network()
         assert isinstance(net, models.Network)
@@ -269,7 +269,7 @@ class TestNetworks(object):
         )
 
 
-class TestChain(object):
+class TestChain:
     def test_nodes_are_connected_to_their_successor_if_added_immediately(self, a):
         chain = a.chain()
         old = a.node(network=chain)
@@ -326,7 +326,7 @@ class TestChain(object):
         )
 
 
-class TestDelayedChain(object):
+class TestDelayedChain:
     def test_parent_is_always_source_for_first_11_nodes_when_source_exists(self, a):
         net = a.delayed_chain()
         source = a.source(network=net)
@@ -376,7 +376,7 @@ class TestDelayedChain(object):
             assert next_node.is_connected(direction="from", whom=node)
 
 
-class TestFullyConnected(object):
+class TestFullyConnected:
     def test_nodes_get_connected_bidirectionally(self, a):
         connected = a.fully_connected()
         node1 = a.node(network=connected)
@@ -431,7 +431,7 @@ class TestFullyConnected(object):
         )
 
 
-class TestEmpty(object):
+class TestEmpty:
     def test_create_empty(self, a):
         """Empty networks should have nodes, but no edges."""
         net = a.empty()
@@ -455,7 +455,7 @@ class TestEmpty(object):
         assert len(net.vectors()) == 10
 
 
-class TestBurst(object):
+class TestBurst:
     def test_all_subsequent_nodes_connect_only_to_first_one(self, a):
         burst = a.burst()
         center = a.node(network=burst)
@@ -485,7 +485,7 @@ class TestBurst(object):
             assert exc_info.match("cannot connect to itself")
 
 
-class TestStar(object):
+class TestStar:
     def test_all_subsequent_nodes_connect_bidirectionally_to_first_one(self, a):
         star = a.star()
         center = a.node(network=star)
@@ -516,7 +516,7 @@ class TestStar(object):
 
 
 @pytest.mark.slow
-class TestScaleFree(object):
+class TestScaleFree:
     def test_create_scale_free(self, a):
         m0 = 4
         m = 4
@@ -573,7 +573,7 @@ class GenerationalAgent(nodes.Agent):
 
 
 @pytest.mark.slow
-class TestDiscreteGenerational(object):
+class TestDiscreteGenerational:
     n_gens = 4
     gen_size = 4
 
@@ -657,7 +657,7 @@ class TestDiscreteGenerational(object):
             assert len(generation) == net.generation_size
 
 
-class TestSequentialMicrosociety(object):
+class TestSequentialMicrosociety:
     def test_n_property_type_marshalling(self, a):
         net = a.sequential_microsociety(n=3)
         assert net.n == 3
@@ -697,7 +697,7 @@ class TestSequentialMicrosociety(object):
         assert not agent3.is_connected(direction="to", whom=agent6)
 
 
-class TestSplitSampleNetwork(object):
+class TestSplitSampleNetwork:
     def test_sample_splitting(self, a):
         nets = [a.split_sample() for i in range(100)]
         sets = [net.exploratory for net in nets]

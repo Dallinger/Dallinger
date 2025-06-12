@@ -11,7 +11,7 @@ def is_uuid(thing):
 
 
 @pytest.mark.usefixtures("active_config")
-class TestExperimentBaseClass(object):
+class TestExperimentBaseClass:
     @pytest.fixture
     def klass(self):
         from dallinger.experiment import Experiment
@@ -394,7 +394,7 @@ class TestExperimentBaseClass(object):
             )
 
 
-class TestTaskRegistration(object):
+class TestTaskRegistration:
     def test_deferred_task_decorator(self, tasks_with_cleanup):
         from dallinger.experiment import scheduled_task
 
@@ -415,7 +415,7 @@ class TestTaskRegistration(object):
         }
 
 
-class TestRouteRegistration(object):
+class TestRouteRegistration:
     @pytest.fixture
     def cleared_routes(self):
         from dallinger import experiment
