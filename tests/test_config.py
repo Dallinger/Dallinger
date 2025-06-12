@@ -1,15 +1,12 @@
-from __future__ import unicode_literals
-
 import os
 from tempfile import NamedTemporaryFile
 
 import pytest
-import six
 
 from dallinger.config import LOCAL_CONFIG, Configuration, get_config
 
 
-class TestConfigurationUnitTests(object):
+class TestConfigurationUnitTests:
     def test_register_new_variable(self):
         config = Configuration()
         config.register("num_participants", int)
@@ -55,7 +52,7 @@ class TestConfigurationUnitTests(object):
 
     def test_type_casts_follow_file_pointers(self):
         config = Configuration()
-        config.register("data", six.text_type)
+        config.register("data", str)
         config.ready = True
         with NamedTemporaryFile() as data_file:
             data_file.write("hello".encode("utf-8"))
@@ -92,7 +89,7 @@ class TestConfigurationUnitTests(object):
             if val != "purple":
                 raise ValueError
 
-        config.register("fave_colour", six.text_type, validators=[is_purple])
+        config.register("fave_colour", str, validators=[is_purple])
         config.ready = True
         config.set("fave_colour", "purple")
         with pytest.raises(ValueError):
@@ -123,7 +120,7 @@ class TestConfigurationUnitTests(object):
 
     def test_get_strips_strings(self):
         config = Configuration()
-        config.register("test_string", six.text_type)
+        config.register("test_string", str)
         config.ready = True
         config.extend({"test_string": " something "})
         assert config.get("test_string") == "something"
@@ -165,7 +162,7 @@ class TestConfigurationUnitTests(object):
 
     def test_loading_keys_from_config_file(self):
         config = Configuration()
-        config.register("mode", six.text_type)
+        config.register("mode", str)
         config.register("num_participants", int, synonyms={"n"})
         config.register("deploy_worldwide", bool, synonyms={"worldwide"})
         mode_with_trailing_whitespace = "live    "
@@ -208,7 +205,7 @@ worldwide = false
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")
-class TestConfigurationIntegrationTests(object):
+class TestConfigurationIntegrationTests:
     def test_experiment_defined_parameters(self):
         config = get_config()
         config.register_extra_parameters()
