@@ -18,7 +18,7 @@ def bartlett_dir(root):
 
 
 @pytest.mark.usefixtures("bartlett_dir")
-class TestBartlett1932(object):
+class TestBartlett1932:
     """Tests for the Bartlett1932 demo class"""
 
     @pytest.fixture

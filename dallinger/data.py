@@ -3,7 +3,6 @@
 import csv
 import errno
 import hashlib
-import io
 import logging
 import os
 import shutil
@@ -16,10 +15,8 @@ import boto3
 import botocore
 import postgres_copy
 import psycopg2
-import six
 
 from dallinger import db, models
-from dallinger.compat import open_for_csv
 from dallinger.heroku.tools import HerokuApp
 
 from .config import get_config
@@ -203,7 +200,7 @@ copy_local_to_csv = copy_db_to_csv
 def _scrub_participant_table(path_to_data):
     """Scrub PII from the given participant table."""
     path = os.path.join(path_to_data, "participant.csv")
-    with open_for_csv(path, "r") as input, open("{}.0".format(path), "w") as output:
+    with open(path, "r") as input, open("{}.0".format(path), "w") as output:
         reader = csv.reader(input)
         writer = csv.writer(output)
         headers = next(reader)
@@ -340,8 +337,6 @@ def ingest_zip(path, engine=None):
             model_name = name.capitalize()
             model = getattr(models, model_name)
             file = archive.open(filename)
-            if six.PY3:
-                file = io.TextIOWrapper(file, encoding="utf8", newline="")
             ingest_to_model(file, model, engine)
 
 
@@ -450,7 +445,7 @@ def _s3_resource(dallinger_region=False):
     )
 
 
-class Data(object):
+class Data:
     """Dallinger data object."""
 
     def __init__(self, URL):
@@ -469,7 +464,7 @@ class Data(object):
                 )
 
 
-class Table(object):
+class Table:
     """Dallinger data-table object."""
 
     def __init__(self, path):
