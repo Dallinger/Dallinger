@@ -51,10 +51,12 @@ class TestExperimentBaseClass(object):
         exp.quorum = 1
         assert not exp.is_overrecruited(waiting_count=1)
 
-    def test_create_participant(self, exp):
+    def test_create_participant(self, exp, db_session):
         from dallinger.models import Participant
 
-        assert len(Participant.query.filter(Participant.hit_id == "1").all()) == 0
+        assert (
+            db_session.query(Participant).filter(Participant.hit_id == "1").count() == 0
+        )
 
         p = exp.create_participant(
             "1", "1", "1", "debug", entry_information={"some_key": "some_value"}
@@ -66,7 +68,9 @@ class TestExperimentBaseClass(object):
         assert p.assignment_id == "1"
         assert p.recruiter_id == "hotair"
         assert p.entry_information == {"some_key": "some_value"}
-        assert len(Participant.query.filter(Participant.hit_id == "1").all()) == 1
+        assert (
+            db_session.query(Participant).filter(Participant.hit_id == "1").count() == 1
+        )
 
     def test_create_participant_with_custom_class(self, exp):
         from dallinger.models import Participant

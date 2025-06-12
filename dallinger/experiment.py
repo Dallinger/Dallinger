@@ -943,9 +943,11 @@ class Experiment(object):
 
     def fail_participant(self, participant):
         """Fail all the nodes of a participant."""
-        participant_nodes = Node.query.filter_by(
-            participant_id=participant.id, failed=False
-        ).all()
+        participant_nodes = (
+            self.session.query(Node)
+            .filter_by(participant_id=participant.id, failed=False)
+            .all()
+        )
 
         for node in participant_nodes:
             node.fail()
@@ -1203,9 +1205,9 @@ class Experiment(object):
         :returns: An ``OrderedDict()`` mapping panel titles to data structures
                   describing the experiment state.
         """  # noqa
-        participants = Participant.query
-        nodes = Node.query
-        infos = Info.query
+        participants = db.session.query(Participant)
+        nodes = db.session.query(Node)
+        infos = db.session.query(Info)
 
         unique_statuses = set(participant.status for participant in participants.all())
         stats = OrderedDict()

@@ -624,7 +624,7 @@ def recruiter_exit():
             error_type="/recruiter-exit GET: param participant_id is required",
             status=400,
         )
-    participant = models.Participant.query.get(participant_id)
+    participant = session.query(models.Participant).get(participant_id)
     if participant is None:
         return error_response(
             error_type="/recruiter-exit GET: no participant found for ID {}".format(
@@ -651,12 +651,14 @@ def summary():
         "completed": exp.is_complete(),
     }
     unfilled_nets = (
-        models.Network.query.filter(models.Network.full != true())
+        session.query(models.Network)
+        .filter(models.Network.full != true())
         .with_entities(models.Network.id, models.Network.max_size)
         .all()
     )
     working = (
-        models.Participant.query.filter_by(status="working")
+        session.query(models.Participant)
+        .filter_by(status="working")
         .with_entities(func.count(models.Participant.id))
         .scalar()
     )
@@ -669,7 +671,8 @@ def summary():
     else:
         for net in unfilled_nets:
             node_count = (
-                models.Node.query.filter_by(network_id=net.id, failed=False)
+                session.query(models.Node)
+                .filter_by(network_id=net.id, failed=False)
                 .with_entities(func.count(models.Node.id))
                 .scalar()
             )
@@ -684,13 +687,17 @@ def summary():
 
     # Regenerate a waiting room message when checking status
     # to counter missed messages at the end of the waiting room
-    nonfailed_count = models.Participant.query.filter(
-        (models.Participant.status == "working")
-        | (models.Participant.status == "recruiter_submission_started")
-        | (models.Participant.status == "overrecruited")
-        | (models.Participant.status == "submitted")
-        | (models.Participant.status == "approved")
-    ).count()
+    nonfailed_count = (
+        session.query(models.Participant)
+        .filter(
+            (models.Participant.status == "working")
+            | (models.Participant.status == "recruiter_submission_started")
+            | (models.Participant.status == "overrecruited")
+            | (models.Participant.status == "submitted")
+            | (models.Participant.status == "approved")
+        )
+        .count()
+    )
     exp = Experiment(session)
     overrecruited = exp.is_overrecruited(nonfailed_count)
     if exp.quorum:
@@ -879,9 +886,11 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
     fingerprint_found = False
     if fingerprint_hash:
         try:
-            fingerprint_found = models.Participant.query.filter_by(
-                fingerprint_hash=fingerprint_hash
-            ).one_or_none()
+            fingerprint_found = (
+                session.query(models.Participant)
+                .filter_by(fingerprint_hash=fingerprint_hash)
+                .one_or_none()
+            )
         except MultipleResultsFound:
             fingerprint_found = True
 
@@ -1128,7 +1137,7 @@ def node_neighbors(node_id):
             return x
 
     # make sure the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(
             error_type="/node/neighbors, node does not exist",
@@ -1171,7 +1180,9 @@ def create_node(participant_id):
 
     # Get the participant.
     try:
-        participant = models.Participant.query.filter_by(id=participant_id).one()
+        participant = (
+            session.query(models.Participant).filter_by(id=participant_id).one()
+        )
     except NoResultFound:
         return error_response(error_type="/node POST no participant found", status=403)
 
@@ -1213,7 +1224,7 @@ def node_vectors(node_id):
             return x
 
     # execute the request
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/node/vectors, node does not exist")
 
@@ -1247,11 +1258,11 @@ def connect(node_id, other_node_id):
         return direction
 
     # check the nodes exist
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/node/connect, node does not exist")
 
-    other_node = models.Node.query.get(other_node_id)
+    other_node = session.query(models.Node).get(other_node_id)
     if other_node is None:
         return error_response(
             error_type="/node/connect, other node does not exist",
@@ -1287,7 +1298,7 @@ def get_info(node_id, info_id):
     exp = Experiment(session)
 
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/info, node does not exist")
 
@@ -1338,7 +1349,7 @@ def node_infos(node_id):
         return info_type
 
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/node/infos, node does not exist")
 
@@ -1377,7 +1388,7 @@ def node_received_infos(node_id):
         return info_type
 
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(
             error_type="/node/infos, node {} does not exist".format(node_id)
@@ -1410,7 +1421,7 @@ def tracking_event_post(node_id):
         details = loads(details)
 
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/info POST, node does not exist")
 
@@ -1449,7 +1460,7 @@ def info_post(node_id):
         if isinstance(x, Response):
             return x
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/info POST, node does not exist")
 
@@ -1495,7 +1506,7 @@ def node_transmissions(node_id):
             return x
 
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/node/transmissions, node does not exist")
 
@@ -1553,7 +1564,7 @@ def node_transmit(node_id):
     to_whom = request_parameter(parameter="to_whom", optional=True)
 
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/node/transmit, node does not exist")
     # create what
@@ -1579,7 +1590,7 @@ def node_transmit(node_id):
     if to_whom is not None:
         try:
             to_whom = int(to_whom)
-            to_whom = models.Node.query.get(to_whom)
+            to_whom = session.query(models.Node).get(to_whom)
             if to_whom is None:
                 return error_response(
                     error_type="/node/transmit POST, recipient Node does not exist",
@@ -1632,7 +1643,7 @@ def transformation_get(node_id):
         return transformation_type
 
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(
             error_type="/node/transformations, "
@@ -1675,7 +1686,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
         return transformation_type
 
     # Check that the node etc. exists.
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(
             error_type="/transformation POST, " "node {} does not exist".format(node_id)
