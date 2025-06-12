@@ -37,13 +37,12 @@ additional WebSocket channels. To avoid duplicate subscriptions it's generally
 best to create such subscriptions in your Experiment class's
 :func:`~dallinger.experiment.Experiment.on_launch` method which is only run at
 experiment launch time, or using the experiment's
-:func:`~dallinger.experiment.Experiment.background_tasks`. For example
-
-::
+:func:`~dallinger.experiment.Experiment.background_tasks`. For example::
 
     def on_launch(self):
         from dallinger.experiment_server.sockets import chat_backend
         chat_backend.subscribe(self, 'my_secondary_channel')
+
 
 An experiment can create and subscribe to channels after launch, but would need
 to be careful to ensure each channel is only ever subscribed once per experiment
@@ -52,14 +51,18 @@ instances running concurrently across multiple processes and servers.
 
 Websocket messages are strings consisting of a channel name followed by a `:`
 and then a message payload. The message payload is usually a string representing
-a JSON object. When an experiment receives a message where the payload is a JSON
-object containing either a `node_id` property or a `participant_id` value (the
-properties `participant_id`, `sender`, and `client.participant_id` are treated
-as equivalent), then the experiment will queue such messages to be processed
-asynchronously. Otherwise, the messages will be processed synchronously by an
-experiment instance. In either case, the
-:func:`~dallinger.experiment.Experiment.receive_message` method will handle the
-message.
+a JSON object.
+
+Messages are handled by the
+:func:`~dallinger.experiment.Experiment.receive_message` method of the
+experiment class. Messages that include a `node_id` or `participant_id`/`sender`
+in their JSON payload are handled asynchronously, all other messages will be
+processed synchronously because the asynchronous worker requires node or
+participant information.
+
+Experiments that wish to override the default asynchronous handling of WebSocket
+messages may override the :func:`~dallinger.experiment.Experiment.send` method
+of the experiment class.
 
 Client Implementation
 ---------------------
@@ -71,11 +74,9 @@ subscriptions, send messages to various channels, and receive messages on
 subscribed channels.
 
 Typically experiments set up a WebSocket connection after completing the initial
-call to `createAgent` using code similar to this
+call to `createAgent` using code similar to this::
 
-::
     var broadcast_socket;
-
     var open_socket = function (channel_id) {
         var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
         // Setup a websocket connection to the channel, passing our worker_id and participant_id
@@ -101,7 +102,6 @@ call to `createAgent` using code similar to this
         };
         return socket;
     };
-
     // Create the agent.
     var create_agent = function() {
         dallinger.createAgent()
@@ -115,10 +115,11 @@ call to `createAgent` using code similar to this
     };
 
 
-When establishing a channel subscription using the `/chat` route, the client can
-include `worker_id` and `participant_id` values which will be included in the
-`"dallinger_control"` channel messages alerting the experiment to WebSocket
-connection, disconnection, subscription, and un-subscription events.
+When establishing a channel subscription using the `/chat` route, the client may
+include `worker_id` and `participant_id` values. Those values will be included
+in the automatically generated JSON messages alerting the experiment to
+WebSocket connection, disconnection, subscription, and un-subscription events
+over the `"dallinger_control"` channel.
 
 Messages sent over the socket connection can be prefixed with any channel name,
 not just the channel to which the connection is subscribed. Additional
@@ -167,11 +168,11 @@ reduce the total number of messages sent to or processed by clients, then
 clients can subscribe to multiple channels.
 
 For example, after launch an experiment could broadcast a `create_chatroom` type
-message with a `chatroom` property set to "room_name" and an array of
-`partcicpant_ids`. Clients could then subscribe to the "room_name" channel using
+message with a `chatroom` property set to e.g. `"room_1"` and an array of
+`partcicpant_ids`. Clients could then subscribe to the `"room_1"` channel using
 the `/chat` route only if their `participant_id` matches one of the values in
 `participant_ids`. That way only only the clients with the matching
-`participant_ids` would receive messages for "room_name".
+`participant_ids` would receive messages for `"room_1"`.
 
 If these chat room messages need to be handled by the experiment code, then the
 clients could also send these messages to the "experiment control channel", with
@@ -183,7 +184,7 @@ chatrooms in :func:`~dallinger.experiment.Experiment.on_launch` or using
 
 Similarly, if the experiment needs to send messages privately to specific
 participants, then every client could use the `/chat` route to subscribe to a
-unique channel like `participant_${participant_id}_channel`, to which the
+unique channel like `"participant_${participant_id}_channel"`, to which the
 experiment instance could send private messages using
 `self.publish_to_subscribers(payload, channel_name=channel)` or
 `redis_conn.publish(f"participant_${participant_id}_channel", payload)`.
