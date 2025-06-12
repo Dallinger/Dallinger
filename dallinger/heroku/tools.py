@@ -609,18 +609,28 @@ class HerokuLocalWrapper:
             raise
 
     def _stream(self):
-        return iter(self._process.stdout.readline, self.STREAM_SENTINEL)
+        for line in iter(self._process.stdout.readline, self.STREAM_SENTINEL):
+            if isinstance(line, bytes):
+                yield line.decode("utf-8")
+            else:
+                yield line
 
     def _up_and_running(self, port):
         return port_is_open(port)
 
     def _redis_not_running(self, line):
+        if isinstance(line, bytes):
+            line = line.decode("utf-8")
         return re.match(r"^.*? worker.1 .*? Connection refused.$", line)
 
     def _worker_error(self, line):
+        if isinstance(line, bytes):
+            line = line.decode("utf-8")
         return re.match(r"^.*? web.1 .*? \[ERROR\] (.*?)$", line)
 
     def _startup_error(self, line):
+        if isinstance(line, bytes):
+            line = line.decode("utf-8")
         return re.match(r"\[DONE\] Killing all processes", line)
 
     def __enter__(self):
