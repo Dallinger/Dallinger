@@ -4,7 +4,7 @@ from dallinger import models, networks, nodes, processes
 from dallinger.nodes import Agent
 
 
-class TestProcesses(object):
+class TestProcesses:
     def test_random_walk_from_source(self, db_session):
         net = models.Network()
         db_session.add(net)
