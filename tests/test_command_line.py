@@ -66,7 +66,7 @@ def mturk(fake_parsed_hit):
 
 @pytest.mark.slow
 @pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")
-class TestVerify(object):
+class TestVerify:
     @pytest.fixture
     def v_package(self):
         from dallinger.command_line.utils import verify_package
@@ -108,7 +108,7 @@ class TestVerify(object):
 
 
 @pytest.mark.slow
-class TestCommandLine(object):
+class TestCommandLine:
     def test_dallinger_no_args(self):
         result = subprocess.run(["dallinger"], capture_output=True, text=True)
         assert "Usage: dallinger [OPTIONS] COMMAND [ARGS]" in result.stderr
@@ -151,7 +151,7 @@ class TestCommandLine(object):
 
 
 @pytest.mark.slow
-class TestReportAfterIdleDecorator(object):
+class TestReportAfterIdleDecorator:
     def test_reports_timeout(self, active_config):
         @report_idle_after(1)
         def will_time_out():
@@ -165,7 +165,7 @@ class TestReportAfterIdleDecorator(object):
 
 
 @pytest.mark.slow
-class TestOutput(object):
+class TestOutput:
     @pytest.fixture
     def output(self):
         from dallinger.command_line import Output
@@ -178,14 +178,14 @@ class TestOutput(object):
         output.blather("blah blah blah")
 
 
-class TestHeader(object):
+class TestHeader:
     def test_header_contains_version_number(self):
         # Make sure header contains the version number.
         assert dallinger.version.__version__ in dallinger.command_line.header
 
 
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
-class TestDevelopCommand(object):
+class TestDevelopCommand:
     """One very high level test, at least for now, while functionality is
     in draft state. [Jesse Snyder, 2021/7/27]
     """
@@ -213,7 +213,7 @@ class TestDevelopCommand(object):
 
 
 @pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")
-class TestDebugCommand(object):
+class TestDebugCommand:
     @pytest.fixture
     def debug(self):
         from dallinger.command_line import debug
@@ -253,7 +253,7 @@ class TestDebugCommand(object):
 
 
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
-class TestSandboxAndDeploy(object):
+class TestSandboxAndDeploy:
     @pytest.fixture
     def sandbox(self):
         from dallinger.command_line import sandbox
@@ -337,7 +337,7 @@ class TestSandboxAndDeploy(object):
         dsss.assert_not_called()
 
 
-class TestLoad(object):
+class TestLoad:
     @pytest.fixture
     def load(self):
         from dallinger.command_line import load
@@ -356,7 +356,7 @@ class TestLoad(object):
         )
 
 
-class TestSummary(object):
+class TestSummary:
     @pytest.fixture
     def summary(self):
         from dallinger.command_line import summary
@@ -386,7 +386,7 @@ class TestSummary(object):
 
 @pytest.mark.usefixtures("bartlett_dir")
 @pytest.mark.slow
-class TestBot(object):
+class TestBot:
     @pytest.fixture
     def bot_command(self):
         from dallinger.command_line import bot
@@ -421,7 +421,7 @@ class TestBot(object):
         assert mock_bot.run_experiment.called
 
 
-class TestQualify(object):
+class TestQualify:
     @pytest.fixture
     def qualify(self):
         from dallinger.command_line import qualify
@@ -559,7 +559,7 @@ class TestQualify(object):
         assert 'No qualification with name "some qual name" exists.' in result.output
 
 
-class TestEmailTest(object):
+class TestEmailTest:
     @pytest.fixture
     def email_test(self):
         from dallinger.command_line import email_test
@@ -591,7 +591,7 @@ class TestEmailTest(object):
         assert result.exit_code == 0
 
 
-class TestCompensate(object):
+class TestCompensate:
     DO_IT = "Y\n"
     DO_NOT_DO_IT = "N\n"
 
@@ -683,7 +683,7 @@ class TestCompensate(object):
         assert result.exit_code == 0
 
 
-class TestExtendMTurkHIT(object):
+class TestExtendMTurkHIT:
     DO_IT = "Y\n"
     DO_NOT_DO_IT = "N\n"
 
@@ -755,7 +755,7 @@ class TestExtendMTurkHIT(object):
         mturk.extend_hit.assert_not_called()
 
 
-class TestRevoke(object):
+class TestRevoke:
     DO_IT = "Y\n"
     DO_NOT_DO_IT = "N\n"
 
@@ -907,7 +907,7 @@ class TestRevoke(object):
         assert 'No qualification with name "some bad name" exists.' in result.output
 
 
-class TestHibernate(object):
+class TestHibernate:
     @pytest.fixture
     def hibernate(self, sleepless):
         from dallinger.command_line import hibernate
@@ -930,7 +930,7 @@ class TestHibernate(object):
 
 
 @pytest.mark.usefixtures("active_config")
-class TestAwaken(object):
+class TestAwaken:
     @pytest.fixture
     def awaken(self, sleepless):
         from dallinger.command_line import awaken
@@ -969,7 +969,7 @@ class TestAwaken(object):
         )
 
 
-class TestDestroy(object):
+class TestDestroy:
     @pytest.fixture
     def destroy(self):
         from dallinger.command_line import destroy
@@ -1013,7 +1013,7 @@ class TestDestroy(object):
         mturk_instance.expire_hit.assert_called()
 
 
-class TestLogs(object):
+class TestLogs:
     @pytest.fixture
     def logs(self):
         from dallinger.command_line import logs
@@ -1025,7 +1025,7 @@ class TestLogs(object):
         heroku.open_logs.assert_called_once()
 
 
-class TestMonitor(object):
+class TestMonitor:
     def _twice(self):
         count = [2]
 
@@ -1097,7 +1097,7 @@ class TestMonitor(object):
         assert "Select an experiment using the --app parameter." in result.output
 
 
-class TestHits(object):
+class TestHits:
     @pytest.fixture
     def output(self):
         with mock.patch("dallinger.command_line.Output") as mock_data:
@@ -1174,7 +1174,7 @@ class TestHits(object):
 
 
 @pytest.mark.usefixtures("patch_netrc")
-class TestApps(object):
+class TestApps:
     @pytest.fixture
     def console_output(self):
         with mock.patch("dallinger.command_line.Output") as mock_data:

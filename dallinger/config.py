@@ -139,7 +139,7 @@ default_keys = (
 )
 
 
-class Configuration(object):
+class Configuration:
     SUPPORTED_TYPES = {bytes, str, int, float, bool}
     _experiment_params_loaded = False
     _module_params_loaded = False
@@ -404,11 +404,6 @@ def get_config():
 
 def initialize_experiment_package(path):
     """Make the specified directory importable as the `dallinger_experiment` package."""
-    init_py = os.path.join(
-        path, "__init__.py"
-    )  # TODO: Remove this once we drop Python 2
-    if not os.path.exists(init_py):
-        open(init_py, "a").close()
     # Retain already set experiment module
     if sys.modules.get("dallinger_experiment") is not None:
         return

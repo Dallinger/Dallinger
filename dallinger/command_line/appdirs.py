@@ -16,13 +16,12 @@ __version__ = "1.4.4"
 __version_info__ = tuple(int(segment) for segment in __version__.split("."))
 
 
+import ctypes
 import os
 import sys
+import winreg
 
 PY3 = sys.version_info[0] == 3
-
-if PY3:
-    unicode = str
 
 if sys.platform.startswith("java"):
     import platform
@@ -471,10 +470,8 @@ def _get_win_folder_from_registry(csidl_name):
     registry for this guarantees us the correct answer for all CSIDL_*
     names.
     """
-    if PY3:
-        import winreg as _winreg  # noqa
-    else:
-        import _winreg
+    if not hasattr(winreg, "HKEY_CURRENT_USER"):
+        return None
 
     shell_folder_name = {
         "CSIDL_APPDATA": "AppData",
@@ -482,17 +479,15 @@ def _get_win_folder_from_registry(csidl_name):
         "CSIDL_LOCAL_APPDATA": "Local AppData",
     }[csidl_name]
 
-    key = _winreg.OpenKey(
-        _winreg.HKEY_CURRENT_USER,
+    key = winreg.OpenKey(
+        winreg.HKEY_CURRENT_USER,
         r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders",
     )
-    dir, type = _winreg.QueryValueEx(key, shell_folder_name)
+    dir, _type = winreg.QueryValueEx(key, shell_folder_name)
     return dir
 
 
 def _get_win_folder_with_ctypes(csidl_name):
-    import ctypes
-
     csidl_const = {
         "CSIDL_APPDATA": 26,
         "CSIDL_COMMON_APPDATA": 35,
