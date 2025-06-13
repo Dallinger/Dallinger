@@ -53,16 +53,12 @@ Websocket messages are strings consisting of a channel name followed by a `:`
 and then a message payload. The message payload is usually a string representing
 a JSON object.
 
-Messages are handled by the
+Messages are handled asynchronously by the
 :func:`~dallinger.experiment.Experiment.receive_message` method of the
-experiment class. Messages that include a `node_id` or `participant_id`/`sender`
-in their JSON payload are handled asynchronously, all other messages will be
-processed synchronously because the asynchronous worker requires node or
-participant information.
-
-Experiments that wish to override the default asynchronous handling of WebSocket
-messages may override the :func:`~dallinger.experiment.Experiment.send` method
-of the experiment class.
+experiment class. Experiments which wish to override the default asynchronous
+handling of WebSocket messages (e.g. because they retain non-persisted state in
+the experiment instance that is needed to process the message) may override the
+:func:`~dallinger.experiment.Experiment.send` method of the experiment class.
 
 Client Implementation
 ---------------------
