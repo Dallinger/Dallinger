@@ -121,7 +121,7 @@ class Experiment(object):
         """A hook for custom organization of dashboard tabs in subclasses."""
         return tabs
 
-    def __init__(self, session):
+    def __init__(self, session=None):
         """Create the experiment class. Sets the default value of attributes."""
 
         #: Boolean, determines whether the experiment logs output when
