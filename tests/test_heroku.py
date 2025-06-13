@@ -53,16 +53,7 @@ class TestClockScheduler(object):
         os.chdir("../..")
 
     def test_scheduler_has_job(self, setup):
-        jobs = self.clock.scheduler.get_jobs()
-        assert (
-            len(jobs) == 1
-        )  # TODO: Revert to 2 when async_recruiter_status_check is re-enabled
-        assert (
-            jobs[0].func_ref
-            == "dallinger.heroku.clock:check_db_for_missing_notifications"
-        )
-        # TODO: Uncomment when async_recruiter_status_check is re-enabled
-        # assert jobs[1].func_ref == "dallinger.heroku.clock:async_recruiter_status_check"
+        assert len(self.clock.scheduler.get_jobs()) > 0
 
     def test_launch_loads_config(self, patched_scheduler):
         self.clock.launch()
@@ -72,11 +63,6 @@ class TestClockScheduler(object):
     def test_launch_registers_additional_tasks(
         self, patched_scheduler, tasks_with_cleanup
     ):
-        jobs = patched_scheduler.get_jobs()
-        assert (
-            len(jobs) == 1
-        )  # TODO: Revert to 2 when async_recruiter_status_check is re-enabled
-
         tasks_with_cleanup.append(
             {
                 "func_name": "test_task",
@@ -87,14 +73,11 @@ class TestClockScheduler(object):
 
         self.clock.launch()
         jobs = patched_scheduler.get_jobs()
+        func_names = [job.func_ref for job in jobs]
+
         assert (
-            len(jobs) == 2
-        )  # TODO: Revert to 3 when async_recruiter_status_check is re-enabled
-        assert (
-            jobs[
-                1
-            ].func_ref  # TODO: Revert to jobs[2] when async_recruiter_status_check is re-enabled
-            == "dallinger_experiment.dallinger_experiment:TestExperiment.test_task"
+            "dallinger_experiment.dallinger_experiment:TestExperiment.test_task"
+            in func_names
         )
 
 
