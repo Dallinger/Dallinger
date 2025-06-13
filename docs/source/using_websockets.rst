@@ -60,6 +60,14 @@ handling of WebSocket messages (e.g. because they retain non-persisted state in
 the experiment instance that is needed to process the message) may override the
 :func:`~dallinger.experiment.Experiment.send` method of the experiment class.
 
+If your experiment implements synchronous handling of messages either using a
+custom :func:`~dallinger.experiment.Experiment.send` or by sending the
+`immediate` flag in your message payload, it will need to ensure that it takes
+care to manage any database sessions. The
+`dallinger.db.scoped_session_decorator` can be used to wrap functions and the
+`dallinger.db.sessions_scope` contextmanager can provide more granular/repeated
+session management.
+
 Client Implementation
 ---------------------
 
