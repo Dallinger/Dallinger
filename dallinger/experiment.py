@@ -344,9 +344,10 @@ class Experiment(object):
         """Async implementation of websocket message processing. Attempts to
         extract a participant id or node id from the message, and send the
         message to be processed asynchronously by
-        :func:`~dallinger.experiment.Experiment.receive_message` If it fails to
-        find a participant or node id in the message, then the message is
-        processed synchronously using
+        :func:`~dallinger.experiment.Experiment.receive_message` using the
+        Dallinger `worker_function`. If the message pyaload is JSON and contains
+        a property named `immediate` then the message will be processed
+        synchronously by
         :func:`~dallinger.experiment.Experiment.receive_message`.
 
         ``raw_message`` is a string that includes a channel name prefix, for
@@ -363,7 +364,7 @@ class Experiment(object):
         the experiment class that it uses for message responses then it's best
         to override this method instead of
         :func:`~dallinger.experiment.Experiment.receive_message`, and explicitly
-        hand off state synchronization and other database writes to async worker
+        hand off any state synchronization and database writes to async worker
         events.
 
         :param raw_message: a formatted message string ``'$channel_name:$data'``
@@ -376,26 +377,21 @@ class Experiment(object):
         try:
             message = json.loads(message_string)
         except Exception:
-            # Not JSON we have no information about the participant/node and
-            # will run synchonously
-            with db.sessions_scope():
-                self.receive_message(
-                    message_string, channel_name=channel_name, receive_time=receive_time
-                )
-            return
-
-        participant_id = (
-            message.get("sender")
-            or message.get("participant_id")
-            or message.get("client", {}).get("participant_id")
-        )
-        node_id = message.get("node_id")
-        if not participant_id and not node_id:
-            with db.sessions_scope():
-                self.receive_message(
-                    message_string, channel_name=channel_name, receive_time=receive_time
-                )
-            return
+            # We don't have JSON and can't determine participant or node id
+            participant_id = node_id = None
+        else:
+            participant_id = (
+                message.get("sender")
+                or message.get("participant_id")
+                or message.get("client", {}).get("participant_id")
+            )
+            node_id = message.get("node_id")
+            if message.get("immediate"):
+                with db.sessions_scope():
+                    self.receive_message(
+                        message_string, channel_name=channel_name, receive_time=receive_time
+                    )
+                    return
 
         q = db.get_queue("high")
         q.enqueue(
@@ -427,13 +423,18 @@ class Experiment(object):
     def receive_message(
         self, message, channel_name=None, participant=None, node=None, receive_time=None
     ):
-        """Stub implementation of a websocket message processor. Messages
-        are are queued to be processed asynchronously by
-        :func:`~dallinger.experiment.Experiment.send` and the worker runs this
-        method to process those messages. Sub-classes that wish to handle
-        incoming messages asynchronously should override this method. Generally
-        this method should always be overridden whenever the ``Experiment``
-        :attr:`~dallinger.experiment.Experiment.channel` attribute is set.
+        """Stub implementation of a websocket message processor. The
+        :func:`~dallinger.experiment.Experiment.send` method either queues
+        incoming messages to be processed asynchronously using this method or
+        directly calls this method for messages flagged for `immediate`
+        processing.
+
+        Experiment classes that wish to handle incoming WebSocket messages
+        asynchronously should implement this method. An Experiment needs to
+        implement either this method or customize
+        :func:`~dallinger.experiment.Experiment.send` whenever the
+        ``Experiment`` :attr:`~dallinger.experiment.Experiment.channel`
+        attribute is set.
 
         ``message`` is a string, e.g. containing JSON formatted data.
 
@@ -441,16 +442,20 @@ class Experiment(object):
         connect/disconnect events are sent over the ``"dallinger_control"``
         channel.
 
-        This method is called synchronously when no participant or node
-        id can be determined from the message.
+        This method will be called synchronously in the
+        experiment web server by :func:`~dallinger.experiment.Experiment.send`
+        when the JSON message payload has an `immediate` property set. Otherwise,
+        it will be called asynchronously by a Dallinger worker process.
 
-        :param message: a websocket message
+        :param message: a websocket message string, usually JSON data
         :type message: str
 
-        :param channel_name: The name of the channel the message was received on.
+        :param channel_name: The name of the channel the message was received
+            on.
         :type channel_name: str
 
-        :param participant: the experiment participant object responsible for the message
+        :param participant: the experiment participant object responsible for
+            the message
         :type participant: :attr:`~dallinger.models.Participant` instance
 
         :param node: the experiment node the message corresponds to
