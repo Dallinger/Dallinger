@@ -1,8 +1,4 @@
 #!/bin/sh
-compat=""
-if [ "$OSTYPE" = "darwin"* ]; then
-    compat=" "
-fi
 
 dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd $dir/..
@@ -13,7 +9,7 @@ pip-compile --rebuild --strip-extras --upgrade dev-requirements.in
 pip-compile --rebuild --strip-extras --upgrade
 
 # Remove the line specifying dallinger as editable dependency
-sed -e "s/^-e.*//" -i$compat'' *.txt
+sed -e "s/^-e.*//" -i.bak *.txt
 
 # Post-process the constraints.txt and dev-requirements.txt files to replace "via file://..."
 # with "via constraints.in" and " via dev-requirements.in", respectively.
