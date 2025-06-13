@@ -161,7 +161,7 @@ class ProlificRecruitmentStatus(RecruitmentStatus):
     real_wage_per_hour_excluding_bonuses: float
 
 
-class Recruiter(object):
+class Recruiter:
     """The base recruiter."""
 
     nickname = None
@@ -1294,7 +1294,7 @@ Time since participant started: {s.active_minutes:.0f}
 """
 
 
-class MTurkHITMessages(object):
+class MTurkHITMessages:
     @staticmethod
     def by_flavor(summary, whimsical):
         if whimsical:
@@ -1380,7 +1380,7 @@ def mturk_recruiter_notify():
     return success_response()
 
 
-class RedisStore(object):
+class RedisStore:
     """A wrapper around redis, to handle value decoding on retrieval,
     and easy cleanup of all managed keys via a prefix applied to all
     stored key/value pairs.
@@ -1932,7 +1932,7 @@ class MTurkRecruiter(Recruiter):
             )
 
 
-class RedisTally(object):
+class RedisTally:
     _key = "num_recruited"
 
     def __init__(self):
