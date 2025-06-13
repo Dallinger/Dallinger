@@ -3,6 +3,7 @@
 import csv
 import errno
 import hashlib
+import io
 import logging
 import os
 import shutil
@@ -336,8 +337,9 @@ def ingest_zip(path, engine=None):
             filename = [f for f in filenames if name in f][0]
             model_name = name.capitalize()
             model = getattr(models, model_name)
-            file = archive.open(filename)
-            ingest_to_model(file, model, engine)
+            with archive.open(filename) as binary_file:
+                file = io.TextIOWrapper(binary_file, encoding="utf-8", newline="")
+                ingest_to_model(file, model, engine)
 
 
 def fix_autoincrement(engine, table_name):

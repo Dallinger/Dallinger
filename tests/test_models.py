@@ -478,7 +478,8 @@ class TestModels:
         self.add(db_session, node, info)
 
         assert info.contents == "foo"
-        raises(ValueError, info.contents.__set__, "ofo")
+        with raises(ValueError):
+            info.contents = "ofo"
 
     ##################################################################
     # Transmission

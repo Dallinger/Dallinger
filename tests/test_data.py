@@ -106,7 +106,8 @@ class TestDataLocally:
     @pytest.fixture
     def cleanup(self):
         yield
-        shutil.rmtree("data")
+        if os.path.exists("data"):
+            shutil.rmtree("data")
 
     @pytest.fixture
     def export(self, cleanup):
@@ -206,9 +207,10 @@ class TestDataLocally:
         dallinger.data.ingest_zip(zip_path)
         assert len(dallinger.models.Participant.query.all()) == 4
         path = dallinger.data.export("test_export", local=True, scrub_pii=True)
-        p_file = ZipFile(path).open("data/participant.csv")
-        p_file = io.TextIOWrapper(p_file, encoding="utf8", newline="")
-        assert len(p_file.readlines()) == 5  # 4 Participants + header row
+        with ZipFile(path) as zf:
+            with zf.open("data/participant.csv") as p_file:
+                p_file = io.TextIOWrapper(p_file, encoding="utf8", newline="")
+                assert len(p_file.readlines()) == 5  # 4 Participants + header row
 
     def test_copy_db_to_csv_includes_participant_data(self, db_session):
         dallinger.data.ingest_zip(self.bartlett_export)
