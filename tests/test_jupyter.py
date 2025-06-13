@@ -9,7 +9,7 @@ except ImportError:
 
 
 @pytest.mark.skipif(ipywidgets is None, reason="ipywidgets is not installed")
-class TestExperimentWidget(object):
+class TestExperimentWidget:
     @pytest.fixture
     def exp(self):
         from dallinger.experiment import Experiment
