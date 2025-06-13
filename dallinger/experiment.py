@@ -1205,9 +1205,9 @@ class Experiment(object):
         :returns: An ``OrderedDict()`` mapping panel titles to data structures
                   describing the experiment state.
         """  # noqa
-        participants = db.session.query(Participant)
-        nodes = db.session.query(Node)
-        infos = db.session.query(Info)
+        participants = self.session.query(Participant)
+        nodes = self.session.query(Node)
+        infos = self.session.query(Info)
 
         unique_statuses = set(participant.status for participant in participants.all())
         stats = OrderedDict()
