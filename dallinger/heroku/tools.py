@@ -508,8 +508,8 @@ class HerokuLocalWrapper(object):
                 self.out.log("Unexpected error while terminating local Heroku.")
                 self.out.log(traceback.format_exc())
 
-            # Ensure the process is fully cleaned up by calling wait(),
-            # even if it has already terminated.
+            # Ensure the process is fully cleaned up by calling wait(), even if
+            # it has already terminated.
             try:
                 self._process.wait(timeout=5)
             except Exception:

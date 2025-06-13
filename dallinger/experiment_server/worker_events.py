@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime
-from operator import attrgetter
 
 from rq import get_current_job
 from sqlalchemy.exc import DataError, InternalError
@@ -51,7 +50,8 @@ def worker_function(
     queue_name="default",
 ):
     """Process the notification."""
-    _config()
+    config = _config()
+    session = db.session()  # Avoids lookup up the session in the registry every time
     q = db.get_queue(name=queue_name)
     try:
         db.logger.debug(
@@ -65,7 +65,7 @@ def worker_function(
             "Debug worker_function called synchronously or queue not specified"
         )
 
-    exp = _loaded_experiment(db.session)
+    exp = _loaded_experiment(session)
     key = "-----"
 
     # Logging every event is a bit verbose for experiment driven events
@@ -85,55 +85,30 @@ def worker_function(
     node = None
     if node_id:
         try:
-            node = models.Node.query.get(node_id)
+            node = session.query(models.Node).get(node_id)
         except DataError:
             pass
 
     participant = None
     if participant_id is not None:
         try:
-            participant = models.Participant.query.get(participant_id)
+            participant = session.query(models.Participant).get(participant_id)
         except DataError:
             pass
 
     if assignment_id and not participant:
         try:
-            # TODO first() here, and skip the max() call below?
-            participants = models.Participant.query.filter_by(
-                assignment_id=assignment_id
-            ).all()
-        except (DataError, InternalError):
-            participants = []
-        # if there are one or more participants select the most recent
-        if participants:
-            participant = max(participants, key=attrgetter("creation_time"))
-
-    # TODO: should this just be a separate function, instead of a very standalone
-    # path through worker_function?
-    if event_type == "TrackingEvent":
-        if not node and not participant:
-            exp.log(
-                "Warning: No participant associated with this "
-                "TrackingEvent notification.",
-                key,
+            participant = (
+                session.query(models.Participant)
+                .filter_by(assignment_id=assignment_id)
+                .order_by(models.Participant.creation_time.desc())
+                .first()
             )
-            return
-        if participant:
-            nodes = participant.nodes()
-            if not nodes:
-                exp.log(
-                    "Warning: No node associated with this "
-                    "TrackingEvent notification.",
-                    key,
-                )
-                return
-            node = max(nodes, key=attrgetter("creation_time"))
+        except (DataError, InternalError):
+            participant = None
 
-        if not details:
-            details = {}
-        info = information.TrackingEvent(origin=node, details=details)
-        db.session.add(info)
-        db.session.commit()
+    if event_type == "TrackingEvent":
+        record_tracking_event(participant, node, exp, session, details)
         return
 
     runner_cls = WorkerEvent.for_name(event_type)
@@ -144,8 +119,8 @@ def worker_function(
     if assignment_id is not None:
         # save the notification to the notification table
         notif = models.Notification(assignment_id=assignment_id, event_type=event_type)
-        db.session.add(notif)
-        db.session.commit()
+        session.add(notif)
+        session.commit()
 
         if not participant:
             exp.log(
@@ -166,15 +141,48 @@ def worker_function(
         participant,
         assignment_id,
         exp,
-        db.session,
-        config=_config(),
+        session,
+        config=config,
         now=datetime.now(),
         receive_time=receive_time,
         node=node,
         details=details,
     )
     runner()
-    db.session.commit()
+    session.commit()
+
+
+def record_tracking_event(participant, node, exp, session, details):
+    """Tracking events aren't necessarily about participants, so
+    we don't use a WorkerEvent to handle them.
+    """
+    key = "-----"
+    details = details or {}
+
+    if not node and not participant:
+        exp.log(
+            "Warning: No participant associated with this TrackingEvent notification.",
+            key,
+        )
+        return
+
+    if participant:
+        node = (
+            session.query(models.Node)
+            .filter_by(participant_id=participant.id)
+            .order_by(models.Node.creation_time.desc())
+            .first()
+        )
+        if not node:
+            exp.log(
+                "Warning: No node associated with this TrackingEvent notification.",
+                key,
+            )
+            return
+
+    info = information.TrackingEvent(origin=node, details=details)
+    session.add(info)
+    session.commit()
 
 
 class _WorkerMeta(type):

@@ -365,10 +365,17 @@ def ingest_to_model(file, model, engine=None):
         engine = db.engine
     reader = csv.reader(file)
     columns = tuple('"{}"'.format(n) for n in next(reader))
-    postgres_copy.copy_from(
-        file, model, engine, columns=columns, format="csv", HEADER=False
-    )
-    fix_autoincrement(engine, model.__table__.name)
+    with engine.begin() as conn:  # <-- BEGIN; will COMMIT or ROLLBACK
+        postgres_copy.copy_from(
+            file,
+            model,
+            conn,
+            columns=columns,
+            format="csv",
+            HEADER=False,
+        )
+        # run helper DDL in the same transaction
+        fix_autoincrement(conn, model.__table__.name)
 
 
 def archive_data(id, src, dst):
