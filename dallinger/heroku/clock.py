@@ -86,8 +86,10 @@ def launch():
         meth_name = args.pop("func_name")
         task = getattr(experiment_class, meth_name, None)
         if task is not None:
+            # Give the task's ORM session cleanup and error safety:
+            scoped_task = db.scoped_session_decorator(task)
             scheduler.add_job(
-                task,
+                scoped_task,
                 trigger=args["trigger"],
                 replace_existing=True,
                 **dict(args["kwargs"]),
