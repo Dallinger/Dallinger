@@ -76,6 +76,9 @@ class DockerComposeWrapper(object):
         if editable_dallinger_path:
             volumes.append(f"{editable_dallinger_path}/dallinger:/dallinger/dallinger")
             volumes.append(
+                f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.13/dist-packages/dallinger/"
+            )
+            volumes.append(
                 f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.12/dist-packages/dallinger/"
             )
             volumes.append(
@@ -83,9 +86,6 @@ class DockerComposeWrapper(object):
             )
             volumes.append(
                 f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.10/dist-packages/dallinger/"
-            )
-            volumes.append(
-                f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.9/dist-packages/dallinger/"
             )
         tag = get_experiment_image_tag(self.tmp_dir)
         with open(os.path.join(self.tmp_dir, "docker-compose.yml"), "w") as fh:
@@ -226,11 +226,9 @@ def get_base_image(experiment_tmp_path: str, needs_chrome: bool = False) -> str:
     Returns a docker image name and tag. For example:
     `ghcr.io/dallinger/dallinger-bot:7.1.0`
     """
-    dallinger_version = get_required_dallinger_version(experiment_tmp_path)
-    base_image_name = "ghcr.io/dallinger/dallinger"
     if needs_chrome:
-        base_image_name += "-bot"
-    return f"{base_image_name}:{dallinger_version or 'latest'}"
+        return "ghcr.io/dallinger/dallinger-bot:python3.13"
+    return "ghcr.io/dallinger/dallinger:python3.13"
 
 
 def get_required_dallinger_version(experiment_tmp_path: str) -> str:
