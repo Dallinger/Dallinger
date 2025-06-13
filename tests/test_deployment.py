@@ -107,7 +107,7 @@ def heroku_mock():
 
 
 @pytest.mark.usefixtures("in_tempdir")
-class TestExperimentFilesSource(object):
+class TestExperimentFilesSource:
     @pytest.fixture
     def git(self):
         from dallinger.utils import GitClient
@@ -269,7 +269,7 @@ class TestExperimentFilesSource(object):
 
 
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
-class TestSetupExperiment(object):
+class TestSetupExperiment:
     @pytest.fixture
     def setup_experiment(self, env):
         from dallinger.deployment import setup_experiment as subject
@@ -527,7 +527,7 @@ class TestSetupExperiment(object):
 
 
 @pytest.mark.usefixtures("experiment_dir", "active_config", "reset_sys_modules")
-class TestSetupExperimentAdditional(object):
+class TestSetupExperimentAdditional:
     @pytest.fixture
     def setup_experiment(self):
         from dallinger.deployment import setup_experiment as subject
@@ -611,7 +611,7 @@ class TestSetupExperimentAdditional(object):
 
 
 @pytest.mark.usefixtures("active_config", "launch", "fake_git", "fake_redis", "faster")
-class TestDeploySandboxSharedSetupNoExternalCalls(object):
+class TestDeploySandboxSharedSetupNoExternalCalls:
     @pytest.fixture
     def dsss(self):
         from dallinger.deployment import deploy_sandbox_shared_setup
@@ -715,7 +715,7 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
 
 @pytest.mark.usefixtures("check_heroku")
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "launch", "herokuapp")
-class TestDeploySandboxSharedSetupFullSystem(object):
+class TestDeploySandboxSharedSetupFullSystem:
     @pytest.fixture
     def dsss(self):
         from dallinger.deployment import deploy_sandbox_shared_setup
@@ -732,7 +732,7 @@ class TestDeploySandboxSharedSetupFullSystem(object):
 
 
 @pytest.mark.usefixtures("bartlett_dir")
-class Testhandle_launch_data(object):
+class Testhandle_launch_data:
     @pytest.fixture
     def handler(self):
         from dallinger.deployment import handle_launch_data
@@ -864,7 +864,7 @@ class Testhandle_launch_data(object):
 
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
-class TestDebugServer(object):
+class TestDebugServer:
     @pytest.fixture
     def debugger_unpatched(self, output):
         from dallinger.deployment import DebugDeployment
@@ -1022,7 +1022,7 @@ else:
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
 @pytest.mark.docker
-class TestDockerServer(object):
+class TestDockerServer:
     @pytest.fixture(autouse=True)
     def stop_all_docker_containers(self, env):
         import docker
@@ -1089,7 +1089,7 @@ class TestDockerServer(object):
 
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
-class TestLoad(object):
+class TestLoad:
     exp_id = "some_experiment_id"
 
     @pytest.fixture
@@ -1177,7 +1177,7 @@ class TestLoad(object):
         )
 
 
-class TestConstraints(object):
+class TestConstraints:
     @pytest.mark.slow
     def test_constraints_generation(self):
         from dallinger.utils import ensure_constraints_file_presence

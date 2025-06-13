@@ -25,7 +25,7 @@ def zip_path():
 
 @pytest.mark.s3buckets
 @pytest.mark.usefixtures("check_s3buckets")
-class TestDataS3BucketCreation(object):
+class TestDataS3BucketCreation:
     """Tests that actually create Buckets on S3."""
 
     def test_user_s3_bucket_first_time(self):
@@ -46,7 +46,7 @@ class TestDataS3BucketCreation(object):
 
 
 @pytest.mark.slow
-class TestDataS3Integration(object):
+class TestDataS3Integration:
     """Tests that interact with the network and S3, but do not create
     S3 buckets.
     """
@@ -98,7 +98,7 @@ class TestDataS3Integration(object):
             s3_filter.assert_called_once_with(Prefix=new_uuid + ".reg")
 
 
-class TestDataLocally(object):
+class TestDataLocally:
     """Tests that interact with local data only, and are relatively fast to
     execute.
     """
@@ -245,7 +245,7 @@ class TestDataLocally(object):
             assert row1[header.index("worker_id")] == "1"
 
 
-class TestImport(object):
+class TestImport:
     @pytest.fixture
     def network_file(self):
         data = """id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,max_size,full,role

@@ -543,7 +543,7 @@ class TestHerokuLocalWrapper:
 
     @pytest.fixture
     def output(self):
-        class Output(object):
+        class Output:
             def __init__(self):
                 self.log = mock.Mock()
                 self.error = mock.Mock()
