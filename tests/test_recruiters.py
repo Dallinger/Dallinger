@@ -912,7 +912,7 @@ SNS_ROUTE_PATH = "/mturk-sns-listener"
 @pytest.mark.usefixtures(
     "experiment_dir"
 )  # Needed because @before_request loads the exp
-class TestSNSListenerRoute(object):
+class TestSNSListenerRoute:
     @pytest.fixture
     def recruiter(self, active_config):
         active_config.extend({"mode": "sandbox"})  # MTurkRecruiter invalid if debug
@@ -1037,7 +1037,7 @@ def mturkservice(active_config, fake_parsed_hit):
 def hit_id_store():
     # We don't want to depend on redis in tests.
     # This class replicates the interface or our RedisStore for tests.
-    class PrimitiveHITIDStore(object):
+    class PrimitiveHITIDStore:
         def __init__(self):
             self._store = {}
 
@@ -1550,7 +1550,7 @@ class TestMTurkRecruiter:
         recruiter.validate_config(mode="sandbox")
 
 
-class TestRedisTally(object):
+class TestRedisTally:
     @pytest.fixture
     def redis_tally(self):
         from dallinger.recruiters import RedisTally
@@ -1568,7 +1568,7 @@ class TestMTurkLargeRecruiter:
     @pytest.fixture
     def counter(self):
         # We don't want to depend on redis in these tests.
-        class PrimitiveCounter(object):
+        class PrimitiveCounter:
             _count = 0
 
             def increment(self, count):
