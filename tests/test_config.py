@@ -6,7 +6,7 @@ import pytest
 from dallinger.config import LOCAL_CONFIG, Configuration, get_config
 
 
-class TestConfigurationUnitTests(object):
+class TestConfigurationUnitTests:
     def test_register_new_variable(self):
         config = Configuration()
         config.register("num_participants", int)
@@ -205,7 +205,7 @@ worldwide = false
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")
-class TestConfigurationIntegrationTests(object):
+class TestConfigurationIntegrationTests:
     def test_experiment_defined_parameters(self):
         config = get_config()
         config.register_extra_parameters()

@@ -12,7 +12,7 @@ from dallinger.prolific import ProlificScreenOutDenied
 from dallinger.recruiters import MTurkRecruiterException
 
 
-class TestModuleFunctions(object):
+class TestModuleFunctions:
     @pytest.fixture
     def mod(self):
         from dallinger import recruiters
@@ -90,7 +90,7 @@ class TestModuleFunctions(object):
             mock_recruiter.verify_status_of.assert_called_once_with([participant])
 
 
-class TestRecruiter(object):
+class TestRecruiter:
     @pytest.fixture
     def recruiter(self):
         from dallinger.recruiters import Recruiter
@@ -155,7 +155,7 @@ class TestRecruiter(object):
 
 
 @pytest.mark.usefixtures("active_config")
-class TestCLIRecruiter(object):
+class TestCLIRecruiter:
     @pytest.fixture
     def recruiter(self):
         from dallinger.recruiters import CLIRecruiter
@@ -221,7 +221,7 @@ class TestCLIRecruiter(object):
 
 
 @pytest.mark.usefixtures("active_config")
-class TestHotAirRecruiter(object):
+class TestHotAirRecruiter:
     @pytest.fixture
     def recruiter(self):
         from dallinger.recruiters import HotAirRecruiter
@@ -280,7 +280,7 @@ class TestHotAirRecruiter(object):
         recruiter.verify_status_of([p])
 
 
-class TestSimulatedRecruiter(object):
+class TestSimulatedRecruiter:
     @pytest.fixture
     def recruiter(self):
         from dallinger.recruiters import SimulatedRecruiter
@@ -314,7 +314,7 @@ class TestSimulatedRecruiter(object):
         recruiter.verify_status_of([p])
 
 
-class TestBotRecruiter(object):
+class TestBotRecruiter:
     @pytest.fixture
     def recruiter(self):
         from dallinger.recruiters import BotRecruiter
@@ -427,7 +427,7 @@ def prolificservice(prolific_config, fake_parsed_prolific_study):
 
 
 @pytest.mark.usefixtures("prolific_config")
-class TestProlificRecruiter(object):
+class TestProlificRecruiter:
     @pytest.fixture
     def recruiter(
         self,
@@ -854,7 +854,7 @@ class TestProlificRecruiter(object):
         assert participant.status != "screened_out"
 
 
-class TestMTurkRecruiterMessages(object):
+class TestMTurkRecruiterMessages:
     @pytest.fixture
     def summary(self, a, stub_config):
         from datetime import timedelta
@@ -978,7 +978,7 @@ class TestSNSListenerRoute(object):
         )
 
 
-class TestRedisStore(object):
+class TestRedisStore:
     @pytest.fixture
     def redis_store(self):
         from dallinger.recruiters import RedisStore
@@ -1054,7 +1054,7 @@ def hit_id_store():
 
 
 @pytest.mark.usefixtures("active_config", "requests", "queue")
-class TestMTurkRecruiter(object):
+class TestMTurkRecruiter:
     @pytest.fixture
     def recruiter(
         self, active_config, notifies_admin, mailer, mturkservice, hit_id_store
@@ -1564,7 +1564,7 @@ class TestRedisTally(object):
 
 
 @pytest.mark.usefixtures("active_config")
-class TestMTurkLargeRecruiter(object):
+class TestMTurkLargeRecruiter:
     @pytest.fixture
     def counter(self):
         # We don't want to depend on redis in these tests.
@@ -1689,7 +1689,7 @@ class TestMTurkLargeRecruiter(object):
 
 
 @pytest.mark.usefixtures("active_config", "db_session")
-class TestMultiRecruiter(object):
+class TestMultiRecruiter:
     @pytest.fixture
     def recruiter(self, active_config):
         from dallinger.recruiters import MultiRecruiter

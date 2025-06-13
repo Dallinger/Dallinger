@@ -30,7 +30,7 @@ def check_output():
         yield check_output
 
 
-class TestClockScheduler(object):
+class TestClockScheduler:
     @pytest.fixture
     def setup(self):
         """Set up the environment by moving to the demos directory."""
@@ -99,7 +99,7 @@ class TestClockScheduler(object):
 
 
 @pytest.mark.usefixtures("experiment_dir", "active_config")
-class TestHerokuClockTasks(object):
+class TestHerokuClockTasks:
     @pytest.fixture
     def recruiters(self):
         with mock.patch("dallinger.heroku.clock.recruiters") as mock_recruiters:
@@ -137,7 +137,7 @@ class TestHerokuClockTasks(object):
         recruiters.by_name.assert_called_once_with(participants[0].recruiter_id)
 
 
-class TestHerokuUtilFunctions(object):
+class TestHerokuUtilFunctions:
     @pytest.fixture
     def heroku(self):
         from dallinger.heroku import tools
@@ -198,7 +198,7 @@ class TestHerokuUtilFunctions(object):
 
 
 @pytest.mark.usefixtures("patch_netrc")
-class TestHerokuApp(object):
+class TestHerokuApp:
     @pytest.fixture
     def temp_repo(self, in_tempdir, stub_config):
         from dallinger.utils import GitClient
@@ -525,7 +525,7 @@ class TestHerokuApp(object):
 
 @pytest.mark.usefixtures("bartlett_dir")
 @pytest.mark.slow
-class TestHerokuLocalWrapper(object):
+class TestHerokuLocalWrapper:
     @pytest.fixture
     def config(self):
         from dallinger.deployment import setup_experiment
@@ -704,7 +704,7 @@ class TestHerokuLocalWrapper(object):
         assert not heroku.is_running
 
 
-class TestHerokuInfo(object):
+class TestHerokuInfo:
     @pytest.fixture
     def info(self):
         from dallinger.heroku.tools import HerokuInfo

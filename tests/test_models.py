@@ -13,7 +13,7 @@ from dallinger.transformations import Mutation
 
 
 @mark.slow
-class TestModels(object):
+class TestModels:
     def add(self, session, *args):
         session.add_all(args)
         session.commit()
