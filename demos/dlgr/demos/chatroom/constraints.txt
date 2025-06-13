@@ -242,7 +242,6 @@ psycopg2==2.9.10
     # via
     #   -c https://raw.githubusercontent.com/Dallinger/Dallinger/release-11.5.0/dev-requirements.txt
     #   dallinger
-    #   sqlalchemy-postgres-copy
 ptyprocess==0.7.0
     # via
     #   -c https://raw.githubusercontent.com/Dallinger/Dallinger/release-11.5.0/dev-requirements.txt
@@ -334,7 +333,6 @@ six==1.17.0
     #   -c https://raw.githubusercontent.com/Dallinger/Dallinger/release-11.5.0/dev-requirements.txt
     #   dallinger
     #   python-dateutil
-    #   sqlalchemy-postgres-copy
 sniffio==1.3.1
     # via
     #   -c https://raw.githubusercontent.com/Dallinger/Dallinger/release-11.5.0/dev-requirements.txt
@@ -348,11 +346,6 @@ soupsieve==2.8
     #   -c https://raw.githubusercontent.com/Dallinger/Dallinger/release-11.5.0/dev-requirements.txt
     #   beautifulsoup4
 sqlalchemy==1.4.54
-    # via
-    #   -c https://raw.githubusercontent.com/Dallinger/Dallinger/release-11.5.0/dev-requirements.txt
-    #   dallinger
-    #   sqlalchemy-postgres-copy
-sqlalchemy-postgres-copy==0.5.0
     # via
     #   -c https://raw.githubusercontent.com/Dallinger/Dallinger/release-11.5.0/dev-requirements.txt
     #   dallinger
