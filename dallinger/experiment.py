@@ -389,7 +389,9 @@ class Experiment(object):
             if message.get("immediate"):
                 with db.sessions_scope():
                     self.receive_message(
-                        message_string, channel_name=channel_name, receive_time=receive_time
+                        message_string,
+                        channel_name=channel_name,
+                        receive_time=receive_time,
                     )
                     return
 
