@@ -14,11 +14,11 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 import boto3
 import botocore
-import postgres_copy
 import psycopg2
 
 from dallinger import db, models
 from dallinger.heroku.tools import HerokuApp
+from dallinger.postgres_copy import copy_from
 
 from .config import get_config
 
@@ -358,7 +358,7 @@ def ingest_to_model(file, model, engine=None):
     reader = csv.reader(file)
     columns = tuple('"{}"'.format(n) for n in next(reader))
     with engine.begin() as conn:  # <-- BEGIN; will COMMIT or ROLLBACK
-        postgres_copy.copy_from(
+        copy_from(
             file,
             model,
             conn,
