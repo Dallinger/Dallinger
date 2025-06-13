@@ -63,7 +63,6 @@ dependencies = [
     "rq",
     "selenium",
     "sqlalchemy < 2",
-    "sqlalchemy-postgres-copy",
     "tabulate",
     "tenacity",
     "timeago",
