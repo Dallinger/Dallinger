@@ -4,6 +4,7 @@ from collections import defaultdict
 from datetime import datetime
 
 from apscheduler.schedulers.blocking import BlockingScheduler
+from sqlalchemy import text
 
 import dallinger
 from dallinger import db, recruiters
@@ -41,6 +42,28 @@ def check_db_for_missing_notifications():
     with db.sessions_scope() as session:
         participants = session.query(Participant).filter_by(status="working").all()
         run_check(participants, config, reference_time)
+
+
+@scheduler.scheduled_job("interval", seconds=10)
+def warn_on_idle_transactions():
+    """Warn if any DB sessions are idle in transaction for > 1 second."""
+    with db.engine.connect() as conn:
+        result = conn.execute(
+            text(
+                """
+            SELECT pid, state, xact_start, query, now() - xact_start AS idle_time
+            FROM pg_stat_activity
+            WHERE state = 'idle in transaction'
+              AND xact_start IS NOT NULL
+              AND now() - xact_start > interval '1 second'
+        """
+            )
+        )
+        for row in result:
+            print(
+                f"Session idle in transaction! pid={row.pid}, "
+                f"idle_time={row.idle_time}, last_query={row.query}"
+            )
 
 
 # @scheduler.scheduled_job("interval", minutes=0.5)
