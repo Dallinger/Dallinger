@@ -449,7 +449,7 @@ def _s3_resource(dallinger_region=False):
     )
 
 
-class Data(object):
+class Data:
     """Dallinger data object."""
 
     def __init__(self, URL):
@@ -468,7 +468,7 @@ class Data(object):
                 )
 
 
-class Table(object):
+class Table:
     """Dallinger data-table object."""
 
     def __init__(self, path):
