@@ -156,10 +156,6 @@ pyproject-hooks==1.2.0
     #   pip-tools
 pysocks==1.7.1
     # via urllib3
-python-dateutil==2.9.0.post0
-    # via
-    #   botocore
-    #   heroku3
 python-json-logger==3.3.0
     # via dallinger
 redis==6.2.0
