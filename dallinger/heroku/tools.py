@@ -52,7 +52,7 @@ def request_headers(auth_token):
     return headers
 
 
-class HerokuCommandRunner(object):
+class HerokuCommandRunner:
     """Heroku command runner base class"""
 
     def __init__(self, output=None, team=None, region=None):
@@ -405,7 +405,7 @@ class HerokuTimeoutError(HerokuStartupError):
     """
 
 
-class HerokuLocalWrapper(object):
+class HerokuLocalWrapper:
     """Wrapper around a heroku local subprocess.
 
     Provides for verified startup and shutdown, and allows observers to register

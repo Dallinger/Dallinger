@@ -284,7 +284,7 @@ def deploy_sandbox_shared_setup(
     return result
 
 
-class DevelopmentDeployment(object):
+class DevelopmentDeployment:
     """Collates files from Dallinger and the custom experment, then symlinks
     them into a target sub-directory, so Flask development server can be run
     manually in that directory.
@@ -303,7 +303,7 @@ class DevelopmentDeployment(object):
         db.init_db(drop_all=True)
 
 
-class HerokuLocalDeployment(object):
+class HerokuLocalDeployment:
     exp_id = None
     tmp_dir = None
     dispatch = {}  # Subclass may provide handlers for Heroku process output

@@ -49,7 +49,7 @@ class User(UserMixin):
         self.password = password
 
 
-class DashboardTab(object):
+class DashboardTab:
     def __init__(self, title, route_name, children_function=None, params=None):
         """Creates a new dashboard tab
 
@@ -92,7 +92,7 @@ class DashboardTab(object):
                 yield child
 
 
-class DashboardTabs(object):
+class DashboardTabs:
     tabs = ()
 
     def __init__(self, tabs):
@@ -402,7 +402,7 @@ class NotUsingMTurkRecruiter(Exception):
     """The experiment does not use the MTurk Recruiter"""
 
 
-class MTurkDataSource(object):
+class MTurkDataSource:
     def __init__(self, recruiter):
         self._recruiter = recruiter
         try:
@@ -468,7 +468,7 @@ _fake_hit_data = {
 }
 
 
-class FakeMTurkDataSource(object):
+class FakeMTurkDataSource:
     account_balance = 1234.5
     ad_url = "http://unicodesnowmanforyou.com/"
     requester_url = "https://fakerequesterurl.com"
@@ -479,7 +479,7 @@ class FakeMTurkDataSource(object):
         self.current_hit = _fake_hit_data.copy()
 
 
-class MTurkDashboardInformation(object):
+class MTurkDashboardInformation:
     def __init__(self, config, data_source):
         self._config = config
         self._source = data_source

@@ -30,7 +30,7 @@ CAPABILITY_MAP = {
 }
 
 
-class BotBase(object):
+class BotBase:
     """A base class for bots that works with the built-in demos.
 
     This kind of bot uses Selenium to interact with the experiment

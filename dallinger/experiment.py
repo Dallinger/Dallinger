@@ -71,7 +71,7 @@ def exp_class_working_dir(meth):
     return new_meth
 
 
-class Experiment(object):
+class Experiment:
     """Define the structure of an experiment."""
 
     app_id = None
@@ -1640,7 +1640,7 @@ class Experiment(object):
         sys.modules["dallinger_experiment"]._jupyter_cleanup = _jupyter_cleanup
 
 
-class Scrubber(object):
+class Scrubber:
     def __init__(self, experiment, session):
         self.experiment = experiment
         self.session = session
