@@ -162,7 +162,6 @@ gevent==25.5.1
     #   gunicorn
 greenlet==3.2.4
     # via
-    #   dallinger
     #   gevent
 gunicorn==23.0.0
     # via dallinger
