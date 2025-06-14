@@ -14,13 +14,11 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 import boto3
 import botocore
-import postgres_copy
 import psycopg2
-import six
 
 from dallinger import db, models
-from dallinger.compat import open_for_csv
 from dallinger.heroku.tools import HerokuApp
+from dallinger.postgres_copy import copy_from
 
 from .config import get_config
 
@@ -205,7 +203,7 @@ copy_local_to_csv = copy_db_to_csv
 def _scrub_participant_table(path_to_data):
     """Scrub PII from the given participant table."""
     path = os.path.join(path_to_data, "participant.csv")
-    with open_for_csv(path, "r") as input, open("{}.0".format(path), "w") as output:
+    with open(path, "r") as input, open("{}.0".format(path), "w") as output:
         reader = csv.reader(input)
         writer = csv.writer(output)
         headers = next(reader)
@@ -344,10 +342,9 @@ def ingest_zip(path, engine=None):
             filename = [f for f in filenames if name in f][0]
             model_name = name.capitalize()
             model = getattr(models, model_name)
-            file = archive.open(filename)
-            if six.PY3:
-                file = io.TextIOWrapper(file, encoding="utf8", newline="")
-            ingest_to_model(file, model, engine)
+            with archive.open(filename) as binary_file:
+                file = io.TextIOWrapper(binary_file, encoding="utf-8", newline="")
+                ingest_to_model(file, model, engine)
 
 
 def fix_autoincrement(engine, table_name):
@@ -365,9 +362,7 @@ def ingest_to_model(file, model, engine=None):
         engine = db.engine
     reader = csv.reader(file)
     columns = tuple('"{}"'.format(n) for n in next(reader))
-    postgres_copy.copy_from(
-        file, model, engine, columns=columns, format="csv", HEADER=False
-    )
+    copy_from(file, model, engine, columns=columns, format="csv", HEADER=False)
     fix_autoincrement(engine, model.__table__.name)
 
 
@@ -454,7 +449,7 @@ def _s3_resource(dallinger_region=False):
     )
 
 
-class Data(object):
+class Data:
     """Dallinger data object."""
 
     def __init__(self, URL):
@@ -473,7 +468,7 @@ class Data(object):
                 )
 
 
-class Table(object):
+class Table:
     """Dallinger data-table object."""
 
     def __init__(self, path):

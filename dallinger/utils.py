@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import functools
 import io
 import locale
@@ -30,7 +28,6 @@ from pythonjsonlogger import jsonlogger
 from sqlalchemy import exc as sa_exc
 
 from dallinger import db
-from dallinger.compat import is_command
 from dallinger.config import get_config
 from dallinger.models import Participant
 from dallinger.version import __version__
@@ -201,7 +198,7 @@ class GitError(Exception):
     """Something went wrong calling a Git command"""
 
 
-class GitClient(object):
+class GitClient:
     """Minimal wrapper, mostly for mocking"""
 
     def __init__(self, output=None):
@@ -257,7 +254,7 @@ class GitClient(object):
         self.out.write(msg)
 
 
-class ParticipationTime(object):
+class ParticipationTime:
     grace_period_seconds = 120
 
     def __init__(self, participant, reference_time, config):
@@ -355,9 +352,9 @@ def _make_chrome(path):
 
 
 def _new_webbrowser_profile():
-    if is_command("google-chrome"):
+    if shutil.which("google-chrome"):
         return _make_chrome("google-chrome")
-    elif is_command("firefox"):
+    elif shutil.which("firefox"):
         new_firefox = webbrowser.Mozilla()
         new_firefox.name = "firefox"
         profile_directory = tempfile.mkdtemp()
@@ -778,7 +775,7 @@ def collate_experiment_files(config, experiment_path, destination, copy_func):
     )
 
 
-class FileSource(object):
+class FileSource:
     """Include files from some source in an experiment run."""
 
     @property
@@ -1027,7 +1024,7 @@ def get_from_config(key):
     return config.get(key)
 
 
-class ClassPropertyDescriptor(object):
+class ClassPropertyDescriptor:
     def __init__(self, fget, fset=None):
         self.fget = fget
         self.fset = fset

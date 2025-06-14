@@ -15,7 +15,6 @@ import psycopg2
 import pytest
 
 import dallinger
-from dallinger.compat import open_for_csv
 from dallinger.utils import generate_random_id
 
 
@@ -26,7 +25,7 @@ def zip_path():
 
 @pytest.mark.s3buckets
 @pytest.mark.usefixtures("check_s3buckets")
-class TestDataS3BucketCreation(object):
+class TestDataS3BucketCreation:
     """Tests that actually create Buckets on S3."""
 
     def test_user_s3_bucket_first_time(self):
@@ -47,7 +46,7 @@ class TestDataS3BucketCreation(object):
 
 
 @pytest.mark.slow
-class TestDataS3Integration(object):
+class TestDataS3Integration:
     """Tests that interact with the network and S3, but do not create
     S3 buckets.
     """
@@ -99,7 +98,7 @@ class TestDataS3Integration(object):
             s3_filter.assert_called_once_with(Prefix=new_uuid + ".reg")
 
 
-class TestDataLocally(object):
+class TestDataLocally:
     """Tests that interact with local data only, and are relatively fast to
     execute.
     """
@@ -107,7 +106,8 @@ class TestDataLocally(object):
     @pytest.fixture
     def cleanup(self):
         yield
-        shutil.rmtree("data")
+        if os.path.exists("data"):
+            shutil.rmtree("data")
 
     @pytest.fixture
     def export(self, cleanup):
@@ -179,7 +179,7 @@ class TestDataLocally(object):
         )
         network_table_path = os.path.join(export_dir, "network.csv")
         assert os.path.isfile(network_table_path)
-        with open_for_csv(network_table_path, "r") as f:
+        with open(network_table_path, "r") as f:
             reader = csv.reader(f, delimiter=",")
             header = next(reader)
             assert "creation_time" in header
@@ -197,7 +197,7 @@ class TestDataLocally(object):
     def test_scrub_pii(self):
         path_to_data = os.path.join("tests", "datasets", "pii")
         dallinger.data._scrub_participant_table(path_to_data)
-        with open_for_csv(os.path.join(path_to_data, "participant.csv"), "r") as f:
+        with open(os.path.join(path_to_data, "participant.csv"), "r") as f:
             reader = csv.reader(f, delimiter=",")
             next(reader)  # Skip the header
             for row in reader:
@@ -207,9 +207,10 @@ class TestDataLocally(object):
         dallinger.data.ingest_zip(zip_path)
         assert len(dallinger.models.Participant.query.all()) == 4
         path = dallinger.data.export("test_export", local=True, scrub_pii=True)
-        p_file = ZipFile(path).open("data/participant.csv")
-        p_file = io.TextIOWrapper(p_file, encoding="utf8", newline="")
-        assert len(p_file.readlines()) == 5  # 4 Participants + header row
+        with ZipFile(path) as zf:
+            with zf.open("data/participant.csv") as p_file:
+                p_file = io.TextIOWrapper(p_file, encoding="utf8", newline="")
+                assert len(p_file.readlines()) == 5  # 4 Participants + header row
 
     def test_copy_db_to_csv_includes_participant_data(self, db_session):
         dallinger.data.ingest_zip(self.bartlett_export)
@@ -221,7 +222,7 @@ class TestDataLocally(object):
         )
         participant_table_path = os.path.join(export_dir, "participant.csv")
         assert os.path.isfile(participant_table_path)
-        with open_for_csv(participant_table_path, "r") as f:
+        with open(participant_table_path, "r") as f:
             reader = csv.reader(f, delimiter=",")
             header = next(reader)
             row1 = next(reader)
@@ -237,14 +238,14 @@ class TestDataLocally(object):
         )
         participant_table_path = os.path.join(export_dir, "participant.csv")
         assert os.path.isfile(participant_table_path)
-        with open_for_csv(participant_table_path, "r") as f:
+        with open(participant_table_path, "r") as f:
             reader = csv.reader(f, delimiter=",")
             header = next(reader)
             row1 = next(reader)
             assert row1[header.index("worker_id")] == "1"
 
 
-class TestImport(object):
+class TestImport:
     @pytest.fixture
     def network_file(self):
         data = """id,creation_time,property1,property2,property3,property4,property5,failed,time_of_death,type,max_size,full,role
