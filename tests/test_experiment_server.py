@@ -319,7 +319,8 @@ class TestWorkerComplete:
             data={"participant_id": a.participant(recruiter_id="bots").id},
         )
         assert (
-            models.Notification.query.one().event_type == "RecruiterSubmissionComplete"
+            models.Notification.query.one().event_type
+            == "BotRecruiterSubmissionComplete"
         )
 
     def test_records_notification_for_non_mturk_recruiter(
