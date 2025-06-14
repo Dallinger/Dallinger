@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 from typing import Dict
 
-from dallinger.command_line import appdirs
+import platformdirs
 
-APPDIRS = appdirs.AppDirs("dallinger", "dallinger")
+APPDIRS = platformdirs.PlatformDirs("dallinger", "dallinger")
 
 
 def get_configured_hosts():

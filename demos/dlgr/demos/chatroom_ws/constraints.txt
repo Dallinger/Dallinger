@@ -112,10 +112,6 @@ flask-wtf==1.2.2
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger
-future==1.0.0
-    # via
-    #   -c ../../../../dev-requirements.txt
-    #   dallinger
 gevent==25.5.1
     # via
     #   -c ../../../../dev-requirements.txt
@@ -124,7 +120,6 @@ gevent==25.5.1
 greenlet==3.2.3
     # via
     #   -c ../../../../dev-requirements.txt
-    #   dallinger
     #   gevent
     #   sqlalchemy
 gunicorn==23.0.0
@@ -168,10 +163,6 @@ jmespath==1.0.1
     #   botocore
 joblib==1.0.1
     # via nltk
-localconfig==1.1.4
-    # via
-    #   -c ../../../../dev-requirements.txt
-    #   dallinger
 markupsafe==3.0.2
     # via
     #   -c ../../../../dev-requirements.txt
@@ -279,7 +270,7 @@ requests==2.32.4
     #   -c ../../../../dev-requirements.txt
     #   dallinger
     #   heroku3
-rq==2.3.3
+rq==2.4.0
     # via
     #   -c ../../../../dev-requirements.txt
     #   dallinger

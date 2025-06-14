@@ -389,6 +389,7 @@ pip-tools==7.4.1
 platformdirs==4.3.8
     # via
     #   black
+    #   dallinger
     #   jupyter-core
     #   tox
     #   virtualenv
@@ -511,7 +512,7 @@ rpds-py==0.25.1
     # via
     #   jsonschema
     #   referencing
-rq==2.3.3
+rq==2.4.0
     # via dallinger
 s3transfer==0.13.0
     # via boto3
@@ -687,7 +688,7 @@ wsproto==1.2.0
     #   trio-websocket
 wtforms==3.2.1
     # via flask-wtf
-xlrd==2.0.1
+xlrd==2.0.2
     # via tablib
 xlwt==1.3.0
     # via tablib

@@ -53,6 +53,7 @@ dependencies = [
     "pexpect",
     "pip",
     "pip-tools",
+    "platformdirs",
     "psycopg2",
     "psutil",
     "pygtail",
