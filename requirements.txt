@@ -112,8 +112,6 @@ jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-localconfig==1.1.4
-    # via dallinger
 markupsafe==3.0.2
     # via
     #   flask

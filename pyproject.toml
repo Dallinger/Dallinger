@@ -47,7 +47,6 @@ dependencies = [
     "gunicorn[gevent]",
     "heroku3",
     "ipython < 9",
-    "localconfig",
     "numpy < 2.3",
     "paramiko < 4",
     "pexpect",
