@@ -42,7 +42,6 @@ dependencies = [
     "flask-crossdomain",
     "flask-login",
     "flask-wtf",
-    "future",
     "gevent",
     "greenlet",
     "gunicorn[gevent]",
