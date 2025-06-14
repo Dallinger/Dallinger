@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # flake8: noqa
 
 # Vendored copy from git://github.com/reallistic/rq-gevent-worker.git
