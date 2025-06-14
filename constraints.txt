@@ -284,8 +284,6 @@ jupyterlab-server==2.27.3
     #   notebook
 jupyterlab-widgets==3.0.15
     # via ipywidgets
-localconfig==1.1.4
-    # via dallinger
 markdown-it-py==3.0.0
     # via
     #   mdit-py-plugins
