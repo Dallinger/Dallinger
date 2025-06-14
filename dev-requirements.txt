@@ -156,8 +156,6 @@ flask-wtf==1.2.2
     # via dallinger
 fqdn==1.5.1
     # via jsonschema
-future==1.0.0
-    # via dallinger
 gevent==25.5.1
     # via
     #   dallinger
