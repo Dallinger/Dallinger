@@ -75,7 +75,6 @@ gevent==25.5.1
     #   gunicorn
 greenlet==3.2.3
     # via
-    #   dallinger
     #   gevent
     #   sqlalchemy
 gunicorn==23.0.0
