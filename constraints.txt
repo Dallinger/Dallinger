@@ -64,7 +64,7 @@ bump2version==1.0.1
     # via dallinger
 cached-property==2.0.1
     # via dallinger
-cachetools==5.5.2
+cachetools==6.1.0
     # via tox
 certifi==2025.4.26
     # via
