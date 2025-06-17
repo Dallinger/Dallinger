@@ -1091,3 +1091,8 @@ BOLD = "\033[1m"
 def print_bold(message):
     """Print with bold formatting."""
     print(f"{BOLD}{message}{END}")
+
+
+def open_for_csv(*args, **kw):
+    kw["newline"] = ""
+    return open(*args, **kw)
