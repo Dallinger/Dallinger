@@ -111,8 +111,8 @@ class TestVerify(object):
 @pytest.mark.slow
 class TestCommandLine(object):
     def test_dallinger_no_args(self):
-        output = subprocess.check_output(["dallinger"])
-        assert b"Usage: dallinger [OPTIONS] COMMAND [ARGS]" in output
+        result = subprocess.run(["dallinger"], capture_output=True, text=True)
+        assert "Usage: dallinger [OPTIONS] COMMAND [ARGS]" in result.stderr
 
     def test_log_empty(self):
         id = "dlgr-3b9c2aeb"
