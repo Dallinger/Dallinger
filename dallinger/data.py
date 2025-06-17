@@ -19,6 +19,7 @@ import psycopg2
 from dallinger import db, models
 from dallinger.heroku.tools import HerokuApp
 from dallinger.postgres_copy import copy_from
+from dallinger.utils import open_for_csv
 
 from .config import get_config
 
@@ -201,7 +202,7 @@ copy_local_to_csv = copy_db_to_csv
 def _scrub_participant_table(path_to_data):
     """Scrub PII from the given participant table."""
     path = os.path.join(path_to_data, "participant.csv")
-    with open(path, "r") as input, open("{}.0".format(path), "w") as output:
+    with open_for_csv(path, "r") as input, open("{}.0".format(path), "w") as output:
         reader = csv.reader(input)
         writer = csv.writer(output)
         headers = next(reader)

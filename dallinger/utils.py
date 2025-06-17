@@ -1023,3 +1023,8 @@ def port_is_open(port, host="127.0.0.1"):
             return True
         except (ConnectionRefusedError, OSError):
             return False
+
+
+def open_for_csv(*args, **kw):
+    kw["newline"] = ""
+    return open(*args, **kw)
