@@ -314,8 +314,8 @@ class TestIsolatedWebbrowser:
     def test_chrome_isolation(self):
         import webbrowser
 
-        with mock.patch("shutil.which") as which:
-            which.side_effect = lambda s: s == "google-chrome"
+        with mock.patch("dallinger.utils.is_command") as is_command:
+            is_command.side_effect = lambda s: s == "google-chrome"
             isolated = utils._new_webbrowser_profile()
 
         assert isinstance(isolated, webbrowser.Chrome)
@@ -323,8 +323,8 @@ class TestIsolatedWebbrowser:
     def test_firefox_isolation(self):
         import webbrowser
 
-        with mock.patch("shutil.which") as which:
-            which.side_effect = lambda s: s == "firefox"
+        with mock.patch("dallinger.utils.is_command") as is_command:
+            is_command.side_effect = lambda s: s == "firefox"
             isolated = utils._new_webbrowser_profile()
 
         assert isinstance(isolated, webbrowser.Mozilla)
@@ -333,9 +333,9 @@ class TestIsolatedWebbrowser:
         import webbrowser
 
         with mock.patch.multiple(
-            "dallinger.utils", shutil=mock.DEFAULT, sys=mock.DEFAULT
+            "dallinger.utils", is_command=mock.DEFAULT, sys=mock.DEFAULT
         ) as patches:
-            patches["shutil"].which.return_value = None
+            patches["is_command"].return_value = False
             patches["sys"].platform = 'anything but "darwin"'
             isolated = utils._new_webbrowser_profile()
         assert isolated == webbrowser
