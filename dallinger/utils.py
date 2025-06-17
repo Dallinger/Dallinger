@@ -349,10 +349,14 @@ def _make_chrome(path):
     return new_chrome
 
 
+def is_command(cmd):
+    return bool(shutil.which(cmd))
+
+
 def _new_webbrowser_profile():
-    if shutil.which("google-chrome"):
+    if is_command("google-chrome"):
         return _make_chrome("google-chrome")
-    elif shutil.which("firefox"):
+    elif is_command("firefox"):
         new_firefox = webbrowser.Mozilla()
         new_firefox.name = "firefox"
         profile_directory = tempfile.mkdtemp()
