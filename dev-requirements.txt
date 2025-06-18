@@ -50,9 +50,9 @@ bleach==6.2.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.38.37
+boto3==1.38.39
     # via dallinger
-botocore==1.38.37
+botocore==1.38.39
     # via
     #   boto3
     #   s3transfer
@@ -452,7 +452,7 @@ pyproject-hooks==1.2.0
     #   pip-tools
 pysocks==1.7.1
     # via urllib3
-pytest==8.4.0
+pytest==8.4.1
     # via
     #   dallinger
     #   pytest-rerunfailures
@@ -601,7 +601,7 @@ tornado==6.5.1
     #   jupyterlab
     #   notebook
     #   terminado
-tox==4.26.0
+tox==4.27.0
     # via dallinger
 tqdm==4.67.1
     # via dallinger
