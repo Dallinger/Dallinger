@@ -538,6 +538,12 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
                     f"  Experiment domain '{experiment_domain}' resolves to: {ipaddr_experiment}"
                 )
                 print("  These should be the same IP address.")
+                print(
+                    "  This might be due to DNS caching if you're reusing a domain name."
+                )
+                print(
+                    "  Please wait for DNS cache to expire or use a different domain name."
+                )
                 raise click.Abort
         except click.Abort:
             # Re-raise click.Abort to avoid the generic exception handler
