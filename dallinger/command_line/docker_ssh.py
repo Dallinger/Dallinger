@@ -217,7 +217,8 @@ option_archive = click.option(
 option_config = click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 option_dns_host = click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host",
+    help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host. "
+    "You can use 'nip.io' to automatically generate a nip.io domain from the server's IP address.",
 )
 option_server = click.option(
     "--server",
@@ -418,12 +419,44 @@ def _deploy_in_mode(
     else:
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
 
+    # Check if server is an IP address
+    try:
+        socket.inet_aton(ssh_host)
+        is_ip = True
+    except socket.error:
+        is_ip = False
+
     if not dns_host:
+        if is_ip:
+            print(
+                f"{RED}Error: When using an IP address as server ({ssh_host}), you must specify a DNS host.{END}"
+            )
+            print("You have two options:")
+            print("1. Use nip.io:")
+            print("   --dns-host nip.io")
+            print(
+                f"   {RED}Using nip.io as part of the hostname might cause problems:{END}"
+            )
+            print("   Some browsers might tell users this name is suspicious")
+            print("2. Use a custom domain (recommended):")
+            print(f"   Create a DNS A record pointing to {GREEN}{ssh_host}{END}")
+            print("   and use option --dns-host to deploy the experiment.")
+            print(
+                f"   {BLUE}For instance to use the name experiment1.my-custom-domain.example.com"
+            )
+            print(
+                f"   you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}"
+            )
+            raise click.Abort()
+        else:
+            # Not an IP address, use the server value as DNS host
+            dns_host = ssh_host
+
+    # Check if we're using nip.io (either provided or generated)
+    if dns_host == "nip.io":
         dns_host = get_dns_host(ssh_host)
-        print(
-            f"{RED}Using {dns_host} as hostname. This might cause problems:{END} some browsers"
-        )
-        print("might tell users this name is suspicious")
+        print(f"{RED}Using {dns_host} as hostname. This might cause problems:{END}")
+        print("Some browsers might tell users this name is suspicious")
         print("You can override this by creating a DNS A record pointing to")
         print(
             f"{GREEN}{ssh_host}{END} and using option --dns-host to deploy the experiment."
@@ -604,11 +637,12 @@ def _deploy_in_mode(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
     )
     if archive_path is None and not update:
-        print(f"Experiment {experiment_id} started. Initializing database")
+        print(f"Experiment {experiment_id} started.")
+        print("Initializing database...")
         executor.run(
             f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
         )
-        print("Database initialized")
+        print("Database initialized.")
 
     # We give caddy the alias for the service. If we scale up the service container caddy will
     # send requests to all of them in a round robin fashion.
