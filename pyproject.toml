@@ -71,7 +71,7 @@ dependencies = [
     "timeago",
     "tzlocal",
     "ua-parser",
-    "urllib3 < 2",
+    "urllib3",
     "user-agents",
     "yaspin",
 ]
