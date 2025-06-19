@@ -178,7 +178,7 @@ rq==2.4.0
     # via dallinger
 s3transfer==0.13.0
     # via boto3
-selenium==4.32.0
+selenium==4.33.0
     # via dallinger
 simple-websocket==1.1.0
     # via flask-sock
@@ -219,7 +219,7 @@ trio==0.30.0
     #   trio-websocket
 trio-websocket==0.12.2
     # via selenium
-typing-extensions==4.14.0
+typing-extensions==4.13.2
     # via
     #   beautifulsoup4
     #   selenium
@@ -235,7 +235,7 @@ ua-parser==1.0.1
     #   user-agents
 ua-parser-builtins==0.18.0.post1
     # via ua-parser
-urllib3==1.26.20
+urllib3==2.4.0
     # via
     #   botocore
     #   dallinger
