@@ -427,7 +427,7 @@ pycparser==2.22
     # via cffi
 pyenchant==3.2.2
     # via sphinxcontrib-spelling
-pyflakes==3.3.2
+pyflakes==3.4.0
     # via flake8
 pygments==2.19.1
     # via
