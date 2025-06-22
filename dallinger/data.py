@@ -380,7 +380,7 @@ def archive_data(id, src, dst):
                 arcname = filename.replace(src, "").lstrip("/")
                 zf.write(filename, arcname)
     shutil.rmtree(src)
-    print(f"Done. Local export available in {dst}")
+    print("Done.")
 
 
 def _get_canonical_aws_user_id(s3):
