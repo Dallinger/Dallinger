@@ -50,9 +50,9 @@ bleach==6.2.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.38.36
+boto3==1.38.39
     # via dallinger
-botocore==1.38.36
+botocore==1.38.39
     # via
     #   boto3
     #   s3transfer
@@ -64,9 +64,9 @@ bump2version==1.0.1
     # via dallinger
 cached-property==2.0.1
     # via dallinger
-cachetools==6.0.0
+cachetools==6.1.0
     # via tox
-certifi==2025.4.26
+certifi==2025.6.15
     # via
     #   httpcore
     #   httpx
@@ -96,7 +96,7 @@ comm==0.2.2
     # via
     #   ipykernel
     #   ipywidgets
-coverage==7.9.0
+coverage==7.9.1
     # via
     #   coverage-pth
     #   dallinger
@@ -452,7 +452,7 @@ pyproject-hooks==1.2.0
     #   pip-tools
 pysocks==1.7.1
     # via urllib3
-pytest==8.4.0
+pytest==8.4.1
     # via
     #   dallinger
     #   pytest-rerunfailures
@@ -477,7 +477,7 @@ pyyaml==6.0.2
     #   myst-parser
     #   pre-commit
     #   tablib
-pyzmq==26.4.0
+pyzmq==27.0.0
     # via
     #   ipykernel
     #   jupyter-client
@@ -516,7 +516,7 @@ rq==2.4.0
     # via dallinger
 s3transfer==0.13.0
     # via boto3
-selenium==4.32.0
+selenium==4.33.0
     # via dallinger
 send2trash==1.8.3
     # via jupyter-server
@@ -601,7 +601,7 @@ tornado==6.5.1
     #   jupyterlab
     #   notebook
     #   terminado
-tox==4.26.0
+tox==4.27.0
     # via dallinger
 tqdm==4.67.1
     # via dallinger
@@ -629,7 +629,7 @@ trio-websocket==0.12.2
     # via selenium
 types-python-dateutil==2.9.0.20250516
     # via arrow
-typing-extensions==4.14.0
+typing-extensions==4.13.2
     # via
     #   beautifulsoup4
     #   selenium
@@ -649,7 +649,7 @@ ua-parser-builtins==0.18.0.post1
     # via ua-parser
 uri-template==1.3.0
     # via jsonschema
-urllib3==1.26.20
+urllib3==2.4.0
     # via
     #   botocore
     #   dallinger
