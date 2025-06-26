@@ -121,7 +121,9 @@ class RogersExperiment(Experiment):
 
     def submission_successful(self, participant):
         """Run when a participant submits successfully."""
-        num_approved = len(Participant.query.filter_by(status="approved").all())
+        num_approved = len(
+            self.session.query(Participant).filter_by(status="approved").all()
+        )
         current_generation = participant.nodes()[0].generation
         if (
             num_approved % self.generation_size == 0
@@ -132,7 +134,9 @@ class RogersExperiment(Experiment):
 
     def recruit(self):
         """Recruit participants if necessary."""
-        num_approved = len(Participant.query.filter_by(status="approved").all())
+        num_approved = len(
+            self.session.query(Participant).filter_by(status="approved").all()
+        )
         end_of_generation = num_approved % self.generation_size == 0
         complete = num_approved >= (self.generations * self.generation_size)
         if complete:
@@ -163,7 +167,7 @@ class RogersExperiment(Experiment):
 
     def data_check(self, participant):
         """Check a participants data."""
-        nodes = Node.query.filter_by(participant_id=participant.id).all()
+        nodes = self.session.query(Node).filter_by(participant_id=participant.id).all()
 
         if len(nodes) != self.experiment_repeats + self.practice_repeats:
             print(

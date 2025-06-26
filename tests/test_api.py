@@ -10,10 +10,10 @@ import dallinger
 
 
 @pytest.fixture
-def exp():
+def exp(db_session):
     from dallinger.experiment import Experiment
 
-    return Experiment()
+    return Experiment(db_session)
 
 
 class TestAPI(object):
