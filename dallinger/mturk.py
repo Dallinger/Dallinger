@@ -40,7 +40,7 @@ class NonExistentSubscription(MTurkServiceException):
     """The SNS subscription does not exist."""
 
 
-class SNSService(object):
+class SNSService:
     """Handles AWS SNS subscriptions"""
 
     max_wait_secs = 12
@@ -143,7 +143,7 @@ class SNSService(object):
                 done = True
 
 
-class MTurkQuestions(object):
+class MTurkQuestions:
     """Creates MTurk HIT Question definitions:
     https://docs.aws.amazon.com/AWSMechTurk/latest/AWSMturkAPI/ApiReference_QuestionAnswerDataArticle.html
     """
@@ -190,7 +190,7 @@ class MTurkQuestions(object):
         return q.format(action, title, frame_height)
 
 
-class MTurkQualificationRequirements(object):
+class MTurkQualificationRequirements:
     """Syntactic correctness for MTurk QualificationRequirements"""
 
     @staticmethod
@@ -228,7 +228,7 @@ class MTurkQualificationRequirements(object):
         }
 
 
-class MTurkService(object):
+class MTurkService:
     """Facade for Amazon Mechanical Turk services provided via the boto3
     library.
     """

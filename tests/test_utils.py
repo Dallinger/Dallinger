@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import io
 import locale
 import os
@@ -14,7 +13,7 @@ from dallinger.config import strtobool
 from dallinger.utils import check_experiment_dependencies
 
 
-class TestSubprocessWrapper(object):
+class TestSubprocessWrapper:
     @pytest.fixture
     def sys(self):
         with mock.patch("dallinger.utils.sys") as sys:
@@ -91,7 +90,7 @@ class TestSubprocessWrapper(object):
         sys.stderr.write.assert_called_once_with(b"Output")
 
 
-class TestShowDeprecationWarningsOnce(object):
+class TestShowDeprecationWarningsOnce:
     @pytest.fixture
     def redis_conn(self):
         with mock.patch("dallinger.utils.db.redis_conn") as redis:
@@ -139,7 +138,7 @@ class TestShowDeprecationWarningsOnce(object):
 
 
 @pytest.mark.usefixtures("in_tempdir")
-class TestGitClient(object):
+class TestGitClient:
     @pytest.fixture
     def git(self):
         from dallinger.utils import GitClient
@@ -218,7 +217,7 @@ class TestGitClient(object):
         )
 
 
-class TestParticipationTime(object):
+class TestParticipationTime:
     @pytest.fixture
     def subject(self):
         from dallinger.utils import ParticipationTime
@@ -262,7 +261,7 @@ class TestParticipationTime(object):
         assert not timeline.is_overdue
 
 
-class TestBaseURL(object):
+class TestBaseURL:
     @pytest.fixture
     def subject(self):
         from dallinger.utils import get_base_url
@@ -311,7 +310,7 @@ class TestBaseURL(object):
         assert subject() == "https://dlgr-bogus-2.herokuapp.com"
 
 
-class TestIsolatedWebbrowser(object):
+class TestIsolatedWebbrowser:
     def test_chrome_isolation(self):
         import webbrowser
 
@@ -342,7 +341,7 @@ class TestIsolatedWebbrowser(object):
         assert isolated == webbrowser
 
 
-class TestIsBrokenSymlink(object):
+class TestIsBrokenSymlink:
     @pytest.fixture
     def temp_dir(self):
         with tempfile.TemporaryDirectory() as tmpdir:

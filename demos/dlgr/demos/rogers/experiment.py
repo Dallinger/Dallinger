@@ -2,8 +2,6 @@
 
 import random
 
-import six
-
 from dallinger.config import get_config
 from dallinger.experiment import Experiment
 from dallinger.information import Meme
@@ -19,7 +17,7 @@ def extra_parameters():
         "catch_repeats": int,
         "practice_difficulty": float,
         "catch_difficulty": float,
-        "difficulties": six.text_type,  # comma separated floats
+        "difficulties": str,  # comma separated floats
         "min_acceptable_performance": float,
         "generations": int,
         "generation_size": int,

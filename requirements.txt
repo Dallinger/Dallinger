@@ -69,15 +69,12 @@ flask-sock==0.7.0
     # via dallinger
 flask-wtf==1.2.2
     # via dallinger
-future==1.0.0
-    # via dallinger
 gevent==25.5.1
     # via
     #   dallinger
     #   gunicorn
 greenlet==3.2.3
     # via
-    #   dallinger
     #   gevent
     #   sqlalchemy
 gunicorn==23.0.0
@@ -104,8 +101,6 @@ jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-localconfig==1.1.4
-    # via dallinger
 markupsafe==3.0.2
     # via
     #   flask
@@ -139,9 +134,7 @@ prompt-toolkit==3.0.51
 psutil==7.0.0
     # via dallinger
 psycopg2==2.9.10
-    # via
-    #   dallinger
-    #   sqlalchemy-postgres-copy
+    # via dallinger
 ptyprocess==0.7.0
     # via pexpect
 pure-eval==0.2.3
@@ -183,10 +176,7 @@ selenium==4.32.0
 simple-websocket==1.1.0
     # via flask-sock
 six==1.17.0
-    # via
-    #   dallinger
-    #   python-dateutil
-    #   sqlalchemy-postgres-copy
+    # via python-dateutil
 sniffio==1.3.1
     # via trio
 sortedcontainers==2.4.0
@@ -194,10 +184,6 @@ sortedcontainers==2.4.0
 soupsieve==2.7
     # via beautifulsoup4
 sqlalchemy==1.4.54
-    # via
-    #   dallinger
-    #   sqlalchemy-postgres-copy
-sqlalchemy-postgres-copy==0.5.0
     # via dallinger
 stack-data==0.6.3
     # via ipython
