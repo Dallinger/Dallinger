@@ -554,7 +554,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
             print(f"  Error: {e}")
             print(
                 f"""The dns name for the experiment ({experiment_id}.{dns_host}) should resolve to {ipaddr_server}.
--It currently resolves to {ipaddr_experiment}."""
+It currently resolves to {ipaddr_experiment}."""
             )
             raise click.Abort
 
