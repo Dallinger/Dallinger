@@ -553,7 +553,8 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
             print(f"  Could not resolve '{experiment_id}.{dns_host}' to an IP address.")
             print(f"  Error: {e}")
             print(
-                f"  Please ensure that *.{dns_host} resolves to the server IP address."
+                f"""The dns name for the experiment ({experiment_id}.{dns_host}) should resolve to {ipaddr_server}.
+-It currently resolves to {ipaddr_experiment}."""
             )
             raise click.Abort
 
