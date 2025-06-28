@@ -13,12 +13,15 @@ RUN apt-get update && \
     python3 -m pip install -U pip && \
     rm -rf /var/lib/apt/lists/*
 
-COPY constraints.txt requirements.txt /dallinger/
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+COPY pyproject.toml uv.lock /dallinger/
 WORKDIR /dallinger
 
-RUN --mount=type=cache,target=/root/.cache/pip \
-    mkdir /wheelhouse && \
-    python3 -m pip wheel --wheel-dir=/wheelhouse -r requirements.txt -c constraints.txt
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen
 
 
 ###################### Dallinger base image ###################################
@@ -33,15 +36,19 @@ RUN apt-get update && \
     python3 -m pip install -U pip && \
     rm -rf /var/lib/apt/lists/*
 
-COPY constraints.txt requirements.txt /dallinger/
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+COPY pyproject.toml uv.lock /dallinger/
 WORKDIR /dallinger
 
-RUN --mount=type=bind,source=/wheelhouse,from=wheels,target=/wheelhouse \
-    (ls -l /wheelhouse || (echo 'You need to enable docker buildkit to build dallinger: DOCKER_BUILDKIT=1' && false) ) &&\
-    python3 -m pip install --find-links file:///wheelhouse -r requirements.txt -c constraints.txt
+RUN --mount=type=bind,source=/root/.cache/uv,from=wheels,target=/root/.cache/uv \
+    (ls -l /root/.cache/uv || (echo 'You need to enable docker buildkit to build dallinger: DOCKER_BUILDKIT=1' && false) ) && \
+    uv sync --frozen
 
 COPY . /dallinger
-RUN python3 -m pip install --find-links file:///wheelhouse -e .[data,docker]
+RUN uv pip install -e .[data,docker]
 
 # Add two ENV variables as a fix when using python3, to prevent this error:
 # Click will abort further execution because Python 3 was configured

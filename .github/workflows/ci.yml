@@ -86,21 +86,24 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Cache pip
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Cache uv
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('*.txt') }}
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml', 'uv.lock') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-uv-
             ${{ runner.os }}-
-      - name: Python Installers
-        run: |
-          pip install --upgrade pip wheel tox
       - name: Before Tox
         run: |
           bundle exec danger
-          pip install --upgrade setuptools
+      - name: Install dependencies with uv
+        run: |
+          uv sync --frozen --extra dev
       - name: Run Full Tox
         env:
           DATABASE_URL: postgresql://dallinger:dallinger@localhost/dallinger
@@ -112,7 +115,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           PROLIFIC_RESEARCHER_API_TOKEN: ${{ secrets.PROLIFIC_RESEARCHER_API_TOKEN }}
         run: |
-          tox ${{ needs.check_mturk_changes.outputs.needs_mturk_tests == 'true' && '-- --mturkfull' || ''}}
+          uv run tox ${{ needs.check_mturk_changes.outputs.needs_mturk_tests == 'true' && '-- --mturkfull' || ''}}
           npm run test --coverage
         # We want to run Full Tox tests for the two latest Python versions in order to cover possible
         # issues with code changes that had to be made in order to support a new Python version
@@ -126,7 +129,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
-          tox -e fast
+          uv run tox -e fast
           npm run test --coverage
         if: ${{ matrix.python-version == '3.10' || matrix.python-version == '3.11' }}
       - name: Codecov.io check
@@ -148,7 +151,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx3-${{ hashFiles('Dockerfile', 'requirements.txt', 'constraints.txt') }}
+          key: ${{ runner.os }}-buildx3-${{ hashFiles('Dockerfile', 'pyproject.toml', 'uv.lock') }}
           restore-keys: |
             ${{ runner.os }}-buildx3-
       - name: Build ghcr.io/dallinger/dallinger docker image
@@ -183,27 +186,26 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - name: Cache pip
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Cache uv
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('*.txt') }}
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml', 'uv.lock') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-uv-
             ${{ runner.os }}-
       - name: Install Ubuntu packages
         run: sudo apt-get --yes install enchant-2 curl
-      - name: Install and upgrade wheel, pip and tox
-        run: pip install --upgrade pip wheel tox
+      - name: Install dependencies with uv
+        run: uv sync --frozen --extra dev
       - name: Chromedriver setup
         uses: nanasess/setup-chromedriver@v2.2.2
-      - name: Change dallinger version required by bartlett1932 to match current version
-        run: |
-          VERSION=$(grep __version__ dallinger/version.py |sed -e 's/__version__ = "//;s/"//')
-          echo Changing to version ${VERSION}
-          sed -i.orig -e "s/dallinger==.*/dallinger==${VERSION}/" demos/dlgr/demos/bartlett1932/constraints.txt
       - name: Run docker tests
-        run: tox -e dockertests
+        run: uv run tox -e dockertests
       - name: Show docker logs
         if: ${{ always() }}
         continue-on-error: true
@@ -216,4 +218,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
       - uses: pre-commit/action@v3.0.1
