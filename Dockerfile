@@ -45,8 +45,7 @@ COPY pyproject.toml uv.lock LICENSE README.md /dallinger/
 COPY dallinger /dallinger/dallinger/
 WORKDIR /dallinger
 
-RUN --mount=type=bind,source=/root/.cache/uv,from=wheels,target=/root/.cache/uv \
-    (ls -l /root/.cache/uv || (echo 'You need to enable docker buildkit to build dallinger: DOCKER_BUILDKIT=1' && false) ) && \
+RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen
 
 COPY . /dallinger
