@@ -19,6 +19,7 @@ ENV PATH="/root/.local/bin:$PATH"
 
 COPY pyproject.toml uv.lock LICENSE README.md /dallinger/
 COPY dallinger /dallinger/dallinger/
+COPY dallinger_scripts /dallinger/dallinger_scripts/
 WORKDIR /dallinger
 
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -43,6 +44,7 @@ ENV PATH="/root/.local/bin:$PATH"
 
 COPY pyproject.toml uv.lock LICENSE README.md /dallinger/
 COPY dallinger /dallinger/dallinger/
+COPY dallinger_scripts /dallinger/dallinger_scripts/
 WORKDIR /dallinger
 
 RUN --mount=type=cache,target=/root/.cache/uv \
