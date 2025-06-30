@@ -22,9 +22,8 @@ COPY dallinger /dallinger/dallinger/
 COPY dallinger_scripts /dallinger/dallinger_scripts/
 WORKDIR /dallinger
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen
-
+RUN mkdir /wheelhouse && \
+    uv pip wheel --wheel-dir=/wheelhouse pyproject.toml
 
 ###################### Dallinger base image ###################################
 FROM python:3.13-bookworm as dallinger
@@ -33,7 +32,7 @@ LABEL org.opencontainers.image.source https://github.com/Dallinger/Dallinger
 
 # Install runtime dependencies
 RUN apt-get update && \
-    apt-get install -y libpq5 python3-pip busybox tzdata --no-install-recommends && \
+    apt-get install -y libpq5 python3-pip python3-dev busybox tzdata --no-install-recommends && \
     busybox --install && \
     python3 -m pip install -U pip && \
     rm -rf /var/lib/apt/lists/*
