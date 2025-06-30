@@ -39,16 +39,11 @@ RUN apt-get update && \
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:$PATH"
 
-COPY pyproject.toml uv.lock LICENSE README.md /dallinger/
-COPY dallinger /dallinger/dallinger/
-COPY dallinger_scripts /dallinger/dallinger_scripts/
+COPY . /dallinger/
 WORKDIR /dallinger
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen
-
-COPY . /dallinger
-RUN uv pip install -e .[data,docker]
+    uv pip install --system -e .[data,docker]
 
 # Add two ENV variables as a fix when using python3, to prevent this error:
 # Click will abort further execution because Python 3 was configured
