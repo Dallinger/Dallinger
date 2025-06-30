@@ -470,12 +470,12 @@ class TestSetupExperiment(object):
         with mock.patch(
             "dallinger.utils.get_editable_dallinger_path"
         ) as get_editable_dallinger_path:
-            # When dallinger is not installed as editable egg the requirements
+            # When dallinger is not installed as editable egg the pyproject.toml
             # file sent to heroku will include a version pin
             get_editable_dallinger_path.return_value = None
             _, dst = setup_experiment(log=mock.Mock())
-        requirements = (Path(dst) / "requirements.txt").read_text()
-        assert re.search("^dallinger", requirements, re.MULTILINE)
+        pyproject_content = (Path(dst) / "pyproject.toml").read_text()
+        assert "dallinger" in pyproject_content
 
     def test_dont_build_egg_if_not_in_development(self, active_config):
         from dallinger.utils import assemble_experiment_temp_dir
@@ -483,13 +483,13 @@ class TestSetupExperiment(object):
         with mock.patch(
             "dallinger.utils.get_editable_dallinger_path"
         ) as get_editable_dallinger_path:
-            # When dallinger is not installed as editable egg the requirements
+            # When dallinger is not installed as editable egg the pyproject.toml
             # file sent to heroku will include a version pin
             get_editable_dallinger_path.return_value = None
             log = mock.Mock()
             tmp_dir = assemble_experiment_temp_dir(log, active_config)
 
-        assert "dallinger" in (Path(tmp_dir) / "requirements.txt").read_text()
+        assert "dallinger" in (Path(tmp_dir) / "pyproject.toml").read_text()
 
     @pytest.mark.slow
     def test_build_egg_if_in_development(self, active_config):
@@ -524,8 +524,44 @@ class TestSetupExperiment(object):
             tmp_dir = assemble_experiment_temp_dir(log, active_config, for_remote=True)
 
         assert "Dallinger is installed as an editable package" in log.call_args[0][0]
-        assert "dallinger==" not in (Path(tmp_dir) / "requirements.txt").read_text()
+        assert "dallinger==" not in (Path(tmp_dir) / "pyproject.toml").read_text()
         shutil.rmtree(tmp_dir)
+
+    def test_uv_dependency_files_are_copied(self, active_config):
+        """Test that uv.lock and pyproject.toml files are properly copied to the deployment directory."""
+        from dallinger.utils import assemble_experiment_temp_dir
+
+        # Create test uv.lock and pyproject.toml files
+        with open("uv.lock", "w") as f:
+            f.write("# Test uv.lock file")
+        with open("pyproject.toml", "w") as f:
+            f.write("[project]\nname = 'test-experiment'\nversion = '0.1.0'\n")
+
+        log = mock.Mock()
+        tmp_dir = assemble_experiment_temp_dir(log, active_config)
+
+        # Check that both files are copied
+        assert (Path(tmp_dir) / "uv.lock").exists()
+        assert (Path(tmp_dir) / "pyproject.toml").exists()
+
+        # Check content
+        assert "# Test uv.lock file" in (Path(tmp_dir) / "uv.lock").read_text()
+        assert "test-experiment" in (Path(tmp_dir) / "pyproject.toml").read_text()
+
+        # Clean up
+        os.remove("uv.lock")
+        os.remove("pyproject.toml")
+
+    def test_old_pip_files_are_not_generated(self, active_config):
+        """Test that old pip-based files (requirements.txt, constraints.txt) are not generated."""
+        from dallinger.utils import assemble_experiment_temp_dir
+
+        log = mock.Mock()
+        tmp_dir = assemble_experiment_temp_dir(log, active_config)
+
+        # Check that old pip files are not present
+        assert not (Path(tmp_dir) / "requirements.txt").exists()
+        assert not (Path(tmp_dir) / "constraints.txt").exists()
 
 
 @pytest.mark.usefixtures("experiment_dir", "active_config", "reset_sys_modules")
@@ -1177,36 +1213,3 @@ class TestLoad(object):
                 mock.call("Local Heroku process terminated."),
             ]
         )
-
-
-class TestConstraints(object):
-    @pytest.mark.slow
-    def test_constraints_generation(self):
-        from dallinger.utils import ensure_constraints_file_presence
-
-        tmp_path = tempfile.mkdtemp()
-        # We will be looking for
-        # https://raw.githubusercontent.com/Dallinger/Dallinger/v[__version__]
-        # so use an older version we know will exist, rather than the current
-        # version, which may not be tagged/released yet:
-
-        # Change this to the current version after release
-        extant_github_tag = "b98f719c1ce851353f7cfcc78362cfaace51bb8d"
-        (Path(tmp_path) / "requirements.txt").write_text("black")
-        with mock.patch("dallinger.utils.__version__", extant_github_tag):
-            ensure_constraints_file_presence(tmp_path)
-            constraints_file = Path(tmp_path) / "constraints.txt"
-            # If not present a `constraints.txt` file will be generated
-            assert constraints_file.exists()
-            if sys.version_info >= (3, 11):
-                assert "toml" not in constraints_file.read_text()
-            else:
-                assert "toml" in constraints_file.read_text()
-
-            # An existing file will be left untouched
-            constraints_file.write_text("foobar")
-            with pytest.raises(ValueError):
-                ensure_constraints_file_presence(tmp_path)
-            assert constraints_file.read_text() == "foobar"
-
-        shutil.rmtree(tmp_path)

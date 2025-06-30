@@ -444,22 +444,59 @@ def check_local_db_connection(log):
         raise
 
 
-def check_experiment_dependencies(requirements_file):
-    """Verify that the dependencies defined in a requirements file are
+def check_experiment_dependencies(dependency_file):
+    """Verify that the dependencies defined in a pyproject.toml file are
     in fact installed.
     If the environment variable SKIP_DEPENDENCY_CHECK is set, no check
     will be performed.
     """
     if os.environ.get("SKIP_DEPENDENCY_CHECK"):
         return
-    try:
-        with open(requirements_file, "r") as f:
-            dependencies = [
-                re.split("@|\\ |>|<|=|\\[", line)[0].strip()
-                for line in f.readlines()
-                if line[:3] != "-e " and line[0].strip() not in ["#", ""]
-            ]
-    except (OSError, IOError):
+
+    # For uv-based projects, we check pyproject.toml
+    if dependency_file.name == "pyproject.toml":
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib
+
+        try:
+            with open(dependency_file, "rb") as f:
+                data = tomllib.load(f)
+
+            # Extract dependencies from [project.dependencies]
+            dependencies = []
+            if "project" in data and "dependencies" in data["project"]:
+                for dep in data["project"]["dependencies"]:
+                    # Extract package name (before any version specifiers)
+                    dep_name = re.split(r"[<>=!~]", dep)[0].strip()
+                    dependencies.append(dep_name)
+
+            # Also check [project.optional-dependencies] if present
+            if "project" in data and "optional-dependencies" in data["project"]:
+                for group_name, group_deps in data["project"][
+                    "optional-dependencies"
+                ].items():
+                    for dep in group_deps:
+                        dep_name = re.split(r"[<>=!~]", dep)[0].strip()
+                        dependencies.append(dep_name)
+
+        except (OSError, IOError, KeyError, ValueError):
+            dependencies = []
+
+    # For backward compatibility with old requirements.txt files
+    elif dependency_file.name == "requirements.txt":
+        try:
+            with open(dependency_file, "r") as f:
+                dependencies = [
+                    re.split("@|\\ |>|<|=|\\[", line)[0].strip()
+                    for line in f.readlines()
+                    if line[:3] != "-e " and line[0].strip() not in ["#", ""]
+                ]
+        except (OSError, IOError):
+            dependencies = []
+
+    else:
         dependencies = []
 
     for dep in dependencies:
@@ -500,7 +537,7 @@ def develop_target_path(config):
 
 def bootstrap_development_session(exp_config, experiment_path, log):
     check_local_db_connection(log)
-    check_experiment_dependencies(Path(experiment_path) / "requirements.txt")
+    check_experiment_dependencies(Path(experiment_path) / "pyproject.toml")
 
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
@@ -554,7 +591,7 @@ def setup_experiment(
     """
     if local_checks:
         check_local_db_connection(log)
-        check_experiment_dependencies(Path(os.getcwd()) / "requirements.txt")
+        check_experiment_dependencies(Path(os.getcwd()) / "pyproject.toml")
 
     ensure_constraints_file_presence(os.getcwd())
     # Generate a unique id for this experiment.
@@ -647,12 +684,20 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
             file.write(f"python-{pyversion}")
 
     # For uv-based projects, ensure uv.lock and pyproject.toml are present
+    # Copy from experiment directory if they exist there
     uv_lock_path = Path(os.getcwd()) / "uv.lock"
     pyproject_path = Path(os.getcwd()) / "pyproject.toml"
     if uv_lock_path.exists():
         shutil.copy(uv_lock_path, Path(dst) / "uv.lock")
     if pyproject_path.exists():
         shutil.copy(pyproject_path, Path(dst) / "pyproject.toml")
+
+    # If not found in experiment directory, copy from Dallinger root
+    dallinger_root = Path(dallinger_package_path()).parent
+    if not uv_lock_path.exists() and (dallinger_root / "uv.lock").exists():
+        shutil.copy(dallinger_root / "uv.lock", Path(dst) / "uv.lock")
+    if not pyproject_path.exists() and (dallinger_root / "pyproject.toml").exists():
+        shutil.copy(dallinger_root / "pyproject.toml", Path(dst) / "pyproject.toml")
 
     if for_remote:
         dallinger_path = get_editable_dallinger_path()

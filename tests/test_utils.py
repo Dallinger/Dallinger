@@ -4,6 +4,7 @@ import locale
 import os
 import tempfile
 from datetime import datetime, timedelta
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import mock
 
@@ -378,35 +379,80 @@ class TestIsBrokenSymlink(object):
 
 
 def test_check_experiment_dependencies_successful():
-    with NamedTemporaryFile() as requirements_file:
+    with NamedTemporaryFile(suffix=".toml") as pyproject_file:
+        pyproject_content = """[project]
+name = "test-experiment"
+version = "0.1.0"
+dependencies = [
+    "dallinger",
+    "dallinger==9.7.0",
+    "dallinger<=9.7.0",
+    "dallinger>=9.7.0",
+    "dallinger == 9.7.0",
+    "dallinger@git+https://github.com/Dallinger/Dallinger",
+    "dallinger @ git+https://github.com/Dallinger/Dallinger",
+    "dallinger[demos]",
+    "dallinger [demos]",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov",
+]
+"""
+        pyproject_file.write(pyproject_content.encode("utf-8"))
+        pyproject_file.flush()
+
+        check_experiment_dependencies(Path(pyproject_file.name))
+
+
+def test_check_experiment_dependencies_unsuccessful():
+    with NamedTemporaryFile(suffix=".toml") as pyproject_file:
+        pyproject_content = """[project]
+name = "test-experiment"
+version = "0.1.0"
+dependencies = [
+    "NOTINSTALLED",
+]
+"""
+        pyproject_file.write(pyproject_content.encode("utf-8"))
+        pyproject_file.flush()
+
+        with pytest.raises(ValueError) as e:
+            check_experiment_dependencies(Path(pyproject_file.name))
+        assert (
+            str(e.value)
+            == "Please install the 'NOTINSTALLED' package to run this experiment."
+        )
+
+
+def test_check_experiment_dependencies_backward_compatibility():
+    """Test that the function still works with old requirements.txt files for backward compatibility."""
+    with NamedTemporaryFile(suffix=".txt") as requirements_file:
         requirements = [
             "dallinger",
             "dallinger==9.7.0",
-            "dallinger<=9.7.0",
-            "dallinger>=9.7.0",
-            "dallinger == 9.7.0",
-            "dallinger@git+https://github.com/Dallinger/Dallinger",
-            "dallinger @ git+https://github.com/Dallinger/Dallinger",
-            "dallinger[demos]",
-            "dallinger [demos]",
-            "# dallinger",
+            "# This is a comment",
             "",
-            " # dallinger",
+            " # Another comment",
         ]
         lines = [f"{r}\n".encode("utf-8") for r in requirements]
         requirements_file.writelines(lines)
         requirements_file.flush()
 
-        check_experiment_dependencies(requirements_file.name)
+        # Should not raise an exception since dallinger is installed
+        check_experiment_dependencies(Path(requirements_file.name))
 
 
-def test_check_experiment_dependencies_unsuccessful():
-    with NamedTemporaryFile() as requirements_file:
+def test_check_experiment_dependencies_requirements_txt_unsuccessful():
+    """Test that the function still works with old requirements.txt files and raises errors for missing packages."""
+    with NamedTemporaryFile(suffix=".txt") as requirements_file:
         requirements_file.writelines(["NOTINSTALLED\n".encode("utf-8")])
         requirements_file.flush()
 
         with pytest.raises(ValueError) as e:
-            check_experiment_dependencies(requirements_file.name)
+            check_experiment_dependencies(Path(requirements_file.name))
         assert (
             str(e.value)
             == "Please install the 'NOTINSTALLED' package to run this experiment."
