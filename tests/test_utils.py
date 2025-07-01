@@ -379,84 +379,66 @@ class TestIsBrokenSymlink(object):
 
 
 def test_check_experiment_dependencies_successful():
-    with NamedTemporaryFile(suffix=".toml") as pyproject_file:
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        pyproject_path = Path(tmpdir) / "pyproject.toml"
         pyproject_content = """[project]
-name = "test-experiment"
-version = "0.1.0"
+name = \"test-experiment\"
+version = \"0.1.0\"
 dependencies = [
-    "dallinger",
-    "dallinger==9.7.0",
-    "dallinger<=9.7.0",
-    "dallinger>=9.7.0",
-    "dallinger == 9.7.0",
-    "dallinger@git+https://github.com/Dallinger/Dallinger",
-    "dallinger @ git+https://github.com/Dallinger/Dallinger",
-    "dallinger[demos]",
-    "dallinger [demos]",
+    \"dallinger\",
+    \"dallinger==9.7.0\",
+    \"dallinger<=9.7.0\",
+    \"dallinger>=9.7.0\",
+    \"dallinger == 9.7.0\",
+    \"dallinger@git+https://github.com/Dallinger/Dallinger\",
+    \"dallinger @ git+https://github.com/Dallinger/Dallinger\",
+    \"dallinger[demos]\",
+    \"dallinger [demos]\",
 ]
 
 [project.optional-dependencies]
 test = [
-    "pytest",
-    "pytest-cov",
+    \"pytest\",
+    \"pytest-cov\",
 ]
 """
-        pyproject_file.write(pyproject_content.encode("utf-8"))
-        pyproject_file.flush()
-
-        check_experiment_dependencies(Path(pyproject_file.name))
+        pyproject_path.write_text(pyproject_content)
+        check_experiment_dependencies(pyproject_path)
 
 
 def test_check_experiment_dependencies_unsuccessful():
-    with NamedTemporaryFile(suffix=".toml") as pyproject_file:
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        pyproject_path = Path(tmpdir) / "pyproject.toml"
         pyproject_content = """[project]
-name = "test-experiment"
-version = "0.1.0"
+name = \"test-experiment\"
+version = \"0.1.0\"
 dependencies = [
-    "NOTINSTALLED",
+    \"NOTINSTALLED\",
 ]
 """
-        pyproject_file.write(pyproject_content.encode("utf-8"))
-        pyproject_file.flush()
-
+        pyproject_path.write_text(pyproject_content)
         with pytest.raises(ValueError) as e:
-            check_experiment_dependencies(Path(pyproject_file.name))
+            check_experiment_dependencies(pyproject_path)
         assert (
             str(e.value)
             == "Please install the 'NOTINSTALLED' package to run this experiment."
         )
 
 
-def test_check_experiment_dependencies_backward_compatibility():
-    """Test that the function still works with old requirements.txt files for backward compatibility."""
+def test_check_experiment_dependencies_requirements_txt_unsupported():
+    """Test that the function no longer supports requirements.txt files."""
     with NamedTemporaryFile(suffix=".txt") as requirements_file:
-        requirements = [
-            "dallinger",
-            "dallinger==9.7.0",
-            "# This is a comment",
-            "",
-            " # Another comment",
-        ]
-        lines = [f"{r}\n".encode("utf-8") for r in requirements]
-        requirements_file.writelines(lines)
+        requirements_file.writelines(["dallinger\n".encode("utf-8")])
         requirements_file.flush()
 
-        # Should not raise an exception since dallinger is installed
+        # Should not raise an exception since requirements.txt is no longer supported
         check_experiment_dependencies(Path(requirements_file.name))
-
-
-def test_check_experiment_dependencies_requirements_txt_unsuccessful():
-    """Test that the function still works with old requirements.txt files and raises errors for missing packages."""
-    with NamedTemporaryFile(suffix=".txt") as requirements_file:
-        requirements_file.writelines(["NOTINSTALLED\n".encode("utf-8")])
-        requirements_file.flush()
-
-        with pytest.raises(ValueError) as e:
-            check_experiment_dependencies(Path(requirements_file.name))
-        assert (
-            str(e.value)
-            == "Please install the 'NOTINSTALLED' package to run this experiment."
-        )
 
 
 def test_strtobool_true_values():
