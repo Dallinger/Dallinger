@@ -42,7 +42,11 @@ Vagrant.configure("2") do |config|
     # Documentation building dependencies
     sudo apt-get install -y enchant-2 pandoc zip
     pip install pyenchant
-    pip install -r dev-requirements.txt
+
+    # Install uv for dependency management
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    source ~/.cargo/env
+    uv sync --dev
 
     # Dallinger install
     python setup.py develop
