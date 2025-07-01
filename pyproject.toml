@@ -95,6 +95,7 @@ dev = [
     "pycodestyle",
     "pypandoc",
     "pytest",
+    "pytest-cov",
     "pytest-rerunfailures",
     "sphinx < 8.2",
     "sphinx_rtd_theme",
