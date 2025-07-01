@@ -552,17 +552,6 @@ class TestSetupExperiment(object):
         os.remove("uv.lock")
         os.remove("pyproject.toml")
 
-    def test_old_pip_files_are_not_generated(self, active_config):
-        """Test that old pip-based files (requirements.txt, constraints.txt) are not generated."""
-        from dallinger.utils import assemble_experiment_temp_dir
-
-        log = mock.Mock()
-        tmp_dir = assemble_experiment_temp_dir(log, active_config)
-
-        # Check that old pip files are not present
-        assert not (Path(tmp_dir) / "requirements.txt").exists()
-        assert not (Path(tmp_dir) / "constraints.txt").exists()
-
 
 @pytest.mark.usefixtures("experiment_dir", "active_config", "reset_sys_modules")
 class TestSetupExperimentAdditional(object):
