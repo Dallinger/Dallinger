@@ -448,10 +448,18 @@ def check_experiment_dependencies(dependency_file):
     dependencies = []
     if dependency_file.name == "pyproject.toml":
         try:
-            import tomllib
+            # Try tomllib first (Python 3.11+)
+            try:
+                import tomllib
 
-            with open(dependency_file, "rb") as f:
-                data = tomllib.load(f)
+                with open(dependency_file, "rb") as f:
+                    data = tomllib.load(f)
+            except ImportError:
+                # Fallback to tomli for Python 3.10 and earlier
+                import tomli
+
+                with open(dependency_file, "rb") as f:
+                    data = tomli.load(f)
 
             # Extract dependencies from project.dependencies
             if "project" in data and "dependencies" in data["project"]:

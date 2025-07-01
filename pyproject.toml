@@ -69,6 +69,7 @@ dependencies = [
     "tabulate",
     "tenacity",
     "timeago",
+    "tomli",
     "tzlocal",
     "ua-parser",
     "urllib3 < 2",
