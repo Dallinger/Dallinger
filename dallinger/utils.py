@@ -6,7 +6,6 @@ import locale
 import logging
 import os
 import random
-import re
 import shutil
 import string
 import subprocess
@@ -445,68 +444,60 @@ def check_local_db_connection(log):
 
 
 def check_experiment_dependencies(dependency_file):
-    """Verify that the dependencies defined in a pyproject.toml file are
-    in fact installed.
-    If the environment variable SKIP_DEPENDENCY_CHECK is set, no check
-    will be performed.
-    """
-    if os.environ.get("SKIP_DEPENDENCY_CHECK"):
-        return
-
-    # For uv-based projects, we check pyproject.toml
+    # Only support pyproject.toml/uv.lock. requirements.txt is no longer supported.
+    dependencies = []
     if dependency_file.name == "pyproject.toml":
         try:
             import tomllib
-        except ImportError:
-            import tomli as tomllib
 
-        try:
             with open(dependency_file, "rb") as f:
                 data = tomllib.load(f)
 
-            # Extract dependencies from [project.dependencies]
-            dependencies = []
+            # Extract dependencies from project.dependencies
             if "project" in data and "dependencies" in data["project"]:
                 for dep in data["project"]["dependencies"]:
-                    # Extract package name (before any version specifiers)
-                    dep_name = re.split(r"[<>=!~]", dep)[0].strip()
-                    dependencies.append(dep_name)
-
-            # Also check [project.optional-dependencies] if present
-            if "project" in data and "optional-dependencies" in data["project"]:
-                for group_name, group_deps in data["project"][
-                    "optional-dependencies"
-                ].items():
-                    for dep in group_deps:
-                        dep_name = re.split(r"[<>=!~]", dep)[0].strip()
+                    # Extract package name (remove version constraints, extras, etc.)
+                    dep_name = (
+                        dep.split("[")[0]
+                        .split("@")[0]
+                        .split("==")[0]
+                        .split(">=")[0]
+                        .split("<=")[0]
+                        .split(">")[0]
+                        .split("<")[0]
+                        .split("!=")[0]
+                        .split("~=")[0]
+                        .split("===")[0]
+                        .strip()
+                    )
+                    if dep_name:
                         dependencies.append(dep_name)
-
-        except (OSError, IOError, KeyError, ValueError):
+        except (OSError, IOError, KeyError, ValueError, ImportError) as e:
+            print(f"DEBUG: Exception in pyproject.toml processing: {e}")  # Debug line
             dependencies = []
-
-    # For backward compatibility with old requirements.txt files
-    elif dependency_file.name == "requirements.txt":
-        try:
-            with open(dependency_file, "r") as f:
-                dependencies = [
-                    re.split("@|\\ |>|<|=|\\[", line)[0].strip()
-                    for line in f.readlines()
-                    if line[:3] != "-e " and line[0].strip() not in ["#", ""]
-                ]
-        except (OSError, IOError):
-            dependencies = []
-
     else:
         dependencies = []
 
+    print(f"DEBUG: Checking dependencies: {dependencies}")  # Debug line
+
     for dep in dependencies:
+        print(f"DEBUG: Checking dependency: {dep}")  # Debug line
         if find_spec(dep) is None:
+            print(f"DEBUG: find_spec({dep}) returned None")  # Debug line
             try:
                 pkg_resources.get_distribution(dep)
-            except (pkg_resources.DistributionNotFound, AttributeError):
+                print(
+                    f"DEBUG: pkg_resources.get_distribution({dep}) succeeded"
+                )  # Debug line
+            except (pkg_resources.DistributionNotFound, AttributeError) as e:
+                print(
+                    f"DEBUG: pkg_resources.get_distribution({dep}) failed: {e}"
+                )  # Debug line
                 raise ValueError(
                     f"Please install the '{dep}' package to run this experiment."
                 )
+        else:
+            print(f"DEBUG: find_spec({dep}) found the package")  # Debug line
 
 
 def develop_target_path(config):
