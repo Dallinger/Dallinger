@@ -140,7 +140,17 @@ class TestCommandLine(object):
 
     def test_new_uuid(self):
         output = subprocess.check_output(["dallinger", "uuid"])
-        assert isinstance(UUID(output.strip().decode("utf8"), version=4), UUID)
+        # Extract the UUID from the output, ignoring any warning messages
+        output_text = output.strip().decode("utf8")
+        # Find the UUID pattern in the output
+        import re
+
+        uuid_match = re.search(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", output_text
+        )
+        assert uuid_match is not None, f"Could not find UUID in output: {output_text}"
+        uuid_str = uuid_match.group(0)
+        assert isinstance(UUID(uuid_str, version=4), UUID)
 
     def test_dallinger_help(self):
         output = subprocess.check_output(["dallinger", "--help"])
