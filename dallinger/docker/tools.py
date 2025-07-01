@@ -8,10 +8,7 @@ from subprocess import CalledProcessError, check_output
 import click
 import docker
 from jinja2 import Template
-from pip._internal.network.session import PipSession
-from pip._internal.req import parse_requirements
 
-from dallinger.docker.wheel_filename import parse_wheel_filename
 from dallinger.utils import (
     JSON_LOGFILE,
     abspath_from_egg,
@@ -234,27 +231,28 @@ def get_base_image(experiment_tmp_path: str, needs_chrome: bool = False) -> str:
 
 
 def get_required_dallinger_version(experiment_tmp_path: str) -> str:
-    """Examine the requirements.txt in an experiment tmp directory
+    """Examine the pyproject.toml in an experiment tmp directory
     and return the dallinger version required by the experiment.
     """
-    requirements_path = str(Path(experiment_tmp_path) / "requirements.txt")
-    all_requirements = parse_requirements(requirements_path, session=PipSession())
-    dallinger_requirements = [
-        el.requirement
-        for el in all_requirements
-        if el.requirement.startswith("dallinger==")
-        or el.requirement.startswith(
-            "file:dallinger-"
-        )  # In case dallinger is installed in editable mode
-    ]
-    if not dallinger_requirements:
-        print("Could not determine Dallinger version. Using latest")
-        return ""
-    # pip-compile should have created a single spec in the form "dallinger==7.2.0"
-    if "==" in dallinger_requirements[0]:
-        return dallinger_requirements[0].split("==")[1]
-    # Or we might have a requirement like `file:dallinger-7.2.0-py3-none-any.whl`
-    return parse_wheel_filename(dallinger_requirements[0][len("file:") :]).version
+    pyproject_path = str(Path(experiment_tmp_path) / "pyproject.toml")
+    try:
+        import tomllib
+
+        with open(pyproject_path, "rb") as f:
+            data = tomllib.load(f)
+
+        if "project" in data and "dependencies" in data["project"]:
+            for dep in data["project"]["dependencies"]:
+                if dep.startswith("dallinger=="):
+                    return dep.split("==")[1]
+                elif dep.startswith("dallinger@git+"):
+                    # For git dependencies, use latest
+                    return ""
+    except (OSError, IOError, KeyError, ValueError, ImportError):
+        pass
+
+    print("Could not determine Dallinger version. Using latest")
+    return ""
 
 
 def get_experiment_image_tag(experiment_tmp_path: str) -> str:
@@ -268,7 +266,7 @@ def get_experiment_image_tag(experiment_tmp_path: str) -> str:
     The experiment directory can then be mounted to have the latest changes.
     This saves the need to rebuild the image too often.
     """
-    files = "requirements.txt", "prepare_docker_image.sh"
+    files = "pyproject.toml", "prepare_docker_image.sh"
     hash = sha256()
     for filename in files:
         filepath = Path(experiment_tmp_path) / filename
@@ -280,7 +278,7 @@ def build_image(
     tmp_dir, base_image_name, out, needs_chrome=False, force_build=True
 ) -> str:
     """Build the docker image for the experiment and return its name.
-    If force_build=False, then the image will only be rebuilt if requirements.txt or prepare_docker_image.sh
+    If force_build=False, then the image will only be rebuilt if pyproject.toml or prepare_docker_image.sh
     have changed.
     """
     tag = get_experiment_image_tag(tmp_dir)
@@ -326,7 +324,7 @@ def build_image(
         RUN mkdir /experiment
         WORKDIR /experiment
         #
-        COPY requirements.txt requirements.txt
+        COPY pyproject.toml pyproject.toml
         COPY dallinger-*.whl .
         COPY *prepare_docker_image.sh prepare_docker_image.sh
         #
@@ -334,7 +332,7 @@ def build_image(
         # This will be true if Dallinger was installed with the editable `-e` flag
         RUN if [ -f dallinger-*.whl ]; then pip install dallinger-*.whl; fi
         # If a dependency needs the ssh client and git, install them
-        RUN grep git+ requirements.txt && \
+        RUN grep git+ pyproject.toml && \
             apt-get update && \
             apt-get install -y openssh-client git && \
             rm -rf /var/lib/apt/lists || true
@@ -349,8 +347,7 @@ def build_image(
         # If they do the grep command will exit non-0, the pip command will not run
         # but the whole `RUN` group will succeed thanks to the last `true` invocation
         RUN mkdir -p ~/.ssh && echo "Host *\n    StrictHostKeyChecking no" >> ~/.ssh/config
-        RUN {ssh_mount} grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
-            python3 -m pip install -r /tmp/requirements_no_dallinger.txt || true
+        RUN {ssh_mount} uv pip sync --frozen-lockfile || true
         COPY . /experiment
         ENV PORT=5000
         CMD dallinger_heroku_web
