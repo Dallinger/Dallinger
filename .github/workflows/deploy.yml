@@ -22,21 +22,24 @@ jobs:
           node-version: "20"
       - name: Install node packages
         run: yarn --frozen-lockfile --ignore-engines
-      - name: Cache pip
+      - name: Install uv
+        uses: astral-sh/setup-uv@v1
+        with:
+          version: "latest"
+      - name: Cache uv
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('*.txt') }}
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-uv-
             ${{ runner.os }}-
       - name: Python Installers
-        run: pip install --upgrade pip wheel tox
+        run: uv pip install --system build
       - name: Set up deployment
         run: |
           pandoc --from=markdown --to=rst --output=README.rst README.md
-          pip install build
-          python -m build --sdist --wheel .
+          uv run python -m build --sdist --wheel .
       - name: Deploy
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
