@@ -113,11 +113,11 @@ def experiment_dir_merged(experiment_dir, active_config):
     """
     from dallinger.utils import (
         assemble_experiment_temp_dir,
-        ensure_constraints_file_presence,
+        ensure_uv_lock_file_presence,
     )
 
     current_dir = os.getcwd()
-    ensure_constraints_file_presence(current_dir)
+    ensure_uv_lock_file_presence(current_dir)
     with mock.patch(
         "dallinger.utils.get_editable_dallinger_path"
     ) as get_editable_dallinger_path:
