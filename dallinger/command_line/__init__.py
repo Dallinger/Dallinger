@@ -26,7 +26,6 @@ from sqlalchemy import exc as sa_exc
 from dallinger import data, db
 from dallinger.command_line.develop import develop
 from dallinger.command_line.docker import docker
-from dallinger.command_line.docker_ssh import docker_ssh
 from dallinger.command_line.prolific import prolific
 from dallinger.command_line.utils import (
     Output,
@@ -127,7 +126,17 @@ def dallinger():
 
 dallinger.add_command(develop)
 dallinger.add_command(docker)
-dallinger.add_command(docker_ssh)
+
+try:
+    from dallinger.command_line.docker_ssh import docker_ssh
+
+    dallinger.add_command(docker_ssh)
+except ImportError:
+    log(
+        "Could not import Docker SSH support. "
+        "Install dallinger with the docker extra to use Docker SSH related commands."
+    )
+    pass
 
 try:
     from dallinger.command_line.ec2 import ec2
