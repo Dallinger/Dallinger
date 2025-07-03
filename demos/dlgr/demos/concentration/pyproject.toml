@@ -1,15 +1,8 @@
 [project]
-name = "dallinger-concentration-demo"
+name = "concentration-demo"
 version = "0.1.0"
-description = "concentration experiment demo for Dallinger"
-authors = [
-    {name = "Dallinger Team", email = "dallinger@example.com"}
-]
+description = "Dallinger demo experiment: concentration"
+requires-python = ">=3.10"
 dependencies = [
     "dallinger",
 ]
-requires-python = ">=3.8"
-
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"

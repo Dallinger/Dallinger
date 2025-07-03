@@ -1,17 +1,8 @@
 [project]
-name = "dallinger-chatroom_ws-demo"
+name = "chatroom_ws-demo"
 version = "0.1.0"
-description = "chatroom_ws experiment demo for Dallinger"
-authors = [
-    {name = "Dallinger Team", email = "dallinger@example.com"}
-]
+description = "Dallinger demo experiment: chatroom_ws"
+requires-python = ">=3.10"
 dependencies = [
     "dallinger",
-    "nltk",
-    "selenium",
 ]
-requires-python = ">=3.8"
-
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
