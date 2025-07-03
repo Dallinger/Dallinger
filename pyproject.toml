@@ -51,8 +51,6 @@ dependencies = [
     "localconfig",
     "numpy < 2.3",
     "pexpect",
-    "pip",
-    "pip-tools",
     "platformdirs",
     "psycopg2",
     "psutil",
