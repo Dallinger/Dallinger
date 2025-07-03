@@ -347,7 +347,7 @@ def build_image(
         # If they do the grep command will exit non-0, the pip command will not run
         # but the whole `RUN` group will succeed thanks to the last `true` invocation
         RUN mkdir -p ~/.ssh && echo "Host *\n    StrictHostKeyChecking no" >> ~/.ssh/config
-        RUN {ssh_mount} uv pip sync --frozen-lockfile || true
+        RUN {ssh_mount} uv pip sync --frozen || true
         COPY . /experiment
         ENV PORT=5000
         CMD dallinger_heroku_web
