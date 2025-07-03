@@ -592,7 +592,7 @@ def setup_experiment(
         check_local_db_connection(log)
         check_experiment_dependencies(Path(os.getcwd()) / "pyproject.toml")
 
-    ensure_constraints_file_presence(os.getcwd())
+    ensure_uv_lock_file_presence(os.getcwd())
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
 
@@ -638,7 +638,7 @@ def setup_experiment(
     return (heroku_app_id, temp_dir)
 
 
-def ensure_constraints_file_presence(directory: str):
+def ensure_uv_lock_file_presence(directory: str):
     """No-op: constraints.txt and requirements.txt are no longer used. All dependency management is handled by uv and pyproject.toml/uv.lock."""
     return
 
