@@ -43,7 +43,7 @@ COPY . /dallinger/
 WORKDIR /dallinger
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system -e .[data,docker]
+    uv sync --frozen --extra data --extra docker
 
 # Add two ENV variables as a fix when using python3, to prevent this error:
 # Click will abort further execution because Python 3 was configured
