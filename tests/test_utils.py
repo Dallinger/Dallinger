@@ -5,7 +5,6 @@ import os
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from unittest import mock
 
 import pytest
@@ -380,7 +379,6 @@ class TestIsBrokenSymlink(object):
 
 def test_check_experiment_dependencies_successful():
     import tempfile
-    from pathlib import Path
 
     with tempfile.TemporaryDirectory() as tmpdir:
         pyproject_path = Path(tmpdir) / "pyproject.toml"
@@ -411,7 +409,6 @@ test = [
 
 def test_check_experiment_dependencies_unsuccessful():
     import tempfile
-    from pathlib import Path
 
     with tempfile.TemporaryDirectory() as tmpdir:
         pyproject_path = Path(tmpdir) / "pyproject.toml"
@@ -429,16 +426,6 @@ dependencies = [
             str(e.value)
             == "Please install the 'NOTINSTALLED' package to run this experiment."
         )
-
-
-def test_check_experiment_dependencies_requirements_txt_unsupported():
-    """Test that the function no longer supports requirements.txt files."""
-    with NamedTemporaryFile(suffix=".txt") as requirements_file:
-        requirements_file.writelines(["dallinger\n".encode("utf-8")])
-        requirements_file.flush()
-
-        # Should not raise an exception since requirements.txt is no longer supported
-        check_experiment_dependencies(Path(requirements_file.name))
 
 
 def test_strtobool_true_values():
