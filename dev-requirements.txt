@@ -629,7 +629,7 @@ trio-websocket==0.12.2
     # via selenium
 types-python-dateutil==2.9.0.20250516
     # via arrow
-typing-extensions==4.14.0
+typing-extensions==4.14.1
     # via
     #   beautifulsoup4
     #   selenium
