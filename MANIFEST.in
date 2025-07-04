@@ -2,9 +2,8 @@ recursive-include dallinger *
 recursive-include dallinger_scripts *
 recursive-include docs *
 
-include requirements.txt
-include dev-requirements.txt
-include constraints.txt
+include pyproject.toml
+include uv.lock
 include README.md
 include LICENSE
 include incubator.png
