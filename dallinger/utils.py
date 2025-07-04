@@ -444,7 +444,6 @@ def check_local_db_connection(log):
 
 
 def check_experiment_dependencies(dependency_file):
-    # Only support pyproject.toml/uv.lock. requirements.txt is no longer supported.
     dependencies = []
     if dependency_file.name == "pyproject.toml":
         try:
@@ -455,7 +454,7 @@ def check_experiment_dependencies(dependency_file):
                 with open(dependency_file, "rb") as f:
                     data = tomllib.load(f)
             except ImportError:
-                # Fallback to tomli for Python 3.10 and earlier
+                # Fallback to tomli for Python 3.10
                 import tomli
 
                 with open(dependency_file, "rb") as f:
