@@ -56,7 +56,7 @@ EOF
         cd "$project_root/${demo_dir}"
 
         # Generate uv.lock for this demo
-        if ! uv lock --quiet; then
+        if ! uv lock --upgrade; then
             echo "❌ Failed to generate lockfile for ${demo_name}"
             cd "$project_root"
             continue
