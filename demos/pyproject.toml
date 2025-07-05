@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dlgr.demos"
+version = "11.4.0a1"
+description = "Demonstration experiments for Dallinger"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Jordan Suchow", email = "suchow@berkeley.edu"}
+]
+maintainers = [
+    {name = "Jordan Suchow", email = "suchow@berkeley.edu"}
+]
+keywords = ["science", "cultural evolution", "experiments", "psychology"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.10",
+    "Framework :: Flask",
+    "Topic :: Scientific/Engineering",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+]
+requires-python = ">=3.10"
+dependencies = []
+
+[project.urls]
+Homepage = "http://github.com/Dallinger/Dallinger"
+Repository = "http://github.com/Dallinger/Dallinger"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dlgr"]
+
+[project.entry-points."dallinger.experiments"]
+Bartlett1932 = "dlgr.demos.bartlett1932.experiment:Bartlett1932"
+TwentyFortyEight = "dlgr.demos.twentyfortyeight.experiment:TwentyFortyEight"
+CoordinationChatroom = "dlgr.demos.chatroom.experiment:CoordinationChatroom"
+ConcentrationGame = "dlgr.demos.concentration.experiment:ConcentrationGame"
+FunctionLearning = "dlgr.demos.function_learning.experiment:FunctionLearning"
+IteratedDrawing = "dlgr.demos.iterated_drawing.experiment:IteratedDrawing"
+MCMCP = "dlgr.demos.mcmcp.experiment:MCMCP"
+RogersExperiment = "dlgr.demos.rogers.experiment:RogersExperiment"
+SheepMarket = "dlgr.demos.sheep_market.experiment:SheepMarket"
+SnakeGame = "dlgr.demos.snake.experiment:SnakeGame"
+VoxPopuli = "dlgr.demos.vox_populi.experiment:VoxPopuli"
