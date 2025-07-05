@@ -30,8 +30,8 @@ if !has_label
     warn("Please apply a label.")
 end
 
-if demo && !git.modified_files.include?("setup.cfg")
-    fail("Please add this demo's requirements file to setup.cfg.")
+if demo && !git.modified_files.include?("pyproject.toml")
+    fail("Please add this demo's dependencies to pyproject.toml.")
 end
 
 if demo && !git.modified_files.include?("README.md")
