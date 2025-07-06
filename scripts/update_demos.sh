@@ -40,20 +40,13 @@ for demo_dir in demos/dlgr/demos/*/; do
         current_demo=$((current_demo + 1))
         echo "📦 Processing ${demo_name} (${current_demo}/${total_demos})..."
 
-        # Create pyproject.toml in the demo directory
-        cat > "$project_root/${demo_dir}pyproject.toml" << EOF
-[project]
-name = "${demo_name}-demo"
-version = "0.1.0"
-description = "Dallinger demo experiment: ${demo_name}"
-requires-python = ">=3.10"
-dependencies = [
-    "dallinger",
-]
-EOF
-
         # Change to demo directory for uv operations
         cd "$project_root/${demo_dir}"
+
+        # Remove existing uv.lock if it exists (in case it's corrupted)
+        if [ -f "uv.lock" ]; then
+            rm uv.lock
+        fi
 
         # Generate uv.lock for this demo
         if ! uv lock --upgrade; then
