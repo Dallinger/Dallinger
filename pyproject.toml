@@ -97,6 +97,7 @@ dev = [
     "pytest-cov",
     "pytest-rerunfailures",
     "sphinx < 8.2",
+    "sphinx-js",
     "sphinx_rtd_theme",
     "sphinxcontrib-spelling",
     "tox",
