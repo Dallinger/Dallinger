@@ -630,8 +630,23 @@ def setup_experiment(
 
 
 def ensure_uv_lock_file_presence(directory: str):
-    """No-op: constraints.txt and requirements.txt are no longer used. All dependency management is handled by uv and pyproject.toml/uv.lock."""
-    return
+    """Ensure that pyproject.toml and uv.lock exist in the given directory.
+    If uv.lock is missing and pyproject.toml exists, run 'uv lock' in that directory.
+    If SKIP_DEPENDENCY_CHECK is set, do nothing.
+    """
+    import subprocess
+
+    if os.environ.get("SKIP_DEPENDENCY_CHECK"):
+        return
+    pyproject_path = Path(directory) / "pyproject.toml"
+    uv_lock_path = Path(directory) / "uv.lock"
+    if not pyproject_path.exists():
+        raise FileNotFoundError(f"pyproject.toml not found in {directory}")
+    if not uv_lock_path.exists():
+        try:
+            subprocess.run(["uv", "lock"], cwd=directory, check=True)
+        except Exception as e:
+            raise RuntimeError(f"Failed to generate uv.lock in {directory}: {e}")
 
 
 def assemble_experiment_temp_dir(log, config, for_remote=False):
