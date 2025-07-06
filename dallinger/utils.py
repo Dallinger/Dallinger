@@ -631,6 +631,7 @@ def setup_experiment(
 
 def ensure_uv_lock_file_presence(directory: str):
     """Ensure that pyproject.toml and uv.lock exist in the given directory.
+    If pyproject.toml doesn't exist, create a minimal one.
     If uv.lock is missing and pyproject.toml exists, run 'uv lock' in that directory.
     If SKIP_DEPENDENCY_CHECK is set, do nothing.
     """
@@ -640,8 +641,16 @@ def ensure_uv_lock_file_presence(directory: str):
         return
     pyproject_path = Path(directory) / "pyproject.toml"
     uv_lock_path = Path(directory) / "uv.lock"
+
+    # If pyproject.toml doesn't exist, one is created with `dallinger` as its only dependency.
     if not pyproject_path.exists():
-        raise FileNotFoundError(f"pyproject.toml not found in {directory}")
+        minimal_pyproject = """[project]
+name = "experiment"
+version = "0.1.0"
+dependencies = ["dallinger"]
+"""
+        pyproject_path.write_text(minimal_pyproject)
+
     if not uv_lock_path.exists():
         try:
             subprocess.run(["uv", "lock"], cwd=directory, check=True)
