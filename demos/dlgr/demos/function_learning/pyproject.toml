@@ -1,0 +1,8 @@
+[project]
+name = "function_learning-demo"
+version = "0.1.0"
+description = "Dallinger demo experiment: function_learning"
+requires-python = ">=3.10"
+dependencies = [
+    "dallinger",
+]

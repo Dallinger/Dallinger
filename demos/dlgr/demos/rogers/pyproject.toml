@@ -1,0 +1,8 @@
+[project]
+name = "rogers-demo"
+version = "0.1.0"
+description = "Dallinger demo experiment: rogers"
+requires-python = ">=3.10"
+dependencies = [
+    "dallinger",
+]

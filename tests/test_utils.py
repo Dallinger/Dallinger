@@ -4,7 +4,7 @@ import locale
 import os
 import tempfile
 from datetime import datetime, timedelta
-from tempfile import NamedTemporaryFile
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -378,35 +378,50 @@ class TestIsBrokenSymlink(object):
 
 
 def test_check_experiment_dependencies_successful():
-    with NamedTemporaryFile() as requirements_file:
-        requirements = [
-            "dallinger",
-            "dallinger==9.7.0",
-            "dallinger<=9.7.0",
-            "dallinger>=9.7.0",
-            "dallinger == 9.7.0",
-            "dallinger@git+https://github.com/Dallinger/Dallinger",
-            "dallinger @ git+https://github.com/Dallinger/Dallinger",
-            "dallinger[demos]",
-            "dallinger [demos]",
-            "# dallinger",
-            "",
-            " # dallinger",
-        ]
-        lines = [f"{r}\n".encode("utf-8") for r in requirements]
-        requirements_file.writelines(lines)
-        requirements_file.flush()
+    import tempfile
 
-        check_experiment_dependencies(requirements_file.name)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        pyproject_path = Path(tmpdir) / "pyproject.toml"
+        pyproject_content = """[project]
+name = \"test-experiment\"
+version = \"0.1.0\"
+dependencies = [
+    \"dallinger\",
+    \"dallinger==9.7.0\",
+    \"dallinger<=9.7.0\",
+    \"dallinger>=9.7.0\",
+    \"dallinger == 9.7.0\",
+    \"dallinger@git+https://github.com/Dallinger/Dallinger\",
+    \"dallinger @ git+https://github.com/Dallinger/Dallinger\",
+    \"dallinger[demos]\",
+    \"dallinger [demos]\",
+]
+
+[project.optional-dependencies]
+test = [
+    \"pytest\",
+    \"pytest-cov\",
+]
+"""
+        pyproject_path.write_text(pyproject_content)
+        check_experiment_dependencies(pyproject_path)
 
 
 def test_check_experiment_dependencies_unsuccessful():
-    with NamedTemporaryFile() as requirements_file:
-        requirements_file.writelines(["NOTINSTALLED\n".encode("utf-8")])
-        requirements_file.flush()
+    import tempfile
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        pyproject_path = Path(tmpdir) / "pyproject.toml"
+        pyproject_content = """[project]
+name = \"test-experiment\"
+version = \"0.1.0\"
+dependencies = [
+    \"NOTINSTALLED\",
+]
+"""
+        pyproject_path.write_text(pyproject_content)
         with pytest.raises(ValueError) as e:
-            check_experiment_dependencies(requirements_file.name)
+            check_experiment_dependencies(pyproject_path)
         assert (
             str(e.value)
             == "Please install the 'NOTINSTALLED' package to run this experiment."

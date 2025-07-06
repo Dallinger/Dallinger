@@ -16,7 +16,6 @@ import webbrowser
 from collections import Counter
 from functools import wraps
 from os.path import exists
-from pathlib import Path
 
 import click
 import requests
@@ -27,7 +26,6 @@ from sqlalchemy import exc as sa_exc
 from dallinger import data, db
 from dallinger.command_line.develop import develop
 from dallinger.command_line.docker import docker
-from dallinger.command_line.docker_ssh import docker_ssh
 from dallinger.command_line.prolific import prolific
 from dallinger.command_line.utils import (
     Output,
@@ -56,7 +54,6 @@ from dallinger.notifications import (
 from dallinger.recruiters import by_name
 from dallinger.utils import (
     check_call,
-    ensure_constraints_file_presence,
     generate_random_id,
 )
 from dallinger.version import __version__
@@ -129,7 +126,17 @@ def dallinger():
 
 dallinger.add_command(develop)
 dallinger.add_command(docker)
-dallinger.add_command(docker_ssh)
+
+try:
+    from dallinger.command_line.docker_ssh import docker_ssh
+
+    dallinger.add_command(docker_ssh)
+except ImportError:
+    log(
+        "Could not import Docker SSH support. "
+        "Install dallinger with the docker extra to use Docker SSH related commands."
+    )
+    pass
 
 try:
     from dallinger.command_line.ec2 import ec2
@@ -275,14 +282,6 @@ def fail_on_unsupported_urls(f):
 
     @wraps(f)
     def wrapper(**kwargs):
-        if "\ngit+ssh" in Path("requirements.txt").read_text():
-            raise click.UsageError(
-                "This experment has a git+ssh dependency.\n"
-                "Dallinger does not support this for Heroku deployment using non-docker dynos.\n"
-                "Try using the docker deployment by configuring a docker registry, adding the\n"
-                "`docker_image_base_name` variable to config.txt and running\n"
-                f"dallinger docker {f.__name__}"
-            )
         return f(**kwargs)
 
     return wrapper
@@ -925,16 +924,6 @@ def apps():
         out.log(tabulate.tabulate(listing, headers, tablefmt="psql"), chevrons=False)
     else:
         out.log("No heroku apps found for user {}".format(my_user))
-
-
-@dallinger.command()
-def generate_constraints():
-    """Update an experiment's constraints.txt pinned dependencies based on requirements.txt."""
-    experiment_dir = Path(os.getcwd())
-    constraints_path = experiment_dir / "constraints.txt"
-    if constraints_path.exists():
-        constraints_path.unlink()
-    ensure_constraints_file_presence(str(experiment_dir))
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)

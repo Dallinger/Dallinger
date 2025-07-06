@@ -1,0 +1,8 @@
+[project]
+name = "iterated_drawing-demo"
+version = "0.1.0"
+description = "Dallinger demo experiment: iterated_drawing"
+requires-python = ">=3.10"
+dependencies = [
+    "dallinger",
+]
