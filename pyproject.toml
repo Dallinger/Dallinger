@@ -170,9 +170,3 @@ exclude = '''
   | dist
 )/
 '''
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-
-[tool.flake8]
-ignore = ["E501", "E226"]

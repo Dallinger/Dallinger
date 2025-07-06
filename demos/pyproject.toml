@@ -49,3 +49,9 @@ RogersExperiment = "dlgr.demos.rogers.experiment:RogersExperiment"
 SheepMarket = "dlgr.demos.sheep_market.experiment:SheepMarket"
 SnakeGame = "dlgr.demos.snake.experiment:SnakeGame"
 VoxPopuli = "dlgr.demos.vox_populi.experiment:VoxPopuli"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.flake8]
+ignore = ["E501", "E226"]
