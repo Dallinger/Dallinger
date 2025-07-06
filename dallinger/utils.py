@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 import functools
+import importlib.metadata as metadata
 import io
 import locale
 import logging
@@ -66,11 +67,6 @@ def setup_warning_hooks():
     warnings.simplefilter("default", Warning)
     warnings.simplefilter("ignore", category=sa_exc.SAWarning)
 
-
-try:
-    from pip._vendor import pkg_resources
-except ImportError:
-    pkg_resources = None
 
 fake = Faker()
 
@@ -492,14 +488,10 @@ def check_experiment_dependencies(dependency_file):
         if find_spec(dep) is None:
             print(f"DEBUG: find_spec({dep}) returned None")  # Debug line
             try:
-                pkg_resources.get_distribution(dep)
-                print(
-                    f"DEBUG: pkg_resources.get_distribution({dep}) succeeded"
-                )  # Debug line
-            except (pkg_resources.DistributionNotFound, AttributeError) as e:
-                print(
-                    f"DEBUG: pkg_resources.get_distribution({dep}) failed: {e}"
-                )  # Debug line
+                metadata.distribution(dep)
+                print(f"DEBUG: metadata.distribution({dep}) succeeded")  # Debug line
+            except (metadata.PackageNotFoundError, AttributeError) as e:
+                print(f"DEBUG: metadata.distribution({dep}) failed: {e}")  # Debug line
                 raise ValueError(
                     f"Please install the '{dep}' package to run this experiment."
                 )
