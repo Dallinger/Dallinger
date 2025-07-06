@@ -5,4 +5,5 @@ description = "Dallinger demo experiment: chatroom"
 requires-python = ">=3.10"
 dependencies = [
     "dallinger",
+    "nltk",
 ]
