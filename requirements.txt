@@ -32,7 +32,7 @@ build==1.2.2.post1
     #   pip-tools
 cached-property==2.0.1
     # via dallinger
-certifi==2025.4.26
+certifi==2025.7.9
     # via
     #   requests
     #   selenium
