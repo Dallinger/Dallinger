@@ -18,7 +18,7 @@ from cached_property import cached_property
 from six.moves import shlex_quote as quote
 
 from dallinger.config import SENSITIVE_KEY_NAMES
-from dallinger.utils import check_call, check_output
+from dallinger.utils import check_call, check_output, port_is_open
 
 
 def app_name(experiment_uuid):
@@ -534,12 +534,13 @@ class HerokuLocalWrapper(object):
                 return
 
     def _verify_startup(self):
+        port = self.config.get("base_port")
         for line in self._stream():
             self._record.append(line)
             if self.verbose:
                 self.out.blather(line)
             line = line.strip()
-            if self._up_and_running(line):
+            if self._up_and_running(port):
                 return True
 
             if self._redis_not_running(line):
@@ -617,8 +618,8 @@ class HerokuLocalWrapper(object):
     def _stream(self):
         return iter(self._process.stdout.readline, self.STREAM_SENTINEL)
 
-    def _up_and_running(self, line):
-        return re.match(self.success_regex, line)
+    def _up_and_running(self, port):
+        return port_is_open(port)
 
     def _redis_not_running(self, line):
         return re.match(r"^.*? worker.1 .*? Connection refused.$", line)
