@@ -122,7 +122,7 @@ def handle_launch_data(
     if launch_request is not None:
         launch_request.raise_for_status()
 
-    raise RuntimeError("Launch failed")
+    raise requests.exceptions.ConnectionError
 
 
 def deploy_sandbox_shared_setup(
