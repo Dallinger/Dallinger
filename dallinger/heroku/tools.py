@@ -424,7 +424,6 @@ class HerokuLocalWrapper(object):
     """
 
     shell_command = "heroku"
-    success_regex = r"^.*? \d+ workers$"
     # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
     int_signal = getattr(signal, "CTRL_C_EVENT", signal.SIGINT)
     MONITOR_STOP = object()
@@ -453,10 +452,9 @@ class HerokuLocalWrapper(object):
 
     def start(self, timeout_secs=60):
         """Start the heroku local subprocess group and verify that
-        it has started successfully.
+        it has started successfully by polling the relevant port.
 
-        The subprocess output is checked for a line matching 'success_regex'
-        to indicate success. If no match is seen after 'timeout_secs',
+        If the port is not available after 'timeout_secs',
         a HerokuTimeoutError is raised.
         """
 
