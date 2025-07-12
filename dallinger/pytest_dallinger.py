@@ -251,13 +251,15 @@ def webapp_admin(csrf_token, webapp):
 def db_session():
     import dallinger.db
 
-    # The drop_all call can hang without this; see:
-    # https://stackoverflow.com/questions/13882407/sqlalchemy-blocked-on-dropping-tables
-    dallinger.db.session.close()
-    session = dallinger.db.init_db(drop_all=True)
-    yield session
-    session.rollback()
-    session.close()
+    try:
+        # Initialize the database and drop all tables
+        session = dallinger.db.init_db(drop_all=True)
+        session.commit()
+        yield session
+    finally:
+        # No need to rollback here, since the test may have committed
+        # Close and return the session to the pool
+        session.remove()
 
 
 @pytest.fixture
@@ -401,7 +403,7 @@ def a(db_session):
 
         def _insert(self, thing):
             db_session.add(thing)
-            db_session.flush()  # This gets us an ID and sets relationships
+            db_session.commit()
 
     return ModelFactory(db_session)
 

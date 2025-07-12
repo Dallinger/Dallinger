@@ -403,7 +403,7 @@ class TestRecruiterExit(object):
         participant = a.participant(assignment_id="some distinctive ID")
         resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
 
-        assert participant.assignment_id in str(resp.data)
+        assert "some distinctive ID" in str(resp.data)
 
     def test_mturk_recruiter_renders_hit_submission_form(
         self, a, webapp, active_config
@@ -690,12 +690,13 @@ class TestParticipantGetRoute(object):
 class TestParticipantByAssignmentRoute(object):
     def test_load_participant_calls_experiment_method(self, a, webapp):
         p = a.participant()
+        assignment_id = p.assignment_id
         with mock.patch(
             "dallinger.experiment.Experiment.load_participant"
         ) as load_participant:
-            load_participant.side_effect = lambda *args: p
-            webapp.post("/load-participant", data={"assignment_id": p.assignment_id})
-            load_participant.assert_called_once_with(p.assignment_id)
+            load_participant.side_effect = lambda *args: None
+            webapp.post("/load-participant", data={"assignment_id": assignment_id})
+            load_participant.assert_called_once_with(assignment_id)
 
     def test_load_participant(self, a, webapp):
         p = a.participant()
@@ -723,13 +724,16 @@ class TestParticipantByAssignmentRoute(object):
         self, a, db_session, webapp
     ):
         p = a.participant()
+        assignment_id = p.assignment_id
+        worker_id = p.worker_id
+        hit_id = p.hit_id
         with mock.patch(
             "dallinger.experiment.Experiment.normalize_entry_information"
         ) as normalizer:
             normalizer.side_effect = lambda *args: {
-                "assignment_id": p.assignment_id,
-                "worker_id": p.worker_id,
-                "hit_id": p.hit_id,
+                "assignment_id": assignment_id,
+                "worker_id": worker_id,
+                "hit_id": hit_id,
                 "entry_information": args[-1],
             }
             resp = webapp.post("/load-participant", data={"random_info": "123"})
@@ -742,6 +746,13 @@ class TestParticipantByAssignmentRoute(object):
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
 class TestParticipantCreateRoute(object):
+
+    def create_participant(self, a, **kw):
+        if "recruiter_name" in kw:
+            kw["recruiter_id"] = kw["recruiter_name"]
+        del kw["recruiter_name"]
+        return a.participant(**kw)
+
     @pytest.fixture
     def overrecruited(self, a):
         with mock.patch(
@@ -751,13 +762,14 @@ class TestParticipantCreateRoute(object):
             mock_exp.protected_routes = []
             mock_exp.is_overrecruited.return_value = True
             mock_exp.quorum = 50
-            mock_exp.create_participant.return_value = a.participant()
+            mock_exp.create_participant.side_effect = (
+                lambda **args: self.create_participant(a, **args)
+            )
             mock_class.return_value = mock_exp
 
             yield mock_class
 
     def test_create_participant_calls_experiment_method(self, a, webapp):
-        p = a.participant()
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
@@ -765,7 +777,9 @@ class TestParticipantCreateRoute(object):
             mock_exp.protected_routes = []
             mock_exp.is_overrecruited.return_value = False
             mock_exp.quorum = None
-            mock_exp.create_participant.side_effect = lambda **args: p
+            mock_exp.create_participant.side_effect = (
+                lambda **args: self.create_participant(a, **args)
+            )
             mock_class.return_value = mock_exp
 
             webapp.post("/participant/1/1/1/debug")
@@ -990,12 +1004,14 @@ class TestSummaryRoute(object):
 
     def test_summary_two_participants_with_different_status(self, a, webapp):
         p1 = a.participant()
-        p2 = a.participant()
+        p2 = a.participant(worker_id="2", hit_id="2", assignment_id="2")
         network = a.star()
         network.add_node(a.node(network=network, participant=p1))
         network.add_node(a.node(network=network, participant=p2))
         p1.status = "submitted"
         p2.status = "approved"
+        # Commit status changes so they can be read by the flask routes
+        a.db.commit()
 
         resp = webapp.get("/summary")
         data = json.loads(resp.data.decode("utf8"))
@@ -1380,11 +1396,14 @@ class TestNodeNeighbors(object):
         network = a.network()
         node1 = a.node(network=network)
         node2 = a.node(network=network)
+        node2_id = node2.id
         node1.connect(node2)
+        # Commit the connection so it can be read by the flask route
+        a.db.commit()
 
         resp = webapp.get("/node/{}/neighbors".format(node1.id))
         data = json.loads(resp.data.decode("utf8"))
-        assert data["nodes"][0]["id"] == node2.id
+        assert data["nodes"][0]["id"] == node2_id
 
     def test_pings_experiment(self, a, webapp):
         node = a.node()
@@ -1428,13 +1447,15 @@ class TestNodeReceivedInfos(object):
         receiver = a.node(network=net)
         sender.connect(direction="to", whom=receiver)
         info = a.info(origin=sender, contents="foo")
+        info_id = info.id
         sender.transmit(what=sender.infos()[0], to_whom=receiver)
         receiver.receive()
+        a.db.commit()
 
         resp = webapp.get("/node/{}/received_infos".format(receiver.id))
         data = json.loads(resp.data.decode("utf8"))
 
-        assert data["infos"][0]["id"] == info.id
+        assert data["infos"][0]["id"] == info_id
         assert data["infos"][0]["contents"] == "foo"
 
     def test_returns_empty_if_no_infos_received_by_node(self, a, webapp):
@@ -1486,6 +1507,7 @@ class TestTransformationGet(object):
         node = a.node()
         node_id = node.id  # save so we don't have to merge sessions
         node.replicate(a.info(origin=node))
+        a.db.commit()
 
         resp = webapp.get(
             "/node/{}/transformations?transformation_type=Replication".format(node_id)
@@ -1714,6 +1736,8 @@ class TestWorkerFunctionIntegration(object):
         from dallinger.information import TrackingEvent
         from dallinger.models import Participant
 
+        exp = Experiment(db_session)
+
         participant = Participant(
             recruiter_id="hotair",
             worker_id="1",
@@ -1726,7 +1750,6 @@ class TestWorkerFunctionIntegration(object):
         db_session.commit()
         participant_id = participant.id
 
-        exp = Experiment(db_session)
         network = exp.get_network_for_participant(participant)
         node = exp.create_node(participant, network)
         exp.add_node_to_network(node, network)

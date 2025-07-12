@@ -51,7 +51,7 @@ def worker_function(
 ):
     """Process the notification."""
     config = _config()
-    session = db.session()  # Avoids lookup up the session in the registry every time
+    session = db.session
     q = db.get_queue(name=queue_name)
     try:
         db.logger.debug(

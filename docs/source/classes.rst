@@ -616,3 +616,102 @@ Methods
 
 .. automethod:: dallinger.models.Question.fail
 
+
+Database Session Management
+---------------------------
+
+Database sessions are handled automatically by Dallinger in the following cases:
+
+    * Methods called during :func:`~dallinger.experiment.Experiment.setup` (e.g.
+      :func:`~dallinger.experiment.Experiment.create_network`)
+
+    * Methods called by experiment routes, including:
+        * :func:`~dallinger.experiment.Experiment.on_launch` called by (``POST
+          /launch``)
+        * :func:`~dallinger.experiment.Experiment.create_participant` called by
+          (``POST /participant/...``)
+        * :func:`~dallinger.experiment.Experiment.load_participant` called by
+          (``POST /load-participant``)
+        * :func:`~dallinger.experiment.Experiment.node_get_request` called by
+          (``GET /node/<node_id>/neighbors``)
+        * :func:`~dallinger.experiment.Experiment.get_network_for_participant`
+          called by (``POST /node/<participant_id>``)
+        * :func:`~dallinger.experiment.Experiment.create_node` called by (``POST
+          /node/<participant_id>``)
+        * :func:`~dallinger.experiment.Experiment.add_node_to_network` called by
+          (``POST /node/<participant_id>``)
+        * :func:`~dallinger.experiment.Experiment.node_post_request` called by
+          (``POST /node/<participant_id>``)
+        * :func:`~dallinger.experiment.Experiment.vector_get_request` called by
+          (``GET /node/<int:node_id>/vectors``)
+        * :func:`~dallinger.experiment.Experiment.vector_post_request` called by
+          (``POST /node/<int:node_id>/connect/<int:other_node_id>``)
+        * :func:`~dallinger.experiment.Experiment.info_get_request` called by
+          (``GET /info/<int:node_id>/<int:info_id>``, ``GET
+          /node/<int:node_id>/infos``, ``GET
+          /node/<int:node_id>/received_infos``)
+        * :func:`~dallinger.experiment.Experiment.info_post_request` called by
+          (``POST /info/<int:node_id>``)
+        * :func:`~dallinger.experiment.Experiment.transmission_get_request`
+          called by (``GET /node/<int:node_id>/transmissions``)
+        * :func:`~dallinger.experiment.Experiment.transmission_post_request`
+          called by (``POST /node/<int:node_id>/transmit``)
+        * :func:`~dallinger.experiment.Experiment.transformation_get_request`
+          called by (``GET /node/<int:node_id>/transformations``)
+        * :func:`~dallinger.experiment.Experiment.transformation_post_request`
+          called by (``POST
+          /transformation/<int:node_id>/<int:info_in_id>/<int:info_out_id>``)
+        * :func:`~dallinger.experiment.Experiment.participant_task_completed`
+          called by (``POST /worker-complete``)
+        * Any methods called by registered routes using the
+          :func:`~dallinger.experiment.Experiment.experiment_route` or similar
+          flask route decorators.
+
+    * Methods called by Dallinger's asynchronous worker function, including:
+        * :func:`~dallinger.experiment.Experiment.assignment_abandoned`
+        * :func:`~dallinger.experiment.Experiment.assignment_reassigned`
+        * :func:`~dallinger.experiment.Experiment.assignment_returned`
+        * :func:`~dallinger.experiment.Experiment.submission_successful`
+        * :func:`~dallinger.experiment.Experiment.update_participant_end_time`
+        * :func:`~dallinger.experiment.Experiment.on_recruiter_submission_complete`
+        * :func:`~dallinger.experiment.Experiment.receive_message`
+
+    * Scheduled clock tasks registered with the
+      :func:`~dallinger.experiment.Experiment.scheduled_task` decorator.
+    * :func:`~dallinger.experiment.Experiment.receive_message` when called
+      synchronously to handle a websocket message by the default
+      :func:`~dallinger.experiment.Experiment.send` implementation.
+
+If your experiment uses ``dallinger.db.session`` in other contexts, or calls any
+of the above methods outside of those contexts, you will need to explicitly
+manage the database session. You can do this by using the
+:func:`~dallinger.db.scoped_session_decorator` decorator, which will
+automatically close and release the session back to the connection pool, and
+roll back the session if an exception is raised. For example:
+.. code-block:: python
+
+    @db.scoped_session_decorator
+    def my_method(self):
+        ... Your database operations go here
+        self.session.commit()
+        ...
+
+Or in contexts where you need more control (e.g. inside of a long running loop where each
+iteration should have distinct session management), by using the
+:func:`~dallinger.db.sessions_scope` context manager, which does the same thing more explicitly.
+For example:
+
+.. code-block:: python
+
+    from dallinger import db
+
+    with db.sessions_scope() as session:
+        # Your database operations go here
+        ...
+        session.commit()
+
+Note: using this methods will result in closing the current session. If you have
+e.g. fetched database objects before calling such code, those objects will be
+disconnected from their original session and will not be usable until fetched
+again. It's important to order your code to ensure that objects are only
+accessed within a single session.
