@@ -378,9 +378,10 @@ class Experiment(object):
         except Exception:
             # Not JSON we have no information about the participant/node and
             # will run synchonously
-            self.receive_message(
-                message_string, channel_name=channel_name, receive_time=receive_time
-            )
+            with db.sessions_scope():
+                self.receive_message(
+                    message_string, channel_name=channel_name, receive_time=receive_time
+                )
             return
 
         participant_id = (
@@ -390,9 +391,10 @@ class Experiment(object):
         )
         node_id = message.get("node_id")
         if not participant_id and not node_id:
-            self.receive_message(
-                message_string, channel_name=channel_name, receive_time=receive_time
-            )
+            with db.sessions_scope():
+                self.receive_message(
+                    message_string, channel_name=channel_name, receive_time=receive_time
+                )
             return
 
         q = db.get_queue("high")
@@ -487,16 +489,23 @@ class Experiment(object):
 
     def setup(self):
         """Create the networks if they don't already exist."""
+        # XXX: This is typically called from the constructor, conditional on the
+        # `session` argument. We should probably do this initialization more
+        # explicitly elsewhere, especially since the default constructor doesn't
+        # call it.
         if not self.networks():
-            for _ in range(self.practice_repeats):
-                network = self.create_network()
-                network.role = "practice"
-                self.session.add(network)
-            for _ in range(self.experiment_repeats):
-                network = self.create_network()
-                network.role = "experiment"
-                self.session.add(network)
-            self.session.commit()
+            # This should generally be called from a flask route, but we use a
+            # session contextmanager to be safe.
+            with db.sessions_scope() as session:
+                for _ in range(self.practice_repeats):
+                    network = self.create_network()
+                    network.role = "practice"
+                    session.add(network)
+                for _ in range(self.experiment_repeats):
+                    network = self.create_network()
+                    network.role = "experiment"
+                    session.add(network)
+                session.commit()
 
     def create_network(self):
         """Return a new network."""

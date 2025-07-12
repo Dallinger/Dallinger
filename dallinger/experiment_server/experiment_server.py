@@ -624,6 +624,7 @@ def recruiter_exit():
             error_type="/recruiter-exit GET: param participant_id is required",
             status=400,
         )
+    exp = Experiment(session)
     participant = session.query(models.Participant).get(participant_id)
     if participant is None:
         return error_response(
@@ -636,7 +637,6 @@ def recruiter_exit():
     # Get the recruiter from the participant rather than config, to support
     # MultiRecruiter experiments
     recruiter = recruiters.by_name(participant.recruiter_id)
-    exp = Experiment(session)
 
     return recruiter.exit_response(experiment=exp, participant=participant)
 
@@ -698,7 +698,6 @@ def summary():
         )
         .count()
     )
-    exp = Experiment(session)
     overrecruited = exp.is_overrecruited(nonfailed_count)
     if exp.quorum:
         quorum = {"q": exp.quorum, "n": nonfailed_count, "overrecruited": overrecruited}
@@ -770,8 +769,6 @@ def request_parameter(parameter, parameter_type=None, default=None, optional=Fal
     or if the parameter is found but is of the wrong type
     then a Response object is returned
     """
-    exp = Experiment(session)
-
     # get the parameter
     try:
         value = request.values[parameter]
@@ -804,6 +801,7 @@ def request_parameter(parameter, parameter_type=None, default=None, optional=Fal
     elif parameter_type == "known_class":
         # if its a known class check against the known classes
         try:
+            exp = Experiment(session)
             value = exp.known_classes[value]
             return value
         except KeyError:
@@ -883,6 +881,8 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         msg = "/participant POST: required values were 'undefined'"
         return error_response(error_type=msg, status=403)
 
+    exp = Experiment(session)
+
     fingerprint_found = False
     if fingerprint_hash:
         try:
@@ -947,7 +947,6 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
     )
 
     # Create the new participant.
-    exp = Experiment(session)
     participant_vals = {
         "worker_id": worker_id,
         "hit_id": hit_id,
@@ -1100,9 +1099,10 @@ def create_question(participant_id):
 
     try:
         # execute the request
-        models.Question(
+        question = models.Question(
             participant=ppt, question=question, response=response, number=number
         )
+        session.add(question)
         session.commit()
     except Exception:
         return error_response(error_type="/question POST server error", status=403)
@@ -1459,12 +1459,13 @@ def info_post(node_id):
     for x in [contents, info_type]:
         if isinstance(x, Response):
             return x
+
+    exp = Experiment(session)
     # check the node exists
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/info POST, node does not exist")
 
-    exp = Experiment(session)
     try:
         # execute the request
         additional_params = {}
@@ -1794,6 +1795,7 @@ def worker_complete():
 def _worker_complete(participant_id):
     # Lock the participant row, then check and update status to avoid
     # double-submits:
+    exp = Experiment(session)
     participant = (
         session.query(models.Participant)
         .populate_existing()
@@ -1814,7 +1816,6 @@ def _worker_complete(participant_id):
     # assignment before the worker submits their task on asynchronous
     # recruitment platforms like MTurk. This prevents them from possibly being
     # offered another task which they may no longer be qualified for.
-    exp = Experiment(session)
     exp.participant_task_completed(participant)
 
     # The recruiter tells us which status to assign the participant,
