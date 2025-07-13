@@ -608,8 +608,7 @@ class DevProlificService(ProlificService):
 
         from dallinger.config import get_config
 
-        config = get_config()
-        config.load()
+        config = get_config(load=True)
 
         workspace = config.get("prolific_workspace")
         is_workspace_id = (

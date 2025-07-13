@@ -92,9 +92,7 @@ class BotBase(object):
         configuration."""
         from dallinger.config import get_config
 
-        config = get_config()
-        if not config.ready:
-            config.load()
+        config = get_config(load=True)
         driver_url = config.get("webdriver_url", None)
         driver_type = config.get("webdriver_type")
         driver = None

@@ -251,8 +251,7 @@ def build_and_push_image(f):
         from dallinger.command_line.docker import push
         from dallinger.docker.tools import build_image
 
-        config = get_config()
-        config.load()
+        config = get_config(load=True)
         image_name = config.get("docker_image_name", None)
         if image_name:
             client = docker.from_env()
@@ -384,8 +383,7 @@ def _deploy_in_mode(
     server,
     update,
 ):
-    config = get_config()
-    config.load()
+    config = get_config(load=True)
 
     run_pre_launch_checks(**locals())
 
@@ -806,8 +804,7 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
 
     print(f"Connecting to {host}")
     with yaspin() as spinner:
-        config = get_config()
-        config.load()
+        config = get_config(load=True)
         server_pem = config.get("server_pem", None)
         if server_pem:
             if not os.path.exists(server_pem):

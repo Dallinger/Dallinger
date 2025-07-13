@@ -25,8 +25,7 @@ def get_config(strict=True):
     from dallinger.config import get_config
 
     config = get_config()
-    if not config.ready:
-        config.load(strict=strict)
+    config.load(strict=strict)
     return config
 
 

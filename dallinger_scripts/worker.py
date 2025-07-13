@@ -24,9 +24,7 @@ def main():
 
     initialize_experiment_package(os.getcwd())
 
-    config = get_config()
-    if not config.ready:
-        config.load()
+    config = get_config(load=True)
 
     LOG_LEVELS = [
         logging.DEBUG,

@@ -75,9 +75,7 @@ def warn_on_idle_transactions():
 
 
 def launch():
-    config = dallinger.config.get_config()
-    if not config.ready:
-        config.load()
+    dallinger.config.get_config(load=True)
 
     # Import the experiment.
     experiment_class = dallinger.experiment.load()

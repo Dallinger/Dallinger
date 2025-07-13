@@ -4,6 +4,7 @@ import random
 
 import six
 
+from dallinger import db
 from dallinger.config import get_config
 from dallinger.experiment import Experiment
 from dallinger.information import Meme
@@ -33,27 +34,11 @@ def extra_parameters():
 class RogersExperiment(Experiment):
     """The experiment class."""
 
-    def __init__(self, session=None):
-        """Call the same function in the super (see experiments.py in dallinger).
-
-        The models module is imported here because it must be imported at
-        runtime.
-
-        A few properties are then overwritten.
-
-        Finally, setup() is called.
-        """
-        super(RogersExperiment, self).__init__(session)
-        from . import models
-
-        self.models = models
-        self.known_classes["LearningGene"] = self.models.LearningGene
-
-        if session and not self.networks():
-            self.setup()
-
     def configure(self):
-        config = get_config()
+        from .models import LearningGene
+
+        self.known_classes["LearningGene"] = LearningGene
+        config = get_config(self, load=True)
         self.experiment_repeats = config.get("experiment_repeats")
         self.practice_repeats = config.get("practice_repeats")
         self.catch_repeats = config.get(
@@ -87,13 +72,15 @@ class RogersExperiment(Experiment):
             net.role = "catch"
 
         for net in self.networks():
-            source = self.models.RogersSource(network=net)
+            from .models import RogersEnvironment, RogersSource
+
+            source = RogersSource(network=net)
             source.create_information()
             net.max_size = net.max_size + 1  # make room for environment node.
-            env = self.models.RogersEnvironment(network=net)
+            env = RogersEnvironment(network=net)
             env.proportion = self.color_proportion_for_network(net)
             env.create_information()
-        self.session.commit()
+        db.session.commit()
 
     def color_proportion_for_network(self, net):
         if net.role == "practice":
@@ -113,7 +100,9 @@ class RogersExperiment(Experiment):
 
     def create_node(self, network, participant):
         """Make a new node for participants."""
-        return self.models.RogersAgent(network=network, participant=participant)
+        from .models import RogersAgent
+
+        return RogersAgent(network=network, participant=participant)
 
     def info_post_request(self, node, info):
         """Run whenever an info is created."""
@@ -122,20 +111,22 @@ class RogersExperiment(Experiment):
     def submission_successful(self, participant):
         """Run when a participant submits successfully."""
         num_approved = len(
-            self.session.query(Participant).filter_by(status="approved").all()
+            db.session.query(Participant).filter_by(status="approved").all()
         )
         current_generation = participant.nodes()[0].generation
         if (
             num_approved % self.generation_size == 0
             and (current_generation % 10 + 1) == 0  # noqa
         ):
-            for e in self.models.RogersEnvironment.query.all():
+            from .models import RogersEnvironment
+
+            for e in db.session.query(RogersEnvironment).all():
                 e.step()
 
     def recruit(self):
         """Recruit participants if necessary."""
         num_approved = len(
-            self.session.query(Participant).filter_by(status="approved").all()
+            db.session.query(Participant).filter_by(status="approved").all()
         )
         end_of_generation = num_approved % self.generation_size == 0
         complete = num_approved >= (self.generations * self.generation_size)
@@ -167,7 +158,7 @@ class RogersExperiment(Experiment):
 
     def data_check(self, participant):
         """Check a participants data."""
-        nodes = self.session.query(Node).filter_by(participant_id=participant.id).all()
+        nodes = db.session.query(Node).filter_by(participant_id=participant.id).all()
 
         if len(nodes) != self.experiment_repeats + self.practice_repeats:
             print(
@@ -200,15 +191,17 @@ class RogersExperiment(Experiment):
 
     def add_node_to_network(self, node, network):
         """Add participant's node to a network."""
+        from .models import LearningGene, RogersAgent, RogersEnvironment
+
         network.add_node(node)
         node.receive()
 
-        environment = network.nodes(type=self.models.RogersEnvironment)[0]
+        environment = network.nodes(type=RogersEnvironment)[0]
         environment.connect(whom=node)
 
-        gene = node.infos(type=self.models.LearningGene)[0].contents
+        gene = node.infos(type=LearningGene)[0].contents
         if gene == "social":
-            agent_model = self.models.RogersAgent
+            agent_model = RogersAgent
             prev_agents = agent_model.query.filter_by(
                 failed=False, network_id=network.id, generation=node.generation - 1
             ).all()

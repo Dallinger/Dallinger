@@ -7,20 +7,8 @@ from dallinger.experiment_server.dashboard import dashboard_tab
 
 class TestExperiment(Experiment):
     _completed = None
-
-    def __init__(self, session=None):
-        try:
-            super(TestExperiment, self).__init__(session)
-        except TypeError:
-            self.practice_repeats = 0
-            self.verbose = True
-            if session:
-                self.session = session
-                self.configure()
-        self.experiment_repeats = 1
-        self.quorum = 1
-        if session:
-            self.setup()
+    experiment_repeats = 1
+    quorum = 1
 
     @classmethod
     def extra_parameters(cls):

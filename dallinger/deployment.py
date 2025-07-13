@@ -103,9 +103,7 @@ def deploy_sandbox_shared_setup(
     else:
         out = open(os.devnull, "w")
 
-    config = get_config()
-    if not config.ready:
-        config.load()
+    config = get_config(load=True)
     heroku.sanity_check(config)
     (heroku_app_id, tmp) = setup_experiment(
         log, debug=False, app=app, exp_config=exp_config, local_checks=False
@@ -303,7 +301,7 @@ class HerokuLocalDeployment(object):
         # changing a global state.
         os.chdir(self.tmp_dir)
         # Update the logfile to the new directory
-        config = get_config()
+        config = get_config(load=True)
         logfile = config.get("logfile")
         if logfile and logfile != "-":
             logfile = os.path.join(self.original_dir, logfile)

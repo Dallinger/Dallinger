@@ -3,9 +3,8 @@ import sys
 
 import pytest
 
-from dallinger import experiments
+from dallinger import config, experiments
 from dallinger.command_line.utils import verify_package
-from dallinger.config import get_config
 
 
 @pytest.mark.slow
@@ -51,6 +50,9 @@ class TestDemos(object):
             entry_points = experiments.entry_points().get(group)
 
         for entry in entry_points:
+            # Remove config to ensure no side effects as we loop through
+            # experiments
+            config.config = None
             try:
                 entry.load()()
             except Exception as ex:
@@ -70,9 +72,9 @@ class TestBartlett1932(object):
     def demo(self, db_session):
         from dlgr.demos.bartlett1932.experiment import Bartlett1932
 
-        get_config().load()
-        instance = Bartlett1932(db_session)
-        return instance
+        instance = Bartlett1932()
+        instance.setup()  # Emulate experiment launch
+        yield instance
 
     def test_networks_holds_single_experiment_node(self, demo):
         assert len(demo.networks()) == 1

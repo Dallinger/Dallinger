@@ -6,6 +6,7 @@ from unittest import mock
 
 import pytest
 
+from dallinger.db import sessions_scope
 from dallinger.experiment_server.dashboard import DashboardTab
 
 
@@ -499,7 +500,9 @@ class TestDashboardNetworkInfo(object):
         from dallinger.experiment_server.experiment_server import Experiment
         from dallinger.models import Network
 
-        exp = Experiment(db_session)
+        exp = Experiment()
+        # Emulate experiment launch
+        exp.setup()
 
         network = Network.query.all()[0]
         network2 = a.network(role="test")
@@ -510,22 +513,24 @@ class TestDashboardNetworkInfo(object):
             assignment_id="1",
             mode="test",
         )
-        source = a.source(network=network)
-        source2 = a.source(network=network2)
-        info1 = a.info(origin=source, contents="contents1")
-        info2 = a.info(origin=source, contents="contents2")
-        info3 = a.info(origin=source2, contents="contents3")
-        info4 = a.info(origin=source2, contents="contents3")
-        a.transformation(info_in=info1, info_out=info2)
-        a.transformation(info_in=info3, info_out=info4)
-        db_session.commit()
+        with sessions_scope(commit=True):
+            source = a.source(network=network)
+            source2 = a.source(network=network2)
+            info1 = a.info(origin=source, contents="contents1")
+            info2 = a.info(origin=source, contents="contents2")
+            info3 = a.info(origin=source2, contents="contents3")
+            info4 = a.info(origin=source2, contents="contents3")
+            a.transformation(info_in=info1, info_out=info2)
+            a.transformation(info_in=info3, info_out=info4)
         yield exp
 
     def test_network_structure(self, a, db_session):
         from dallinger.experiment_server.experiment_server import Experiment
         from dallinger.models import Network
 
-        exp = Experiment(db_session)
+        exp = Experiment()
+        # Emulate experiment launch
+        exp.setup()
 
         network = Network.query.all()[0]
 
@@ -708,7 +713,9 @@ class TestDashboardDatabase(object):
         from dallinger.experiment_server.experiment_server import Experiment
         from dallinger.models import Network
 
-        exp = Experiment(db_session)
+        exp = Experiment()
+        # Emulate experiment launch
+        exp.setup()
 
         network = Network.query.all()[0]
 

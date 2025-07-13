@@ -90,9 +90,7 @@ def report_idle_after(seconds):
     def decorator(func):
         def wrapper(*args, **kwargs):
             def _handle_timeout(signum, frame):
-                config = get_config()
-                if not config.ready:
-                    config.load()
+                config = get_config(load=True)
                 message = {
                     "subject": "Idle Experiment.",
                     "body": idle_template.format(
@@ -222,8 +220,7 @@ def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
 
 
 def _mturk_service_from_config(sandbox):
-    config = get_config()
-    config.load()
+    config = get_config(load=True)
     return MTurkService(
         aws_access_key_id=config.get("aws_access_key_id"),
         aws_secret_access_key=config.get("aws_secret_access_key"),
@@ -248,8 +245,7 @@ def _deploy_in_mode(mode, verbose, app=None, archive=None):
 
     log(header, chevrons=False)
 
-    config = get_config()
-    config.load()
+    config = get_config(load=True)
     config.extend({"mode": mode, "logfile": "-"})
 
     run_pre_launch_checks(**locals())
@@ -364,8 +360,7 @@ def qualify(workers, qualification, value, by_name, notify, sandbox):
 def email_test():
     """Test email configuration and send a test email."""
     out = Output()
-    config = get_config()
-    config.load()
+    config = get_config(load=True)
     settings = EmailConfig(config)
     out.log("Email Config")
     out.log(tabulate.tabulate(settings.as_dict().items()), chevrons=False)
@@ -410,8 +405,7 @@ def email_test():
 def compensate(recruiter, worker_id, email, dollars, sandbox):
     """Credit a specific worker by ID through their recruiter"""
     out = Output()
-    config = get_config()
-    config.load()
+    config = get_config(load=True)
     mode = "sandbox" if sandbox else "live"
     do_notify = email is not None
     no_email_str = "" if email else " NOT"
@@ -668,8 +662,7 @@ def expire(hit_id, app, sandbox, exit=True):
 def extend_mturk_hit(hit_id, assignments, duration_hours, sandbox):
     """Add assignments, and optionally time, to an existing MTurk HIT."""
     out = Output()
-    config = get_config()
-    config.load()
+    config = get_config(load=True)
     mode = "sandbox" if sandbox else "live"
     assignments_presented = "assignments" if assignments > 1 else "assignment"
     duration_presented = duration_hours or 0.0
@@ -729,8 +722,7 @@ def destroy(ctx, app, expire_hit, sandbox):
 def awaken(app, databaseurl):
     """Restore the database from a given url."""
     id = app
-    config = get_config()
-    config.load()
+    config = get_config(load=True)
 
     bucket = data.user_s3_bucket()
     key = bucket.lookup("{}.dump".format(id))
@@ -895,9 +887,7 @@ def rq_worker():
 @dallinger.command()
 def apps():
     out = Output()
-    config = get_config()
-    if not config.ready:
-        config.load()
+    config = get_config(load=True)
     team = config.get("heroku_team", None)
     command_runner = HerokuInfo(team=team)
     my_apps = command_runner.my_apps()

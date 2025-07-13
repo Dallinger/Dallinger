@@ -124,8 +124,7 @@ def build():
     """Build a docker image for this experiment."""
     from dallinger.docker.tools import build_image
 
-    config = get_config()
-    config.load()
+    config = get_config(load=True)
     _, tmp = setup_experiment(log=log, debug=True, local_checks=False)
     build_image(tmp, config.get("docker_image_base_name"), Output(), force_build=True)
 
@@ -138,8 +137,7 @@ def push(use_existing: bool, **kwargs) -> str:
 
     from dallinger.docker.tools import build_image
 
-    config = get_config()
-    config.load()
+    config = get_config(load=True)
     app_name = kwargs.get("app_name", None)
     _, tmp = setup_experiment(log=log, debug=True, local_checks=False, app=app_name)
     image_name_with_tag = build_image(
@@ -203,8 +201,7 @@ REGISTRY_UNAUTHORIZED_HELP_TEXT = [
 @click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 def deploy_image(image_name, mode, config_options):
     """Deploy Heroku app using a docker image and MTurk."""
-    config = get_config()
-    config.load()
+    config = get_config(load=True)
     dashboard_user = config.get("dashboard_user", "admin")
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
     dallinger_uid = str(uuid.uuid4())
@@ -304,8 +301,7 @@ def _deploy_in_mode(mode, verbose, app=None):
 
     log(header, chevrons=False)
 
-    config = get_config()
-    config.load()
+    config = get_config(load=True)
     config.extend({"mode": mode, "logfile": "-"})
 
     run_pre_launch_checks(**locals())
@@ -316,10 +312,7 @@ def _deploy_in_mode(mode, verbose, app=None):
 def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     from dallinger.docker.tools import build_image
 
-    config = get_config()
-    config.load()
-    if not config.ready:
-        config.load()
+    config = get_config(load=True)
     (heroku_app_id, tmp) = setup_experiment(
         log, debug=False, app=app, exp_config=exp_config, local_checks=False
     )
