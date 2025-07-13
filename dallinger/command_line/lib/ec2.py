@@ -30,9 +30,7 @@ logger = logging.getLogger(__name__)
 def get_keys(region_name=None):
     from dallinger.config import get_config
 
-    config = get_config()
-    if not config.ready:
-        config.load(strict=False)
+    config = get_config(load=True)
     keys = {}
     # If keys are not set let boto get them from ~/.aws/config or other standard places
     if config.get("aws_access_key_id"):
@@ -651,9 +649,7 @@ def prepare_docker_experiment_setup(
 ):
     from dallinger.config import get_config
 
-    config = get_config()
-    if not config.ready:
-        config.load()
+    config = get_config(load=True)
     assert config.get("dashboard_user") and config.get(
         "dashboard_password"
     ), "dashboard_user and dashboard_password must be set in ~/.dallingerconfig"

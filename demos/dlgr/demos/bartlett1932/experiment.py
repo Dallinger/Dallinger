@@ -7,6 +7,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
+from dallinger import db
 from dallinger.bots import BotBase
 from dallinger.config import get_config
 from dallinger.experiment import Experiment
@@ -18,21 +19,12 @@ logger = logging.getLogger(__name__)
 class Bartlett1932(Experiment):
     """Define the structure of the experiment."""
 
-    def __init__(self, session=None):
-        """Call the same function in the super (see experiments.py in dallinger).
+    experiment_repeats = 1
+    initial_recruitment_size = 1
 
-        A few properties are then overwritten.
-
-        Finally, setup() is called.
-        """
-        super(Bartlett1932, self).__init__(session)
-        from . import models  # Import at runtime to avoid SQLAlchemy warnings
-
-        self.models = models
-        self.experiment_repeats = 1
-        self.initial_recruitment_size = 1
-        if session:
-            self.setup()
+    @classmethod
+    def config_defaults(cls):
+        return {"auto_recruit": True}
 
     @classmethod
     def extra_parameters(cls):
@@ -40,7 +32,7 @@ class Bartlett1932(Experiment):
         config.register("num_participants", int)
 
     def configure(self):
-        config = get_config()
+        config = get_config(self, load=True)
         self.num_participants = config.get("num_participants")
 
     def setup(self):
@@ -52,10 +44,12 @@ class Bartlett1932(Experiment):
         source to each network.
         """
         if not self.networks():
+            from . import models
+
             super(Bartlett1932, self).setup()
             for net in self.networks():
-                self.models.WarOfTheGhostsSource(network=net)
-            self.session.commit()
+                models.WarOfTheGhostsSource(network=net)
+            db.session.commit()
 
     def create_network(self):
         """Return a new network."""

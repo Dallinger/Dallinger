@@ -693,7 +693,7 @@ roll back the session if an exception is raised. For example:
     @db.scoped_session_decorator
     def my_method(self):
         ... Your database operations go here
-        self.session.commit()
+        db.session.commit()
         ...
 
 Or in contexts where you need more control (e.g. inside of a long running loop where each

@@ -13,15 +13,10 @@ def extra_parameters():
 class TwentyFortyEight(Experiment):
     """Define the structure of the experiment."""
 
-    def __init__(self, session=None):
-        """Initialize the experiment."""
-        super(TwentyFortyEight, self).__init__(session)
-        self.experiment_repeats = 1
-        if session:
-            self.setup()
+    experiment_repeats = 1
 
     def configure(self):
-        config = get_config()
+        config = get_config(self, load=True)
         self.initial_recruitment_size = config.get("n")
 
     def create_network(self):

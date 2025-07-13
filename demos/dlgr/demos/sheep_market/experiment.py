@@ -13,17 +13,8 @@ from dallinger.networks import Empty
 class SheepMarket(Experiment):
     """Define the structure of the experiment."""
 
-    def __init__(self, session=None):
-        """Call the same function in the super (see experiments.py in dallinger).
-
-        A few properties are then overwritten.
-        Finally, setup() is called.
-        """
-        super(SheepMarket, self).__init__(session)
-        self.experiment_repeats = 1
-        self.initial_recruitment_size = 2
-        if session:
-            self.setup()
+    experiment_repeats = 1
+    initial_recruitment_size = 2
 
     def create_network(self):
         """Return a new network."""

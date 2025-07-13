@@ -70,11 +70,11 @@ class TestRogers(object):
         sys.stdout.flush()
 
         exp_setup_start = timenow()
-        exp = RogersExperiment(db_session)
+        exp = RogersExperiment()
         exp_setup_stop = timenow()
 
         exp_setup_start2 = timenow()
-        exp = RogersExperiment(db_session)
+        exp.setup()
         exp_setup_stop2 = timenow()
 
         p_ids = []

@@ -350,8 +350,7 @@ def logout():
 @login_required
 def dashboard_index():
     """Displays active experiment configuation"""
-    config = get_config()
-    config.load()
+    config = get_config(load=True)
     config_dict = config.as_dict()
     config_list = sorted(config_dict.items())
     return render_template(
@@ -609,7 +608,7 @@ def dashboard_monitoring():
     from dallinger.experiment_server.experiment_server import Experiment, session
     from dallinger.models import Network
 
-    exp = Experiment(session)
+    exp = Experiment()
     panes = exp.monitoring_panels(**request.args.to_dict(flat=False))
     network_structure = exp.network_structure(**request.args.to_dict(flat=False))
     vis_options = exp.node_visualization_options()
@@ -636,9 +635,9 @@ def dashboard_monitoring():
 @dashboard.route("/node_details/<object_type>/<obj_id>")
 @login_required
 def node_details(object_type, obj_id):
-    from dallinger.experiment_server.experiment_server import Experiment, session
+    from dallinger.experiment_server.experiment_server import Experiment
 
-    exp = Experiment(session)
+    exp = Experiment()
     html_data = exp.node_visualization_html(object_type, obj_id)
     return Response(html_data, status=200, mimetype="text/html")
 
@@ -1042,9 +1041,9 @@ def prep_datatables_options(table_data):
 @login_required
 def dashboard_database():
     from dallinger.db import get_polymorphic_mapping
-    from dallinger.experiment_server.experiment_server import Experiment, session
+    from dallinger.experiment_server.experiment_server import Experiment
 
-    exp = Experiment(session)
+    exp = Experiment()
 
     table = request.args.get("table", None)
     polymorphic_identity = request.args.get("polymorphic_identity", None)
@@ -1136,7 +1135,7 @@ def database_action(route_name):
     from dallinger.experiment_server.experiment_server import Experiment, session
 
     data = request.json
-    exp = Experiment(session)
+    exp = Experiment()
     if route_name not in {a["name"] for a in exp.dashboard_database_actions()}:
         return error_response(
             error_text="Access to {} not allowed".format(route_name), status=403

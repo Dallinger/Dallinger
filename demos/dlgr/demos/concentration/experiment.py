@@ -13,16 +13,11 @@ def extra_parameters():
 class ConcentrationGame(Experiment):
     """Define the structure of the experiment."""
 
-    def __init__(self, session=None):
-        """Initialize the experiment."""
-        super(ConcentrationGame, self).__init__(session)
-        self.experiment_repeats = 1
-        if session:
-            self.setup()
+    experiment_repeats = 1
 
     def configure(self):
-        config = get_config()
-        self.initial_recruitment_size = config["num_participants"]
+        config = get_config(self, load=True)
+        self.initial_recruitment_size = config.get("num_participants")
 
     def create_network(self):
         """Return a new network."""

@@ -518,13 +518,6 @@ discussed in the configuration section above.
 		"""Define the structure of the experiment."""
 		num_participants = 1
 
-		def __init__(self, session=None):
-			"""Call the same parent constructor, then call setup() if we have a session.
-			"""
-			super(PushButton, self).__init__(session)
-			if session:
-				self.setup()
-
 		def configure(self):
 			super(PushButton, self).configure()
 			self.experiment_repeats = 1
@@ -1000,50 +993,42 @@ cookiecutter:
 	from dallinger.experiment import Experiment
 	from dallinger.networks import Chain
 
-	from . import models
-
 
 	class Bartlett1932(Experiment):
 		"""An experiment from Bartlett's Remembering."""
-
-		def __init__(self, session=None):
-			super(Bartlett1932, self).__init__(session)
-			self.models = models
-			self.experiment_repeats = 1
-			self.initial_recruitment_size = 1
-			if session:
-				self.setup()
+		experiment_repeats = 1
+		initial_recruitment_size = 1
 
 First, we import the `Experiment` class, which we will extend for our
 Bartlett experiment. Next, we import `Chain`, which is the class for our
-chosen network. After that, we import our models, which will be discussed in
-the next section.
+chosen network.
 
 Following this, we define the experiment class `Bartlett1932`, subclassing
-Dallinger's Experiment class. The `__init__` method calls the Experiment
-initialization first, then does common setup work. For other experiments,
-you might need to change the number of `experiment_repeats` (how many times
-the experiment is run) and the `initial_recruitment_size` (how many
+Dallinger's Experiment class. We set some default values for a couple of
+configuration parameters, ``experiment_repeats`` and
+``initial_recruitment_size``. For other experiments,
+you might need to change the number of ``experiment_repeats`` (how many times
+the experiment is run) and the ``initial_recruitment_size`` (how many
 participants are going to be recruited initially). In this case, we set both
 to 1.
 
-Note that as part of the initialization, we take the models we imported above
-and assign them to the created instance.
-
-The last line calls `self.setup`, which is defined as follows:
+Then we need a custom database ``setup`` function, which is defined as follows:
 
 ::
 
 		def setup(self):
 			if not self.networks():
 				super(Bartlett1932, self).setup()
+				from .models import WarOfTheGhostsSource
 				for net in self.networks():
-					self.models.WarOfTheGhostsSource(network=net)
+					WarOfTheGhostsSource(network=net)
 
 The `self.networks()` call at the top, will get all the networks defined for
 this experiment. When it is first run, this will return an empty list, in
 which case we will call the Experiment setup. After this call, the network
-will be defined.
+will be defined. Note that we need to import from ``.models`` within our method code
+because importing our custom models at the module level would not allow them to be
+incorporated into the SQLAlchemy ORM.
 
 Once we have a network, we add our source to it as the first node. This will
 be discussed in more detail in the next section. Just take note that the

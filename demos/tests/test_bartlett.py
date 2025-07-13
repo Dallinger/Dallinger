@@ -30,7 +30,8 @@ class TestBartlett1932(object):
     def demo(self, db_session, bartlett_config):
         from dlgr.demos.bartlett1932.experiment import Bartlett1932
 
-        instance = Bartlett1932(db_session)
+        instance = Bartlett1932()
+        instance.setup()
         yield instance
 
     @pytest.fixture

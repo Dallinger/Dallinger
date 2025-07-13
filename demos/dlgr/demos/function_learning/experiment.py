@@ -1,5 +1,6 @@
 """Define a transmission-chain experiment that transmits functional forms."""
 
+from dallinger import db
 from dallinger.experiment import Experiment
 from dallinger.networks import Chain
 
@@ -7,23 +8,7 @@ from dallinger.networks import Chain
 class FunctionLearning(Experiment):
     """A function-learning experiment."""
 
-    def __init__(self, session=None):
-        """Call the same function in the super (see experiments.py in dallinger).
-
-        The models module is imported here because it must be imported at
-        runtime.
-
-        A few properties are then overwritten.
-
-        Finally, setup() is called.
-        """
-        super(FunctionLearning, self).__init__(session)
-        from . import models
-
-        self.models = models
-        self.experiment_repeats = 1
-        if session:
-            self.setup()
+    experiment_repeats = 1
 
     def setup(self):
         """Setup does stuff only if there are no networks.
@@ -33,10 +18,12 @@ class FunctionLearning(Experiment):
         Then it adds a source to each network.
         """
         if not self.networks():
+            from .models import SinusoidalFunctionSource
+
             super(FunctionLearning, self).setup()
             for net in self.networks():
-                self.models.SinusoidalFunctionSource(network=net)
-            self.session.commit()
+                SinusoidalFunctionSource(network=net)
+            db.session.commit()
 
     def create_network(self):
         """Create a new network."""

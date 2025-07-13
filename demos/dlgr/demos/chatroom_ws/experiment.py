@@ -33,14 +33,8 @@ class WebSocketChatroom(Experiment):
 
     channel = "chatroom"
 
-    def __init__(self, session=None):
-        """Initialize the experiment."""
-        super(WebSocketChatroom, self).__init__(session)
-        if session:
-            self.setup()
-
     def configure(self):
-        config = get_config()
+        config = get_config(self, load=True)
         self.experiment_repeats = repeats = config.get("repeats")
         self.network_class = config.get("network")
         self.quorum = config.get("quorum")
@@ -134,7 +128,7 @@ class WebSocketChatroom(Experiment):
                 )
                 # We need to set details to a new value
                 node.details = details
-                self.session.add(node)
+                db.session.add(node)
 
                 # If we get an unsubscribe from the last connected member, we
                 # send a specific message suggest ending the chat.
@@ -155,7 +149,7 @@ class WebSocketChatroom(Experiment):
                         net_details = dict(node.network.details)
                         net_details["completed"] = True
                         node.network.details = net_details
-                        self.session.add(node.network)
+                        db.session.add(node.network)
                         self.recruiter.close_recruitment()
 
         # If the message was sent to the chatroom we create transmissions to all
@@ -166,4 +160,4 @@ class WebSocketChatroom(Experiment):
                 for transmission in transmissions:
                     transmission.created_time = receive_time
 
-        self.session.commit()
+        db.session.commit()
