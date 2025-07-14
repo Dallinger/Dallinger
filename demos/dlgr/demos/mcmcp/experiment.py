@@ -15,8 +15,6 @@ from dallinger.bots import BotBase
 from dallinger.experiment import Experiment, experiment_route
 from dallinger.networks import Chain
 
-from . import models
-
 
 class MCMCP(Experiment):
     """Define the structure of the experiment."""
@@ -26,10 +24,14 @@ class MCMCP(Experiment):
 
     def create_node(self, network, participant):
         """Create a node for a participant."""
+        from . import models
+
         return models.MCMCPAgent(network=network, participant=participant)
 
     def setup(self):
         """Setup the networks."""
+        from . import models
+
         if not self.networks():
             super(MCMCP, self).setup()
             for net in self.networks():
@@ -63,6 +65,8 @@ class MCMCP(Experiment):
     @classmethod
     def choice(cls, node_id, choice):
         from dallinger import db
+
+        from . import models
 
         try:
             exp = MCMCP(db.session)

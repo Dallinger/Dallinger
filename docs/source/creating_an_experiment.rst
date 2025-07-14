@@ -992,8 +992,6 @@ cookiecutter:
 
 	from dallinger.experiment import Experiment
 	from dallinger.networks import Chain
-	from . import models
-
 
 	class Bartlett1932(Experiment):
 		"""An experiment from Bartlett's Remembering."""
@@ -1018,6 +1016,8 @@ Then we need a custom database ``setup`` function, which is defined as follows:
 ::
 
 		def setup(self):
+			from . import models
+
 			if not self.networks():
 				super(Bartlett1932, self).setup()
 				for net in self.networks():

@@ -11,8 +11,6 @@ from dallinger.information import Meme
 from dallinger.models import Node, Participant
 from dallinger.networks import DiscreteGenerational
 
-from . import models
-
 
 def extra_parameters():
     config = get_config()
@@ -37,6 +35,8 @@ class RogersExperiment(Experiment):
     """The experiment class."""
 
     def configure(self):
+        from . import models
+
         self.known_classes["LearningGene"] = models.LearningGene
         config = get_config(load=True)
         self.experiment_repeats = config.get("experiment_repeats")
@@ -66,6 +66,8 @@ class RogersExperiment(Experiment):
 
     def setup(self):
         """First time setup."""
+        from . import models
+
         super(RogersExperiment, self).setup()
 
         for net in random.sample(self.networks(role="experiment"), self.catch_repeats):
@@ -98,6 +100,8 @@ class RogersExperiment(Experiment):
 
     def create_node(self, network, participant):
         """Make a new node for participants."""
+        from . import models
+
         return models.RogersAgent(network=network, participant=participant)
 
     def info_post_request(self, node, info):
@@ -106,6 +110,8 @@ class RogersExperiment(Experiment):
 
     def submission_successful(self, participant):
         """Run when a participant submits successfully."""
+        from . import models
+
         num_approved = len(
             db.session.query(Participant).filter_by(status="approved").all()
         )
@@ -185,6 +191,8 @@ class RogersExperiment(Experiment):
 
     def add_node_to_network(self, node, network):
         """Add participant's node to a network."""
+        from . import models
+
         network.add_node(node)
         node.receive()
 
