@@ -221,15 +221,6 @@ class TestConfigurationIntegrationTests(object):
         assert config.types["custom_parameter"] is int
         assert config.types["custom_parameter2"] is bool
 
-    def test_experiment_defined_parameters_with_explicit_experiment(self):
-        from dlgr.demos.bartlett1932.experiment import Bartlett1932
-
-        config = get_config()
-        config.register_extra_parameters(Bartlett1932)
-        assert "num_participants" in config.types
-
-        assert config.types["num_participants"] is int
-
     def test_reload_config(self):
         # replicate the experiment API runner config loading
         config = get_config()
@@ -279,11 +270,3 @@ class TestConfigurationIntegrationTests(object):
         config.load_experiment_config_defaults()
 
         assert config.get("duration") == 12345.0
-
-    def test_experiment_config_defaults_with_explicit_experiment(self):
-        from dlgr.demos.bartlett1932.experiment import Bartlett1932
-
-        config = get_config()
-        config.load_experiment_config_defaults(Bartlett1932)
-
-        assert config.get("auto_recruit") is True

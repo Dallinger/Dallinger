@@ -4,6 +4,8 @@ from dallinger import db
 from dallinger.experiment import Experiment
 from dallinger.networks import Chain
 
+from . import models
+
 
 class IteratedDrawing(Experiment):
     """Define the structure of the experiment."""
@@ -19,11 +21,9 @@ class IteratedDrawing(Experiment):
         source to each network.
         """
         if not self.networks():
-            from .models import DrawingSource
-
             super(IteratedDrawing, self).setup()
             for net in self.networks():
-                DrawingSource(network=net)
+                models.DrawingSource(network=net)
             db.session.commit()
 
     def create_network(self):

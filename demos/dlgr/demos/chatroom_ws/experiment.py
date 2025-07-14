@@ -34,7 +34,7 @@ class WebSocketChatroom(Experiment):
     channel = "chatroom"
 
     def configure(self):
-        config = get_config(self, load=True)
+        config = get_config(load=True)
         self.experiment_repeats = repeats = config.get("repeats")
         self.network_class = config.get("network")
         self.quorum = config.get("quorum")

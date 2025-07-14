@@ -992,6 +992,7 @@ cookiecutter:
 
 	from dallinger.experiment import Experiment
 	from dallinger.networks import Chain
+	from . import models
 
 
 	class Bartlett1932(Experiment):
@@ -1019,9 +1020,8 @@ Then we need a custom database ``setup`` function, which is defined as follows:
 		def setup(self):
 			if not self.networks():
 				super(Bartlett1932, self).setup()
-				from .models import WarOfTheGhostsSource
 				for net in self.networks():
-					WarOfTheGhostsSource(network=net)
+					models.WarOfTheGhostsSource(network=net)
 
 The `self.networks()` call at the top, will get all the networks defined for
 this experiment. When it is first run, this will return an empty list, in

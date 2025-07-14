@@ -314,12 +314,12 @@ class Configuration(object):
     def load_from_environment(self):
         self.extend(os.environ, cast_types=True)
 
-    def load_defaults(self, strict=True, exp_klass=None):
+    def load_defaults(self, strict=True):
         """Load default configuration values"""
         # Apply extra parameters before loading the configs
-        if exp_klass is not None or experiment_available():
+        if experiment_available():
             # In practice, experiment_available should only return False in tests
-            self.register_extra_parameters(exp_klass=exp_klass)
+            self.register_extra_parameters()
 
         global_config_name = ".dallingerconfig"
         global_config = os.path.expanduser(os.path.join("~/", global_config_name))
@@ -333,36 +333,30 @@ class Configuration(object):
         for config_file in [global_defaults_file, local_defaults_file]:
             self.load_from_file(config_file, strict)
 
-        if exp_klass is not None or experiment_available():
-            self.load_experiment_config_defaults(exp_klass=exp_klass)
+        if experiment_available():
+            self.load_experiment_config_defaults()
 
         self.load_from_file(global_config, strict)
 
-    def load(self, strict=True, exp_klass=None):
-        self.load_defaults(strict=strict, exp_klass=exp_klass)
+    def load(self, strict=True):
+        self.load_defaults(strict)
 
-        if exp_klass is not None:
-            exp_path = os.path.dirname(sys.modules[exp_klass.__module__].__file__)
-        else:
-            exp_path = os.getcwd()
-
-        localConfig = os.path.join(exp_path, LOCAL_CONFIG)
+        localConfig = os.path.join(os.getcwd(), LOCAL_CONFIG)
         if os.path.exists(localConfig):
             self.load_from_file(localConfig, strict)
 
         self.load_from_environment()
         self.ready = True
 
-    def register_extra_parameters(self, exp_klass=None):
+    def register_extra_parameters(self):
+        initialize_experiment_package(os.getcwd())
         extra_parameters = None
-        if exp_klass is None:
-            initialize_experiment_package(os.getcwd())
 
-            # Import and instantiate the experiment class if available
-            # This will run any experiment specific parameter registrations
-            from dallinger.experiment import load
+        # Import and instantiate the experiment class if available
+        # This will run any experiment specific parameter registrations
+        from dallinger.experiment import load
 
-            exp_klass = load()
+        exp_klass = load()
         exp_params = getattr(exp_klass, "extra_parameters", None)
         if exp_params is not None and not self._experiment_params_loaded:
             exp_params()
@@ -378,6 +372,7 @@ class Configuration(object):
                     from dallinger_experiment import extra_parameters
                 except ImportError:
                     pass
+
         if extra_parameters is None and exp_klass is not None:
             extra_parameters = getattr(
                 sys.modules[exp_klass.__module__], "extra_parameters", None
@@ -387,28 +382,21 @@ class Configuration(object):
             extra_parameters()
             self._module_params_loaded = True
 
-    def load_experiment_config_defaults(self, exp_klass=None):
-        if exp_klass is None:
-            from dallinger.experiment import load
+    def load_experiment_config_defaults(self):
+        from dallinger.experiment import load
 
-            exp_klass = load()
+        exp_klass = load()
         self.extend(exp_klass.config_defaults(), strict=True)
 
 
 config = None
 
 
-def get_config(experiment=None, load=False):
+def get_config(load=False):
     global config
-    exp_klass = None
-    if experiment is not None:
-        # Get the __class__ if this is an instance
-        exp_klass = experiment if isinstance(experiment, type) else experiment.__class__
 
     if config is None:
-        if exp_klass is not None:
-            config_class = exp_klass.config_class()
-        elif experiment_available():
+        if experiment_available():
             from dallinger.experiment import load
 
             exp_klass = load()
@@ -422,10 +410,7 @@ def get_config(experiment=None, load=False):
             config.register(*registration)
 
     if load and not config.ready:
-        # Premtively mark as ready, since `extra_parameters` may call
-        # get_config()
-        config.ready = True
-        config.load(exp_klass=exp_klass)
+        config.load()
 
     return config
 

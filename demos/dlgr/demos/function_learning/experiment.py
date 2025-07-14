@@ -4,6 +4,8 @@ from dallinger import db
 from dallinger.experiment import Experiment
 from dallinger.networks import Chain
 
+from . import models
+
 
 class FunctionLearning(Experiment):
     """A function-learning experiment."""
@@ -18,11 +20,9 @@ class FunctionLearning(Experiment):
         Then it adds a source to each network.
         """
         if not self.networks():
-            from .models import SinusoidalFunctionSource
-
             super(FunctionLearning, self).setup()
             for net in self.networks():
-                SinusoidalFunctionSource(network=net)
+                models.SinusoidalFunctionSource(network=net)
             db.session.commit()
 
     def create_network(self):

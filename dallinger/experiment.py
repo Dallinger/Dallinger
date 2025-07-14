@@ -166,7 +166,7 @@ class Experiment(object):
         """A hook for custom organization of dashboard tabs in subclasses."""
         return tabs
 
-    def __init__(self, session=None):
+    def __init__(self, session=None, no_configure=False):
         """Create the experiment class. Sets the default value of attributes.
 
         :param session:  DEPRECATED. Database session is now managed automatically.
@@ -183,9 +183,8 @@ class Experiment(object):
             # BBB: Will trigger deprecation warning
             self.session = session
 
-        # XXX: Are there any circumstances where we don't want to run configure?
-        # If so, we might need a `no_configure` flag
-        self.configure()
+        if not no_configure:
+            self.configure()
 
         try:
             location = type(self).__module__

@@ -3,7 +3,7 @@ import sys
 
 import pytest
 
-from dallinger import config, experiments
+from dallinger import experiments
 from dallinger.command_line.utils import verify_package
 
 
@@ -50,11 +50,8 @@ class TestDemos(object):
             entry_points = experiments.entry_points().get(group)
 
         for entry in entry_points:
-            # Remove config to ensure no side effects as we loop through
-            # experiments
-            config.config = None
             try:
-                entry.load()()
+                entry.load()(no_configure=True)
             except Exception as ex:
                 failures.append("{}: {}".format(entry.name, ex))
 

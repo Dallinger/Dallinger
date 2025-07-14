@@ -16,7 +16,7 @@ class TwentyFortyEight(Experiment):
     experiment_repeats = 1
 
     def configure(self):
-        config = get_config(self, load=True)
+        config = get_config(load=True)
         self.initial_recruitment_size = config.get("n")
 
     def create_network(self):

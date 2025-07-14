@@ -29,7 +29,7 @@ class CoordinationChatroom(Experiment):
     """Define the structure of the experiment."""
 
     def configure(self):
-        config = get_config(self, load=True)
+        config = get_config(load=True)
         self.experiment_repeats = repeats = config.get("repeats")
         self.network_class = config.get("network")
         self.quorum = config.get("n")

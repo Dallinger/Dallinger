@@ -77,7 +77,7 @@ def check_for_protected_routes():
     except AttributeError:
         return
 
-    protected = Experiment(None).protected_routes
+    protected = Experiment(no_configure=True).protected_routes
     if active_rule in protected:
         raise PermissionError(
             f'Unauthorized call to protected route "{active_rule}": {request}'
@@ -426,7 +426,8 @@ def handle_error():
 def launch():
     """Launch the experiment."""
     try:
-        exp = Experiment(db.init_db(drop_all=False))
+        db.init_db(drop_all=False)
+        exp = Experiment()
     except Exception as ex:
         return error_response(
             error_text="Failed to load experiment in /launch: {}".format(str(ex)),

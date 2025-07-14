@@ -11,6 +11,8 @@ from dallinger.information import Meme
 from dallinger.models import Node, Participant
 from dallinger.networks import DiscreteGenerational
 
+from . import models
+
 
 def extra_parameters():
     config = get_config()
@@ -35,10 +37,8 @@ class RogersExperiment(Experiment):
     """The experiment class."""
 
     def configure(self):
-        from .models import LearningGene
-
-        self.known_classes["LearningGene"] = LearningGene
-        config = get_config(self, load=True)
+        self.known_classes["LearningGene"] = models.LearningGene
+        config = get_config(load=True)
         self.experiment_repeats = config.get("experiment_repeats")
         self.practice_repeats = config.get("practice_repeats")
         self.catch_repeats = config.get(
@@ -72,12 +72,10 @@ class RogersExperiment(Experiment):
             net.role = "catch"
 
         for net in self.networks():
-            from .models import RogersEnvironment, RogersSource
-
-            source = RogersSource(network=net)
+            source = models.RogersSource(network=net)
             source.create_information()
             net.max_size = net.max_size + 1  # make room for environment node.
-            env = RogersEnvironment(network=net)
+            env = models.RogersEnvironment(network=net)
             env.proportion = self.color_proportion_for_network(net)
             env.create_information()
         db.session.commit()
@@ -100,9 +98,7 @@ class RogersExperiment(Experiment):
 
     def create_node(self, network, participant):
         """Make a new node for participants."""
-        from .models import RogersAgent
-
-        return RogersAgent(network=network, participant=participant)
+        return models.RogersAgent(network=network, participant=participant)
 
     def info_post_request(self, node, info):
         """Run whenever an info is created."""
@@ -118,9 +114,7 @@ class RogersExperiment(Experiment):
             num_approved % self.generation_size == 0
             and (current_generation % 10 + 1) == 0  # noqa
         ):
-            from .models import RogersEnvironment
-
-            for e in db.session.query(RogersEnvironment).all():
+            for e in db.session.query(models.RogersEnvironment).all():
                 e.step()
 
     def recruit(self):
@@ -191,17 +185,15 @@ class RogersExperiment(Experiment):
 
     def add_node_to_network(self, node, network):
         """Add participant's node to a network."""
-        from .models import LearningGene, RogersAgent, RogersEnvironment
-
         network.add_node(node)
         node.receive()
 
-        environment = network.nodes(type=RogersEnvironment)[0]
+        environment = network.nodes(type=models.RogersEnvironment)[0]
         environment.connect(whom=node)
 
-        gene = node.infos(type=LearningGene)[0].contents
+        gene = node.infos(type=models.LearningGene)[0].contents
         if gene == "social":
-            agent_model = RogersAgent
+            agent_model = models.RogersAgent
             prev_agents = agent_model.query.filter_by(
                 failed=False, network_id=network.id, generation=node.generation - 1
             ).all()

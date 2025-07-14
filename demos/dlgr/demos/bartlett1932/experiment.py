@@ -13,6 +13,8 @@ from dallinger.config import get_config
 from dallinger.experiment import Experiment
 from dallinger.networks import Chain
 
+from . import models
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,6 +23,9 @@ class Bartlett1932(Experiment):
 
     experiment_repeats = 1
     initial_recruitment_size = 1
+
+    def __init__(self, no_configure=False):
+        super().__init__(no_configure=no_configure)
 
     @classmethod
     def config_defaults(cls):
@@ -32,7 +37,7 @@ class Bartlett1932(Experiment):
         config.register("num_participants", int)
 
     def configure(self):
-        config = get_config(self, load=True)
+        config = get_config(load=True)
         self.num_participants = config.get("num_participants")
 
     def setup(self):
@@ -44,7 +49,6 @@ class Bartlett1932(Experiment):
         source to each network.
         """
         if not self.networks():
-            from . import models
 
             super(Bartlett1932, self).setup()
             for net in self.networks():
