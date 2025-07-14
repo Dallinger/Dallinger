@@ -432,6 +432,13 @@ class TestExperimentBaseClass(object):
                 for warning in w
             )
 
+    def test_no_configure_arg_prevents_configure(self, klass):
+        with mock.patch.object(klass, "configure") as mock_configure:
+            klass(no_configure=True)
+            mock_configure.assert_not_called()
+            klass()
+            mock_configure.assert_called_once()
+
 
 class TestTaskRegistration(object):
     def test_deferred_task_decorator(self, tasks_with_cleanup):
