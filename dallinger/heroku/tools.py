@@ -18,7 +18,7 @@ from cached_property import cached_property
 from six.moves import shlex_quote as quote
 
 from dallinger.config import SENSITIVE_KEY_NAMES
-from dallinger.utils import check_call, check_output
+from dallinger.utils import check_call, check_output, port_is_open
 
 
 def app_name(experiment_uuid):
@@ -424,7 +424,6 @@ class HerokuLocalWrapper(object):
     """
 
     shell_command = "heroku"
-    success_regex = r"^.*? \d+ workers$"
     # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
     int_signal = getattr(signal, "CTRL_C_EVENT", signal.SIGINT)
     MONITOR_STOP = object()
@@ -453,10 +452,9 @@ class HerokuLocalWrapper(object):
 
     def start(self, timeout_secs=60):
         """Start the heroku local subprocess group and verify that
-        it has started successfully.
+        it has started successfully by polling the relevant port.
 
-        The subprocess output is checked for a line matching 'success_regex'
-        to indicate success. If no match is seen after 'timeout_secs',
+        If the port is not available after 'timeout_secs',
         a HerokuTimeoutError is raised.
         """
 
@@ -534,12 +532,13 @@ class HerokuLocalWrapper(object):
                 return
 
     def _verify_startup(self):
+        port = self.config.get("base_port")
         for line in self._stream():
             self._record.append(line)
             if self.verbose:
                 self.out.blather(line)
             line = line.strip()
-            if self._up_and_running(line):
+            if self._up_and_running(port):
                 return True
 
             if self._redis_not_running(line):
@@ -617,8 +616,8 @@ class HerokuLocalWrapper(object):
     def _stream(self):
         return iter(self._process.stdout.readline, self.STREAM_SENTINEL)
 
-    def _up_and_running(self, line):
-        return re.match(self.success_regex, line)
+    def _up_and_running(self, port):
+        return port_is_open(port)
 
     def _redis_not_running(self, line):
         return re.match(r"^.*? worker.1 .*? Connection refused.$", line)

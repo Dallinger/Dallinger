@@ -8,6 +8,7 @@ import os
 import random
 import re
 import shutil
+import socket
 import string
 import subprocess
 import sys
@@ -1094,3 +1095,23 @@ BOLD = "\033[1m"
 def print_bold(message):
     """Print with bold formatting."""
     print(f"{BOLD}{message}{END}")
+
+
+def port_is_open(port, host="127.0.0.1"):
+    """
+    Check if a TCP port is open on a given host.
+
+    Args:
+        port (int): The port number to check.
+        host (str, optional): The host to check (default is '127.0.0.1').
+
+    Returns:
+        bool: True if the port is open, False otherwise.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1)
+        try:
+            s.connect((host, port))
+            return True
+        except (ConnectionRefusedError, OSError):
+            return False

@@ -2,6 +2,7 @@
 import io
 import locale
 import os
+import socket
 import tempfile
 from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
@@ -11,7 +12,7 @@ import pytest
 
 from dallinger import config, utils
 from dallinger.config import strtobool
-from dallinger.utils import check_experiment_dependencies
+from dallinger.utils import check_experiment_dependencies, port_is_open
 
 
 class TestSubprocessWrapper(object):
@@ -438,3 +439,19 @@ def test_strtobool_invalid_values():
         with pytest.raises(ValueError) as excinfo:
             strtobool(val)
         assert "invalid truth value" in str(excinfo.value)
+
+
+def test_port_is_open(tmp_path):
+    """
+    Test the port_is_open utility function.
+
+    Checks that it returns True for an open port and False for a closed port.
+    """
+    # Find a free port and start a temporary server
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        addr, port = s.getsockname()
+        s.listen(1)
+        assert port_is_open(port, host="127.0.0.1") is True
+    # After closing, the port should not be open
+    assert port_is_open(port, host="127.0.0.1") is False
