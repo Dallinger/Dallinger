@@ -261,8 +261,23 @@ def handle_exp_error(exception):
 
 
 @app.teardown_request
-def shutdown_session(_=None):
-    """Rollback and close session at end of a request."""
+def shutdown_session(exception=None):
+    """Flask teardown handler to manage SQLAlchemy session lifecycle.
+
+    This function is called automatically by Flask after every request, whether
+    the request completed successfully or with an error.
+
+    - If an exception occurred during request processing, any uncommitted
+      changes in the current database session are rolled back to prevent partial
+      or inconsistent writes.
+    - The session is always removed at the end of the request to ensure that
+      database connections are closed and that no session state leaks
+      between requests.
+
+    This pattern is recommended when using SQLAlchemy's scoped_session.
+    """
+    if exception is not None:
+        session.rollback()
     session.remove()
 
 
@@ -279,7 +294,7 @@ def render_error():
     participant_id = request.form.get("participant_id")
     participant = None
     if participant_id:
-        participant = models.Participant.query.get(participant_id)
+        participant = session.query(models.Participant).get(participant_id)
     return error_page(participant=participant, request_data=request_data)
 
 
@@ -548,9 +563,9 @@ def prepare_advertisement():
     if worker_id is not None:
         # Check if this workerId has completed the task before
         already_participated = (
-            models.Participant.query.filter(
-                models.Participant.worker_id == worker_id
-            ).first()
+            session.query(models.Participant)
+            .filter(models.Participant.worker_id == worker_id)
+            .first()
             is not None
         )
 
@@ -609,7 +624,8 @@ def recruiter_exit():
             error_type="/recruiter-exit GET: param participant_id is required",
             status=400,
         )
-    participant = models.Participant.query.get(participant_id)
+    exp = Experiment(session)
+    participant = session.query(models.Participant).get(participant_id)
     if participant is None:
         return error_response(
             error_type="/recruiter-exit GET: no participant found for ID {}".format(
@@ -621,7 +637,6 @@ def recruiter_exit():
     # Get the recruiter from the participant rather than config, to support
     # MultiRecruiter experiments
     recruiter = recruiters.by_name(participant.recruiter_id)
-    exp = Experiment(session)
 
     return recruiter.exit_response(experiment=exp, participant=participant)
 
@@ -636,12 +651,14 @@ def summary():
         "completed": exp.is_complete(),
     }
     unfilled_nets = (
-        models.Network.query.filter(models.Network.full != true())
+        session.query(models.Network)
+        .filter(models.Network.full != true())
         .with_entities(models.Network.id, models.Network.max_size)
         .all()
     )
     working = (
-        models.Participant.query.filter_by(status="working")
+        session.query(models.Participant)
+        .filter_by(status="working")
         .with_entities(func.count(models.Participant.id))
         .scalar()
     )
@@ -654,7 +671,8 @@ def summary():
     else:
         for net in unfilled_nets:
             node_count = (
-                models.Node.query.filter_by(network_id=net.id, failed=False)
+                session.query(models.Node)
+                .filter_by(network_id=net.id, failed=False)
                 .with_entities(func.count(models.Node.id))
                 .scalar()
             )
@@ -669,14 +687,17 @@ def summary():
 
     # Regenerate a waiting room message when checking status
     # to counter missed messages at the end of the waiting room
-    nonfailed_count = models.Participant.query.filter(
-        (models.Participant.status == "working")
-        | (models.Participant.status == "recruiter_submission_started")
-        | (models.Participant.status == "overrecruited")
-        | (models.Participant.status == "submitted")
-        | (models.Participant.status == "approved")
-    ).count()
-    exp = Experiment(session)
+    nonfailed_count = (
+        session.query(models.Participant)
+        .filter(
+            (models.Participant.status == "working")
+            | (models.Participant.status == "recruiter_submission_started")
+            | (models.Participant.status == "overrecruited")
+            | (models.Participant.status == "submitted")
+            | (models.Participant.status == "approved")
+        )
+        .count()
+    )
     overrecruited = exp.is_overrecruited(nonfailed_count)
     if exp.quorum:
         quorum = {"q": exp.quorum, "n": nonfailed_count, "overrecruited": overrecruited}
@@ -748,8 +769,6 @@ def request_parameter(parameter, parameter_type=None, default=None, optional=Fal
     or if the parameter is found but is of the wrong type
     then a Response object is returned
     """
-    exp = Experiment(session)
-
     # get the parameter
     try:
         value = request.values[parameter]
@@ -782,6 +801,7 @@ def request_parameter(parameter, parameter_type=None, default=None, optional=Fal
     elif parameter_type == "known_class":
         # if its a known class check against the known classes
         try:
+            exp = Experiment(session)
             value = exp.known_classes[value]
             return value
         except KeyError:
@@ -861,12 +881,16 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         msg = "/participant POST: required values were 'undefined'"
         return error_response(error_type=msg, status=403)
 
+    exp = Experiment(session)
+
     fingerprint_found = False
     if fingerprint_hash:
         try:
-            fingerprint_found = models.Participant.query.filter_by(
-                fingerprint_hash=fingerprint_hash
-            ).one_or_none()
+            fingerprint_found = (
+                session.query(models.Participant)
+                .filter_by(fingerprint_hash=fingerprint_hash)
+                .one_or_none()
+            )
         except MultipleResultsFound:
             fingerprint_found = True
 
@@ -884,9 +908,9 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         # If this proves to be a problem, we can make this configurable via a config parameter in the future.
         # For now we just log a warning.
 
-    already_participated = models.Participant.query.filter_by(
-        worker_id=worker_id
-    ).one_or_none()
+    already_participated = (
+        session.query(models.Participant).filter_by(worker_id=worker_id).one_or_none()
+    )
 
     if already_participated:
         db.logger.warning("Worker has already participated.")
@@ -894,9 +918,11 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
             error_type="/participant POST: worker has already participated.", status=403
         )
 
-    duplicate = models.Participant.query.filter_by(
-        assignment_id=assignment_id, status="working"
-    ).one_or_none()
+    duplicate = (
+        session.query(models.Participant)
+        .filter_by(assignment_id=assignment_id, status="working")
+        .one_or_none()
+    )
 
     if duplicate:
         msg = """
@@ -908,18 +934,19 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
 
     # Count working or beyond participants.
     nonfailed_count = (
-        models.Participant.query.filter(
+        session.query(models.Participant)
+        .filter(
             (models.Participant.status == "working")
             | (models.Participant.status == "recruiter_submission_started")
             | (models.Participant.status == "overrecruited")
             | (models.Participant.status == "submitted")
             | (models.Participant.status == "approved")
-        ).count()
+        )
+        .count()
         + 1
     )
 
     # Create the new participant.
-    exp = Experiment(session)
     participant_vals = {
         "worker_id": worker_id,
         "hit_id": hit_id,
@@ -983,7 +1010,7 @@ def post_participant():
 def get_participant(participant_id):
     """Get the participant with the given id."""
     try:
-        ppt = models.Participant.query.filter_by(id=participant_id).one()
+        ppt = session.query(models.Participant).filter_by(id=participant_id).one()
     except NoResultFound:
         return error_response(
             error_type="/participant GET: no participant found", status=403
@@ -1021,7 +1048,7 @@ def load_participant():
 def get_network(network_id):
     """Get the network with the given id."""
     try:
-        net = models.Network.query.filter_by(id=network_id).one()
+        net = session.query(models.Network).filter_by(id=network_id).one()
     except NoResultFound:
         return error_response(error_type="/network GET: no network found", status=403)
 
@@ -1040,7 +1067,7 @@ def create_question(participant_id):
     """
     # Get the participant.
     try:
-        ppt = models.Participant.query.filter_by(id=participant_id).one()
+        ppt = session.query(models.Participant).filter_by(id=participant_id).one()
     except NoResultFound:
         return error_response(
             error_type="/question POST no participant found", status=403
@@ -1072,9 +1099,10 @@ def create_question(participant_id):
 
     try:
         # execute the request
-        models.Question(
+        question = models.Question(
             participant=ppt, question=question, response=response, number=number
         )
+        session.add(question)
         session.commit()
     except Exception:
         return error_response(error_type="/question POST server error", status=403)
@@ -1109,7 +1137,7 @@ def node_neighbors(node_id):
             return x
 
     # make sure the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(
             error_type="/node/neighbors, node does not exist",
@@ -1152,7 +1180,9 @@ def create_node(participant_id):
 
     # Get the participant.
     try:
-        participant = models.Participant.query.filter_by(id=participant_id).one()
+        participant = (
+            session.query(models.Participant).filter_by(id=participant_id).one()
+        )
     except NoResultFound:
         return error_response(error_type="/node POST no participant found", status=403)
 
@@ -1194,7 +1224,7 @@ def node_vectors(node_id):
             return x
 
     # execute the request
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/node/vectors, node does not exist")
 
@@ -1228,11 +1258,11 @@ def connect(node_id, other_node_id):
         return direction
 
     # check the nodes exist
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/node/connect, node does not exist")
 
-    other_node = models.Node.query.get(other_node_id)
+    other_node = session.query(models.Node).get(other_node_id)
     if other_node is None:
         return error_response(
             error_type="/node/connect, other node does not exist",
@@ -1268,7 +1298,7 @@ def get_info(node_id, info_id):
     exp = Experiment(session)
 
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/info, node does not exist")
 
@@ -1319,7 +1349,7 @@ def node_infos(node_id):
         return info_type
 
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/node/infos, node does not exist")
 
@@ -1358,7 +1388,7 @@ def node_received_infos(node_id):
         return info_type
 
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(
             error_type="/node/infos, node {} does not exist".format(node_id)
@@ -1391,7 +1421,7 @@ def tracking_event_post(node_id):
         details = loads(details)
 
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/info POST, node does not exist")
 
@@ -1429,12 +1459,13 @@ def info_post(node_id):
     for x in [contents, info_type]:
         if isinstance(x, Response):
             return x
+
+    exp = Experiment(session)
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/info POST, node does not exist")
 
-    exp = Experiment(session)
     try:
         # execute the request
         additional_params = {}
@@ -1476,7 +1507,7 @@ def node_transmissions(node_id):
             return x
 
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/node/transmissions, node does not exist")
 
@@ -1534,7 +1565,7 @@ def node_transmit(node_id):
     to_whom = request_parameter(parameter="to_whom", optional=True)
 
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/node/transmit, node does not exist")
     # create what
@@ -1560,7 +1591,7 @@ def node_transmit(node_id):
     if to_whom is not None:
         try:
             to_whom = int(to_whom)
-            to_whom = models.Node.query.get(to_whom)
+            to_whom = session.query(models.Node).get(to_whom)
             if to_whom is None:
                 return error_response(
                     error_type="/node/transmit POST, recipient Node does not exist",
@@ -1613,7 +1644,7 @@ def transformation_get(node_id):
         return transformation_type
 
     # check the node exists
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(
             error_type="/node/transformations, "
@@ -1656,7 +1687,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
         return transformation_type
 
     # Check that the node etc. exists.
-    node = models.Node.query.get(node_id)
+    node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(
             error_type="/transformation POST, " "node {} does not exist".format(node_id)
@@ -1721,9 +1752,11 @@ def check_for_duplicate_assignments(participant):
 
     If it isnt the older participants will be failed.
     """
-    participants = models.Participant.query.filter_by(
-        assignment_id=participant.assignment_id
-    ).all()
+    participants = (
+        session.query(models.Participant)
+        .filter_by(assignment_id=participant.assignment_id)
+        .all()
+    )
     duplicates = [
         p for p in participants if (p.id != participant.id and p.status == "working")
     ]
@@ -1762,8 +1795,10 @@ def worker_complete():
 def _worker_complete(participant_id):
     # Lock the participant row, then check and update status to avoid
     # double-submits:
+    exp = Experiment(session)
     participant = (
-        models.Participant.query.populate_existing()
+        session.query(models.Participant)
+        .populate_existing()
         .with_for_update(of=models.Participant)
         .get(participant_id)
     )
@@ -1781,7 +1816,6 @@ def _worker_complete(participant_id):
     # assignment before the worker submits their task on asynchronous
     # recruitment platforms like MTurk. This prevents them from possibly being
     # offered another task which they may no longer be qualified for.
-    exp = Experiment(session)
     exp.participant_task_completed(participant)
 
     # The recruiter tells us which status to assign the participant,
@@ -1825,7 +1859,7 @@ def worker_failed():
 
 
 def _worker_failed(participant_id):
-    participants = models.Participant.query.filter_by(id=participant_id).all()
+    participants = session.query(models.Participant).filter_by(id=participant_id).all()
     if not participants:
         raise KeyError()
 

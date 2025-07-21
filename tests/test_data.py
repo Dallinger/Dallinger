@@ -275,9 +275,8 @@ X0SFF0G6R67PCQMI,3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,
     def test_ingest_to_model(self, db_session, network_file):
         dallinger.data.ingest_to_model(network_file, dallinger.models.Network)
 
-        networks = dallinger.models.Network.query.all()
-        assert len(networks) == 1
-        network = networks[0]
+        assert db_session.query(dallinger.models.Network).count() == 1
+        network = db_session.query(dallinger.models.Network).first()
         assert network.type == "fully-connected"
         assert network.creation_time == datetime(2001, 1, 1, 9, 46, 40, 133536)
         assert network.role == "experiment"
@@ -289,7 +288,7 @@ X0SFF0G6R67PCQMI,3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,
         db_session.flush()
         db_session.commit()
 
-        networks = dallinger.models.Network.query.all()
+        networks = db_session.query(dallinger.models.Network).all()
         assert networks[1].id == 2
 
     def test_missing_column_required(self, db_session, missing_column_required):
@@ -303,55 +302,54 @@ X0SFF0G6R67PCQMI,3EHVO81VN5E60KEEQ146ZGFI3FH1H6,live,2017-03-30 20:06:44.618385,
             missing_column_not_required, dallinger.models.Participant
         )
 
-        participant = dallinger.models.Participant.query.all()
-        assert len(participant) == 1
-        participant = participant[0]
+        assert db_session.query(dallinger.models.Participant).count() == 1
+        participant = db_session.query(dallinger.models.Participant).first()
         assert participant.creation_time == datetime(2001, 1, 1, 9, 46, 40, 133536)
 
     def test_ingest_zip_recreates_network(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)
 
-        networks = dallinger.models.Network.query.all()
-        assert len(networks) == 1
-        assert networks[0].type == "chain"
+        assert db_session.query(dallinger.models.Network).count() == 1
+        network = db_session.query(dallinger.models.Network).first()
+        assert network.type == "chain"
 
     def test_ingest_zip_recreates_participants(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)
 
-        participants = dallinger.models.Participant.query.all()
-        assert len(participants) == 4
+        assert db_session.query(dallinger.models.Participant).count() == 4
+        participants = db_session.query(dallinger.models.Participant).all()
         for p in participants:
             assert p.status == "approved"
 
     def test_ingest_zip_recreates_nodes(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)
-        assert len(dallinger.models.Node.query.all()) == 5
+        assert db_session.query(dallinger.models.Node).count() == 5
 
     def test_ingest_zip_recreates_infos(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)
 
-        infos = dallinger.models.Info.query.all()
-        assert len(infos) == 5
+        assert db_session.query(dallinger.models.Info).count() == 5
+        infos = db_session.query(dallinger.models.Info).all()
         for info in infos:
             assert info.contents.startswith("One night two young men")
 
     def test_ingest_zip_recreates_notifications(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)
-        assert len(dallinger.models.Notification.query.all()) == 8
+        assert db_session.query(dallinger.models.Notification).count() == 8
 
     def test_ingest_zip_recreates_questions(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)
 
         model = dallinger.models.Question
-        p1_questions = model.query.filter_by(participant_id=1).all()
+        p1_questions = db_session.query(model).filter_by(participant_id=1).all()
         for q in p1_questions:
             if q.response:
                 assert q.response == "5"
 
     def test_ingest_zip_recreates_vectors(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)
-        assert len(dallinger.models.Vector.query.all()) == 4
+        assert db_session.query(dallinger.models.Vector).count() == 4
 
     def test_ingest_zip_recreates_transmissions(self, db_session, zip_path):
         dallinger.data.ingest_zip(zip_path)
-        assert len(dallinger.models.Transmission.query.all()) == 4
+        assert db_session.query(dallinger.models.Transmission).count() == 4

@@ -900,6 +900,8 @@ class TestDashboardDatabase(object):
 
         webapp, renderer = mock_renderer
         p = a.participant()
+        participant_id = p.id
+        assignment_id = p.assignment_id
         webapp.get("/dashboard/database?table=participant")
         renderer.assert_called_once()
         render_args = renderer.call_args[1]
@@ -925,9 +927,9 @@ class TestDashboardDatabase(object):
         data = dt_options["data"]
         assert len(data) == 1
         participant_data = data[0]
-        assert participant_data["id"] == p.id
+        assert participant_data["id"] == participant_id
         assert participant_data["object_type"] == "Participant"
-        assert participant_data["assignment_id"] == p.assignment_id
+        assert participant_data["assignment_id"] == assignment_id
 
     def test_actions_with_mturk(self, a, active_config, mock_renderer):
         webapp, renderer = mock_renderer

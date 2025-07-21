@@ -306,4 +306,4 @@ class SplitSampleNetwork(Network):
     @property
     def exploratory(self):
         """Is this network part of the exploratory data subset?"""
-        return bool(self.property1)
+        return bool(self.property1 in (True, "True", "true"))

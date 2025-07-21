@@ -378,9 +378,10 @@ class Experiment(object):
         except Exception:
             # Not JSON we have no information about the participant/node and
             # will run synchonously
-            self.receive_message(
-                message_string, channel_name=channel_name, receive_time=receive_time
-            )
+            with db.sessions_scope():
+                self.receive_message(
+                    message_string, channel_name=channel_name, receive_time=receive_time
+                )
             return
 
         participant_id = (
@@ -390,9 +391,10 @@ class Experiment(object):
         )
         node_id = message.get("node_id")
         if not participant_id and not node_id:
-            self.receive_message(
-                message_string, channel_name=channel_name, receive_time=receive_time
-            )
+            with db.sessions_scope():
+                self.receive_message(
+                    message_string, channel_name=channel_name, receive_time=receive_time
+                )
             return
 
         q = db.get_queue("high")
@@ -487,16 +489,23 @@ class Experiment(object):
 
     def setup(self):
         """Create the networks if they don't already exist."""
+        # XXX: This is typically called from the constructor, conditional on the
+        # `session` argument. We should probably do this initialization more
+        # explicitly elsewhere, especially since the default constructor doesn't
+        # call it.
         if not self.networks():
-            for _ in range(self.practice_repeats):
-                network = self.create_network()
-                network.role = "practice"
-                self.session.add(network)
-            for _ in range(self.experiment_repeats):
-                network = self.create_network()
-                network.role = "experiment"
-                self.session.add(network)
-            self.session.commit()
+            # This should generally be called from a flask route, but we use a
+            # session contextmanager to be safe.
+            with db.sessions_scope() as session:
+                for _ in range(self.practice_repeats):
+                    network = self.create_network()
+                    network.role = "practice"
+                    session.add(network)
+                for _ in range(self.experiment_repeats):
+                    network = self.create_network()
+                    network.role = "experiment"
+                    session.add(network)
+                session.commit()
 
     def create_network(self):
         """Return a new network."""
@@ -511,16 +520,18 @@ class Experiment(object):
 
         if full == "all":
             if role == "all":
-                return Network.query.all()
+                return self.session.query(Network).all()
             else:
-                return Network.query.filter_by(role=role).all()
+                return self.session.query(Network).filter_by(role=role).all()
         else:
             if role == "all":
-                return Network.query.filter_by(full=full).all()
+                return self.session.query(Network).filter_by(full=full).all()
             else:
-                return Network.query.filter(
-                    and_(Network.role == role, Network.full == full)
-                ).all()
+                return (
+                    self.session.query(Network)
+                    .filter(and_(Network.role == role, Network.full == full))
+                    .all()
+                )
 
     def get_network_for_participant(self, participant):
         """Find a network for a participant.
@@ -533,11 +544,11 @@ class Experiment(object):
         """
         key = participant.id
         networks_with_space = (
-            Network.query.filter_by(full=False).order_by(Network.id).all()
+            self.session.query(Network).filter_by(full=False).order_by(Network.id).all()
         )
         networks_participated_in = [
             node.network_id
-            for node in Node.query.with_entities(Node.network_id)
+            for node in self.session.query(Node.network_id)
             .filter_by(participant_id=participant.id)
             .all()
         ]
@@ -672,7 +683,11 @@ class Experiment(object):
                   single matching participant.
         """
         try:
-            return Participant.query.filter_by(assignment_id=assignment_id).one()
+            return (
+                self.session.query(Participant)
+                .filter_by(assignment_id=assignment_id)
+                .one()
+            )
         except (NoResultFound, MultipleResultsFound):
             return None
 
@@ -880,7 +895,7 @@ class Experiment(object):
 
     def log_summary(self):
         """Log a summary of all the participants' status codes."""
-        participants = Participant.query.with_entities(Participant.status).all()
+        participants = self.session.query(Participant.status).all()
         counts = Counter([p.status for p in participants])
         sorted_counts = sorted(counts.items(), key=itemgetter(0))
         self.log("Status summary: {}".format(str(sorted_counts)))
@@ -937,9 +952,11 @@ class Experiment(object):
 
     def fail_participant(self, participant):
         """Fail all the nodes of a participant."""
-        participant_nodes = Node.query.filter_by(
-            participant_id=participant.id, failed=False
-        ).all()
+        participant_nodes = (
+            self.session.query(Node)
+            .filter_by(participant_id=participant.id, failed=False)
+            .all()
+        )
 
         for node in participant_nodes:
             node.fail()
@@ -1197,9 +1214,9 @@ class Experiment(object):
         :returns: An ``OrderedDict()`` mapping panel titles to data structures
                   describing the experiment state.
         """  # noqa
-        participants = Participant.query
-        nodes = Node.query
-        infos = Info.query
+        participants = self.session.query(Participant)
+        nodes = self.session.query(Node)
+        infos = self.session.query(Info)
 
         unique_statuses = set(participant.status for participant in participants.all())
         stats = OrderedDict()
@@ -1343,7 +1360,7 @@ class Experiment(object):
 
         if polymorphic_identity is None and "type" in table.columns:
             observed_types = [
-                r.type for r in db.session.query(table.columns.type).distinct().all()
+                r.type for r in self.session.query(table.columns.type).distinct().all()
             ]
             obj_by_type = [
                 self.pull_table(

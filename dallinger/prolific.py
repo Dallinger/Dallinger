@@ -8,6 +8,7 @@ import requests
 import tenacity
 from dateutil import parser
 
+from dallinger import db
 from dallinger.models import Participant
 from dallinger.utils import median_time_spent_in_hours
 from dallinger.version import __version__
@@ -747,9 +748,11 @@ class DevProlificService(ProlificService):
                     # method="POST", endpoint= "/studies/{study_id}/screen-out-submissions/", json=payload
                     participants = [
                         p
-                        for p in Participant.query.filter(
+                        for p in db.session.query(Participant)
+                        .filter(
                             Participant.assignment_id.in_(kw["json"]["submission_ids"])
-                        ).all()
+                        )
+                        .all()
                     ]
 
                     screen_out_allowed = self.screen_out_allowed(
