@@ -20,9 +20,9 @@ beautifulsoup4==4.13.4
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.38.36
+boto3==1.39.11
     # via dallinger
-botocore==1.38.36
+botocore==1.39.11
     # via
     #   boto3
     #   s3transfer
@@ -32,7 +32,7 @@ build==1.2.2.post1
     #   pip-tools
 cached-property==2.0.1
     # via dallinger
-certifi==2025.4.26
+certifi==2025.7.14
     # via
     #   requests
     #   selenium
@@ -46,13 +46,13 @@ click==8.2.1
     #   flask
     #   pip-tools
     #   rq
-cryptography==45.0.4
+cryptography==45.0.5
     # via pyopenssl
 decorator==5.2.1
     # via ipython
 executing==2.2.0
     # via stack-data
-faker==37.4.0
+faker==37.4.2
     # via dallinger
 flask==3.1.1
     # via
@@ -148,7 +148,7 @@ pure-eval==0.2.3
     # via stack-data
 pycparser==2.22
     # via cffi
-pygments==2.19.1
+pygments==2.19.2
     # via ipython
 pygtail==0.14.0
     # via dallinger
@@ -174,11 +174,11 @@ requests==2.32.4
     # via
     #   dallinger
     #   heroku3
-rq==2.4.0
+rq==2.4.1
     # via dallinger
-s3transfer==0.13.0
+s3transfer==0.13.1
     # via boto3
-selenium==4.32.0
+selenium==4.34.2
     # via dallinger
 simple-websocket==1.1.0
     # via flask-sock
@@ -219,7 +219,7 @@ trio==0.30.0
     #   trio-websocket
 trio-websocket==0.12.2
     # via selenium
-typing-extensions==4.14.0
+typing-extensions==4.14.1
     # via
     #   beautifulsoup4
     #   selenium
@@ -235,7 +235,7 @@ ua-parser==1.0.1
     #   user-agents
 ua-parser-builtins==0.18.0.post1
     # via ua-parser
-urllib3==1.26.20
+urllib3==2.5.0
     # via
     #   botocore
     #   dallinger
@@ -261,7 +261,7 @@ wtforms==3.2.1
     # via flask-wtf
 yaspin==3.1.0
     # via dallinger
-zope-event==5.0
+zope-event==5.1.1
     # via gevent
 zope-interface==7.2
     # via gevent
