@@ -796,7 +796,10 @@ class Testhandle_launch_data(object):
         )
 
         log.reset_mock()
-        handler("https://nonexistent.example.com/", log, attempts=1)
+        try:
+            handler("https://nonexistent.example.com/", log, attempts=1)
+        except requests.exceptions.ConnectionError:
+            pass
         assert (
             "Error accessing https://nonexistent.example.com/"
             in log.call_args_list[0][0][0]

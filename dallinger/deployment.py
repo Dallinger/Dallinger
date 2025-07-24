@@ -43,7 +43,7 @@ def handle_launch_data(
 ):
     """Sends a POST request to the given `url`, retrying it with exponential backoff.
     The passed `error` function is invoked to give feedback as each error occurs,
-    possibly multiple times.
+    possibly multiple times. If all attempts fail, an exception is raised.
 
     Args:
         url: The URL to send the POST request to
@@ -121,6 +121,8 @@ def handle_launch_data(
 
     if launch_request is not None:
         launch_request.raise_for_status()
+
+    raise requests.exceptions.ConnectionError
 
 
 def deploy_sandbox_shared_setup(
