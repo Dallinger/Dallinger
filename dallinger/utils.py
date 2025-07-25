@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import functools
 import io
 import locale
@@ -31,7 +29,6 @@ from pythonjsonlogger import jsonlogger
 from sqlalchemy import exc as sa_exc
 
 from dallinger import db
-from dallinger.compat import is_command
 from dallinger.config import get_config
 from dallinger.models import Participant
 from dallinger.version import __version__
@@ -202,7 +199,7 @@ class GitError(Exception):
     """Something went wrong calling a Git command"""
 
 
-class GitClient(object):
+class GitClient:
     """Minimal wrapper, mostly for mocking"""
 
     def __init__(self, output=None):
@@ -258,7 +255,7 @@ class GitClient(object):
         self.out.write(msg)
 
 
-class ParticipationTime(object):
+class ParticipationTime:
     grace_period_seconds = 120
 
     def __init__(self, participant, reference_time, config):
@@ -353,6 +350,10 @@ def _make_chrome(path):
         "--no-first-run",
     ]
     return new_chrome
+
+
+def is_command(cmd):
+    return bool(shutil.which(cmd))
 
 
 def _new_webbrowser_profile():
@@ -779,7 +780,7 @@ def collate_experiment_files(config, experiment_path, destination, copy_func):
     )
 
 
-class FileSource(object):
+class FileSource:
     """Include files from some source in an experiment run."""
 
     @property
@@ -1028,7 +1029,7 @@ def get_from_config(key):
     return config.get(key)
 
 
-class ClassPropertyDescriptor(object):
+class ClassPropertyDescriptor:
     def __init__(self, fget, fset=None):
         self.fget = fget
         self.fset = fset
@@ -1115,3 +1116,8 @@ def port_is_open(port, host="127.0.0.1"):
             return True
         except (ConnectionRefusedError, OSError):
             return False
+
+
+def open_for_csv(*args, **kw):
+    kw["newline"] = ""
+    return open(*args, **kw)
