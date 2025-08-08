@@ -30,19 +30,19 @@ Vagrant.configure("2") do |config|
     sudo sed /etc/postgresql/9.5/main/pg_hba.conf -e 's/md5/trust/g' --in-place
     sudo service postgresql reload
 
-    # Virtual environment
-    echo 'source ~/venv/bin/activate' >> ~/.bashrc
+    # Environment setup
     echo 'cd /vagrant' >> ~/.bashrc
     echo 'export HOST=`ifconfig | grep Ethernet -A1 | grep addr: | tail -n1 | cut -d: -f2 | cut -d " " -f1`' >> ~/.bashrc
-    sudo pip install virtualenv
-    virtualenv --no-site-packages ~/venv
-    source ~/venv/bin/activate
     cd /vagrant
 
     # Documentation building dependencies
     sudo apt-get install -y enchant-2 pandoc zip
     pip install pyenchant
-    pip install -r dev-requirements.txt
+
+    # Install uv for dependency management
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    source ~/.cargo/env
+    uv sync --dev
 
     # Dallinger install
     python setup.py develop

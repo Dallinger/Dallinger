@@ -1,7 +1,7 @@
 recursive-include dallinger *
 recursive-include docs *
 
-include requirements.txt
+include pyproject.toml
 include README.md
 include LICENSE
 include incubator.jpg

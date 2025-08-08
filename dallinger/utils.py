@@ -1,12 +1,12 @@
 from __future__ import unicode_literals
 
 import functools
+import importlib.metadata as metadata
 import io
 import locale
 import logging
 import os
 import random
-import re
 import shutil
 import socket
 import string
@@ -16,15 +16,12 @@ import tempfile
 import warnings
 import webbrowser
 from datetime import datetime
-from hashlib import md5
 from importlib.metadata import files as files_metadata
 from importlib.util import find_spec
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from unicodedata import normalize
 
 import redis
-import requests
 from faker import Faker
 from flask import request
 from pythonjsonlogger import jsonlogger
@@ -34,7 +31,6 @@ from dallinger import db
 from dallinger.compat import is_command
 from dallinger.config import get_config
 from dallinger.models import Participant
-from dallinger.version import __version__
 
 local_warning_cache = {}
 
@@ -72,11 +68,6 @@ def setup_warning_hooks():
     warnings.simplefilter("default", Warning)
     warnings.simplefilter("ignore", category=sa_exc.SAWarning)
 
-
-try:
-    from pip._vendor import pkg_resources
-except ImportError:
-    pkg_resources = None
 
 fake = Faker()
 
@@ -449,32 +440,64 @@ def check_local_db_connection(log):
         raise
 
 
-def check_experiment_dependencies(requirements_file):
-    """Verify that the dependencies defined in a requirements file are
-    in fact installed.
-    If the environment variable SKIP_DEPENDENCY_CHECK is set, no check
-    will be performed.
-    """
-    if os.environ.get("SKIP_DEPENDENCY_CHECK"):
-        return
-    try:
-        with open(requirements_file, "r") as f:
-            dependencies = [
-                re.split("@|\\ |>|<|=|\\[", line)[0].strip()
-                for line in f.readlines()
-                if line[:3] != "-e " and line[0].strip() not in ["#", ""]
-            ]
-    except (OSError, IOError):
+def check_experiment_dependencies(dependency_file):
+    dependencies = []
+    if dependency_file.name == "pyproject.toml":
+        try:
+            # Try tomllib first (Python 3.11+)
+            try:
+                import tomllib
+
+                with open(dependency_file, "rb") as f:
+                    data = tomllib.load(f)
+            except ImportError:
+                # Fallback to tomli for Python 3.10
+                import tomli
+
+                with open(dependency_file, "rb") as f:
+                    data = tomli.load(f)
+
+            # Extract dependencies from project.dependencies
+            if "project" in data and "dependencies" in data["project"]:
+                for dep in data["project"]["dependencies"]:
+                    # Extract package name (remove version constraints, extras, etc.)
+                    dep_name = (
+                        dep.split("[")[0]
+                        .split("@")[0]
+                        .split("==")[0]
+                        .split(">=")[0]
+                        .split("<=")[0]
+                        .split(">")[0]
+                        .split("<")[0]
+                        .split("!=")[0]
+                        .split("~=")[0]
+                        .split("===")[0]
+                        .strip()
+                    )
+                    if dep_name:
+                        dependencies.append(dep_name)
+        except (OSError, IOError, KeyError, ValueError, ImportError) as e:
+            print(f"DEBUG: Exception in pyproject.toml processing: {e}")  # Debug line
+            dependencies = []
+    else:
         dependencies = []
 
+    print(f"DEBUG: Checking dependencies: {dependencies}")  # Debug line
+
     for dep in dependencies:
+        print(f"DEBUG: Checking dependency: {dep}")  # Debug line
         if find_spec(dep) is None:
+            print(f"DEBUG: find_spec({dep}) returned None")  # Debug line
             try:
-                pkg_resources.get_distribution(dep)
-            except (pkg_resources.DistributionNotFound, AttributeError):
+                metadata.distribution(dep)
+                print(f"DEBUG: metadata.distribution({dep}) succeeded")  # Debug line
+            except (metadata.PackageNotFoundError, AttributeError) as e:
+                print(f"DEBUG: metadata.distribution({dep}) failed: {e}")  # Debug line
                 raise ValueError(
                     f"Please install the '{dep}' package to run this experiment."
                 )
+        else:
+            print(f"DEBUG: find_spec({dep}) found the package")  # Debug line
 
 
 def develop_target_path(config):
@@ -505,7 +528,7 @@ def develop_target_path(config):
 
 def bootstrap_development_session(exp_config, experiment_path, log):
     check_local_db_connection(log)
-    check_experiment_dependencies(Path(experiment_path) / "requirements.txt")
+    check_experiment_dependencies(Path(experiment_path) / "pyproject.toml")
 
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
@@ -559,9 +582,9 @@ def setup_experiment(
     """
     if local_checks:
         check_local_db_connection(log)
-        check_experiment_dependencies(Path(os.getcwd()) / "requirements.txt")
+        check_experiment_dependencies(Path(os.getcwd()) / "pyproject.toml")
 
-    ensure_constraints_file_presence(os.getcwd())
+    ensure_uv_lock_file_presence(os.getcwd())
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
 
@@ -607,84 +630,33 @@ def setup_experiment(
     return (heroku_app_id, temp_dir)
 
 
-def ensure_constraints_file_presence(directory: str):
-    """Looks into the path represented by the string `directory`.
-    Does nothing if a `constraints.txt` file exists there and is
-    newer than a sibling `requirements.txt` file.
-    If it exists but is not up to date a ValueError exception is raised.
-    Otherwise it creates the constraints.txt file based on the
-    contents of the `requirements.txt` file.
-
-    If the `requirements.txt` does not exist one is created with
-    `dallinger` as its only dependency.
-
-    If the environment variable SKIP_DEPENDENCY_CHECK is set, no action
-    will be performed.
+def ensure_uv_lock_file_presence(directory: str):
+    """Ensure that pyproject.toml and uv.lock exist in the given directory.
+    If pyproject.toml doesn't exist, create a minimal one.
+    If uv.lock is missing and pyproject.toml exists, run 'uv lock' in that directory.
+    If SKIP_DEPENDENCY_CHECK is set, do nothing.
     """
+    import subprocess
+
     if os.environ.get("SKIP_DEPENDENCY_CHECK"):
         return
-    constraints_path = Path(directory) / "constraints.txt"
-    requirements_path = Path(directory) / "requirements.txt"
-    if not requirements_path.exists():
-        requirements_path.write_text("dallinger\n")
-    requirements_path_hash = md5(requirements_path.read_bytes()).hexdigest()
-    if constraints_path.exists():
-        if requirements_path_hash in constraints_path.read_text():
-            return
-        else:
-            raise ValueError(
-                "\nChanges detected to requirements.txt: run the command\n    dallinger generate-constraints\nand retry"
-            )
+    pyproject_path = Path(directory) / "pyproject.toml"
+    uv_lock_path = Path(directory) / "uv.lock"
 
-    prev_cwd = os.getcwd()
-    try:
-        os.chdir(directory)
-        url = f"https://raw.githubusercontent.com/Dallinger/Dallinger/v{__version__}/dev-requirements.txt"
+    # If pyproject.toml doesn't exist, one is created with `dallinger` as its only dependency.
+    if not pyproject_path.exists():
+        minimal_pyproject = """[project]
+name = "experiment"
+version = "0.1.0"
+dependencies = ["dallinger"]
+"""
+        pyproject_path.write_text(minimal_pyproject)
+
+    if not uv_lock_path.exists():
         try:
-            response = requests.get(url)
-        except requests.exceptions.ConnectionError:
-            raise RuntimeError(
-                """It looks like you're offline. Dallinger can't generate constraints
-To get a valid constraints.txt file you can copy the requirements.txt file:
-cp requirements.txt constraints.txt"""
-            )
-        if response.status_code != 200:
-            print(f"{url} not found. Using local dev-requirements.txt")
-            url_path = abspath_from_egg("dallinger", "dev-requirements.txt")
-            if not url_path.exists():
-                print(
-                    f"{url_path} is not a valid file. Either use a released dallinger version for this experiment or install dallinger in editable mode"
-                )
-                raise ValueError(
-                    "Can't find constraints for dallinger version {__version__}"
-                )
-            url = str(url_path)
-        print(f"Compiling constraints.txt file from requirements.txt and {url}")
-        compile_info = f"dallinger generate-constraints\n#\n# Compiled from a requirement.txt file with md5sum: {requirements_path_hash}"
-        with TemporaryDirectory() as tmpdirname:
-            tmpfile = Path(tmpdirname) / "requirements.txt"
-            tmpfile.write_text(Path("requirements.txt").read_text() + "\n-c " + url)
-            check_output(
-                [
-                    "pip-compile",
-                    "-v",
-                    str(tmpfile),
-                    "-o",
-                    "constraints.txt",
-                ],
-                env=dict(
-                    os.environ,
-                    CUSTOM_COMPILE_COMMAND=compile_info,
-                ),
-            )
-    finally:
-        os.chdir(prev_cwd)
-    # Make the path the experiment requirements.txt file relative
-    constraints_contents = constraints_path.read_text()
-    constraints_contents_amended = re.sub(
-        "via -r .*requirements.txt", "via -r requirements.txt", constraints_contents
-    )
-    constraints_path.write_text(constraints_contents_amended)
+            subprocess.run(["uv", "lock"], cwd=directory, check=True)
+        except Exception as e:
+            raise RuntimeError(f"Failed to generate uv.lock in {directory}: {e}")
 
 
 def assemble_experiment_temp_dir(log, config, for_remote=False):
@@ -699,9 +671,7 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
     - Templates and static resources from Dallinger
     - An export of the loaded configuration
     - Heroku-specific files (Procile, runtime.txt) from Dallinger
-    - A requirements.txt file with the contents from the constraints.txt file
-      in the experiment (Dallinger should have generated one with pip-compile
-      if needed by the time we reach this code)
+    - A uv.lock and pyproject.toml file for dependency management
     - A dallinger zip (only if dallinger is installed in editable mode)
     - A prepare_docker_image.sh.sh script (possibly empty)
 
@@ -726,12 +696,24 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
     pyversion = config.get("heroku_python_version", None)
     if pyversion:
         with open(os.path.join(dst, "runtime.txt"), "w") as file:
-            file.write("python-{}".format(pyversion))
+            file.write(f"python-{pyversion}")
 
-    requirements_path = Path(dst) / "requirements.txt"
-    # Overwrite the requirements.txt file with the contents of the constraints.txt file
-    if not os.environ.get("SKIP_DEPENDENCY_CHECK"):
-        (Path(dst) / "constraints.txt").replace(requirements_path)
+    # For uv-based projects, ensure uv.lock and pyproject.toml are present
+    # Copy from experiment directory if they exist there
+    uv_lock_path = Path(os.getcwd()) / "uv.lock"
+    pyproject_path = Path(os.getcwd()) / "pyproject.toml"
+    if uv_lock_path.exists():
+        shutil.copy(uv_lock_path, Path(dst) / "uv.lock")
+    if pyproject_path.exists():
+        shutil.copy(pyproject_path, Path(dst) / "pyproject.toml")
+
+    # If not found in experiment directory, copy from Dallinger root
+    dallinger_root = Path(dallinger_package_path()).parent
+    if not uv_lock_path.exists() and (dallinger_root / "uv.lock").exists():
+        shutil.copy(dallinger_root / "uv.lock", Path(dst) / "uv.lock")
+    if not pyproject_path.exists() and (dallinger_root / "pyproject.toml").exists():
+        shutil.copy(dallinger_root / "pyproject.toml", Path(dst) / "pyproject.toml")
+
     if for_remote:
         dallinger_path = get_editable_dallinger_path()
         if dallinger_path and not os.environ.get("DALLINGER_NO_EGG_BUILD"):
@@ -739,20 +721,14 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
                 "Dallinger is installed as an editable package, "
                 "and so will be copied and deployed in its current state, "
                 "ignoring the dallinger version specified in your experiment's "
-                "requirements.txt file!\n"
+                "pyproject.toml file!\n"
                 "If you don't need this you can speed up startup time by setting "
                 "the environment variable DALLINGER_NO_EGG_BUILD:\n"
                 "    export DALLINGER_NO_EGG_BUILD=1\n"
                 "or you can install dallinger without the editable (-e) flag."
             )
-            egg_name = build_and_place(dallinger_path, dst)
-            # Replace the line about dallinger in requirements.txt so that
-            # it refers to the just generated package
-            constraints_text = requirements_path.read_text()
-            new_constraints_text = re.sub(
-                "dallinger==.*", f"file:{egg_name}", constraints_text
-            )
-            requirements_path.write_text(new_constraints_text)
+            build_and_place(dallinger_path, dst)
+
     return dst
 
 
