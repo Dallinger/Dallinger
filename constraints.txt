@@ -177,7 +177,7 @@ httpcore==1.0.9
     # via httpx
 httpx==0.28.1
     # via jupyterlab
-identify==2.6.12
+identify==2.6.13
     # via pre-commit
 idna==3.10
     # via
