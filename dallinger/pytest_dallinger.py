@@ -274,7 +274,7 @@ def a(db_session):
         info = a.info(origin=a.node(participant=participant))
     """
 
-    class ModelFactory(object):
+    class ModelFactory:
         def __init__(self, db):
             self.db = db
 

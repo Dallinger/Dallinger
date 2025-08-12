@@ -1,7 +1,5 @@
 """Test Rogers demo."""
 
-from __future__ import print_function
-
 import os
 import random
 import re
@@ -40,7 +38,7 @@ def rogers_dir(root):
 
 
 @pytest.mark.usefixtures("rogers_dir")
-class TestRogers(object):
+class TestRogers:
     @pytest.fixture
     def rogers_config(self, active_config):
         from dlgr.demos.rogers.experiment import extra_parameters
@@ -472,7 +470,7 @@ class TestRogers(object):
         print(test)
 
 
-class TestRogersSandbox(object):
+class TestRogersSandbox:
     def autobot(self, session, url, i):
         """Define the behavior of each worker."""
         time.sleep(i * 2)
