@@ -1,5 +1,37 @@
 # Change Log
 
+## [v11.4.0](https://github.com/dallinger/dallinger/tree/v11.4.0) (2025-08-12)
+
+#### Added
+- Added support for Python 3.13
+- Added new configuration variable `server_pem` for authenticating SSH connections to remote servers, e.g. when doing Docker SSH deployments
+
+#### Changed
+- Disabled browser check that returned an error response when a duplicate participant was detected in live mode
+- Reduced overall verbosity in debug mode, incl. removing the hard-coding of `loglevel=0` ; improved cleanup of resources (file handles, sub-processes) to quiet warnings in test output
+- Improved error reporting in a failed experiment launch with `dallinger docker-ssh deploy` by highlighting the Dozzle link
+- Infer `dns_host` from `server` when executing the `dallinger docker-ssh deploy` and `dallinger docker-ssh sandbox`  commands
+- Reinstated `async_recruiter_status_check`, which previously was causing some kind of deadlock on long-running experiments
+
+#### Fixed
+- Fixed constructing the `docker_volumes` string for cases where the string is empty or when there's only one volume retrieved from the configuration
+- Fixed `dallinger debug` to work when `loglevel > 0`: `dallinger debug` previously waited for a particular log line to be printed to know that the server had started successfully. This log line is not printed when `loglevel` > 1, however. The logic was changed to instead check whether the server is available by listening to the appropriate port.
+- Refactored database session management and ORM usage for improved clarity, safety, and maintainability:
+  - All ORM interactions throughout the codebase have been updated to use explicit session-based queries and commits
+  - Background tasks and clock jobs now manage their own session scopes
+  - Recruiter background jobs are wrapped in a session management decorator
+  - Tests and demos have been updated to match the new patterns
+  See https://github.com/Dallinger/Dallinger/pull/7819 for more details
+- Throw a better error message if the `/launch POST` fails early
+- `dallinger ec2 list instances` no longer crashes when https://ec2.shop is offline; instead a warning is logged and the corresponding columns are omitted from the result table
+
+#### Updated
+- Replaced appdirs.py with the platformdirs package
+- Updated dependencies (incl. unpinning of click, myst-parser, sphinxcontrib-spelling, and urllib3 packages)
+
+#### Removed
+- Dropped support for Python 3.9
+
 ## [v11.3.1](https://github.com/dallinger/dallinger/tree/v11.3.1) (2025-05-25)
 
 #### Fixed
@@ -13,10 +45,10 @@
 - Added experiment hook for recruiter error by overriding `logger.exception` in `recruiters.py`
 - Added `DevRecruiter` class for easily distinguishing between `MockRecruiter` or a regular `Recruiter`
 - Prolific command line improvements:
-  - Added `dallinger prolific list studies ` to list all studies associated with an account (across workspaces and projects)
+  - Added `dallinger prolific list studies` to list all studies associated with an account (across workspaces and projects)
   - Added `dallinger prolific delete-drafts` delete all unpublished draft surveys in the account
 
-## Changed
+#### Changed
 - Only show deprecation warnings once
 - When loading the defaults, load `.dallingerconfig` last
 - Give a more informative error message when `FileSource` tries to copy a broken symlink
