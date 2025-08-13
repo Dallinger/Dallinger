@@ -21,7 +21,7 @@ from typing import List, Optional, Union
 
 import requests
 from cached_property import cached_property
-from flask import Blueprint
+from flask import Blueprint, url_for
 from sqlalchemy import Table, and_, create_engine, func
 from sqlalchemy.orm import scoped_session, sessionmaker, undefer
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
@@ -109,6 +109,15 @@ class Experiment(object):
         template_folder="templates",
         static_folder="static",
     )
+
+    @classproperty
+    def index_html(cls):
+        return (
+            "<html><head></head><body><h1>Dallinger Experiment in progress</h1>"
+            "<p><a href={}>Dashboard</a></p></body></html>".format(
+                url_for("dashboard.dashboard_index")
+            )
+        )
 
     #: Sequence of dashboard route/function names that should be excluded from
     #: rendering as tabs in the dashboard view.

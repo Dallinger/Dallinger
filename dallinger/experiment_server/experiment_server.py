@@ -227,14 +227,10 @@ app.jinja_env.globals.update(get_from_config=get_from_config)
 @app.route("/")
 def index():
     """Index route"""
-    html = (
-        "<html><head></head><body><h1>Dallinger Experiment in progress</h1>"
-        "<p><a href={}>Dashboard</a></p></body></html>".format(
-            url_for("dashboard.dashboard_index")
-        )
-    )
+    from dallinger import experiment as dallinger_experiment
 
-    return html
+    experiment_class = dallinger_experiment.load()
+    return experiment_class.index_html
 
 
 @app.route("/robots.txt")
