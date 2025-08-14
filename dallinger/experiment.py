@@ -110,8 +110,8 @@ class Experiment(object):
         static_folder="static",
     )
 
-    @classproperty
-    def index_html(cls):
+    @classmethod
+    def get_index_html(cls):
         return (
             "<html><head></head><body><h1>Dallinger Experiment in progress</h1>"
             "<p><a href={}>Dashboard</a></p></body></html>".format(

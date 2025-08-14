@@ -230,7 +230,7 @@ def index():
     from dallinger import experiment as dallinger_experiment
 
     experiment_class = dallinger_experiment.load()
-    return experiment_class.index_html
+    return experiment_class.get_index_html()
 
 
 @app.route("/robots.txt")
