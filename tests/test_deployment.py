@@ -783,13 +783,13 @@ class Testhandle_launch_data(object):
         log = mock.Mock()
 
         try:
-            handler("https://httpbin.org/status/500", log, attempts=1)
+            handler("https://httpbingo.org/status/500", log, attempts=1)
         except requests.exceptions.HTTPError:
             pass
         log.assert_has_calls(
             [
                 mock.call(
-                    "Error parsing response from https://httpbin.org/status/500, check server logs for details.\n"
+                    "Error parsing response from https://httpbingo.org/status/500, check server logs for details.\n"
                 ),
                 mock.call("Experiment launch failed after multiple attempts."),
             ]
