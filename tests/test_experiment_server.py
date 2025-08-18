@@ -1782,7 +1782,6 @@ class TestWorkerFunctionIntegration(object):
             exp.add_node_to_network(node, network)
             node_id = node.id
 
-
         worker_func(
             event_type="TrackingEvent",
             assignment_id=None,
