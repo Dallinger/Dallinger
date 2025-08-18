@@ -112,7 +112,11 @@ class TestVerify(object):
 class TestCommandLine(object):
     def test_dallinger_no_args(self):
         result = subprocess.run(["dallinger"], capture_output=True, text=True)
-        assert "Usage: dallinger [OPTIONS] COMMAND [ARGS]" in result.stderr
+        # Output may go different places depending on context
+        # (OS version, Github Actions, etc), so merge them for
+        # better predictability
+        output = result.stdout + result.stderr
+        assert "Usage: dallinger [OPTIONS] COMMAND [ARGS]" in output
 
     def test_log_empty(self):
         id = "dlgr-3b9c2aeb"
