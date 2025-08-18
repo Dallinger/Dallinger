@@ -568,15 +568,15 @@ class TestHerokuLocalWrapper(object):
         with pytest.raises(HerokuStartupError):
             heroku.start()
 
-    def test_start_fails_if_stream_ends_without_matching_success_regex(self, heroku):
+    def test_start_fails_if_port_never_opens(self, heroku):
         from dallinger.heroku.tools import HerokuStartupError
 
         heroku._stream = mock.Mock(
             return_value=["apple", "orange", heroku.STREAM_SENTINEL]
         )
-        heroku.success_regex = "not going to match anything"
-        with pytest.raises(HerokuStartupError):
-            heroku.start()
+        with mock.patch("dallinger.utils.port_is_open", return_value=False):
+            with pytest.raises(HerokuStartupError):
+                heroku.start()
         assert not heroku.is_running
 
     def test_error_flushes_logs(self, heroku):
@@ -585,10 +585,10 @@ class TestHerokuLocalWrapper(object):
         heroku._stream = mock.Mock(
             return_value=["apple", "orange", heroku.STREAM_SENTINEL]
         )
-        heroku.success_regex = "not going to match anything"
         heroku._log_failure = mock.Mock()
-        with pytest.raises(HerokuStartupError):
-            heroku.start()
+        with mock.patch("dallinger.utils.port_is_open", return_value=False):
+            with pytest.raises(HerokuStartupError):
+                heroku.start()
         heroku._log_failure.assert_called_once()
 
     def test_failure_logs_until_process_end(self, heroku):

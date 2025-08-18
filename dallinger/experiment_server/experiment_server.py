@@ -624,6 +624,7 @@ def recruiter_exit():
             error_type="/recruiter-exit GET: param participant_id is required",
             status=400,
         )
+
     exp = Experiment()
     participant = session.query(models.Participant).get(participant_id)
     if participant is None:
@@ -1459,6 +1460,7 @@ def info_post(node_id):
             return x
 
     exp = Experiment()
+
     # check the node exists
     node = session.query(models.Node).get(node_id)
     if node is None:
@@ -1794,6 +1796,7 @@ def _worker_complete(participant_id):
     # Lock the participant row, then check and update status to avoid
     # double-submits:
     exp = Experiment()
+
     participant = (
         session.query(models.Participant)
         .populate_existing()

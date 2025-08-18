@@ -82,16 +82,24 @@ def list_regions():
 
 
 def get_instance_details(instance_types, region_name=None):
-    response = requests.get(
-        "https://ec2.shop",
-        params={
-            "filter": ",".join(instance_types),
-            "region": region_name,
-        },
-        headers={
-            "accept": "json",
-        },
-    )
+    try:
+        response = requests.get(
+            "https://ec2.shop",
+            params={
+                "filter": ",".join(instance_types),
+                "region": region_name,
+            },
+            headers={
+                "accept": "json",
+            },
+            timeout=10,
+        )
+        response.raise_for_status()
+    except requests.RequestException as e:
+        logger.warning(
+            f"Could not fetch instance details from ec2.shop (offline or unreachable): {e}"
+        )
+        return None
     if response.status_code != 200:
         print(f"Failed to get details for {instance_types} in {region_name}")
         return None
@@ -150,21 +158,39 @@ def get_all_instances(region_name=None):
     if len(instance_df) == 0:
         return instance_df
     with yaspin(text="Getting instance details..."):
-        instance_details = instance_df.groupby(["instance_type", "region"]).apply(
-            lambda x: get_instance_details(
-                x["instance_type"].unique(), x["region"].unique()
-            )
+        details_frames = []
+        for (instance_type, region), group in instance_df.groupby(
+            ["instance_type", "region"]
+        ):
+            details_df = get_instance_details([instance_type], region)
+            if details_df is not None:
+                details_df = details_df.copy()
+                details_df["instance_type"] = instance_type
+                details_df["region"] = region
+                details_frames.append(details_df)
+        instance_details = (
+            pd.concat(details_frames, ignore_index=True) if details_frames else None
         )
-        instance_details = instance_details.reset_index()
-        instance_details = instance_details[
-            ["instance_type", "region", "Memory", "VCPUS", "Cost"]
-        ]
-    instance_df = instance_df.merge(
-        instance_details, on=["instance_type", "region"], how="left"
-    )
-    instance_df["Cost"] = instance_df["Cost"] * instance_df["uptime"] / (60**2)
-    instance_df.sort_values("Cost", inplace=True)
-    instance_df["Cost"] = instance_df["Cost"].apply(lambda x: f"${int(x)}")
+        if instance_details is not None:
+            selected_cols = ["instance_type", "region"]
+            for col in ["Memory", "VCPUS", "Cost"]:
+                if col in instance_details.columns:
+                    selected_cols.append(col)
+            instance_details = instance_details[selected_cols]
+            instance_df = instance_df.merge(
+                instance_details, on=["instance_type", "region"], how="left"
+            )
+            if "Cost" in instance_df.columns:
+                instance_df["Cost"] = pd.to_numeric(
+                    instance_df["Cost"], errors="coerce"
+                )
+                instance_df["Cost"] = (
+                    instance_df["Cost"] * instance_df["uptime"] / (60**2)
+                )
+                instance_df.sort_values("Cost", inplace=True)
+                instance_df["Cost"] = instance_df["Cost"].apply(
+                    lambda x: f"${int(x)}" if pd.notna(x) else "N/A"
+                )
     instance_df["uptime"] = instance_df["uptime"].apply(
         lambda x: str(int(x / 60**2)) + "h"
     )

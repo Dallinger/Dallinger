@@ -371,14 +371,14 @@ class TestSetupExperiment(object):
         assert copy == orig
 
     def test_setup_uses_specified_python_version(self, active_config, setup_experiment):
-        active_config.extend({"heroku_python_version": "3.12.1"})
+        active_config.extend({"heroku_python_version": "3.13.1"})
 
         exp_id, dst = setup_experiment(log=mock.Mock())
 
         with open(os.path.join(dst, "runtime.txt"), "r") as file:
             version = file.read()
 
-        assert version == "python-3.12.1"
+        assert version == "python-3.13.1"
 
     def test_setup_copies_docker_script(self, setup_experiment):
         exp_id, dst = setup_experiment(log=mock.Mock())
@@ -774,7 +774,7 @@ class Testhandle_launch_data(object):
                     "Experiment launch failed. Trying again (attempt 3 of 3) in 0.2 seconds ..."
                 ),
                 mock.call("Error accessing /some-launch-url (500):\nFailure"),
-                mock.call("Experiment launch failed, check server logs for details."),
+                mock.call("Experiment launch failed after multiple attempts."),
                 mock.call("msg!"),
             ]
         )
@@ -783,20 +783,23 @@ class Testhandle_launch_data(object):
         log = mock.Mock()
 
         try:
-            handler("https://httpbin.org/status/500", log, attempts=1)
+            handler("https://httpbingo.org/status/500", log, attempts=1)
         except requests.exceptions.HTTPError:
             pass
         log.assert_has_calls(
             [
                 mock.call(
-                    "Error parsing response from https://httpbin.org/status/500, check server logs for details.\n"
+                    "Error parsing response from https://httpbingo.org/status/500, check server logs for details.\n"
                 ),
-                mock.call("Experiment launch failed, check server logs for details."),
+                mock.call("Experiment launch failed after multiple attempts."),
             ]
         )
 
         log.reset_mock()
-        handler("https://nonexistent.example.com/", log, attempts=1)
+        try:
+            handler("https://nonexistent.example.com/", log, attempts=1)
+        except requests.exceptions.ConnectionError:
+            pass
         assert (
             "Error accessing https://nonexistent.example.com/"
             in log.call_args_list[0][0][0]
@@ -815,6 +818,53 @@ class Testhandle_launch_data(object):
             "Error parsing response from /some-launch-url, check server logs for details.\n\n"
             "Big, unexpected problem."
         )
+
+    def test_error_log_messages(self, handler):
+        log = mock.Mock()
+        with (
+            mock.patch("dallinger.deployment.requests.post") as mock_post,
+            mock.patch("dallinger.deployment.print_bold") as mock_print,
+            mock.patch("dallinger.deployment.time.sleep"),
+        ):
+            mock_response = mock.Mock(
+                ok=False,
+                json=mock.Mock(return_value={"message": "msg!"}),
+                status_code=500,
+                text="Failure",
+            )
+            mock_response.raise_for_status = mock.Mock(
+                side_effect=requests.exceptions.HTTPError
+            )
+            mock_post.return_value = mock_response
+
+            # Test Heroku context
+            with pytest.raises(requests.exceptions.HTTPError):
+                handler(
+                    "https://example.com/some-launch-url", error=log, context="heroku"
+                )
+            mock_print.assert_called_once_with(
+                "For detailed server logs, visit the Papertrail add-on in your Heroku dashboard"
+            )
+
+            # Test SSH context with Dozzle
+            mock_print.reset_mock()
+            with pytest.raises(requests.exceptions.HTTPError):
+                handler(
+                    "https://example.com/some-launch-url",
+                    error=log,
+                    context="ssh",
+                    dns_host="example.com",
+                    dozzle_password="secret",
+                )
+            mock_print.assert_called_once_with(
+                "Check the detailed server logs at https://logs.example.com (user = dallinger, password = secret)"
+            )
+
+            # Test local context
+            mock_print.reset_mock()
+            with pytest.raises(requests.exceptions.HTTPError):
+                handler("/some-launch-url", error=log, context="local")
+            mock_print.assert_not_called()
 
 
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
@@ -962,7 +1012,7 @@ class TestDebugServer(object):
                 mock.call(
                     "Error accessing http://localhost:5000/launch (500):\nFailure"
                 ),
-                mock.call("Experiment launch failed, check server logs for details."),
+                mock.call("Experiment launch failed after multiple attempts."),
                 mock.call("msg!"),
             ]
         )

@@ -688,11 +688,13 @@ manage the database session. You can do this by using the
 :func:`~dallinger.db.scoped_session_decorator` decorator, which will
 automatically close and release the session back to the connection pool, and
 roll back the session if an exception is raised. For example:
+
 .. code-block:: python
 
     @db.scoped_session_decorator
     def my_method(self):
         ... Your database operations go here
+
         db.session.commit()
         ...
 

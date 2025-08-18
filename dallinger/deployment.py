@@ -23,6 +23,7 @@ from dallinger.utils import (
     bootstrap_development_session,
     get_base_url,
     open_browser,
+    print_bold,
     setup_experiment,
 )
 
@@ -31,10 +32,27 @@ BACKOFF_FACTOR = 2
 MAX_ATTEMPTS = 6
 
 
-def handle_launch_data(url, error, delay=DEFAULT_DELAY, attempts=MAX_ATTEMPTS):
-    """Sends a POST request to te given `url`, retrying it with exponential backoff.
+def handle_launch_data(
+    url,
+    error,
+    delay=DEFAULT_DELAY,
+    attempts=MAX_ATTEMPTS,
+    dns_host=None,
+    dozzle_password=None,
+    context=None,
+):
+    """Sends a POST request to the given `url`, retrying it with exponential backoff.
     The passed `error` function is invoked to give feedback as each error occurs,
-    possibly multiple times.
+    possibly multiple times. If all attempts fail, an exception is raised.
+
+    Args:
+        url: The URL to send the POST request to
+        error: Function to call with error messages
+        delay: Initial delay between retries in seconds
+        attempts: Maximum number of retry attempts
+        dns_host: Hostname for Docker SSH deployments
+        dozzle_password: Password for Dozzle logs in Docker SSH deployments
+        context: Deployment context ('heroku', 'ssh', 'local', etc.)
     """
     launch_data = None
     launch_request = None
@@ -87,11 +105,24 @@ def handle_launch_data(url, error, delay=DEFAULT_DELAY, attempts=MAX_ATTEMPTS):
             )
         time.sleep(delay)
 
-    error("Experiment launch failed, check server logs for details.")
+    error("Experiment launch failed after multiple attempts.")
     if launch_data and launch_data.get("message"):
         error(launch_data["message"])
+
+    # Show appropriate log location message based on deployment context
+    if context == "heroku":
+        print_bold(
+            "For detailed server logs, visit the Papertrail add-on in your Heroku dashboard"
+        )
+    elif context == "ssh" and dns_host and dozzle_password:
+        print_bold(
+            f"Check the detailed server logs at https://logs.{dns_host} (user = dallinger, password = {dozzle_password})"
+        )
+
     if launch_request is not None:
         launch_request.raise_for_status()
+
+    raise requests.exceptions.ConnectionError
 
 
 def deploy_sandbox_shared_setup(

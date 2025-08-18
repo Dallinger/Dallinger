@@ -1398,7 +1398,7 @@ class Experiment(object):
 
         if polymorphic_identity is None and "type" in table.columns:
             observed_types = [
-                r.type for r in db.session.query(table.columns.type).distinct().all()
+                r.type for r in self.session.query(table.columns.type).distinct().all()
             ]
             obj_by_type = [
                 self.pull_table(
