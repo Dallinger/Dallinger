@@ -13,30 +13,39 @@ MacOS
 Install Python
 ~~~~~~~~~~~~~~
 
-Dallinger is written in Python. To determine the exact supported Python versions, please refer to the `pyproject.toml on GitHub <https://github.com/Dallinger/Dallinger/blob/master/pyproject.toml>`__ file in the repository.
-You can check what version of Python you have by running:
+Dallinger is written in Python. To determine the exact supported Python versions, please refer to the `pyproject.toml on GitHub <https://github.com/Dallinger/Dallinger/blob/master/pyproject.toml>`__ file.
+
+You can check your installed version with:
 ::
 
-    python --version
-
+    python3 --version
 
 .. note::
 
     You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed. It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.) If you are using Python 3, you may find that you may need to use the ``pip3`` command instead of ``pip`` where applicable in the instructions that follow.
 
+.. important::
 
-Using Homebrew will install the latest version of Python and pip by default.
+    We **do not recommend installing Python via Homebrew**, since Homebrew updates will replace Python versions and can break virtual environments.
 
-::
+Instead, we recommend one of the following approaches:
 
-    brew install python
+1. **Official Python Installer (simplest):**
+   Download and install Python directly from the `Python.org downloads page <https://www.python.org/downloads/>`__.
+   This will give you a stable installation suitable for creating virtual environments.
 
-This will install the latest Python 3 and pip3.
+2. **pyenv (optional, for managing multiple Python versions):**
+   If you need to switch between different Python versions across projects, you may want to use `pyenv <https://github.com/pyenv/pyenv>`__.
+   pyenv lets you install and select different Python versions independently of the system Python. On macOS it can be installed via Homebrew:
+   ::
 
-If you installed Python 3 with Homebrew, you should now be able to run the ``python3`` command from the terminal.
-If the command cannot be found, check the Homebrew installation log to see
-if there were any errors. Sometimes there are problems symlinking Python 3 to
-the python3 command. If this is the case for you, look `here <https://stackoverflow.com/questions/27784545/brew-error-could-not-symlink-path-is-not-writable>`__ for clues to assist you.
+       brew install pyenv
+       pyenv install 3.12
+       pyenv local 3.12
+
+   For setup instructions, follow the `pyenv installation guide <https://github.com/pyenv/pyenv#installation>`__.
+
+Both approaches will give you a working Python 3 interpreter. Once installed, you should have access to both ``python3`` and ``pip3`` from the terminal.
 
 Should that not work for whatever reason, you can search `here <https://docs.python-guide.org/>`__ for more clues.
 
@@ -398,27 +407,50 @@ Ubuntu
 Install Python
 ~~~~~~~~~~~~~~
 
-Dallinger is written in Python. To determine the exact supported Python versions, please refer to the `pyproject.toml on GitHub <https://github.com/Dallinger/Dallinger/blob/master/pyproject.toml>`__ file in the repository.
-You can check what version of Python you have by running:
+Dallinger is written in Python. To determine the exact supported Python versions, please refer to the `pyproject.toml on GitHub <https://github.com/Dallinger/Dallinger/blob/master/pyproject.toml>`__ file.
+
+You can check your installed version with:
 ::
 
-    python --version
-
-If you do not have Python 3 installed, you can install it from the
-`Python website <https://www.python.org/downloads/>`__.
-
-Also make sure you have the python headers installed. The ``python-dev`` package
-contains the header files you need to build Python extensions appropriate to the Python version you will be using.
+    python3 --version
 
 .. note::
 
     You will also need to have `pip <https://pip.pypa.io/en/stable>`__ installed. It is included in some of the later versions of Python 3, but not all. (pip is a package manager for Python packages, or modules if you like.) If you are using Python 3, you may find that you may need to use the ``pip3`` command instead of ``pip`` where applicable in the instructions that follow.
 
-::
+.. important::
 
-    sudo apt-get install python3-dev
-    sudo apt install -y python3-pip
+    We **do not recommend using the system Python provided by Ubuntu** for development if you plan to manage multiple projects or upgrade your OS regularly. The system Python is tied to Ubuntu and can cause conflicts with packages or break virtual environments after upgrades.
 
+Instead, use one of the following approaches:
+
+1. **Official Python Installer (simplest):**
+   Download and install Python directly from the `Python.org downloads page <https://www.python.org/downloads/>`__.
+   This gives you a stable installation independent from the system Python.
+
+2. **pyenv (optional, for managing multiple Python versions):**
+   If you often need to switch between different Python versions across projects, you may want to use `pyenv <https://github.com/pyenv/pyenv>`__.
+   pyenv lets you install and select different Python versions independently of the system Python.
+
+   ::
+
+       curl -fsSL https://pyenv.run | bash
+       pyenv install 3.12
+       pyenv local 3.12
+
+   For setup instructions, follow the `pyenv installation guide <https://github.com/pyenv/pyenv#installation>`__.
+
+3. **Ubuntu packages (not recommended):**
+   If you prefer to use Ubuntu packages, you can install Python 3 and headers with:
+   ::
+
+       sudo apt-get install -y python3 python3-dev python3-pip
+
+   This works, but be aware that system updates may change the available Python versions and affect your environments.
+
+Once installed, you should have access to both ``python3`` and ``pip3`` from the terminal.
+
+Should that not work for whatever reason, you can search `here <https://docs.python-guide.org/>`__ for more clues.
 
 
 Install Postgresql
