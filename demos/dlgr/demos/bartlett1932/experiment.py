@@ -13,7 +13,10 @@ from dallinger.config import get_config
 from dallinger.experiment import Experiment
 from dallinger.networks import Chain
 
-from . import models
+try:
+    from . import models
+except ImportError:
+    import models
 
 logger = logging.getLogger(__name__)
 
