@@ -2,7 +2,7 @@ Using EC2 for Docker Based Deployments
 ======================================
 
 The ``dallinger`` commandline tool has some helpers for managing EC2 instances
-to help facilitate using docker to deploy experiments on those instances (see
+to help facilitate using Docker to deploy experiments on those instances (see
 :doc:`docker_support`).
 
 
@@ -97,7 +97,7 @@ example::
 You should use a different instance type according to your need. m7i.large is
 recommended for debugging and m7i.xlarge is for deploying. For example::
 
-    dallinger ec2 provision --name tapping_deployment_batch_2 --region eu-west-3 --dns-host elif.my-experiments.org -
+    dallinger ec2 provision --name tapping_deployment_batch_2 --region eu-west-3 --dns-host elif.my-experiments.org --type m7i.large
 
 You can configure different amounts of storage or different instance types::
 
