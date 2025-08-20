@@ -4,7 +4,10 @@ from dallinger import db
 from dallinger.experiment import Experiment
 from dallinger.networks import Chain
 
-from . import models
+try:
+    from . import models
+except ImportError:
+    import models
 
 
 class FunctionLearning(Experiment):

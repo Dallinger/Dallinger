@@ -15,6 +15,11 @@ from dallinger.bots import BotBase
 from dallinger.experiment import Experiment, experiment_route
 from dallinger.networks import Chain
 
+try:
+    from . import models
+except ImportError:
+    import models
+
 
 class MCMCP(Experiment):
     """Define the structure of the experiment."""
@@ -24,14 +29,10 @@ class MCMCP(Experiment):
 
     def create_node(self, network, participant):
         """Create a node for a participant."""
-        from . import models
-
         return models.MCMCPAgent(network=network, participant=participant)
 
     def setup(self):
         """Setup the networks."""
-        from . import models
-
         if not self.networks():
             super(MCMCP, self).setup()
             for net in self.networks():
@@ -64,13 +65,9 @@ class MCMCP(Experiment):
     @experiment_route("/choice/<int:node_id>/<int:choice>", methods=["POST"])
     @classmethod
     def choice(cls, node_id, choice):
-        from dallinger import db
-
-        from . import models
-
         try:
             exp = MCMCP(db.session)
-            node = models.Agent.query.get(node_id)
+            node = db.session.query(models.Agent).get(node_id)
             infos = node.infos()
 
             if choice == 0:

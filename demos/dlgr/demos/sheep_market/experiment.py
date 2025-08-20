@@ -5,6 +5,7 @@ import json
 from flask import abort, jsonify, render_template
 from jinja2 import TemplateNotFound
 
+from dallinger import db
 from dallinger.experiment import Experiment, experiment_route
 from dallinger.models import Info
 from dallinger.networks import Empty
@@ -24,7 +25,7 @@ class SheepMarket(Experiment):
     @classmethod
     def getdrawings(cls):
         """Get all the drawings."""
-        infos = Info.query.all()
+        infos = db.session.query(Info).all()
         sketches = [json.loads(info.contents) for info in infos]
         return jsonify(drawings=sketches)
 
