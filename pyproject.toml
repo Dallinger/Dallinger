@@ -99,6 +99,7 @@ dev = [
     "sphinx < 8.2",
     "sphinx_rtd_theme",
     "sphinxcontrib-spelling",
+    "sphinx-js",
     "tox",
 ]
 docker = [

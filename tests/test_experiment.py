@@ -377,26 +377,18 @@ class TestExperimentBaseClass(object):
                 queue_name="high",
             )
 
-    def test_send_non_json_calls_synchronously(self, exp):
-        with mock.patch(
-            "dallinger.experiment.Experiment.receive_message"
-        ) as mock_receive:
-            exp.channel = "exp_default"
-            exp.send("exp_default:value!")
-            mock_receive.assert_called_once_with(
-                "value!", channel_name="exp_default", receive_time=mock.ANY
-            )
-
-    def test_send_no_participant_calls_synchronously(self, exp):
+    def test_send_immediate_calls_synchronously(self, exp):
         # In order to make an async call we need to be able to get a
         # participant_id or a node_id from the message
         with mock.patch(
             "dallinger.experiment.Experiment.receive_message"
         ) as mock_receive:
             exp.channel = "exp_default"
-            exp.send('exp_default:{"key":"value"}')
+            exp.send('exp_default:{"key":"value","immediate":true}')
             mock_receive.assert_called_once_with(
-                '{"key":"value"}', channel_name="exp_default", receive_time=mock.ANY
+                '{"key":"value","immediate":true}',
+                channel_name="exp_default",
+                receive_time=mock.ANY,
             )
 
     def test_session_arg_deprecation_warning(self, klass):

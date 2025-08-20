@@ -45,6 +45,9 @@ what to do with the database when the server receives requests from outside.
   .. autoattribute:: hidden_dashboards
     :annotation:
 
+  .. autoattribute:: background_tasks
+    :annotation:
+
   .. autoattribute:: channel
     :annotation:
 
