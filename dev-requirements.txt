@@ -5,7 +5,7 @@
 #    ./scripts/update_dependencies.sh
 #
 
-    # via -
+    # via -r dev-requirements.in
 alabaster==1.0.0
     # via
     #   dallinger
