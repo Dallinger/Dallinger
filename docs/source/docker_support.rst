@@ -159,12 +159,13 @@ experiments deployed this way can be found under the `dallinger docker-ssh` comm
       -h, --help  Show this message and exit.
 
     Commands:
-      apps     List dallinger apps running on the remote server.
-      deploy   Deploy a dallinger experiment docker image to a server using ssh.
-      destroy  Tear down an experiment run on a server you control via ssh.
-      export   Export database to a local file.
-      servers  Manage remote servers where experiments can be deployed
-      stats    Get resource usage stats from remote server.
+      apps                  List dallinger apps running on the remote server.
+      deploy                Deploy a dallinger experiment docker image to a server using ssh.
+      destroy               Tear down an experiment run on a server you control via ssh.
+      export                Export database to a local file.
+      servers               Manage remote servers where experiments can be deployed
+      set-dozzle-password
+      stats                 Get resource usage stats from remote server.
 
 .. note::
 
@@ -199,6 +200,20 @@ Now you can deploy an experiment image to the server:
 .. code-block:: shell
 
     dallinger docker-ssh deploy --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5 -c recruiter hotair -c dashboard_password foobar
+
+.. note::
+
+    Some configuration values are fetched from a local Redis instance even when
+    deploying to a remote server with ``dallinger docker-ssh``.
+    If you see errors like::
+
+        redis.exceptions.ConnectionError: Error 111 connecting to localhost:6379. Connection refused.
+
+    you need to start the local Dallinger services before running the deploy command:
+
+    .. code-block:: shell
+
+        dallinger docker start-services
 
 In this example we use the ``hotair`` recruiter and set the dashboard password to ``foobar``.
 The above command will output:

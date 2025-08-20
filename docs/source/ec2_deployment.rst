@@ -9,6 +9,21 @@ to help facilitate using docker to deploy experiments on those instances (see
 Initial Setup
 -------------
 
+Required AWS Permissions
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+In order to run the ``dallinger ec2`` commands, your AWS user or role needs to
+have the following permissions:
+
+- ``route53:ListHostedZonesByName``
+- ``AmazonEC2FullAccess``
+- ``AmazonRoute53FullAccess``
+
+Make sure these permissions are attached to the IAM user or role you are using
+before proceeding. Without them, you may encounter errors when provisioning
+instances, managing DNS, or configuring networking.
+
 Route53 DNS
 ~~~~~~~~~~~
 
@@ -39,10 +54,10 @@ EC2 SSH Key Pair (PEM File)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 By default the ``dallinger ec2`` commands will use an SSH key pair named
-``dallinger`` to create instances. If that key pair does not exist, one will be
-created and added to your SSH keychain. You can use an existing SSH key pair by
-specifying the ``--pem`` option on the commandline, or by setting the
-``ec2_default_pem`` value in your `~/.dallingerconfig` file.
+``dallinger`` to create instances. If that key pair does not exist you will need
+to create one on AWS, download it, place it in your home folder and make it read only.
+You can use an existing SSH key pair by specifying the ``--pem`` option on
+the commandline, or by setting the ``ec2_default_pem`` value in your `~/.dallingerconfig` file.
 For more information about creating PEM files in AWS, see
 https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html.
 
@@ -65,19 +80,19 @@ To provision an on-demand EC2 instance::
     dallinger ec2 provision --name <server_name> --region <region> --dns-host <subdomain>.my-experiments.org --type <type> --pem <pem> --security_group_name <security_group>
 
 Pick an instance name which is easy to recognize, for example
-‘tapping_deployment_batch_2’ is good but ‘melody123’ would be bad::
+`tapping-deployment-batch-2` is good but `melody123` would be bad::
 
-    dallinger ec2 provision --name tapping_deployment_batch_2 --region <region> --dns-host <subdomain>.my-experiments.org --type <type>
+    dallinger ec2 provision --name tapping-deployment-batch-2 --region <region> --dns-host <subdomain>.my-experiments.org --type <type>
 
 For example, if you want to collect data in Paris your command will include the
 region name for Paris, like this::
 
-    dallinger ec2 provision --name tapping_deployment_batch_2 --region eu-west-3 --dns-host <subdomain>.my-experiments.org --type <type>
+    dallinger ec2 provision --name tapping-deployment-batch-2 --region eu-west-3 --dns-host <subdomain>.my-experiments.org --type <type>
 
 Subdomain name should target your identity so it could be your own name. For
 example::
 
-    dallinger ec2 provision --name tapping_deployment_batch_2 --region eu-west-3 --dns-host elif.my-experiments.org --type <type>
+    dallinger ec2 provision --name tapping-deployment-batch-2 --region eu-west-3 --dns-host elif.my-experiments.org --type <type>
 
 You should use a different instance type according to your need. m7i.large is
 recommended for debugging and m7i.xlarge is for deploying. For example::
@@ -179,4 +194,4 @@ You can make an SSH connection to the docker container running the a specific
 experiment using the server DNS name and the experiment app name with the
 following command::
 
-    dallinger ssh web --dns <subdomain>.my-experiments.org --app <subdomain>.my-experiments.org
+    dallinger ec2 ssh web --dns ubuntu@<subdomain>.my-experiments.org --app <subdomain>.my-experiments.org
