@@ -129,7 +129,7 @@ def worker_function(
                 key,
             )
             return
-    elif not participant and not node:
+    elif not participant and not node and event_type != "WebSocketMessage":
         raise ValueError(
             "Error: worker_function needs either an assignment_id or a "
             "participant_id, they cannot both be None"
