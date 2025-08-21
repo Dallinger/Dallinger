@@ -51,19 +51,20 @@ class TestRogers(object):
         yield active_config
 
     @pytest.fixture
-    def module_and_class(self, rogers_config):
+    def module_and_instance(self, rogers_config):
         klass = experiment.load()
+        instance = klass()
         import dallinger_experiment
 
         module = dallinger_experiment
 
-        return module, klass
+        return module, instance
 
-    def test_run_rogers(self, module_and_class, db_session):
+    def test_run_rogers(self, module_and_instance, db_session):
         """
         SIMULATE ROGERS
         """
-        module, klass = module_and_class
+        module, instance = module_and_instance
         hit_id = str(random.random())
 
         overall_start_time = timenow()
@@ -73,8 +74,7 @@ class TestRogers(object):
 
         exp_setup_start = timenow()
         # exp = RogersExperiment()
-        exp = klass()
-        exp_module = module
+        exp = instance
 
         exp_setup_stop = timenow()
 
@@ -149,9 +149,7 @@ class TestRogers(object):
                     from operator import attrgetter
 
                     current_state = max(
-                        network.nodes(type=exp_module.models.RogersEnvironment)[
-                            0
-                        ].infos(),
+                        network.nodes(type=module.models.RogersEnvironment)[0].infos(),
                         key=attrgetter("id"),
                     ).contents
                     if float(current_state) >= 0.5:
@@ -215,24 +213,24 @@ class TestRogers(object):
             agents = network.nodes(type=Agent)
             sources = network.nodes(type=Source)
             assert len(sources) == 2
-            assert len(network.nodes(type=exp_module.models.RogersSource)) == 1
-            assert len(network.nodes(type=exp_module.models.RogersEnvironment)) == 1
+            assert len(network.nodes(type=module.models.RogersSource)) == 1
+            assert len(network.nodes(type=module.models.RogersEnvironment)) == 1
             assert len(agents) + len(sources) == network.max_size
 
-            source = network.nodes(type=exp_module.models.RogersSource)
+            source = network.nodes(type=module.models.RogersSource)
             assert len(source) == 1
             source = source[0]
-            assert isinstance(source, exp_module.models.RogersSource)
+            assert isinstance(source, module.models.RogersSource)
 
-            environment = network.nodes(type=exp_module.models.RogersEnvironment)
+            environment = network.nodes(type=module.models.RogersEnvironment)
             assert len(environment) == 1
             environment = environment[0]
-            assert isinstance(environment, exp_module.models.RogersEnvironment)
+            assert isinstance(environment, module.models.RogersEnvironment)
 
             vectors = network.vectors()
 
             for agent in agents:
-                assert isinstance(agent, exp_module.models.RogersAgent)
+                assert isinstance(agent, module.models.RogersAgent)
 
             for agent in agents:
                 if agent.generation == 0:
@@ -243,7 +241,7 @@ class TestRogers(object):
                     assert len(agent.vectors(direction="incoming")) in [2, 3]
                     assert not agent.is_connected(direction="from", whom=source)
                     assert agent.is_connected(direction="from", whom=environment)
-                    assert exp_module.models.RogersAgent in [
+                    assert module.models.RogersAgent in [
                         type(a) for a in agent.neighbors(direction="from")
                     ]
 
@@ -260,15 +258,15 @@ class TestRogers(object):
         for network in [exp.networks()[0]]:
             agents = network.nodes(type=Agent)
             vectors = network.vectors()
-            source = network.nodes(type=exp_module.models.RogersSource)[0]
-            environment = network.nodes(type=exp_module.models.RogersEnvironment)[0]
+            source = network.nodes(type=module.models.RogersSource)[0]
+            environment = network.nodes(type=module.models.RogersEnvironment)[0]
 
             for v in vectors:
                 if isinstance(v.origin, Agent):
                     assert v.origin.generation == v.destination.generation - 1
                 else:
                     assert isinstance(v.origin, Source) or isinstance(
-                        v.origin, exp_module.models.RogersEnvironment
+                        v.origin, module.models.RogersEnvironment
                     )
             for agent in agents:
                 if agent.generation == 0:
@@ -304,7 +302,7 @@ class TestRogers(object):
                 )
 
             for v in [v for v in vectors if v.origin_id == source.id]:
-                assert isinstance(v.destination, exp_module.models.RogersAgent)
+                assert isinstance(v.destination, module.models.RogersAgent)
 
         print("Testing vectors...                   done!")
         sys.stdout.flush()
@@ -319,8 +317,8 @@ class TestRogers(object):
         for network in [exp.networks()[0]]:
             agents = network.nodes(type=Agent)
             vectors = network.vectors()
-            source = network.nodes(type=exp_module.models.RogersSource)[0]
-            environment = network.nodes(type=exp_module.models.RogersEnvironment)[0]
+            source = network.nodes(type=module.models.RogersSource)[0]
+            environment = network.nodes(type=module.models.RogersEnvironment)[0]
             infos = network.infos()
 
             for agent in agents:
@@ -341,7 +339,7 @@ class TestRogers(object):
                             i
                             for i in infos
                             if i.origin_id == agent.id
-                            and isinstance(i, exp_module.models.LearningGene)
+                            and isinstance(i, module.models.LearningGene)
                         ]
                     )
                     == 1  # noqa
@@ -370,8 +368,8 @@ class TestRogers(object):
         for network in [exp.networks()[0]]:
             agents = network.nodes(type=Agent)
             vectors = network.vectors()
-            source = network.nodes(type=exp_module.models.RogersSource)[0]
-            environment = network.nodes(type=exp_module.models.RogersEnvironment)[0]
+            source = network.nodes(type=module.models.RogersSource)[0]
+            environment = network.nodes(type=module.models.RogersEnvironment)[0]
             infos = network.infos()
             transmissions = network.transmissions()
 
@@ -395,18 +393,18 @@ class TestRogers(object):
                     i
                     for i in infos
                     if i.origin_id == agent.id
-                    and isinstance(i, exp_module.models.LearningGene)
+                    and isinstance(i, module.models.LearningGene)
                 ]
                 assert len(lg) == 1
                 lg = lg[0]
 
                 if lg.contents == "asocial":
                     assert State in types
-                    assert exp_module.models.LearningGene in types
+                    assert module.models.LearningGene in types
                     assert Meme not in types
                 else:
                     assert State not in types
-                    assert exp_module.models.LearningGene in types
+                    assert module.models.LearningGene in types
                     assert Meme in types
 
         print("Testing transmissions...             done!")
@@ -436,7 +434,7 @@ class TestRogers(object):
 
             for agent in agents:
                 is_asocial = (
-                    agent.infos(type=exp_module.models.LearningGene)[0].contents
+                    agent.infos(type=module.models.LearningGene)[0].contents
                     == "asocial"
                 )
                 assert agent.fitness == (

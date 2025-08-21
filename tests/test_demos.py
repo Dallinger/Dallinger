@@ -3,7 +3,7 @@ import sys
 
 import pytest
 
-from dallinger import experiments
+from dallinger import experiment, experiments
 from dallinger.command_line.utils import verify_package
 
 
@@ -67,9 +67,8 @@ class TestBartlett1932(object):
 
     @pytest.fixture
     def demo(self, db_session):
-        from dlgr.demos.bartlett1932.experiment import Bartlett1932
-
-        instance = Bartlett1932()
+        klass = experiment.load()
+        instance = klass()
         instance.setup()  # Emulate experiment launch
         yield instance
 
