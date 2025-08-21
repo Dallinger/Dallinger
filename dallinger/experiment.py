@@ -22,6 +22,7 @@ from typing import List, Optional, Union
 import requests
 from cached_property import cached_property
 from flask import Blueprint, url_for
+from markupsafe import escape
 from sqlalchemy import Table, and_, create_engine, func
 from sqlalchemy.orm import scoped_session, sessionmaker, undefer
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
@@ -43,6 +44,7 @@ from dallinger.db import (
     get_polymorphic_mapping,
     init_db,
 )
+from dallinger.experiment_server.utils import date_handler
 from dallinger.heroku.tools import HerokuApp
 from dallinger.information import Gene, Meme, State
 from dallinger.models import Info, Network, Node, Participant, Transformation
@@ -1484,55 +1486,116 @@ class Experiment(object):
         return ""
 
     def table_data(
-        self, table: str = "participant", polymorphic_identity: Optional[str] = None
+        self,
+        start: int,
+        length: int,
+        table: str = "participant",
+        polymorphic_identity: Optional[str] = None,
+        search_value: str = "",
+        order_column: Optional[str] = None,
+        order_dir: str = "asc",
     ):
-        """Generates DataTablesJS data and configuration for the experiment. The data
-        is compiled from the models' ``__json__`` methods, and can be customized by either
-        overriding this method or using the ``json_data`` method on the model to return
-        additional serializable data.
+        """
+        Generates server-side paginated DataTablesJS data for the experiment.
 
-        :param table: table to query
+        Rows are queried directly from the database using SQLAlchemy, filtered,
+        searched, ordered, and paginated according to DataTables' request
+        parameters. The data is compiled from the models' ``__json__`` methods,
+        and may be customized by overriding this method or by having models
+        return additional serializable data in their ``__json__``.
 
-        :param polymorphic_identity: optional polymorphic identity (corresponds to the ``type`` column)
+        :param start: Starting record index (0-based), provided by DataTables.
+        :param length: Number of records to return, provided by DataTables.
+        :param table: Name of the table to query (default: "participant").
+        :param polymorphic_identity: Optional polymorphic identity, corresponding
+            to the ``type`` column, used to restrict results to a subclass.
+        :param search_value: Global search string to filter results (default: "").
+        :param order_column: Column name to sort by (default: None = primary key).
+        :param order_dir: Sort direction, "asc" or "desc" (default: "asc").
 
-        :returns: Returns a ``dict`` with DataTablesJS data and configuration, filters using
-                  arbitrary keyword arguments. Should contain ``data`` and ``columns`` keys
-                  at least, with ``columns`` containing data for all fields on all returned
-                  objects.
-        """  # noqa
-        rows = []
-        found_columns = set()
-        columns = []
+        :returns: A ``dict`` with keys:
+            - ``data``: List of row dicts for the current page.
+            - ``total_count``: Total number of rows before filtering.
+            - ``filtered_count``: Number of rows after filtering.
+        """
+        from sqlalchemy import String, asc, cast, desc, or_
 
-        table = Base.metadata.tables[table]
-
+        table_obj = Base.metadata.tables[table]
         if polymorphic_identity == "None":
             polymorphic_identity = None
 
-        objects = self.pull_table(table, polymorphic_identity=polymorphic_identity)
+        if polymorphic_identity is None:
+            cls = get_mapped_class(table_obj)
+            base = self.session.query(cls)
+        else:
+            assert "type" in table_obj.columns
+            cls = get_polymorphic_mapping(table_obj)[polymorphic_identity]
+            base = self.session.query(cls).filter(cls.type == polymorphic_identity)
 
-        for obj in objects:
-            data = obj.__json__()
-            # Add participant worker_id to data, we normally leave it out of
-            # JSON renderings
-            if table.name == "participant":
+        total_count = base.order_by(None).count()
+
+        q = base
+        if search_value:
+            conds = []
+            for col in table_obj.columns:
+                if hasattr(cls, col.name):
+                    conds.append(
+                        cast(getattr(cls, col.name), String).ilike(f"%{search_value}%")
+                    )
+            if conds:
+                q = q.filter(or_(*conds))
+
+        filtered_count = q.order_by(None).count()
+
+        if order_column and hasattr(cls, order_column):
+            attr = getattr(cls, order_column)
+            q = q.order_by(desc(attr) if order_dir.lower() == "desc" else asc(attr))
+        else:
+            for pk in table_obj.primary_key.columns:
+                if hasattr(cls, pk.name):
+                    q = q.order_by(getattr(cls, pk.name))
+
+        items = q.offset(start).limit(length).all()
+
+        rows = []
+        all_keys = set()
+        for obj in items:
+            data = obj.__json__() or {}
+            if table_obj.name == "participant" and hasattr(obj, "worker_id"):
                 data["worker_id"] = obj.worker_id
-            rows.append(data)
-            for key in data:
-                if key not in found_columns:
-                    columns.append({"name": key, "data": key})
-                    found_columns.add(key)
 
-        # Make sure every row has an entry for every column
-        for col in found_columns:
-            for row in rows:
-                if col not in row:
-                    row[col] = None
+            coerced = {}
+            for k, v in data.items():
+                if v is None:
+                    coerced[k] = None
+                elif isinstance(v, (str, bytes)):
+                    coerced[k] = escape(v)
+                else:
+                    coerced[k] = (
+                        f"<code>{escape(json.dumps(v, default=date_handler))}</code>"
+                    )
+            rows.append(coerced)
+            all_keys.update(coerced.keys())
+
+        for r in rows:
+            for k in all_keys:
+                r.setdefault(k, None)
 
         return {
             "data": rows,
-            "columns": columns,
+            "total_count": total_count,
+            "filtered_count": filtered_count,
         }
+
+    def table_columns(self, table: str = "participant"):
+        """Return column definitions for the table header (no rows)."""
+        table_obj = Base.metadata.tables[table]
+        cols = [{"name": c.name, "data": c.name} for c in table_obj.columns]
+
+        seen = {c["data"] for c in cols}
+        if table_obj.name == "participant" and "worker_id" not in seen:
+            cols.append({"name": "worker_id", "data": "worker_id"})
+        return cols
 
     def dashboard_database_actions(self):
         """Returns a sequence of custom actions for the database dashboard. Each action
