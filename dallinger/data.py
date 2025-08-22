@@ -14,13 +14,12 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 import boto3
 import botocore
-import postgres_copy
 import psycopg2
-import six
 
 from dallinger import db, models
-from dallinger.compat import open_for_csv
 from dallinger.heroku.tools import HerokuApp
+from dallinger.postgres_copy import copy_from
+from dallinger.utils import open_for_csv
 
 from .config import get_config
 
@@ -339,10 +338,9 @@ def ingest_zip(path, engine=None):
             filename = [f for f in filenames if name in f][0]
             model_name = name.capitalize()
             model = getattr(models, model_name)
-            file = archive.open(filename)
-            if six.PY3:
-                file = io.TextIOWrapper(file, encoding="utf8", newline="")
-            ingest_to_model(file, model, engine)
+            with archive.open(filename) as binary_file:
+                file = io.TextIOWrapper(binary_file, encoding="utf-8", newline="")
+                ingest_to_model(file, model, engine)
 
 
 def fix_autoincrement(engine, table_name):
@@ -361,7 +359,7 @@ def ingest_to_model(file, model, engine=None):
     reader = csv.reader(file)
     columns = tuple('"{}"'.format(n) for n in next(reader))
     with engine.begin() as conn:  # <-- BEGIN; will COMMIT or ROLLBACK
-        postgres_copy.copy_from(
+        copy_from(
             file,
             model,
             conn,
@@ -450,7 +448,7 @@ def _s3_resource(dallinger_region=False):
     )
 
 
-class Data(object):
+class Data:
     """Dallinger data object."""
 
     def __init__(self, URL):
@@ -469,7 +467,7 @@ class Data(object):
                 )
 
 
-class Table(object):
+class Table:
     """Dallinger data-table object."""
 
     def __init__(self, path):
