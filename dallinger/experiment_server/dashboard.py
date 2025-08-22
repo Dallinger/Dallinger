@@ -988,22 +988,22 @@ def prep_datatables_options(table_data):
     datatables_options = deepcopy(TABLE_DEFAULTS)
     datatables_options.update(deepcopy(table_data))
 
-    cols = datatables_options.get("columns", []) or []
-    for col in cols:
-        d = col.get("data")
+    columns = datatables_options.get("columns", [])
+    for column in columns:
+        d = column.get("data")
         if isinstance(d, dict) and "_" in d:
-            col["data"] = d["_"]
-        col.pop("render", None)
-        col.pop("searchPanes", None)
-        col.setdefault("defaultContent", "")
-    datatables_options["columns"] = cols
+            column["data"] = d["_"]
+        column.pop("render", None)
+        # We will enable search panes per column if needed
+        column.pop("searchPanes", None)
+        column.setdefault("defaultContent", "")
+    datatables_options["columns"] = columns
 
-    # Server-side flags
     datatables_options["serverSide"] = True
     datatables_options["processing"] = True
     datatables_options["deferRender"] = True
+    datatables_options["searchPanes"]["serverSide"] = True
 
-    # Ensure arrays exist
     datatables_options.setdefault("buttons", [])
     datatables_options.setdefault("columnDefs", [])
     datatables_options.setdefault("order", [])
@@ -1030,7 +1030,6 @@ def dashboard_database():
         table = "participant"
 
     if polymorphic_identity is not None:
-        assert table is not None
         cls = get_polymorphic_mapping(table)[polymorphic_identity]
         label = cls.__name__
     else:
@@ -1038,21 +1037,60 @@ def dashboard_database():
 
     title = "Database View: {}".format(label)
 
+    # Initial page render (columns only, no rows as they will be fetched from the client)
+    datatables_options = prep_datatables_options(
+        {
+            "data": [],
+            "columns": exp.table_columns(
+                table=table, polymorphic_identity=polymorphic_identity
+            ),
+        }
+    )
+
     # DataTables server-side AJAX
     if request.args.get("draw") is not None:
         draw = int(request.args.get("draw", 1))
         start = int(request.args.get("start", 0))
         length = int(request.args.get("length", 10))
-        search_value = (request.args.get("search[value]") or "").strip()
+        global_search_value = (request.args.get("search[value]") or "").strip()
 
+        # Collect column keys
+        col_keys = []
+        col_filters = {}
+
+        # iterate over contiguous columns until none is found
+        i = 0
+        while (
+            request.args.get(f"columns[{i}][data]") is not None
+            or request.args.get(f"columns[{i}][name]") is not None
+        ):
+            base = f"columns[{i}]"
+            key = request.args.get(f"{base}[name]") or request.args.get(f"{base}[data]")
+            if key:
+                col_keys.append(key)
+
+                col_search = request.args.get(f"{base}[search][value]") or ""
+                is_regex = request.args.get(f"{base}[search][regex]") == "true"
+
+                if col_search:
+                    if (
+                        is_regex
+                        and col_search.startswith("^(")
+                        and col_search.endswith(")$")
+                    ):
+                        selected = [p for p in col_search[2:-2].split("|") if p]
+                    else:
+                        selected = [col_search]
+                    col_filters[key] = selected
+            i += 1
+
+        # Ordering
         order_column = None
         order_col_idx = request.args.get("order[0][column]")
         if order_col_idx is not None:
-            order_column = request.args.get(f"columns[{order_col_idx}][data]")
-
-        if order_column and not isinstance(order_column, str):
-            order_column = None
-
+            order_column = request.args.get(
+                f"columns[{order_col_idx}][name]"
+            ) or request.args.get(f"columns[{order_col_idx}][data]")
         order_dir = (request.args.get("order[0][dir]", "asc") or "asc").lower()
 
         page = exp.table_data(
@@ -1060,24 +1098,28 @@ def dashboard_database():
             polymorphic_identity=polymorphic_identity,
             start=start,
             length=length,
-            search_value=search_value,
-            order_column=order_column,
+            search_value=global_search_value,
+            order_column=order_column if isinstance(order_column, str) else None,
             order_dir=order_dir,
         )
+
+        panes = exp.table_search_panes(
+            table=table,
+            polymorphic_identity=polymorphic_identity,
+            search_value=global_search_value,
+            pane_columns=col_keys,
+            column_filters=col_filters,
+            threshold=datatables_options.get("searchPanes", {}).get("threshold", 0.99),
+            max_distinct=200,
+        )
+
         return {
             "draw": draw,
             "recordsTotal": page["total_count"],
             "recordsFiltered": page["filtered_count"],
             "data": page["data"],
+            "searchPanes": panes,
         }
-
-    # Initial page render (columns only, no rows as they will be fetched from the client)
-    datatables_options = prep_datatables_options(
-        {
-            "data": [],
-            "columns": exp.table_columns(table=table),
-        }
-    )
 
     # AJAX URL, this same endpoint with current query string
     current_url = request.path
@@ -1086,9 +1128,9 @@ def dashboard_database():
     datatables_options["ajax"] = current_url
 
     columns = [
-        c.get("name") or c["data"]
-        for c in datatables_options.get("columns", [])
-        if c.get("data")
+        column.get("name") or column["data"]
+        for column in datatables_options.get("columns", [])
+        if column.get("data")
     ]
 
     actions = {"extend": "collection", "text": "Actions", "buttons": []}
