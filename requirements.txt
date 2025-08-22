@@ -20,9 +20,9 @@ beautifulsoup4==4.13.4
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.40.7
+boto3==1.40.15
     # via dallinger
-botocore==1.40.7
+botocore==1.40.15
     # via
     #   boto3
     #   s3transfer
@@ -46,6 +46,8 @@ click==8.2.1
     #   flask
     #   pip-tools
     #   rq
+croniter==6.0.0
+    # via rq
 cryptography==45.0.6
     # via pyopenssl
 decorator==5.2.1
@@ -54,7 +56,7 @@ executing==2.2.0
     # via stack-data
 faker==37.5.3
     # via dallinger
-flask==3.1.1
+flask==3.1.2
     # via
     #   dallinger
     #   flask-crossdomain
@@ -79,6 +81,7 @@ greenlet==3.2.4
     # via
     #   dallinger
     #   gevent
+    #   sqlalchemy
 gunicorn==23.0.0
     # via dallinger
 h11==0.16.0
@@ -162,22 +165,25 @@ pysocks==1.7.1
 python-dateutil==2.9.0.post0
     # via
     #   botocore
+    #   croniter
     #   heroku3
 python-json-logger==3.3.0
     # via dallinger
+pytz==2025.2
+    # via croniter
 redis==6.4.0
     # via
     #   dallinger
     #   rq
-requests==2.32.4
+requests==2.32.5
     # via
     #   dallinger
     #   heroku3
-rq==2.4.1
+rq==2.5.0
     # via dallinger
 s3transfer==0.13.1
     # via boto3
-selenium==4.34.2
+selenium==4.35.0
     # via dallinger
 simple-websocket==1.1.0
     # via flask-sock
