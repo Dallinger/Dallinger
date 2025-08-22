@@ -4,7 +4,6 @@
 #
 #    ./scripts/update_dependencies.sh
 #
-
     # via -r requirements.in
 ansi2html==1.9.2
     # via dallinger
@@ -16,13 +15,13 @@ attrs==25.3.0
     # via
     #   outcome
     #   trio
-beautifulsoup4==4.13.4
+beautifulsoup4==4.13.5
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.40.15
+boto3==1.40.28
     # via dallinger
-botocore==1.40.15
+botocore==1.40.28
     # via
     #   boto3
     #   s3transfer
@@ -36,7 +35,7 @@ certifi==2025.8.3
     # via
     #   requests
     #   selenium
-cffi==1.17.1
+cffi==2.0.0
     # via cryptography
 charset-normalizer==3.4.3
     # via requests
@@ -48,13 +47,13 @@ click==8.2.1
     #   rq
 croniter==6.0.0
     # via rq
-cryptography==45.0.6
+cryptography==45.0.7
     # via pyopenssl
 decorator==5.2.1
     # via ipython
-executing==2.2.0
+executing==2.2.1
     # via stack-data
-faker==37.5.3
+faker==37.6.0
     # via dallinger
 flask==3.1.2
     # via
@@ -73,7 +72,7 @@ flask-wtf==1.2.2
     # via dallinger
 future==1.0.0
     # via dallinger
-gevent==25.5.1
+gevent==25.8.2
     # via
     #   dallinger
     #   gunicorn
@@ -126,7 +125,7 @@ packaging==25.0
     # via
     #   build
     #   gunicorn
-parso==0.8.4
+parso==0.8.5
     # via jedi
 pexpect==4.9.0
     # via
@@ -134,9 +133,9 @@ pexpect==4.9.0
     #   ipython
 pip-tools==7.5.0
     # via dallinger
-platformdirs==4.3.8
+platformdirs==4.4.0
     # via dallinger
-prompt-toolkit==3.0.51
+prompt-toolkit==3.0.52
     # via ipython
 psutil==7.0.0
     # via dallinger
@@ -148,7 +147,7 @@ ptyprocess==0.7.0
     # via pexpect
 pure-eval==0.2.3
     # via stack-data
-pycparser==2.22
+pycparser==2.23
     # via cffi
 pygments==2.19.2
     # via ipython
@@ -179,9 +178,9 @@ requests==2.32.5
     # via
     #   dallinger
     #   heroku3
-rq==2.5.0
+rq==2.6.0
     # via dallinger
-s3transfer==0.13.1
+s3transfer==0.14.0
     # via boto3
 selenium==4.35.0
     # via dallinger
@@ -196,7 +195,7 @@ sniffio==1.3.1
     # via trio
 sortedcontainers==2.4.0
     # via trio
-soupsieve==2.7
+soupsieve==2.8
     # via beautifulsoup4
 sqlalchemy==1.4.54
     # via
