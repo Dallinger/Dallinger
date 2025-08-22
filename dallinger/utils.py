@@ -514,9 +514,7 @@ def bootstrap_development_session(exp_config, experiment_path, log):
     log("Experiment UID: {}".format(experiment_uid))
 
     # Load and update the config
-    config = get_config()
-    if not config.ready:
-        config.load()  #
+    config = get_config(load=True)
     config.extend(exp_config)
     config.extend(
         {
@@ -569,9 +567,7 @@ def setup_experiment(
     log("Experiment UID: {}".format(experiment_uid))
 
     # Load and update the config
-    config = get_config()
-    if not config.ready:
-        config.load()  #
+    config = get_config(load=True)
     if exp_config:
         config.extend(exp_config)
 
@@ -1022,9 +1018,7 @@ def deferred_route_decorator(
 
 
 def get_from_config(key):
-    config = get_config()
-    if not config.ready:
-        config.load()
+    config = get_config(load=True)
     return config.get(key)
 
 

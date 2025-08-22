@@ -142,9 +142,7 @@ def bartlett_dir(root):
 def aws_creds():
     from dallinger.config import get_config
 
-    config = get_config()
-    if not config.ready:
-        config.load()
+    config = get_config(load=True)
     creds = {
         "aws_access_key_id": config.get("aws_access_key_id"),
         "aws_secret_access_key": config.get("aws_secret_access_key"),
@@ -156,9 +154,7 @@ def aws_creds():
 def prolific_creds():
     from dallinger.config import get_config
 
-    config = get_config()
-    if not config.ready:
-        config.load()
+    config = get_config(load=True)
     creds = {
         "prolific_api_token": config.get("prolific_api_token"),
         "prolific_api_version": config.get("prolific_api_version"),

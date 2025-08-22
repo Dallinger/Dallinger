@@ -1,8 +1,10 @@
+import warnings
 from datetime import datetime
 from unittest import mock
 
 import pytest
 
+from dallinger import db
 from dallinger.models import Participant
 
 
@@ -20,7 +22,7 @@ class TestExperimentBaseClass(object):
 
     @pytest.fixture
     def exp(self, klass, db_session):
-        return klass(db_session)
+        return klass()
 
     def test_recruiter_delegates(self, exp, active_config):
         with mock.patch("dallinger.experiment.recruiters") as mock_module:
@@ -84,8 +86,12 @@ class TestExperimentBaseClass(object):
         assert isinstance(p, MyParticipant)
 
     def test_load_participant(self, exp, a):
-        p = a.participant()
-        assert exp.load_participant(p.assignment_id) == p
+        with db.sessions_scope():
+            p = a.participant()
+            assignment_id = p.assignment_id
+            p_id = p.id
+        participant = exp.load_participant(assignment_id)
+        assert participant.id == p_id
 
     def test_dashboard_fail(self, exp, a):
         p = a.participant()
@@ -384,6 +390,46 @@ class TestExperimentBaseClass(object):
                 channel_name="exp_default",
                 receive_time=mock.ANY,
             )
+
+    def test_session_arg_deprecation_warning(self, klass):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            # This should issue a warning
+            klass(session="dummy_session")
+            # Check if warning was issued
+            assert w and any(
+                "Setting the 'session' property is deprecated" in str(warning.message)
+                for warning in w
+            )
+
+    def test_session_get_deprecation_warning(self, exp):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            # This should issue a warning
+            exp.session
+            # Check if warning was issued
+            assert w and any(
+                "Use dallinger.db.session instead" in str(warning.message)
+                for warning in w
+            )
+
+    def test_session_set_deprecation_warning(self, exp):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            # This should issue a warning
+            exp.session = "dummy_session"
+            # Check if warning was issued
+            assert w and any(
+                "Setting the 'session' property is deprecated" in str(warning.message)
+                for warning in w
+            )
+
+    def test_no_configure_arg_prevents_configure(self, klass):
+        with mock.patch.object(klass, "configure") as mock_configure:
+            klass(no_configure=True)
+            mock_configure.assert_not_called()
+            klass()
+            mock_configure.assert_called_once()
 
 
 class TestTaskRegistration(object):

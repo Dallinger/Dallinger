@@ -134,3 +134,28 @@ An experiment package registered in this manner can be imported from
     experiment.run(...)
 
 See the `setup.py` from `dlgr.demos` for more examples.
+
+
+Running an Unpackaged Experiment Programmatically
+-------------------------------------------------
+
+If your experiment is **not installed as a Python package** (for example, if it is
+just a folder containing ``experiment.py`` and related files), you can still run it
+programmatically using Dallinger's dynamic loading mechanism.
+
+To do this, run your Python code **from within your experiment folder** and use the
+:func:`dallinger.experiment.load` function to import and instantiate your experiment class::
+
+    from dallinger.experiment import load
+
+    # Load the experiment class dynamically from the current directory
+    MyFancyExperiment = load()
+    experiment = MyFancyExperiment()
+    data = experiment.run(
+        mode="live",
+        base_payment=1.00,
+    )
+
+This approach works as long as your working directory is the root of your experiment
+(where ``experiment.py`` is located). The ``load()`` function will handle the necessary
+import logic to make your experiment available, even if it is not a formal Python package.

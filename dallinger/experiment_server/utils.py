@@ -246,8 +246,6 @@ def error_page(
 
 
 def _config():
-    config = get_config()
-    if not config.ready:
-        config.load()
+    config = get_config(load=True)
 
     return config

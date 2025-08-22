@@ -2,6 +2,7 @@ import os
 
 import pytest
 
+from dallinger.experiment import load
 from dallinger.pytest_dallinger import (
     wait_for_element,
     wait_for_text,
@@ -28,9 +29,9 @@ class TestBartlett1932(object):
 
     @pytest.fixture
     def demo(self, db_session, bartlett_config):
-        from dlgr.demos.bartlett1932.experiment import Bartlett1932
-
-        instance = Bartlett1932(db_session)
+        klass = load()
+        instance = klass()
+        instance.setup()
         yield instance
 
     @pytest.fixture

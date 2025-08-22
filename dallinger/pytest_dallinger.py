@@ -14,7 +14,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from dallinger import information, models, networks, nodes
+from dallinger import db, information, models, networks, nodes
 from dallinger.bots import BotBase
 from dallinger.recruiters import CLOSE_RECRUITMENT_LOG_PREFIX, NEW_RECRUIT_LOG_PREFIX
 
@@ -188,7 +188,7 @@ def stub_config():
     config.extend(defaults.copy())
     # Patch load() so we don't update any key/value pairs from actual files:
     config.load = mock.Mock(
-        side_effect=lambda strict=True: setattr(config, "ready", True)
+        side_effect=lambda strict=True, exp_klass=None: setattr(config, "ready", True)
     )
     config.ready = True
 
@@ -427,7 +427,7 @@ def webapp(active_config, reset_sys_modules, env):
     not caching the Flask template search path, and clearing out sys.modules
     before loading the Flask app.
     """
-    from dallinger.experiment_server.experiment_server import app
+    from dallinger.experiment_server.experiment_server import app, launch
 
     # look in the cwd for test's templates, and make sure the template loader
     # uses that directory to search for them.
@@ -435,6 +435,11 @@ def webapp(active_config, reset_sys_modules, env):
     app.jinja_loader = uncached_jinja_loader(app)
 
     app.config.update({"DEBUG": True, "TESTING": True})
+
+    # Launch the app
+    with db.sessions_scope():
+        launch()
+
     client = app.test_client()
     yield client
     app._got_first_request = False

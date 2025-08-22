@@ -77,7 +77,7 @@ def check_for_protected_routes():
     except AttributeError:
         return
 
-    protected = Experiment(None).protected_routes
+    protected = Experiment(no_configure=True).protected_routes
     if active_rule in protected:
         raise PermissionError(
             f'Unauthorized call to protected route "{active_rule}": {request}'
@@ -86,9 +86,7 @@ def check_for_protected_routes():
 
 def _config():
     app.secret_key = app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
-    config = get_config()
-    if not config.ready:
-        config.load()
+    config = get_config(load=True)
     if config.get("dashboard_password", None):
         app.config["ADMIN_USER"] = dashboard.User(
             userid=config.get("dashboard_user", "admin"),
@@ -98,10 +96,10 @@ def _config():
     return config
 
 
-def Experiment(args):
+def Experiment(*args, **kwargs):
     _config()
     klass = experiment.load()
-    return klass(args)
+    return klass(*args, **kwargs)
 
 
 log = logging.getLogger()
@@ -284,7 +282,7 @@ def shutdown_session(exception=None):
 @app.context_processor
 def inject_experiment():
     """Inject experiment and enviroment variables into the template context."""
-    exp = Experiment(session)
+    exp = Experiment()
     return dict(experiment=exp, env=os.environ)
 
 
@@ -428,7 +426,8 @@ def handle_error():
 def launch():
     """Launch the experiment."""
     try:
-        exp = Experiment(db.init_db(drop_all=False))
+        db.init_db(drop_all=False)
+        exp = Experiment()
     except Exception as ex:
         return error_response(
             error_text="Failed to load experiment in /launch: {}".format(str(ex)),
@@ -437,10 +436,11 @@ def launch():
         )
 
     try:
+        exp.setup()
         exp.on_launch()
     except Exception as e:
         return error_response(
-            error_text="An error occurred when calling on_launch(), check experiment server log "
+            error_text="An error occurred while setting up experiment, check experiment server log "
             "for details: {}".format(str(e)),
             status=500,
             simple=True,
@@ -550,7 +550,7 @@ def prepare_advertisement():
         return True, {"redirect": redirect(url_for("advertisement", **redirect_params))}
 
     app_id = config.get("id", "unknown")
-    exp = Experiment(session)
+    exp = Experiment()
     entry_data = exp.normalize_entry_information(entry_information)
 
     hit_id = entry_data.get("hit_id")
@@ -624,7 +624,8 @@ def recruiter_exit():
             error_type="/recruiter-exit GET: param participant_id is required",
             status=400,
         )
-    exp = Experiment(session)
+
+    exp = Experiment()
     participant = session.query(models.Participant).get(participant_id)
     if participant is None:
         return error_response(
@@ -644,7 +645,7 @@ def recruiter_exit():
 @app.route("/summary", methods=["GET"])
 def summary():
     """Summarize the participants' status codes."""
-    exp = Experiment(session)
+    exp = Experiment()
     state = {
         "status": "success",
         "summary": exp.log_summary(),
@@ -710,7 +711,7 @@ def summary():
 @app.route("/experiment/<prop>", methods=["GET"])
 def experiment_property(prop):
     """Get a property of the experiment by name."""
-    exp = Experiment(session)
+    exp = Experiment()
     try:
         value = exp.public_properties[prop]
     except KeyError:
@@ -739,7 +740,7 @@ def consent():
     config = _config()
 
     entry_information = request.args.to_dict()
-    exp = Experiment(session)
+    exp = Experiment()
     entry_data = exp.normalize_entry_information(entry_information)
 
     hit_id = entry_data.get("hit_id")
@@ -801,7 +802,7 @@ def request_parameter(parameter, parameter_type=None, default=None, optional=Fal
     elif parameter_type == "known_class":
         # if its a known class check against the known classes
         try:
-            exp = Experiment(session)
+            exp = Experiment()
             value = exp.known_classes[value]
             return value
         except KeyError:
@@ -854,9 +855,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
     defined in reference to the participant object. You must specify the
     worker_id, hit_id, assignment_id, and mode in the url.
     """
-    config = get_config()
-    if not config.ready:
-        config.load()
+    config = get_config(load=True)
 
     recruiter_name = request.args.get("recruiter")
     fingerprint_hash = request.args.get("fingerprint_hash") or request.form.get(
@@ -881,7 +880,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         msg = "/participant POST: required values were 'undefined'"
         return error_response(error_type=msg, status=403)
 
-    exp = Experiment(session)
+    exp = Experiment()
 
     fingerprint_found = False
     if fingerprint_hash:
@@ -1001,7 +1000,7 @@ def post_participant():
         del entry_information["fingerprint_hash"]
     # Remove the mode from entry_information if provided
     mode = entry_information.pop("mode", config.get("mode"))
-    exp = Experiment(session)
+    exp = Experiment()
     participant_info = exp.normalize_entry_information(entry_information)
     return create_participant(mode=mode, **participant_info)
 
@@ -1026,7 +1025,7 @@ def load_participant():
     Delegates to :func:`~dallinger.experiments.Experiment.load_participant`.
     """
     entry_information = request.form.to_dict()
-    exp = Experiment(session)
+    exp = Experiment()
     participant_info = exp.normalize_entry_information(entry_information)
 
     assignment_id = participant_info.get("assignment_id")
@@ -1124,7 +1123,7 @@ def node_neighbors(node_id):
     After getting the neighbours it also calls
     exp.node_get_request()
     """
-    exp = Experiment(session)
+    exp = Experiment()
 
     # get the parameters
     node_type = request_parameter(
@@ -1176,7 +1175,7 @@ def create_node(participant_id):
         3. exp.add_node_to_network
         4. exp.node_post_request
     """
-    exp = Experiment(session)
+    exp = Experiment()
 
     # Get the participant.
     try:
@@ -1215,7 +1214,7 @@ def node_vectors(node_id):
     You can pass direction (incoming/outgoing/all) and failed
     (True/False/all).
     """
-    exp = Experiment(session)
+    exp = Experiment()
     # get the parameters
     direction = request_parameter(parameter="direction", default="all")
     failed = request_parameter(parameter="failed", parameter_type="bool", default=False)
@@ -1250,7 +1249,7 @@ def connect(node_id, other_node_id):
     The ids of both nodes must be speficied in the url.
     You can also pass direction (to/from/both) as an argument.
     """
-    exp = Experiment(session)
+    exp = Experiment()
 
     # get the parameters
     direction = request_parameter(parameter="direction", default="to")
@@ -1295,7 +1294,7 @@ def get_info(node_id, info_id):
 
     Both the node and info id must be specified in the url.
     """
-    exp = Experiment(session)
+    exp = Experiment()
 
     # check the node exists
     node = session.query(models.Node).get(node_id)
@@ -1339,7 +1338,7 @@ def node_infos(node_id):
     The node id must be specified in the url.
     You can also pass info_type.
     """
-    exp = Experiment(session)
+    exp = Experiment()
 
     # get the parameters
     info_type = request_parameter(
@@ -1378,7 +1377,7 @@ def node_received_infos(node_id):
     You must specify the node id in the url.
     You can also pass the info type.
     """
-    exp = Experiment(session)
+    exp = Experiment()
 
     # get the parameters
     info_type = request_parameter(
@@ -1460,7 +1459,8 @@ def info_post(node_id):
         if isinstance(x, Response):
             return x
 
-    exp = Experiment(session)
+    exp = Experiment()
+
     # check the node exists
     node = session.query(models.Node).get(node_id)
     if node is None:
@@ -1497,7 +1497,7 @@ def node_transmissions(node_id):
     You can also pass direction (to/from/all) or status (all/pending/received)
     as arguments.
     """
-    exp = Experiment(session)
+    exp = Experiment()
 
     # get the parameters
     direction = request_parameter(parameter="direction", default="incoming")
@@ -1560,7 +1560,7 @@ def node_transmit(node_id):
          to_whom: 10}
     );
     """
-    exp = Experiment(session)
+    exp = Experiment()
     what = request_parameter(parameter="what", optional=True)
     to_whom = request_parameter(parameter="to_whom", optional=True)
 
@@ -1632,7 +1632,7 @@ def transformation_get(node_id):
 
     You can also pass transformation_type.
     """
-    exp = Experiment(session)
+    exp = Experiment()
 
     # get the parameters
     transformation_type = request_parameter(
@@ -1675,7 +1675,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
     The ids of the node, info in and info out must all be in the url.
     You can also pass transformation_type.
     """
-    exp = Experiment(session)
+    exp = Experiment()
 
     # Get the parameters.
     transformation_type = request_parameter(
@@ -1795,7 +1795,8 @@ def worker_complete():
 def _worker_complete(participant_id):
     # Lock the participant row, then check and update status to avoid
     # double-submits:
-    exp = Experiment(session)
+    exp = Experiment()
+
     participant = (
         session.query(models.Participant)
         .populate_existing()

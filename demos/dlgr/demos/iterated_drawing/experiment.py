@@ -1,29 +1,19 @@
 """Bartlett's trasmission chain experiment from Remembering (1932)."""
 
+from dallinger import db
 from dallinger.experiment import Experiment
 from dallinger.networks import Chain
+
+try:
+    from . import models
+except ImportError:
+    import models
 
 
 class IteratedDrawing(Experiment):
     """Define the structure of the experiment."""
 
-    def __init__(self, session=None):
-        """Call the same function in the super (see experiments.py in dallinger).
-
-        The models module is imported here because it must be imported at
-        runtime.
-
-        A few properties are then overwritten.
-
-        Finally, setup() is called.
-        """
-        super(IteratedDrawing, self).__init__(session)
-        from . import models
-
-        self.models = models
-        self.experiment_repeats = 1
-        if session:
-            self.setup()
+    experiment_repeats = 1
 
     def setup(self):
         """Setup the networks.
@@ -36,8 +26,8 @@ class IteratedDrawing(Experiment):
         if not self.networks():
             super(IteratedDrawing, self).setup()
             for net in self.networks():
-                self.models.DrawingSource(network=net)
-            self.session.commit()
+                models.DrawingSource(network=net)
+            db.session.commit()
 
     def create_network(self):
         """Return a new network."""

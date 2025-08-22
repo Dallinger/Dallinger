@@ -75,9 +75,7 @@ def async_recruiter_status_check():
 
 
 def launch():
-    config = dallinger.config.get_config()
-    if not config.ready:
-        config.load()
+    dallinger.config.get_config(load=True)
 
     # Import the experiment.
     experiment_class = dallinger.experiment.load()

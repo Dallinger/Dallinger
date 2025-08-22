@@ -372,6 +372,12 @@ class Configuration(object):
                     from dallinger_experiment import extra_parameters
                 except ImportError:
                     pass
+
+        if extra_parameters is None and exp_klass is not None:
+            extra_parameters = getattr(
+                sys.modules[exp_klass.__module__], "extra_parameters", None
+            )
+
         if extra_parameters is not None and not self._module_params_loaded:
             extra_parameters()
             self._module_params_loaded = True
@@ -386,7 +392,7 @@ class Configuration(object):
 config = None
 
 
-def get_config():
+def get_config(load=False):
     global config
 
     if config is None:
@@ -402,6 +408,9 @@ def get_config():
 
         for registration in default_keys:
             config.register(*registration)
+
+    if load and not config.ready:
+        config.load()
 
     return config
 

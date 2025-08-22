@@ -514,9 +514,7 @@ class TestHerokuLocalWrapper(object):
         from dallinger.deployment import setup_experiment
 
         cwd = os.getcwd()
-        config = get_config()
-        if not config.ready:
-            config.load()
+        config = get_config(load=True)
 
         (id, tmp) = setup_experiment(log=mock.Mock(), verbose=True, exp_config={})
 

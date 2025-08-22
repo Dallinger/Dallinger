@@ -112,8 +112,7 @@ class StandaloneServer(Application):
 
 
 def launch():
-    config = get_config()
-    config.load()
+    config = get_config(load=True)
     LOG_LEVELS = [
         logging.DEBUG,
         logging.INFO,

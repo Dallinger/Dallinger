@@ -494,9 +494,7 @@ class ProlificRecruiter(Recruiter):
 
     def __init__(self, *args, **kwargs):
         super().__init__()
-        self.config = get_config()
-        if not self.config.ready:
-            self.config.load()
+        self.config = get_config(load=True)
         base_url = get_base_url()
         self.ad_url = f"{base_url}/ad?recruiter={self.nickname}"
         self.study_domain = os.getenv("HOST")
@@ -1436,9 +1434,7 @@ class MTurkRecruiter(Recruiter):
 
     def __init__(self, *args, **kwargs):
         super().__init__()
-        self.config = get_config()
-        if not self.config.ready:
-            self.config.load()
+        self.config = get_config(load=True)
         base_url = get_base_url()
         self.ad_url = "{}/ad?recruiter={}".format(base_url, self.nickname)
         self.notification_url = "{}/mturk-sns-listener".format(base_url)
