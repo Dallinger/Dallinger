@@ -3,8 +3,9 @@ import sys
 
 import pytest
 
-from dallinger import experiment, experiments
+from dallinger import experiments
 from dallinger.command_line.utils import verify_package
+from dallinger.experiment import load
 
 
 @pytest.mark.slow
@@ -51,9 +52,24 @@ class TestDemos(object):
 
         for entry in entry_points:
             try:
-                entry.load()(no_configure=True)
+                klass = entry.load()
+                klass(no_configure=True)
             except Exception as ex:
                 failures.append("{}: {}".format(entry.name, ex))
+
+        if failures:
+            pytest.fail(
+                "Some demos had problems loading: {}".format(", ".join(failures))
+            )
+
+    def test_instantiation_via_load_function(self, iter_demos):
+        failures = []
+        for demo in iter_demos:
+            try:
+                klass = load()
+                klass(no_configure=True)
+            except Exception as ex:
+                failures.append("{}: {}".format(demo, ex))
 
         if failures:
             pytest.fail(
@@ -67,7 +83,7 @@ class TestBartlett1932(object):
 
     @pytest.fixture
     def demo(self, db_session):
-        klass = experiment.load()
+        klass = load()
         instance = klass()
         instance.setup()  # Emulate experiment launch
         yield instance

@@ -15,7 +15,8 @@ from datetime import datetime
 import pytest
 import requests
 
-from dallinger import experiment, models
+from dallinger import models
+from dallinger.experiment import load
 from dallinger.information import Gene, Meme, State
 from dallinger.nodes import Agent, Source
 
@@ -52,11 +53,12 @@ class TestRogers(object):
 
     @pytest.fixture
     def module_and_instance(self, rogers_config):
-        klass = experiment.load()
+        klass = load()
         instance = klass()
-        import dallinger_experiment
-
-        module = dallinger_experiment
+        # Once load() is run, `dallinger_experiment` is available
+        # as an importable package (and module, corresponding to)
+        # the experiment.py file
+        import dallinger_experiment as module
 
         return module, instance
 
