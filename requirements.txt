@@ -16,7 +16,7 @@ attrs==25.3.0
     # via
     #   outcome
     #   trio
-beautifulsoup4==4.13.4
+beautifulsoup4==4.13.5
     # via dallinger
 blinker==1.9.0
     # via flask
