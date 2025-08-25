@@ -56,8 +56,8 @@ class TestRogers(object):
         klass = load()
         instance = klass()
         # Once load() is run, `dallinger_experiment` is available
-        # as an importable package (and module, corresponding to)
-        # the experiment.py file
+        # as an importable package (and module, corresponding to
+        # the experiment.py file)
         import dallinger_experiment as module
 
         return module, instance
