@@ -133,7 +133,7 @@ pip-tools==7.5.0
     # via dallinger
 platformdirs==4.3.8
     # via dallinger
-prompt-toolkit==3.0.51
+prompt-toolkit==3.0.52
     # via ipython
 psutil==7.0.0
     # via dallinger
