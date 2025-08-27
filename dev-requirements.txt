@@ -266,7 +266,7 @@ jupyter-core==5.8.1
     #   nbformat
 jupyter-events==0.12.0
     # via jupyter-server
-jupyter-lsp==2.2.6
+jupyter-lsp==2.3.0
     # via jupyterlab
 jupyter-server==2.16.0
     # via
