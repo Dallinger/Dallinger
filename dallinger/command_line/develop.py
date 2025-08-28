@@ -1,4 +1,6 @@
 import subprocess
+import threading
+import time
 
 import click
 from rq import Queue
@@ -57,7 +59,7 @@ def debug(port, skip_flask):
     _bootstrap()
 
     q = Queue("default", connection=redis_conn)
-    job = q.enqueue_call(launch_app_and_open_dashboard, kwargs={"port": port})
+    job = q.enqueue_call(launch_app_and_open_browser, kwargs={"port": port})
 
     if not skip_flask:
         config = get_config()
@@ -82,18 +84,16 @@ def _bootstrap(exp_config=None):
     bootstrapper.run()
 
 
-def launch_app_and_open_dashboard(port):
+def launch_app_and_open_browser(port):
     _launch_app(port)
-    _open_dashboard(port)
+    _async_browser("dashboard", port)
+    time.sleep(0.1)  # A little delay to ensure they always open in the same order
+    _async_browser("ad", port)
 
 
 def _launch_app(port):
     url = BASE_URL.format(port) + "launch"
     handle_launch_data(url, error=log, delay=1.0, context="local")
-
-
-def _open_dashboard(port):
-    _browser("dashboard", port)
 
 
 @develop.command()
@@ -113,9 +113,17 @@ def _browser(route=None, port=5000):
     url_factory = valid_routes.get(route)
     if url_factory is not None:
         url = url_factory(config, port)
-        log(f"Experiment dashboard: {url}")
+        log(f"Opening {route}: {url}")
         open_browser(url)
     else:
         click.echo(
             "Supported routes are:\n\t{}".format("\n\t".join(valid_routes.keys()))
         )
+
+
+def _async_browser(route=None, port=5000):
+    # The _browser call is pretty slow, so we run it in a thread
+    # to allow us to open multiple browsers at the same time
+    threading.Thread(
+        target=_browser, name=f"Open {route}", kwargs={"route": route, "port": port}
+    ).start()
