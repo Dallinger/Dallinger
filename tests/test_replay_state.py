@@ -24,7 +24,7 @@ class TestReplayState(object):
     def experiment(self):
         from dlgr.demos.bartlett1932.experiment import Bartlett1932
 
-        yield Bartlett1932()
+        yield Bartlett1932(no_configure=True)
 
     bartlett_export = os.path.join("tests", "datasets", "bartlett_bots.zip")
 

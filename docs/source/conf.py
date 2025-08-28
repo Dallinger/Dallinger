@@ -168,7 +168,6 @@ html_theme_options = {
     #    'logo_name': True,
     "canonical_url": "",
     "analytics_id": "",
-    "display_version": True,
     "prev_next_buttons_location": "bottom",
     "style_external_links": True,
     # Toc options

@@ -84,9 +84,7 @@ def find_experiment_export(app_id):
     # Get remote file instead
     path_to_data = os.path.join(tempfile.mkdtemp(), data_filename)
 
-    config = get_config()
-    if not config.ready:
-        config.load()
+    config = get_config(load=True)
 
     if not aws_access_keys_present(config):
         print("✘ AWS credentials not present, skipping download from S3.")
@@ -275,10 +273,7 @@ def export_db_uri(id, db_uri, local, scrub_pii):
 
     # Backup data on S3 unless run locally
     if not local:
-        config = get_config()
-        if not config.ready:
-            config.load()
-
+        config = get_config(load=True)
         if not aws_access_keys_present(config):
             print("✘ AWS credentials not present, skipping export to S3.")
             return
@@ -437,10 +432,7 @@ def dallinger_s3_bucket():
 
 def registration_s3_bucket():
     """The public write-only `dallinger-registration` S3 bucket."""
-    config = get_config()
-    if not config.ready:
-        config.load()
-
+    config = get_config(load=True)
     if config.get("enable_global_experiment_registry", False):
         s3 = _s3_resource(dallinger_region=True)
         return s3.Bucket("dallinger-registrations")
@@ -448,10 +440,7 @@ def registration_s3_bucket():
 
 def _s3_resource(dallinger_region=False):
     """A boto3 S3 resource using the AWS keys in the config."""
-    config = get_config()
-    if not config.ready:
-        config.load()
-
+    config = get_config(load=True)
     region = "us-east-1" if dallinger_region else config.get("aws_region")
     return boto3.resource(
         "s3",

@@ -109,8 +109,7 @@ def browser(route=None, port=5000):
 
 def _browser(route=None, port=5000):
     """Open one of the supported routes with appropriate path and URL parameters"""
-    config = get_config()
-    config.load()
+    config = get_config(load=True)
     url_factory = valid_routes.get(route)
     if url_factory is not None:
         url = url_factory(config, port)

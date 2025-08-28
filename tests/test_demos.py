@@ -5,7 +5,7 @@ import pytest
 
 from dallinger import experiments
 from dallinger.command_line.utils import verify_package
-from dallinger.config import get_config
+from dallinger.experiment import load
 
 
 @pytest.mark.slow
@@ -52,9 +52,24 @@ class TestDemos(object):
 
         for entry in entry_points:
             try:
-                entry.load()()
+                klass = entry.load()
+                klass(no_configure=True)
             except Exception as ex:
                 failures.append("{}: {}".format(entry.name, ex))
+
+        if failures:
+            pytest.fail(
+                "Some demos had problems loading: {}".format(", ".join(failures))
+            )
+
+    def test_instantiation_via_load_function(self, iter_demos):
+        failures = []
+        for demo in iter_demos:
+            try:
+                klass = load()
+                klass(no_configure=True)
+            except Exception as ex:
+                failures.append("{}: {}".format(demo, ex))
 
         if failures:
             pytest.fail(
@@ -68,11 +83,10 @@ class TestBartlett1932(object):
 
     @pytest.fixture
     def demo(self, db_session):
-        from dlgr.demos.bartlett1932.experiment import Bartlett1932
-
-        get_config().load()
-        instance = Bartlett1932(db_session)
-        return instance
+        klass = load()
+        instance = klass()
+        instance.setup()  # Emulate experiment launch
+        yield instance
 
     def test_networks_holds_single_experiment_node(self, demo):
         assert len(demo.networks()) == 1

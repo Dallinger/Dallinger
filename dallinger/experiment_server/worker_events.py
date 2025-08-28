@@ -11,18 +11,16 @@ logger = logging.getLogger(__name__)
 
 
 def _config():
-    config = get_config()
-    if not config.ready:
-        config.load()
+    config = get_config(load=True)
 
     return config
 
 
-def _loaded_experiment(args):
+def _loaded_experiment(*args, **kw):
     from dallinger import experiment
 
     klass = experiment.load()
-    return klass(args)
+    return klass(*args, **kw)
 
 
 LOG_EVENT_TYPES = frozenset(
@@ -65,7 +63,7 @@ def worker_function(
             "Debug worker_function called synchronously or queue not specified"
         )
 
-    exp = _loaded_experiment(session)
+    exp = _loaded_experiment()
     key = "-----"
 
     # Logging every event is a bit verbose for experiment driven events
@@ -129,7 +127,7 @@ def worker_function(
                 key,
             )
             return
-    elif not participant and not node:
+    elif not participant and not node and event_type != "WebSocketMessage":
         raise ValueError(
             "Error: worker_function needs either an assignment_id or a "
             "participant_id, they cannot both be None"

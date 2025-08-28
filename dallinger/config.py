@@ -372,6 +372,12 @@ class Configuration(object):
                     from dallinger_experiment import extra_parameters
                 except ImportError:
                     pass
+
+        if extra_parameters is None and exp_klass is not None:
+            extra_parameters = getattr(
+                sys.modules[exp_klass.__module__], "extra_parameters", None
+            )
+
         if extra_parameters is not None and not self._module_params_loaded:
             extra_parameters()
             self._module_params_loaded = True
@@ -386,7 +392,7 @@ class Configuration(object):
 config = None
 
 
-def get_config():
+def get_config(load=False):
     global config
 
     if config is None:
@@ -403,15 +409,14 @@ def get_config():
         for registration in default_keys:
             config.register(*registration)
 
+    if load and not config.ready:
+        config.load()
+
     return config
 
 
 def initialize_experiment_package(path):
     """Make the specified directory importable as the `dallinger_experiment` package."""
-    # Create __init__.py if it doesn't exist (needed for Python 2)
-    init_py = os.path.join(path, "__init__.py")
-    if not os.path.exists(init_py):
-        open(init_py, "a").close()
     # Retain already set experiment module
     if sys.modules.get("dallinger_experiment") is not None:
         return

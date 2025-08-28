@@ -4,7 +4,7 @@ from unittest import mock
 
 import pytest
 
-from dallinger import models
+from dallinger import db, models
 
 
 @pytest.mark.usefixtures("experiment_dir")
@@ -818,7 +818,6 @@ class TestParticipantCreateRoute(object):
 
     def test_prevent_duplicate_participant_for_worker(self, a, db_session, webapp):
         p = a.participant()
-        db_session.commit()
 
         resp = webapp.post(
             "/participant/{}/{}/{}/debug".format(p.worker_id, p.hit_id, p.assignment_id)
@@ -960,7 +959,7 @@ class TestAPINotificationRoute(object):
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
 class TestSummaryRoute(object):
-    def test_summary_no_participants(self, a, webapp):
+    def test_summary_no_participants(self, webapp):
         resp = webapp.get("/summary")
         data = json.loads(resp.data.decode("utf8"))
         assert data == {
@@ -973,8 +972,11 @@ class TestSummaryRoute(object):
         }
 
     def test_summary_one_participant(self, a, webapp):
-        network = a.star()
-        network.add_node(a.node(network=network, participant=a.participant()))
+        with db.sessions_scope(commit=True) as session:
+            from dallinger.models import Network
+
+            network = session.query(Network).all()[0]
+            network.add_node(a.node(network=network, participant=a.participant()))
         resp = webapp.get("/summary")
         data = json.loads(resp.data.decode("utf8"))
         assert data == {
@@ -987,9 +989,12 @@ class TestSummaryRoute(object):
         }
 
     def test_summary_two_participants_and_still_working(self, a, webapp):
-        network = a.star()
-        network.add_node(a.node(network=network, participant=a.participant()))
-        network.add_node(a.node(network=network, participant=a.participant()))
+        with db.sessions_scope(commit=True) as session:
+            from dallinger.models import Network
+
+            network = session.query(Network).all()[0]
+            network.add_node(a.node(network=network, participant=a.participant()))
+            network.add_node(a.node(network=network, participant=a.participant()))
 
         resp = webapp.get("/summary")
         data = json.loads(resp.data.decode("utf8"))
@@ -1003,15 +1008,16 @@ class TestSummaryRoute(object):
         }
 
     def test_summary_two_participants_with_different_status(self, a, webapp):
-        p1 = a.participant()
-        p2 = a.participant(worker_id="2", hit_id="2", assignment_id="2")
-        network = a.star()
-        network.add_node(a.node(network=network, participant=p1))
-        network.add_node(a.node(network=network, participant=p2))
-        p1.status = "submitted"
-        p2.status = "approved"
-        # Commit status changes so they can be read by the flask routes
-        a.db.commit()
+        with db.sessions_scope(commit=True) as session:
+            p1 = a.participant()
+            p2 = a.participant(worker_id="2", hit_id="2", assignment_id="2")
+            from dallinger.models import Network
+
+            network = session.query(Network).all()[0]
+            network.add_node(a.node(network=network, participant=p1))
+            network.add_node(a.node(network=network, participant=p2))
+            p1.status = "submitted"
+            p2.status = "approved"
 
         resp = webapp.get("/summary")
         data = json.loads(resp.data.decode("utf8"))
@@ -1053,10 +1059,14 @@ class TestSummaryRoute(object):
 @pytest.mark.slow
 class TestNetworkRoute(object):
     def test_get_network(self, a, webapp):
-        network = a.network()
-        resp = webapp.get("/network/{}".format(network.id))
+        with db.sessions_scope(commit=True) as session:
+            from dallinger.models import Network
+
+            network = session.query(Network).all()[0]
+            network_id = network.id
+        resp = webapp.get("/network/{}".format(network_id))
         data = json.loads(resp.data.decode("utf8"))
-        assert data.get("network").get("id") == network.id
+        assert data.get("network").get("id") == network_id
 
     def test_get_network_invalid_returns_error(self, webapp):
         nonexistent_network_id = 999
@@ -1075,15 +1085,19 @@ class TestNetworkRoute(object):
 @pytest.mark.slow
 class TestNodeRouteGET(object):
     def test_node_vectors(self, a, webapp):
-        node = a.node()
-        resp = webapp.get("/node/{}/vectors".format(node.id))
+        with db.sessions_scope(commit=True):
+            node = a.node()
+            node_id = node.id
+        resp = webapp.get("/node/{}/vectors".format(node_id))
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "success"
         assert data.get("vectors") == []
 
     def test_node_infos(self, a, webapp):
-        node = a.node()
-        resp = webapp.get("/node/{}/infos".format(node.id))
+        with db.sessions_scope(commit=True):
+            node = a.node()
+            node_id = node.id
+        resp = webapp.get("/node/{}/infos".format(node_id))
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "success"
         assert data.get("infos") == []
@@ -1100,8 +1114,8 @@ class TestParticipantNodeCreationRoute(object):
     def test_with_valid_participant_creates_participant_node(
         self, db_session, a, webapp
     ):
-        participant_id = a.participant().id
-        db_session.commit()
+        with db.sessions_scope(commit=True):
+            participant_id = a.participant().id
         resp = webapp.post("/node/{}".format(participant_id))
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("node").get("participant_id") == participant_id
@@ -1109,20 +1123,21 @@ class TestParticipantNodeCreationRoute(object):
     def test_with_valid_participant_adds_node_to_network(self, db_session, a, webapp):
         from dallinger.networks import Star
 
-        participant_id = a.participant().id
-        db_session.commit()
+        with db.sessions_scope(commit=True):
+            participant_id = a.participant().id
         resp = webapp.post("/node/{}".format(participant_id))
         data = json.loads(resp.data.decode("utf8"))
         assert Star.query.one().nodes()[0].id == data["node"]["network_id"]
 
     def test_participant_status_not_working_returns_error(self, a, db_session, webapp):
-        participant = a.participant(
-            assignment_id="a_id", hit_id="h_id", worker_id="w_id"
-        )
-        participant.status = "submitted"
-        db_session.commit()
+        with db.sessions_scope(commit=True):
+            participant = a.participant(
+                assignment_id="a_id", hit_id="h_id", worker_id="w_id"
+            )
+            participant.status = "submitted"
+            participant_id = participant.id
 
-        resp = webapp.post("/node/{}".format(participant.id))
+        resp = webapp.post("/node/{}".format(participant_id))
 
         error_report = resp.data.decode("utf8")
         assert "Error type: /node POST, status = submitted" in error_report
@@ -1131,11 +1146,17 @@ class TestParticipantNodeCreationRoute(object):
         assert "Worker id: w_id" in error_report
 
     def test_no_network_for_participant_returns_error(self, a, db_session, webapp):
-        participant = a.participant()
-        # Assign the participant to a node and fill the network:
-        a.node(participant=participant, network=a.star(max_size=1))
-        db_session.commit()
-        resp = webapp.post("/node/{}".format(participant.id))
+        with db.sessions_scope(commit=True) as session:
+            from dallinger.models import Network
+
+            network = session.query(Network).all()[0]
+            network.max_size = 1
+            session.commit()
+            participant = a.participant()
+            # Assign the participant to a node and fill the network:
+            a.node(participant=participant, network=network)
+            participant_id = participant.id
+        resp = webapp.post("/node/{}".format(participant_id))
         assert resp.data == b'{"status": "error"}'
 
 
@@ -1200,14 +1221,20 @@ class TestRequestParameter(object):
 @pytest.mark.slow
 class TestNodeRoutePOST(object):
     def test_node_transmit_info_creates_transmission(self, a, webapp, db_session):
-        network = a.star()
-        node1 = a.node(network=network, participant=a.participant())
-        network.add_node(node1)
-        node2 = a.node(network=network, participant=a.participant())
-        network.add_node(node2)
-        info = a.info(origin=node1)
+        with db.sessions_scope(commit=True) as session:
+            from dallinger.models import Network
+
+            network = session.query(Network).all()[0]
+            node1 = a.node(network=network, participant=a.participant())
+            network.add_node(node1)
+            node2 = a.node(network=network, participant=a.participant())
+            network.add_node(node2)
+            info = a.info(origin=node1)
+            node1_id = node1.id
+            info_id = info.id
+            node2_id = node2.id
         resp = webapp.post(
-            "/node/{}/transmit?what={}&to_whom={}".format(node1.id, info.id, node2.id)
+            "/node/{}/transmit?what={}&to_whom={}".format(node1_id, info_id, node2_id)
         )
         data = json.loads(resp.data.decode("utf8"))
         assert len(data["transmissions"]) == 1
@@ -1308,18 +1335,17 @@ class TestInfoRoutePOST(object):
         assert data["info"]["failed"] is True
 
     def test_failed_info_can_attach_to_failed_node(self, db_session, a, webapp):
-        node = a.node()
-        node.fail()
-        # All the tests like this should have commits. This one needs an explicit
-        # one as the first request triggers a rollback rather than a commit.
-        db_session.commit()
+        with db.sessions_scope(commit=True):
+            node = a.node()
+            node_id = node.id
+            node.fail()
 
         data = {"contents": "foo"}
-        resp = webapp.post("/info/{}".format(node.id), data=data)
+        resp = webapp.post("/info/{}".format(node_id), data=data)
         assert resp.status_code == 403
 
         data = {"contents": "foo", "failed": "True"}
-        resp = webapp.post("/info/{}".format(node.id), data=data)
+        resp = webapp.post("/info/{}".format(node_id), data=data)
         data = json.loads(resp.data.decode("utf8"))
         assert data["info"]["failed"] is True
 
@@ -1393,15 +1419,15 @@ class TestNodeNeighbors(object):
         assert b"You should not pass a failed argument to neighbors()." in resp.data
 
     def test_finds_neighbor_nodes(self, a, webapp):
-        network = a.network()
-        node1 = a.node(network=network)
-        node2 = a.node(network=network)
-        node2_id = node2.id
-        node1.connect(node2)
-        # Commit the connection so it can be read by the flask route
-        a.db.commit()
+        with db.sessions_scope(commit=True):
+            network = a.network()
+            node1 = a.node(network=network)
+            node1_id = node1.id
+            node2 = a.node(network=network)
+            node2_id = node2.id
+            node1.connect(node2)
 
-        resp = webapp.get("/node/{}/neighbors".format(node1.id))
+        resp = webapp.get("/node/{}/neighbors".format(node1_id))
         data = json.loads(resp.data.decode("utf8"))
         assert data["nodes"][0]["id"] == node2_id
 
@@ -1442,17 +1468,18 @@ class TestNodeReceivedInfos(object):
         assert b"/node/infos, node 123 does not exist" in resp.data
 
     def test_finds_received_infos(self, a, webapp):
-        net = a.network()
-        sender = a.node(network=net)
-        receiver = a.node(network=net)
-        sender.connect(direction="to", whom=receiver)
-        info = a.info(origin=sender, contents="foo")
-        info_id = info.id
-        sender.transmit(what=sender.infos()[0], to_whom=receiver)
-        receiver.receive()
-        a.db.commit()
+        with db.sessions_scope(commit=True):
+            net = a.network()
+            sender = a.node(network=net)
+            receiver = a.node(network=net)
+            sender.connect(direction="to", whom=receiver)
+            info = a.info(origin=sender, contents="foo")
+            info_id = info.id
+            sender.transmit(what=sender.infos()[0], to_whom=receiver)
+            receiver.receive()
+            receiver_id = receiver.id
 
-        resp = webapp.get("/node/{}/received_infos".format(receiver.id))
+        resp = webapp.get("/node/{}/received_infos".format(receiver_id))
         data = json.loads(resp.data.decode("utf8"))
 
         assert data["infos"][0]["id"] == info_id
@@ -1504,10 +1531,10 @@ class TestTransformationGet(object):
         assert b"node 123 does not exist" in resp.data
 
     def test_finds_transformations(self, a, webapp):
-        node = a.node()
-        node_id = node.id  # save so we don't have to merge sessions
-        node.replicate(a.info(origin=node))
-        a.db.commit()
+        with db.sessions_scope(commit=True):
+            node = a.node()
+            node_id = node.id  # save so we don't have to merge sessions
+            node.replicate(a.info(origin=node))
 
         resp = webapp.get(
             "/node/{}/transformations?transformation_type=Replication".format(node_id)
@@ -1685,9 +1712,7 @@ class TestWorkerFunctionIntegration(object):
     def worker_func(self):
         from dallinger.config import get_config
 
-        config = get_config()
-        if not config.ready:
-            config.load()
+        get_config(load=True)
         from dallinger.experiment_server.worker_events import worker_function
 
         yield worker_function
@@ -1736,7 +1761,9 @@ class TestWorkerFunctionIntegration(object):
         from dallinger.information import TrackingEvent
         from dallinger.models import Participant
 
-        exp = Experiment(db_session)
+        exp = Experiment()
+        # Emulate experiment launch
+        exp.setup()
 
         participant = Participant(
             recruiter_id="hotair",
@@ -1746,15 +1773,14 @@ class TestWorkerFunctionIntegration(object):
             mode="test",
         )
 
-        db_session.add(participant)
-        db_session.commit()
-        participant_id = participant.id
-
-        network = exp.get_network_for_participant(participant)
-        node = exp.create_node(participant, network)
-        exp.add_node_to_network(node, network)
-        db_session.commit()
-        node_id = node.id
+        with db.sessions_scope(commit=True):
+            db_session.add(participant)
+            db.session.commit()
+            participant_id = participant.id
+            network = exp.get_network_for_participant(participant)
+            node = exp.create_node(participant, network)
+            exp.add_node_to_network(node, network)
+            node_id = node.id
 
         worker_func(
             event_type="TrackingEvent",

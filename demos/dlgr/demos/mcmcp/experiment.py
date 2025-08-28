@@ -10,44 +10,34 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
+from dallinger import db
 from dallinger.bots import BotBase
 from dallinger.experiment import Experiment, experiment_route
 from dallinger.networks import Chain
+
+try:
+    from . import models
+except ImportError:
+    import models
 
 
 class MCMCP(Experiment):
     """Define the structure of the experiment."""
 
-    def __init__(self, session=None):
-        """Call the same function in the super (see experiments.py in dallinger).
-
-        The models module is imported here because it must be imported at
-        runtime.
-
-        A few properties are then overwritten.
-
-        Finally, setup() is called.
-        """
-        super(MCMCP, self).__init__(session)
-        from . import models
-
-        self.models = models
-        self.experiment_repeats = 1
-        self.trials_per_participant = 10
-        if session:
-            self.setup()
+    experiment_repeats = 1
+    trials_per_participant = 10
 
     def create_node(self, network, participant):
         """Create a node for a participant."""
-        return self.models.MCMCPAgent(network=network, participant=participant)
+        return models.MCMCPAgent(network=network, participant=participant)
 
     def setup(self):
         """Setup the networks."""
         if not self.networks():
             super(MCMCP, self).setup()
             for net in self.networks():
-                self.models.AnimalSource(network=net)
-            self.session.commit()
+                models.AnimalSource(network=net)
+            db.session.commit()
 
     def create_network(self):
         """Create a new network."""
@@ -75,13 +65,9 @@ class MCMCP(Experiment):
     @experiment_route("/choice/<int:node_id>/<int:choice>", methods=["POST"])
     @classmethod
     def choice(cls, node_id, choice):
-        from dallinger import db
-
-        from .models import Agent
-
         try:
             exp = MCMCP(db.session)
-            node = Agent.query.get(node_id)
+            node = db.session.query(models.Agent).get(node_id)
             infos = node.infos()
 
             if choice == 0:

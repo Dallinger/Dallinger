@@ -76,6 +76,7 @@ def exp_class_working_dir(meth):
 class Experiment(object):
     """Define the structure of an experiment."""
 
+    _session = None
     app_id = None
     exp_config = None
     replay_path = "/"
@@ -119,6 +120,50 @@ class Experiment(object):
             )
         )
 
+    #: Boolean, determines whether the experiment logs output when
+    #: running. Default is True.
+    verbose = True
+
+    #: String, the name of the experiment. Default is "Experiment
+    #: title".
+    task = "Experiment title"
+
+    #: int, the number of practice networks (see
+    #: :attr:`~dallinger.models.Network.role`). Default is 0.
+    practice_repeats = 0
+
+    #: int, the number of non practice networks (see
+    #: :attr:`~dallinger.models.Network.rle`). Default is 0.
+    experiment_repeats = 0
+
+    #: int, the number of participants
+    #: required to move from the waiting room to the experiment.
+    #: Default is 0 (no waiting room).
+    quorum = 0
+
+    #: int, the number of participants
+    #: requested when the experiment first starts. Default is 1.
+    initial_recruitment_size = 1
+
+    #: dictionary, the classes Dallinger can make in response
+    #: to front-end requests. Experiments can add new classes to this
+    #: dictionary.
+    known_classes = {
+        "Agent": Agent,
+        "Compression": Compression,
+        "Environment": Environment,
+        "Gene": Gene,
+        "Info": Info,
+        "Meme": Meme,
+        "Mutation": Mutation,
+        "Node": Node,
+        "Replication": Replication,
+        "Response": Response,
+        "Source": Source,
+        "State": State,
+        "Transformation": Transformation,
+    }
+
     #: Sequence of dashboard route/function names that should be excluded from
     #: rendering as tabs in the dashboard view.
     @classproperty
@@ -130,55 +175,12 @@ class Experiment(object):
         """A hook for custom organization of dashboard tabs in subclasses."""
         return tabs
 
-    def __init__(self, session=None):
-        """Create the experiment class. Sets the default value of attributes."""
+    def __init__(self, session=None, no_configure=False):
+        """Create the experiment class. Sets the default value of attributes.
 
-        #: Boolean, determines whether the experiment logs output when
-        #: running. Default is True.
-        self.verbose = True
-
-        #: String, the name of the experiment. Default is "Experiment
-        #: title".
-        self.task = "Experiment title"
-
-        #: session, the experiment's connection to the database.
-        self.session = session
-
-        #: int, the number of practice networks (see
-        #: :attr:`~dallinger.models.Network.role`). Default is 0.
-        self.practice_repeats = 0
-
-        #: int, the number of non practice networks (see
-        #: :attr:`~dallinger.models.Network.role`). Default is 0.
-        self.experiment_repeats = 0
-
-        #: int, the number of participants
-        #: required to move from the waiting room to the experiment.
-        #: Default is 0 (no waiting room).
-        self.quorum = 0
-
-        #: int, the number of participants
-        #: requested when the experiment first starts. Default is 1.
-        self.initial_recruitment_size = 1
-
-        #: dictionary, the classes Dallinger can make in response
-        #: to front-end requests. Experiments can add new classes to this
-        #: dictionary.
-        self.known_classes = {
-            "Agent": Agent,
-            "Compression": Compression,
-            "Environment": Environment,
-            "Gene": Gene,
-            "Info": Info,
-            "Meme": Meme,
-            "Mutation": Mutation,
-            "Node": Node,
-            "Replication": Replication,
-            "Response": Response,
-            "Source": Source,
-            "State": State,
-            "Transformation": Transformation,
-        }
+        :param session:  DEPRECATED. Database session is now managed automatically.
+            This parameter will be removed in Dallinger v13.x
+        """
 
         #: dictionary, the properties of this experiment that are exposed
         #: to the public over an AJAX call
@@ -187,6 +189,10 @@ class Experiment(object):
             self.public_properties = {}
 
         if session:
+            # BBB: Will trigger deprecation warning
+            self.session = session
+
+        if not no_configure:
             self.configure()
 
         try:
@@ -202,6 +208,41 @@ class Experiment(object):
                 self.widget = None
         else:
             self.widget = module.ExperimentWidget(self)
+
+    @property
+    def session(self):
+        """DEPRECATED: Database session property.
+
+        This property is deprecated and will be removed in a future version. Use
+        'dallinger.db.session' instead. Alternatively, use
+        'dallinger.db.session_scope()' or
+        'dallinger.db.scoped_session_decorator' for explicit session management.
+
+        :returns: The database session (defaults to dallinger.db.session if not
+            explicitly set)
+        """
+        warnings.warn(
+            "The 'session' property is deprecated and will be removed in a future version. "
+            "Use dallinger.db.session instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._session is not None:
+            return self._session
+        return db.session
+
+    @session.setter
+    def session(self, value):
+        """DEPRECATED: Set the database session.
+
+        This setter is deprecated and will be removed in Dallinger version 13.
+        """
+        warnings.warn(
+            "Setting the 'session' property is deprecated and will be removed in Dallinger version 13.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._session = value
 
     @staticmethod
     def before_request():
@@ -282,8 +323,8 @@ class Experiment(object):
 
     @property
     def background_tasks(self):
-        """An experiment may define functions or methods to be started as
-        background tasks upon experiment launch.
+        """Optional list of functions that will be run at launch time in
+        separate threads.
         """
         return []
 
@@ -353,9 +394,10 @@ class Experiment(object):
         """Async implementation of websocket message processing. Attempts to
         extract a participant id or node id from the message, and send the
         message to be processed asynchronously by
-        :func:`~dallinger.experiment.Experiment.receive_message` If it fails to
-        find a participant or node id in the message, then the message is
-        processed synchronously using
+        :func:`~dallinger.experiment.Experiment.receive_message` using the
+        Dallinger `worker_function`. If the message pyaload is JSON and contains
+        a property named `immediate` then the message will be processed
+        synchronously by
         :func:`~dallinger.experiment.Experiment.receive_message`.
 
         ``raw_message`` is a string that includes a channel name prefix, for
@@ -372,7 +414,7 @@ class Experiment(object):
         the experiment class that it uses for message responses then it's best
         to override this method instead of
         :func:`~dallinger.experiment.Experiment.receive_message`, and explicitly
-        hand off state synchronization and other database writes to async worker
+        hand off any state synchronization and database writes to async worker
         events.
 
         :param raw_message: a formatted message string ``'$channel_name:$data'``
@@ -385,26 +427,23 @@ class Experiment(object):
         try:
             message = json.loads(message_string)
         except Exception:
-            # Not JSON we have no information about the participant/node and
-            # will run synchonously
-            with db.sessions_scope():
-                self.receive_message(
-                    message_string, channel_name=channel_name, receive_time=receive_time
-                )
-            return
-
-        participant_id = (
-            message.get("sender")
-            or message.get("participant_id")
-            or message.get("client", {}).get("participant_id")
-        )
-        node_id = message.get("node_id")
-        if not participant_id and not node_id:
-            with db.sessions_scope():
-                self.receive_message(
-                    message_string, channel_name=channel_name, receive_time=receive_time
-                )
-            return
+            # We don't have JSON and can't determine participant or node id
+            participant_id = node_id = None
+        else:
+            participant_id = (
+                message.get("sender")
+                or message.get("participant_id")
+                or message.get("client", {}).get("participant_id")
+            )
+            node_id = message.get("node_id")
+            if message.get("immediate"):
+                with db.sessions_scope():
+                    self.receive_message(
+                        message_string,
+                        channel_name=channel_name,
+                        receive_time=receive_time,
+                    )
+                    return
 
         q = db.get_queue("high")
         q.enqueue(
@@ -436,13 +475,18 @@ class Experiment(object):
     def receive_message(
         self, message, channel_name=None, participant=None, node=None, receive_time=None
     ):
-        """Stub implementation of a websocket message processor. Messages
-        are are queued to be processed asynchronously by
-        :func:`~dallinger.experiment.Experiment.send` and the worker runs this
-        method to process those messages. Sub-classes that wish to handle
-        incoming messages asynchronously should override this method. Generally
-        this method should always be overridden whenever the ``Experiment``
-        :attr:`~dallinger.experiment.Experiment.channel` attribute is set.
+        """Stub implementation of a websocket message processor. The
+        :func:`~dallinger.experiment.Experiment.send` method either queues
+        incoming messages to be processed asynchronously using this method or
+        directly calls this method for messages flagged for `immediate`
+        processing.
+
+        Experiment classes that wish to handle incoming WebSocket messages
+        asynchronously should implement this method. An Experiment needs to
+        implement either this method or customize
+        :func:`~dallinger.experiment.Experiment.send` whenever the
+        ``Experiment`` :attr:`~dallinger.experiment.Experiment.channel`
+        attribute is set.
 
         ``message`` is a string, e.g. containing JSON formatted data.
 
@@ -450,16 +494,20 @@ class Experiment(object):
         connect/disconnect events are sent over the ``"dallinger_control"``
         channel.
 
-        This method is called synchronously when no participant or node
-        id can be determined from the message.
+        This method will be called synchronously in the
+        experiment web server by :func:`~dallinger.experiment.Experiment.send`
+        when the JSON message payload has an `immediate` property set. Otherwise,
+        it will be called asynchronously by a Dallinger worker process.
 
-        :param message: a websocket message
+        :param message: a websocket message string, usually JSON data
         :type message: str
 
-        :param channel_name: The name of the channel the message was received on.
+        :param channel_name: The name of the channel the message was received
+            on.
         :type channel_name: str
 
-        :param participant: the experiment participant object responsible for the message
+        :param participant: the experiment participant object responsible for
+            the message
         :type participant: :attr:`~dallinger.models.Participant` instance
 
         :param node: the experiment node the message corresponds to
@@ -503,18 +551,15 @@ class Experiment(object):
         # explicitly elsewhere, especially since the default constructor doesn't
         # call it.
         if not self.networks():
-            # This should generally be called from a flask route, but we use a
-            # session contextmanager to be safe.
-            with db.sessions_scope() as session:
-                for _ in range(self.practice_repeats):
-                    network = self.create_network()
-                    network.role = "practice"
-                    session.add(network)
-                for _ in range(self.experiment_repeats):
-                    network = self.create_network()
-                    network.role = "experiment"
-                    session.add(network)
-                session.commit()
+            for _ in range(self.practice_repeats):
+                network = self.create_network()
+                network.role = "practice"
+                db.session.add(network)
+            for _ in range(self.experiment_repeats):
+                network = self.create_network()
+                network.role = "experiment"
+                db.session.add(network)
+            db.session.commit()
 
     def create_network(self):
         """Return a new network."""
@@ -529,15 +574,15 @@ class Experiment(object):
 
         if full == "all":
             if role == "all":
-                return self.session.query(Network).all()
+                return db.session.query(Network).all()
             else:
-                return self.session.query(Network).filter_by(role=role).all()
+                return db.session.query(Network).filter_by(role=role).all()
         else:
             if role == "all":
-                return self.session.query(Network).filter_by(full=full).all()
+                return db.session.query(Network).filter_by(full=full).all()
             else:
                 return (
-                    self.session.query(Network)
+                    db.session.query(Network)
                     .filter(and_(Network.role == role, Network.full == full))
                     .all()
                 )
@@ -553,11 +598,11 @@ class Experiment(object):
         """
         key = participant.id
         networks_with_space = (
-            self.session.query(Network).filter_by(full=False).order_by(Network.id).all()
+            db.session.query(Network).filter_by(full=False).order_by(Network.id).all()
         )
         networks_participated_in = [
             node.network_id
-            for node in self.session.query(Node.network_id)
+            for node in db.session.query(Node.network_id)
             .filter_by(participant_id=participant.id)
             .all()
         ]
@@ -678,7 +723,7 @@ class Experiment(object):
             fingerprint_hash=fingerprint_hash,
             entry_information=entry_information,
         )
-        self.session.add(participant)
+        db.session.add(participant)
         return participant
 
     def load_participant(self, assignment_id):
@@ -693,7 +738,7 @@ class Experiment(object):
         """
         try:
             return (
-                self.session.query(Participant)
+                db.session.query(Participant)
                 .filter_by(assignment_id=assignment_id)
                 .one()
             )
@@ -904,7 +949,7 @@ class Experiment(object):
 
     def log_summary(self):
         """Log a summary of all the participants' status codes."""
-        participants = self.session.query(Participant.status).all()
+        participants = db.session.query(Participant.status).all()
         counts = Counter([p.status for p in participants])
         sorted_counts = sorted(counts.items(), key=itemgetter(0))
         self.log("Status summary: {}".format(str(sorted_counts)))
@@ -916,8 +961,8 @@ class Experiment(object):
         This only needs to be done for networks and participants.
         """
         if len(objects) > 0:
-            self.session.add_all(objects)
-        self.session.commit()
+            db.session.add_all(objects)
+        db.session.commit()
 
     def node_post_request(self, participant, node):
         """Run when a request to make a node is complete."""
@@ -962,7 +1007,7 @@ class Experiment(object):
     def fail_participant(self, participant):
         """Fail all the nodes of a participant."""
         participant_nodes = (
-            self.session.query(Node)
+            db.session.query(Node)
             .filter_by(participant_id=participant.id, failed=False)
             .all()
         )
@@ -1169,7 +1214,7 @@ class Experiment(object):
         order they were created.
         """
         if session is None:
-            session = self.session
+            session = db.session
         return session.query(Info).order_by(Info.creation_time)
 
     def replay_event(self, event):
@@ -1223,9 +1268,9 @@ class Experiment(object):
         :returns: An ``OrderedDict()`` mapping panel titles to data structures
                   describing the experiment state.
         """  # noqa
-        participants = self.session.query(Participant)
-        nodes = self.session.query(Node)
-        infos = self.session.query(Info)
+        participants = db.session.query(Participant)
+        nodes = db.session.query(Node)
+        infos = db.session.query(Info)
 
         unique_statuses = set(participant.status for participant in participants.all())
         stats = OrderedDict()
@@ -1235,7 +1280,7 @@ class Experiment(object):
         )
 
         # Count up our networks by role
-        network_roles = self.session.query(Network.role, func.count(Network.role))
+        network_roles = db.session.query(Network.role, func.count(Network.role))
         network_counts = network_roles.group_by(Network.role).all()
         failed_networks = network_roles.filter(Network.failed == True)  # noqa
         failed_counts = dict(failed_networks.group_by(Network.role).all())
@@ -1369,7 +1414,7 @@ class Experiment(object):
 
         if polymorphic_identity is None and "type" in table.columns:
             observed_types = [
-                r.type for r in self.session.query(table.columns.type).distinct().all()
+                r.type for r in db.session.query(table.columns.type).distinct().all()
             ]
             obj_by_type = [
                 self.pull_table(
@@ -1433,7 +1478,7 @@ class Experiment(object):
 
         model = getattr(models, object_type, None)
         if model is not None:
-            obj = self.session.query(model).get(int(obj_id))
+            obj = db.session.query(model).get(int(obj_id))
             if getattr(obj, "visualization_html", None):
                 return obj.visualization_html
         return ""
@@ -1522,7 +1567,7 @@ class Experiment(object):
             object_type = entry.get("object_type")
             model = getattr(models, object_type, None)
             if model is not None:
-                obj = self.session.query(model).get(int(obj_id))
+                obj = db.session.query(model).get(int(obj_id))
                 if obj is not None and not obj.failed:
                     obj.fail()
                     counts[object_type] = counts.get(object_type, 0) + 1
@@ -1541,7 +1586,7 @@ class Experiment(object):
 
     @contextmanager
     def restore_state_from_replay(
-        self, app_id, session, zip_path=None, **configuration_options
+        self, app_id, session=None, zip_path=None, **configuration_options
     ):
         # We need to fake dallinger_experiment to point at the current experiment
         module = sys.modules[type(self).__module__]
@@ -1549,23 +1594,10 @@ class Experiment(object):
             logger.warning("dallinger_experiment is already set, updating")
         sys.modules["dallinger_experiment"] = module
 
-        # Load the configuration system and globals
-        config = get_config()
-        # Manually load extra parameters and ignore errors
-        try:
-            from dallinger_experiment.experiment import extra_parameters
+        # Load the configuration
+        config = get_config(load=True)
 
-            try:
-                extra_parameters()
-                config._module_params_loaded = True
-            except KeyError:
-                pass
-        except ImportError:
-            pass
-
-        config.load()
         self.app_id = self.original_app_id = app_id
-        self.session = session
         self.exp_config = config
 
         # The replay index is initialised to 1970 as that is guaranteed
@@ -1621,8 +1653,8 @@ class Experiment(object):
         # Clear up global state
         self.import_session.rollback()
         self.import_session.close()
-        session.rollback()
-        session.close()
+        db.session.rollback()
+        db.session.close()
         config._reset(register_defaults=True)
         del sys.modules["dallinger_experiment"]
 

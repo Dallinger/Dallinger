@@ -1,6 +1,5 @@
 [Experiment]
 mode = sandbox
-auto_recruit = true
 webdriver_type = chrome_headless
 num_participants = 3
 

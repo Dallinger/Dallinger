@@ -28,14 +28,8 @@ def extra_parameters():
 class CoordinationChatroom(Experiment):
     """Define the structure of the experiment."""
 
-    def __init__(self, session=None):
-        """Initialize the experiment."""
-        super(CoordinationChatroom, self).__init__(session)
-        if session:
-            self.setup()
-
     def configure(self):
-        config = get_config()
+        config = get_config(load=True)
         self.experiment_repeats = repeats = config.get("repeats")
         self.network_class = config.get("network")
         self.quorum = config.get("n")

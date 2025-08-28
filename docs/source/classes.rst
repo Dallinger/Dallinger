@@ -624,7 +624,8 @@ Database sessions are handled automatically by Dallinger in the following cases:
 
     * Methods called during :func:`~dallinger.experiment.Experiment.setup` (e.g.
       :func:`~dallinger.experiment.Experiment.create_network`)
-    * Methods called by experiment routes, including
+
+    * Methods called by experiment routes, including:
         * :func:`~dallinger.experiment.Experiment.on_launch` called by (``POST
           /launch``)
         * :func:`~dallinger.experiment.Experiment.create_participant` called by
@@ -665,7 +666,8 @@ Database sessions are handled automatically by Dallinger in the following cases:
         * Any methods called by registered routes using the
           :func:`~dallinger.experiment.Experiment.experiment_route` or similar
           flask route decorators.
-    * Methods called by Dallinger's asynchronous worker function, including
+
+    * Methods called by Dallinger's asynchronous worker function, including:
         * :func:`~dallinger.experiment.Experiment.assignment_abandoned`
         * :func:`~dallinger.experiment.Experiment.assignment_reassigned`
         * :func:`~dallinger.experiment.Experiment.assignment_returned`
@@ -673,6 +675,7 @@ Database sessions are handled automatically by Dallinger in the following cases:
         * :func:`~dallinger.experiment.Experiment.update_participant_end_time`
         * :func:`~dallinger.experiment.Experiment.on_recruiter_submission_complete`
         * :func:`~dallinger.experiment.Experiment.receive_message`
+
     * Scheduled clock tasks registered with the
       :func:`~dallinger.experiment.Experiment.scheduled_task` decorator.
     * :func:`~dallinger.experiment.Experiment.receive_message` when called
@@ -691,7 +694,8 @@ roll back the session if an exception is raised. For example:
     @db.scoped_session_decorator
     def my_method(self):
         ... Your database operations go here
-        self.session.commit()
+
+        db.session.commit()
         ...
 
 Or in contexts where you need more control (e.g. inside of a long running loop where each
