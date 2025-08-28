@@ -9,7 +9,7 @@ from dallinger.experiment import load
 
 
 @pytest.mark.slow
-class TestDemos(object):
+class TestDemos:
     """Verify all the built-in demos."""
 
     @pytest.fixture
@@ -78,7 +78,7 @@ class TestDemos(object):
 
 
 @pytest.mark.usefixtures("bartlett_dir")
-class TestBartlett1932(object):
+class TestBartlett1932:
     """Tests for the Bartlett1932 demo class"""
 
     @pytest.fixture
@@ -93,7 +93,7 @@ class TestBartlett1932(object):
         assert "experiment" == demo.networks()[0].role
 
 
-class TestEntryPointImport(object):
+class TestEntryPointImport:
     def test_bartlett1932_entry_point(self):
         from dlgr.demos.bartlett1932.experiment import Bartlett1932 as OrigExp
 

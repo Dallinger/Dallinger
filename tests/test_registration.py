@@ -1,4 +1,4 @@
-class TestRegistration(object):
+class TestRegistration:
     def test_registration_module(self):
         from dallinger import registration
 

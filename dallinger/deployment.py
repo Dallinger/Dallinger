@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import codecs
 import json
 import os
@@ -8,11 +5,10 @@ import re
 import threading
 import time
 from shlex import quote
+from urllib.parse import urlparse, urlunparse
 
 import redis
 import requests
-import six
-from six.moves.urllib.parse import urlparse, urlunparse
 
 from dallinger import data, db, heroku, recruiters, registration
 from dallinger.config import get_config
@@ -227,8 +223,6 @@ def deploy_sandbox_shared_setup(
     log("Generating dashboard links...")
     heroku_addons = heroku_app.addon_parameters()
     heroku_addons = json.dumps(heroku_addons)
-    if six.PY2:
-        heroku_addons = heroku_addons.decode("utf-8")
     config.extend({"infrastructure_debug_details": heroku_addons})
     config.write()
     git.add("config.txt")
@@ -288,7 +282,7 @@ def deploy_sandbox_shared_setup(
     return result
 
 
-class DevelopmentDeployment(object):
+class DevelopmentDeployment:
     """Collates files from Dallinger and the custom experment, then symlinks
     them into a target sub-directory, so Flask development server can be run
     manually in that directory.
@@ -307,7 +301,7 @@ class DevelopmentDeployment(object):
         db.init_db(drop_all=True)
 
 
-class HerokuLocalDeployment(object):
+class HerokuLocalDeployment:
     exp_id = None
     tmp_dir = None
     dispatch = {}  # Subclass may provide handlers for Heroku process output

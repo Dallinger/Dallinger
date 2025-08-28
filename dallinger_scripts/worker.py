@@ -12,11 +12,11 @@ def main():
     # redis connection without that side effect.
     import logging
     import os
+    from urllib.parse import urlparse
 
     from gevent.queue import LifoQueue
     from redis import BlockingConnectionPool, StrictRedis
     from rq import Queue
-    from six.moves.urllib.parse import urlparse
 
     from dallinger.config import get_config, initialize_experiment_package
     from dallinger.heroku.rq_gevent_worker import GeventWorker as Worker
