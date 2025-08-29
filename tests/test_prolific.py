@@ -17,6 +17,7 @@ from dallinger.prolific import (
 
 study_request = {
     "completion_code": "A1B2C3D4",
+    "completion_codes": [],
     "completion_option": "url",
     "description": "fake HIT description",
     "device_compatibility": ["desktop"],
@@ -40,19 +41,22 @@ study_request = {
 # then run test_make_quick_study() (after removing the @pytest.mark.skip)
 private_study_request = {
     "completion_code": "A1B2C3D4",
+    "completion_codes": [],
     "completion_option": "url",
     "description": "(Uses allow_list with one ID)",
     "eligibility_requirements": [
         {
             # Add your worker ID here
-            "attributes": [{"name": "white_list", "value": []}],
+            "attributes": [
+                {"name": "white_list", "value": ["61f2914e3bb4b4d40080a6ec"]}
+            ],
             "_cls": "web.eligibility.models.CustomWhitelistEligibilityRequirement",
         }
     ],
     "estimated_completion_time": 2,
     "external_study_url": "https://dlgr-d25ea4ab-7400-437a.herokuapp.com/ad?recruiter=prolific&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}",
     "internal_name": "Test Private Study for One",
-    "is_custom_screening": True,
+    "is_custom_screening": False,
     "maximum_allowed_time": 10,
     "name": "Test Private Study for One",
     "project_name": "My project",
@@ -198,7 +202,8 @@ def subject(prolific_creds):
 
 @pytest.mark.skip(reason="Cannot clean up after itself")
 def test_make_quick_study(subject):
-    subject.create_study(**private_study_request)
+    result = subject.draft_study(**private_study_request)
+    assert result["name"] == "Test Private Study for One"
 
 
 @pytest.mark.usefixtures("check_prolific")
