@@ -484,6 +484,48 @@ class TestProlificRecruiter:
         result = recruiter.open_recruitment(n=5)
         assert result["message"] == "Study created on Prolific"
 
+    def test_open_recruitment_sets_up_completion_codes(self, recruiter, active_config):
+        # Arrange
+        recruiter.config["prolific_completion_config"] = json.dumps(
+            {
+                "FAILED_ATTENTION_CHECK": {
+                    "actions": [
+                        {
+                            "action": "REMOVE_FROM_PARTICIPANT_GROUP",
+                            "participant_group": "some group ID I guess?",
+                        },
+                        {
+                            "action": "MANUALLY_REVIEW",
+                        },
+                    ],
+                    "actor": "participant",
+                },
+                "COMPLETED": {
+                    "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
+                    "actor": "participant",
+                },
+            }
+        )
+
+        # Act
+        recruiter.open_recruitment(n=1)
+
+        # Assert
+        kwargs = recruiter.prolificservice.create_study.call_args_list[0].kwargs
+
+        codes_and_config = kwargs.get("completion_codes")
+        breakpoint()
+        assert {item["code_type"] for item in codes_and_config} == {
+            "FAILED_ATTENTION_CHECK",
+            "COMPLETED",
+        }
+
+        for record in codes_and_config:
+            assert "code" in record  # We've added these
+
+        code_map = json.loads(active_config.get("prolific_completion_codes"))
+        assert {"FAILED_ATTENTION_CHECK", "COMPLETED"} == set(code_map.keys())
+
     def test_open_recruitment_raises_if_study_already_in_progress(self, recruiter):
         from dallinger.recruiters import ProlificRecruiterException
 

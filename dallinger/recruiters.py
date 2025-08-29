@@ -558,6 +558,92 @@ class ProlificRecruiter(Recruiter):
         return alphanumeric_code(self.config.get("id"))
 
     @property
+    def completion_codes_and_actions(self) -> list[dict]:
+        """Return a list of completion code/action dicts for Prolific.
+
+        Reads the 'prolific_completion_config' from experiment config, which should
+        be a JSON object mapping code types to their definitions (actions, etc).
+        Each entry is merged with a generated code and its type.
+
+        Example config:
+            {
+                "FAILED_ATTENTION_CHECK": {
+                    "actions": [
+                        {
+                            "action": "REMOVE_FROM_PARTICIPANT_GROUP",
+                            "participant_group": "some group ID",
+                        },
+                        {
+                            "action": "MANUALLY_REVIEW",
+                        }
+                    ],
+                    "actor": "participant"
+                },
+                "COMPLETED": {
+                    "actions": [
+                        {
+                            "action": "AUTOMATICALLY_APPROVE"
+                        }
+                    ],
+                    "actor": "participant"
+                },
+            }
+
+        See "completion_codes" under https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/CreateStudy
+
+        Returns:
+            List[dict]: Each dict contains:
+                - code: str, unique code for this type
+                - code_type: str, the type key from config
+                - ...any additional fields from the config definition
+
+        Example return value:
+            [
+                {
+                    "actions": [
+                        {
+                            "action": "REMOVE_FROM_PARTICIPANT_GROUP",
+                            "participant_group": "some group ID I guess?",
+                        },
+                        {"action": "MANUALLY_REVIEW"},
+                    ],
+                    "actor": "participant",
+                    "code": "QG8FB1SA",
+                    "code_type": "FAILED_ATTENTION_CHECK",
+                },
+                {
+                    "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
+                    "actor": "participant",
+                    "code": "6Q1UMKRE",
+                    "code_type": "COMPLETED",
+                },
+            ]
+        """
+        code_config = json.loads(self.config.get("prolific_completion_config"))
+        experiment_id = self.config.get("id")
+        result = []
+        for code_type, definition in code_config.items():
+            result.append(
+                {
+                    "code": alphanumeric_code(code_type + experiment_id),
+                    "code_type": code_type,
+                    **definition,
+                }
+            )
+        return result
+
+    @property
+    def completion_code_map(self) -> dict:
+        """Return a mapping of code_type to generated code for Prolific completion codes.
+
+        Useful for quickly looking up the code string for a given code_type.
+        """
+        return {
+            item["code_type"]: item["code"]
+            for item in self.completion_codes_and_actions
+        }
+
+    @property
     def base_payment_cents(self):
         return int(self.config.get("base_payment") * 100)
 
@@ -578,6 +664,7 @@ class ProlificRecruiter(Recruiter):
 
         study_request = {
             "completion_code": self.completion_code,
+            "completion_codes": self.completion_codes_and_actions,
             "completion_option": "url",
             "description": self.config.get("description"),
             # may be overriden in prolific_recruitment_config, but it's required
@@ -609,6 +696,10 @@ class ProlificRecruiter(Recruiter):
             explicit_config = json.loads(self.config.get("prolific_recruitment_config"))
             study_request.update(explicit_config)
 
+        # Store mapping of completion code types to codes
+        self.config.set(
+            "prolific_completion_codes", json.dumps(self.completion_code_map)
+        )
         study_info = self.prolificservice.create_study(**study_request)
         self._record_current_study_id(study_info["id"])
 
