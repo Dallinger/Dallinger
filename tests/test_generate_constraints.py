@@ -1,0 +1,87 @@
+import os
+from pathlib import Path
+
+import pytest
+
+from dallinger.generate_constraints import (
+    _get_explicit_dallinger_numbered_release,
+    ensure_constraints_file_presence,
+    generate_constraints,
+)
+
+
+@pytest.fixture
+def requirements_path(tempdir):
+    return Path(tempdir) / "requirements.txt"
+
+
+@pytest.fixture
+def constraints_path(tempdir):
+    return Path(tempdir) / "constraints.txt"
+
+
+@pytest.fixture
+def pyproject_path(tempdir):
+    return Path(tempdir) / "pyproject.toml"
+
+
+def test_constraints_dallinger_release(requirements_path, constraints_path):
+    with open(requirements_path, "w") as f:
+        f.write("dallinger==11.4.0")
+    generate_constraints(requirements_path, constraints_path)
+    assert constraints_path.exists()
+
+    # see https://raw.githubusercontent.com/Dallinger/Dallinger/v11.4.0/dev-requirements.txt
+    # # to verify that flask==3.1.1 is indeed the correct version
+    assert "flask==3.1.1" in constraints_path.read_text()
+
+
+def test_constraints_dallinger_commit(requirements_path, constraints_path):
+    with open(requirements_path, "w") as f:
+        f.write(
+            "dallinger@git+https://github.com/Dallinger/Dallinger.git@c9e0ecf554f0d6bd05b745bbf3983afdcaa848f5#egg=dallinger"
+        )
+    generate_constraints(requirements_path, constraints_path)
+
+    # see https://raw.githubusercontent.com/Dallinger/Dallinger/c9e0ecf554f0d6bd05b745bbf3983afdcaa848f5/dev-requirements.txt
+    # to verify that 3.1.0 is indeed the correct version
+    assert "flask==3.1.0" in constraints_path.read_text()
+
+
+def test_constraints_psynet(requirements_path, constraints_path):
+    with open(requirements_path, "w") as f:
+        f.write("psynet==12.0.0")
+    generate_constraints(requirements_path, constraints_path)
+    assert constraints_path.exists()
+    dallinger_version = _get_explicit_dallinger_numbered_release(constraints_path)
+    major, minor, patch = dallinger_version.split(".")
+
+    # To verify the correct version see https://gitlab.com/PsyNetDev/PsyNet/-/blob/v12.0.0/pyproject.toml?ref_type=tags
+    assert major == "11"
+    assert int(minor) >= 1
+    if int(minor) == 1:
+        assert int(patch) >= 1
+
+
+def test_caching(tmpdir):
+    requirements_path = Path(tmpdir) / "requirements.txt"
+    requirements_path.write_text("dallinger==11.4.0")
+    constraints_path = Path(tmpdir) / "constraints.txt"
+
+    ensure_constraints_file_presence(tmpdir)
+
+    assert constraints_path.exists()
+    assert "dallinger==11.4.0" in constraints_path.read_text()
+
+    original_mtime = os.path.getmtime(constraints_path)
+
+    ensure_constraints_file_presence(tmpdir)
+
+    # No change to requirements.txt so no change to constraints.txt
+    assert os.path.getmtime(constraints_path) == original_mtime
+
+    with open(requirements_path, "w+") as f:
+        f.write("scipy")
+
+    with pytest.raises(ValueError, match="Changes detected to requirements"):
+        ensure_constraints_file_presence(tmpdir)

@@ -14,7 +14,6 @@ import tempfile
 import warnings
 import webbrowser
 from datetime import datetime
-from importlib.metadata import files as files_metadata
 from importlib.util import find_spec
 from pathlib import Path
 from unicodedata import normalize
@@ -385,17 +384,10 @@ def struct_to_html(data):
     return "<br>".join(parts)
 
 
-def abspath_from_egg(egg, path):
-    """Given a path relative to the egg root, find the absolute
-    filesystem path for that resource.
-    For instance this file's absolute path can be found invoking
-    `abspath_from_egg("dallinger", "dallinger/utils.py")`.
-    Returns a `pathlib.Path` object or None if the path was not found.
-    """
-    for file in files_metadata(egg):
-        if str(file) == path:
-            return file.locate()
-    return None
+# generate_constraints needs to be dependency-free,
+# so we put the definitions of abspath_from_egg there,
+# but still expose it from dallinger.utils as before.
+abspath_from_egg = dallinger.generate_constraints.abspath_from_egg  # noqa
 
 
 def get_editable_dallinger_path():
