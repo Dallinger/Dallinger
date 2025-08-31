@@ -310,6 +310,8 @@ def abspath_from_egg(egg, path):
 
 
 if __name__ == "__main__":
+    # You can run this script directly to generate a constraints.txt file for the current directory:
+    # curl -s https://raw.githubusercontent.com/Dallinger/Dallinger/generate-constraints/dallinger/generate_constraints.py | python3 -
     directory = Path.cwd()
     input_path = _find_input_path(directory)
     output_path = directory / "constraints.txt"
