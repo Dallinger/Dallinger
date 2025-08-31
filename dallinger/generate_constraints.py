@@ -57,15 +57,19 @@ def generate_constraints(input_path, output_path):
 
 
 def ensure_constraints_file_presence(directory: str):
-    """Looks into the path represented by the string `directory`.
-    Does nothing if a `constraints.txt` file exists there and contains
-    the same md5sum as the `requirements.txt` file.
-    If it exists but is not up-to-date a ValueError exception is raised.
-    Otherwise, it creates the constraints.txt file based on the
-    contents of the `requirements.txt` file.
+    """
+    Ensures that a ``constraints.txt`` file exists in the directory.
 
-    If the `requirements.txt` does not exist one is created with
-    `dallinger` as its only dependency.
+    This ``constraints.txt`` is generated from an input file,
+    either ``requirements.txt`` (default) or pyproject.toml
+    (if neither are present, a ``requirements.txt`` file is created with
+    ``dallinger`` as its only dependency).
+
+    The generated ``constraints.txt`` file contains the MD5 hash of the input file.
+    If ``ensure_constraints_file_presence`` is called when a ``constraints.txt`` file
+    already exists, then it is checked to see whether it contains the same MD5 hash
+    as the input file. If it does, then no action is taken. If it does not, then a
+    ``ValueError`` is raised.
 
     If the environment variable SKIP_DEPENDENCY_CHECK is set, no action
     will be performed.
