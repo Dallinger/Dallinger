@@ -18,6 +18,23 @@ logger = logging.getLogger(__name__)
 
 
 def generate_constraints(input_path, output_path):
+    """
+    Generate a constraints.txt file for the current directory.
+
+    The process takes as a starting point the contents of the input_path file,
+    and relates this to the dev-requirements.txt file for the requested Dallinger version.
+    This dev-requirements.txt file is sourced from the Dallinger GitHub repository,
+    paying attention to the precise version of Dallinger that is requested by input_path.
+
+    ``uv pip compile`` is used if uv is available, otherwise ``pip-compile`` is used.
+
+    Parameters
+    ----------
+    input_path : str
+        The path to the input file, typically requirements.txt or pyproject.toml.
+    output_path : str
+        The path to the output file, typically constraints.txt.
+    """
     dallinger_reference = _get_dallinger_reference(input_path)
     dallinger_dev_requirements_path = _get_dallinger_dev_requirements_path(
         dallinger_reference
