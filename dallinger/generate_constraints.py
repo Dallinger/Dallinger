@@ -307,3 +307,10 @@ def abspath_from_egg(egg, path):
         if str(file) == path:
             return file.locate()
     return None
+
+
+if __name__ == "__main__":
+    directory = Path.cwd()
+    input_path = _find_input_path(directory)
+    output_path = directory / "constraints.txt"
+    generate_constraints(input_path, output_path)
