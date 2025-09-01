@@ -174,7 +174,6 @@ def _get_implied_dallinger_reference(input_path: Path) -> str:
         _pip_compile(input_path, tmpfile.name, constraints=None)
         retrieved = _get_explicit_dallinger_reference(Path(tmpfile.name))
         if retrieved is None:
-            breakpoint()
             raise ValueError(
                 f"Failed to retrieve an implied Dallinger reference from {input_path}. "
                 "Consider specifying Dallinger explicitly in the requirements.txt file."
