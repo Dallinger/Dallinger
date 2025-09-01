@@ -45,6 +45,7 @@ from dallinger.deployment import (
     deploy_sandbox_shared_setup,
     setup_experiment,
 )
+from dallinger.generate_constraints import ensure_constraints_file_presence
 from dallinger.heroku.tools import HerokuApp, HerokuInfo
 from dallinger.mturk import MTurkService, MTurkServiceException
 from dallinger.notifications import (
@@ -56,7 +57,6 @@ from dallinger.notifications import (
 from dallinger.recruiters import by_name
 from dallinger.utils import (
     check_call,
-    ensure_constraints_file_presence,
     generate_random_id,
 )
 from dallinger.version import __version__

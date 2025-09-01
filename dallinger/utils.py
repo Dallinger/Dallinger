@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 
+import functools
+import io
 import locale
 import logging
 import os
@@ -14,6 +16,7 @@ import tempfile
 import warnings
 import webbrowser
 from datetime import datetime
+from importlib.metadata import files as files_metadata
 from importlib.util import find_spec
 from pathlib import Path
 from unicodedata import normalize
@@ -24,13 +27,10 @@ from flask import request
 from pythonjsonlogger import jsonlogger
 from sqlalchemy import exc as sa_exc
 
-import dallinger.generate_constraints
 from dallinger import db
 from dallinger.compat import is_command
 from dallinger.config import get_config
-from dallinger.generate_constraints import (  # noqa (for back-compatibility)
-    ensure_constraints_file_presence,
-)
+from dallinger.generate_constraints import ensure_constraints_file_presence
 from dallinger.models import Participant
 
 local_warning_cache = {}
@@ -295,13 +295,41 @@ class ParticipationTime(object):
         return self.active_seconds > total_allowed_seconds
 
 
-# dallinger.generate_constraints needs to be dependency-free,
-# so we put the definitions of wrap_subprocess_call/check_call/call/check_output there,
-# but still expose them from dallinger.utils as before.
-wrap_subprocess_call = dallinger.generate_constraints._wrap_subprocess_call
-check_call = dallinger.generate_constraints._check_call
-call = dallinger.generate_constraints._call
-check_output = dallinger.generate_constraints._check_output
+def wrap_subprocess_call(func, wrap_stdout=True):
+    @functools.wraps(func)
+    def wrapper(*popenargs, **kwargs):
+        out = kwargs.get("stdout", None)
+        err = kwargs.get("stderr", None)
+        replay_out = False
+        replay_err = False
+        if out is None and wrap_stdout:
+            try:
+                sys.stdout.fileno()
+            except io.UnsupportedOperation:
+                kwargs["stdout"] = tempfile.NamedTemporaryFile()
+                replay_out = True
+        if err is None:
+            try:
+                sys.stderr.fileno()
+            except io.UnsupportedOperation:
+                kwargs["stderr"] = tempfile.NamedTemporaryFile()
+                replay_err = True
+        try:
+            return func(*popenargs, **kwargs)
+        finally:
+            if replay_out:
+                kwargs["stdout"].seek(0)
+                sys.stdout.write(kwargs["stdout"].read())
+            if replay_err:
+                kwargs["stderr"].seek(0)
+                sys.stderr.write(kwargs["stderr"].read())
+
+    return wrapper
+
+
+check_call = wrap_subprocess_call(subprocess.check_call)
+call = wrap_subprocess_call(subprocess.call)
+check_output = wrap_subprocess_call(subprocess.check_output, wrap_stdout=False)
 
 
 def open_browser(url):
@@ -384,10 +412,17 @@ def struct_to_html(data):
     return "<br>".join(parts)
 
 
-# generate_constraints needs to be dependency-free,
-# so we put the definitions of abspath_from_egg there,
-# but still expose it from dallinger.utils as before.
-abspath_from_egg = dallinger.generate_constraints.abspath_from_egg  # noqa
+def abspath_from_egg(egg, path):
+    """Given a path relative to the egg root, find the absolute
+    filesystem path for that resource.
+    For instance this file's absolute path can be found invoking
+    `abspath_from_egg("dallinger", "dallinger/utils.py")`.
+    Returns a `pathlib.Path` object or None if the path was not found.
+    """
+    for file in files_metadata(egg):
+        if str(file) == path:
+            return file.locate()
+    return None
 
 
 def get_editable_dallinger_path():

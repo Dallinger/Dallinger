@@ -1,14 +1,10 @@
 import contextlib
-import functools
-import io
 import logging
 import os
 import re
 import subprocess
-import sys
 import tempfile
 from hashlib import md5
-from importlib.metadata import files as files_metadata
 from pathlib import Path
 from typing import Optional
 
@@ -221,7 +217,7 @@ def _pip_compile(
             env["UV_CUSTOM_COMPILE_COMMAND"] = compile_info
         else:
             env["CUSTOM_COMPILE_COMMAND"] = compile_info
-    _check_output(
+    subprocess.check_output(
         cmd,
         env=env,
     )
@@ -233,7 +229,7 @@ def uv_available() -> bool:
     """
     # return False
     try:
-        _check_output(["uv", "--version"])
+        subprocess.check_output(["uv", "--version"])
         return True
     except subprocess.CalledProcessError:
         return False
@@ -255,58 +251,6 @@ def working_directory(path):
         yield
     finally:
         os.chdir(start_dir)
-
-
-def _wrap_subprocess_call(func, wrap_stdout=True):
-    @functools.wraps(func)
-    def wrapper(*popenargs, **kwargs):
-        out = kwargs.get("stdout", None)
-        err = kwargs.get("stderr", None)
-        replay_out = False
-        replay_err = False
-        if out is None and wrap_stdout:
-            try:
-                sys.stdout.fileno()
-            except io.UnsupportedOperation:
-                kwargs["stdout"] = tempfile.NamedTemporaryFile()
-                replay_out = True
-        if err is None:
-            try:
-                sys.stderr.fileno()
-            except io.UnsupportedOperation:
-                kwargs["stderr"] = tempfile.NamedTemporaryFile()
-                replay_err = True
-        try:
-            return func(*popenargs, **kwargs)
-        finally:
-            if replay_out:
-                kwargs["stdout"].seek(0)
-                sys.stdout.write(kwargs["stdout"].read())
-            if replay_err:
-                kwargs["stderr"].seek(0)
-                sys.stderr.write(kwargs["stderr"].read())
-
-    return wrapper
-
-
-_check_call = _wrap_subprocess_call(subprocess.check_call)  # noqa
-_call = _wrap_subprocess_call(subprocess.call)  # noqa
-_check_output = _wrap_subprocess_call(
-    subprocess.check_output, wrap_stdout=False
-)  # noqa
-
-
-def abspath_from_egg(egg, path):
-    """Given a path relative to the egg root, find the absolute
-    filesystem path for that resource.
-    For instance this file's absolute path can be found invoking
-    `abspath_from_egg("dallinger", "dallinger/utils.py")`.
-    Returns a `pathlib.Path` object or None if the path was not found.
-    """
-    for file in files_metadata(egg):
-        if str(file) == path:
-            return file.locate()
-    return None
 
 
 if __name__ == "__main__":
