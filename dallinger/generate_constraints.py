@@ -158,7 +158,7 @@ def _get_dallinger_reference(input_path: Path) -> str:
         return _get_implied_dallinger_reference(input_path)
 
 
-def _get_explicit_dallinger_reference(input_path: Path) -> str | None:
+def _get_explicit_dallinger_reference(input_path: Path) -> Optional[str]:
     release = _get_explicit_dallinger_numbered_release(input_path)
     if release:
         return f"v{release}"
@@ -166,7 +166,7 @@ def _get_explicit_dallinger_reference(input_path: Path) -> str | None:
         return _get_explicit_dallinger_github_requirement(input_path)
 
 
-def _get_explicit_dallinger_numbered_release(input_path: Path) -> str | None:
+def _get_explicit_dallinger_numbered_release(input_path: Path) -> Optional[str]:
     # Should catch patterns like dallinger[docker,test]==11.5.0
     pattern = re.compile(r"dallinger(?:\[[^\]]+\])?==([0-9]+\.[0-9]+\.[0-9]+)")
     with open(input_path, "r") as f:
@@ -177,7 +177,7 @@ def _get_explicit_dallinger_numbered_release(input_path: Path) -> str | None:
     return None
 
 
-def _get_explicit_dallinger_github_requirement(input_path: Path) -> str | None:
+def _get_explicit_dallinger_github_requirement(input_path: Path) -> Optional[str]:
     # dallinger@git+https://github.com/Dallinger/Dallinger.git@my-branch#egg=dallinger
     pattern = re.compile(
         r"dallinger\s*@\s*git\+https://github\.com/Dallinger/Dallinger(?:\.git)?@([^\s#]+)(?:#.*)?"
@@ -235,7 +235,6 @@ def _pip_compile(
         )
         cmd = ["pip-compile"]
     cmd += [
-        # "--verbose",
         str(in_file),
         "--output-file",
         str(out_file),
@@ -260,7 +259,6 @@ def uv_available() -> bool:
     """
     Check whether uv is available for use.
     """
-    # return False
     try:
         subprocess.check_output(["uv", "--version"])
         return True
