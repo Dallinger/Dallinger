@@ -159,7 +159,7 @@ def _get_explicit_dallinger_numbered_release(input_path: Path) -> str | None:
 def _get_explicit_dallinger_github_requirement(input_path: Path) -> str | None:
     # dallinger@git+https://github.com/Dallinger/Dallinger.git@my-branch#egg=dallinger
     pattern = re.compile(
-        r"dallinger@git\+https://github\.com/Dallinger/Dallinger(?:\.git)?@([^\s#]+)(?:#.*)?"
+        r"dallinger\s*@\s*git\+https://github\.com/Dallinger/Dallinger(?:\.git)?@([^\s#]+)(?:#.*)?"
     )
     with open(input_path, "r") as f:
         for line in f:
@@ -174,6 +174,7 @@ def _get_implied_dallinger_reference(input_path: Path) -> str:
         _pip_compile(input_path, tmpfile.name, constraints=None)
         retrieved = _get_explicit_dallinger_reference(Path(tmpfile.name))
         if retrieved is None:
+            breakpoint()
             raise ValueError(
                 f"Failed to retrieve an implied Dallinger reference from {input_path}. "
                 "Consider specifying Dallinger explicitly in the requirements.txt file."
@@ -268,7 +269,9 @@ def working_directory(path):
 # This code allows users to run this `generate-constraints` script directly without
 # installing or importing Dallinger.
 # It can be run locally as follows:
-# python generate_constraints.py --update-existing
+# python3 generate_constraints.py --update-existing
+# Alternatively, it can be run via reference to the raw GitHub URL:)
+# curl -s https://raw.githubusercontent.com/Dallinger/Dallinger/generate-constraints/dallinger/generate_constraints.py | python3 - --update-existing
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
