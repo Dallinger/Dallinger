@@ -8,7 +8,9 @@ from dallinger.generate_constraints import (
     _get_explicit_dallinger_numbered_release,
     ensure_constraints_file_presence,
     generate_constraints,
+    working_directory,
 )
+from dallinger.utils import check_output
 
 
 @pytest.fixture
@@ -110,3 +112,11 @@ class TestGenerateConstraints:
 
         # Manually written constraints.txt files should not be updated
         assert os.path.getmtime(constraints_path) == original_mtime
+
+
+@pytest.mark.slow
+def test_generate_constraints_needs_no_dependencies(tempdir):
+    """Test that generate_constraints.py runs when used as a self-contained script."""
+    script_path = Path("dallinger/generate_constraints.py").resolve()
+    with working_directory(tempdir):
+        check_output(["uv", "run", str(script_path)])

@@ -1,3 +1,13 @@
+# /// script
+# dependencies = ["requests"]
+# ///
+#
+# You can run this script directly without installing Dallinger,
+# for example:
+#    uv run generate_constraints.py --update-existing
+# or
+#    curl -s https://raw.githubusercontent.com/Dallinger/Dallinger/generate-constraints/dallinger/generate_constraints.py | uv run -
+
 import argparse
 import contextlib
 import logging
@@ -276,12 +286,6 @@ def working_directory(path):
         os.chdir(start_dir)
 
 
-# This code allows users to run this `generate-constraints` script directly without
-# installing or importing Dallinger.
-# It can be run locally as follows:
-# python3 generate_constraints.py --update-existing
-# Alternatively, it can be run via reference to the raw GitHub URL:)
-# curl -s https://raw.githubusercontent.com/Dallinger/Dallinger/generate-constraints/dallinger/generate_constraints.py | python3 - --update-existing
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
