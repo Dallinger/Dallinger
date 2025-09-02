@@ -135,3 +135,11 @@ def test_constraints_script_works_independently(tempdir):
         assert (Path(tempdir) / "constraints.txt").exists()
         check_output(["uv", "run", str(script_path), "ensure", tempdir])
         assert (Path(tempdir) / "constraints.txt").exists()
+
+
+@pytest.mark.slow
+def test_legacy_interface(tempdir):
+    """Test that the legacy interface works."""
+    with working_directory(tempdir):
+        check_output(["dallinger", "generate-constraints"])
+        assert (Path(tempdir) / "constraints.txt").exists()

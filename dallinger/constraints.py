@@ -106,7 +106,7 @@ def generate_constraints(directory: str):
     print(
         f"Compiling constraints.txt file from {input_path} and {dallinger_dev_requirements_path}"
     )
-    compile_info = f"dallinger generate-constraints\n#\n# Compiled from a {Path(input_path).name} file with md5sum: {_hash_input_file(input_path)}"
+    compile_info = f"dallinger constraints generate\n#\n# Compiled from a {Path(input_path).name} file with md5sum: {_hash_input_file(input_path)}"
 
     _pip_compile(
         input_path,
