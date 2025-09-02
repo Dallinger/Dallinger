@@ -115,7 +115,7 @@ class TestGenerateConstraints:
 
 
 @pytest.mark.slow
-def test_generate_constraints_needs_no_dependencies(tempdir):
+def test_generate_constraints_works_independently(tempdir):
     """Test that generate_constraints.py runs when used as a self-contained script."""
     script_path = Path("dallinger/generate_constraints.py").resolve()
     with working_directory(tempdir):
