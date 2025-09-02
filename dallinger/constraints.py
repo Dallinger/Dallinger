@@ -1,5 +1,5 @@
 # /// script
-# dependencies = ["requests"]
+# dependencies = ["click", "requests"]
 # ///
 #
 # You can run this script directly without installing Dallinger,
@@ -8,7 +8,6 @@
 # or
 #    curl -s https://raw.githubusercontent.com/Dallinger/Dallinger/generate-constraints/dallinger/constraints.py | uv run -
 
-import argparse
 import contextlib
 import logging
 import os
@@ -19,9 +18,50 @@ from hashlib import md5
 from pathlib import Path
 from typing import Optional
 
+import click
 import requests
 
 logger = logging.getLogger(__name__)
+
+
+@click.group()
+def constraints_cli():
+    """Dallinger constraints file utilities."""
+
+
+@constraints_cli.command()
+@click.argument("directory", type=click.Path(exists=True, file_okay=False))
+def check(directory: str):
+    """
+    Check whether a constraints.txt file exists and is up to date for the specified directory.
+    """
+    check_constraints(directory)
+
+
+def check_constraints(directory: str):
+    """
+    Check whether a constraints.txt file exists and is up to date for the specified directory.
+    """
+    constraints_path = Path(directory) / "constraints.txt"
+    if not constraints_path.exists():
+        raise FileNotFoundError(f"constraints.txt file not found in {directory}")
+    input_path = _find_input_path(directory)
+    if not _constraints_up_to_date(constraints_path, input_path):
+        raise ValueError(
+            f"constraints.txt file in {directory} is not up to date with {input_path.name}."
+        )
+    logger.info(
+        f"constraints.txt file in {directory} exists and is up to date with {input_path.name}."
+    )
+
+
+@constraints_cli.command()
+@click.argument("directory", type=click.Path(exists=True, file_okay=False))
+def generate(directory: str):
+    """
+    Generate a constraints.txt file for the specified directory.
+    """
+    generate_constraints(directory)
 
 
 def generate_constraints(directory: str):
@@ -78,19 +118,29 @@ def generate_constraints(directory: str):
     _make_paths_relative(output_path)
 
 
-def ensure_constraints_file_presence(directory: str, update_existing: bool = False):
+@constraints_cli.command()
+@click.argument("directory", type=click.Path(exists=True, file_okay=False))
+def ensure(directory: str):
+    """
+    Ensure that a constraints.txt file exists for the specified directory,
+    preserving the existing constraints.txt file if it exists and is up to date,
+    and updating it if it is out of date.
+    """
+    ensure_constraints_file_presence(directory)
+
+
+def ensure_constraints_file_presence(directory: str):
     """
     Ensures that a ``constraints.txt`` file exists in the specified directory.
 
     - If the environment variable SKIP_DEPENDENCY_CHECK is set, no action will be performed.
-    - If no ``constraints.txt`` file exists, one will be automaticallygenerated using ``generate_constraints``.
+    - If no ``constraints.txt`` file exists, one will be automatically generated using.
     - If a manually written ``constraints.txt`` file exists already, then no action will be taken.
     - If an automatically generated ``constraints.txt`` file exists already,
       but it seems up-to-date with the input file (i.e. the MD5 hash of the input file is present in the constraints.txt file),
       then no action will be taken.
     - If an automatically generated ``constraints.txt`` file exists already, but it seems out-of-date,
-      then a ``ValueError`` will be raised, unless ``update_existing`` is ``True`,
-      in which case the ``constraints.txt`` file will be automatically updated.
+      then ``constraints.txt`` will be automatically updated.
     """
     if os.environ.get("SKIP_DEPENDENCY_CHECK"):
         return
@@ -108,13 +158,7 @@ def ensure_constraints_file_presence(directory: str, update_existing: bool = Fal
         if _constraints_up_to_date(output_path, input_path):
             logger.info("%s is up to date with %s.", output_path, input_path)
             return
-        if update_existing:
-            logger.info("%s is out of date with %s, updating.", output_path, input_path)
-            generate_constraints(directory)
-            return
-        raise ValueError(
-            "\nChanges detected to requirements.txt: run the command\n    dallinger generate-constraints\nand retry"
-        )
+        logger.info("%s is out of date with %s, updating.", output_path, input_path)
     generate_constraints(directory)
 
 
@@ -289,13 +333,4 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(message)s",
     )
-    parser = argparse.ArgumentParser(
-        description="Generate or update a constraints.txt file for the current directory."
-    )
-    parser.add_argument(
-        "--update-existing",
-        action="store_true",
-        help="Update the constraints.txt file if it already exists and is out of date.",
-    )
-    args = parser.parse_args()
-    ensure_constraints_file_presence(Path.cwd(), update_existing=args.update_existing)
+    constraints_cli()
