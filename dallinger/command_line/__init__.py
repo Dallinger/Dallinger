@@ -39,13 +39,13 @@ from dallinger.command_line.utils import (
     verify_package,
 )
 from dallinger.config import get_config
+from dallinger.constraints import ensure_constraints_file_presence
 from dallinger.deployment import (
     DebugDeployment,
     LoaderDeployment,
     deploy_sandbox_shared_setup,
     setup_experiment,
 )
-from dallinger.generate_constraints import ensure_constraints_file_presence
 from dallinger.heroku.tools import HerokuApp, HerokuInfo
 from dallinger.mturk import MTurkService, MTurkServiceException
 from dallinger.notifications import (

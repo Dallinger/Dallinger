@@ -6,7 +6,7 @@
 # for example:
 #    uv run generate_constraints.py --update-existing
 # or
-#    curl -s https://raw.githubusercontent.com/Dallinger/Dallinger/generate-constraints/dallinger/generate_constraints.py | uv run -
+#    curl -s https://raw.githubusercontent.com/Dallinger/Dallinger/generate-constraints/dallinger/constraints.py | uv run -
 
 import argparse
 import contextlib

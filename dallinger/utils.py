@@ -30,7 +30,7 @@ from sqlalchemy import exc as sa_exc
 from dallinger import db
 from dallinger.compat import is_command
 from dallinger.config import get_config
-from dallinger.generate_constraints import ensure_constraints_file_presence
+from dallinger.constraints import ensure_constraints_file_presence
 from dallinger.models import Participant
 
 local_warning_cache = {}
