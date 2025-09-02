@@ -921,8 +921,7 @@ def apps():
 @dallinger.command()
 def generate_constraints():
     """Update an experiment's constraints.txt pinned dependencies based on requirements.txt."""
-    experiment_dir = os.getcwd()
-    constraints_cli(["generate", experiment_dir], standalone_mode=False)
+    constraints_cli(["generate"], standalone_mode=False)
 
 
 # New interface:
