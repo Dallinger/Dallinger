@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -51,6 +52,14 @@ class TestGenerateConstraints:
         # see https://raw.githubusercontent.com/Dallinger/Dallinger/v11.4.0/dev-requirements.txt
         # # to verify that flask==3.1.1 is indeed the correct version
         assert "flask==3.1.1" in constraints_path.read_text()
+
+        # Verify that the Python version is included in the constraints.txt file
+        # (irrespective of whether uv or pip-compile is used)
+        content = constraints_path.read_text()
+        python_version_pattern = r"Python \d+\.\d+(\.\d+)?"
+        assert re.search(
+            python_version_pattern, content
+        ), "constraints.txt missing Python version information"
 
     def test_constraints_dallinger_commit(
         self, tempdir, requirements_path, constraints_path

@@ -11,6 +11,7 @@
 import contextlib
 import logging
 import os
+import platform
 import re
 import subprocess
 import tempfile
@@ -106,13 +107,11 @@ def generate_constraints(directory: str):
     print(
         f"Compiling constraints.txt file from {input_path} and {dallinger_dev_requirements_path}"
     )
-    compile_info = f"dallinger constraints generate\n#\n# Compiled from a {Path(input_path).name} file with md5sum: {_hash_input_file(input_path)}"
 
     _pip_compile(
         input_path,
         output_path,
         constraints=[dallinger_dev_requirements_path],
-        compile_info=compile_info,
     )
 
     _make_paths_relative(output_path)
@@ -266,13 +265,15 @@ cp requirements.txt constraints.txt"""
         )
 
 
-def _pip_compile(
-    in_file, out_file, constraints: Optional[list] = None, compile_info=None
-):
+def _pip_compile(in_file, out_file, constraints: Optional[list] = None):
     use_uv = uv_available()
+    compile_info = f"dallinger constraints generate\n#\n# Compiled from a {Path(in_file).name} file with md5sum: {_hash_input_file(in_file)}"
+
     if use_uv:
         logger.info("Calling `uv pip-compile`...")
-        cmd = ["uv", "pip", "compile"]
+        python_version = platform.python_version()
+        compile_info += f"\n# Python {python_version}"
+        cmd = ["uv", "pip", "compile", "--python-version", python_version]
     else:
         logger.info(
             "Calling `pip-compile` (consider installing uv for faster compilation)..."
