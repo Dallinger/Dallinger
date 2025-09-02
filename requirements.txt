@@ -50,7 +50,7 @@ cryptography==45.0.6
     # via pyopenssl
 decorator==5.2.1
     # via ipython
-executing==2.2.0
+executing==2.2.1
     # via stack-data
 faker==37.5.3
     # via dallinger
