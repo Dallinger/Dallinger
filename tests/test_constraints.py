@@ -143,3 +143,16 @@ def test_legacy_interface(tempdir):
     with working_directory(tempdir):
         check_output(["dallinger", "generate-constraints"])
         assert (Path(tempdir) / "constraints.txt").exists()
+
+
+@pytest.mark.slow
+def test_impossible_resolution(tempdir):
+    with working_directory(tempdir):
+        with open(Path(tempdir) / "requirements.txt", "w") as f:
+            f.write("dallinger==10.0.0\n")
+            f.write("dallinger==10.0.1\n")
+        with pytest.raises(
+            RuntimeError,
+            match="An error occurred when compiling the constraints.txt file. See if you can adjust",
+        ):
+            generate_constraints(tempdir)

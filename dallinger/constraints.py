@@ -293,10 +293,30 @@ def _pip_compile(
             env["UV_CUSTOM_COMPILE_COMMAND"] = compile_info
         else:
             env["CUSTOM_COMPILE_COMMAND"] = compile_info
-    subprocess.check_output(
-        cmd,
-        env=env,
-    )
+    try:
+        subprocess.check_output(
+            cmd,
+            env=env,
+            stderr=subprocess.STDOUT,
+        )
+    except subprocess.CalledProcessError as e:
+        message = e.output.decode()
+        if "No solution found when resolving dependencies" in message:
+            msg = (
+                "An error occurred when compiling the constraints.txt file. "
+                f"See if you can adjust {in_file.name} to resolve the dependency conflicts, "
+                "e.g. by selecting different package versions or removing version pins entirely.\n\n"
+            )
+            if len(constraints) > 0:
+                msg += f"Note that these packages need to be compatible with the pins specified in {constraints}.\n\n"
+            msg += (
+                "If you can't resolve the issue, but you want to proceed anyway, you can manually create an empty constraints.txt file "
+                f"at {out_file}. See below output for more details:\n\n{message}"
+            )
+            raise RuntimeError(msg) from e
+        else:
+            print(message)
+            raise e
 
 
 def uv_available() -> bool:
