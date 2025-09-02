@@ -81,7 +81,7 @@ class TestGenerateConstraints:
 
     def test_caching(self, tmpdir):
         requirements_path = Path(tmpdir) / "requirements.txt"
-        requirements_path.write_text("dallinger==11.4.0")
+        requirements_path.write_text("dallinger==11.4.0\n")
         constraints_path = Path(tmpdir) / "constraints.txt"
 
         ensure_constraints_file_presence(tmpdir)
@@ -96,8 +96,12 @@ class TestGenerateConstraints:
         # No change to requirements.txt so no change to constraints.txt
         assert os.path.getmtime(constraints_path) == original_mtime
 
-        with open(requirements_path, "w+") as f:
-            f.write("dallinger==10.0.0")
+        # Originally I put dallinger==10.0.0 here, but in the CI pip-compile runs with
+        # Python 3.13, and it fails to compile the Python 3.12 packages specified in the dev-requirements.txt file.
+        # Interestingly, the default uv pip compile command works fine in that scenario.
+        # For now we avoid the problem by just specifying a different package.
+        with open(requirements_path, "a") as f:
+            f.write("scipy")
 
         # Change to requirements.txt so constraints.txt should be updated
         original_mtime = os.path.getmtime(constraints_path)
