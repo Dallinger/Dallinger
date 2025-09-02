@@ -1055,9 +1055,10 @@ class DevProlificRecruiter(DevRecruiter, ProlificRecruiter):
 
     @property
     def external_submission_url(self):
+        default_code = self.completion_code_map["DEFAULT"]
         self.prolificservice.log_request(
             "GET",
-            f"https://app.prolific.com/submissions/complete?cc={self.completion_code}",
+            f"https://app.prolific.com/submissions/complete?cc={default_code}",
             message="Exiting by sending browser to dashboard on localhost (external submission URL).\n",
         )
         response = "http://127.0.0.1:5000/dashboard/develop"
