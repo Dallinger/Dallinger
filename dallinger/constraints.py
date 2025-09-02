@@ -126,7 +126,7 @@ def ensure_constraints_file_presence(directory):
     Ensures that a ``constraints.txt`` file exists in the specified directory.
 
     - If the environment variable SKIP_DEPENDENCY_CHECK is set, no action will be performed.
-    - If no ``constraints.txt`` file exists, one will be automatically generated using.
+    - If no ``constraints.txt`` file exists, one will be automatically generated using ``generate_constraints``.
     - If a manually written ``constraints.txt`` file exists already, then no action will be taken.
     - If an automatically generated ``constraints.txt`` file exists already,
       but it seems up-to-date with the input file (i.e. the MD5 hash of the input file is present in the constraints.txt file),
