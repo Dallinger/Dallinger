@@ -16,7 +16,6 @@ from dallinger.prolific import (
 )
 
 study_request = {
-    "completion_code": "A1B2C3D4",
     "completion_codes": [],
     "completion_option": "url",
     "description": "fake HIT description",
@@ -40,7 +39,6 @@ study_request = {
 # own worker, you can add the worker ID to the eligibility_requirements,
 # then run test_make_quick_study() (after removing the @pytest.mark.skip)
 private_study_request = {
-    "completion_code": "A1B2C3D4",
     "completion_codes": [],
     "completion_option": "url",
     "description": "(Uses allow_list with one ID)",

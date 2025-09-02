@@ -554,16 +554,16 @@ class ProlificRecruiter(Recruiter):
         )
 
     @property
-    def completion_code(self):
-        return alphanumeric_code(self.config.get("id"))
-
-    @property
     def completion_codes_and_actions(self) -> list[dict]:
         """Return a list of completion code/action dicts for Prolific.
 
         Reads the 'prolific_completion_config' from experiment config, which should
         be a JSON object mapping code types to their definitions (actions, etc).
         Each entry is merged with a generated code and its type.
+
+        In addition to experimenter-defined codes, a code based exclusively
+        on the experiment ID, and associated with the code type "DEFAULT"
+        is always included.
 
         Example config:
             {
@@ -617,11 +617,25 @@ class ProlificRecruiter(Recruiter):
                     "code": "6Q1UMKRE",
                     "code_type": "COMPLETED",
                 },
+                {
+                    "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
+                    "actor": "participant",
+                    "code": "7R2GNIZF",
+                    "code_type": "DEFAULT",
+                },
             ]
         """
         code_config = json.loads(self.config.get("prolific_completion_config"))
         experiment_id = self.config.get("id")
-        result = []
+        # Default code always included
+        result = [
+            {
+                "code": alphanumeric_code(experiment_id),
+                "code_type": "DEFAULT",
+                "actor": "participant",
+                "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
+            }
+        ]
         for code_type, definition in code_config.items():
             result.append(
                 {
@@ -663,7 +677,6 @@ class ProlificRecruiter(Recruiter):
             )
 
         study_request = {
-            "completion_code": self.completion_code,
             "completion_codes": self.completion_codes_and_actions,
             "completion_option": "url",
             "description": self.config.get("description"),
@@ -759,9 +772,8 @@ class ProlificRecruiter(Recruiter):
         the Prolific site with a HIT (Study) specific link, which will
         trigger payment of their base pay.
         """
-        return (
-            f"https://app.prolific.com/submissions/complete?cc={self.completion_code}"
-        )
+        default_code = self.completion_code_map["DEFAULT"]
+        return f"https://app.prolific.com/submissions/complete?cc={default_code}"
 
     def exit_response(self, experiment, participant):
         """Return our custom particpant exit template.
