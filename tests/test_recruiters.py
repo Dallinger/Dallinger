@@ -514,6 +514,7 @@ class TestProlificRecruiter:
         kwargs = recruiter.prolificservice.create_study.call_args_list[0].kwargs
         codes_and_config = kwargs.get("completion_codes")
         assert {item["code_type"] for item in codes_and_config} == {
+            "DEFAULT",
             "FAILED_ATTENTION_CHECK",
             "COMPLETED",
         }
@@ -522,7 +523,9 @@ class TestProlificRecruiter:
             assert "code" in record  # We've added these
 
         code_map = json.loads(active_config.get("prolific_completion_codes"))
-        assert {"FAILED_ATTENTION_CHECK", "COMPLETED"} == set(code_map.keys())
+        assert {"DEFAULT", "FAILED_ATTENTION_CHECK", "COMPLETED"} == set(
+            code_map.keys()
+        )
 
     def test_open_recruitment_raises_if_study_already_in_progress(self, recruiter):
         from dallinger.recruiters import ProlificRecruiterException
