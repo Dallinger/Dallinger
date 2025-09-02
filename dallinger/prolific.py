@@ -272,7 +272,6 @@ class ProlificService:
 
     def draft_study(
         self,
-        completion_code: str,
         completion_codes: List[str],
         completion_option: str,
         description: str,
@@ -317,7 +316,6 @@ class ProlificService:
 
         # We can now create the draft study.
         payload = {
-            "completion_code": completion_code,
             "completion_codes": completion_codes,
             "completion_option": completion_option,
             "description": description,
@@ -345,7 +343,6 @@ class ProlificService:
 
     def create_study(
         self,
-        completion_code: str,
         completion_codes: List[dict],
         completion_option: str,
         description: str,
