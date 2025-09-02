@@ -512,9 +512,7 @@ class TestProlificRecruiter:
 
         # Assert
         kwargs = recruiter.prolificservice.create_study.call_args_list[0].kwargs
-
         codes_and_config = kwargs.get("completion_codes")
-        breakpoint()
         assert {item["code_type"] for item in codes_and_config} == {
             "FAILED_ATTENTION_CHECK",
             "COMPLETED",
