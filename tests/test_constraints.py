@@ -1,4 +1,5 @@
 import os
+import platform
 import re
 from pathlib import Path
 from unittest.mock import patch
@@ -21,7 +22,7 @@ from dallinger.utils import check_output
 @pytest.fixture
 def python_version_file(tempdir):
     with open(Path(tempdir) / ".python-version", "w") as f:
-        f.write("3.13.0")
+        f.write(platform.python_version())
 
 
 @pytest.mark.parametrize("uv_available_value", [True, False])
