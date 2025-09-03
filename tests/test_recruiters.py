@@ -567,10 +567,11 @@ class TestProlificRecruiter:
     @pytest.mark.usefixtures("experiment_dir_merged")
     def test_exit_page_includes_submission_prolific_button(self, a, webapp, recruiter):
         p = a.participant(recruiter_id="prolific")
+        expected_url = recruiter.external_submission_url("DEFAULT")
 
         response = webapp.get(f"/recruiter-exit?participant_id={p.id}")
 
-        assert recruiter.external_submission_url in response.data.decode("utf-8")
+        assert expected_url in response.data.decode("utf-8")
 
     def test_reward_bonus_passes_only_whats_needed(self, a, recruiter):
         participant = a.participant(assignment_id="some assignement")
