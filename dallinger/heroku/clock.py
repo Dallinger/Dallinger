@@ -10,7 +10,7 @@ import dallinger
 from dallinger import db, recruiters
 from dallinger.experiment import EXPERIMENT_TASK_REGISTRATIONS
 from dallinger.models import Participant
-from dallinger.utils import ParticipationTime
+from dallinger.utils import ParticipationTime, timeout
 
 scheduler = BlockingScheduler()
 
@@ -35,6 +35,7 @@ def run_check(participants, config, reference_time):
 
 
 @scheduler.scheduled_job("interval", minutes=0.5)
+@timeout(seconds=10)
 def check_db_for_missing_notifications():
     """Check the database for missing notifications."""
     config = dallinger.config.get_config()

@@ -45,6 +45,7 @@ from dallinger.utils import (
     generate_random_id,
     get_base_url,
     get_exp_klass,
+    timeout,
 )
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,7 @@ CLOSE_RECRUITMENT_LOG_PREFIX = "Close recruitment."
 
 
 @scoped_session_decorator
+@timeout(seconds=60)
 def run_status_check():
     """Update participant status via all active recruiters.
 

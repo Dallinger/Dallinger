@@ -8,6 +8,7 @@ import os
 import random
 import re
 import shutil
+import signal
 import socket
 import string
 import subprocess
@@ -296,6 +297,51 @@ class ParticipationTime(object):
     def is_overdue(self):
         total_allowed_seconds = self.allowed_seconds + self.grace_period_seconds
         return self.active_seconds > total_allowed_seconds
+
+
+class TimeoutException(Exception):
+    """Exception raised when a function call times out."""
+
+
+def timeout(seconds=10, error_message="Function call timed out"):
+    """
+    Decorator to limit the execution time of a function.
+
+    Parameters
+    ----------
+    seconds : int
+        Maximum number of seconds the function is allowed to run.
+    error_message : str, optional
+        Error message for the raised TimeoutException.
+
+    Returns
+    -------
+    function
+        The decorated function, which will raise TimeoutException if it exceeds the time limit.
+
+    Raises
+    ------
+    TimeoutException
+        If the function execution exceeds the specified time limit.
+    """
+
+    def decorator(func):
+        def _handle_timeout(signum, frame):
+            raise TimeoutException(error_message)
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            old_handler = signal.signal(signal.SIGALRM, _handle_timeout)
+            signal.alarm(seconds)
+            try:
+                return func(*args, **kwargs)
+            finally:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+
+        return wrapper
+
+    return decorator
 
 
 def wrap_subprocess_call(func, wrap_stdout=True):

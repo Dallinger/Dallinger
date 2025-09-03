@@ -4,6 +4,7 @@ import locale
 import os
 import socket
 import tempfile
+import time
 from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
 from unittest import mock
@@ -12,7 +13,12 @@ import pytest
 
 from dallinger import config, utils
 from dallinger.config import strtobool
-from dallinger.utils import check_experiment_dependencies, port_is_open
+from dallinger.utils import (
+    TimeoutException,
+    check_experiment_dependencies,
+    port_is_open,
+    timeout,
+)
 
 
 class TestSubprocessWrapper(object):
@@ -455,3 +461,22 @@ def test_port_is_open(tmp_path):
         assert port_is_open(port, host="127.0.0.1") is True
     # After closing, the port should not be open
     assert port_is_open(port, host="127.0.0.1") is False
+
+
+def test_timeout_decorator_raises_on_timeout():
+    @timeout(seconds=1)
+    def slow_func():
+        time.sleep(2)
+        return "done"
+
+    with pytest.raises(TimeoutException):
+        slow_func()
+
+
+def test_timeout_decorator_returns_normally():
+    @timeout(seconds=2)
+    def fast_func():
+        time.sleep(0.5)
+        return "done"
+
+    assert fast_func() == "done"
