@@ -343,6 +343,19 @@ class Experiment:
         """
         return recruiters.from_config(get_config())
 
+    def recruiter_exit_info(self, participant):
+        """Recruiters may accept special values to include when sending
+        participants to exit/submission URLs.
+
+        For example, if you have configured custom Prolific completion codes via
+        the `prolific_completion_config` config parameter, you can return the
+        appropriate code type (`FIXED_SCREENOUT` for example) for the participant.
+
+        If None is returned, the default code type, which automatically approves
+        the participant, will be used.
+        """
+        return None
+
     def calculate_qualifications(self, participant):
         """All the qualifications we want to assign to a worker.
 

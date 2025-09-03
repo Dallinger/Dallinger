@@ -10,6 +10,7 @@ import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from statistics import median
+from typing import Optional
 
 import flask
 import requests
@@ -489,6 +490,7 @@ class ProlificRecruiter(Recruiter):
 
     nickname = "prolific"
     supports_delayed_publishing = True
+    default_code_type = "DEFAULT"
 
     def __init__(self, *args, **kwargs):
         super().__init__()
@@ -631,7 +633,7 @@ class ProlificRecruiter(Recruiter):
         result = [
             {
                 "code": alphanumeric_code(experiment_id),
-                "code_type": "DEFAULT",
+                "code_type": self.default_code_type,
                 "actor": "participant",
                 "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
             }
@@ -647,7 +649,7 @@ class ProlificRecruiter(Recruiter):
         return result
 
     @property
-    def completion_code_map(self) -> dict:
+    def completion_code_map(self) -> dict[str, str]:
         """Return a mapping of code_type to generated code for Prolific completion codes.
 
         Useful for quickly looking up the code string for a given code_type.
@@ -766,27 +768,43 @@ class ProlificRecruiter(Recruiter):
         """
         logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + self.nickname)
 
-    @property
-    def external_submission_url(self):
+    def external_submission_url(self, code_type: str) -> str:
         """On experiment completion, participants are returned to
         the Prolific site with a HIT (Study) specific link, which will
         trigger payment of their base pay.
-        """
-        default_code = self.completion_code_map["DEFAULT"]
-        return f"https://app.prolific.com/submissions/complete?cc={default_code}"
 
-    def exit_response(self, experiment, participant):
+        The cc (Completion Code) query parameter is specific to a
+        combination of experiment ID and "code type". See further:
+        https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/CreateStudy
+        """
+        code = self.completion_code_map.get(code_type)
+        if code is None:
+            logger.error(
+                f"No completion code found for code_type '{code_type}'. Using default."
+            )
+            code = self.completion_code_map.get(self.default_code_type)
+
+        return f"https://app.prolific.com/submissions/complete?cc={code}"
+
+    def exit_response(self, experiment, participant) -> str:
         """Return our custom particpant exit template.
 
         This includes the button which will:
             1. call our custom exit handler (/prolific-submission-listener)
             2. return the participant to Prolific to submit their assignment
         """
+        if hasattr(experiment, "recruiter_exit_info"):
+            code_type = (
+                experiment.recruiter_exit_info(participant) or self.default_code_type
+            )
+        else:
+            code_type = self.default_code_type
+
         return flask.render_template(
             "exit_recruiter_prolific.html",
             assignment_id=participant.assignment_id,
             participant_id=participant.id,
-            external_submit_url=self.external_submission_url,
+            external_submit_url=self.external_submission_url(code_type=code_type),
         )
 
     def reward_bonus(self, participant, amount, reason):
@@ -840,14 +858,14 @@ class ProlificRecruiter(Recruiter):
                 )
 
     @property
-    def current_study_id(self):
+    def current_study_id(self) -> Optional[str]:
         """Return the ID of the Study associated with the active experiment ID
         if any such Study exists.
         """
         return self.store.get(self.study_id_storage_key)
 
     @property
-    def is_in_progress(self):
+    def is_in_progress(self) -> bool:
         """Does an Study for the current experiment ID already exist?"""
         return self.current_study_id is not None
 
