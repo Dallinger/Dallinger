@@ -348,7 +348,6 @@ def _pip_compile(in_file, out_file, constraints: Optional[list] = None):
             "compile",
             "--python-version",
             requested_python_version,
-            "--no-strip-extras",
         ]
     else:
         logger.info(
