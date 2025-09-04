@@ -275,9 +275,9 @@ def _get_explicit_dallinger_numbered_release(input_path: Path) -> Optional[str]:
 
 
 def _get_explicit_dallinger_github_requirement(input_path: Path) -> Optional[str]:
-    # e.g. dallinger@git+https://github.com/Dallinger/Dallinger.git@my-branch#egg=dallinger
+    # e.g. dallinger[docker]@git+https://github.com/Dallinger/Dallinger.git@my-branch#egg=dallinger
     pattern = re.compile(
-        r"dallinger\s*@\s*git\+https://github\.com/Dallinger/Dallinger(?:\.git)?@([^\s#]+)(?:#.*)?"
+        r"dallinger(?:\[[^\]]+\])?\s*@\s*git\+https://github\.com/Dallinger/Dallinger(?:\.git)?@([^\s#]+)(?:#.*)?"
     )
     with open(input_path, "r") as f:
         for line in f:
@@ -292,8 +292,12 @@ def _get_implied_dallinger_reference(input_path: Path) -> str:
         _pip_compile(input_path, tmpfile.name, constraints=None)
         retrieved = _get_explicit_dallinger_reference(Path(tmpfile.name))
         if retrieved is None:
+            with open(tmpfile.name, "r", encoding="utf-8") as f:
+                for line in f:
+                    print(f"  {line.rstrip()}")
             raise ValueError(
-                f"Failed to retrieve an implied Dallinger reference from {input_path}. "
+                f"Failed to retrieve an implied Dallinger reference from {input_path} "
+                "(see above for the indirect dependency list that was searched). "
                 "Consider specifying Dallinger explicitly in the requirements.txt file."
             )
     return retrieved
@@ -338,8 +342,14 @@ def _pip_compile(in_file, out_file, constraints: Optional[list] = None):
     compile_info = f"dallinger constraints generate\n#\n# Compiled from a {Path(in_file).name} file with md5sum {md5sum} and a .python-version file requesting Python {requested_python_version}"
 
     if use_uv:
-        logger.info("Calling `uv pip-compile`...")
-        cmd = ["uv", "pip", "compile", "--python-version", requested_python_version]
+        cmd = [
+            "uv",
+            "pip",
+            "compile",
+            "--python-version",
+            requested_python_version,
+            "--no-strip-extras",
+        ]
     else:
         logger.info(
             "Calling `pip-compile` (consider installing uv for faster compilation)..."
