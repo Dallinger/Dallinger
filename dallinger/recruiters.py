@@ -793,6 +793,7 @@ class ProlificRecruiter(Recruiter):
             1. call our custom exit handler (/prolific-submission-listener)
             2. return the participant to Prolific to submit their assignment
         """
+        # TODO remove hasattr check if we're making a breaking release
         if hasattr(experiment, "recruiter_exit_info"):
             code_type = (
                 experiment.recruiter_exit_info(participant) or self.default_code_type
