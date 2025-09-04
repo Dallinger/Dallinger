@@ -39,7 +39,7 @@ es-->>d2: HTTP Response
 d2-->>hw: location=/recruiter-exit
 hw->>es: /recruiter-exit GET
 es->>rec: exit_response(experiment=exp, participant=participant)
-opt recruiter needs input from experiment to determine how to render exit tempate
+opt recruiter needs input from experiment to determine how to render exit template
 rec->>ex: recruiter_exit_info(participant=participant)
 end
 alt synchronous recruiters
