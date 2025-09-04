@@ -356,7 +356,7 @@ class Experiment:
         the participant, will be used.
 
         Note that if you are using multiple recruiters in an experiment run, you
-        will want to check ``if participant.recruiter_id == "prolific`` or
+        will want to check ``if participant.recruiter_id == "prolific"`` or
         similar.
         """
         return None
