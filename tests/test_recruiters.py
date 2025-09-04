@@ -456,33 +456,19 @@ class TestProlificRecruiter:
 
             return r
 
-    @pytest.mark.parametrize("recruiter", [], indirect=True)
-    def test_open_recruitment_and_publish(self, recruiter):
-        recruiter.config["mode"] = "live"
-        recruiter.config["publish_experiment"] = True
-        with mock.patch.multiple(
-            "dallinger.prolific.ProlificService",
-            draft_study=mock.DEFAULT,
-            publish_study=mock.DEFAULT,
-        ) as mocks:
-            recruiter.open_recruitment(n=1)
-        mocks["publish_study"].assert_called()
-
-    @pytest.mark.parametrize("recruiter", [], indirect=True)
-    def test_open_recruitment_but_do_not_publish(self, recruiter):
-        recruiter.config["mode"] = "live"
-        recruiter.config["publish_experiment"] = False
-        with mock.patch.multiple(
-            "dallinger.prolific.ProlificService",
-            draft_study=mock.DEFAULT,
-            publish_study=mock.DEFAULT,
-        ) as mocks:
-            recruiter.open_recruitment(n=1)
-        mocks["publish_study"].assert_not_called()
-
     def test_open_recruitment_with_valid_request(self, recruiter):
         result = recruiter.open_recruitment(n=5)
+
+        kwargs = recruiter.prolificservice.create_study.call_args_list[0].kwargs
+        assert kwargs.get("publish_experiment") is True
         assert result["message"] == "Study created on Prolific"
+
+    def test_open_recruitment_with_publication_suppressed(self, recruiter):
+        recruiter.config["publish_experiment"] = False
+        recruiter.open_recruitment(n=5)
+
+        kwargs = recruiter.prolificservice.create_study.call_args_list[0].kwargs
+        assert kwargs.get("publish_experiment") is False
 
     def test_open_recruitment_sets_up_completion_codes(self, recruiter, active_config):
         # Arrange
@@ -839,11 +825,7 @@ class TestProlificRecruiter:
             "payment_per_participant": {"amount": 3.50, "currency": "GBP"},
         }
 
-        recruiter.prolificservice = mock.Mock()
-        recruiter.prolificservice.get_study = mock.Mock(
-            return_value={"is_custom_screening": True}
-        )
-        recruiter.prolificservice.screen_out = mock.Mock()
+        recruiter.prolificservice.get_study.return_value = {"is_custom_screening": True}
         recruiter.prolificservice.screen_out.return_value = mock_response
 
         recruiter._record_current_study_id("test_study_id")
@@ -873,11 +855,7 @@ class TestProlificRecruiter:
                 "error": "Payment too low",
             }
         )
-
-        recruiter.prolificservice = mock.Mock()
-        recruiter.prolificservice.get_study = mock.Mock(
-            return_value={"is_custom_screening": True}
-        )
+        recruiter.prolificservice.get_study.return_value = {"is_custom_screening": True}
         recruiter.prolificservice.screen_out = mock.Mock(return_value=error_response)
 
         recruiter._record_current_study_id("test_study_id")
