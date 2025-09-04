@@ -605,7 +605,7 @@ class ProlificRecruiter(Recruiter):
                     "actions": [
                         {
                             "action": "REMOVE_FROM_PARTICIPANT_GROUP",
-                            "participant_group": "some group ID I guess?",
+                            "participant_group": "some group ID",
                         },
                         {"action": "MANUALLY_REVIEW"},
                     ],
