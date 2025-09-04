@@ -478,17 +478,24 @@ class TestProlificRecruiter:
                     "actions": [
                         {
                             "action": "REMOVE_FROM_PARTICIPANT_GROUP",
-                            "participant_group": "some group ID I guess?",
+                            "participant_group": "some group ID",
                         },
                         {
                             "action": "MANUALLY_REVIEW",
                         },
                     ],
-                    "actor": "participant",
                 },
                 "COMPLETED": {
                     "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
-                    "actor": "participant",
+                },
+                "FIXED_SCREENOUT": {
+                    "actions": [
+                        {
+                            "action": "FIXED_SCREEN_OUT_PAYMENT",
+                            "fixed_screen_out_reward": 20,
+                            "slots": 1,
+                        }
+                    ],
                 },
             }
         )
@@ -502,6 +509,7 @@ class TestProlificRecruiter:
         assert {item["code_type"] for item in codes_and_config} == {
             "DEFAULT",
             "FAILED_ATTENTION_CHECK",
+            "FIXED_SCREENOUT",
             "COMPLETED",
         }
 
@@ -509,9 +517,12 @@ class TestProlificRecruiter:
             assert "code" in record  # We've added these
 
         code_map = json.loads(active_config.get("prolific_completion_codes"))
-        assert {"DEFAULT", "FAILED_ATTENTION_CHECK", "COMPLETED"} == set(
-            code_map.keys()
-        )
+        assert {
+            "DEFAULT",
+            "FAILED_ATTENTION_CHECK",
+            "FIXED_SCREENOUT",
+            "COMPLETED",
+        } == set(code_map.keys())
 
     def test_open_recruitment_raises_if_study_already_in_progress(self, recruiter):
         from dallinger.recruiters import ProlificRecruiterException
