@@ -1527,6 +1527,7 @@ class Experiment(object):
         search_value: str = "",
         order_column: Optional[str] = None,
         order_dir: str = "asc",
+        column_filters: Optional[dict[str, list[str]]] = None,
     ):
         """
         Generates server-side paginated DataTablesJS data for the experiment.
@@ -1575,6 +1576,16 @@ class Experiment(object):
                     )
             if conds:
                 q = q.filter(or_(*conds))
+
+        # Apply SearchPanes column selections (exact match on string-cast)
+        column_filters = column_filters or {}
+        for key, selected in column_filters.items():
+            if not selected:
+                continue
+            attr, _, to_db = self.resolve_attr(cls, key)
+            if attr is None:
+                continue
+            q = q.filter(cast(attr, String).in_([to_db(v) for v in selected]))
 
         filtered_count = q.order_by(None).count()
 

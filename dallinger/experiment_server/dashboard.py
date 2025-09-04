@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from copy import deepcopy
 from datetime import datetime, timedelta
 from typing import Optional, Union
@@ -972,7 +973,7 @@ TABLE_DEFAULTS = {
     "select": True,
     "paging": True,
     "lengthChange": True,
-    "searchPanes": {"threshold": 0.99},
+    "searchPanes": {"threshold": 1.00},
     "buttons": [
         {
             "extend": "collection",
@@ -1010,6 +1011,25 @@ def prep_datatables_options(table_data):
     datatables_options.setdefault("data", [])
 
     return datatables_options
+
+
+def parse_searchpanes_filters(args) -> dict[str, list[str]]:
+    """
+    Extract SearchPanes selections sent by DataTables when serverSide panes are enabled.
+    Accepts keys like: searchPanes[origin_id][0]=1 & searchPanes[contents][0]=Test
+    Returns: { 'origin_id': ['1'], 'contents': ['Test'] }
+    """
+    filters: dict[str, list[str]] = {}
+    for key in args.keys():
+        m = re.match(r"^searchPanes\[(.+?)\]\[\d+\]$", key)
+        if not m:
+            continue
+        col = m.group(1)
+        val = args.get(key)
+        if val is None or val == "":
+            continue
+        filters.setdefault(col, []).append(val)
+    return filters
 
 
 @dashboard.route("/database")
@@ -1056,7 +1076,7 @@ def dashboard_database():
 
         # Collect column keys
         col_keys = []
-        col_filters = {}
+        col_filters = parse_searchpanes_filters(request.args)
 
         # iterate over contiguous columns until none is found
         i = 0
@@ -1101,6 +1121,7 @@ def dashboard_database():
             search_value=global_search_value,
             order_column=order_column if isinstance(order_column, str) else None,
             order_dir=order_dir,
+            column_filters=col_filters,
         )
 
         panes = exp.table_search_panes(
@@ -1109,7 +1130,9 @@ def dashboard_database():
             search_value=global_search_value,
             pane_columns=col_keys,
             column_filters=col_filters,
-            threshold=datatables_options.get("searchPanes", {}).get("threshold", 0.99),
+            threshold=datatables_options.get("searchPanes", {}).get(
+                "threshold", TABLE_DEFAULTS["searchPanes"]["threshold"]
+            ),
             max_distinct=200,
         )
 
