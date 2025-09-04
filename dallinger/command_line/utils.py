@@ -153,7 +153,7 @@ def verify_python_version(verbose):
         log(
             (
                 f"✗ Running Python version {actual_python_version} which is not consistent "
-                f"with the provided .python-version file {requested_python_version}. "
+                f"with the version stated in .python-version ({requested_python_version}). "
                 f"Please either update the contents of your .python-version file to {actual_python_version} "
                 f"or install Python version {requested_python_version} into your local environment."
             ),
