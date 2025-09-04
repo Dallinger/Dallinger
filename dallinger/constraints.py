@@ -84,7 +84,14 @@ def assert_python_version_file_presence():
             f"The experiment directory ({Path.cwd()}) is missing a .python-version file. "
             "Please create a text file called .python-version in your experiment directory, "
             "and write the Python version you wish to use in that file (just as numbers, e.g. 3.12.10). "
-            f"Note: this script is using version {platform.python_version()}."
+            f"Note: you're currently using Python version {platform.python_version()}."
+        )
+
+
+def ensure_python_version_file_presence():
+    if not python_version_path.exists():
+        python_version_path.write_text(
+            platform.python_version() + "\n", encoding="utf-8"
         )
 
 
@@ -132,6 +139,8 @@ def generate_constraints():
     """
     input_path = _find_input_path()
     output_path = Path("constraints.txt")
+
+    ensure_python_version_file_presence()
 
     dallinger_reference = _get_dallinger_reference(input_path)
     dallinger_dev_requirements_path = _get_dallinger_dev_requirements_path(
