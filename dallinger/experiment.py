@@ -1673,91 +1673,65 @@ class Experiment(object):
             cls = get_polymorphic_mapping(table_obj)[polymorphic_identity]
             base = self.session.query(cls).filter(cls.type == polymorphic_identity)
 
-        # Base filtered rows (global search + ALL pane selections)
-        q_all = base
-        if search_value:
-            conds = []
-            for col in table_obj.columns:
-                if hasattr(cls, col.name):
-                    conds.append(
-                        cast(getattr(cls, col.name), String).ilike(f"%{search_value}%")
-                    )
-            if conds:
-                q_all = q_all.filter(or_(*conds))
+        # Build q_global: global search ONLY (no panes)
+        def apply_global_search(q):
+            if not search_value:
+                return q
+            conditions = [
+                cast(getattr(cls, c.name), String).ilike(f"%{search_value}%")
+                for c in table_obj.columns
+                if hasattr(cls, c.name)
+            ]
+            return q.filter(or_(*conditions)) if conditions else q
 
-        # Apply all current pane selections
-        column_filters = column_filters or {}
-        for key, selected in column_filters.items():
+        q_global = apply_global_search(base).order_by(None)
+        global_count = q_global.count()
+
+        # Build q_all: global search + ALL panes filters
+        q_all = q_global
+        for key, selected in (column_filters or {}).items():
             if not selected:
                 continue
             attr, _, to_db = self.resolve_attr(cls, key)
-            if attr is None:
-                continue
-            values = [to_db(value) for value in selected]
-            q_all = q_all.filter(cast(attr, String).in_(values))
+            if attr is not None:
+                q_all = q_all.filter(
+                    cast(attr, String).in_([to_db(v) for v in selected])
+                )
 
-        filtered_rows = q_all.order_by(None).count()
+        panes_options: dict[str, list[dict]] = {}
 
-        def query_excluding_column(col_key: str):
-            """
-            Build a SQLAlchemy query with:
-            - the global search applied
-            - all active column filters applied,
-                except for the given `col_key`.
-
-            Used to compute pane totals for one column
-            without filtering it by its own selection.
-            """
-            q = base
-
-            # Apply global search (if any)
-            if search_value:
-                conditions = [
-                    cast(getattr(cls, c.name), String).ilike(f"%{search_value}%")
-                    for c in table_obj.columns
-                    if hasattr(cls, c.name)
-                ]
-                if conditions:
-                    q = q.filter(or_(*conditions))
-
-            # Apply all other column filters except this one
-            for key, selected in column_filters.items():
-                if key == col_key or not selected:
-                    continue
-                attr, _, to_db = self.resolve_attr(cls, key)
-                if attr is not None:
-                    q = q.filter(cast(attr, String).in_([to_db(v) for v in selected]))
-
-            # Clear any default ordering to make aggregates faster
-            return q.order_by(None)
-
-        options: dict[str, list[dict]] = {}
-        for key in pane_columns or []:
-            col_opts: list[dict] = []
+        for key in pane_columns:
+            # Resolve the column attribute and label/value transforms
             attr, to_label, to_db = self.resolve_attr(cls, key)
             if attr is None:
-                options[key] = col_opts
+                panes_options[key] = []
                 continue
-
             attr_str = cast(attr, String)
 
-            # Eligibility: distinct count under filters EXCEPT this column (capped to `max_distinct`)
-            q_elig = query_excluding_column(key)
+            # Always show if this pane currently has a selection
+            has_selection = bool((column_filters or {}).get(key))
+
+            # Eligibility: distincts under q_global (NOT q_all)
             elig_vals = (
-                q_elig.with_entities(attr_str.label("v"))
+                q_global.with_entities(attr_str.label("v"))
                 .group_by(attr_str)
+                .order_by(func.count().desc())
                 .limit(max_distinct + 1)
                 .all()
             )
             distinct_count = len(elig_vals)
-            ratio = (distinct_count / filtered_rows) if filtered_rows else 0.0
-            if distinct_count > max_distinct or ratio > threshold:
-                options[key] = []
+            ratio = (distinct_count / global_count) if global_count else 0.0
+
+            if not has_selection and (
+                distinct_count > max_distinct or ratio > threshold
+            ):
+                # Hide this pane (too many uniques)
+                panes_options[key] = []
                 continue
 
-            # totals (ignore this pane's own selection)
+            # Totals: q_global grouped
             totals = (
-                q_elig.with_entities(attr_str.label("val"), func.count().label("cnt"))
+                q_global.with_entities(attr_str.label("val"), func.count().label("cnt"))
                 .group_by(attr_str)
                 .order_by(func.count().desc())
                 .limit(max_distinct)
@@ -1765,10 +1739,9 @@ class Experiment(object):
             )
             totals_map = {("" if v is None else str(v)): int(cnt) for v, cnt in totals}
 
-            # counts (apply ALL filters including this pane)
-            q_count = q_all.order_by(None)
+            # Counts: q_all grouped
             counts = (
-                q_count.with_entities(attr_str.label("val"), func.count().label("cnt"))
+                q_all.with_entities(attr_str.label("val"), func.count().label("cnt"))
                 .group_by(attr_str)
                 .order_by(func.count().desc())
                 .limit(max_distinct)
@@ -1776,8 +1749,9 @@ class Experiment(object):
             )
             counts_map = {("" if v is None else str(v)): int(cnt) for v, cnt in counts}
 
-            # entries
-            values = set(totals_map.keys()) | set(counts_map.keys())
+            # Union (so badges show for all values)
+            values = set(totals_map) | set(counts_map)
+            col_opts: list[dict] = []
             for raw in values:
                 label = to_label(raw)
                 value = label if key == "object_type" else raw
@@ -1789,10 +1763,9 @@ class Experiment(object):
                         "count": counts_map.get(raw, 0),
                     }
                 )
+            panes_options[key] = col_opts
 
-            options[key] = col_opts
-
-        return {"options": options}
+        return {"options": panes_options}
 
     def table_columns(
         self,

@@ -973,7 +973,19 @@ TABLE_DEFAULTS = {
     "select": True,
     "paging": True,
     "lengthChange": True,
-    "searchPanes": {"threshold": 1.00},
+    "serverSide": True,
+    "processing": True,
+    "deferRender": True,
+    "columnDefs": [],
+    "order": [],
+    "data": [],
+    "searchPanes": {
+        "serverSide": True,
+        "viewCount": True,
+        "viewTotal": True,
+        "cascadePanes": True,
+        "threshold": 1.00,
+    },
     "buttons": [
         {
             "extend": "collection",
@@ -988,7 +1000,6 @@ def prep_datatables_options(table_data):
     """Attempts to generate a reasonable a DataTables config"""
     datatables_options = deepcopy(TABLE_DEFAULTS)
     datatables_options.update(deepcopy(table_data))
-
     columns = datatables_options.get("columns", [])
     for column in columns:
         d = column.get("data")
@@ -999,17 +1010,6 @@ def prep_datatables_options(table_data):
         column.pop("searchPanes", None)
         column.setdefault("defaultContent", "")
     datatables_options["columns"] = columns
-
-    datatables_options["serverSide"] = True
-    datatables_options["processing"] = True
-    datatables_options["deferRender"] = True
-    datatables_options["searchPanes"]["serverSide"] = True
-
-    datatables_options.setdefault("buttons", [])
-    datatables_options.setdefault("columnDefs", [])
-    datatables_options.setdefault("order", [])
-    datatables_options.setdefault("data", [])
-
     return datatables_options
 
 
@@ -1078,7 +1078,8 @@ def dashboard_database():
         col_keys = []
         col_filters = parse_searchpanes_filters(request.args)
 
-        # iterate over contiguous columns until none is found
+        # DataTables sends contiguous indices so we stop at the first
+        # missing index
         i = 0
         while (
             request.args.get(f"columns[{i}][data]") is not None
