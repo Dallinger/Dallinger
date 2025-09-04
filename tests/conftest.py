@@ -312,3 +312,11 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_slow)
         if "docker" in item.keywords and not run_docker:
             item.add_marker(skip_docker)
+
+
+def pytest_configure():
+    # We purposefully run our tests against multiple Python versions to ensure stability,
+    # but in order to do this we need to skip the Python version check, which otherwise
+    # would throw errors on account of us not using Python versions consistent
+    # with experiments' .python-version files.
+    os.environ["SKIP_PYTHON_VERSION_CHECK"] = "true"

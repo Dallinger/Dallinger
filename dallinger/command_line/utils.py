@@ -139,9 +139,13 @@ def verify_directory(verbose=True, max_size_mb=50):
 
 
 def verify_python_version(verbose):
-    """Verify that the current Python version is consistent with the .python-version file (if provided)."""
+    """Verify that the current Python version is consistent with the .python-version file (if provided).
+    Note that this test is skipped if SKIP_PYTHON_VERSION_CHECK is set (which is the case in our CI tests).
+    """
     # We don't force users to provide a .python-version file, but if they do, it must be respected.
     if not os.path.exists(".python-version"):
+        return True
+    if os.environ.get("SKIP_PYTHON_VERSION_CHECK"):
         return True
     requested_python_version = _get_requested_python_version()
     actual_python_version = platform.python_version()
