@@ -338,7 +338,7 @@ Prolific Recruitment
             },
         }
 
-    See :ref:`prolific_recruitment_config <prolific-completion-config>` for
+    See :ref:`prolific_recruitment_config <prolific_recruitment_config>` for
     details on storing completion code configuration in a separate file.
 
     See the `Prolific API Documentation
