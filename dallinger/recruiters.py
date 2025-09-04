@@ -652,7 +652,8 @@ class ProlificRecruiter(Recruiter):
     def completion_code_map(self) -> dict[str, str]:
         """Return a mapping of code_type to generated code for Prolific completion codes.
 
-        Useful for quickly looking up the code string for a given code_type.
+        Useful for quickly looking up the code string for a given code_type, but
+        generally used only internally.
         """
         return {
             item["code_type"]: item["code"]
