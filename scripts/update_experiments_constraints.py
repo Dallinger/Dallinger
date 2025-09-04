@@ -2,12 +2,33 @@
 """
 This script is used to update the constraints.txt files in the demos directory
 when preparing a new Dallinger release.
+
+Note 1: you should make sure that you have pushed the latest version of your branch
+before running this script, so that GitHub's hosted dev-requirements.txt file is up to date.
+
+Note 2: generated constraints used to look like this:
+
+ansi2html==1.9.2
+    # via
+    #   -c ../../../../dev-requirements.txt
+    #   dallinger
+
+They now look like this:
+
+ansi2html==1.9.2
+    # via
+    #   -c https://raw.githubusercontent.com/Dallinger/Dallinger/v12.1.0/dev-requirements.txt
+    #   dallinger
+
+The original format was neater, but the advantage of the latter is that it is consistent
+with what the user will get if they run `dallinger constraints generate` themselves.
 """
 # This was originally a shell script, but for better cross-platform support
 # we've now ported it to Python.
 
 import hashlib
 import os
+import platform
 import re
 import subprocess
 from pathlib import Path
@@ -15,6 +36,16 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEMOS_DIR = REPO_ROOT / "demos" / "dlgr" / "demos"
 CONSTRAINTS_SCRIPT = REPO_ROOT / "dallinger" / "constraints.py"
+
+
+def write_python_version_file(demo_dir):
+    # Note: we only constrain to the level of minor version to minimize the friction
+    # of upgrading to Python patch versions.
+    file = demo_dir / ".python-version"
+    version = platform.python_version_tuple()
+    major = version[0]
+    minor = version[1]
+    file.write_text(f"{major}.{minor}\n", encoding="utf-8")
 
 
 def md5_cmd(filepath):
@@ -55,6 +86,8 @@ def main():
         if not config_txt.exists():
             continue
         print(f"Compiling {demo_dir.name}")
+        # 0. Update .python-version
+        write_python_version_file(demo_dir)
         # 1. Replace dallinger with github requirement in requirements.txt
         if requirements_txt.exists():
             req_text = requirements_txt.read_text()
