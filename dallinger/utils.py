@@ -16,15 +16,12 @@ import tempfile
 import warnings
 import webbrowser
 from datetime import datetime
-from hashlib import md5
 from importlib.metadata import files as files_metadata
 from importlib.util import find_spec
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from unicodedata import normalize
 
 import redis
-import requests
 from faker import Faker
 from flask import request
 from pythonjsonlogger import jsonlogger
@@ -33,8 +30,8 @@ from sqlalchemy import exc as sa_exc
 from dallinger import db
 from dallinger.compat import is_command
 from dallinger.config import get_config
+from dallinger.constraints import ensure_constraints_file_presence
 from dallinger.models import Participant
-from dallinger.version import __version__
 
 local_warning_cache = {}
 
@@ -601,86 +598,6 @@ def setup_experiment(
         )
 
     return (heroku_app_id, temp_dir)
-
-
-def ensure_constraints_file_presence(directory: str):
-    """Looks into the path represented by the string `directory`.
-    Does nothing if a `constraints.txt` file exists there and is
-    newer than a sibling `requirements.txt` file.
-    If it exists but is not up to date a ValueError exception is raised.
-    Otherwise it creates the constraints.txt file based on the
-    contents of the `requirements.txt` file.
-
-    If the `requirements.txt` does not exist one is created with
-    `dallinger` as its only dependency.
-
-    If the environment variable SKIP_DEPENDENCY_CHECK is set, no action
-    will be performed.
-    """
-    if os.environ.get("SKIP_DEPENDENCY_CHECK"):
-        return
-    constraints_path = Path(directory) / "constraints.txt"
-    requirements_path = Path(directory) / "requirements.txt"
-    if not requirements_path.exists():
-        requirements_path.write_text("dallinger\n")
-    requirements_path_hash = md5(requirements_path.read_bytes()).hexdigest()
-    if constraints_path.exists():
-        if requirements_path_hash in constraints_path.read_text():
-            return
-        else:
-            raise ValueError(
-                "\nChanges detected to requirements.txt: run the command\n    dallinger generate-constraints\nand retry"
-            )
-
-    prev_cwd = os.getcwd()
-    try:
-        os.chdir(directory)
-        url = f"https://raw.githubusercontent.com/Dallinger/Dallinger/v{__version__}/dev-requirements.txt"
-        try:
-            response = requests.get(url)
-        except requests.exceptions.ConnectionError:
-            raise RuntimeError(
-                """It looks like you're offline. Dallinger can't generate constraints
-To get a valid constraints.txt file you can copy the requirements.txt file:
-cp requirements.txt constraints.txt"""
-            )
-        if response.status_code != 200:
-            print(f"{url} not found. Using local dev-requirements.txt")
-            url_path = abspath_from_egg("dallinger", "dev-requirements.txt")
-            if not url_path.exists():
-                print(
-                    f"{url_path} is not a valid file. Either use a released dallinger version for this experiment or install dallinger in editable mode"
-                )
-                raise ValueError(
-                    "Can't find constraints for dallinger version {__version__}"
-                )
-            url = str(url_path)
-        print(f"Compiling constraints.txt file from requirements.txt and {url}")
-        compile_info = f"dallinger generate-constraints\n#\n# Compiled from a requirement.txt file with md5sum: {requirements_path_hash}"
-        with TemporaryDirectory() as tmpdirname:
-            tmpfile = Path(tmpdirname) / "requirements.txt"
-            tmpfile.write_text(Path("requirements.txt").read_text() + "\n-c " + url)
-            check_output(
-                [
-                    "pip-compile",
-                    "-v",
-                    str(tmpfile),
-                    "-o",
-                    "constraints.txt",
-                ],
-                env=dict(
-                    os.environ,
-                    CUSTOM_COMPILE_COMMAND=compile_info,
-                ),
-            )
-    finally:
-        os.chdir(prev_cwd)
-    # Make the path the experiment requirements.txt file relative
-    constraints_contents = constraints_path.read_text()
-    constraints_contents_amended = re.sub(
-        "via -r .*requirements.txt", "via -r requirements.txt", constraints_contents
-    )
-    constraints_path.write_text(constraints_contents_amended)
 
 
 def assemble_experiment_temp_dir(log, config, for_remote=False):

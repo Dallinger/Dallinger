@@ -256,6 +256,20 @@ class TestDebugCommand(object):
         CliRunner().invoke(debug, [])
         deployment.assert_called_once()
 
+    def test_wrong_python_version_fails(self, debug, deployment):
+        with mock.patch("platform.python_version") as mock_python_version:
+            mock_python_version.return_value = "3.10.0"
+
+            with mock.patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("SKIP_PYTHON_VERSION_CHECK", None)
+                result = CliRunner().invoke(debug, ["--verbose"])
+
+        deployment.assert_not_called()
+        assert (
+            "Running Python version 3.10.0 which is not consistent with the version stated in .python-version"
+            in result.output
+        )
+
 
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
 class TestSandboxAndDeploy(object):

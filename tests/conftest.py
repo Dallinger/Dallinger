@@ -111,9 +111,9 @@ def experiment_dir_merged(experiment_dir, active_config):
     """A temp directory with files from the standard test experiment, merged
     with standard Dallinger files by the same process that occurs in production.
     """
+    from dallinger.constraints import ensure_constraints_file_presence
     from dallinger.utils import (
         assemble_experiment_temp_dir,
-        ensure_constraints_file_presence,
     )
 
     current_dir = os.getcwd()
@@ -312,3 +312,11 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_slow)
         if "docker" in item.keywords and not run_docker:
             item.add_marker(skip_docker)
+
+
+def pytest_configure():
+    # We purposefully run our tests against multiple Python versions to ensure stability,
+    # but in order to do this we need to skip the Python version check, which otherwise
+    # would throw errors on account of us not using Python versions consistent
+    # with experiments' .python-version files.
+    os.environ["SKIP_PYTHON_VERSION_CHECK"] = "true"

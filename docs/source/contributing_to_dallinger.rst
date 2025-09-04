@@ -35,22 +35,24 @@ specify the version explicitly with the ``new-version`` option:, e.g.::
     bumpversion --new-version 9.8.1 patch
     git commit -a -m "Switch to patch release"
 
-2. Run `scripts/update_experiments_constraints.sh` to update the constraints.txt
+2. Push your branch.
+
+3. Run `python3 scripts/update_experiments_constraints.py` to update the constraints.txt
 files in the demos and commit the changes with::
 
     git commit -m "Update demos' constraints"
 
-3.  Push your branch and create a PR with the `release` label.
+4. Create a PR with the `release` label.
 
-4. Merge this release with the commit "Release version MAJOR.MINOR.PATCH."
+5. Merge this release with the commit "Release version MAJOR.MINOR.PATCH."
 
-5. After that's merged, you'll want to tag the merge commit with ``git tag vMAJOR.MINOR.PATCH`` and do ``git push origin --tags``. PyPI releases versions based on the tags via `.travis.yml`.
+6. After that's merged, you'll want to tag the merge commit with ``git tag vMAJOR.MINOR.PATCH`` and do ``git push origin --tags``. PyPI releases versions based on the tags via `.travis.yml`.
 
-6. At this point, **WAIT** to make sure the release is successful. If you prematurely
+7. At this point, **WAIT** to make sure the release is successful. If you prematurely
    increment versions again (see next step) and the release has problems, you'll
    find yourself in an unnecessarily confusing situation.
 
-7. Create a new branch (``increment-master-version``), and bump the
+8. Create a new branch (``increment-master-version``), and bump the
 version to the next `minor` alpha version::
 
     git checkout -b increment-master-version
