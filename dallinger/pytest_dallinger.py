@@ -167,6 +167,7 @@ def stub_config():
         "num_dynos_web": 1,
         "num_dynos_worker": 1,
         "organization_name": "Monsters University",
+        "prolific_completion_config": "{}",
         "publish_experiment": True,
         "sentry": True,
         "smtp_host": "smtp.fakehost.com:587",
