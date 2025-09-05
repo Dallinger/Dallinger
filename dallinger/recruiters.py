@@ -169,6 +169,7 @@ class Recruiter(object):
     """The base recruiter."""
 
     nickname = None
+    entry_params = ("hitId", "assignmentId", "workerId")
     external_submission_url = None  # MTurkRecruiter, for one, overides this
     supports_delayed_publishing = False
 
@@ -491,6 +492,7 @@ class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.com/)"""
 
     nickname = "prolific"
+    entry_params = ("PROLIFIC_PID", "STUDY_ID", "SESSION_ID")
     supports_delayed_publishing = True
     default_code_type = "DEFAULT"
 
@@ -2306,7 +2308,7 @@ def for_experiment(experiment):
     return experiment.recruiter
 
 
-def from_config(config):
+def from_config(config) -> Recruiter:
     """Return a Recruiter instance based on the configuration.
 
     Default is HotAirRecruiter in debug mode (unless we're using
