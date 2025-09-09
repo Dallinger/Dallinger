@@ -18,7 +18,6 @@ from pathlib import Path
 from secrets import token_urlsafe
 from shlex import quote
 from socket import gethostbyname_ex, gethostname
-from subprocess import CalledProcessError
 from typing import Dict
 from uuid import uuid4
 
@@ -43,7 +42,6 @@ from dallinger.utils import (
     JSON_LOGFILE,
     RED,
     abspath_from_egg,
-    check_output,
     print_bold,
 )
 
@@ -235,6 +233,18 @@ option_update = click.option(
     default=False,
     help="Update an existing experiment",
 )
+option_remote_build = click.option(
+    "--remote-build",
+    is_flag=True,
+    default=False,
+    help="Build the Docker image on the remote server instead of locally.",
+)
+option_push_remote_build = click.option(
+    "--push-remote-build",
+    is_flag=True,
+    default=False,
+    help="Push the remotely built image to a registry. Only applicable with --remote-build.",
+)
 
 
 def build_and_push_image(f):
@@ -256,38 +266,81 @@ def build_and_push_image(f):
 
         config = get_config(load=True)
         image_name = config.get("docker_image_name", None)
-        if image_name:
-            client = docker.from_env()
-            try:
-                check_output(["docker", "manifest", "inspect", image_name])
-                print(f"Image {image_name} found on remote registry")
-                return f(*args, **dict(kwargs, image_name=image_name))
-            except CalledProcessError:
-                # The image is not on the registry. Check if it's available locally
-                # and push it if it is. If images.get succeeds it means the image is available locally
-                print(
-                    f"Image {image_name} not found on remote registry. Trying to push"
+        remote_build = kwargs.get("remote_build", False)
+        push_remote_build = kwargs.get("push_remote_build", False)
+
+        original_docker_host = os.environ.get("DOCKER_HOST")
+        try:
+            if remote_build:
+                # Set DOCKER_HOST to point to the remote server via SSH
+                server_info = CONFIGURED_HOSTS[kwargs["server"]]
+                ssh_host = server_info["host"]
+                ssh_user = server_info.get("user")
+                os.environ["DOCKER_HOST"] = (
+                    f"ssh://{ssh_user + '@' if ssh_user else ''}{ssh_host}"
                 )
-                raw_result = client.images.push(image_name)
-                # This is brittle, but it's an edge case not worth more effort
-                if not json.loads(raw_result.split("\r\n")[-2]).get("error"):
-                    print(f"Image {image_name} pushed to remote registry")
+                print(
+                    f"Attempting to build image on remote host: {os.environ['DOCKER_HOST']}"
+                )
+
+            docker_client = docker.from_env()
+
+            if image_name:
+                try:
+                    # Use the docker_client to inspect the image
+                    docker_client.images.get_registry_data(image_name)
+                    print(f"Image {image_name} found on remote registry")
                     return f(*args, **dict(kwargs, image_name=image_name))
-                # The image is not available, neither locally nor on the remote registry
+                except docker.errors.ImageNotFound:
+                    # The image is not on the registry. Check if it's available locally
+                    # and push it if it is. If images.get succeeds it means the image is available locally
+                    print(
+                        f"Image {image_name} not found on remote registry. Trying to push"
+                    )
+                    raw_result = docker_client.images.push(image_name)
+                    # This is brittle, but it's an edge case not worth more effort
+                    if not json.loads(raw_result.split("\r\n")[-2]).get("error"):
+                        print(f"Image {image_name} pushed to remote registry")
+                        return f(*args, **dict(kwargs, image_name=image_name))
+                    # The image is not available, neither locally nor on the remote registry
+                    print(
+                        f"Could not find image {image_name} specified in experiment config as `docker_image_name`"
+                    )
+                    raise click.Abort
+                except Exception as e:
+                    print(f"Error checking remote image: {e}")
+                    # Fall through to build if there's any other error checking remote
+                    pass
+
+            app_name = kwargs.get("app_name", None)
+            _, tmp_dir = setup_experiment(
+                Output().log,
+                exp_config=config.as_dict(),
+                local_checks=False,
+                app=app_name,
+            )
+            image_name = build_image(
+                tmp_dir, config.get("docker_image_base_name"), out=Output()
+            )
+
+            if remote_build and not push_remote_build:
+                # If built remotely and not pushing, the image is only on the remote daemon.
+                # We need to get its full name (repo:tag) for deployment.
+                # The build_image function already returns the image name, so we use that.
                 print(
-                    f"Could not find image {image_name} specified in experiment config as `docker_image_name`"
+                    f"Image {image_name} built remotely but not pushed to a registry."
                 )
-                raise click.Abort
-        app_name = kwargs.get("app_name", None)
-        _, tmp_dir = setup_experiment(
-            Output().log,
-            exp_config=config.as_dict(),
-            local_checks=False,
-            app=app_name,
-        )
-        build_image(tmp_dir, config.get("docker_image_base_name"), out=Output())
-        image_name = push.callback(use_existing=True, app_name=app_name)
-        return f(image_name=image_name, *args, **kwargs)
+            else:
+                # If not remote_build, or remote_build and push_remote_build, then push.
+                image_name = push.callback(use_existing=True, app_name=app_name)
+
+            return f(image_name=image_name, *args, **kwargs)
+        finally:
+            # Restore original DOCKER_HOST
+            if original_docker_host is not None:
+                os.environ["DOCKER_HOST"] = original_docker_host
+            elif "DOCKER_HOST" in os.environ:
+                del os.environ["DOCKER_HOST"]
 
     return wrapper
 
@@ -355,6 +408,8 @@ def set_dozzle_password_cmd(server, password):
 @option_dns_host
 @option_server
 @option_update
+@option_remote_build
+@option_push_remote_build
 @validate_update
 @build_and_push_image
 def sandbox(**kwargs):  # pragma: no cover
@@ -369,6 +424,8 @@ def sandbox(**kwargs):  # pragma: no cover
 @option_dns_host
 @option_server
 @option_update
+@option_remote_build
+@option_push_remote_build
 @validate_update
 @build_and_push_image
 def deploy(**kwargs):  # pragma: no cover
@@ -385,6 +442,8 @@ def _deploy_in_mode(
     mode,
     server,
     update,
+    remote_build,
+    push_remote_build,
 ):
     config = get_config(load=True)
 
