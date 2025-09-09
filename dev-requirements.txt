@@ -432,7 +432,7 @@ pycodestyle==2.14.0
     # via
     #   dallinger
     #   flake8
-pycparser==2.22
+pycparser==2.23
     # via cffi
 pyenchant==3.2.2
     # via sphinxcontrib-spelling
