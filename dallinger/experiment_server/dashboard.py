@@ -1,9 +1,9 @@
 import json
 import logging
+import re
 from copy import deepcopy
 from datetime import datetime, timedelta
 from typing import Optional, Union
-from xml.sax.saxutils import escape
 
 import bs4
 import six
@@ -973,7 +973,19 @@ TABLE_DEFAULTS = {
     "select": True,
     "paging": True,
     "lengthChange": True,
-    "searchPanes": {"threshold": 0.99},
+    "serverSide": True,
+    "processing": True,
+    "deferRender": True,
+    "columnDefs": [],
+    "order": [],
+    "data": [],
+    "searchPanes": {
+        "serverSide": True,
+        "viewCount": True,
+        "viewTotal": True,
+        "cascadePanes": True,
+        "threshold": 1.00,
+    },
     "buttons": [
         {
             "extend": "collection",
@@ -988,53 +1000,36 @@ def prep_datatables_options(table_data):
     """Attempts to generate a reasonable a DataTables config"""
     datatables_options = deepcopy(TABLE_DEFAULTS)
     datatables_options.update(deepcopy(table_data))
-    # Display objects and arrays in useful ways
-    for row in datatables_options.get("data", []):
-        for col in datatables_options.get("columns", []):
-            data = col["data"]
-            if isinstance(data, dict):
-                key = data.get("_")
-            else:
-                key = data
-
-            display_key = key + "_display"
-            value = row[key]
-            if not isinstance(value, (six.text_type, six.binary_type)):
-                row[display_key] = "<code>{}</code>".format(
-                    escape(json.dumps(value, default=date_handler))
-                )
-            else:
-                row[display_key] = escape(value)
-            col["data"] = {
-                "_": key,
-                "filter": key,
-                "display": display_key,
-            }
-
-            if isinstance(row[key], (list, dict)):
-                col["searchPanes"] = {
-                    "orthogonal": {
-                        "display": "filter",
-                        "sort": "filter",
-                        "search": "filter",
-                        "type": "type",
-                    }
-                }
-                if "render" in col:
-                    del col["render"]
-
-            if isinstance(row[key], dict):
-                # Make sure SearchPanes can show dict values reasonably
-                row[key] = json.dumps(value, default=date_handler)
-                # Add indentation to dicts
-                row[display_key] = "<code>{}</code>".format(
-                    escape(json.dumps(value, default=date_handler, indent=True))
-                )
-            elif isinstance(row[key], list):
-                # Make sure SearchPanes can show list values reasonably
-                row[key] = json.dumps(value, default=date_handler)
-
+    columns = datatables_options.get("columns", [])
+    for column in columns:
+        d = column.get("data")
+        if isinstance(d, dict) and "_" in d:
+            column["data"] = d["_"]
+        column.pop("render", None)
+        # We will enable search panes per column if needed
+        column.pop("searchPanes", None)
+        column.setdefault("defaultContent", "")
+    datatables_options["columns"] = columns
     return datatables_options
+
+
+def parse_searchpanes_filters(args) -> dict[str, list[str]]:
+    """
+    Extract SearchPanes selections sent by DataTables when serverSide panes are enabled.
+    Accepts keys like: searchPanes[origin_id][0]=1 & searchPanes[contents][0]=Test
+    Returns: { 'origin_id': ['1'], 'contents': ['Test'] }
+    """
+    filters: dict[str, list[str]] = {}
+    for key in args.keys():
+        m = re.match(r"^searchPanes\[(.+?)\]\[\d+\]$", key)
+        if not m:
+            continue
+        col = m.group(1)
+        val = args.get(key)
+        if val is None or val == "":
+            continue
+        filters.setdefault(col, []).append(val)
+    return filters
 
 
 @dashboard.route("/database")
@@ -1055,32 +1050,116 @@ def dashboard_database():
         table = "participant"
 
     if polymorphic_identity is not None:
-        assert table is not None
         cls = get_polymorphic_mapping(table)[polymorphic_identity]
         label = cls.__name__
     else:
         label = table.capitalize()
 
     title = "Database View: {}".format(label)
+
+    # Initial page render (columns only, no rows as they will be fetched from the client)
     datatables_options = prep_datatables_options(
-        exp.table_data(**request.args.to_dict())
+        {
+            "data": [],
+            "columns": exp.table_columns(
+                table=table, polymorphic_identity=polymorphic_identity
+            ),
+        }
     )
+
+    # DataTables server-side AJAX
+    if request.args.get("draw") is not None:
+        draw = int(request.args.get("draw", 1))
+        start = int(request.args.get("start", 0))
+        length = int(request.args.get("length", 10))
+        global_search_value = (request.args.get("search[value]") or "").strip()
+
+        # Collect column keys
+        col_keys = []
+        col_filters = parse_searchpanes_filters(request.args)
+
+        # DataTables sends contiguous indices so we stop at the first
+        # missing index
+        i = 0
+        while (
+            request.args.get(f"columns[{i}][data]") is not None
+            or request.args.get(f"columns[{i}][name]") is not None
+        ):
+            base = f"columns[{i}]"
+            key = request.args.get(f"{base}[name]") or request.args.get(f"{base}[data]")
+            if key:
+                col_keys.append(key)
+
+                col_search = request.args.get(f"{base}[search][value]") or ""
+                is_regex = request.args.get(f"{base}[search][regex]") == "true"
+
+                if col_search:
+                    if (
+                        is_regex
+                        and col_search.startswith("^(")
+                        and col_search.endswith(")$")
+                    ):
+                        selected = [p for p in col_search[2:-2].split("|") if p]
+                    else:
+                        selected = [col_search]
+                    col_filters[key] = selected
+            i += 1
+
+        # Ordering
+        order_column = None
+        order_col_idx = request.args.get("order[0][column]")
+        if order_col_idx is not None:
+            order_column = request.args.get(
+                f"columns[{order_col_idx}][name]"
+            ) or request.args.get(f"columns[{order_col_idx}][data]")
+        order_dir = (request.args.get("order[0][dir]", "asc") or "asc").lower()
+
+        page = exp.table_data(
+            table=table,
+            polymorphic_identity=polymorphic_identity,
+            start=start,
+            length=length,
+            search_value=global_search_value,
+            order_column=order_column if isinstance(order_column, str) else None,
+            order_dir=order_dir,
+            column_filters=col_filters,
+        )
+
+        panes = exp.table_search_panes(
+            table=table,
+            polymorphic_identity=polymorphic_identity,
+            search_value=global_search_value,
+            pane_columns=col_keys,
+            column_filters=col_filters,
+            threshold=datatables_options.get("searchPanes", {}).get(
+                "threshold", TABLE_DEFAULTS["searchPanes"]["threshold"]
+            ),
+            max_distinct=200,
+        )
+
+        return {
+            "draw": draw,
+            "recordsTotal": page["total_count"],
+            "recordsFiltered": page["filtered_count"],
+            "data": page["data"],
+            "searchPanes": panes,
+        }
+
+    # AJAX URL, this same endpoint with current query string
+    current_url = request.path
+    if request.query_string:
+        current_url += "?" + request.query_string.decode("utf-8")
+    datatables_options["ajax"] = current_url
+
     columns = [
-        c.get("name") or c["data"]
-        for c in datatables_options.get("columns", [])
-        if c.get("data")
+        column.get("name") or column["data"]
+        for column in datatables_options.get("columns", [])
+        if column.get("data")
     ]
 
-    # Extend with custom actions
-    actions = {
-        "extend": "collection",
-        "text": "Actions",
-        "buttons": [],
-    }
+    actions = {"extend": "collection", "text": "Actions", "buttons": []}
     buttons = actions["buttons"]
-
-    exp_actions = exp.dashboard_database_actions()
-    for action in exp_actions:
+    for action in exp.dashboard_database_actions():
         buttons.append(
             {
                 "extend": "route_action",
@@ -1095,7 +1174,7 @@ def dashboard_database():
     else:
         is_sandbox = None
 
-    if len(buttons):
+    if buttons:
         datatables_options["buttons"].append(actions)
 
     return render_template(

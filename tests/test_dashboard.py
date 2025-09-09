@@ -704,12 +704,147 @@ class TestDashboardDatabase(object):
         assert webapp.get("/dashboard/database").status_code == 401
 
     def test_render(self, active_config, webapp_admin):
-        resp = webapp_admin.get("/dashboard/database?table=network")
+        resp = webapp_admin.get(
+            "/dashboard/database?table=network&polymorphic_identity=network"
+        )
 
         assert resp.status_code == 200
         assert "<h1>Database View: Network</h1>" in resp.data.decode("utf8")
 
-    def test_table_data(self, a, db_session):
+    def test_table_columns_and_data_participant(self, a, db_session):
+        """Columns now come from table_columns(); data formatting changed."""
+        from markupsafe import escape
+
+        from dallinger.experiment_server.experiment_server import Experiment
+
+        exp = Experiment(db_session)
+
+        p = a.participant()
+
+        # Columns
+        cols = exp.table_columns(table="participant")
+        names = [c["data"] for c in cols]
+        # worker_id must be present even if not in the DB schema JSON
+        assert "worker_id" in names
+
+        # Data
+        page = exp.table_data(table="participant", start=0, length=10)
+        assert page["total_count"] >= 1
+        assert page["filtered_count"] >= 1
+        assert isinstance(page["data"], list) and page["data"]
+
+        row = page["data"][0]
+        # id and type will be strings or <code>…</code> depending on __json__()
+        # but worker_id is explicitly injected and should be plain (escaped) string
+        assert row["worker_id"] == escape(p.worker_id)
+
+        # Dict fields like details are rendered as <code>JSON</code>
+        if "details" in row:
+            assert row["details"].startswith("<code>")
+            assert row["details"].endswith("</code>")
+
+    def test_table_data_search_and_order(self, a, db_session):
+        """Global search and ordering by a column should work."""
+        from dallinger.experiment_server.experiment_server import Experiment
+
+        exp = Experiment(db_session)
+
+        a.participant(worker_id="W_AAA")
+        a.participant(worker_id="W_BBB")
+
+        # Search should find only W_BBB
+        page = exp.table_data(
+            table="participant",
+            start=0,
+            length=50,
+            search_value="W_BBB",
+        )
+        assert page["filtered_count"] == 1
+        assert len(page["data"]) == 1
+        assert page["data"][0]["worker_id"] == "W_BBB"
+
+        # Order by id desc should put p2 (larger id) first, assuming autoincrement ids
+        page_all = exp.table_data(
+            table="participant",
+            start=0,
+            length=2,
+            order_column="id",
+            order_dir="desc",
+        )
+        ids = [d["id"] for d in page_all["data"]]
+        assert ids == ["<code>2</code>", "<code>1</code>"]
+
+    def test_prep_datatables_options(self):
+        """Ensure server-side flags and column normalization are applied."""
+        from dallinger.experiment_server.dashboard import prep_datatables_options
+
+        table_data = {
+            "data": [],
+            "columns": [
+                # DataTables may send orthogonal data objects; we normalize to str key
+                {
+                    "data": {"_": "col1", "display": "col1_display"},
+                    "name": "col1",
+                    "render": "IGNORED",
+                    "searchPanes": {"whatever": "client"},
+                },
+                {"data": "col2"},
+            ],
+        }
+
+        opts = prep_datatables_options(table_data)
+
+        # Flags
+        assert opts["serverSide"] is True
+        assert opts["processing"] is True
+        assert opts["deferRender"] is True
+        assert opts["searchPanes"]["serverSide"] is True
+
+        # Defaults present
+        assert isinstance(opts.get("buttons"), list)
+        assert isinstance(opts.get("columnDefs"), list)
+        assert isinstance(opts.get("order"), list)
+        assert isinstance(opts.get("data"), list)
+
+        # Columns normalized
+        cols = opts["columns"]
+        assert cols[0]["data"] == "col1"
+        assert "render" not in cols[0]
+        assert "searchPanes" not in cols[0]
+        assert cols[0]["defaultContent"] == ""
+
+        assert cols[1]["data"] == "col2"
+        assert cols[1]["defaultContent"] == ""
+
+    def test_table_search_panes_object_type_and_threshold(self, a, db_session):
+        """Basic pane computation + special handling for object_type (type column)."""
+        from dallinger.experiment_server.experiment_server import Experiment
+
+        exp = Experiment(db_session)
+
+        a.participant(worker_id="W1", hit_id="H1")
+        a.participant(worker_id="W2", hit_id="H2")
+
+        pane_cols = ["object_type"]
+        panes = exp.table_search_panes(
+            table="participant",
+            polymorphic_identity=None,
+            search_value="",
+            pane_columns=pane_cols,
+            column_filters={},
+            threshold=0.99,
+            max_distinct=200,
+        )
+
+        assert "options" in panes
+        assert "object_type" in panes["options"]
+        opts = panes["options"]["object_type"]
+        assert any(o["label"] == o["value"].capitalize() for o in opts)
+        assert all({"label", "value", "total", "count"} <= set(o.keys()) for o in opts)
+
+    def test_table_columns_for_network_and_node(self, a, db_session):
+        """Smoke-test columns for other tables and that schema order is preserved,
+        and that only non-empty json-exposed columns are kept."""
         from dallinger.experiment_server.experiment_server import Experiment
         from dallinger.models import Network
 
@@ -717,199 +852,60 @@ class TestDashboardDatabase(object):
         # Emulate experiment launch
         exp.setup()
 
-        network = Network.query.all()[0]
+        net = Network.query.first()
+        assert net is not None
 
-        table = exp.table_data(table="network")
-        assert len(table["data"]) == 1
-        assert table["data"][0]["id"] == network.id
-        assert table["data"][0]["role"] == network.role
-        assert len(table["columns"]) > 2
-        for col in table["columns"]:
-            if col["data"] == "role":
-                assert col == {"data": "role", "name": "role"}
-                break
-        else:
-            raise KeyError("'role' not in Network columns")
+        cols_net = exp.table_columns(table="network", polymorphic_identity="network")
+        assert isinstance(cols_net, list) and len(cols_net) >= 1
+        assert any(c["name"] == "role" for c in cols_net)
 
-        source = a.source(network=network)
+        cols_node = exp.table_columns(table="node", polymorphic_identity="node")
+        assert any(c["name"] == "network_id" for c in cols_node)
 
-        table = exp.table_data(table="node")
-        assert len(table["data"]) == 1
-        assert table["data"][0]["id"] == source.id
-        assert table["data"][0]["type"] == source.type
-        assert len(table["columns"]) > 2
-        for col in table["columns"]:
-            if col["data"] == "id":
-                assert col == {"data": "id", "name": "id"}
-                break
-        else:
-            raise KeyError("'id' not in Node columns")
+    def test_dashboard_database_ajax_route(self, a, db_session, mock_renderer):
+        """Hitting the route with DataTables params should return the server-side payload."""
+        from urllib.parse import urlencode
 
-        p = a.participant()
-        table = exp.table_data(table="participant")
-        assert len(table["data"]) == 1
-        assert table["data"][0]["id"] == p.id
-        assert table["data"][0]["type"] == p.type
-        assert table["data"][0]["worker_id"] == p.worker_id
-        assert table["data"][0]["recruiter"] == p.recruiter_id
-        assert len(table["columns"]) == len(table["data"][0])
+        webapp, _ = mock_renderer
+        a.participant(worker_id="ROUTE_TEST")
 
-    def test_prep_datatables_options_renders_dicts(self):
-        from dallinger.experiment_server.dashboard import prep_datatables_options
-
-        table_data = {
-            "data": [{"col1": {"something": "else"}}],
-            "columns": [{"data": "col1", "name": "col1"}],
+        params = {
+            "table": "participant",
+            "draw": "1",
+            "start": "0",
+            "length": "10",
+            # DataTables sends columns[...] so the server can gather keys and panes
+            "columns[0][data]": "id",
+            "columns[0][name]": "id",
+            "columns[0][search][value]": "",
+            "columns[0][search][regex]": "false",
+            "order[0][column]": "0",
+            "order[0][dir]": "asc",
+            "search[value]": "",
+            "search[regex]": "false",
         }
-        datatables_options = prep_datatables_options(table_data)
-        row0 = datatables_options["data"][0]
-        assert len(row0) == 2
-        assert row0["col1"] == '{"something": "else"}'
-        assert row0["col1_display"] == '<code>{\n "something": "else"\n}</code>'
-
-        col_info = datatables_options["columns"][0]
-        assert col_info["name"] == "col1"
-        assert col_info["data"] == {
-            "_": "col1",
-            "filter": "col1",
-            "display": "col1_display",
+        resp = webapp.get(f"/dashboard/database?{urlencode(params)}")
+        assert resp.status_code == 200
+        payload = resp.get_json()
+        assert set(payload.keys()) == {
+            "draw",
+            "recordsTotal",
+            "recordsFiltered",
+            "data",
+            "searchPanes",
         }
-        assert col_info["searchPanes"]["orthogonal"] == {
-            "display": "filter",
-            "sort": "filter",
-            "search": "filter",
-            "type": "type",
-        }
+        assert isinstance(payload["data"], list)
+        assert any(row.get("worker_id") == "ROUTE_TEST" for row in payload["data"])
 
-    def test_prep_datatables_options_renders_lists(self):
-        from dallinger.experiment_server.dashboard import prep_datatables_options
-
-        table_data = {
-            "data": [{"col1": [1, 2, "three"]}],
-            "columns": [{"data": "col1", "name": "col1"}],
-        }
-        datatables_options = prep_datatables_options(table_data)
-        row0 = datatables_options["data"][0]
-        assert len(row0) == 2
-        assert row0["col1"] == '[1, 2, "three"]'
-        assert row0["col1_display"] == '<code>[1, 2, "three"]</code>'
-
-        col_info = datatables_options["columns"][0]
-        assert col_info["name"] == "col1"
-        assert col_info["data"] == {
-            "_": "col1",
-            "filter": "col1",
-            "display": "col1_display",
-        }
-        assert col_info["searchPanes"]["orthogonal"] == {
-            "display": "filter",
-            "sort": "filter",
-            "search": "filter",
-            "type": "type",
-        }
-
-    def test_prep_datatables_options_renders_mixed(self):
-        from dallinger.experiment_server.dashboard import prep_datatables_options
-
-        # Mixed data all gets treated as JSON
-        table_data = {
-            "data": [
-                {"col1": [1, 2, "three"]},
-                {"col1": {"a": "b"}},
-                {"col1": "String 3"},
-            ],
-            "columns": [{"data": "col1", "name": "col1"}],
-        }
-        datatables_options = prep_datatables_options(table_data)
-
-        col_info = datatables_options["columns"][0]
-        assert col_info["name"] == "col1"
-        assert col_info.get("render") is None
-        assert col_info["data"] == {
-            "_": "col1",
-            "filter": "col1",
-            "display": "col1_display",
-        }
-        assert col_info["searchPanes"]["orthogonal"] == {
-            "display": "filter",
-            "sort": "filter",
-            "search": "filter",
-            "type": "type",
-        }
-
-        row0 = datatables_options["data"][0]
-        assert row0["col1"] == '[1, 2, "three"]'
-        assert row0["col1_display"] == '<code>[1, 2, "three"]</code>'
-
-        row1 = datatables_options["data"][1]
-        assert len(row1) == 2
-        # Dict values get JSON serialized so SearchPanes can process them
-        assert row1["col1"] == '{"a": "b"}'
-        assert row1["col1_display"] == '<code>{\n "a": "b"\n}</code>'
-
-        row2 = datatables_options["data"][2]
-        assert len(row1) == 2
-        assert row2["col1"] == "String 3"
-        assert row2["col1_display"] == "String 3"
-
-    def test_prep_datatables_options_escapes_html(self):
-        from dallinger.experiment_server.dashboard import prep_datatables_options
-
-        # Mixed data all gets treated as JSON
-        table_data = {
-            "data": [
-                {"col1": [1, 2, "<span>three</span>"]},
-                {"col1": {"<blink>a</blink>": "</td></tr></tbody></table>b"}},
-                {"col1": "<script>alert();</script>"},
-            ],
-            "columns": [{"data": "col1", "name": "col1"}],
-        }
-        datatables_options = prep_datatables_options(table_data)
-
-        col_info = datatables_options["columns"][0]
-        assert col_info["name"] == "col1"
-        assert col_info.get("render") is None
-        assert col_info["data"] == {
-            "_": "col1",
-            "filter": "col1",
-            "display": "col1_display",
-        }
-        assert col_info["searchPanes"]["orthogonal"] == {
-            "display": "filter",
-            "sort": "filter",
-            "search": "filter",
-            "type": "type",
-        }
-
-        row0 = datatables_options["data"][0]
-        assert row0["col1"] == '[1, 2, "<span>three</span>"]'
-        assert (
-            row0["col1_display"]
-            == '<code>[1, 2, "&lt;span&gt;three&lt;/span&gt;"]</code>'
-        )
-
-        row1 = datatables_options["data"][1]
-        assert len(row1) == 2
-        # Dict values get JSON serialized so SearchPanes can process them
-        assert row1["col1"] == '{"<blink>a</blink>": "</td></tr></tbody></table>b"}'
-        assert (
-            row1["col1_display"]
-            == '<code>{\n "&lt;blink&gt;a&lt;/blink&gt;": "&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;b"\n}</code>'
-        )
-
-        row2 = datatables_options["data"][2]
-        assert len(row1) == 2
-        assert row2["col1"] == "<script>alert();</script>"
-        assert row2["col1_display"] == "&lt;script&gt;alert();&lt;/script&gt;"
-
-    def test_database_output(self, a, active_config, mock_renderer):
+    def test_database_output_initial_page(self, a, active_config, mock_renderer):
+        """Initial /database render should produce template args with ajax wiring
+        and Actions menu; no data rows in server-side mode."""
         import json
 
         webapp, renderer = mock_renderer
-        p = a.participant()
-        participant_id = p.id
-        assignment_id = p.assignment_id
-        webapp.get("/dashboard/database?table=participant")
+        resp = webapp.get("/dashboard/database?table=participant")
+        assert resp.status_code == 200
+
         renderer.assert_called_once()
         render_args = renderer.call_args[1]
         dt_options = json.loads(render_args["datatables_options"])
@@ -930,13 +926,10 @@ class TestDashboardDatabase(object):
         # We have a custom JSON export action
         assert "export_json" in exports["buttons"]
 
-        # Let's look at the data
-        data = dt_options["data"]
-        assert len(data) == 1
-        participant_data = data[0]
-        assert participant_data["id"] == participant_id
-        assert participant_data["object_type"] == "Participant"
-        assert participant_data["assignment_id"] == assignment_id
+        # server-side: no initial rows
+        assert dt_options["data"] == []
+        # ajax should be the same URL we requested (path + query string)
+        assert dt_options["ajax"].endswith("/dashboard/database?table=participant")
 
     def test_actions_with_mturk(self, a, active_config, mock_renderer):
         webapp, renderer = mock_renderer

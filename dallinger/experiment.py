@@ -22,8 +22,10 @@ from typing import List, Optional, Union
 import requests
 from cached_property import cached_property
 from flask import Blueprint, url_for
-from sqlalchemy import Table, and_, create_engine, func
+from markupsafe import escape
+from sqlalchemy import String, Table, and_, asc, cast, create_engine, desc, func, or_
 from sqlalchemy.orm import scoped_session, sessionmaker, undefer
+from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
 
 from dallinger import db, models, recruiters
@@ -43,6 +45,7 @@ from dallinger.db import (
     get_polymorphic_mapping,
     init_db,
 )
+from dallinger.experiment_server.utils import date_handler
 from dallinger.heroku.tools import HerokuApp
 from dallinger.information import Gene, Meme, State
 from dallinger.models import Info, Network, Node, Participant, Transformation
@@ -1483,56 +1486,356 @@ class Experiment(object):
                 return obj.visualization_html
         return ""
 
+    def resolve_attr(self, cls, key):
+        """
+        Resolve a DataTables column key to a SQLAlchemy column and optional
+        transforms for display and filtering.
+        """
+        attr = None
+
+        def identity(x):
+            return "" if x is None else str(x)
+
+        label_fn = identity
+        filter_fn = identity
+
+        if key == "object_type":
+            maybe_attr = getattr(cls, "type", None)
+            if isinstance(maybe_attr, InstrumentedAttribute):
+                attr = maybe_attr
+
+                def _label_fn(s):
+                    return (s or "").capitalize()
+
+                def _filter_fn(s):
+                    return (s or "").lower()
+
+                label_fn = _label_fn
+                filter_fn = _filter_fn
+        else:
+            maybe_attr = getattr(cls, key, None)
+            if isinstance(maybe_attr, InstrumentedAttribute):
+                attr = maybe_attr
+        return attr, label_fn, filter_fn
+
     def table_data(
-        self, table: str = "participant", polymorphic_identity: Optional[str] = None
+        self,
+        start: int,
+        length: int,
+        table: str = "participant",
+        polymorphic_identity: Optional[str] = None,
+        search_value: str = "",
+        order_column: Optional[str] = None,
+        order_dir: str = "asc",
+        column_filters: Optional[dict[str, list[str]]] = None,
     ):
-        """Generates DataTablesJS data and configuration for the experiment. The data
-        is compiled from the models' ``__json__`` methods, and can be customized by either
-        overriding this method or using the ``json_data`` method on the model to return
-        additional serializable data.
+        """
+        Generates server-side paginated DataTablesJS data for the experiment.
 
-        :param table: table to query
+        Rows are queried directly from the database using SQLAlchemy, filtered,
+        searched, ordered, and paginated according to DataTables' request
+        parameters. The data is compiled from the models' ``__json__`` methods,
+        and may be customized by overriding this method or by having models
+        return additional serializable data in their ``__json__``.
 
-        :param polymorphic_identity: optional polymorphic identity (corresponds to the ``type`` column)
+        :param start: Starting record index (0-based), provided by DataTables.
+        :param length: Number of records to return, provided by DataTables.
+        :param table: Name of the table to query (default: "participant").
+        :param polymorphic_identity: Optional polymorphic identity, corresponding
+            to the ``type`` column, used to restrict results to a subclass.
+        :param search_value: Global search string to filter results (default: "").
+        :param order_column: Column name to sort by (default: None = primary key).
+        :param order_dir: Sort direction, "asc" or "desc" (default: "asc").
 
-        :returns: Returns a ``dict`` with DataTablesJS data and configuration, filters using
-                  arbitrary keyword arguments. Should contain ``data`` and ``columns`` keys
-                  at least, with ``columns`` containing data for all fields on all returned
-                  objects.
-        """  # noqa
-        rows = []
-        found_columns = set()
-        columns = []
-
-        table = Base.metadata.tables[table]
-
+        :returns: A ``dict`` with keys:
+            - ``data``: List of row dicts for the current page.
+            - ``total_count``: Total number of rows before filtering.
+            - ``filtered_count``: Number of rows after filtering.
+        """
+        table_obj = Base.metadata.tables[table]
         if polymorphic_identity == "None":
             polymorphic_identity = None
 
-        objects = self.pull_table(table, polymorphic_identity=polymorphic_identity)
+        if polymorphic_identity is None:
+            cls = get_mapped_class(table_obj)
+            base = self.session.query(cls)
+        else:
+            cls = get_polymorphic_mapping(table_obj)[polymorphic_identity]
+            base = self.session.query(cls).filter(cls.type == polymorphic_identity)
 
-        for obj in objects:
-            data = obj.__json__()
-            # Add participant worker_id to data, we normally leave it out of
-            # JSON renderings
-            if table.name == "participant":
+        total_count = base.order_by(None).count()
+
+        # Global search
+        q = base
+        if search_value:
+            conds = []
+            for col in table_obj.columns:
+                if hasattr(cls, col.name):
+                    conds.append(
+                        cast(getattr(cls, col.name), String).ilike(f"%{search_value}%")
+                    )
+            if conds:
+                q = q.filter(or_(*conds))
+
+        # Apply SearchPanes column selections (exact match on string-cast)
+        column_filters = column_filters or {}
+        for key, selected in column_filters.items():
+            if not selected:
+                continue
+            attr, _, to_db = self.resolve_attr(cls, key)
+            if attr is None:
+                continue
+            q = q.filter(cast(attr, String).in_([to_db(v) for v in selected]))
+
+        filtered_count = q.order_by(None).count()
+
+        # Ordering
+        attr = getattr(cls, order_column, None) if order_column else None
+        if isinstance(attr, InstrumentedAttribute):
+            q = q.order_by(desc(attr) if order_dir.lower() == "desc" else asc(attr))
+        else:
+            # Fallback: order by primary key(s)
+            for pk in table_obj.primary_key.columns:
+                pk_attr = getattr(cls, pk.name, None)
+                if isinstance(pk_attr, InstrumentedAttribute):
+                    q = q.order_by(pk_attr)
+
+        # Page
+        items = q.offset(start).limit(length).all()
+
+        # Rows (strings escaped; non-strings pretty-printed inside <code>)
+        rows, all_keys = [], set()
+        for obj in items:
+            data = obj.__json__() or {}
+            if table_obj.name == "participant" and hasattr(obj, "worker_id"):
                 data["worker_id"] = obj.worker_id
-            rows.append(data)
-            for key in data:
-                if key not in found_columns:
-                    columns.append({"name": key, "data": key})
-                    found_columns.add(key)
 
-        # Make sure every row has an entry for every column
-        for col in found_columns:
-            for row in rows:
-                if col not in row:
-                    row[col] = None
+            coerced = {}
+            for key, value in data.items():
+                if value is None:
+                    coerced[key] = None
+                elif isinstance(value, (str, bytes)):
+                    coerced[key] = escape(value)
+                else:
+                    coerced[key] = (
+                        f"<code>{escape(json.dumps(value, default=date_handler))}</code>"
+                    )
+            rows.append(coerced)
+            all_keys.update(coerced.keys())
+
+        for row in rows:
+            for key in all_keys:
+                row.setdefault(key, None)
 
         return {
             "data": rows,
-            "columns": columns,
+            "total_count": total_count,
+            "filtered_count": filtered_count,
         }
+
+    def table_search_panes(
+        self,
+        table: str,
+        polymorphic_identity: Optional[str],
+        search_value: str,
+        pane_columns: list[str],
+        column_filters: dict[str, list[str]],
+        threshold: float,
+        max_distinct: int = 200,
+    ):
+        """
+        Compute SearchPanes options for the provided columns using server-side logic.
+
+        Mirrors client behavior:
+        - Applies global search and other panes' selections.
+        - For each column, first checks distinct count vs. threshold:
+        if distinct_count / filtered_rows > threshold or distinct_count > max_distinct,
+        the pane is omitted (empty list).
+        - Otherwise, returns {label, value, total, count} for that column.
+
+        :param table: Table name.
+        :param polymorphic_identity: Optional polymorphic identity ('type' column filter).
+        :param search_value: Global search string.
+        :param pane_columns: Ordered list of column keys (from DataTables).
+        :param column_filters: Current pane selections: { key: [values...] }.
+        :param threshold: Pane display threshold (same as DataTables config).
+        :param max_distinct: Safety cap on distinct values per pane.
+        :returns: ``{"options": { <col_key>: [ {label,value,total,count}, ... ], ... }}``
+        """
+        table_obj = Base.metadata.tables[table]
+        if polymorphic_identity == "None":
+            polymorphic_identity = None
+
+        if polymorphic_identity is None:
+            cls = get_mapped_class(table_obj)
+            base = self.session.query(cls)
+        else:
+            cls = get_polymorphic_mapping(table_obj)[polymorphic_identity]
+            base = self.session.query(cls).filter(cls.type == polymorphic_identity)
+
+        # Build q_global: global search ONLY (no panes)
+        def apply_global_search(q):
+            if not search_value:
+                return q
+            conditions = [
+                cast(getattr(cls, c.name), String).ilike(f"%{search_value}%")
+                for c in table_obj.columns
+                if hasattr(cls, c.name)
+            ]
+            return q.filter(or_(*conditions)) if conditions else q
+
+        q_global = apply_global_search(base).order_by(None)
+        global_count = q_global.count()
+
+        # Build q_all: global search + ALL panes filters
+        q_all = q_global
+        for key, selected in (column_filters or {}).items():
+            if not selected:
+                continue
+            attr, _, to_db = self.resolve_attr(cls, key)
+            if attr is not None:
+                q_all = q_all.filter(
+                    cast(attr, String).in_([to_db(v) for v in selected])
+                )
+
+        panes_options: dict[str, list[dict]] = {}
+
+        for key in pane_columns:
+            # Resolve the column attribute and label/value transforms
+            attr, to_label, to_db = self.resolve_attr(cls, key)
+            if attr is None:
+                panes_options[key] = []
+                continue
+            attr_str = cast(attr, String)
+
+            # Always show if this pane currently has a selection
+            has_selection = bool((column_filters or {}).get(key))
+
+            # Eligibility: distincts under q_global (NOT q_all)
+            elig_vals = (
+                q_global.with_entities(attr_str.label("v"))
+                .group_by(attr_str)
+                .order_by(func.count().desc())
+                .limit(max_distinct + 1)
+                .all()
+            )
+            distinct_count = len(elig_vals)
+            ratio = (distinct_count / global_count) if global_count else 0.0
+
+            if not has_selection and (
+                distinct_count > max_distinct or ratio > threshold
+            ):
+                # Hide this pane (too many uniques)
+                panes_options[key] = []
+                continue
+
+            # Totals: q_global grouped
+            totals = (
+                q_global.with_entities(attr_str.label("val"), func.count().label("cnt"))
+                .group_by(attr_str)
+                .order_by(func.count().desc())
+                .limit(max_distinct)
+                .all()
+            )
+            totals_map = {("" if v is None else str(v)): int(cnt) for v, cnt in totals}
+
+            # Counts: q_all grouped
+            counts = (
+                q_all.with_entities(attr_str.label("val"), func.count().label("cnt"))
+                .group_by(attr_str)
+                .order_by(func.count().desc())
+                .limit(max_distinct)
+                .all()
+            )
+            counts_map = {("" if v is None else str(v)): int(cnt) for v, cnt in counts}
+
+            # Union (so badges show for all values)
+            values = set(totals_map) | set(counts_map)
+            col_opts: list[dict] = []
+            for raw in values:
+                label = to_label(raw)
+                value = label if key == "object_type" else raw
+                col_opts.append(
+                    {
+                        "label": label,
+                        "value": value,
+                        "total": totals_map.get(raw, 0),
+                        "count": counts_map.get(raw, 0),
+                    }
+                )
+            panes_options[key] = col_opts
+
+        return {"options": panes_options}
+
+    def table_columns(
+        self,
+        table: str = "participant",
+        polymorphic_identity: Optional[str] = None,
+    ) -> list[dict]:
+        """
+        Return column definitions for the header in DB schema order.
+        A single aggregate query is used to keep only columns that have at least
+        one non-empty value (NULL and '' are treated as empty).
+        For the 'participant' table, 'worker_id' is always appended since it is
+        injected into row data in `table_data()`.
+
+        :param table: Table name to inspect (default: "participant").
+        :param polymorphic_identity: Optional subtype filter (uses 'type' column).
+        :returns: List of { "name": <col>, "data": <col> } in schema order, plus worker_id for participants.
+        """
+        table_obj = Base.metadata.tables[table]
+
+        if polymorphic_identity in (None, "None"):
+            cls = get_mapped_class(table_obj)
+            q = self.session.query(cls)
+        else:
+            cls = get_polymorphic_mapping(table_obj)[polymorphic_identity]
+            q = self.session.query(cls).filter(cls.type == polymorphic_identity)
+
+        exprs, names = [], []
+        for column in table_obj.columns:
+            attr = getattr(cls, column.name, None)
+            if attr is None:
+                continue
+            # COUNT(NULLIF(CAST(col AS TEXT), '')) counts only non-empty, non-null
+            exprs.append(
+                func.count(func.nullif(cast(attr, String), "")).label(column.name)
+            )
+            names.append(column.name)
+
+        nonempty_counts = []
+        if exprs:
+            nonempty_counts = list(self.session.query(*exprs).one())
+
+        # Fetch one object to obtain its JSON representation and filter out unneeded columns
+        obj = q.order_by(None).limit(1).first()
+        json_columns: set[str] = set()
+        if obj is not None:
+            data = obj.__json__() or {}
+            if isinstance(data, dict):
+                json_columns.update(data.keys())
+
+        # Keep columns with count > 0, preserving schema order, but only those present in __json__()
+        cols: list[dict] = []
+        for name, count in zip(names, nonempty_counts):
+            if count and int(count) > 0 and name in json_columns:
+                cols.append({"name": name, "data": name})
+
+        if table_obj.name == "participant":
+            if all(c["data"] != "worker_id" for c in cols):
+                cols.append({"name": "worker_id", "data": "worker_id"})
+
+        # Fallback for empty tables
+        if not cols:
+            cols = [
+                {"name": column.name, "data": column.name}
+                for column in table_obj.columns
+            ]
+            if table_obj.name == "participant":
+                if all(c["data"] != "worker_id" for c in cols):
+                    cols.append({"name": "worker_id", "data": "worker_id"})
+
+        return cols
 
     def dashboard_database_actions(self):
         """Returns a sequence of custom actions for the database dashboard. Each action
