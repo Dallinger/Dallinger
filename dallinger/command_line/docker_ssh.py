@@ -233,17 +233,17 @@ option_update = click.option(
     default=False,
     help="Update an existing experiment",
 )
-option_remote_build = click.option(
-    "--remote-build",
+option_local_build = click.option(
+    "--local_build",
     is_flag=True,
     default=False,
-    help="Build the Docker image on the remote server instead of locally.",
+    help="Build the Docker image locally instead of on the remote server.",
 )
-option_push_remote_build = click.option(
-    "--push-remote-build",
+option_push_build = click.option(
+    "--push-build",
     is_flag=True,
     default=False,
-    help="Push the remotely built image to a registry. Only applicable with --remote-build.",
+    help="Push the built image to a registry. This option is selected automatically if --local-build is used.",
 )
 
 
@@ -266,12 +266,16 @@ def build_and_push_image(f):
 
         config = get_config(load=True)
         image_name = config.get("docker_image_name", None)
-        remote_build = kwargs.get("remote_build", False)
-        push_remote_build = kwargs.get("push_remote_build", False)
+        local_build = kwargs.get("local_build", False)
+        push_build = kwargs.get("push_build", False)
+
+        if local_build:
+            # If we build locally we have to push the image to the registry
+            push_build = True
 
         original_docker_host = os.environ.get("DOCKER_HOST")
         try:
-            if remote_build:
+            if not local_build:
                 # Set DOCKER_HOST to point to the remote server via SSH
                 server_info = CONFIGURED_HOSTS[kwargs["server"]]
                 ssh_host = server_info["host"]
@@ -323,12 +327,12 @@ def build_and_push_image(f):
                 tmp_dir, config.get("docker_image_base_name"), out=Output()
             )
 
-            if remote_build and not push_remote_build:
+            if not local_build and not push_build:
                 # If built remotely and not pushing, the image is only on the remote daemon.
                 # We need to get its full name (repo:tag) for deployment.
                 # The build_image function already returns the image name, so we use that.
                 print(
-                    f"Image {image_name} built remotely but not pushed to a registry."
+                    f"Image {image_name} built remotely, skipping push to registry because --push-build was not selected."
                 )
             else:
                 # If not remote_build, or remote_build and push_remote_build, then push.
@@ -408,8 +412,8 @@ def set_dozzle_password_cmd(server, password):
 @option_dns_host
 @option_server
 @option_update
-@option_remote_build
-@option_push_remote_build
+@option_local_build
+@option_push_build
 @validate_update
 @build_and_push_image
 def sandbox(**kwargs):  # pragma: no cover
@@ -424,8 +428,8 @@ def sandbox(**kwargs):  # pragma: no cover
 @option_dns_host
 @option_server
 @option_update
-@option_remote_build
-@option_push_remote_build
+@option_local_build
+@option_push_build
 @validate_update
 @build_and_push_image
 def deploy(**kwargs):  # pragma: no cover
