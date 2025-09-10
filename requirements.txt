@@ -15,6 +15,8 @@ attrs==25.3.0
     # via
     #   outcome
     #   trio
+bcrypt==4.3.0
+    # via paramiko
 beautifulsoup4==4.13.5
     # via dallinger
 blinker==1.9.0
@@ -36,7 +38,9 @@ certifi==2025.8.3
     #   requests
     #   selenium
 cffi==2.0.0
-    # via cryptography
+    # via
+    #   cryptography
+    #   pynacl
 charset-normalizer==3.4.3
     # via requests
 click==8.2.1
@@ -48,7 +52,9 @@ click==8.2.1
 croniter==6.0.0
     # via rq
 cryptography==45.0.7
-    # via pyopenssl
+    # via
+    #   paramiko
+    #   pyopenssl
 decorator==5.2.1
     # via ipython
 executing==2.2.1
@@ -125,6 +131,8 @@ packaging==25.0
     # via
     #   build
     #   gunicorn
+paramiko==3.5.1
+    # via dallinger
 parso==0.8.5
     # via jedi
 pexpect==4.9.0
@@ -153,6 +161,8 @@ pygments==2.19.2
     # via ipython
 pygtail==0.14.0
     # via dallinger
+pynacl==1.6.0
+    # via paramiko
 pyopenssl==25.1.0
     # via dallinger
 pyproject-hooks==1.2.0

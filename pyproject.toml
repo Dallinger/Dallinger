@@ -50,6 +50,7 @@ dependencies = [
     "ipython < 9",
     "localconfig",
     "numpy < 2.3",
+    "paramiko < 4",
     "pexpect",
     "pip",
     "pip-tools",  # TODO: consider removing at some point if we are happy with uv?
