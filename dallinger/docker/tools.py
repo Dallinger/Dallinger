@@ -332,7 +332,13 @@ def build_image(
         #
         # If a dallinger wheel is present, install it.
         # This will be true if Dallinger was installed with the editable `-e` flag
-        RUN if [ -f dallinger-*.whl ]; then pip install dallinger-*.whl; fi
+        # Note: We uninstall dallinger first to make sure the installation isn't skipped.
+        RUN if [ -f dallinger-*.whl ]; then \
+            echo "Dallinger wheel found, will install it"; \
+            pip uninstall -y dallinger && pip install dallinger-*.whl; \
+        else \
+            echo "No Dallinger wheel found, using base image version"; \
+        fi
         # If a dependency needs the ssh client and git, install them
         RUN grep git+ requirements.txt && \
             apt-get update && \
