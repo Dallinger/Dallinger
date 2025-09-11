@@ -194,7 +194,7 @@ jobs:
       - name: Install Ubuntu packages
         run: sudo apt-get --yes install enchant-2 curl
       - name: Install and upgrade wheel, pip and tox
-        run: pip install --upgrade pip wheel tox
+        run: pip install --upgrade pip wheel tox build
       - name: Chromedriver setup
         uses: nanasess/setup-chromedriver@v2.2.2
       - name: Change dallinger version required by bartlett1932 to match current version
@@ -202,6 +202,12 @@ jobs:
           VERSION=$(grep __version__ dallinger/version.py |sed -e 's/__version__ = "//;s/"//')
           echo Changing to version ${VERSION}
           sed -i.orig -e "s/dallinger==.*/dallinger==${VERSION}/" demos/dlgr/demos/bartlett1932/constraints.txt
+      - name: Create dallinger wheel for docker tests
+        run: |
+          # Create a wheel file that will be used in the experiment docker build
+          python -m build --wheel --outdir /tmp/wheels .
+          # Copy the wheel to the demos directory so it can be found during docker build
+          cp /tmp/wheels/dallinger-*.whl demos/dlgr/demos/bartlett1932/ || echo "No wheel found in /tmp/wheels"
       - name: Run docker tests
         run: tox -e dockertests
       - name: Show docker logs
