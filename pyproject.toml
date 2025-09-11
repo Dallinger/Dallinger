@@ -52,7 +52,7 @@ dependencies = [
     "numpy < 2.3",
     "pexpect",
     "pip",
-    "pip-tools",
+    "pip-tools",  # TODO: consider removing at some point if we are happy with uv?
     "platformdirs",
     "psycopg2",
     "psutil",
@@ -73,6 +73,7 @@ dependencies = [
     "ua-parser",
     "urllib3",
     "user-agents",
+    "uv",
     "yaspin",
 ]
 

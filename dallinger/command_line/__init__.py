@@ -39,6 +39,7 @@ from dallinger.command_line.utils import (
     verify_package,
 )
 from dallinger.config import get_config
+from dallinger.constraints import constraints_cli
 from dallinger.deployment import (
     DebugDeployment,
     LoaderDeployment,
@@ -56,7 +57,6 @@ from dallinger.notifications import (
 from dallinger.recruiters import by_name
 from dallinger.utils import (
     check_call,
-    ensure_constraints_file_presence,
     generate_random_id,
 )
 from dallinger.version import __version__
@@ -917,14 +917,18 @@ def apps():
         out.log("No heroku apps found for user {}".format(my_user))
 
 
+# Legacy interface:
 @dallinger.command()
 def generate_constraints():
     """Update an experiment's constraints.txt pinned dependencies based on requirements.txt."""
-    experiment_dir = Path(os.getcwd())
-    constraints_path = experiment_dir / "constraints.txt"
-    if constraints_path.exists():
-        constraints_path.unlink()
-    ensure_constraints_file_presence(str(experiment_dir))
+    constraints_cli(["generate"], standalone_mode=False)
+
+
+# New interface:
+#    dallinger constraints generate
+#    dallinger constraints check (throws error if constraints.txt is not up to date)
+#    dallinger constraints ensure (creates/updates constraints.txt if it is missing/out of date)
+dallinger.add_command(constraints_cli)
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)

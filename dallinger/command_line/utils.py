@@ -1,5 +1,6 @@
 import inspect
 import os
+import platform
 import re
 import sys
 import tempfile
@@ -8,6 +9,10 @@ from functools import wraps
 import click
 
 from dallinger.config import get_config, initialize_experiment_package
+from dallinger.constraints import (
+    _get_requested_python_version,
+    _python_versions_consistent,
+)
 from dallinger.utils import ExperimentFileSource
 from dallinger.version import __version__
 
@@ -81,6 +86,7 @@ def verify_package(verbose=True):
     """
     results = (
         verify_directory(verbose),
+        verify_python_version(verbose),
         verify_experiment_module(verbose),
         verify_config(verbose),
         verify_no_conflicts(verbose),
@@ -130,6 +136,32 @@ def verify_directory(verbose=True, max_size_mb=50):
         ok = False
 
     return ok
+
+
+def verify_python_version(verbose):
+    """Verify that the current Python version is consistent with the .python-version file (if provided).
+    Note that this test is skipped if SKIP_PYTHON_VERSION_CHECK is set (which is the case in our CI tests).
+    """
+    # We don't force users to provide a .python-version file, but if they do, it must be respected.
+    if not os.path.exists(".python-version"):
+        return True
+    if os.environ.get("SKIP_PYTHON_VERSION_CHECK"):
+        return True
+    requested_python_version = _get_requested_python_version()
+    actual_python_version = platform.python_version()
+    if not _python_versions_consistent(requested_python_version, actual_python_version):
+        log(
+            (
+                f"✗ Running Python version {actual_python_version} which is not consistent "
+                f"with the version stated in .python-version ({requested_python_version}). "
+                f"Please either update the contents of your .python-version file to {actual_python_version} "
+                f"or install Python version {requested_python_version} into your local environment."
+            ),
+            chevrons=False,
+            verbose=verbose,
+        )
+        return False
+    return True
 
 
 def verify_experiment_module(verbose):
