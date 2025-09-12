@@ -1,5 +1,40 @@
 # Change Log
 
+## [v11.5.0](https://github.com/dallinger/dallinger/tree/v11.5.0) (2025-09-11)
+
+#### Added
+- Added support for displaying custom HTML content on the deployed experiment's index page by customising the `Experiment.index_html` property
+- Introduced two new flags to the `dallinger docker-ssh deploy` command: `--remote-build` and `--push-remote-build`.
+  - The `--remote-build` flag allows users to build the experiment's Docker image directly on the remote server specified by `docker-ssh`, rather than building it locally and then transferring it.
+  - The `--push-remote-build` flag, when used in conjunction with `--remote-build`, instructs the remote server to push the newly built Docker image to a configured remote registry.
+
+#### Changed
+- Switched from `DataTables` client-side pagination and filtering to full `DataTables` server-side processing, pagination and filtering in the database dashboard. This implied also implementing server-side `SearchPanes` support to not break existing functionality.
+- Previously `dallinger develop debug` only opened the dashboard. Now it also opens the ad page, consistent with `dallinger debug`.
+- Revamped the `generate constraints` functionality:
+  - Now uses `uv` instead of `pip-tools`, greatly increasing speed (`pip-tools` provides a fallback if `uv` is not installed).
+  - Constraints are now sourced from the Dallinger version specified in the input file (e.g. requirements.txt), rather than the currently installed version of Dallinger, fixing #8034.
+  - Now supports `pyproject.toml` as well as `requirements.txt` for input files.
+  - Now uses `.python-version` file to specify the Python version for a given experiment. This version is used when generating constraints.
+  - The `generate constraints` functionality is now contained in a standalone `generate_constraints.py` file with no Dallinger dependencies, meaning that it can be sourced in a clean Python environment and used to generate constraints without an existing Dallinger installation.
+  - `ensure_constraints_file_existence` will now continue if a manually written `constraints.txt` file exists, providing
+  a way for users to bypass unresolvable dependency conflicts.
+  - Behaviour tests are provided in `test_generate_constraints.py`.
+
+#### Fixed
+- Switched from httpbin to httpbingo; httpbin was flakey and caused tests to fail. httpbingo seems to be a more recent, more reliable alternative
+
+#### Updated
+- Updated Dallinger setup/installation documentation
+- Updated AWS EC2 provisioning and deployment documentation
+- Added more complete documentation for the Dallinger WebSocket implementation.
+
+#### Removed
+- Got rid of the creation of Python 2 `__init__.py` files to working directories when registering experiment packages
+
+#### Deprecated
+- Refactored `Experiment` to no longer require a `session` argument. Instead of using the session to determine whether to run setup, the setup method is now called explicitly from the `/launch` route. The `session` attribute of the experiment is now deprecated and issues a warning when get or set. The `get_config` function has been updated to accept a `load` argument to load the experiment config and reduce code duplication.
+
 ## [v11.4.0](https://github.com/dallinger/dallinger/tree/v11.4.0) (2025-08-12)
 
 #### Added
