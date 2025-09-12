@@ -1,10 +1,10 @@
 import subprocess
 import threading
 import time
+from urllib.parse import urlparse, urlunparse
 
 import click
 from rq import Queue
-from urllib.parse import urlparse, urlunparse
 
 from dallinger.command_line.utils import (
     Output,
