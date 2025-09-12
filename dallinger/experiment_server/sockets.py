@@ -1,13 +1,10 @@
 """Handles relaying websocket messages between processes using redis."""
 
-from __future__ import unicode_literals
-
 import json
 import os
 import socket
 
 import gevent
-import six
 from flask import request
 from flask_sock import Sock
 from gevent.lock import Semaphore
@@ -32,7 +29,7 @@ def log(msg, level="info"):
     logfunc("{}/{}: {}".format(os.getpid(), id(gevent.hub.getcurrent()), msg))
 
 
-class Channel(object):
+class Channel:
     """A channel relays messages from a redis pubsub to multiple clients.
 
     Creating a channel spawns a greenlet which listens for messages from redis
@@ -92,7 +89,7 @@ class Channel(object):
         """
         pubsub = redis_conn.pubsub()
         name = self.name
-        if isinstance(name, six.text_type):
+        if isinstance(name, str):
             name = name.encode("utf-8")
         try:
             pubsub.subscribe([name])
@@ -119,7 +116,7 @@ class Channel(object):
             self.greenlet = None
 
 
-class ChatBackend(object):
+class ChatBackend:
     """Manages subscriptions of clients to multiple channels."""
 
     def __init__(self):
@@ -143,7 +140,7 @@ class ChatBackend(object):
 chat_backend = ChatBackend()
 
 
-class Client(object):
+class Client:
     """Represents a single websocket client."""
 
     def __init__(self, ws, lag_tolerance_secs=0.1, worker_id=None, participant_id=None):

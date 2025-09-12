@@ -9,7 +9,7 @@ from dallinger import db, models
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
-class TestAppConfiguration(object):
+class TestAppConfiguration:
     def test_config_gets_loaded_before_first_request(self, webapp, active_config):
         active_config.clear()
         active_config.ready = False
@@ -122,7 +122,7 @@ class TestAppConfiguration(object):
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
-class TestAdvertisement(object):
+class TestAdvertisement:
     def test_returns_error_without_hitId_and_assignmentId(self, webapp):
         resp = webapp.get("/ad")
         assert resp.status_code == 500
@@ -189,7 +189,7 @@ class TestAdvertisement(object):
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
-class TestQuestion(object):
+class TestQuestion:
     def test_with_no_participant_id_fails_to_match_route_returns_405(self, webapp):
         # I found this surprising, so leaving the test here.
         resp = webapp.post("/question")
@@ -272,7 +272,7 @@ class TestQuestion(object):
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
-class TestWorkerComplete(object):
+class TestWorkerComplete:
     def test_with_no_participant_id_returns_error(self, webapp):
         resp = webapp.post("/worker_complete")
         assert resp.status_code == 400
@@ -365,7 +365,7 @@ class TestWorkerComplete(object):
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
-class TestRecruiterExit(object):
+class TestRecruiterExit:
     def test_with_no_participant_id_returns_error(self, webapp):
         resp = webapp.get("/recruiter-exit")
 
@@ -432,7 +432,7 @@ def mock_messenger():
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
-class TestHandleError(object):
+class TestHandleError:
     def test_completes_assignment(self, a, webapp):
         resp = webapp.post("/handle-error", data={"participant_id": a.participant().id})
         assert resp.status_code == 200
@@ -553,7 +553,7 @@ class TestHandleError(object):
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
-class TestWorkerFailed(object):
+class TestWorkerFailed:
     def test_with_no_participant_id_returns_error(self, webapp):
         resp = webapp.get("/worker_failed")
         assert resp.status_code == 400
@@ -593,7 +593,7 @@ class TestWorkerFailed(object):
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
-class TestSimpleGETRoutes(object):
+class TestSimpleGETRoutes:
     def test_success_response(self):
         from dallinger.experiment_server.experiment_server import success_response
 
@@ -669,7 +669,7 @@ class TestSimpleGETRoutes(object):
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
-class TestParticipantGetRoute(object):
+class TestParticipantGetRoute:
     def test_participant_info(self, a, webapp):
         p = a.participant()
         resp = webapp.get("/participant/{}".format(p.id))
@@ -687,7 +687,7 @@ class TestParticipantGetRoute(object):
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
-class TestParticipantByAssignmentRoute(object):
+class TestParticipantByAssignmentRoute:
     def test_load_participant_calls_experiment_method(self, a, webapp):
         p = a.participant()
         assignment_id = p.assignment_id
@@ -745,7 +745,7 @@ class TestParticipantByAssignmentRoute(object):
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
-class TestParticipantCreateRoute(object):
+class TestParticipantCreateRoute:
 
     def create_participant(self, a, **kw):
         if "recruiter_name" in kw:
@@ -931,7 +931,7 @@ class TestParticipantCreateRoute(object):
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
-class TestAPINotificationRoute(object):
+class TestAPINotificationRoute:
     @pytest.fixture
     def queue(self):
         with mock.patch("dallinger.experiment_server.experiment_server.q") as q:
@@ -958,7 +958,7 @@ class TestAPINotificationRoute(object):
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
-class TestSummaryRoute(object):
+class TestSummaryRoute:
     def test_summary_no_participants(self, webapp):
         resp = webapp.get("/summary")
         data = json.loads(resp.data.decode("utf8"))
@@ -1057,7 +1057,7 @@ class TestSummaryRoute(object):
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
-class TestNetworkRoute(object):
+class TestNetworkRoute:
     def test_get_network(self, a, webapp):
         with db.sessions_scope(commit=True) as session:
             from dallinger.models import Network
@@ -1083,7 +1083,7 @@ class TestNetworkRoute(object):
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
-class TestNodeRouteGET(object):
+class TestNodeRouteGET:
     def test_node_vectors(self, a, webapp):
         with db.sessions_scope(commit=True):
             node = a.node()
@@ -1105,7 +1105,7 @@ class TestNodeRouteGET(object):
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
-class TestParticipantNodeCreationRoute(object):
+class TestParticipantNodeCreationRoute:
     def test_with_invalid_participant_id_returns_error(self, webapp):
         resp = webapp.post("/node/123")
         assert resp.status_code == 403
@@ -1161,7 +1161,7 @@ class TestParticipantNodeCreationRoute(object):
 
 
 @pytest.mark.usefixtures("experiment_dir")
-class TestRequestParameter(object):
+class TestRequestParameter:
     @pytest.fixture
     def rp(self):
         from dallinger.experiment_server.experiment_server import request_parameter
@@ -1219,7 +1219,7 @@ class TestRequestParameter(object):
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
-class TestNodeRoutePOST(object):
+class TestNodeRoutePOST:
     def test_node_transmit_info_creates_transmission(self, a, webapp, db_session):
         with db.sessions_scope(commit=True) as session:
             from dallinger.models import Network
@@ -1304,7 +1304,7 @@ class TestNodeRoutePOST(object):
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
-class TestInfoRoutePOST(object):
+class TestInfoRoutePOST:
     def test_invalid_node_id_returns_error(self, webapp):
         nonexistent_node_id = 999
         data = {"contents": "foo"}
@@ -1384,7 +1384,7 @@ class TestInfoRoutePOST(object):
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
-class TestTrackingEventRoutePOST(object):
+class TestTrackingEventRoutePOST:
     def test_invalid_node_id_returns_error(self, webapp):
         nonexistent_node_id = 999
         data = {"details": '{"key": "value"}'}
@@ -1404,7 +1404,7 @@ class TestTrackingEventRoutePOST(object):
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
-class TestNodeNeighbors(object):
+class TestNodeNeighbors:
     def test_returns_error_on_invalid_paramter(self, webapp):
         resp = webapp.get("/node/123/neighbors?node_type=BadClass")
         assert b"unknown_class: BadClass for parameter node_type" in resp.data
@@ -1458,7 +1458,7 @@ class TestNodeNeighbors(object):
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
-class TestNodeReceivedInfos(object):
+class TestNodeReceivedInfos:
     def test_returns_error_on_invalid_paramter(self, webapp):
         resp = webapp.get("/node/123/received_infos?info_type=BadClass")
         assert b"unknown_class: BadClass for parameter info_type" in resp.data
@@ -1521,7 +1521,7 @@ class TestNodeReceivedInfos(object):
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
-class TestTransformationGet(object):
+class TestTransformationGet:
     def test_returns_error_on_invalid_paramter(self, webapp):
         resp = webapp.get("/node/123/transformations?transformation_type=BadClass")
         assert b"unknown_class: BadClass for parameter transformation_type" in resp.data
@@ -1570,7 +1570,7 @@ class TestTransformationGet(object):
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
-class TestTransformationPost(object):
+class TestTransformationPost:
     def test_returns_error_on_invalid_paramter(self, webapp):
         resp = webapp.post("/transformation/123/123/123?transformation_type=BadClass")
         assert b"unknown_class: BadClass for parameter transformation_type" in resp.data
@@ -1635,7 +1635,7 @@ class TestTransformationPost(object):
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
-class TestLaunchRoute(object):
+class TestLaunchRoute:
     def test_launch(self, webapp):
         resp = webapp.post("/launch", data={})
         data = json.loads(resp.get_data())
@@ -1705,7 +1705,7 @@ class TestLaunchRoute(object):
 
 
 @pytest.mark.usefixtures("experiment_dir")
-class TestWorkerFunctionIntegration(object):
+class TestWorkerFunctionIntegration:
     dispatcher = "dallinger.experiment_server.worker_events.WorkerEvent"
 
     @pytest.fixture
@@ -1814,7 +1814,7 @@ class TestWorkerFunctionIntegration(object):
             assert isinstance(runner.call_args[1]["now"], datetime)
 
 
-class TestWorkerEvents(object):
+class TestWorkerEvents:
     def test_dispatch(self):
         from dallinger.experiment_server.worker_events import (
             RecruiterSubmissionComplete,
@@ -1877,7 +1877,7 @@ def standard_args(experiment):
     }.copy()
 
 
-class TestRecruiterSubmissionComplete(object):
+class TestRecruiterSubmissionComplete:
     @pytest.fixture
     def runner(self, standard_args):
         from dallinger.experiment_server.worker_events import (
@@ -1898,7 +1898,7 @@ class TestRecruiterSubmissionComplete(object):
         runner.experiment.on_recruiter_submission_complete.assert_called_once()
 
 
-class TestBotRecruiterSubmissionComplete(object):
+class TestBotRecruiterSubmissionComplete:
     @pytest.fixture
     def runner(self, standard_args):
         from dallinger.experiment_server.worker_events import (
@@ -1932,7 +1932,7 @@ class TestBotRecruiterSubmissionComplete(object):
         runner.experiment.recruit.assert_called_once()
 
 
-class TestBotAssignmentRejected(object):
+class TestBotAssignmentRejected:
     @pytest.fixture
     def runner(self, standard_args):
         from dallinger.experiment_server.worker_events import BotAssignmentRejected
@@ -1952,7 +1952,7 @@ class TestBotAssignmentRejected(object):
         runner.experiment.recruit.assert_called_once()
 
 
-class TestAssignmentAccepted(object):
+class TestAssignmentAccepted:
     @pytest.fixture
     def runner(self, standard_args):
         from dallinger.experiment_server.worker_events import AssignmentAccepted
@@ -1963,7 +1963,7 @@ class TestAssignmentAccepted(object):
         runner()
 
 
-class TestAssignmentAbandoned(object):
+class TestAssignmentAbandoned:
     @pytest.fixture
     def runner(self, standard_args):
         from dallinger.experiment_server.worker_events import AssignmentAbandoned
@@ -1990,7 +1990,7 @@ class TestAssignmentAbandoned(object):
         )
 
 
-class TestAssignmentReturned(object):
+class TestAssignmentReturned:
     @pytest.fixture
     def runner(self, standard_args):
         from dallinger.experiment_server.worker_events import AssignmentReturned
@@ -2017,7 +2017,7 @@ class TestAssignmentReturned(object):
         )
 
 
-class TestAssignmentReassigned(object):
+class TestAssignmentReassigned:
     @pytest.fixture
     def runner(self, standard_args):
         from dallinger.experiment_server.worker_events import AssignmentReassigned
@@ -2039,7 +2039,7 @@ class TestAssignmentReassigned(object):
         )
 
 
-class TestNotificationMissing(object):
+class TestNotificationMissing:
     @pytest.fixture
     def runner(self, standard_args):
         from dallinger.experiment_server.worker_events import NotificationMissing
@@ -2067,7 +2067,7 @@ class TestNotificationMissing(object):
         assert runner.participant.end_time is marker
 
 
-class TestWebSocketMessage(object):
+class TestWebSocketMessage:
     @pytest.fixture
     def runner(self, standard_args):
         from dallinger.experiment_server.worker_events import WebSocketMessage

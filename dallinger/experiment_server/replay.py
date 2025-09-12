@@ -8,7 +8,7 @@ from dallinger.utils import get_base_url
 logger = logging.getLogger(__name__)
 
 
-class ReplayBackend(object):
+class ReplayBackend:
     """Replay backend which replays `events` from a completed experiment run.
 
     This is started during launch and delegates `event` selection and

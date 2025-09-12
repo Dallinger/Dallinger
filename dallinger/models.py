@@ -31,7 +31,7 @@ def timenow():
     return datetime.now()
 
 
-class SharedMixin(object):
+class SharedMixin:
     """Create shared columns."""
 
     #: a unique number for every entry. 1, 2, 3 and so on...

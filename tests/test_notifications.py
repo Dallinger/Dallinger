@@ -8,7 +8,7 @@ def message():
     return {"subject": "Some subject.", "body": "Some\nmessage"}
 
 
-class TestEmailConfig(object):
+class TestEmailConfig:
     @pytest.fixture
     def klass(self):
         from dallinger.notifications import EmailConfig
@@ -32,7 +32,7 @@ class TestEmailConfig(object):
         )
 
 
-class TestSMTPMailer(object):
+class TestSMTPMailer:
     @pytest.fixture
     def smtp(self):
         from smtplib import SMTP
@@ -91,7 +91,7 @@ class TestSMTPMailer(object):
         assert ex_info.match("Unknown error")
 
 
-class TestMailerFactory(object):
+class TestMailerFactory:
     @pytest.fixture
     def factory(self):
         from dallinger.notifications import get_mailer
@@ -123,7 +123,7 @@ class TestMailerFactory(object):
             factory(stub_config, strict=True)
 
 
-class TestMessengerFactory(object):
+class TestMessengerFactory:
     @pytest.fixture
     def factory(self):
         from dallinger.notifications import admin_notifier
@@ -148,7 +148,7 @@ class TestMessengerFactory(object):
         assert isinstance(factory(stub_config).mailer, LoggingMailer)
 
 
-class TestNotifiesAdmin(object):
+class TestNotifiesAdmin:
     @pytest.fixture
     def messenger(self, stub_config):
         from dallinger.notifications import EmailConfig, LoggingMailer, NotifiesAdmin

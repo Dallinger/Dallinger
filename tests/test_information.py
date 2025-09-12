@@ -1,7 +1,7 @@
 from dallinger import information, models
 
 
-class TestInformation(object):
+class TestInformation:
     def test_create_genome(self, db_session):
         net = models.Network()
         db_session.add(net)

@@ -1,7 +1,4 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
+import configparser
 import os
 import re
 import shutil
@@ -15,9 +12,7 @@ from unittest import mock
 import pexpect
 import pytest
 import requests
-import six
 from pytest import raises
-from six.moves import configparser
 
 from dallinger import recruiters
 from dallinger.config import get_config
@@ -49,8 +44,8 @@ def faster(tempdir, active_config):
         # setup_experiment normally sets the dashboard credentials if unset
         active_config.extend(
             {
-                "dashboard_user": six.text_type("admin"),
-                "dashboard_password": six.text_type("DUMBPASSWORD"),
+                "dashboard_user": "admin",
+                "dashboard_password": "DUMBPASSWORD",
             }
         )
         yield mocks
@@ -109,7 +104,7 @@ def heroku_mock():
 
 
 @pytest.mark.usefixtures("in_tempdir")
-class TestExperimentFilesSource(object):
+class TestExperimentFilesSource:
     @pytest.fixture
     def git(self):
         from dallinger.utils import GitClient
@@ -271,7 +266,7 @@ class TestExperimentFilesSource(object):
 
 
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
-class TestSetupExperiment(object):
+class TestSetupExperiment:
     @pytest.fixture
     def setup_experiment(self, env):
         from dallinger.deployment import setup_experiment as subject
@@ -310,7 +305,7 @@ class TestSetupExperiment(object):
     ):
         exp_id, dst = setup_experiment(log=mock.Mock())
 
-        assert active_config.get("dashboard_user") == six.text_type("admin")
+        assert active_config.get("dashboard_user") == "admin"
         assert active_config.get("dashboard_password") == mock.ANY
 
     def test_setup_merges_frontend_files_from_core_and_experiment(
@@ -430,11 +425,11 @@ class TestSetupExperiment(object):
     def test_setup_excludes_sensitive_config(self, setup_experiment):
         config = get_config()
         # Auto detected as sensitive
-        config.register("a_password", six.text_type)
+        config.register("a_password", str)
         # Manually registered as sensitive
-        config.register("something_sensitive", six.text_type, sensitive=True)
+        config.register("something_sensitive", str, sensitive=True)
         # Not sensitive at all
-        config.register("something_normal", six.text_type)
+        config.register("something_normal", str)
 
         config.extend(
             {
@@ -529,7 +524,7 @@ class TestSetupExperiment(object):
 
 
 @pytest.mark.usefixtures("experiment_dir", "active_config", "reset_sys_modules")
-class TestSetupExperimentAdditional(object):
+class TestSetupExperimentAdditional:
     @pytest.fixture
     def setup_experiment(self):
         from dallinger.deployment import setup_experiment as subject
@@ -613,7 +608,7 @@ class TestSetupExperimentAdditional(object):
 
 
 @pytest.mark.usefixtures("active_config", "launch", "fake_git", "fake_redis", "faster")
-class TestDeploySandboxSharedSetupNoExternalCalls(object):
+class TestDeploySandboxSharedSetupNoExternalCalls:
     @pytest.fixture
     def dsss(self):
         from dallinger.deployment import deploy_sandbox_shared_setup
@@ -717,7 +712,7 @@ class TestDeploySandboxSharedSetupNoExternalCalls(object):
 
 @pytest.mark.usefixtures("check_heroku")
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "launch", "herokuapp")
-class TestDeploySandboxSharedSetupFullSystem(object):
+class TestDeploySandboxSharedSetupFullSystem:
     @pytest.fixture
     def dsss(self):
         from dallinger.deployment import deploy_sandbox_shared_setup
@@ -734,7 +729,7 @@ class TestDeploySandboxSharedSetupFullSystem(object):
 
 
 @pytest.mark.usefixtures("bartlett_dir")
-class Testhandle_launch_data(object):
+class Testhandle_launch_data:
     @pytest.fixture
     def handler(self):
         from dallinger.deployment import handle_launch_data
@@ -869,7 +864,7 @@ class Testhandle_launch_data(object):
 
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
-class TestDebugServer(object):
+class TestDebugServer:
     @pytest.fixture
     def debugger_unpatched(self, output):
         from dallinger.deployment import DebugDeployment
@@ -1027,7 +1022,7 @@ else:
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
 @pytest.mark.docker
-class TestDockerServer(object):
+class TestDockerServer:
     @pytest.fixture(autouse=True)
     def stop_all_docker_containers(self, env):
         import docker
@@ -1094,7 +1089,7 @@ class TestDockerServer(object):
 
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
-class TestLoad(object):
+class TestLoad:
     exp_id = "some_experiment_id"
 
     @pytest.fixture

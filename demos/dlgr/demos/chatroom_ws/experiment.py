@@ -4,7 +4,6 @@ import json
 import logging
 
 from dallinger import db, networks
-from dallinger.compat import unicode
 from dallinger.config import get_config
 from dallinger.experiment import Experiment
 from dallinger.models import Info
@@ -22,7 +21,7 @@ logger = logging.getLogger("experiment")
 
 def extra_parameters():
     config = get_config()
-    config.register("network", unicode)
+    config.register("network", str)
     config.register("repeats", int)
     config.register("n", int)
     config.register("quorum", int)

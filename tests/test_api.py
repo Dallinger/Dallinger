@@ -16,7 +16,7 @@ def exp(db_session):
     return Experiment(db_session)
 
 
-class TestAPI(object):
+class TestAPI:
     def test_uuid(self):
         from dallinger.experiment import Experiment
 
@@ -38,7 +38,7 @@ class TestAPI(object):
         assert exp_uuid1 == exp_uuid3
 
 
-class TestDataCollection(object):
+class TestDataCollection:
     def test_collect_from_existing_local_file(self, exp, experiment_dir):
         existing_local_data_uid = "12345678-1234-5678-1234-567812345678"
         data = exp.collect(existing_local_data_uid)

@@ -1,11 +1,8 @@
 """Test the classes in models.py."""
 
-from __future__ import print_function
-
 import sys
 from datetime import datetime
 
-import six
 from pytest import mark, raises
 
 from dallinger import models, nodes
@@ -16,7 +13,7 @@ from dallinger.transformations import Mutation
 
 
 @mark.slow
-class TestModels(object):
+class TestModels:
     def add(self, session, *args):
         session.add_all(args)
         session.commit()
@@ -83,7 +80,7 @@ class TestModels(object):
         assert net.max_size == 1e6
         assert isinstance(net.full, bool)
         assert net.full is False
-        assert isinstance(net.role, six.text_type)
+        assert isinstance(net.role, str)
         assert net.role == "default"
 
         # test __repr__()

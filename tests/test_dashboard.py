@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import codecs
 from unittest import mock
 
@@ -10,7 +7,7 @@ from dallinger.db import sessions_scope
 from dallinger.experiment_server.dashboard import DashboardTab
 
 
-class TestDashboardTabs(object):
+class TestDashboardTabs:
     @pytest.fixture
     def cleared_tab_routes(self):
         from dallinger.experiment_server import dashboard
@@ -140,7 +137,7 @@ class TestDashboardTabs(object):
         }
 
 
-class TestDashboard(object):
+class TestDashboard:
     @pytest.fixture
     def admin_user(self):
         from dallinger.experiment_server import experiment_server
@@ -288,7 +285,7 @@ def mock_renderer(webapp_admin):
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")
-class TestDashboardCoreRoutes(object):
+class TestDashboardCoreRoutes:
     def test_debug_dashboad_unauthorized(self, webapp):
         resp = webapp.get("/dashboard/")
         assert resp.status_code == 401
@@ -392,7 +389,7 @@ class TestDashboardCoreRoutes(object):
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")
-class TestDashboardMTurkRoutes(object):
+class TestDashboardMTurkRoutes:
     @pytest.fixture
     def fake_mturk_data(self):
         from dallinger.experiment_server.dashboard import FakeMTurkDataSource
@@ -445,7 +442,7 @@ class TestDashboardMTurkRoutes(object):
 
 
 @pytest.mark.usefixtures("experiment_dir_merged", "db_session")
-class TestDashboardMonitorRoute(object):
+class TestDashboardMonitorRoute:
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/monitoring").status_code == 401
 
@@ -494,7 +491,7 @@ class TestDashboardMonitorRoute(object):
 
 
 @pytest.mark.usefixtures("experiment_dir_merged", "webapp")
-class TestDashboardNetworkInfo(object):
+class TestDashboardNetworkInfo:
     @pytest.fixture
     def multinetwork_experiment(self, a, db_session):
         from dallinger.experiment_server.experiment_server import Experiment
@@ -647,7 +644,7 @@ class TestDashboardNetworkInfo(object):
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")
-class TestDashboardLifeCycleRoutes(object):
+class TestDashboardLifeCycleRoutes:
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/lifecycle").status_code == 401
 
@@ -672,7 +669,7 @@ class TestDashboardLifeCycleRoutes(object):
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")
-class TestDashboardHerokuRoutes(object):
+class TestDashboardHerokuRoutes:
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/heroku").status_code == 401
 
@@ -699,7 +696,7 @@ class TestDashboardHerokuRoutes(object):
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")
-class TestDashboardDatabase(object):
+class TestDashboardDatabase:
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/database").status_code == 401
 
@@ -967,7 +964,7 @@ class TestDashboardDatabase(object):
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")
-class TestDashboardDatabaseActions(object):
+class TestDashboardDatabaseActions:
     def test_action_routes_require_login(self, webapp):
         assert (
             webapp.post("/dashboard/database/action/dashboard_fail").status_code == 401

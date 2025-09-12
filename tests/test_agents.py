@@ -6,7 +6,7 @@ from dallinger import information, models, nodes
 from dallinger.information import Gene, Meme
 
 
-class TestAgents(object):
+class TestAgents:
     """The agent test class."""
 
     def test_create_agent_generic(self, a):

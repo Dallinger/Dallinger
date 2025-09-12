@@ -116,7 +116,7 @@ class ExperimentError(Exception):
         return repr(self.value)
 
 
-class ValidatesBrowser(object):
+class ValidatesBrowser:
     """Checks if participant's browser has been excluded via the Configuration."""
 
     def __init__(self, config):

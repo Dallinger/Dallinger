@@ -2,7 +2,6 @@ import logging
 import smtplib
 from email.mime.text import MIMEText
 
-import six
 from cached_property import cached_property
 
 logger = logging.getLogger(__name__)
@@ -13,7 +12,7 @@ class InvalidEmailConfig(ValueError):
     """The configuration contained missing or invalid email-related values."""
 
 
-class SMTPMailer(object):
+class SMTPMailer:
     def __init__(self, host, username, password):
         self.host = host
         self.username = username
@@ -32,9 +31,9 @@ class SMTPMailer(object):
             self.server.sendmail(sender, recipients, msg.as_string())
             self.server.quit()
         except smtplib.SMTPException as ex:
-            six.raise_from(MessengerError("SMTP error sending HIT error email."), ex)
+            raise MessengerError("SMTP error sending HIT error email.") from ex
         except Exception as ex:
-            six.raise_from(MessengerError("Unknown error sending HIT error email."), ex)
+            raise MessengerError("Unknown error sending HIT error email.") from ex
 
         self._sent.append(msg)
 
@@ -47,7 +46,7 @@ class SMTPMailer(object):
         return msg
 
 
-class LoggingMailer(object):
+class LoggingMailer:
     def __init__(self):
         self._sent = []
 
@@ -95,7 +94,7 @@ class MessengerError(Exception):
     """A message could not be relayed."""
 
 
-class EmailConfig(object):
+class EmailConfig:
     """Extracts and validates email-related values from a Configuration"""
 
     mail_config_keys = {
@@ -134,7 +133,7 @@ class EmailConfig(object):
             )
 
 
-class NotifiesAdmin(object):
+class NotifiesAdmin:
     """Quickly email the experiment admin/author with to/from addresses
     taken from configuration.
     """
