@@ -4,7 +4,6 @@
 #
 #    ./scripts/update_dependencies.sh
 #
-
     # via -r requirements.in
 ansi2html==1.9.2
     # via dallinger
@@ -22,9 +21,9 @@ beautifulsoup4==4.13.5
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.40.28
+boto3==1.40.29
     # via dallinger
-botocore==1.40.28
+botocore==1.40.29
     # via
     #   boto3
     #   s3transfer
@@ -76,8 +75,6 @@ flask-login==0.6.3
 flask-sock==0.7.0
     # via dallinger
 flask-wtf==1.2.2
-    # via dallinger
-future==1.0.0
     # via dallinger
 gevent==25.8.2
     # via
@@ -266,9 +263,9 @@ wtforms==3.2.1
     # via flask-wtf
 yaspin==3.1.0
     # via dallinger
-zope-event==5.1.1
+zope-event==6.0
     # via gevent
-zope-interface==7.2
+zope-interface==8.0
     # via gevent
 
 # The following packages are considered to be unsafe in a requirements file:
