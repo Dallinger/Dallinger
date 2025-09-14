@@ -336,7 +336,7 @@ def build_and_push_image(f):
                     f"Image {image_name} built remotely, skipping push to registry because --push-build was not selected."
                 )
             else:
-                # If it's a local build, or if it's a remote build and and push_remote_build, then push.
+                # If it's a local build, or if it's a remote build and and push_build, then push.
                 image_name = push.callback(use_existing=True, app_name=app_name)
 
             return f(image_name=image_name, *args, **kwargs)
