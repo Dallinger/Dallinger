@@ -448,7 +448,7 @@ def _deploy_in_mode(
     server,
     update,
     local_build,  # noqa
-    push_build,  # noqa
+    push_build,
 ):
     config = get_config(load=True)
 
@@ -722,8 +722,11 @@ It currently resolves to {ipaddr_experiment}."""
     dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
     log_command = f"ssh {ssh_user + '@' if ssh_user else ''}{ssh_host} docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
 
-    deployment_infos = [
-        f"Deployed Docker image name: {image_name}",
+    deployment_infos = []
+    if push_build:
+        deployment_infos.append(f"Deployed Docker image name: {image_name}")
+
+    deployment_infos += [
         "To display the logs for this experiment you can run:",
         log_command,
         f"Or you can head to https://logs.{dns_host} (user = dallinger, password = {dozzle_password})",
