@@ -327,7 +327,8 @@ def build_and_push_image(f):
                 tmp_dir, config.get("docker_image_base_name"), out=Output()
             )
 
-            if not local_build and not push_build:
+            remote_build = not local_build
+            if remote_build and not push_build:
                 # If built remotely and not pushing, the image is only on the remote daemon.
                 # We need to get its full name (repo:tag) for deployment.
                 # The build_image function already returns the image name, so we use that.
@@ -335,7 +336,7 @@ def build_and_push_image(f):
                     f"Image {image_name} built remotely, skipping push to registry because --push-build was not selected."
                 )
             else:
-                # If not remote_build, or remote_build and push_remote_build, then push.
+                # If it's a local build, or if it's a remote build and and push_remote_build, then push.
                 image_name = push.callback(use_existing=True, app_name=app_name)
 
             return f(image_name=image_name, *args, **kwargs)
@@ -446,8 +447,8 @@ def _deploy_in_mode(
     mode,
     server,
     update,
-    remote_build,
-    push_remote_build,
+    local_build,  # noqa
+    push_build,  # noqa
 ):
     config = get_config(load=True)
 
