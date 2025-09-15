@@ -1,5 +1,11 @@
 # Change Log
 
+## [v11.5.1](https://github.com/dallinger/dallinger/tree/v11.5.1) (2025-09-16)
+
+#### Fixed
+- Fix a couple of bugs in new remote build code
+- The new DataTables database view was failing in certain situations with a 'URL too long error'. The problem is fixed now by using POST instead and passing the filter specification in the request body rather than in the URL.
+
 ## [v11.5.0](https://github.com/dallinger/dallinger/tree/v11.5.0) (2025-09-11)
 
 #### Added
