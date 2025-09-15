@@ -80,16 +80,11 @@ data = [
 ]
 dev = [
     "alabaster",
-    "black",
-    "black[jupyter]",
     "bump2version",
     "coverage",
     "coverage_pth",
-    "flake8",
-    "isort",
     "myst-parser",
     "pre-commit",
-    "pycodestyle",
     "pypandoc",
     "pytest",
     "pytest-rerunfailures",
@@ -161,6 +156,8 @@ include = [
 
 [tool.ruff]
 src = [".", "tests","dallinger","dallinger_scripts","demos"]
+target-version = "py313"
+line-length = 88
 
 [tool.ruff.lint]
 extend-select = ["I"]
