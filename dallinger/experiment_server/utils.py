@@ -5,7 +5,14 @@ from functools import update_wrapper
 from json import dumps
 
 import user_agents
-from flask import Response, current_app, make_response, render_template, request
+from flask import (
+    Response,
+    current_app,
+    has_request_context,
+    make_response,
+    render_template,
+    request,
+)
 
 from dallinger.config import get_config
 
@@ -175,8 +182,9 @@ def error_response(
     """Return a generic server error response."""
     last_exception = sys.exc_info()
     if last_exception[0]:
+        request_info = dict(request.args) if has_request_context() else {}
         logger.error(
-            "Failure for request: {!r}".format(dict(request.args)),
+            "Failure for request: {!r}".format(request_info),
             exc_info=last_exception,
         )
 
