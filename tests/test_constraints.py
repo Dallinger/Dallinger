@@ -50,9 +50,9 @@ class TestGenerateConstraints:
         # (irrespective of whether uv or pip-compile is used)
         content = Path("constraints.txt").read_text()
         python_version_pattern = r"Python \d+\.\d+(\.\d+)?"
-        assert re.search(
-            python_version_pattern, content
-        ), "constraints.txt missing Python version information"
+        assert re.search(python_version_pattern, content), (
+            "constraints.txt missing Python version information"
+        )
 
     def test_constraints_dallinger_commit(self, in_tempdir, python_version_file):
         # Note: pip-compile under Python 3.13 failed to compile requirements for a Python 3.12 version of Dallinger.

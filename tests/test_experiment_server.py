@@ -746,7 +746,6 @@ class TestParticipantByAssignmentRoute:
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
 class TestParticipantCreateRoute:
-
     def create_participant(self, a, **kw):
         if "recruiter_name" in kw:
             kw["recruiter_id"] = kw["recruiter_name"]

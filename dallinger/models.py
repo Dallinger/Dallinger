@@ -982,7 +982,7 @@ class Node(Base, SharedMixin):
 
         if not issubclass(type, Info):
             raise TypeError(
-                "Cannot get infos of type {} " "as it is not a valid type.".format(type)
+                "Cannot get infos of type {} as it is not a valid type.".format(type)
             )
 
         if failed not in ["all", False, True]:
@@ -1015,7 +1015,7 @@ class Node(Base, SharedMixin):
 
         if not issubclass(type, Info):
             raise TypeError(
-                "Cannot get infos of type {} " "as it is not a valid type.".format(type)
+                "Cannot get infos of type {} as it is not a valid type.".format(type)
             )
 
         transmissions = (
