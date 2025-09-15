@@ -1643,9 +1643,7 @@ def transformation_get(node_id):
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(
-            error_type="/node/transformations, " "node {} does not exist".format(
-                node_id
-            )
+            error_type="/node/transformations, node {} does not exist".format(node_id)
         )
 
     # execute the request
@@ -1687,7 +1685,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(
-            error_type="/transformation POST, " "node {} does not exist".format(node_id)
+            error_type="/transformation POST, node {} does not exist".format(node_id)
         )
 
     info_in = models.Info.query.get(info_in_id)

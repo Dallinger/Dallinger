@@ -423,9 +423,9 @@ def increase_storage(
     # Get volume size
     volume_size = get_volume_size(ec2, volume_id)
 
-    assert (
-        volume_size < storage_in_gb
-    ), f"Volume size {volume_size} GB is already greater than {storage_in_gb} GB"
+    assert volume_size < storage_in_gb, (
+        f"Volume size {volume_size} GB is already greater than {storage_in_gb} GB"
+    )
 
     # increase volume size
     ec2.modify_volume(
@@ -552,9 +552,9 @@ def create_dns_record(dns_host, user, host, route_53=None):
         },
     )
 
-    assert (
-        response["ResponseMetadata"]["HTTPStatusCode"] == 200
-    ), "Failed to set up DNS record"
+    assert response["ResponseMetadata"]["HTTPStatusCode"] == 200, (
+        "Failed to set up DNS record"
+    )
 
     with yaspin(
         text="Waiting for DNS record to be set up (can take up to two minutes)..."
@@ -600,9 +600,9 @@ def prepare_instance(
 
     if dns_host is not None:
         route_53 = get_53_client()
-        assert (
-            len(dns_host.split(".")) == 3
-        ), "DNS host must be in the format subdomain.domain.tld"
+        assert len(dns_host.split(".")) == 3, (
+            "DNS host must be in the format subdomain.domain.tld"
+        )
         domain = get_domain(dns_host)
 
         msg = f"""
@@ -676,9 +676,9 @@ def prepare_docker_experiment_setup(
     from dallinger.config import get_config
 
     config = get_config(load=True)
-    assert config.get("dashboard_user") and config.get(
-        "dashboard_password"
-    ), "dashboard_user and dashboard_password must be set in ~/.dallingerconfig"
+    assert config.get("dashboard_user") and config.get("dashboard_password"), (
+        "dashboard_user and dashboard_password must be set in ~/.dallingerconfig"
+    )
 
     dallinger_prepare_server(host, user)
 
@@ -722,9 +722,9 @@ def _get_instance_row_from(
     if filter_by is not None:
         instances_df = instances_df.query(filter_by)
 
-    assert (
-        sum([var is None for var in [instance_name, public_dns_name]]) == 1
-    ), "Provide either instance_name or public_dns"
+    assert sum([var is None for var in [instance_name, public_dns_name]]) == 1, (
+        "Provide either instance_name or public_dns"
+    )
     if instance_name is not None:
         selected_instances = instances_df.query(f"name == '{instance_name}'")
     else:

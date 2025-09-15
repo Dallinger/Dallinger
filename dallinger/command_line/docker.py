@@ -166,7 +166,7 @@ def push(use_existing: bool, **kwargs) -> str:
                 )
             raise click.Abort
         if "aux" in line:
-            print(f'Pushed image: {line["aux"]["Digest"]}\n')
+            print(f"Pushed image: {line['aux']['Digest']}\n")
     pushed_image = docker_client.images.get(image_name_with_tag).attrs["RepoDigests"][0]
     print(f"Image {pushed_image} built and pushed.\n")
     return pushed_image

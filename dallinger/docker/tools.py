@@ -163,7 +163,7 @@ class DockerComposeWrapper:
         if errors:
             self.out.error("Some services did not start properly:")
             for error in errors:
-                self.out.error(f'{error["name"]}: {error["message"]}')
+                self.out.error(f"{error['name']}: {error['message']}")
                 self.out.error(
                     client.api.attach(error["name"], logs=True).decode("utf-8")
                 )

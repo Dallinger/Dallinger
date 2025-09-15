@@ -331,8 +331,9 @@ def verify_id(ctx, param, app):
         raise click.BadParameter("Select an experiment using the --app parameter.")
     elif app[0:5] == "dlgr-":
         raise click.BadParameter(
-            "The --app parameter requires the full "
-            "UUID beginning with {}-...".format(app[5:23])
+            "The --app parameter requires the full UUID beginning with {}-...".format(
+                app[5:23]
+            )
         )
     check_valid_subdomain("app", app)
     return app
