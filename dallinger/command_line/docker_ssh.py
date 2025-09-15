@@ -260,7 +260,6 @@ def build_and_push_image(f):
     @wraps(f)
     def wrapper(*args, **kwargs):  # pragma: no cover
         import docker
-
         from dallinger.command_line.docker import push
         from dallinger.docker.tools import build_image
 
