@@ -1032,7 +1032,7 @@ def parse_searchpanes_filters(args) -> dict[str, list[str]]:
     return filters
 
 
-@dashboard.route("/database")
+@dashboard.route("/database", methods=["GET", "POST"])
 @login_required
 def dashboard_database():
     from dallinger.db import get_polymorphic_mapping
@@ -1040,8 +1040,9 @@ def dashboard_database():
 
     exp = Experiment()
 
-    table = request.args.get("table", None)
-    polymorphic_identity = request.args.get("polymorphic_identity", None)
+    # Use request.values so this works for both GET and POST requests
+    table = request.values.get("table", None)
+    polymorphic_identity = request.values.get("polymorphic_identity", None)
 
     if polymorphic_identity == "None":
         polymorphic_identity = None
@@ -1068,30 +1069,32 @@ def dashboard_database():
     )
 
     # DataTables server-side AJAX
-    if request.args.get("draw") is not None:
-        draw = int(request.args.get("draw", 1))
-        start = int(request.args.get("start", 0))
-        length = int(request.args.get("length", 10))
-        global_search_value = (request.args.get("search[value]") or "").strip()
+    if request.values.get("draw") is not None:
+        draw = int(request.values.get("draw", 1))
+        start = int(request.values.get("start", 0))
+        length = int(request.values.get("length", 10))
+        global_search_value = (request.values.get("search[value]") or "").strip()
 
         # Collect column keys
         col_keys = []
-        col_filters = parse_searchpanes_filters(request.args)
+        col_filters = parse_searchpanes_filters(request.values)
 
         # DataTables sends contiguous indices so we stop at the first
         # missing index
         i = 0
         while (
-            request.args.get(f"columns[{i}][data]") is not None
-            or request.args.get(f"columns[{i}][name]") is not None
+            request.values.get(f"columns[{i}][data]") is not None
+            or request.values.get(f"columns[{i}][name]") is not None
         ):
             base = f"columns[{i}]"
-            key = request.args.get(f"{base}[name]") or request.args.get(f"{base}[data]")
+            key = request.values.get(f"{base}[name]") or request.values.get(
+                f"{base}[data]"
+            )
             if key:
                 col_keys.append(key)
 
-                col_search = request.args.get(f"{base}[search][value]") or ""
-                is_regex = request.args.get(f"{base}[search][regex]") == "true"
+                col_search = request.values.get(f"{base}[search][value]") or ""
+                is_regex = request.values.get(f"{base}[search][regex]") == "true"
 
                 if col_search:
                     if (
@@ -1107,12 +1110,12 @@ def dashboard_database():
 
         # Ordering
         order_column = None
-        order_col_idx = request.args.get("order[0][column]")
+        order_col_idx = request.values.get("order[0][column]")
         if order_col_idx is not None:
-            order_column = request.args.get(
+            order_column = request.values.get(
                 f"columns[{order_col_idx}][name]"
-            ) or request.args.get(f"columns[{order_col_idx}][data]")
-        order_dir = (request.args.get("order[0][dir]", "asc") or "asc").lower()
+            ) or request.values.get(f"columns[{order_col_idx}][data]")
+        order_dir = (request.values.get("order[0][dir]", "asc") or "asc").lower()
 
         page = exp.table_data(
             table=table,
@@ -1149,7 +1152,9 @@ def dashboard_database():
     current_url = request.path
     if request.query_string:
         current_url += "?" + request.query_string.decode("utf-8")
-    datatables_options["ajax"] = current_url
+    # Force POST to avoid very long query strings (SearchPanes etc.)
+    datatables_options["serverMethod"] = "POST"
+    datatables_options["ajax"] = {"url": current_url, "type": "POST"}
 
     columns = [
         column.get("name") or column["data"]

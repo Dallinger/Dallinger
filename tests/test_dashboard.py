@@ -929,7 +929,9 @@ class TestDashboardDatabase(object):
         # server-side: no initial rows
         assert dt_options["data"] == []
         # ajax should be the same URL we requested (path + query string)
-        assert dt_options["ajax"].endswith("/dashboard/database?table=participant")
+        assert dt_options["ajax"]["url"].endswith(
+            "/dashboard/database?table=participant"
+        )
 
     def test_actions_with_mturk(self, a, active_config, mock_renderer):
         webapp, renderer = mock_renderer
