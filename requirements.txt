@@ -140,7 +140,7 @@ platformdirs==4.4.0
     # via dallinger
 prompt-toolkit==3.0.52
     # via ipython
-psutil==7.0.0
+psutil==7.1.0
     # via dallinger
 psycopg2==2.9.10
     # via dallinger
