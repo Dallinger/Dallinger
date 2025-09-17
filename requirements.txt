@@ -261,7 +261,7 @@ wsproto==1.2.0
     #   trio-websocket
 wtforms==3.2.1
     # via flask-wtf
-yaspin==3.1.0
+yaspin==3.2.0
     # via dallinger
 zope-event==6.0
     # via gevent
