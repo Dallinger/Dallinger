@@ -21,9 +21,9 @@ beautifulsoup4==4.13.5
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.40.29
+boto3==1.40.33
     # via dallinger
-botocore==1.40.29
+botocore==1.40.33
     # via
     #   boto3
     #   s3transfer
@@ -51,7 +51,7 @@ click==8.2.1
     #   rq
 croniter==6.0.0
     # via rq
-cryptography==45.0.7
+cryptography==46.0.1
     # via
     #   paramiko
     #   pyopenssl
@@ -59,7 +59,7 @@ decorator==5.2.1
     # via ipython
 executing==2.2.1
     # via stack-data
-faker==37.6.0
+faker==37.8.0
     # via dallinger
 flask==3.1.2
     # via
@@ -76,7 +76,7 @@ flask-sock==0.7.0
     # via dallinger
 flask-wtf==1.2.2
     # via dallinger
-gevent==25.8.2
+gevent==25.9.1
     # via
     #   dallinger
     #   gunicorn
@@ -140,7 +140,7 @@ platformdirs==4.4.0
     # via dallinger
 prompt-toolkit==3.0.52
     # via ipython
-psutil==7.0.0
+psutil==7.1.0
     # via dallinger
 psycopg2==2.9.10
     # via dallinger
@@ -156,7 +156,7 @@ pygtail==0.14.0
     # via dallinger
 pynacl==1.6.0
     # via paramiko
-pyopenssl==25.1.0
+pyopenssl==25.3.0
     # via dallinger
 pyproject-hooks==1.2.0
     # via
@@ -205,7 +205,7 @@ tabulate==0.9.0
     # via dallinger
 tenacity==9.1.2
     # via dallinger
-termcolor==2.3.0
+termcolor==3.1.0
     # via yaspin
 timeago==1.0.16
     # via dallinger
@@ -243,7 +243,7 @@ urllib3==2.5.0
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.8.17
+uv==0.8.18
     # via dallinger
 wcwidth==0.2.13
     # via prompt-toolkit
@@ -261,7 +261,7 @@ wsproto==1.2.0
     #   trio-websocket
 wtforms==3.2.1
     # via flask-wtf
-yaspin==3.1.0
+yaspin==3.2.0
     # via dallinger
 zope-event==6.0
     # via gevent
