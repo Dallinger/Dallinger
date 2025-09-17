@@ -156,7 +156,7 @@ pygtail==0.14.0
     # via dallinger
 pynacl==1.6.0
     # via paramiko
-pyopenssl==25.1.0
+pyopenssl==25.3.0
     # via dallinger
 pyproject-hooks==1.2.0
     # via
