@@ -11,19 +11,19 @@ apscheduler==3.11.0
     # via dallinger
 asttokens==3.0.0
     # via stack-data
-attrs==25.3.0
+attrs==25.4.0
     # via
     #   outcome
     #   trio
-bcrypt==4.3.0
+bcrypt==5.0.0
     # via paramiko
-beautifulsoup4==4.13.5
+beautifulsoup4==4.14.2
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.40.29
+boto3==1.40.63
     # via dallinger
-botocore==1.40.29
+botocore==1.40.63
     # via
     #   boto3
     #   s3transfer
@@ -33,7 +33,7 @@ build==1.3.0
     #   pip-tools
 cached-property==2.0.1
     # via dallinger
-certifi==2025.8.3
+certifi==2025.10.5
     # via
     #   requests
     #   selenium
@@ -41,9 +41,9 @@ cffi==2.0.0
     # via
     #   cryptography
     #   pynacl
-charset-normalizer==3.4.3
+charset-normalizer==3.4.4
     # via requests
-click==8.2.1
+click==8.3.0
     # via
     #   dallinger
     #   flask
@@ -51,7 +51,7 @@ click==8.2.1
     #   rq
 croniter==6.0.0
     # via rq
-cryptography==45.0.7
+cryptography==46.0.3
     # via
     #   paramiko
     #   pyopenssl
@@ -59,7 +59,7 @@ decorator==5.2.1
     # via ipython
 executing==2.2.1
     # via stack-data
-faker==37.6.0
+faker==37.12.0
     # via dallinger
 flask==3.1.2
     # via
@@ -76,7 +76,7 @@ flask-sock==0.7.0
     # via dallinger
 flask-wtf==1.2.2
     # via dallinger
-gevent==25.8.2
+gevent==25.9.1
     # via
     #   dallinger
     #   gunicorn
@@ -90,7 +90,7 @@ h11==0.16.0
     # via wsproto
 heroku3==5.2.1
     # via dallinger
-idna==3.10
+idna==3.11
     # via
     #   requests
     #   trio
@@ -108,13 +108,13 @@ jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-markupsafe==3.0.2
+markupsafe==3.0.3
     # via
     #   flask
     #   jinja2
     #   werkzeug
     #   wtforms
-matplotlib-inline==0.1.7
+matplotlib-inline==0.2.1
     # via ipython
 numpy==2.2.6
     # via dallinger
@@ -134,15 +134,15 @@ pexpect==4.9.0
     # via
     #   dallinger
     #   ipython
-pip-tools==7.5.0
+pip-tools==7.5.1
     # via dallinger
-platformdirs==4.4.0
+platformdirs==4.5.0
     # via dallinger
 prompt-toolkit==3.0.52
     # via ipython
-psutil==7.0.0
+psutil==7.1.2
     # via dallinger
-psycopg2==2.9.10
+psycopg2==2.9.11
     # via dallinger
 ptyprocess==0.7.0
     # via pexpect
@@ -156,7 +156,7 @@ pygtail==0.14.0
     # via dallinger
 pynacl==1.6.0
     # via paramiko
-pyopenssl==25.1.0
+pyopenssl==25.3.0
     # via dallinger
 pyproject-hooks==1.2.0
     # via
@@ -169,11 +169,11 @@ python-dateutil==2.9.0.post0
     #   botocore
     #   croniter
     #   heroku3
-python-json-logger==3.3.0
+python-json-logger==4.0.0
     # via dallinger
 pytz==2025.2
     # via croniter
-redis==6.4.0
+redis==7.0.1
     # via
     #   dallinger
     #   rq
@@ -185,7 +185,7 @@ rq==2.6.0
     # via dallinger
 s3transfer==0.14.0
     # via boto3
-selenium==4.35.0
+selenium==4.38.0
     # via dallinger
 simple-websocket==1.1.0
     # via flask-sock
@@ -205,7 +205,7 @@ tabulate==0.9.0
     # via dallinger
 tenacity==9.1.2
     # via dallinger
-termcolor==2.3.0
+termcolor==3.2.0
     # via yaspin
 timeago==1.0.16
     # via dallinger
@@ -213,13 +213,13 @@ traitlets==5.14.3
     # via
     #   ipython
     #   matplotlib-inline
-trio==0.30.0
+trio==0.32.0
     # via
     #   selenium
     #   trio-websocket
 trio-websocket==0.12.2
     # via selenium
-typing-extensions==4.14.1
+typing-extensions==4.15.0
     # via
     #   beautifulsoup4
     #   selenium
@@ -243,11 +243,11 @@ urllib3==2.5.0
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.8.17
+uv==0.9.7
     # via dallinger
-wcwidth==0.2.13
+wcwidth==0.2.14
     # via prompt-toolkit
-websocket-client==1.8.0
+websocket-client==1.9.0
     # via selenium
 werkzeug==3.1.3
     # via
@@ -261,11 +261,11 @@ wsproto==1.2.0
     #   trio-websocket
 wtforms==3.2.1
     # via flask-wtf
-yaspin==3.1.0
+yaspin==3.3.0
     # via dallinger
 zope-event==6.0
     # via gevent
-zope-interface==8.0
+zope-interface==8.0.1
     # via gevent
 
 # The following packages are considered to be unsafe in a requirements file:
