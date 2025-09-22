@@ -245,7 +245,7 @@ user-agents==2.2.0
     # via dallinger
 uv==0.8.17
     # via dallinger
-wcwidth==0.2.13
+wcwidth==0.2.14
     # via prompt-toolkit
 websocket-client==1.8.0
     # via selenium
