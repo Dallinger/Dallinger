@@ -15,7 +15,7 @@ attrs==25.3.0
     # via
     #   outcome
     #   trio
-bcrypt==4.3.0
+bcrypt==5.0.0
     # via paramiko
 beautifulsoup4==4.13.5
     # via dallinger
