@@ -521,18 +521,43 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         )
     else:
         # Check dns_host: make sure that {experiment_id}.{dns_host} resolves to the remote host
-        dns_ok = ipaddr_experiment = ipaddr_server = True
         try:
-            ipaddr_server = gethostbyname_ex(f"{ssh_host}")[2][0]
-            ipaddr_experiment = gethostbyname_ex(f"{experiment_id}.{dns_host}")[2][0]
-        except Exception:
-            dns_ok = False
-        if not dns_ok or (ipaddr_experiment != ipaddr_server):
+            # Get the IP address of the server
+            server_info = gethostbyname_ex(ssh_host)
+            ipaddr_server = server_info[2][0]  # Get the first IP address
+
+            # Get the IP address of the experiment subdomain
+            experiment_domain = f"{experiment_id}.{dns_host}"
+            experiment_info = gethostbyname_ex(experiment_domain)
+            ipaddr_experiment = experiment_info[2][0]  # Get the first IP address
+
+            if ipaddr_experiment != ipaddr_server:
+                print(f"{RED}DNS resolution error:{END}")
+                print(f"  Server '{ssh_host}' resolves to: {ipaddr_server}")
+                print(
+                    f"  Experiment domain '{experiment_domain}' resolves to: {ipaddr_experiment}"
+                )
+                print("  These should be the same IP address.")
+                print(
+                    "  This might be due to DNS caching if you're reusing a domain name."
+                )
+                print(
+                    "  Please wait for DNS cache to expire or use a different domain name."
+                )
+                raise click.Abort
+        except click.Abort:
+            # Re-raise click.Abort to avoid the generic exception handler
+            raise
+        except Exception as e:
+            print(f"{RED}DNS resolution error:{END}")
+            print(f"  Could not resolve '{experiment_id}.{dns_host}' to an IP address.")
+            print(f"  Error: {e}")
             print(
                 f"""The dns name for the experiment ({experiment_id}.{dns_host}) should resolve to {ipaddr_server}.
 It currently resolves to {ipaddr_experiment}."""
             )
             raise click.Abort
+
     executor = Executor(ssh_host, user=ssh_user, app=app_name)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
