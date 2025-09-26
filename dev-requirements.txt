@@ -476,7 +476,7 @@ pytz==2025.2
     # via
     #   croniter
     #   pandas
-pyyaml==6.0.2
+pyyaml==6.0.3
     # via
     #   jupyter-events
     #   myst-parser
