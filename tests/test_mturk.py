@@ -1192,12 +1192,35 @@ class TestMTurkServiceWithFakeConnection(object):
         assert isinstance(result["created"], datetime.datetime)
 
     def test_create_qualification_type_raises_on_duplicate_name(self, with_mock):
-        error = Exception("already created a QualificationType with this name")
+        error = DuplicateQualificationNameError(
+            "already created a QualificationType with this name"
+        )
         with_mock.mturk.configure_mock(
             **{"create_qualification_type.side_effect": error}
         )
         with pytest.raises(DuplicateQualificationNameError):
             with_mock.create_qualification_type("name", "desc", "status")
+
+    def test_create_qualification_type_duplicate_name_does_not_log_error(
+        self, with_mock
+    ):
+        """Test that DuplicateQualificationNameError is raised without going through error handling system."""
+        error = DuplicateQualificationNameError(
+            "already created a QualificationType with this name"
+        )
+        with_mock.mturk.configure_mock(
+            **{"create_qualification_type.side_effect": error}
+        )
+
+        # Mock the error handling function to verify it's NOT called
+        with mock.patch(
+            "dallinger.recruiters.handle_and_raise_recruitment_error"
+        ) as mock_error_handler:
+            with pytest.raises(DuplicateQualificationNameError):
+                with_mock.create_qualification_type("name", "desc", "status")
+
+            # Verify that handle_and_raise_recruitment_error was NOT called
+            mock_error_handler.assert_not_called()
 
     def test_assign_qualification(self, with_mock):
         with_mock.mturk.configure_mock(

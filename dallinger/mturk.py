@@ -303,17 +303,13 @@ class MTurkService(object):
 
     def create_qualification_type(self, name, description, status="Active"):
         """Create a new qualification Workers can be scored for."""
-        from dallinger.recruiters import handle_and_raise_recruitment_error
-
         try:
             response = self.mturk.create_qualification_type(
                 Name=name, Description=description, QualificationTypeStatus=status
             )
-        except Exception as ex:
+        except (DuplicateQualificationNameError, ClientError) as ex:
             if "already created a QualificationType with this name" in str(ex):
-                handle_and_raise_recruitment_error(
-                    DuplicateQualificationNameError(str(ex))
-                )
+                raise DuplicateQualificationNameError(str(ex))
             else:
                 raise
 
