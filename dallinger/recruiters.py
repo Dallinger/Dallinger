@@ -1770,12 +1770,7 @@ class MTurkRecruiter(Recruiter):
             mturk_type = event.get("EventType")
             assignment_id = event.get("AssignmentId")
 
-            if mturk_type in [
-                "AssignmentAbandoned",
-                "AssignmentAccepted",
-                "AssignmentReturned",
-                "AssignmentSubmitted",
-            ]:
+            if assignment_id:
                 participant = (
                     session.query(Participant)
                     .filter_by(assignment_id=assignment_id)
@@ -1783,22 +1778,38 @@ class MTurkRecruiter(Recruiter):
                     .first()
                 )
                 if participant is None:
-                    logger.error(
+                    msg = (
                         f"Received an {mturk_type} notification from MTurk for assignment ID {assignment_id}, "
                         "which is not related to any participant."
                     )
-                    return
+                    if mturk_type == "AssignmentSubmitted":
+                        # For submitted assignments we expect a corresponding Participant to exist.
+                        raise MTurkRecruiterException(
+                            msg
+                            + " This is invalid for AssignmentSubmitted; investigate participant creation and notification routing."
+                        )
+                    logger.error(msg)
+                    continue
 
-                if mturk_type == "AssignmentAbandoned":
-                    participant.status = "abandoned"
-                if mturk_type == "AssignmentReturned":
-                    participant.status = "returned"
-                if mturk_type == "AssignmentSubmitted":
-                    participant.status = "submitted"
-                session.commit()
+                # Only handle and enqueue for supported event types
+                if mturk_type in [
+                    "AssignmentAbandoned",
+                    "AssignmentAccepted",
+                    "AssignmentReturned",
+                    "AssignmentSubmitted",
+                ]:
+                    if mturk_type == "AssignmentAbandoned":
+                        participant.status = "abandoned"
+                    if mturk_type == "AssignmentReturned":
+                        participant.status = "returned"
+                    if mturk_type == "AssignmentSubmitted":
+                        participant.status = "submitted"
+                    session.commit()
 
-            dlgr_event_type = self._translate_event_type(mturk_type)
-            q.enqueue(worker_function, dlgr_event_type, assignment_id, participant.id)
+                    dlgr_event_type = self._translate_event_type(mturk_type)
+                    q.enqueue(
+                        worker_function, dlgr_event_type, assignment_id, participant.id
+                    )
 
     def _mturk_status_for(self, participant):
         try:
