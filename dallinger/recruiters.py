@@ -1540,15 +1540,22 @@ class MTurkRecruiter(Recruiter):
 
     def compensate_worker(self, worker_id, email, dollars, notify=True):
         """Pay a worker by means of a special HIT that only they can see."""
-        qualification = self.mturkservice.create_qualification_type(
-            name="Dallinger Compensation Qualification - {}".format(
-                generate_random_id()
-            ),
-            description=(
-                "You have received a qualification to allow you to complete a "
-                "compensation HIT from Dallinger for ${}.".format(dollars)
-            ),
-        )
+        try:
+            qualification = self.mturkservice.create_qualification_type(
+                name="Dallinger Compensation Qualification - {}".format(
+                    generate_random_id()
+                ),
+                description=(
+                    "You have received a qualification to allow you to complete a "
+                    "compensation HIT from Dallinger for ${}.".format(dollars)
+                ),
+            )
+        except Exception as ex:
+            handle_and_raise_recruitment_error(
+                MTurkServiceException(
+                    "Failed to create compensation qualification: {}".format(str(ex))
+                )
+            )
         qid = qualification["id"]
         self.mturkservice.assign_qualification(qid, worker_id, 1, notify=notify)
         hit_request = {
@@ -1866,6 +1873,12 @@ class MTurkRecruiter(Recruiter):
                 )
             except DuplicateQualificationNameError:
                 result["existing_qualifications"].append(name)
+            except Exception as ex:
+                handle_and_raise_recruitment_error(
+                    MTurkServiceException(
+                        "Failed to create qualification: {}".format(str(ex))
+                    )
+                )
 
         # We need to make sure the new qualifications are actually ready
         # for assignment, as there's a small delay.
