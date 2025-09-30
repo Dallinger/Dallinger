@@ -368,7 +368,7 @@ packaging==25.0
     #   pytest-rerunfailures
     #   sphinx
     #   tox
-pandas==2.3.2
+pandas==2.3.3
     # via
     #   dallinger
     #   tablib
