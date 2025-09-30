@@ -93,16 +93,18 @@ class TestVerify:
             "dallinger.command_line.utils.ExperimentFileSource.size",
             new_callable=mock.PropertyMock,
         ) as size:
-            size.return_value = 6000000  # 6 MB, so over the limit
-            assert v_directory(max_size_mb=5) is False
+            size.return_value = 60000000  # 60 MB, so over the limit
+            with mock.patch.dict(os.environ, {"EXP_MAX_SIZE_MB": "50"}):
+                assert v_directory() is False
 
     def test_under_limit_returns_true(self, v_directory):
         with mock.patch(
             "dallinger.command_line.utils.ExperimentFileSource.size",
             new_callable=mock.PropertyMock,
         ) as size:
-            size.return_value = 4000000  # 4 MB, so under the limit
-            assert v_directory(max_size_mb=5) is True
+            size.return_value = 40000000  # 40 MB, so under the limit
+            with mock.patch.dict(os.environ, {"EXP_MAX_SIZE_MB": "50"}):
+                assert v_directory() is True
 
 
 @pytest.mark.slow
