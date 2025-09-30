@@ -97,7 +97,7 @@ def verify_package(verbose=True):
     return ok
 
 
-def verify_directory(verbose=True, max_size_mb=50):
+def verify_directory(verbose=True):
     """Ensure that the current directory looks like a Dallinger experiment, and
     does not appear to have unintended contents that will be copied on
     deployment.
@@ -114,22 +114,27 @@ def verify_directory(verbose=True, max_size_mb=50):
             log("✗ {} is MISSING".format(f), chevrons=False, verbose=verbose)
             ok = False
 
+    # Get experiment max size in MB from environment variable, default to 50MB
+    exp_max_size_mb = int(os.environ.get("EXP_MAX_SIZE_MB", "50"))
+
     # Check size
-    max_size = max_size_mb * mb_to_bytes
+    max_size = exp_max_size_mb * mb_to_bytes
     file_source = ExperimentFileSource(os.getcwd())
     size = file_source.size
     size_in_mb = round(size / mb_to_bytes)
     if size <= max_size:
         log(
-            "✓ Size OK at {}MB (max is {}MB)".format(size_in_mb, max_size_mb),
+            "✓ Size OK at {}MB (max is {}MB)".format(size_in_mb, exp_max_size_mb),
             chevrons=False,
             verbose=verbose,
         )
     else:
         log(
-            "✗ {}MB is TOO BIG (greater than {}MB)\n\tIncluded files:\n\t{}".format(
-                size_in_mb, max_size_mb, "\n\t".join(file_source.files)
-            ),
+            (
+                "✗ {}MB is TOO BIG (greater than {}MB). "
+                "You can override this limit by setting the EXP_MAX_SIZE_MB environment variable.\n"
+                "\tIncluded files:\n\t{}"
+            ).format(size_in_mb, exp_max_size_mb, "\n\t".join(file_source.files)),
             chevrons=False,
             verbose=verbose,
         )
