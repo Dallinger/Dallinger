@@ -51,7 +51,7 @@ click==8.2.1
     #   rq
 croniter==6.0.0
     # via rq
-cryptography==45.0.7
+cryptography==46.0.2
     # via
     #   paramiko
     #   pyopenssl
