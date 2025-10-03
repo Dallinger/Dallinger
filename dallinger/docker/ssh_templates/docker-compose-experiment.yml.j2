@@ -68,7 +68,7 @@ services:
 
   pgbouncer:
     restart: unless-stopped
-    image: docker.io/bitnami/pgbouncer:1.19.1
+    image: docker.io/bitnamilegacy/pgbouncer:1.24.1
     container_name: {{ experiment_id }}_pgbouncer
     networks:
       dallinger:
