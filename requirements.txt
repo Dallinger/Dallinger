@@ -15,15 +15,15 @@ attrs==25.3.0
     # via
     #   outcome
     #   trio
-bcrypt==4.3.0
+bcrypt==5.0.0
     # via paramiko
-beautifulsoup4==4.13.5
+beautifulsoup4==4.14.2
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.40.33
+boto3==1.40.44
     # via dallinger
-botocore==1.40.33
+botocore==1.40.44
     # via
     #   boto3
     #   s3transfer
@@ -43,7 +43,7 @@ cffi==2.0.0
     #   pynacl
 charset-normalizer==3.4.3
     # via requests
-click==8.2.1
+click==8.3.0
     # via
     #   dallinger
     #   flask
@@ -51,7 +51,7 @@ click==8.2.1
     #   rq
 croniter==6.0.0
     # via rq
-cryptography==46.0.1
+cryptography==46.0.2
     # via
     #   paramiko
     #   pyopenssl
@@ -108,7 +108,7 @@ jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-markupsafe==3.0.2
+markupsafe==3.0.3
     # via
     #   flask
     #   jinja2
@@ -134,7 +134,7 @@ pexpect==4.9.0
     # via
     #   dallinger
     #   ipython
-pip-tools==7.5.0
+pip-tools==7.5.1
     # via dallinger
 platformdirs==4.4.0
     # via dallinger
@@ -185,7 +185,7 @@ rq==2.6.0
     # via dallinger
 s3transfer==0.14.0
     # via boto3
-selenium==4.35.0
+selenium==4.36.0
     # via dallinger
 simple-websocket==1.1.0
     # via flask-sock
@@ -213,13 +213,13 @@ traitlets==5.14.3
     # via
     #   ipython
     #   matplotlib-inline
-trio==0.30.0
+trio==0.31.0
     # via
     #   selenium
     #   trio-websocket
 trio-websocket==0.12.2
     # via selenium
-typing-extensions==4.14.1
+typing-extensions==4.15.0
     # via
     #   beautifulsoup4
     #   selenium
@@ -243,9 +243,9 @@ urllib3==2.5.0
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.8.18
+uv==0.8.22
     # via dallinger
-wcwidth==0.2.13
+wcwidth==0.2.14
     # via prompt-toolkit
 websocket-client==1.8.0
     # via selenium
@@ -265,7 +265,7 @@ yaspin==3.2.0
     # via dallinger
 zope-event==6.0
     # via gevent
-zope-interface==8.0
+zope-interface==8.0.1
     # via gevent
 
 # The following packages are considered to be unsafe in a requirements file:
