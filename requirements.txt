@@ -169,7 +169,7 @@ python-dateutil==2.9.0.post0
     #   botocore
     #   croniter
     #   heroku3
-python-json-logger==3.3.0
+python-json-logger==4.0.0
     # via dallinger
 pytz==2025.2
     # via croniter
