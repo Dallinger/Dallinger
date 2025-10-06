@@ -114,8 +114,8 @@ def verify_directory(verbose=True):
             log("✗ {} is MISSING".format(f), chevrons=False, verbose=verbose)
             ok = False
 
-    # Get experiment max size in MB from environment variable, default to 50MB
-    exp_max_size_mb = int(os.environ.get("EXP_MAX_SIZE_MB", "50"))
+    # Get experiment max size in MB from environment variable, default to 256MB
+    exp_max_size_mb = int(os.environ.get("EXP_MAX_SIZE_MB", "256"))
 
     # Check size
     max_size = exp_max_size_mb * mb_to_bytes
