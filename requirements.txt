@@ -11,7 +11,7 @@ apscheduler==3.11.0
     # via dallinger
 asttokens==3.0.0
     # via stack-data
-attrs==25.3.0
+attrs==25.4.0
     # via
     #   outcome
     #   trio
