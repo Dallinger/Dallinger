@@ -93,8 +93,8 @@ class TestVerify:
             "dallinger.command_line.utils.ExperimentFileSource.size",
             new_callable=mock.PropertyMock,
         ) as size:
-            size.return_value = 60000000  # 60 MB, so over the limit
-            with mock.patch.dict(os.environ, {"EXP_MAX_SIZE_MB": "50"}):
+            size.return_value = 300000000  # 300 MB, so over the limit
+            with mock.patch.dict(os.environ, {"EXP_MAX_SIZE_MB": "256"}):
                 assert v_directory() is False
 
     def test_under_limit_returns_true(self, v_directory):
@@ -102,8 +102,8 @@ class TestVerify:
             "dallinger.command_line.utils.ExperimentFileSource.size",
             new_callable=mock.PropertyMock,
         ) as size:
-            size.return_value = 40000000  # 40 MB, so under the limit
-            with mock.patch.dict(os.environ, {"EXP_MAX_SIZE_MB": "50"}):
+            size.return_value = 200000000  # 200 MB, so under the limit
+            with mock.patch.dict(os.environ, {"EXP_MAX_SIZE_MB": "256"}):
                 assert v_directory() is True
 
 
