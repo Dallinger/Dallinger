@@ -724,12 +724,10 @@ It currently resolves to {ipaddr_experiment}."""
 
     dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
     pem_path = get_server_pem_path()
-    pem_opt = f"-i {pem_path}"
     log_command = (
-        f"ssh {pem_opt} {ssh_user + '@' if ssh_user else ''}{ssh_host} "
+        f"ssh -i {pem_path} {ssh_user + '@' if ssh_user else ''}{ssh_host} "
         f"docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
     )
-    log_command = f"ssh {ssh_user + '@' if ssh_user else ''}{ssh_host} docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
 
     deployment_infos = []
     if push_build:
