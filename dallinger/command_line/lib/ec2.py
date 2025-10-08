@@ -5,6 +5,7 @@ import struct
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Callable
 
 import boto3
@@ -300,13 +301,14 @@ def get_security_group_id(security_group_name, region_name=None):
         return group_id
 
 
-def get_pem_path(key_name):
-    return os.path.join(os.path.expanduser("~"), f"{key_name}.pem")
+def get_pem_path(key_name) -> Path:
+    """Return a Path to the PEM file for the given key name (e.g. ~/mykey.pem)."""
+    return Path.home() / f"{key_name}.pem"
 
 
 def register_key_pair(ec2, key_name):
-    pem_loc = get_pem_path(key_name)
-    key = paramiko.RSAKey.from_private_key_file(pem_loc)
+    pem_path: Path = get_pem_path(key_name)
+    key = paramiko.RSAKey.from_private_key_file(str(pem_path))
 
     output = b""
     parts = [
@@ -352,21 +354,6 @@ def setup_ssh_keys(ec2, key_name, region_name=None):
     except ClientError:
         print(f"Key pair {key_name} not found in region {region_name}. Creating...")
         register_key_pair(ec2, key_name)
-
-    # Do not attempt to add the key to an ssh-agent. Require a PEM file
-    # to be present and referenced via configuration (ec2_default_pem).
-    pem_loc = get_pem_path(key_name)
-    if not os.path.exists(pem_loc):
-        print(
-            f"Warning: expected PEM file for key '{key_name}' not found at {pem_loc}.\n"
-            "Dallinger requires the private key file to be stored locally and referenced\n"
-            "via the 'ec2_default_pem' config variable (e.g. ec2_default_pem = mykey => ~/mykey.pem).\n"
-            "Create or place the PEM file at that path before attempting SSH access."
-        )
-    else:
-        print(
-            f"Using PEM file at {pem_loc} for SSH connections, and not relying on ssh-agent."
-        )
 
 
 def boot_instance(ec2, image_id, instance_type, key_name, instance_name, region_name):
