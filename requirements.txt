@@ -136,7 +136,7 @@ pexpect==4.9.0
     #   ipython
 pip-tools==7.5.0
     # via dallinger
-platformdirs==4.4.0
+platformdirs==4.5.0
     # via dallinger
 prompt-toolkit==3.0.52
     # via ipython
