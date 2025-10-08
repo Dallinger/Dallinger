@@ -1,5 +1,16 @@
 # Change Log
 
+## [v11.5.2](https://github.com/dallinger/dallinger/tree/v11.5.2) (2025-10-07)
+
+#### Fixed
+- Fixed bug in MTurkRecruiter._report_event_notification.
+- Fixed bug in MTurk create_qualification_type which was causing false-positive error logging.
+- We now use the Docker bitnamilegacy repository for pgbouncer as the bitnami repository has been deleted. This is a temporary fix until we move to building our own pgbouncer image.
+- Allow customization of maximum experiment size in MB via EXP_MAX_SIZE_MB environment variable.
+
+#### Changed
+- Increased the default maximum experiment size from 50MB to 256MB.
+
 ## [v11.5.1](https://github.com/dallinger/dallinger/tree/v11.5.1) (2025-09-16)
 
 #### Fixed
