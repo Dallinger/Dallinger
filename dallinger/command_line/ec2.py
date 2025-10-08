@@ -1,7 +1,7 @@
-import click
 import os
 from pathlib import Path
 
+import click
 
 from .lib.ec2 import (
     _get_instance_id_from,
