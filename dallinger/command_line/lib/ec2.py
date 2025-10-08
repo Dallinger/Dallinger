@@ -2,10 +2,10 @@ import base64
 import logging
 import os.path
 import struct
-import subprocess
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Callable
 
 import boto3
@@ -19,6 +19,7 @@ from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 from tqdm import tqdm
 from yaspin import yaspin
 
+from dallinger.config import get_config
 from ..config import remove_host as dallinger_remove_host
 from ..config import store_host as dallinger_store_host
 from ..docker_ssh import Executor
@@ -321,11 +322,6 @@ def register_key_pair(ec2, key_name):
     ec2.import_key_pair(KeyName=key_name, PublicKeyMaterial=public_key)
 
 
-def add_key_to_ssh_agent(key_name):
-    pem_loc = get_pem_path(key_name)
-    subprocess.run(["ssh-add", pem_loc])
-
-
 def wait_for_instance(host, user="ubuntu", n_tries=10):
     @retry(
         stop=stop_after_attempt(n_tries),
@@ -359,7 +355,20 @@ def setup_ssh_keys(ec2, key_name, region_name=None):
         print(f"Key pair {key_name} not found in region {region_name}. Creating...")
         register_key_pair(ec2, key_name)
 
-    add_key_to_ssh_agent(key_name)
+    # Do not attempt to add the key to an ssh-agent. Require a PEM file
+    # to be present and referenced via configuration (ec2_default_pem).
+    pem_loc = get_pem_path(key_name)
+    if not os.path.exists(pem_loc):
+        print(
+            f"Warning: expected PEM file for key '{key_name}' not found at {pem_loc}.\n"
+            "Dallinger requires the private key file to be stored locally and referenced\n"
+            "via the 'ec2_default_pem' config variable (e.g. ec2_default_pem = mykey => ~/mykey.pem).\n"
+            "Create or place the PEM file at that path before attempting SSH access."
+        )
+    else:
+        print(
+            f"Using PEM file at {pem_loc} for SSH connections, and not relying on ssh-agent."
+        )
 
 
 def boot_instance(ec2, image_id, instance_type, key_name, instance_name, region_name):

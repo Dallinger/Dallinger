@@ -30,7 +30,11 @@ from urllib3.util.retry import Retry
 from yaspin import yaspin
 
 from dallinger.command_line.config import get_configured_hosts, remove_host, store_host
-from dallinger.command_line.utils import Output, run_pre_launch_checks
+from dallinger.command_line.utils import (
+    Output,
+    get_server_pem_path,
+    run_pre_launch_checks,
+)
 from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
@@ -720,6 +724,12 @@ It currently resolves to {ipaddr_experiment}."""
         print(launch_data.get("recruitment_msg"))
 
     dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
+    pem_path = get_server_pem_path()
+    pem_opt = f"-i {pem_path}"
+    log_command = (
+        f"ssh {pem_opt} {ssh_user + '@' if ssh_user else ''}{ssh_host} "
+        f"docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
+    )
     log_command = f"ssh {ssh_user + '@' if ssh_user else ''}{ssh_host} docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
 
     deployment_infos = []
@@ -838,10 +848,11 @@ def remote_postgres(server_info, app):
         postgresql_remote_ip = executor.run(
             "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' dallinger-postgresql-1"
         ).strip()
-        # Now we start the tunnel
+        pem_path = get_server_pem_path()
         tunnel = SSHTunnelForwarder(
             ssh_host,
             ssh_username=ssh_user,
+            ssh_pkey=str(pem_path),
             remote_bind_address=(postgresql_remote_ip, 5432),
         )
         tunnel.start()
@@ -898,27 +909,28 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         This is a deliberate choice to simplify the connection process, as the server
         is expected to be under our control.
     """
+    pem_path = get_server_pem_path()
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.load_system_host_keys()
 
     print(f"Connecting to {host}")
     with yaspin() as spinner:
-        config = get_config(load=True)
-        server_pem = config.get("server_pem", None)
-        if server_pem:
-            if not os.path.exists(server_pem):
-                raise FileNotFoundError(
-                    f"SSH key file not found: {server_pem}\n"
-                    "Please check that the path in your config file is correct.\n"
-                    "You can set the path in either:\n"
-                    "  - Your experiment's config.txt: server_pem = /path/to/key.pem\n"
-                    "  - Your global config ~/.dallingerconfig: server_pem = /path/to/key.pem"
-                )
-            client.connect(host, username=user, key_filename=server_pem)
-        else:
-            client.connect(host, username=user)
-        spinner.ok("Connected.")
+        try:
+            client.connect(
+                host,
+                username=user,
+                key_filename=str(pem_path),
+                allow_agent=False,  # don't use ssh-agent
+                look_for_keys=False,  # don't scan ~/.ssh for keys
+            )
+            spinner.ok("Connected.")
+        except paramiko.AuthenticationException:
+            spinner.fail("✖ Authentication failed")
+            raise
+        except Exception:
+            spinner.fail("✖ Connection failed")
+            raise
 
     return client
 
