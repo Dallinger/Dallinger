@@ -476,10 +476,15 @@ def _deploy_in_mode(
     experiment_uuid = str(uuid4())
     if app_name:
         experiment_id = app_name
+        use_subdomain = True
     elif archive_path:
         experiment_id = get_experiment_id_from_archive(archive_path)
+        use_subdomain = False
     else:
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
+        use_subdomain = False
+
+    app_identifier = app_name or experiment_id
 
     # Check if server is an IP address
     try:
@@ -519,37 +524,40 @@ You can override this by creating a DNS A record pointing to
 {BLUE}For instance to use the name experiment1.my-custom-domain.example.com
 you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}"""
         )
-    else:
-        # Check dns_host: make sure that {experiment_id}.{dns_host} resolves to the remote host
+    experiment_hostname = f"{experiment_id}.{dns_host}" if use_subdomain else dns_host
+
+    if dns_host != "nip.io":
+        # Check dns_host: make sure that the experiment host resolves to the remote host
         dns_ok = ipaddr_experiment = ipaddr_server = True
         try:
             ipaddr_server = gethostbyname_ex(f"{ssh_host}")[2][0]
-            ipaddr_experiment = gethostbyname_ex(f"{experiment_id}.{dns_host}")[2][0]
+            ipaddr_experiment = gethostbyname_ex(experiment_hostname)[2][0]
         except Exception:
             dns_ok = False
         if not dns_ok or (ipaddr_experiment != ipaddr_server):
             print(
-                f"""The dns name for the experiment ({experiment_id}.{dns_host}) should resolve to {ipaddr_server}.
+                f"""The dns name for the experiment ({experiment_hostname}) should resolve to {ipaddr_server}.
 It currently resolves to {ipaddr_experiment}."""
             )
             raise click.Abort
-    executor = Executor(ssh_host, user=ssh_user, app=app_name)
+
+    executor = Executor(ssh_host, user=ssh_user, app=app_identifier)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
     if not update:
         # Check if there's an existing app with the same name
-        app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
+        app_yml = f"~/dallinger/{app_identifier}/docker-compose.yml"
         app_yml_exists = executor.run(f"ls {app_yml}", raise_=False)
         messages = []
         if app_yml_exists:
             messages.append(
-                f"App with name {app_name} already exists: found {app_yml} file. Aborting."
+                f"App with name {app_identifier} already exists: found {app_yml} file. Aborting."
             )
-        caddy_yml = f"~/dallinger/caddy.d/{app_name}"
+        caddy_yml = f"~/dallinger/caddy.d/{app_identifier}"
         caddy_yml_exists = executor.run(f"ls {caddy_yml}", raise_=False)
         if caddy_yml_exists:
             print(
-                f"App with name {app_name} already exists: found {app_yml} file. Aborting."
+                f"App with name {app_identifier} already exists: found {app_yml} file. Aborting."
             )
         if app_yml_exists or caddy_yml_exists:
             messages.append(
@@ -559,13 +567,13 @@ It currently resolves to {ipaddr_experiment}."""
             raise click.Abort
 
         print("Removing any pre-existing Redis volumes.")
-        remove_redis_volumes(app_name, executor)
+        remove_redis_volumes(app_identifier, executor)
     else:
-        app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
+        app_yml = f"~/dallinger/{app_identifier}/docker-compose.yml"
         yml_file_exists = executor.run(f"ls -l {app_yml}", raise_=False)
         if not yml_file_exists:
             print(
-                f"{app_yml} file not found. App {app_name} does not exist on the server."
+                f"{app_yml} file not found. App {app_identifier} does not exist on the server."
             )
             raise click.Abort
 
@@ -698,7 +706,7 @@ It currently resolves to {ipaddr_experiment}."""
 
     # We give caddy the alias for the service. If we scale up the service container caddy will
     # send requests to all of them in a round robin fashion.
-    caddy_conf = f"{experiment_id}.{dns_host} {{\n    {tls}\n    reverse_proxy {experiment_id}_web:5000\n}}"
+    caddy_conf = f"{experiment_hostname} {{\n    {tls}\n    reverse_proxy {experiment_id}_web:5000\n}}"
     sftp.putfo(
         BytesIO(caddy_conf.encode()),
         f"dallinger/caddy.d/{experiment_id}",
@@ -711,7 +719,7 @@ It currently resolves to {ipaddr_experiment}."""
     else:
         print("Launching experiment")
         launch_data = handle_launch_data(
-            f"https://{experiment_id}.{dns_host}/launch",
+            f"https://{experiment_hostname}/launch",
             print,
             dns_host=dns_host,
             dozzle_password=dozzle_password,
@@ -719,7 +727,9 @@ It currently resolves to {ipaddr_experiment}."""
         )
         print(launch_data.get("recruitment_msg"))
 
-    dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
+    dashboard_link = (
+        f"https://{dashboard_user}:{dashboard_password}@{experiment_hostname}/dashboard"
+    )
     log_command = f"ssh {ssh_user + '@' if ssh_user else ''}{ssh_host} docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
 
     deployment_infos = []

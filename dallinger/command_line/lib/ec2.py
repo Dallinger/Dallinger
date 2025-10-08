@@ -600,9 +600,6 @@ def prepare_instance(
 
     if dns_host is not None:
         route_53 = get_53_client()
-        assert (
-            len(dns_host.split(".")) == 3
-        ), "DNS host must be in the format subdomain.domain.tld"
         domain = get_domain(dns_host)
 
         msg = f"""
