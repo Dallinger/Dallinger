@@ -5,7 +5,6 @@ import struct
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Callable
 
 import boto3
@@ -19,7 +18,6 @@ from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 from tqdm import tqdm
 from yaspin import yaspin
 
-from dallinger.config import get_config
 from ..config import remove_host as dallinger_remove_host
 from ..config import store_host as dallinger_store_host
 from ..docker_ssh import Executor
