@@ -1,12 +1,14 @@
-import os
-
 import click
+import os
+from pathlib import Path
+
 
 from .lib.ec2 import (
     _get_instance_id_from,
     _get_instance_row_from,
     create_dns_records,
     get_instances,
+    get_pem_path,
     increase_storage,
     list_instance_types,
     list_instances,
@@ -59,7 +61,11 @@ def ssh(ctx):
 @click.option("--dns", required=True, help="Server name")
 def ssh__web(app, dns):
     """SSH to a web app container on an EC2 instance"""
-    command = f"ssh {dns} -t 'docker exec -it {app}-web-1 bash'"
+    cfg = get_instance_config()
+    keyname = cfg.get("pem")
+    pem_path = get_pem_path(keyname)
+    pem_opt = f"-i {pem_path}"
+    command = f"ssh {pem_opt} {dns} -t 'docker exec -it {app}-web-1 bash'"
     os.system(command)
 
 
@@ -75,9 +81,8 @@ def list(ctx):
 @click.option("--running", is_flag=True, help="List running instances")
 @click.option("--stopped", is_flag=True, help="List stopped instances")
 @click.option("--terminated", is_flag=True, help="List terminated instances")
-@click.option("--pem", default=None, help="Name of the PEM file to use")
 @click.pass_context
-def list__instances(ctx, region, running, stopped, terminated, pem):
+def list__instances(ctx, region, running, stopped, terminated):
     """List your EC2 instances (with filtering)"""
     filtered_states = []
     if running:
@@ -86,6 +91,8 @@ def list__instances(ctx, region, running, stopped, terminated, pem):
         filtered_states.append("stopped")
     if terminated:
         filtered_states.append("terminated")
+    cfg = get_instance_config()
+    pem = cfg.get("pem")
     list_instances(region, filtered_states=filtered_states, pem=pem)
 
 
@@ -110,11 +117,6 @@ def list__instance_types(ctx, region):
 @click.option("--type", default="m5.xlarge", help="Instance type")
 @click.option("--storage", default=32, type=int, help="Storage in GB; default is 32 GB")
 @click.option(
-    "--pem",
-    default=None,
-    help="Path to PEM file; if not specified, defaults to the `pem` config variable, whose default value is 'dallinger.pem'",
-)
-@click.option(
     "--image_name",
     default="ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-20250516",
     help="Image name; default is Ubuntu 24.04",
@@ -131,12 +133,31 @@ def list__instance_types(ctx, region):
 )
 @click.pass_context
 def ec2__provision(
-    ctx, name, region, type, storage, pem, image_name, security_group_name, dns_host
+    ctx, name, region, type, storage, image_name, security_group_name, dns_host
 ):
     """Provision an EC2 instance for running experiments"""
     config = get_instance_config()
-    if not pem:
-        pem = config.get("pem", pem)
+    pem = config.get("pem")
+
+    # Validate that the expected local PEM file exists.
+    # `pem` is the EC2 keypair name, and the private key file is expected at ~/<pem>.pem
+    pem_path = Path(get_pem_path(pem)).expanduser()
+    if not pem_path.exists():
+        raise click.UsageError(
+            f"Private key file for EC2 keypair '{pem}' not found at {pem_path}.\n"
+            "Make sure you have the private key locally and that the path is correct.\n"
+            "Set the EC2 key name in your config with: ec2_default_pem = <keyname>\n"
+            "or place your private key at the expected path (~/<keyname>.pem)."
+        )
+    try:
+        pem_path = get_pem_path()
+    except FileNotFoundError:
+        raise click.UsageError(
+            f"Private key file for EC2 keypair '{pem}' not found at {pem_path}.\n"
+            "Make sure you have the private key locally and that the path is correct.\n"
+            "Set the EC2 key name in your config with: ec2_default_pem = <keyname>\n"
+            "or place your private key at the expected path (~/<keyname>.pem)."
+        )
     if not security_group_name:
         security_group_name = config.get("security_group_name", security_group_name)
     from .utils import check_valid_subdomain
