@@ -62,14 +62,10 @@ def ssh__web(app, dns):
     """SSH to a web app container on an EC2 instance"""
     cfg = get_instance_config()
     keyname = cfg.get("pem")
-    pem_path = get_pem_path(keyname)
-    if not pem_path.exists():
-        raise click.UsageError(
-            f"Private key file for EC2 keypair '{keyname}' not found at {pem_path}.\n"
-            "Make sure you have the private key locally and that the path is correct.\n"
-            "Set the EC2 key name in your config with: ec2_default_pem = <keyname>\n"
-            "or place your private key at the expected path (~/<keyname>.pem)."
-        )
+    try:
+        pem_path = get_pem_path(keyname)
+    except FileNotFoundError as err:
+        raise click.UsageError(str(err))
     pem_opt = f"-i {pem_path}"
     command = f"ssh {pem_opt} {dns} -t 'docker exec -it {app}-web-1 bash'"
     os.system(command)
@@ -145,16 +141,12 @@ def ec2__provision(
     config = get_instance_config()
     pem_key = config.get("pem")
 
-    # Validate that the expected local PEM file exists.
-    # pem_key is the EC2 keypair name, and the private key file is expected at ~/<pem_key>.pem
-    pem_path = get_pem_path(pem_key)
-    if not pem_path.exists():
-        raise click.UsageError(
-            f"Private key file for EC2 keypair '{pem_key}' not found at {pem_path}.\n"
-            "Make sure you have the private key locally and that the path is correct.\n"
-            "Set the EC2 key name in your config with: ec2_default_pem = <keyname>\n"
-            "or place your private key at the expected path (~/<keyname>.pem)."
-        )
+    # Validate that the expected local PEM file exists
+    try:
+        get_pem_path(pem_key)
+    except FileNotFoundError as err:
+        raise click.UsageError(str(err))
+
     if not security_group_name:
         security_group_name = config.get("security_group_name", security_group_name)
     from .utils import check_valid_subdomain

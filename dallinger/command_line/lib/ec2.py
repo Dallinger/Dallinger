@@ -312,7 +312,15 @@ def get_security_group_id(security_group_name, region_name=None):
 
 def get_pem_path(key_name) -> Path:
     """Return a Path to the PEM file for the given key name (e.g. ~/mykey.pem)."""
-    return Path.home() / f"{key_name}.pem"
+    pem_path = Path.home() / f"{key_name}.pem"
+    if not pem_path.exists():
+        raise FileNotFoundError(
+            f"Private key file for EC2 keypair '{key_name}' not found at {pem_path}.\n"
+            "Make sure you have the private key locally and that the path is correct.\n"
+            "Set the EC2 key name in your config with: ec2_default_pem = <keyname>\n"
+            "or place your private key at the expected path (~/<keyname>.pem)."
+        )
+    return pem_path
 
 
 def register_key_pair(ec2, key_name):
