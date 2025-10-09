@@ -1,6 +1,8 @@
 import base64
+import errno
 import logging
 import os.path
+import socket
 import struct
 import sys
 import time
@@ -14,8 +16,15 @@ import pandas as pd
 import paramiko
 import requests
 from botocore.exceptions import ClientError
+from paramiko import ssh_exception as pse
 from paramiko.util import deflate_long
-from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_fixed,
+)
 from tqdm import tqdm
 from yaspin import yaspin
 
@@ -322,10 +331,57 @@ def register_key_pair(ec2, key_name):
     ec2.import_key_pair(KeyName=key_name, PublicKeyMaterial=public_key)
 
 
+def _is_retryable(exc: BaseException) -> bool:
+    """Avoid retrying when there's no hope."""
+    _RETRY_ERRNOS = {
+        getattr(errno, "ECONNREFUSED", None),
+        getattr(errno, "EHOSTUNREACH", None),
+        getattr(errno, "ENETUNREACH", None),
+        getattr(errno, "ETIMEDOUT", None),
+        getattr(errno, "ECONNRESET", None),
+    }
+
+    # Common transient cases
+    if isinstance(
+        exc,
+        (
+            socket.timeout,
+            ConnectionRefusedError,
+            ConnectionResetError,
+            pse.NoValidConnectionsError,
+        ),
+    ):
+        return True
+
+    # temporary DNS failure
+    if isinstance(exc, socket.gaierror):
+        return exc.errno == getattr(socket, "EAI_AGAIN", -3)
+
+    # Raw OSErrors: host/net unreachable, timeouts, refused/reset, etc.
+    if isinstance(exc, OSError) and getattr(exc, "errno", None) in _RETRY_ERRNOS:
+        return True
+
+    # SSH handshake timing issues while sshd is coming up
+    if isinstance(exc, pse.SSHException):
+        # (SSHException is very broad, unfortunately)
+        msg = str(exc)
+        return any(
+            s in msg
+            for s in (
+                "Error reading SSH protocol banner",
+                "kex timeout",
+                "Connection reset by peer",
+            )
+        )
+
+    return False
+
+
 def wait_for_instance(host, user="ubuntu", n_tries=10):
     @retry(
         stop=stop_after_attempt(n_tries),
         wait=wait_fixed(5),
+        retry=retry_if_exception(_is_retryable),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
     def _wait_for_instance():
