@@ -20,6 +20,7 @@ from .lib.ec2 import (
     teardown,
     wait_for_instance_state_change,
 )
+from .utils import get_server_pem_path
 
 
 def get_config(strict=True):
@@ -141,9 +142,10 @@ def ec2__provision(
     config = get_instance_config()
     pem_key = config.get("pem")
 
-    # Validate that the expected local PEM file exists
+    # Validate that the expected local PEM files exist
     try:
         get_pem_path(pem_key)
+        get_server_pem_path()
     except FileNotFoundError as err:
         raise click.UsageError(str(err))
 
