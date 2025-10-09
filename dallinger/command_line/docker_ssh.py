@@ -952,6 +952,15 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         except paramiko.AuthenticationException:
             spinner.fail("✖ Authentication failed")
             raise
+        except ValueError as ex:
+            if "q must be exactly" in str(ex):
+                raise ValueError(
+                    f"The PEM key file at {pem_path} is not compatible with this EC2 instance.\n"
+                    "Make sure you're using the correct EC2 key pair file that matches this instance.\n"
+                    "Check your 'server_pem' configuration or use the correct key file."
+                )
+            else:
+                raise
         except Exception:
             spinner.fail("✖ Connection failed")
             raise
