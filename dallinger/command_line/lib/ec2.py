@@ -682,7 +682,8 @@ def prepare_docker_experiment_setup(
     create_dns_records(dns_host, user, host)
 
     dallinger_store_host(dict(host=host, user=user))
-    dallinger_store_host(dict(host=dns_host, user=user))
+    if dns_host:
+        dallinger_store_host(dict(host=dns_host, user=user))
     print("Host registered in dallinger")
 
 
