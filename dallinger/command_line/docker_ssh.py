@@ -63,7 +63,7 @@ DOCKER_COMPOSE_EXP_TPL = Template(
 )
 
 
-CADDYFILE = """
+CADDYFILE_SUBDOMAIN = """
 # This is a configuration file for the Caddy http Server
 # Documentation can be found at https://caddyserver.com/docs
 {{
@@ -82,6 +82,30 @@ logs.{host} {{
 }}
 
 import caddy.d/*
+"""
+
+
+CADDYFILE_ROOT = """
+# This is a configuration file for the Caddy http Server
+# Documentation can be found at https://caddyserver.com/docs
+{{
+    grace_period 30s
+}}
+
+
+{host} {{
+    {tls}
+    @health path /health-check
+    handle @health {{
+        respond 200
+    }}
+    reverse_proxy {backend}
+}}
+
+logs.{host} {{
+    reverse_proxy dozzle:8080
+    {tls}
+}}
 """
 
 
@@ -280,6 +304,7 @@ def build_and_push_image(f):
                 server_info = CONFIGURED_HOSTS[kwargs["server"]]
                 ssh_host = server_info["host"]
                 ssh_user = server_info.get("user")
+                ensure_remote_host_in_known_hosts(ssh_host, ssh_user)
                 os.environ["DOCKER_HOST"] = (
                     f"ssh://{ssh_user + '@' if ssh_user else ''}{ssh_host}"
                 )
@@ -544,6 +569,28 @@ It currently resolves to {ipaddr_experiment}."""
     executor = Executor(ssh_host, user=ssh_user, app=app_identifier)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
+    if not use_subdomain:
+        # Running on the apex host leaves no room for other experiments, so
+        # require the operator to tear down any existing Caddy fragments first.
+        existing_caddy = executor.run("ls -1 ~/dallinger/caddy.d", raise_=False)
+        existing_configs = [entry for entry in existing_caddy.splitlines() if entry]
+        if existing_configs:
+            joined = ", ".join(existing_configs)
+            print(
+                f"{RED}Root domain deployments require terminating existing experiments.{END}\n"
+                f"{RED}Found Caddy configuration fragments for:{END} {joined}"
+            )
+            destroy_cmds = "\n".join(
+                f"  dallinger docker-ssh destroy --app {name} --server {server}"
+                for name in existing_configs
+            )
+            print(
+                f"{RED}Please destroy those experiments before deploying to the root domain.{END}\n"
+                "Suggested commands:\n"
+                f"{destroy_cmds}"
+            )
+            raise click.Abort()
+
     if not update:
         # Check if there's an existing app with the same name
         app_yml = f"~/dallinger/{app_identifier}/docker-compose.yml"
@@ -579,8 +626,13 @@ It currently resolves to {ipaddr_experiment}."""
 
     sftp = get_sftp(ssh_host, user=ssh_user)
     sftp.putfo(BytesIO(DOCKER_COMPOSE_SERVER), "dallinger/docker-compose.yml")
+
+    caddy_template = CADDYFILE_SUBDOMAIN if use_subdomain else CADDYFILE_ROOT
+    caddy_kwargs = {"host": dns_host, "tls": tls}
+    if not use_subdomain:
+        caddy_kwargs["backend"] = f"{app_identifier}_web:5000"
     sftp.putfo(
-        BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
+        BytesIO(caddy_template.format(**caddy_kwargs).encode()),
         "dallinger/Caddyfile",
     )
 
@@ -704,13 +756,15 @@ It currently resolves to {ipaddr_experiment}."""
         )
         print("Database initialized.")
 
-    # We give caddy the alias for the service. If we scale up the service container caddy will
-    # send requests to all of them in a round robin fashion.
-    caddy_conf = f"{experiment_hostname} {{\n    {tls}\n    reverse_proxy {experiment_id}_web:5000\n}}"
-    sftp.putfo(
-        BytesIO(caddy_conf.encode()),
-        f"dallinger/caddy.d/{experiment_id}",
-    )
+    if use_subdomain:
+        # We give caddy the alias for the service. If we scale up the service container caddy will
+        # send requests to all of them in a round robin fashion.
+        caddy_conf = f"{experiment_hostname} {{\n    {tls}\n    reverse_proxy {experiment_id}_web:5000\n}}"
+        sftp.putfo(
+            BytesIO(caddy_conf.encode()),
+            f"dallinger/caddy.d/{experiment_id}",
+        )
+
     # Tell caddy we changed something in the configuration
     executor.reload_caddy()
 
@@ -882,8 +936,30 @@ def destroy(server, app):
         print(f"App {app} is not deployed")
         raise click.Abort()
 
+    # Inspect the active Caddyfile only after we know the app exists.
+    caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
+    uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
+
     # Remove the caddy configuration file and reload caddy config
     executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
+
+    if uses_root_domain:
+        # The apex host pointed straight at this app; restore the default
+        # health-check layout so the server behaves like a subdomain setup again.
+        config = get_config(load=True)
+        email_addr = config.get("contact_email_on_error")
+        HAS_TLS = ssh_host != "localhost"
+        tls_value = "tls internal" if not HAS_TLS else f"tls {email_addr}"
+        sftp = get_sftp(ssh_host, user=ssh_user)
+        sftp.putfo(
+            BytesIO(
+                CADDYFILE_SUBDOMAIN.format(
+                    host=server_info["host"], tls=tls_value
+                ).encode()
+            ),
+            "dallinger/Caddyfile",
+        )
+
     executor.reload_caddy()
 
     executor.run(
@@ -909,6 +985,14 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         is expected to be under our control.
     """
     client = paramiko.SSHClient()
+
+    known_hosts_path = os.path.expanduser("~/.ssh/known_hosts")
+    try:
+        client.load_host_keys(known_hosts_path)
+    except IOError:
+        # The known_hosts file might not exist yet; we'll create it after connecting.
+        os.makedirs(os.path.dirname(known_hosts_path), exist_ok=True)
+
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.load_system_host_keys()
 
@@ -930,7 +1014,20 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
             client.connect(host, username=user)
         spinner.ok("Connected.")
 
+    try:
+        client.save_host_keys(known_hosts_path)
+    except IOError as exc:
+        logging.getLogger(__name__).warning(
+            "Could not persist SSH known host for %s: %s", host, exc
+        )
+
     return client
+
+
+def ensure_remote_host_in_known_hosts(host, user=None):
+    """Make sure the SSH host key is trusted locally before other clients connect."""
+    client = get_connected_ssh_client(host, user)
+    client.close()
 
 
 class Executor:
