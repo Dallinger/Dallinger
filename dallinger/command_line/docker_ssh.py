@@ -271,7 +271,7 @@ def build_and_push_image(f):
         from dallinger.docker.tools import build_image
 
         config = get_config(load=True)
-        image_name = config.get("docker_image_name")
+        image_name = config.get("docker_image_name", None)
         local_build = kwargs.get("local_build", False)
         # If we build locally we have to push the image to the registry
         push_build = kwargs.get("push_build", False) or local_build
