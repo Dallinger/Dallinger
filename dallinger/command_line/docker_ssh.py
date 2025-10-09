@@ -288,8 +288,6 @@ def build_and_push_image(f):
                 ssh_host = server_info["host"]
                 ssh_user = server_info.get("user")
                 pem_path = get_server_pem_path()
-                print(f"DEBUG: Using PEM path: {pem_path}")
-                print(f"DEBUG: PEM file exists: {Path(pem_path).exists()}")
                 # We want Docker to use our server_pem file
                 ssh_opts = " ".join(
                     [
@@ -298,14 +296,10 @@ def build_and_push_image(f):
                         "-o StrictHostKeyChecking=accept-new",
                     ]
                 )
-                print(f"DEBUG: SSH opts: {ssh_opts}")
                 os.environ["DOCKER_HOST"] = (
                     f"ssh://{(ssh_user + '@') if ssh_user else ''}{ssh_host}"
                 )
                 os.environ["DOCKER_SSH_OPTS"] = ssh_opts
-                print(
-                    f"DEBUG: DOCKER_SSH_OPTS set to: {os.environ.get('DOCKER_SSH_OPTS')}"
-                )
                 print(
                     f"Attempting to build image on remote host: {os.environ['DOCKER_HOST']}"
                 )
