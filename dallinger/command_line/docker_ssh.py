@@ -49,6 +49,8 @@ from dallinger.utils import (
     print_bold,
 )
 
+from .utils import get_server_pem_path
+
 # Find an identifier for the current user to use as CREATOR of the experiment
 HOSTNAME = gethostname()
 try:
@@ -779,30 +781,6 @@ It currently resolves to {ipaddr_experiment}."""
         "dashboard_link": dashboard_link,
         "log_command": log_command,
     }
-
-
-def get_server_pem_path() -> Path:
-    """Return the expanded Path to the configured server PEM file
-    (server_pem in config).
-
-    Raises FileNotFoundError with a helpful message if the config key is missing
-    or the file does not exist.
-    """
-    config = get_config(load=True)
-    path_string: str = str(config.get("server_pem", "") or "")
-    if not path_string:
-        raise FileNotFoundError(
-            "You have not configured the server_pem config variable!\n"
-            "Set it in your experiment's config.txt or ~/.dallingerconfig, for example:\n"
-            "server_pem = /path/to/key.pem"
-        )
-    pem_path = Path(path_string).expanduser()
-    if not pem_path.is_file():
-        raise FileNotFoundError(
-            f"SSH key file not found: {pem_path}\n"
-            "Please check that the path in your config file is correct."
-        )
-    return pem_path
 
 
 def get_experiment_id_from_archive(archive_path):
