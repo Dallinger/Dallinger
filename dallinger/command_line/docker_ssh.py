@@ -52,9 +52,11 @@ try:
 except (KeyError, OSError):  # Python >= 3.13 raises OSError
     USER = "user"
 
-DOCKER_COMPOSE_SERVER = abspath_from_egg(
-    "dallinger", "dallinger/docker/ssh_templates/docker-compose-server.yml"
-).read_bytes()
+DOCKER_COMPOSE_SERVER_TPL = Template(
+    abspath_from_egg(
+        "dallinger", "dallinger/docker/ssh_templates/docker-compose-server.yml.j2"
+    ).read_text()
+)
 
 DOCKER_COMPOSE_EXP_TPL = Template(
     abspath_from_egg(
@@ -95,16 +97,15 @@ CADDYFILE_ROOT = """
 
 {host} {{
     {tls}
-    @health path /health-check
-    handle @health {{
+    handle /health-check {{
         respond 200
     }}
-    reverse_proxy {backend}
-}}
-
-logs.{host} {{
-    reverse_proxy dozzle:8080
-    {tls}
+    handle /logs* {{
+        reverse_proxy dozzle:8080
+    }}
+    handle {{
+        reverse_proxy {backend}
+    }}
 }}
 """
 
@@ -571,18 +572,32 @@ It currently resolves to {ipaddr_experiment}."""
 
     if not use_subdomain:
         # Running on the apex host leaves no room for other experiments, so
-        # require the operator to tear down any existing Caddy fragments first.
+        # require the operator to tear down any existing experiments first.
         existing_caddy = executor.run("ls -1 ~/dallinger/caddy.d", raise_=False)
         existing_configs = [entry for entry in existing_caddy.splitlines() if entry]
-        if existing_configs:
-            joined = ", ".join(existing_configs)
+
+        existing_app_dirs = []
+        app_dirs_listing = executor.run("ls -1 ~/dallinger", raise_=False)
+        for entry in app_dirs_listing.splitlines():
+            if not entry or entry in {"caddy.d", "deploy_logs"}:
+                continue
+            has_compose = executor.run(
+                f"test -f ~/dallinger/{entry}/docker-compose.yml && echo yes",
+                raise_=False,
+            )
+            if has_compose.strip():
+                existing_app_dirs.append(entry)
+
+        conflicts = sorted(set(existing_configs + existing_app_dirs))
+        if conflicts:
+            joined = ", ".join(conflicts)
             print(
                 f"{RED}Root domain deployments require terminating existing experiments.{END}\n"
-                f"{RED}Found Caddy configuration fragments for:{END} {joined}"
+                f"{RED}Found deployed experiments:{END} {joined}"
             )
             destroy_cmds = "\n".join(
                 f"  dallinger docker-ssh destroy --app {name} --server {server}"
-                for name in existing_configs
+                for name in conflicts
             )
             print(
                 f"{RED}Please destroy those experiments before deploying to the root domain.{END}\n"
@@ -625,8 +640,9 @@ It currently resolves to {ipaddr_experiment}."""
             raise click.Abort
 
     sftp = get_sftp(ssh_host, user=ssh_user)
-    sftp.putfo(BytesIO(DOCKER_COMPOSE_SERVER), "dallinger/docker-compose.yml")
-
+    dozzle_base = "/logs" if not use_subdomain else ""
+    rendered_compose = DOCKER_COMPOSE_SERVER_TPL.render(dozzle_base=dozzle_base)
+    sftp.putfo(BytesIO(rendered_compose.encode()), "dallinger/docker-compose.yml")
     caddy_template = CADDYFILE_SUBDOMAIN if use_subdomain else CADDYFILE_ROOT
     caddy_kwargs = {"host": dns_host, "tls": tls}
     if not use_subdomain:
@@ -649,8 +665,11 @@ It currently resolves to {ipaddr_experiment}."""
     else:
         print("Restarting experiment.")
 
+    logs_url = (
+        f"https://{dns_host}/logs" if not use_subdomain else f"https://logs.{dns_host}"
+    )
     print_bold(
-        f"To view the logs for this experiment go to https://logs.{dns_host} (user = dallinger, password = {dozzle_password})"
+        f"To view the logs for this experiment go to {logs_url} (user = dallinger, password = {dozzle_password})"
     )
     cfg = config.as_dict(include_sensitive=True)
 
@@ -793,7 +812,7 @@ It currently resolves to {ipaddr_experiment}."""
     deployment_infos += [
         "To display the logs for this experiment you can run:",
         log_command,
-        f"Or you can head to https://logs.{dns_host} (user = dallinger, password = {dozzle_password})",
+        f"Or you can head to {logs_url} (user = dallinger, password = {dozzle_password})",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
     ]
     for line in deployment_infos:
@@ -939,6 +958,7 @@ def destroy(server, app):
     # Inspect the active Caddyfile only after we know the app exists.
     caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
     uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
+    dns_host = server_info["host"]
 
     # Remove the caddy configuration file and reload caddy config
     executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
@@ -952,11 +972,7 @@ def destroy(server, app):
         tls_value = "tls internal" if not HAS_TLS else f"tls {email_addr}"
         sftp = get_sftp(ssh_host, user=ssh_user)
         sftp.putfo(
-            BytesIO(
-                CADDYFILE_SUBDOMAIN.format(
-                    host=server_info["host"], tls=tls_value
-                ).encode()
-            ),
+            BytesIO(CADDYFILE_SUBDOMAIN.format(host=dns_host, tls=tls_value).encode()),
             "dallinger/Caddyfile",
         )
 
