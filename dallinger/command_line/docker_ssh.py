@@ -6,7 +6,6 @@ import os
 import re
 import secrets
 import select
-import shlex
 import socket
 import sys
 import zipfile
@@ -278,7 +277,6 @@ def build_and_push_image(f):
 
         # Save any current values from environment so we can restore them
         original_docker_host = os.environ.get("DOCKER_HOST")
-        original_docker_ssh_opts = os.environ.get("DOCKER_SSH_OPTS")
 
         docker_client = None
         try:
@@ -287,19 +285,9 @@ def build_and_push_image(f):
                 server_info = CONFIGURED_HOSTS[kwargs["server"]]
                 ssh_host = server_info["host"]
                 ssh_user = server_info.get("user")
-                pem_path = get_server_pem_path()
-                # We want Docker to use our server_pem file
-                ssh_opts = " ".join(
-                    [
-                        f"-i {shlex.quote(str(pem_path))}",
-                        "-o IdentitiesOnly=yes",
-                        "-o StrictHostKeyChecking=accept-new",
-                    ]
-                )
                 os.environ["DOCKER_HOST"] = (
                     f"ssh://{(ssh_user + '@') if ssh_user else ''}{ssh_host}"
                 )
-                os.environ["DOCKER_SSH_OPTS"] = ssh_opts
                 print(
                     f"Attempting to build image on remote host: {os.environ['DOCKER_HOST']}"
                 )
@@ -370,12 +358,6 @@ def build_and_push_image(f):
                 os.environ.pop("DOCKER_HOST", None)
             else:
                 os.environ["DOCKER_HOST"] = original_docker_host
-
-            # Restore DOCKER_SSH_OPTS
-            if original_docker_ssh_opts is None:
-                os.environ.pop("DOCKER_SSH_OPTS", None)
-            else:
-                os.environ["DOCKER_SSH_OPTS"] = original_docker_ssh_opts
 
     return wrapper
 
