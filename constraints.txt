@@ -458,7 +458,7 @@ pytest==8.4.2
     # via
     #   dallinger
     #   pytest-rerunfailures
-pytest-rerunfailures==16.0.1
+pytest-rerunfailures==16.1
     # via dallinger
 python-dateutil==2.9.0.post0
     # via
