@@ -272,6 +272,84 @@ option_push_build = click.option(
 )
 
 
+def should_use_subdomain(app_name, archive_path):
+    if app_name:
+        return True
+    if archive_path:
+        return False
+    return False
+
+
+def get_existing_remote_experiments(executor):
+    existing = set()
+
+    caddy_listing = executor.run("ls -1 ~/dallinger/caddy.d", raise_=False)
+    for entry in caddy_listing.splitlines():
+        if entry:
+            existing.add(entry)
+
+    app_listing = executor.run("ls -1 ~/dallinger", raise_=False)
+    for entry in app_listing.splitlines():
+        if not entry or entry in {"caddy.d", "deploy_logs"}:
+            continue
+        has_compose = executor.run(
+            f"test -f ~/dallinger/{entry}/docker-compose.yml && echo yes",
+            raise_=False,
+        )
+        if has_compose.strip():
+            existing.add(entry)
+
+    return sorted(existing)
+
+
+def ensure_root_domain_ready(server, update):
+    if update:
+        return True
+
+    server_info = CONFIGURED_HOSTS[server]
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
+    executor = Executor(ssh_host, user=ssh_user)
+    conflicts = get_existing_remote_experiments(executor)
+    if not conflicts:
+        return True
+
+    joined = ", ".join(conflicts)
+    print(
+        f"{RED}Root domain deployments require terminating existing experiments.{END}\n"
+        f"{RED}Found deployed experiments:{END} {joined}"
+    )
+    destroy_cmds = "\n".join(
+        f"  dallinger docker-ssh destroy --app {name} --server {server}"
+        for name in conflicts
+    )
+    print(
+        f"{RED}Please destroy those experiments before deploying to the root domain.{END}\n"
+        "Suggested commands:\n"
+        f"{destroy_cmds}"
+    )
+
+    if not click.confirm(
+        "Destroy these experiments automatically before proceeding?",
+        default=False,
+    ):
+        raise click.Abort()
+
+    for name in conflicts:
+        print_bold(f"Destroying {name} on server {server}")
+        destroy.callback(server=server, app=name)
+
+    executor = Executor(ssh_host, user=ssh_user)
+    remaining = get_existing_remote_experiments(executor)
+    if remaining:
+        print(
+            f"{RED}Some experiments are still present: {', '.join(remaining)}. Aborting.{END}"
+        )
+        raise click.Abort()
+
+    return True
+
+
 def build_and_push_image(f):
     """Decorator for click commands that depend on a pushed docker image.
 
@@ -293,6 +371,16 @@ def build_and_push_image(f):
         image_name = config.get("docker_image_name", None)
         local_build = kwargs.get("local_build", False)
         push_build = kwargs.get("push_build", False)
+        use_subdomain = should_use_subdomain(
+            kwargs.get("app_name"), kwargs.get("archive_path")
+        )
+
+        preflight_root_clean = False
+        if not use_subdomain:
+            preflight_root_clean = ensure_root_domain_ready(
+                server=kwargs["server"], update=kwargs.get("update", False)
+            )
+        kwargs["preflight_root_clean"] = preflight_root_clean
 
         if local_build:
             # If we build locally we have to push the image to the registry
@@ -475,6 +563,7 @@ def _deploy_in_mode(
     update,
     local_build,  # noqa
     push_build,
+    preflight_root_clean,
 ):
     config = get_config(load=True)
 
@@ -500,15 +589,13 @@ def _deploy_in_mode(
     tls = "tls internal" if not HAS_TLS else f"tls {email_addr}"
 
     experiment_uuid = str(uuid4())
+    use_subdomain = should_use_subdomain(app_name, archive_path)
     if app_name:
         experiment_id = app_name
-        use_subdomain = True
     elif archive_path:
         experiment_id = get_experiment_id_from_archive(archive_path)
-        use_subdomain = False
     else:
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
-        use_subdomain = False
 
     app_identifier = app_name or experiment_id
 
@@ -570,39 +657,13 @@ It currently resolves to {ipaddr_experiment}."""
     executor = Executor(ssh_host, user=ssh_user, app=app_identifier)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
-    if not use_subdomain:
-        # Running on the apex host leaves no room for other experiments, so
-        # require the operator to tear down any existing experiments first.
-        existing_caddy = executor.run("ls -1 ~/dallinger/caddy.d", raise_=False)
-        existing_configs = [entry for entry in existing_caddy.splitlines() if entry]
-
-        existing_app_dirs = []
-        app_dirs_listing = executor.run("ls -1 ~/dallinger", raise_=False)
-        for entry in app_dirs_listing.splitlines():
-            if not entry or entry in {"caddy.d", "deploy_logs"}:
-                continue
-            has_compose = executor.run(
-                f"test -f ~/dallinger/{entry}/docker-compose.yml && echo yes",
-                raise_=False,
-            )
-            if has_compose.strip():
-                existing_app_dirs.append(entry)
-
-        conflicts = sorted(set(existing_configs + existing_app_dirs))
+    if not use_subdomain and not preflight_root_clean:
+        conflicts = get_existing_remote_experiments(executor)
         if conflicts:
             joined = ", ".join(conflicts)
             print(
                 f"{RED}Root domain deployments require terminating existing experiments.{END}\n"
                 f"{RED}Found deployed experiments:{END} {joined}"
-            )
-            destroy_cmds = "\n".join(
-                f"  dallinger docker-ssh destroy --app {name} --server {server}"
-                for name in conflicts
-            )
-            print(
-                f"{RED}Please destroy those experiments before deploying to the root domain.{END}\n"
-                "Suggested commands:\n"
-                f"{destroy_cmds}"
             )
             raise click.Abort()
 
