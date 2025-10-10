@@ -413,7 +413,7 @@ psutil==7.0.0
     # via
     #   dallinger
     #   ipykernel
-psycopg2==2.9.10
+psycopg2==2.9.11
     # via dallinger
 ptyprocess==0.7.0
     # via
