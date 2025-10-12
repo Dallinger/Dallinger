@@ -84,6 +84,11 @@
 #### Removed
 - Dropped support for Python 3.9
 
+## [v11.3.2](https://github.com/dallinger/dallinger/tree/v11.3.2) (2025-10-12)
+
+#### Fixed
+- We now use the Docker bitnamilegacy repository for pgbouncer as the bitnami repository has been deleted. This is a temporary fix until we move to building our own pgbouncer image.
+
 ## [v11.3.1](https://github.com/dallinger/dallinger/tree/v11.3.1) (2025-05-25)
 
 #### Fixed
