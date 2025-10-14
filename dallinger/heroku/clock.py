@@ -90,6 +90,7 @@ def launch():
                 scoped_task,
                 trigger=args["trigger"],
                 replace_existing=True,
+                max_instances=1,
                 **dict(args["kwargs"]),
             )
 

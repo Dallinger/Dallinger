@@ -223,7 +223,7 @@ def _scrub_participant_table(path_to_data):
 def export(id, local=False, scrub_pii=False):
     """Export data from an experiment."""
 
-    print("Preparing to export the data...")
+    print("Preparing to export the data... MAX1")
 
     if local:
         db_uri = db.db_url
