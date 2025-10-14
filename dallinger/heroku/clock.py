@@ -88,9 +88,9 @@ def launch():
             scoped_task = db.scoped_session_decorator(task)
             scheduler.add_job(
                 scoped_task,
+                id=meth_name,
                 trigger=args["trigger"],
                 replace_existing=True,
-                max_instances=1,
                 **dict(args["kwargs"]),
             )
 
