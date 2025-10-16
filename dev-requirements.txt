@@ -107,7 +107,7 @@ coverage-pth==0.0.2
     # via dallinger
 croniter==6.0.0
     # via rq
-cryptography==45.0.7
+cryptography==46.0.3
     # via
     #   paramiko
     #   pyopenssl
