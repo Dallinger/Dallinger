@@ -104,14 +104,10 @@ class ProlificService:
         the study on Prolific. If we get there first, there will be an error
         because the submission hasn't happened yet.
         """
-        from dallinger.recruiters import handle_and_raise_recruitment_error
-
         status = self.get_participant_submission(submission_id)["status"]
         if status != "AWAITING REVIEW":
             # This will trigger a retry from the decorator
-            handle_and_raise_recruitment_error(
-                ProlificServiceException("Prolific session not yet submitted.")
-            )
+            ProlificServiceException("Prolific session not yet submitted.")
 
         return self._req(
             method="POST",
