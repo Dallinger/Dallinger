@@ -1,5 +1,10 @@
 # Change Log
 
+## [v11.5.3](https://github.com/dallinger/dallinger/tree/v11.5.3) (2025-10-16)
+
+#### Fixed
+- Removed calling `handle_and_raise_recruitment_error` from within the `approve_participant_submission` method as it was logging errors unnecessarily.
+
 ## [v11.5.2](https://github.com/dallinger/dallinger/tree/v11.5.2) (2025-10-07)
 
 #### Fixed
