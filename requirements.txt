@@ -21,7 +21,7 @@ beautifulsoup4==4.13.5
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.40.29
+boto3==1.40.55
     # via dallinger
 botocore==1.40.29
     # via
