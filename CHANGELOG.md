@@ -1,5 +1,10 @@
 # Change Log
 
+## [v11.5.4](https://github.com/dallinger/dallinger/tree/v11.5.4) (2025-10-20)
+
+#### Fixed
+- Fixed bug raising ProlificServiceException.
+
 ## [v11.5.3](https://github.com/dallinger/dallinger/tree/v11.5.3) (2025-10-16)
 
 #### Fixed
