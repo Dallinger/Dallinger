@@ -107,7 +107,7 @@ class ProlificService:
         status = self.get_participant_submission(submission_id)["status"]
         if status != "AWAITING REVIEW":
             # This will trigger a retry from the decorator
-            ProlificServiceException("Prolific session not yet submitted.")
+            raise ProlificServiceException("Prolific session not yet submitted.")
 
         return self._req(
             method="POST",
