@@ -497,7 +497,7 @@ referencing==0.36.2
     #   jsonschema
     #   jsonschema-specifications
     #   jupyter-events
-regex==2025.9.1
+regex==2025.10.23
     # via parsimonious
 requests==2.32.5
     # via
