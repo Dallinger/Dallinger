@@ -646,6 +646,10 @@ class ProlificRecruiter(Recruiter):
                 submission_id=assignment_id
             )
         except ProlificServiceException as ex:
+            logger.warning(
+                f"approve_participant_submission for assignment_id '{assignment_id}' "
+                f"failed with error '{str(ex)}'. Will try to proceed anyway."
+            )
             handle_recruitment_error(ex)
 
     def close_recruitment(self):
