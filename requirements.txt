@@ -173,7 +173,7 @@ python-json-logger==3.3.0
     # via dallinger
 pytz==2025.2
     # via croniter
-redis==6.4.0
+redis==7.0.0
     # via
     #   dallinger
     #   rq
