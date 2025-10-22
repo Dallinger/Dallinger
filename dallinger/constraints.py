@@ -268,6 +268,8 @@ def _get_explicit_dallinger_numbered_release(input_path: Path) -> Optional[str]:
     pattern = re.compile(r"dallinger(?:\[[^\]]+\])?==([0-9]+\.[0-9]+\.[0-9]+)")
     with open(input_path, "r") as f:
         for line in f:
+            if line.strip().startswith("#"):  # skip comments
+                continue
             match = pattern.search(line)
             if match:
                 return match.group(1)
@@ -281,6 +283,8 @@ def _get_explicit_dallinger_github_requirement(input_path: Path) -> Optional[str
     )
     with open(input_path, "r") as f:
         for line in f:
+            if line.strip().startswith("#"):  # skip comments
+                continue
             match = pattern.search(line)
             if match:
                 return match.group(1)
