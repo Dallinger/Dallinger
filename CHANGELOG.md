@@ -1,5 +1,10 @@
 # Change Log
 
+## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
+
+#### Fixed
+- Improved logging when approving Prolific participant submissions.
+
 ## [v11.5.4](https://github.com/dallinger/dallinger/tree/v11.5.4) (2025-10-20)
 
 #### Fixed
