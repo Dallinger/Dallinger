@@ -114,7 +114,7 @@ markupsafe==3.0.2
     #   jinja2
     #   werkzeug
     #   wtforms
-matplotlib-inline==0.1.7
+matplotlib-inline==0.2.1
     # via ipython
 numpy==2.2.6
     # via dallinger
