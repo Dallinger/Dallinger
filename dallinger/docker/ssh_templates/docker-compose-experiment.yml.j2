@@ -1,5 +1,5 @@
 services:
-  redis_{{ experiment_id }}:
+  redis-{{ experiment_id }}:
     restart: unless-stopped
     image: redis
     command: redis-server --appendonly yes
@@ -18,12 +18,12 @@ services:
     user: "${UID}:${GID}"
     command: dallinger_heroku_web
     depends_on: &commondepends
-      redis_{{ experiment_id }}:
+      redis-{{ experiment_id }}:
         condition: service_healthy
       pgbouncer:
         condition: service_started
     environment: &commonenv
-      REDIS_URL: redis://redis_{{ experiment_id }}:6379
+      REDIS_URL: redis://redis-{{ experiment_id }}:6379
       DATABASE_URL: postgresql://{{ experiment_id }}:{{ postgresql_password }}@{{ experiment_id }}_pgbouncer/{{ experiment_id }}
       HOME: /tmp
       HOST: 0.0.0.0
