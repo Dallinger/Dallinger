@@ -488,7 +488,7 @@ pyzmq==27.1.0
     #   jupyter-client
     #   jupyter-console
     #   jupyter-server
-redis==6.4.0
+redis==7.0.1
     # via
     #   dallinger
     #   rq
