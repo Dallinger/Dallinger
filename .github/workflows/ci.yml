@@ -1,7 +1,30 @@
 name: ci
-on: [push]
+on:
+  push:
+  pull_request:
 
 jobs:
+  check_changelog:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history for git diff
+
+      - name: Check for CHANGELOG.md entry
+        run: |
+          git fetch --quiet origin ${{ github.base_ref }}
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...${{ github.sha }})
+          if ! echo "$CHANGED_FILES" | grep -q 'CHANGELOG.md'; then
+            echo "ERROR: Pull requests must include a corresponding entry in CHANGELOG.md."
+            echo "Changed files:"
+            echo "$CHANGED_FILES"
+            exit 1
+          fi
+          echo "✓ CHANGELOG.md entry found"
+
   check_mturk_changes:
     runs-on: ubuntu-latest
     outputs:
@@ -98,6 +121,8 @@ jobs:
         run: |
           pip install --upgrade pip wheel tox
       - name: Before Tox
+        env:
+          DANGER_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           bundle exec danger
           pip install --upgrade setuptools
