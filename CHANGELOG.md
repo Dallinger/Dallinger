@@ -1,5 +1,11 @@
 # Change Log
 
+#### Added
+- Fail CI if there is no CHANGELOG entry in a pull request
+
+#### Fixed
+- Temporarily skipped some constraints tests as they made the CI fail with "429: Too Many Requests" errors
+
 ## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
 
 #### Fixed
