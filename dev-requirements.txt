@@ -15,7 +15,7 @@ anyio==4.11.0
     # via
     #   httpx
     #   jupyter-server
-apscheduler==3.11.0
+apscheduler==3.11.1
     # via dallinger
 argon2-cffi==25.1.0
     # via jupyter-server
