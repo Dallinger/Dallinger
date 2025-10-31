@@ -7,7 +7,7 @@
     # via -r requirements.in
 ansi2html==1.9.2
     # via dallinger
-apscheduler==3.11.0
+apscheduler==3.11.1
     # via dallinger
 asttokens==3.0.0
     # via stack-data
