@@ -35,9 +35,6 @@ class TestGenerateConstraints:
             "dallinger.constraints.uv_available", lambda: uv_available_value
         )
 
-    @pytest.mark.skip(
-        reason="Test is failing due to network issues - needs to be fixed on part of GitHub"
-    )
     def test_constraints_dallinger_release(self, in_tempdir, python_version_file):
         with open("requirements.txt", "w") as f:
             f.write("dallinger==11.4.0")
@@ -57,9 +54,6 @@ class TestGenerateConstraints:
             python_version_pattern, content
         ), "constraints.txt missing Python version information"
 
-    @pytest.mark.skip(
-        reason="Test is failing due to network issues - needs to be fixed on part of GitHub"
-    )
     def test_constraints_dallinger_commit(self, in_tempdir, python_version_file):
         # Note: pip-compile under Python 3.13 failed to compile requirements for a Python 3.12 version of Dallinger.
         # This might cause problems again when we upgrade to Python 3.14.
@@ -74,9 +68,6 @@ class TestGenerateConstraints:
         # to verify that 3.1.1 is indeed the correct version
         assert "flask==3.1.1" in Path("constraints.txt").read_text()
 
-    @pytest.mark.skip(
-        reason="Test is failing due to network issues - needs to be fixed on part of GitHub"
-    )
     def test_constraints_psynet(self, in_tempdir, python_version_file):
         with open("requirements.txt", "w") as f:
             f.write("psynet==12.0.0")
@@ -93,9 +84,6 @@ class TestGenerateConstraints:
         if int(minor) == 1:
             assert int(patch) >= 1
 
-    @pytest.mark.skip(
-        reason="Test is failing due to network issues - needs to be fixed on part of GitHub"
-    )
     def test_caching(self, tempdir, in_tempdir, python_version_file):
         requirements_path = Path("requirements.txt")
         requirements_path.write_text("dallinger==11.4.0\n")
@@ -133,9 +121,6 @@ class TestGenerateConstraints:
         # Manually written constraints.txt files should not be updated
         assert os.path.getmtime(Path("constraints.txt")) == original_mtime
 
-    @pytest.mark.skip(
-        reason="Test is failing due to network issues - needs to be fixed on part of GitHub"
-    )
     def test_check_constraints(self, in_tempdir, tempdir, python_version_file):
         with open("requirements.txt", "w") as f:
             f.write("dallinger==11.4.0")
@@ -145,9 +130,6 @@ class TestGenerateConstraints:
         check_constraints()
 
 
-@pytest.mark.skip(
-    reason="Test is failing due to network issues - needs to be fixed on part of GitHub"
-)
 def test_check_constraints_wrong_python_version(in_tempdir):
     with open(".python-version", "w") as f:
         f.write("3.15.0")
