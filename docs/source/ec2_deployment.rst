@@ -56,8 +56,9 @@ EC2 SSH Key Pair (PEM File)
 By default the ``dallinger ec2`` commands will use an SSH key pair named
 ``dallinger`` to create instances. If that key pair does not exist you will need
 to create one on AWS, download it, place it in your home folder and make it read only.
-You can use an existing SSH key pair by specifying the ``--pem`` option on
-the commandline, or by setting the ``ec2_default_pem`` value in your `~/.dallingerconfig` file.
+You can use an existing SSH key pair by setting the ``ec2_default_pem`` value in your
+`~/.dallingerconfig` file.
+
 For more information about creating PEM files in AWS, see
 https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html.
 
