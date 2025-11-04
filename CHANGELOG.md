@@ -2,6 +2,7 @@
 
 #### Added
 - Fail CI if there is no CHANGELOG entry in a pull request
+- Add support for custom Prolific completion codes and actions.
 
 #### Fixed
 - Temporarily skipped some constraints tests as they made the CI fail with "429: Too Many Requests" errors
