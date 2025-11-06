@@ -52,7 +52,7 @@ dependencies = [
     "numpy < 2.3",
     "paramiko < 4",
     "pexpect",
-    "pip",
+    "pip < 25.3",
     "pip-tools",  # TODO: consider removing at some point if we are happy with uv?
     "platformdirs",
     "psycopg2",
