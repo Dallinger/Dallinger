@@ -155,6 +155,20 @@ class BotBase:
             )
             participate.click()
             logger.info("Clicked start button.")
+            # Wait for and extract participant_id set by dallinger.js after signup
+            try:
+                WebDriverWait(self.driver, 5).until(
+                    lambda d: d.execute_script(
+                        "return dallinger.identity && dallinger.identity.participantId;"
+                    )
+                )
+                self.participant_id = str(
+                    self.driver.execute_script(
+                        "return dallinger.identity.participantId;"
+                    )
+                )
+            except TimeoutException:
+                logger.warning("Could not extract participant_id from page")
             return True
         except TimeoutException:
             logger.error("Error during experiment sign up.")
