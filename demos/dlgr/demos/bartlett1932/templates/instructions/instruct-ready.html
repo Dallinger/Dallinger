@@ -14,7 +14,7 @@
             <div class="row">
                 <div class="col-xs-10"></div>
                 <div class="col-xs-2">
-                    <button type="button" class="btn btn-success btn-lg" onClick="dallinger.goToPage('experiment')">
+                    <button type="button" class="btn btn-success btn-lg" id="begin-button">
                     Begin</button>
                 </div>
             </div>
@@ -24,6 +24,10 @@
 
 {% block scripts %}
     <script>
-        dallinger.createParticipant();
+        dallinger.createParticipant().done(function () {
+            $('#begin-button').on('click', function() {
+                dallinger.goToPage('experiment');
+            });
+        });
     </script>
 {% endblock %}

@@ -2,11 +2,12 @@
 
 #### Added
 - Fail CI if there is no CHANGELOG entry in a pull request
+- `BotBase` now validates that `participant_id` is present in the URL (except for `/ad` URLs where it's assigned during sign-up)
 
 #### Fixed
-- Temporarily skipped some constraints tests as they made the CI fail with "429: Too Many Requests" errors
 - Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`     
-- Fix markers configuration in pytest.ini files
+- Fixed markers configuration in pytest.ini files
+- Fixed race condition in bartlett demo test by attaching the button click handler only after createParticipant() completes.
 
 #### Removed
 - Removed Danger and its dependencies

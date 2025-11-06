@@ -1760,7 +1760,7 @@ def check_for_duplicate_assignments(participant):
         q.enqueue(worker_function, "AssignmentAbandoned", None, d.id)
 
 
-@app.route("/worker_complete", methods=["POST"])
+@app.route("/worker_complete", methods=["POST", "GET"])
 @db.scoped_session_decorator
 def worker_complete():
     """Called when a participant completes their task.
