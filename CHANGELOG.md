@@ -4,7 +4,7 @@
 - Fail CI if there is no CHANGELOG entry in a pull request
 
 #### Fixed
-- Temporarily skipped some constraints tests as they made the CI fail with "429: Too Many Requests" errors
+- Fixed Selenium bot-based tests by extracting `participant_id` from page after signup by adding a wait loop and making `/worker_complete` endpoint accept both GET and POST methods
 
 ## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
 
