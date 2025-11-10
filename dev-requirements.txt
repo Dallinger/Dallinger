@@ -440,7 +440,7 @@ pygments==2.19.2
     #   sphinx
 pygtail==0.14.0
     # via dallinger
-pynacl==1.6.0
+pynacl==1.6.1
     # via paramiko
 pyopenssl==25.3.0
     # via dallinger
