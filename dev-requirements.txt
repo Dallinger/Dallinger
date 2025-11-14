@@ -444,7 +444,7 @@ pynacl==1.6.0
     # via paramiko
 pyopenssl==25.3.0
     # via dallinger
-pypandoc==1.15
+pypandoc==1.16.2
     # via dallinger
 pyproject-api==1.10.0
     # via tox
