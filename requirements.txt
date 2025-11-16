@@ -9,7 +9,7 @@ ansi2html==1.9.2
     # via dallinger
 apscheduler==3.11.0
     # via dallinger
-asttokens==3.0.0
+asttokens==3.0.1
     # via stack-data
 attrs==25.4.0
     # via
