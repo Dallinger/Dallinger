@@ -23,7 +23,7 @@ argon2-cffi-bindings==25.1.0
     # via argon2-cffi
 arrow==1.4.0
     # via isoduration
-asttokens==3.0.0
+asttokens==3.0.1
     # via stack-data
 async-lru==2.0.5
     # via jupyterlab
