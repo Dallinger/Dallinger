@@ -432,8 +432,10 @@ def launch():
         )
 
     try:
+        logging.info("=" * 80)
+        logging.info("STEP 1/4: Running exp.setup()...")
         exp.setup()
-        exp.on_launch()
+        logging.info("✓ exp.setup() completed successfully")
     except Exception as e:
         return error_response(
             error_text="An error occurred while setting up experiment, check experiment server log "
@@ -447,13 +449,50 @@ def launch():
     loglevel = config.get("loglevel", 0)
     recruiters.set_log_level(loglevel)
     try:
+        logging.info("=" * 80)
+        logging.info("STEP 2/4: Creating Lucid survey via open_recruitment()...")
+        logging.info("NOTE: Survey is being created BEFORE on_launch()")
         recruitment_details = exp.recruiter.open_recruitment(
             n=exp.initial_recruitment_size
         )
         session.commit()
+        logging.info("✓ Lucid survey created successfully!")
     except Exception as e:
+        logging.error("✗ Failed to create Lucid survey")
         return error_response(
             error_text="Failed to open recruitment, check experiment server log "
+            "for details: {}".format(str(e)),
+            status=500,
+            simple=True,
+        )
+
+    # TEMPORARY: Stop here after creating survey for testing
+    logging.info("=" * 80)
+    logging.info("STEP 3/4: SKIPPED - on_launch() (temporary for testing)")
+    logging.info("STEP 4/4: SKIPPED - background tasks (temporary for testing)")
+    logging.info("=" * 80)
+    logging.info("TEST RESULT: Survey created BEFORE on_launch() ✓")
+    logging.info("=" * 80)
+    
+    if recruitment_details is not None:
+        message = "\n".join(
+            (
+                "Survey created successfully! Stopping before on_launch().\n",
+                "Initial recruitment list:\n{}".format(
+                    "\n".join(recruitment_details["items"])
+                ),
+                "Additional details:\n{}".format(recruitment_details["message"]),
+            )
+        )
+    else:
+        message = "Recruitment hasn't been started yet. Please, initialize recruitment manually!"
+    return success_response(recruitment_msg=message)
+
+    try:
+        exp.on_launch()
+    except Exception as e:
+        return error_response(
+            error_text="An error occurred during on_launch, check experiment server log "
             "for details: {}".format(str(e)),
             status=500,
             simple=True,
