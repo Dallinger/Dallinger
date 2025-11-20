@@ -183,7 +183,7 @@ requests==2.32.5
     #   heroku3
 rq==2.6.0
     # via dallinger
-s3transfer==0.14.0
+s3transfer==0.15.0
     # via boto3
 selenium==4.38.0
     # via dallinger
