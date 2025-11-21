@@ -690,7 +690,7 @@ wheel==0.45.1
     # via pip-tools
 widgetsnbextension==4.0.14
     # via ipywidgets
-wsproto==1.2.0
+wsproto==1.3.2
     # via
     #   simple-websocket
     #   trio-websocket
