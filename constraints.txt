@@ -597,7 +597,7 @@ terminado==0.18.1
     #   jupyter-server-terminals
 timeago==1.0.16
     # via dallinger
-tinycss2==1.4.0
+tinycss2==1.5.1
     # via bleach
 tokenize-rt==6.2.0
     # via black
