@@ -664,7 +664,7 @@ urllib3==2.5.0
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.9.7
+uv==0.9.13
     # via dallinger
 virtualenv==20.35.4
     # via
