@@ -1,5 +1,7 @@
 # Change Log
 
+## [Unreleased]
+
 #### Added
 - Fail CI if there is no CHANGELOG entry in a pull request
 - Allow root domain deploments (such has my-domain.com) as well as multi subdomain deployments (such as subdom-2.subdom-1.my-domain.com).
@@ -12,6 +14,9 @@
 
 #### Removed
 - Removed Danger and its dependencies
+
+#### Updated
+- Updated dependencies
 
 ## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
 
