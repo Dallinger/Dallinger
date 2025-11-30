@@ -17,7 +17,7 @@ attrs==25.4.0
     #   trio
 bcrypt==5.0.0
     # via paramiko
-beautifulsoup4==4.14.2
+beautifulsoup4==4.14.3
     # via dallinger
 blinker==1.9.0
     # via flask
