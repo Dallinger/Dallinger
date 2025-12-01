@@ -12,6 +12,9 @@
 - Fixed markers configuration in pytest.ini files
 - Fixed a race condition in the Bartlett demo test by setting the button click handler 'disabled' in the HTML template code.
 
+#### Changed
+- Renamed label used in pyup Pull Requests from 'enhancement' to 'dependencies'
+
 #### Removed
 - Removed Danger and its dependencies
 
