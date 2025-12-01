@@ -13,6 +13,9 @@
 - Fixed a race condition in the Bartlett demo test by setting the button click handler 'disabled' in the HTML template code.
 - Fixed/Cleaned up .coveragerc
 
+#### Changed
+- Renamed label used in pyup Pull Requests from 'enhancement' to 'dependencies'
+
 #### Removed
 - Removed Danger and its dependencies
 
