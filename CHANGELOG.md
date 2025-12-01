@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 #### Added
-- Fail CI if there is no CHANGELOG entry in a pull request
+- Fail CI if there is no CHANGELOG entry in a pull request (except 'pyup-update' branches which are excluded)
 
 #### Fixed
 - Temporarily skipped some constraints tests as they made the CI fail with "429: Too Many Requests" errors
