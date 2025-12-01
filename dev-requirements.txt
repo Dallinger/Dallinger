@@ -525,7 +525,7 @@ rpds-py==0.28.0
     #   referencing
 rq==2.6.0
     # via dallinger
-s3transfer==0.14.0
+s3transfer==0.16.0
     # via boto3
 selenium==4.38.0
     # via dallinger
