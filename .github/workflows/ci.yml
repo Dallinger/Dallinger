@@ -95,14 +95,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: 3.2
-      - name: Ruby dependencies
-        run: |
-          gem install danger
-          gem install danger-commit_lint
       - name: Yarn
         run: yarn --frozen-lockfile --ignore-engines
       - name: Set up Python ${{ matrix.python-version }}
@@ -121,10 +113,7 @@ jobs:
         run: |
           pip install --upgrade pip wheel tox
       - name: Before Tox
-        env:
-          DANGER_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          bundle exec danger
           pip install --upgrade setuptools
       - name: Run Full Tox
         env:
