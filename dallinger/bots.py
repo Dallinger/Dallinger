@@ -59,6 +59,8 @@ class BotBase:
             participant_id = self.get_from_query(
                 query, ["participant_id", "participantId"]
             )
+            if not participant_id:
+                raise ValueError(f"Failed to extract participant_id from URL: {URL}")
 
         if not worker_id:
             worker_id = self.get_from_query(query, ["worker_id", "workerId"])
