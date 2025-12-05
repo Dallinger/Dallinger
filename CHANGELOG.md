@@ -1,7 +1,9 @@
 # Change Log
 
+## [Unreleased]
+
 #### Added
-- Fail CI if there is no CHANGELOG entry in a pull request
+- Fail CI if there is no CHANGELOG entry in a pull request (except 'pyup-update' branches which are excluded)
 
 #### Fixed
 - Temporarily skipped some constraints tests as they made the CI fail with "429: Too Many Requests" errors
@@ -10,6 +12,9 @@
 
 #### Removed
 - Removed Danger and its dependencies
+
+#### Updated
+- Updated dependencies
 
 ## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
 
