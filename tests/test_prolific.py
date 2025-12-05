@@ -24,7 +24,7 @@ study_request = {
     "estimated_completion_time": 5,
     "external_study_url": "https://www.example.com/ad?recruiter=prolific&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}",
     "internal_name": "fake experiment title (TEST_EXPERIMENT_UID)",
-    "is_custom_screening": True,
+    "is_custom_screening": False,
     "maximum_allowed_time": 17,
     "name": "fake experiment title (dlgr-TEST_EXPERIMENT_UI)",
     "project_name": "My project",
@@ -239,7 +239,7 @@ def test_can_create_a_draft_study_and_delete_it(subject):
     result = subject.draft_study(**study_request)
 
     assert "id" in result
-    assert result["is_custom_screening"] is True
+    assert result["is_custom_screening"] is False
     assert subject.delete_study(study_id=result["id"])
 
 
