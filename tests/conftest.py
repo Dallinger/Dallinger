@@ -194,7 +194,7 @@ def fake_parsed_prolific_study():
         "id": "abcdefghijklmnopqrstuvwx",
         "name": "Study about API's",
         "internal_name": "WIT-2021 Study about API's version 2",
-        "is_custom_screening": True,
+        "is_custom_screening": False,
         "description": "This study aims to determine how to make a good public API",
         "external_study_url": "https://my-dallinger-app.com/?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}",
         "prolific_id_option": "url_parameters",
