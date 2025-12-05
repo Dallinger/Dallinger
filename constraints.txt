@@ -390,7 +390,7 @@ pexpect==4.9.0
     #   ipython
 pip-tools==7.5.1
     # via dallinger
-platformdirs==4.5.0
+platformdirs==4.5.1
     # via
     #   black
     #   dallinger
