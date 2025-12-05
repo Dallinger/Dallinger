@@ -7,6 +7,9 @@
 - Temporarily skipped some constraints tests as they made the CI fail with "429: Too Many Requests" errors
 - Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`     
 
+#### Removed
+- Removed Danger and its dependencies
+
 ## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
 
 #### Fixed
