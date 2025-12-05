@@ -11,6 +11,9 @@
 #### Removed
 - Removed Danger and its dependencies
 
+#### Changed
+- Renamed label used in pyup Pull Requests from 'enhancement' to 'dependencies'
+
 ## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
 
 #### Fixed
