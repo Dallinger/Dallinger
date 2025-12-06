@@ -480,6 +480,7 @@ class TestMTurkServiceIntegrationSmokeTest:
 
 @pytest.mark.mturk
 @pytest.mark.usefixtures("check_mturkfull")
+@pytest.mark.flaky(reruns=MAX_MTURK_RERUNS)
 class TestMTurkService:
     def loop_until_2_quals(self, mturk_helper, query):
         args = {
@@ -660,6 +661,7 @@ class TestMTurkService:
 @pytest.mark.mturkworker
 @pytest.mark.usefixtures("check_mturkfull")
 @pytest.mark.slow
+@pytest.mark.flaky(reruns=MAX_MTURK_RERUNS)
 class TestMTurkServiceWithRequesterAndWorker:
     def test_can_assign_new_qualification(self, with_cleanup, worker_id, qtype):
         assert with_cleanup.assign_qualification(qtype["id"], worker_id, score=2)
