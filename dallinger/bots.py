@@ -59,7 +59,8 @@ class BotBase:
             participant_id = self.get_from_query(
                 query, ["participant_id", "participantId"]
             )
-            if not participant_id:
+            # Only require participant_id for non-ad URLs (ad URLs get participant_id during sign-up)
+            if not participant_id and not parts.path.endswith("/ad"):
                 raise ValueError(f"Failed to extract participant_id from URL: {URL}")
 
         if not worker_id:
