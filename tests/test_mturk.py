@@ -336,9 +336,19 @@ def worker_id():
 def qtype(mturk):
     # build
     name = name_with_hostname_prefix()
-    qtype = mturk.create_qualification_type(
-        name=name, description=TEST_QUALIFICATION_DESCRIPTION, status="Active"
-    )
+    try:
+        qtype = mturk.create_qualification_type(
+            name=name, description=TEST_QUALIFICATION_DESCRIPTION, status="Active"
+        )
+    except DuplicateQualificationNameError:
+        # A qualification with this name already exists, likely from a previous
+        # interrupted test run. Clean it up and retry.
+        existing = mturk.get_qualification_type_by_name(name)
+        if existing:
+            mturk.dispose_qualification_type(existing["id"])
+        qtype = mturk.create_qualification_type(
+            name=name, description=TEST_QUALIFICATION_DESCRIPTION, status="Active"
+        )
 
     yield qtype
 
