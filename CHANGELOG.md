@@ -7,7 +7,6 @@
 - Temporarily skipped some constraints tests as they made the CI fail with "429: Too Many Requests" errors
 - Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`     
 - Fixed markers configuration in pytest.ini files
-- Added flaky markers to MTurk integration tests to handle AWS API rate limiting (ThrottlingException)
 
 #### Removed
 - Removed Danger and its dependencies

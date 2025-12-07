@@ -46,7 +46,6 @@ class TestBartlett1932:
         assert "experiment" == demo.networks()[0].role
 
     @pytest.mark.slow
-    @pytest.mark.flaky(reruns=2)
     def test_bartlett_selenium(self, two_iterations, bot_recruits):
         for participant, bot in enumerate(bot_recruits):
             driver = bot.driver
