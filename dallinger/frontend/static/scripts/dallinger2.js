@@ -115,7 +115,6 @@ var dallinger = (function () {
       this.assignmentId = dlgr.getUrlParameter('assignmentId');
       this.uniqueId = dlgr.getUrlParameter('workerId') + ":" + dlgr.getUrlParameter('assignmentId');
       this.mode = dlgr.getUrlParameter('mode');
-      this.participantId = dlgr.getUrlParameter('participant_id');
       // Store all url parameters as entry information.
       // This won't work in IE, but should work in Edge.
       var entry_info = {
