@@ -45,15 +45,15 @@ beautifulsoup4==4.14.3
     # via
     #   dallinger
     #   nbconvert
-black==25.11.0
+black==25.12.0
     # via dallinger
 bleach==6.3.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.42.3
+boto3==1.42.5
     # via dallinger
-botocore==1.42.3
+botocore==1.42.5
     # via
     #   boto3
     #   s3transfer
@@ -99,7 +99,7 @@ comm==0.2.3
     # via
     #   ipykernel
     #   ipywidgets
-coverage==7.12.0
+coverage==7.13.0
     # via
     #   coverage-pth
     #   dallinger
@@ -454,7 +454,7 @@ pyproject-hooks==1.2.0
     #   pip-tools
 pysocks==1.7.1
     # via urllib3
-pytest==9.0.1
+pytest==9.0.2
     # via
     #   dallinger
     #   pytest-rerunfailures
@@ -527,7 +527,7 @@ rq==2.6.1
     # via dallinger
 s3transfer==0.16.0
     # via boto3
-selenium==4.38.0
+selenium==4.39.0
     # via dallinger
 send2trash==1.8.3
     # via jupyter-server
@@ -653,7 +653,7 @@ ua-parser-builtins==0.18.0.post1
     # via ua-parser
 uri-template==1.3.0
     # via jsonschema
-urllib3==2.6.0
+urllib3==2.6.1
     # via
     #   botocore
     #   dallinger
@@ -662,7 +662,7 @@ urllib3==2.6.0
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.9.15
+uv==0.9.16
     # via dallinger
 virtualenv==20.35.4
     # via
@@ -698,7 +698,7 @@ xlrd==2.0.2
     # via tablib
 xlwt==1.3.0
     # via tablib
-yaspin==3.3.0
+yaspin==3.4.0
     # via dallinger
 zope-event==6.1
     # via gevent
