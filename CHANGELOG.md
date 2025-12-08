@@ -2,7 +2,7 @@
 
 #### Added
 - Fail CI if there is no CHANGELOG entry in a pull request
-- `BotBase` now validates that `participant_id` is present in the URL (except for `/ad` URLs where it's assigned during sign-up)
+- Added support for custom Prolific completion codes and actions.
 
 #### Fixed
 - Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`     
