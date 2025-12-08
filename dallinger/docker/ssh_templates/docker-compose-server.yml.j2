@@ -36,6 +36,9 @@ services:
       - ./dozzle-users.yml:/data/users.yml
     environment:
       - DOZZLE_AUTH_PROVIDER=simple
+      {% if dozzle_base -%}
+      - DOZZLE_BASE={{ dozzle_base }}
+      {% endif %}
     networks:
       - dallinger
 
