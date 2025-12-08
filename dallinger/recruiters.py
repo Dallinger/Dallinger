@@ -400,7 +400,9 @@ class Recruiter:
         if not self.supports_delayed_publishing:
             assert self.config.get(
                 "publish_experiment", self.publish_experiment_default
-            ), f"{type(self).__name__} does not support delayed experiment publishing. Set `publish_experiment=true` in your experiment config!"
+            ), (
+                f"{type(self).__name__} does not support delayed experiment publishing. Set `publish_experiment=true` in your experiment config!"
+            )
 
 
 def alphanumeric_code(seed: str, length: int = 8):
@@ -506,7 +508,6 @@ class ProlificRecruiter(Recruiter):
         durations = []
         total_reward_pounds = 0
         for submission in approved_submissions:
-
             time_taken = submission.get("time_taken", None)
             if time_taken:
                 durations.append(time_taken / 60)
@@ -2174,9 +2175,9 @@ class MultiRecruiter(Recruiter):
                 break
 
         logger.debug(
-            (
-                "Multi-recruited {} out of {} participants, " "using {} recruiters."
-            ).format(n - remaining, n, len(messages))
+            ("Multi-recruited {} out of {} participants, using {} recruiters.").format(
+                n - remaining, n, len(messages)
+            )
         )
 
         return {"items": recruitments, "message": "\n".join(messages.values())}

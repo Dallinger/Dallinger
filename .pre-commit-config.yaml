@@ -1,18 +1,11 @@
+# Update with `pre-commit autoupdate`
+
 repos:
-
-- repo: https://github.com/psf/black
-  rev: 25.9.0 # update with `pre-commit autoupdate`
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.14.8
   hooks:
-    - id: black
-      language_version: python3.13
-      files: ^(tests|dallinger|dallinger_scripts|demos)/
-
-- repo: https://github.com/PyCQA/flake8
-  rev: '7.3.0'
-  hooks:
-  - id: flake8
-- repo: https://github.com/pycqa/isort
-  rev: 7.0.0
-  hooks:
-    - id: isort
-      args: ["--profile", "black", "--filter-files"]
+    - id: ruff
+      types_or: [ python, pyi ]
+      args: [ --fix ]
+    - id: ruff-format
+      types_or: [ python, pyi ]

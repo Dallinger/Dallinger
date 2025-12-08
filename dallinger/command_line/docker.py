@@ -133,9 +133,8 @@ def build():
 @click.option("--use-existing", is_flag=True, default=False)
 def push(use_existing: bool, **kwargs) -> str:
     """Build and push the docker image for this experiment."""
-    from docker import client
-
     from dallinger.docker.tools import build_image
+    from docker import client
 
     config = get_config(load=True)
     app_name = kwargs.get("app_name", None)
@@ -167,7 +166,7 @@ def push(use_existing: bool, **kwargs) -> str:
                 )
             raise click.Abort
         if "aux" in line:
-            print(f'Pushed image: {line["aux"]["Digest"]}\n')
+            print(f"Pushed image: {line['aux']['Digest']}\n")
     pushed_image = docker_client.images.get(image_name_with_tag).attrs["RepoDigests"][0]
     print(f"Image {pushed_image} built and pushed.\n")
     return pushed_image

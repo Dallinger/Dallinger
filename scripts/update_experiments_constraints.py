@@ -55,12 +55,24 @@ def md5_cmd(filepath):
 
 
 def get_current_branch():
-    result = subprocess.run(["git", "branch", "--show-current"], capture_output=True, text=True, cwd=REPO_ROOT, check=True)
+    result = subprocess.run(
+        ["git", "branch", "--show-current"],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=True,
+    )
     return result.stdout.strip()
 
 
 def get_dallinger_version():
-    result = subprocess.run(["dallinger", "--version"], capture_output=True, text=True, cwd=REPO_ROOT, check=True)
+    result = subprocess.run(
+        ["dallinger", "--version"],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=True,
+    )
     return result.stdout.strip()
 
 
@@ -91,13 +103,17 @@ def main():
         # 1. Replace dallinger with github requirement in requirements.txt
         if requirements_txt.exists():
             req_text = requirements_txt.read_text()
-            github_req = f"dallinger@git+https://github.com/Dallinger/Dallinger@{current_branch}"
-            new_req_text = re.sub(r"^dallinger$", github_req, req_text, flags=re.MULTILINE)
+            github_req = (
+                f"dallinger@git+https://github.com/Dallinger/Dallinger@{current_branch}"
+            )
+            new_req_text = re.sub(
+                r"^dallinger$", github_req, req_text, flags=re.MULTILINE
+            )
             requirements_txt.write_text(new_req_text)
         # 2. Run constraints generator
-        subprocess.run([
-            "uv", "run", str(CONSTRAINTS_SCRIPT), "generate"
-        ], cwd=demo_dir, check=True)
+        subprocess.run(
+            ["uv", "run", str(CONSTRAINTS_SCRIPT), "generate"], cwd=demo_dir, check=True
+        )
         # 3. Remove extras from constraints.txt
         con_text = constraints_txt.read_text()
         # Remove extras: [something== to ==

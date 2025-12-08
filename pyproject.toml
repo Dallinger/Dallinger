@@ -80,19 +80,15 @@ data = [
 ]
 dev = [
     "alabaster",
-    "black",
-    "black[jupyter]",
     "bump2version",
     "coverage",
     "coverage_pth",
-    "flake8",
-    "isort",
     "myst-parser",
     "pre-commit",
-    "pycodestyle",
     "pypandoc",
     "pytest",
     "pytest-rerunfailures",
+    "ruff",
     "sphinx < 8.2",
     "sphinx_rtd_theme",
     "sphinxcontrib-spelling",
@@ -158,16 +154,10 @@ include = [
     "/requirements.txt",
 ]
 
-[tool.black]
+[tool.ruff]
+src = [".", "tests","dallinger","dallinger_scripts","demos"]
+target-version = "py313"
 line-length = 88
-target-version = ["py313"]
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.git
-  | \.tox
-  | \.venv
-  | docs/_build
-  | dist
-)/
-'''
+
+[tool.ruff.lint]
+extend-select = ["I"]
