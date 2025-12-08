@@ -7,7 +7,7 @@
 #### Fixed
 - Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`     
 - Fixed markers configuration in pytest.ini files
-- Fixed race condition in bartlett demo test by attaching the button click handler only after createParticipant() completes.
+- Fixed a race condition in the Bartlett demo test by setting the button click handler 'disabled' in the HTML template code.
 
 #### Removed
 - Removed Danger and its dependencies
