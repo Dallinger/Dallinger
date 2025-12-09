@@ -5,7 +5,7 @@ parallel = True
 concurrency = gevent
 omit =
     dallinger/heroku/rq_gevent_worker.py
-    dallinger/command_line/appdirs.py
+    /tmp/pip-resolve-*/*
 
 [report]
 fail_under = 61

@@ -11,6 +11,7 @@
 - Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`     
 - Fixed markers configuration in pytest.ini files
 - Fixed a race condition in the Bartlett demo test by setting the button click handler 'disabled' in the HTML template code.
+- Fixed/Cleaned up .coveragerc
 
 #### Removed
 - Removed Danger and its dependencies
