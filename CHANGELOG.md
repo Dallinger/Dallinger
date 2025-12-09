@@ -1,7 +1,9 @@
 # Change Log
 
+## [Unreleased]
+
 #### Added
-- Fail CI if there is no CHANGELOG entry in a pull request
+- Fail CI if there is no CHANGELOG entry in a pull request (except 'pyup-update' branches which are excluded)
 - Allow root domain deploments (such has my-domain.com) as well as multi subdomain deployments (such as subdom-2.subdom-1.my-domain.com).
 - Added support for custom Prolific completion codes and actions.
 
@@ -9,9 +11,16 @@
 - Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`     
 - Fixed markers configuration in pytest.ini files
 - Fixed a race condition in the Bartlett demo test by setting the button click handler 'disabled' in the HTML template code.
+- Fixed/Cleaned up .coveragerc
+
+#### Changed
+- Renamed label used in pyup Pull Requests from 'enhancement' to 'dependencies'
 
 #### Removed
 - Removed Danger and its dependencies
+
+#### Updated
+- Updated dependencies
 
 ## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
 
