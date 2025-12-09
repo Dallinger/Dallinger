@@ -465,12 +465,12 @@ var dallinger = (function () {
         $('.btn-success').prop('disabled', true);
         dlgr.post(url, data).done(function (resp) {
           console.log(resp);
-          $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
           dlgr.identity.assignmentId = resp.participant.assignment_id;
           dlgr.identity.uniqueId = resp.participant.unique_id;
           dlgr.identity.workerId = resp.participant.worker_id;
           dlgr.identity.hitId = resp.participant.hit_id;
+          $('.btn-success').prop('disabled', false);
           if (! resp.quorum) {  // We're not using a waiting room.
             deferred.resolve();
             return;
@@ -527,7 +527,6 @@ var dallinger = (function () {
         $('.btn-success').prop('disabled', true);
         dlgr.post(url, data).done(function (resp) {
           console.log(resp);
-          $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
           dlgr.identity.recruiter = resp.participant.recruiter_id;
           dlgr.identity.hitId = resp.participant.hit_id;
@@ -535,6 +534,7 @@ var dallinger = (function () {
           dlgr.identity.assignmentId = resp.participant.assignment_id || data.assignment_id;
           dlgr.identity.mode = resp.participant.mode;
           dlgr.identity.fingerprintHash = resp.participant.fingerprint_hash;
+          $('.btn-success').prop('disabled', false);
           deferred.resolve();
         });
       });
