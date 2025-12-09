@@ -156,22 +156,6 @@ class BotBase:
             participate = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable((By.CLASS_NAME, "btn-success"))
             )
-            # Wait for participant_id to be set (ensures createParticipant() has completed)
-            try:
-                WebDriverWait(self.driver, 10).until(
-                    lambda d: d.execute_script(
-                        "return typeof dallinger !== 'undefined' && "
-                        "dallinger.identity && dallinger.identity.participantId;"
-                    )
-                )
-                participant_id = self.driver.execute_script(
-                    "return dallinger.identity.participantId;"
-                )
-                self.participant_id = str(participant_id)
-                logger.info("Extracted participant_id: %s" % self.participant_id)
-            except TimeoutException:
-                logger.warning("Could not extract participant_id from page")
-            # createParticipant() has completed and the button should now be enabled
             participate.click()
             logger.info("Clicked start button.")
             return True
