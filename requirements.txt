@@ -126,7 +126,7 @@ packaging==25.0
     # via
     #   build
     #   gunicorn
-paramiko==3.5.1
+paramiko==4.0.0
     # via dallinger
 parso==0.8.5
     # via jedi
