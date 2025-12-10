@@ -540,7 +540,7 @@ def create_dns_record(dns_host, user, host, route_53=None):
         ChangeBatch={
             "Changes": [
                 {
-                    "Action": "CREATE",
+                    "Action": "UPSERT",
                     "ResourceRecordSet": {
                         "Type": "CNAME",
                         "Name": dns_host,

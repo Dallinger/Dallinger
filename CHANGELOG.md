@@ -12,6 +12,7 @@
 - Fixed markers configuration in pytest.ini files
 - Fixed a race condition in the Bartlett demo test by setting the button click handler 'disabled' in the HTML template code.
 - Fixed/Cleaned up .coveragerc
+- DNS record creation now uses `UPSERT` instead of `CREATE`, preventing errors when redeploying experiments with existing DNS entries
 
 #### Changed
 - Renamed label used in pyup Pull Requests from 'enhancement' to 'dependencies'
