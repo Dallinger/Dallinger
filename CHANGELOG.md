@@ -5,6 +5,7 @@
 #### Added
 - Fail CI if there is no CHANGELOG entry in a pull request (except 'pyup-update' branches which are excluded)
 - `BotBase` now validates that `participant_id` is present in the URL (except for `/ad` URLs where it's assigned during sign-up)
+- Disable `.btn-success` in `createParticipant()` and `loadParticipant()` until server response assigns `participantId`.
 - Allow root domain deploments (such has my-domain.com) as well as multi subdomain deployments (such as subdom-2.subdom-1.my-domain.com).
 - Added support for custom Prolific completion codes and actions.
 
