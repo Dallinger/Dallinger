@@ -46,14 +46,22 @@ class TestGetAllInstances:
 
     @pytest.fixture(autouse=True)
     def setup_mocks(self):
-        with mock.patch("dallinger.command_line.lib.ec2.get_instances") as mock_instances, \
-             mock.patch("dallinger.command_line.lib.ec2.yaspin"):
-            mock_instances.return_value = pd.DataFrame([{
-                "name": "test-instance",
-                "instance_type": "t2.micro",
-                "region": "us-east-1",
-                "uptime": 3600,
-            }])
+        with (
+            mock.patch(
+                "dallinger.command_line.lib.ec2.get_instances"
+            ) as mock_instances,
+            mock.patch("dallinger.command_line.lib.ec2.yaspin"),
+        ):
+            mock_instances.return_value = pd.DataFrame(
+                [
+                    {
+                        "name": "test-instance",
+                        "instance_type": "t2.micro",
+                        "region": "us-east-1",
+                        "uptime": 3600,
+                    }
+                ]
+            )
             yield
 
     def test_success_includes_ec2_shop_details(self):
@@ -61,7 +69,9 @@ class TestGetAllInstances:
         with mock.patch("dallinger.command_line.lib.ec2.requests.get") as mock_get:
             mock_get.return_value = mock.Mock(
                 status_code=200,
-                json=lambda: {"Prices": [{"Memory": "1 GiB", "VCPUS": "1", "Cost": "0.01"}]}
+                json=lambda: {
+                    "Prices": [{"Memory": "1 GiB", "VCPUS": "1", "Cost": "0.01"}]
+                },
             )
 
             result = get_all_instances("us-east-1")
