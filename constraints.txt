@@ -378,7 +378,7 @@ paramiko==3.5.1
     # via
     #   dallinger
     #   sshtunnel
-parsimonious==0.10.0
+parsimonious==0.11.0
     # via sphinx-js
 parso==0.8.5
     # via jedi
