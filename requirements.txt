@@ -21,9 +21,9 @@ beautifulsoup4==4.14.3
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.42.5
+boto3==1.42.9
     # via dallinger
-botocore==1.42.5
+botocore==1.42.9
     # via
     #   boto3
     #   s3transfer
@@ -223,7 +223,7 @@ typing-extensions==4.15.0
     # via
     #   beautifulsoup4
     #   selenium
-tzdata==2025.2
+tzdata==2025.3
     # via faker
 tzlocal==5.3.1
     # via
@@ -235,7 +235,7 @@ ua-parser==1.0.1
     #   user-agents
 ua-parser-builtins==0.18.0.post1
     # via ua-parser
-urllib3==2.6.1
+urllib3==2.6.2
     # via
     #   botocore
     #   dallinger
@@ -243,7 +243,7 @@ urllib3==2.6.1
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.9.16
+uv==0.9.17
     # via dallinger
 wcwidth==0.2.14
     # via prompt-toolkit
