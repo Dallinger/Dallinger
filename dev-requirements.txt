@@ -67,7 +67,7 @@ cached-property==2.0.1
     # via dallinger
 cachetools==6.2.2
     # via tox
-cattrs==24.1.3
+cattrs==25.3.0
     # via sphinx-js
 certifi==2025.11.12
     # via
