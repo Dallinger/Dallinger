@@ -1818,11 +1818,20 @@ def _worker_complete(participant_id):
     session.commit()
 
     if "action" in status_and_action:
+        # Extract assignment_id before closing the session, since accessing
+        # attributes after session.remove() will raise DetachedInstanceError
+        assignment_id = participant.assignment_id
+
+        # Close the current session before calling worker_function synchronously,
+        # since worker_function has its own session management. This prevents
+        # nested session conflicts that can cause database deadlocks.
+        session.remove()
+
         # Currently we execute this function synchronously, regardless of the
         # event type:
         worker_function(
             event_type=status_and_action["action"],
-            assignment_id=participant.assignment_id,
+            assignment_id=assignment_id,
             participant_id=participant_id,
         )
 
