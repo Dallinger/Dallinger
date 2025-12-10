@@ -4,17 +4,19 @@
 
 #### Added
 - Fail CI if there is no CHANGELOG entry in a pull request (except 'pyup-update' branches which are excluded)
-- `BotBase` now validates that `participant_id` is present in the URL (except for `/ad` URLs where it's assigned during sign-up)
-- Disable `.btn-success` in `createParticipant()` and `loadParticipant()` until server response assigns `participantId`.
 - Allow root domain deploments (such has my-domain.com) as well as multi subdomain deployments (such as subdom-2.subdom-1.my-domain.com).
 - Added support for custom Prolific completion codes and actions.
 
 #### Fixed
 - Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`     
 - Fixed markers configuration in pytest.ini files
-- Fixed a race condition in the Bartlett demo test by setting the button click handler 'disabled' in the HTML template code.
 - Fixed/Cleaned up .coveragerc
 - DNS record creation now uses `UPSERT` instead of `CREATE`, preventing errors when redeploying experiments with existing DNS entries
+- Fixes related to randomly failing Bartlett demo CI test:
+  - Fixed database session deadlock in `/worker_complete` by properly closing session before synchronous worker function calls
+  - `BotBase` now validates that `participant_id` is present in the URL (except for `/ad` URLs where it's assigned during sign-up)
+  - Enable `.btn-success` in `createParticipant()` and `loadParticipant()` only after server response assigns `participantId`.
+  - Set the button click handler 'disabled' in the HTML template code to prevent possible race conditions
 
 #### Changed
 - Renamed label used in pyup Pull Requests from 'enhancement' to 'dependencies'
