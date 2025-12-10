@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from functools import wraps
 from importlib import import_module
 from operator import itemgetter
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import requests
 from cached_property import cached_property
@@ -342,6 +342,24 @@ class Experiment:
         participants.
         """
         return recruiters.from_config(get_config())
+
+    def recruiter_exit_info(self, participant) -> Optional[Any]:
+        """Recruiters may accept special values to include when sending
+        participants to exit/submission URLs.
+
+        For example, if you have configured custom Prolific completion codes via
+        the `prolific_completion_config` config parameter, you can return the
+        appropriate code type (`FIXED_SCREENOUT` for example) for the
+        participant.
+
+        If None is returned, the default code type, which automatically approves
+        the participant, will be used.
+
+        Note that if you are using multiple recruiters in an experiment run, you
+        will want to check ``if participant.recruiter_id == "prolific`` or
+        similar.
+        """
+        return None
 
     def calculate_qualifications(self, participant):
         """All the qualifications we want to assign to a worker.

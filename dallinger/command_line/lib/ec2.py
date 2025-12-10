@@ -598,7 +598,7 @@ def create_dns_record(dns_host, user, host, route_53=None):
         ChangeBatch={
             "Changes": [
                 {
-                    "Action": "CREATE",
+                    "Action": "UPSERT",
                     "ResourceRecordSet": {
                         "Type": "CNAME",
                         "Name": dns_host,
@@ -658,9 +658,6 @@ def prepare_instance(
 
     if dns_host is not None:
         route_53 = get_53_client()
-        assert (
-            len(dns_host.split(".")) == 3
-        ), "DNS host must be in the format subdomain.domain.tld"
         domain = get_domain(dns_host)
 
         msg = f"""
@@ -743,7 +740,8 @@ def prepare_docker_experiment_setup(
     create_dns_records(dns_host, user, host)
 
     dallinger_store_host(dict(host=host, user=user))
-    dallinger_store_host(dict(host=dns_host, user=user))
+    if dns_host:
+        dallinger_store_host(dict(host=dns_host, user=user))
     print("Host registered in dallinger")
 
 

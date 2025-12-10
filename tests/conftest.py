@@ -198,7 +198,15 @@ def fake_parsed_prolific_study():
         "description": "This study aims to determine how to make a good public API",
         "external_study_url": "https://my-dallinger-app.com/?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}",
         "prolific_id_option": "url_parameters",
-        "completion_code": "7EF9FD0D",
+        "completion_code": None,
+        "completion_codes": [
+            {
+                "code": "J31WN9VJ",
+                "code_type": "DEFAULT",
+                "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
+                "actor": "participant",
+            },
+        ],
         "completion_option": "url",
         "total_available_places": 30,
         "estimated_completion_time": 5,

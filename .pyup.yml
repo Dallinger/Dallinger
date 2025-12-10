@@ -1,4 +1,4 @@
-label_prs: "enhancement"
+label_prs: "dependencies"
 search: False
 requirements:
   - constraints.txt:
