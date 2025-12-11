@@ -10,14 +10,14 @@ class TestBots:
         """Create a bot."""
         from dallinger.bots import BotBase
 
-        bot = BotBase("http://dallinger.io")
+        bot = BotBase("http://dallinger.io?participant_id=1")
         assert bot
 
     @pytest.mark.slow
     def test_bot_driver_default_is_chrome(self, active_config):
         from dallinger.bots import BotBase
 
-        bot = BotBase("http://dallinger.io")
+        bot = BotBase("http://dallinger.io?participant_id=1")
         assert isinstance(bot.driver, webdriver.Chrome)
         bot.driver.quit()
 
@@ -27,7 +27,7 @@ class TestBots:
         active_config.extend({"webdriver_type": "chrome_headless"})
         from dallinger.bots import BotBase
 
-        bot = BotBase("http://dallinger.io")
+        bot = BotBase("http://dallinger.io?participant_id=1")
         assert isinstance(bot.driver, webdriver.Chrome)
         bot.driver.quit()
 
@@ -37,7 +37,7 @@ class TestBots:
         active_config.extend({"webdriver_type": "firefox"})
         from dallinger.bots import BotBase
 
-        bot = BotBase("http://dallinger.io")
+        bot = BotBase("http://dallinger.io?participant_id=1")
         assert isinstance(bot.driver, webdriver.Firefox)
 
     @pytest.mark.usefixtures("check_chrome")
@@ -46,7 +46,7 @@ class TestBots:
         active_config.extend({"webdriver_type": "chrome"})
         from dallinger.bots import BotBase
 
-        bot = BotBase("http://dallinger.io")
+        bot = BotBase("http://dallinger.io?participant_id=1")
         assert isinstance(bot.driver, webdriver.Chrome)
 
     @pytest.mark.usefixtures("check_webdriver")
@@ -61,7 +61,7 @@ class TestBots:
         )
         from dallinger.bots import BotBase
 
-        bot = BotBase("http://dallinger.io")
+        bot = BotBase("http://dallinger.io?participant_id=1")
         assert isinstance(bot.driver, webdriver.Remote)
         assert bot.driver.capabilities["browserName"] == "chrome"
 
@@ -77,7 +77,7 @@ class TestBots:
         )
         from dallinger.bots import BotBase
 
-        bot = BotBase("http://dallinger.io")
+        bot = BotBase("http://dallinger.io?participant_id=1")
         assert isinstance(bot.driver, webdriver.Remote)
         assert bot.driver.capabilities["browserName"] == "firefox"
 
@@ -93,7 +93,7 @@ class TestBots:
         )
         from dallinger.bots import BotBase
 
-        bot = BotBase("http://dallinger.io")
+        bot = BotBase("http://dallinger.io?participant_id=1")
         assert isinstance(bot.driver, webdriver.Remote)
         assert bot.driver.capabilities["browserName"] == "chrome"
 

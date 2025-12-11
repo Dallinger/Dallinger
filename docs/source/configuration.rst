@@ -103,6 +103,15 @@ Recruitment (General)
         * pc
         * bot
 
+``publish_experiment`` *bool*
+    Whether the experiment should be published when deploying. By default this
+    variable is unset, in which case sensible defaults will be used: in
+    particular, MTurk studies are always published (because there is no way to
+    create an MTurk study without publishing it), whereas Prolific studies are
+    created as draft studies which later can be published via the Prolific web
+    UI. If ``publish_experiment`` is set to ``True``, then Prolific studies will
+    instead be automatically published upon deployment.
+
 ``recruiter`` *unicode*
     The recruiter class to use during the experiment run. While this can be a
     full class name, it is more common to use the class's ``nickname`` property
@@ -233,16 +242,7 @@ Prolific Recruitment
     Whether or not this study includes a custom screening. Default is `False`.
     See https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/CreateStudy for more information.
 
-``publish_experiment`` *bool*
-    Whether the experiment should be published when deploying.
-    By default this variable is unset, in which case sensible defaults will be used:
-    in particular, MTurk studies are always published
-    (because there is no way to create an MTurk study without publishing it),
-    whereas Prolific studies are created as draft studies
-    which later can be published via the Prolific web UI.
-    If ``publish_experiment`` is set to ``True``, then Prolific studies will instead
-    be automatically published upon deployment.
-
+.. _prolific-completion-config:
 ``prolific_recruitment_config`` *unicode - JSON formatted*
     JSON data to add additional recruitment parameters
 
@@ -302,6 +302,69 @@ Prolific Recruitment
     (for example, ``{"title": "My Experiment Title"}``), we recommend that you stick to the standard
     key = value format of ``config.txt`` whenever possible, and leave ``prolific_recruitment_config``
     for complex requirements which can't be configured in this simpler way.
+
+
+``prolific_completion_config`` *unicode - JSON formatted*
+    Defines custom completion "code types" and associated actions for Prolific studies.
+
+    This should be a JSON object mapping code types to their definitions. Each
+    entry can specify actions (such as automatic approval, manual review, or
+    screening out), the actor, and other parameters supported by Prolific's API.
+
+    Note that the default value for ``actor`` is "participant", and so this key
+    only needs to be included when the value is "researcher".
+
+    Example::
+
+        prolific_completion_config = {
+            "FAILED_ATTENTION_CHECK": {
+                "actions": [
+                    {
+                        "action": "REMOVE_FROM_PARTICIPANT_GROUP",
+                        "participant_group": "some group ID"
+                    },
+                    {"action": "MANUALLY_REVIEW"}
+                ],
+                "actor": "participant"
+            },
+            "FIXED_SCREENOUT": {
+                "actions": [
+                    {
+                        "action": "FIXED_SCREEN_OUT_PAYMENT",
+                        "fixed_screen_out_reward": 20,
+                        "slots": 1,
+                    }
+                ],
+            },
+        }
+
+    See :ref:`prolific_recruitment_config <prolific-completion-config>` for
+    details on storing completion code configuration in a separate file.
+
+    See the `Prolific API Documentation
+    <https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/CreateStudy>`__
+    for details on supported actions.
+
+``prolific_completion_codes`` *unicode - JSON formatted*
+    Stores the generated completion codes for each code type as a JSON object.
+
+    This is automatically populated when recruitment is opened, and can be used
+    for reference or validation. Each key is a ``code_type``, and the value is
+    the unique completion ``code`` assigned for that type, which will be
+    included as the ``cc`` query string parameter when returning participants to
+    Prolific for study submission.
+
+    **NOTE**: This value will be set by the recruiter during experiment
+    deployment and should not be included in config.txt.
+
+
+    Example::
+
+        prolific_completion_codes = {
+            "DEFAULT": "J31WN9VJ",
+            "FAILED_ATTENTION_CHECK": "6Q1UMKRE",
+            "COMPLETED": "QG8FB1SA"
+        }
 
 .. deprecated:: 10.0.0
 

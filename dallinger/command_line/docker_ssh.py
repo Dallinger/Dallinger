@@ -57,9 +57,11 @@ try:
 except (KeyError, OSError):  # Python >= 3.13 raises OSError
     USER = "user"
 
-DOCKER_COMPOSE_SERVER = abspath_from_egg(
-    "dallinger", "dallinger/docker/ssh_templates/docker-compose-server.yml"
-).read_bytes()
+DOCKER_COMPOSE_SERVER_TPL = Template(
+    abspath_from_egg(
+        "dallinger", "dallinger/docker/ssh_templates/docker-compose-server.yml.j2"
+    ).read_text()
+)
 
 DOCKER_COMPOSE_EXP_TPL = Template(
     abspath_from_egg(
@@ -68,7 +70,7 @@ DOCKER_COMPOSE_EXP_TPL = Template(
 )
 
 
-CADDYFILE = """
+CADDYFILE_SUBDOMAIN = """
 # This is a configuration file for the Caddy http Server
 # Documentation can be found at https://caddyserver.com/docs
 {{
@@ -87,6 +89,29 @@ logs.{host} {{
 }}
 
 import caddy.d/*
+"""
+
+
+CADDYFILE_ROOT = """
+# This is a configuration file for the Caddy http Server
+# Documentation can be found at https://caddyserver.com/docs
+{{
+    grace_period 30s
+}}
+
+
+{host} {{
+    {tls}
+    handle /health-check {{
+        respond 200
+    }}
+    handle /logs* {{
+        reverse_proxy dozzle:8080
+    }}
+    handle {{
+        reverse_proxy {backend}
+    }}
+}}
 """
 
 
@@ -252,6 +277,84 @@ option_push_build = click.option(
 )
 
 
+def should_use_subdomain(app_name, archive_path):
+    if app_name:
+        return True
+    if archive_path:
+        return False
+    return False
+
+
+def get_existing_remote_experiments(executor):
+    existing = set()
+
+    caddy_listing = executor.run("ls -1 ~/dallinger/caddy.d", raise_=False)
+    for entry in caddy_listing.splitlines():
+        if entry:
+            existing.add(entry)
+
+    app_listing = executor.run("ls -1 ~/dallinger", raise_=False)
+    for entry in app_listing.splitlines():
+        if not entry or entry in {"caddy.d", "deploy_logs"}:
+            continue
+        has_compose = executor.run(
+            f"test -f ~/dallinger/{entry}/docker-compose.yml && echo yes",
+            raise_=False,
+        )
+        if has_compose.strip():
+            existing.add(entry)
+
+    return sorted(existing)
+
+
+def ensure_root_domain_ready(server, update):
+    if update:
+        return True
+
+    server_info = CONFIGURED_HOSTS[server]
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
+    executor = Executor(ssh_host, user=ssh_user)
+    conflicts = get_existing_remote_experiments(executor)
+    if not conflicts:
+        return True
+
+    joined = ", ".join(conflicts)
+    print(
+        f"{RED}Root domain deployments require terminating existing experiments.{END}\n"
+        f"{RED}Found deployed experiments:{END} {joined}"
+    )
+    destroy_cmds = "\n".join(
+        f"  dallinger docker-ssh destroy --app {name} --server {server}"
+        for name in conflicts
+    )
+    print(
+        f"{RED}Please destroy those experiments before deploying to the root domain.{END}\n"
+        "Suggested commands:\n"
+        f"{destroy_cmds}"
+    )
+
+    if not click.confirm(
+        "Destroy these experiments automatically before proceeding?",
+        default=False,
+    ):
+        raise click.Abort()
+
+    for name in conflicts:
+        print_bold(f"Destroying {name} on server {server}")
+        destroy.callback(server=server, app=name)
+
+    executor = Executor(ssh_host, user=ssh_user)
+    remaining = get_existing_remote_experiments(executor)
+    if remaining:
+        print(
+            f"{RED}Some experiments are still present: {', '.join(remaining)}. Aborting.{END}"
+        )
+        raise click.Abort()
+
+    return True
+
+
 def build_and_push_image(f):
     """Decorator for click commands that depend on a pushed docker image.
 
@@ -272,8 +375,20 @@ def build_and_push_image(f):
         config = get_config(load=True)
         image_name = config.get("docker_image_name", None)
         local_build = kwargs.get("local_build", False)
+
         # If we build locally we have to push the image to the registry
         push_build = kwargs.get("push_build", False) or local_build
+
+        use_subdomain = should_use_subdomain(
+            kwargs.get("app_name"), kwargs.get("archive_path")
+        )
+
+        preflight_root_clean = False
+        if not use_subdomain:
+            preflight_root_clean = ensure_root_domain_ready(
+                server=kwargs["server"], update=kwargs.get("update", False)
+            )
+        kwargs["preflight_root_clean"] = preflight_root_clean
 
         # Save any current values from environment so we can restore them
         original_docker_host = os.environ.get("DOCKER_HOST")
@@ -285,6 +400,7 @@ def build_and_push_image(f):
                 server_info = CONFIGURED_HOSTS[kwargs["server"]]
                 ssh_host = server_info["host"]
                 ssh_user = server_info.get("user")
+                ensure_remote_host_in_known_hosts(ssh_host, ssh_user)
                 os.environ["DOCKER_HOST"] = (
                     f"ssh://{(ssh_user + '@') if ssh_user else ''}{ssh_host}"
                 )
@@ -461,6 +577,7 @@ def _deploy_in_mode(
     update,
     local_build,  # noqa
     push_build,
+    preflight_root_clean,
 ):
     config = get_config(load=True)
 
@@ -486,12 +603,15 @@ def _deploy_in_mode(
     tls = "tls internal" if not HAS_TLS else f"tls {email_addr}"
 
     experiment_uuid = str(uuid4())
+    use_subdomain = should_use_subdomain(app_name, archive_path)
     if app_name:
         experiment_id = app_name
     elif archive_path:
         experiment_id = get_experiment_id_from_archive(archive_path)
     else:
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
+
+    app_identifier = app_name or experiment_id
 
     # Check if server is an IP address
     try:
@@ -531,37 +651,50 @@ You can override this by creating a DNS A record pointing to
 {BLUE}For instance to use the name experiment1.my-custom-domain.example.com
 you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}"""
         )
-    else:
-        # Check dns_host: make sure that {experiment_id}.{dns_host} resolves to the remote host
+    experiment_hostname = f"{experiment_id}.{dns_host}" if use_subdomain else dns_host
+
+    if dns_host != "nip.io":
+        # Check dns_host: make sure that the experiment host resolves to the remote host
         dns_ok = ipaddr_experiment = ipaddr_server = True
         try:
             ipaddr_server = gethostbyname_ex(f"{ssh_host}")[2][0]
-            ipaddr_experiment = gethostbyname_ex(f"{experiment_id}.{dns_host}")[2][0]
+            ipaddr_experiment = gethostbyname_ex(experiment_hostname)[2][0]
         except Exception:
             dns_ok = False
         if not dns_ok or (ipaddr_experiment != ipaddr_server):
             print(
-                f"""The dns name for the experiment ({experiment_id}.{dns_host}) should resolve to {ipaddr_server}.
+                f"""The dns name for the experiment ({experiment_hostname}) should resolve to {ipaddr_server}.
 It currently resolves to {ipaddr_experiment}."""
             )
             raise click.Abort
-    executor = Executor(ssh_host, user=ssh_user, app=app_name)
+
+    executor = Executor(ssh_host, user=ssh_user, app=app_identifier)
     executor.run("mkdir -p ~/dallinger/caddy.d")
+
+    if not use_subdomain and not preflight_root_clean:
+        conflicts = get_existing_remote_experiments(executor)
+        if conflicts:
+            joined = ", ".join(conflicts)
+            print(
+                f"{RED}Root domain deployments require terminating existing experiments.{END}\n"
+                f"{RED}Found deployed experiments:{END} {joined}"
+            )
+            raise click.Abort()
 
     if not update:
         # Check if there's an existing app with the same name
-        app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
+        app_yml = f"~/dallinger/{app_identifier}/docker-compose.yml"
         app_yml_exists = executor.run(f"ls {app_yml}", raise_=False)
         messages = []
         if app_yml_exists:
             messages.append(
-                f"App with name {app_name} already exists: found {app_yml} file. Aborting."
+                f"App with name {app_identifier} already exists: found {app_yml} file. Aborting."
             )
-        caddy_yml = f"~/dallinger/caddy.d/{app_name}"
+        caddy_yml = f"~/dallinger/caddy.d/{app_identifier}"
         caddy_yml_exists = executor.run(f"ls {caddy_yml}", raise_=False)
         if caddy_yml_exists:
             print(
-                f"App with name {app_name} already exists: found {app_yml} file. Aborting."
+                f"App with name {app_identifier} already exists: found {app_yml} file. Aborting."
             )
         if app_yml_exists or caddy_yml_exists:
             messages.append(
@@ -571,20 +704,26 @@ It currently resolves to {ipaddr_experiment}."""
             raise click.Abort
 
         print("Removing any pre-existing Redis volumes.")
-        remove_redis_volumes(app_name, executor)
+        remove_redis_volumes(app_identifier, executor)
     else:
-        app_yml = f"~/dallinger/{app_name}/docker-compose.yml"
+        app_yml = f"~/dallinger/{app_identifier}/docker-compose.yml"
         yml_file_exists = executor.run(f"ls -l {app_yml}", raise_=False)
         if not yml_file_exists:
             print(
-                f"{app_yml} file not found. App {app_name} does not exist on the server."
+                f"{app_yml} file not found. App {app_identifier} does not exist on the server."
             )
             raise click.Abort
 
     sftp = get_sftp(ssh_host, user=ssh_user)
-    sftp.putfo(BytesIO(DOCKER_COMPOSE_SERVER), "dallinger/docker-compose.yml")
+    dozzle_base = "/logs" if not use_subdomain else ""
+    rendered_compose = DOCKER_COMPOSE_SERVER_TPL.render(dozzle_base=dozzle_base)
+    sftp.putfo(BytesIO(rendered_compose.encode()), "dallinger/docker-compose.yml")
+    caddy_template = CADDYFILE_SUBDOMAIN if use_subdomain else CADDYFILE_ROOT
+    caddy_kwargs = {"host": dns_host, "tls": tls}
+    if not use_subdomain:
+        caddy_kwargs["backend"] = f"{app_identifier}_web:5000"
     sftp.putfo(
-        BytesIO(CADDYFILE.format(host=dns_host, tls=tls).encode()),
+        BytesIO(caddy_template.format(**caddy_kwargs).encode()),
         "dallinger/Caddyfile",
     )
 
@@ -601,8 +740,11 @@ It currently resolves to {ipaddr_experiment}."""
     else:
         print("Restarting experiment.")
 
+    logs_url = (
+        f"https://{dns_host}/logs" if not use_subdomain else f"https://logs.{dns_host}"
+    )
     print_bold(
-        f"To view the logs for this experiment go to https://logs.{dns_host} (user = dallinger, password = {dozzle_password})"
+        f"To view the logs for this experiment go to {logs_url} (user = dallinger, password = {dozzle_password})"
     )
     cfg = config.as_dict(include_sensitive=True)
 
@@ -708,13 +850,15 @@ It currently resolves to {ipaddr_experiment}."""
         )
         print("Database initialized.")
 
-    # We give caddy the alias for the service. If we scale up the service container caddy will
-    # send requests to all of them in a round robin fashion.
-    caddy_conf = f"{experiment_id}.{dns_host} {{\n    {tls}\n    reverse_proxy {experiment_id}_web:5000\n}}"
-    sftp.putfo(
-        BytesIO(caddy_conf.encode()),
-        f"dallinger/caddy.d/{experiment_id}",
-    )
+    if use_subdomain:
+        # We give caddy the alias for the service. If we scale up the service container caddy will
+        # send requests to all of them in a round robin fashion.
+        caddy_conf = f"{experiment_hostname} {{\n    {tls}\n    reverse_proxy {experiment_id}_web:5000\n}}"
+        sftp.putfo(
+            BytesIO(caddy_conf.encode()),
+            f"dallinger/caddy.d/{experiment_id}",
+        )
+
     # Tell caddy we changed something in the configuration
     executor.reload_caddy()
 
@@ -723,7 +867,7 @@ It currently resolves to {ipaddr_experiment}."""
     else:
         print("Launching experiment")
         launch_data = handle_launch_data(
-            f"https://{experiment_id}.{dns_host}/launch",
+            f"https://{experiment_hostname}/launch",
             print,
             dns_host=dns_host,
             dozzle_password=dozzle_password,
@@ -731,7 +875,9 @@ It currently resolves to {ipaddr_experiment}."""
         )
         print(launch_data.get("recruitment_msg"))
 
-    dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_id}.{dns_host}/dashboard"
+    dashboard_link = (
+        f"https://{dashboard_user}:{dashboard_password}@{experiment_hostname}/dashboard"
+    )
     pem_path = get_server_pem_path()
     log_command = (
         f"ssh -i {pem_path} {(ssh_user + '@') if ssh_user else ''}{ssh_host} "
@@ -745,7 +891,7 @@ It currently resolves to {ipaddr_experiment}."""
     deployment_infos += [
         "To display the logs for this experiment you can run:",
         log_command,
-        f"Or you can head to https://logs.{dns_host} (user = dallinger, password = {dozzle_password})",
+        f"Or you can head to {logs_url} (user = dallinger, password = {dozzle_password})",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
     ]
     for line in deployment_infos:
@@ -889,8 +1035,27 @@ def destroy(server, app):
         print(f"App {app} is not deployed")
         raise click.Abort()
 
+    # Inspect the active Caddyfile only after we know the app exists.
+    caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
+    uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
+    dns_host = server_info["host"]
+
     # Remove the caddy configuration file and reload caddy config
     executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
+
+    if uses_root_domain:
+        # The apex host pointed straight at this app; restore the default
+        # health-check layout so the server behaves like a subdomain setup again.
+        config = get_config(load=True)
+        email_addr = config.get("contact_email_on_error")
+        HAS_TLS = ssh_host != "localhost"
+        tls_value = "tls internal" if not HAS_TLS else f"tls {email_addr}"
+        sftp = get_sftp(ssh_host, user=ssh_user)
+        sftp.putfo(
+            BytesIO(CADDYFILE_SUBDOMAIN.format(host=dns_host, tls=tls_value).encode()),
+            "dallinger/Caddyfile",
+        )
+
     executor.reload_caddy()
 
     executor.run(
@@ -917,6 +1082,14 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
     """
     pem_path = get_server_pem_path()
     client = paramiko.SSHClient()
+
+    known_hosts_path = os.path.expanduser("~/.ssh/known_hosts")
+    try:
+        client.load_host_keys(known_hosts_path)
+    except IOError:
+        # The known_hosts file might not exist yet; we'll create it after connecting.
+        os.makedirs(os.path.dirname(known_hosts_path), exist_ok=True)
+
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.load_system_host_keys()
 
@@ -947,7 +1120,20 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
             spinner.fail("✖ Connection failed")
             raise
 
+    try:
+        client.save_host_keys(known_hosts_path)
+    except IOError as exc:
+        logging.getLogger(__name__).warning(
+            "Could not persist SSH known host for %s: %s", host, exc
+        )
+
     return client
+
+
+def ensure_remote_host_in_known_hosts(host, user=None):
+    """Make sure the SSH host key is trusted locally before other clients connect."""
+    client = get_connected_ssh_client(host, user)
+    client.close()
 
 
 class Executor:

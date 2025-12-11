@@ -107,6 +107,8 @@ default_keys = (
     ("port", int, ["PORT"]),
     ("prolific_api_token", str, ["PROLIFIC_RESEARCHER_API_TOKEN"], True),
     ("prolific_api_version", str, []),
+    ("prolific_completion_config", str, [], False, [is_valid_json]),
+    ("prolific_completion_codes", str, [], False, [is_valid_json]),
     ("prolific_estimated_completion_minutes", int, []),
     ("prolific_is_custom_screening", bool, []),
     ("prolific_maximum_allowed_minutes", int, []),

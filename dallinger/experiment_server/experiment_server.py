@@ -28,7 +28,6 @@ from sqlalchemy.sql.expression import true
 from dallinger import db, experiment, models, recruiters
 from dallinger.config import get_config
 from dallinger.notifications import MessengerError, admin_notifier
-from dallinger.recruiters import ProlificRecruiter
 from dallinger.utils import (
     attach_json_logger,
     generate_random_id,
@@ -535,12 +534,7 @@ def prepare_advertisement():
         redirect_params = entry_information.copy()
         del redirect_params["generate_tokens"]
 
-        if isinstance(recruiter, ProlificRecruiter):
-            entry_params = ("PROLIFIC_PID", "STUDY_ID", "SESSION_ID")
-        else:
-            entry_params = ("hitId", "assignmentId", "workerId")
-
-        for entry_param in entry_params:
+        for entry_param in recruiter.entry_params:
             if not redirect_params.get(entry_param):
                 redirect_params[entry_param] = generate_random_id()
         return True, {"redirect": redirect(url_for("advertisement", **redirect_params))}
@@ -1760,7 +1754,7 @@ def check_for_duplicate_assignments(participant):
         q.enqueue(worker_function, "AssignmentAbandoned", None, d.id)
 
 
-@app.route("/worker_complete", methods=["POST"])
+@app.route("/worker_complete", methods=["POST", "GET"])
 @db.scoped_session_decorator
 def worker_complete():
     """Called when a participant completes their task.

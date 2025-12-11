@@ -424,7 +424,7 @@ class TestBot:
         from dallinger.deployment import setup_experiment
 
         setup_experiment(log=mock.Mock())
-        bot = bot_factory("some url")
+        bot = bot_factory("http://example.com?participant_id=1")
         assert isinstance(bot, BotBase)
 
     def test_bot_no_debug_url(self, bot_command, mock_bot):
