@@ -653,7 +653,7 @@ ua-parser-builtins==0.18.0.post1
     # via ua-parser
 uri-template==1.3.0
     # via jsonschema
-urllib3==2.6.1
+urllib3==2.6.2
     # via
     #   botocore
     #   dallinger
