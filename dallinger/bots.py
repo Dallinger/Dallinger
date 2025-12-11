@@ -208,6 +208,11 @@ class BotBase:
         """Sends worker status ('worker_complete' or 'worker_failed')
         to the experiment server.
         """
+        if not self.participant_id:
+            raise ValueError(
+                "bot.participant_id is not set. Cannot complete experiment."
+            )
+
         url = self.driver.current_url
         p = parse.urlparse(url)
         complete_url = "%s://%s/%s?participant_id=%s"
