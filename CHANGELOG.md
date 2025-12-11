@@ -6,6 +6,7 @@
 - Fail CI if there is no CHANGELOG entry in a pull request (except 'pyup-update' branches which are excluded)
 - Allow root domain deploments (such has my-domain.com) as well as multi subdomain deployments (such as subdom-2.subdom-1.my-domain.com).
 - Added support for custom Prolific completion codes and actions.
+- Added tests for EC2 `get_all_instances` and `get_instance_details`
 
 #### Fixed
 - Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`     
