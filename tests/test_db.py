@@ -1,5 +1,9 @@
 from unittest import mock
 
+import pytest
+
+from dallinger.db import sessions_scope
+
 
 def test_redis():
     from dallinger.db import redis_conn
@@ -81,3 +85,10 @@ def test_create_db_engine_updates_postgresql_scheme():
     engine = create_db_engine(old_scheme_uri)
 
     assert engine.url.render_as_string().startswith("postgresql://")
+
+
+def test_nested_sessions_scope_raises_error():
+    with sessions_scope():
+        with pytest.raises(RuntimeError, match="Cannot start a new session scope"):
+            with sessions_scope():
+                pass

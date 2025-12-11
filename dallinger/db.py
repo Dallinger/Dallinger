@@ -98,9 +98,21 @@ def check_connection(timeout_secs=3):
     conn.close()
 
 
+in_sessions_scope = False
+
+
 @contextmanager
 def sessions_scope(session_=session, commit=False):
     """Provide a transactional scope around a series of operations."""
+    global in_sessions_scope
+    if in_sessions_scope:
+        raise RuntimeError(
+            "Cannot start a new session scope inside an existing session scope. "
+            "This is likely due to nested usage of the sessions_scope context manager, "
+            "or to nested usage of scoped_session_decorator."
+        )
+    in_sessions_scope = True
+
     try:
         yield session_
         if commit:
@@ -118,6 +130,7 @@ def sessions_scope(session_=session, commit=False):
     finally:
         session_.remove()
         logger.debug("Session complete, db session closed")
+        in_sessions_scope = False
 
 
 def scoped_session_decorator(func):
