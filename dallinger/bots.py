@@ -158,6 +158,20 @@ class BotBase:
             )
             participate.click()
             logger.info("Clicked start button.")
+
+            # Extract participant_id from URL after clicking start
+            if not self.participant_id:
+                # Browser has already navigated to a new page that includes participant_id in the URL
+                url = self.driver.current_url
+                query_params = parse.parse_qs(parse.urlparse(url).query)
+                self.participant_id = self.get_from_query(
+                    query_params, ["participant_id", "participantId"]
+                )
+                if not self.participant_id:
+                    raise ValueError(
+                        f"Failed to extract participant_id from URL after sign-up: {url}"
+                    )
+
             return True
         except TimeoutException:
             logger.error("Error during experiment sign up.")
@@ -208,6 +222,11 @@ class BotBase:
         """Sends worker status ('worker_complete' or 'worker_failed')
         to the experiment server.
         """
+        if not self.participant_id:
+            raise ValueError(
+                "bot.participant_id is not set. Cannot complete experiment."
+            )
+
         url = self.driver.current_url
         p = parse.urlparse(url)
         complete_url = "%s://%s/%s?participant_id=%s"
