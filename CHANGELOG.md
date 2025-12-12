@@ -11,12 +11,17 @@
 #### Fixed
 - Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`     
 - Fixed markers configuration in pytest.ini files
-- Fixed a race condition in the Bartlett demo test by setting the button click handler 'disabled' in the HTML template code.
 - Fixed/Cleaned up .coveragerc
 - DNS record creation now uses `UPSERT` instead of `CREATE`, preventing errors when redeploying experiments with existing DNS entries
 - Improved SSH connection retry logic to properly handle transient network errors and SSH handshake timing issues
 - Fixed Docker client cleanup to properly close SSH connections when building images on remote hosts
 - Added better error message when using incompatible PEM key files with EC2 instances
+- Fixes related to randomly failing Bartlett demo CI test:
+  - Set button click handler to 'disabled' in demos' HTML template code to prevent possible race conditions
+  - `BotBase` now validates that `participant_id` is present in the URL (except for `/ad` URLs where it's assigned during sign-up)
+  - Enable `.btn-success` in `createParticipant()` and `loadParticipant()` only after server response assigns `participantId`.
+  - Extract participant ID from URL in `Bot.sign_up` after clicking the Start button
+  - Added checks in `Bot.sign_up` and `Bot.sign_off` to assure `bot.participant_id` is set
 
 #### Changed
 - Renamed label used in pyup Pull Requests from 'enhancement' to 'dependencies'
