@@ -559,3 +559,53 @@ Docker Deployment Configuration
     An integer value which specify `Docker --cpu-shares option <https://docs.docker.com/config/containers/resource_constraints/#configure-the-default-cfs-scheduler>`_ for worker containers.
 
     Defaults to ``1024``, lower this value to limit worker containers CPU usage when CPU cycles are constrained.
+
+``server_pem`` *unicode*
+    **Required for SSH-based deployments** (``dallinger docker-ssh`` and ``dallinger ec2``).
+
+    Full path to the private SSH key (PEM file) used for authenticating to remote servers.
+    The path supports tilde expansion (``~`` will be replaced with your home directory).
+
+    Example::
+
+        server_pem = ~/.ssh/my-server-key.pem
+        server_pem = /home/username/.ssh/deployment-key.pem
+
+    This configuration is validated before deployment, and an error will be raised if:
+
+    * The configuration value is not set
+    * The file does not exist at the specified path
+
+    The PEM file must have restrictive permissions (e.g. ``chmod 400 keyfile.pem``).
+
+
+EC2 Configuration
+~~~~~~~~~~~~~~~~~
+
+``ec2_default_pem`` *unicode*
+    The name of the EC2 key pair to use when provisioning instances (without the ``.pem`` extension).
+
+    This key pair name must exist in your AWS account in the region where you're provisioning.
+    Defaults to ``dallinger`` if not specified.
+
+    Example::
+
+        ec2_default_pem = my-ec2-keypair
+
+    When you provision an EC2 instance, this key pair will be associated with the instance.
+    The corresponding local private key file must be specified via the ``server_pem``
+    configuration variable for SSH authentication to work.
+
+    **Note:** Both ``ec2_default_pem`` (the AWS key pair name) and ``server_pem``
+    (the local private key file path) are required for EC2 deployments.
+
+``ec2_default_security_group`` *unicode*
+    The name of the security group to use when provisioning EC2 instances.
+
+    Defaults to ``dallinger``. If the specified security group does not exist,
+    one will be created with ingress rules (firewall rules allowing incoming traffic)
+    for ports 22 (SSH), 80 (HTTP), 443 (HTTPS), and 5000 (direct application access).
+
+    Example::
+
+        ec2_default_security_group = my-security-group

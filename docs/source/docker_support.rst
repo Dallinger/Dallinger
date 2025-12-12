@@ -171,11 +171,60 @@ experiments deployed this way can be found under the `dallinger docker-ssh` comm
 
       The intended use case is a server that you provisioned exclusively for use with Dallnger.
 
-First you need to tell dallinger a server you can use. There are some prerequisites:
+SSH Authentication Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Before deploying to a server**, you must configure SSH authentication using a PEM key file.
+This is **required** for all ``dallinger docker-ssh`` commands.
+
+Set the ``server_pem`` configuration variable in your experiment's ``config.txt`` or
+``~/.dallingerconfig`` to point to your private key file:
+
+.. code-block:: ini
+
+    [Parameters]
+    server_pem = /path/to/your/key.pem
+
+**Important Notes:**
+
+* The PEM file must exist at the specified path or deployment will fail immediately with an error message
+* The PEM file must have restrictive permissions (e.g. ``chmod 400 keyfile.pem``)
+* This is the private key corresponding to the public key configured on your server
+
+Server Prerequisites
+~~~~~~~~~~~~~~~~~~~~
+
+Your deployment server must meet these requirements:
 
     * Ports 80 and 443 should be free (Dallinger will install a web server and take care of getting SSL certificates for you)
-    * ssh should be configured to enable passwordless login
+    * SSH should be configured with public key authentication
+    * Your server's ``~/.ssh/authorized_keys`` file must contain the public key corresponding to your ``server_pem`` private key
     * The user on the server needs passwordless sudo
+
+Verifying SSH Access
+~~~~~~~~~~~~~~~~~~~~~
+
+Before deploying, verify that you can connect to your server with your PEM key:
+
+.. code-block:: shell
+
+    ssh -i /path/to/your/key.pem ubuntu@server-hostname-or-ip
+
+The ``-i`` flag specifies which private key to use for this connection. 
+
+The first time you connect to a new server, SSH will ask you to verify the server's host key:
+
+.. code-block:: text
+
+    The authenticity of host 'ec2-54-123-45-67.compute-1.amazonaws.com (...)' can't be established.
+    ECDSA key fingerprint is SHA256:...
+    Are you sure you want to continue connecting (yes/no)?
+
+Type ``yes`` to accept and add the server to your known hosts. If you can connect successfully after this, 
+your SSH key authentication is set up correctly and you're ready to deploy with Dallinger.
+
+Adding a Server
+~~~~~~~~~~~~~~~
 
 Given an IP address or a DNS name of the server and a username, add the host to the list of known dallinger servers:
 
@@ -183,14 +232,7 @@ Given an IP address or a DNS name of the server and a username, add the host to 
 
     dallinger docker-ssh servers add --user $SERVER_USER --host $SERVER_HOSTNAME_OR_IP
 
-You can configure SSH authentication using a PEM file by setting the `server_pem` configuration variable in your config.txt or ~/.dallingerconfig:
-
-.. code-block:: ini
-
-    [Parameters]
-    server_pem = /path/to/your/key.pem
-
-The PEM file will be used for SSH authentication when connecting to the server.
+The ``server_pem`` configuration will be used automatically for SSH authentication when connecting to the server.
 
 Dallinger verifies that ``docker`` and ``docker compose`` are installed, and installs them if they are not.
 The installation should take a couple of minutes.
