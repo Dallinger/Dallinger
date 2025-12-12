@@ -2,27 +2,8 @@
 
 ## [Unreleased]
 
-#### Added
-- Fail CI if there is no CHANGELOG entry in a pull request (except 'pyup-update' branches which are excluded)
-- Allow root domain deploments (such has my-domain.com) as well as multi subdomain deployments (such as subdom-2.subdom-1.my-domain.com).
-- Added support for custom Prolific completion codes and actions.
-- Added tests for EC2 `get_all_instances` and `get_instance_details`
-
-#### Fixed
-- Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`     
-- Fixed markers configuration in pytest.ini files
-- Fixed/Cleaned up .coveragerc
-- DNS record creation now uses `UPSERT` instead of `CREATE`, preventing errors when redeploying experiments with existing DNS entries
-- Fixes related to randomly failing Bartlett demo CI test:
-  - Set button click handler to 'disabled' in demos' HTML template code to prevent possible race conditions
-  - `BotBase` now validates that `participant_id` is present in the URL (except for `/ad` URLs where it's assigned during sign-up)
-  - Enable `.btn-success` in `createParticipant()` and `loadParticipant()` only after server response assigns `participantId`.
-  - Extract participant ID from URL in `Bot.sign_up` after clicking the Start button
-  - Added checks in `Bot.sign_up` and `Bot.sign_off` to assure `bot.participant_id` is set
-
-#### Changed
-- Renamed label used in pyup Pull Requests from 'enhancement' to 'dependencies'
-- **BREAKING:** Upgraded paramiko to 4.0.0, which removes support for DSS/DSA SSH keys. Users must migrate to RSA (2048+ bit), Ed25519, or ECDSA keys. DSS keys have been deprecated since OpenSSH 7.0 (2015) due to security weaknesses (limited to 1024-bit). Modern infrastructure (AWS EC2, etc.) does not generate DSS keys.
+#### BREAKING
+- Upgraded paramiko to 4.0.0, which removes support for DSS/DSA SSH keys. Users must migrate to RSA (2048+ bit), Ed25519, or ECDSA keys. DSS keys have been deprecated since OpenSSH 7.0 (2015) due to security weaknesses (limited to 1024-bit). Modern infrastructure (AWS EC2, etc.) does not generate DSS keys.
   
   **Migration Guide for Users with DSS Keys:**
   
@@ -58,9 +39,30 @@
   
   4. Test the connection, then remove the old DSS key from your server's `~/.ssh/authorized_keys`
 
+#### Added
+- Fail CI if there is no CHANGELOG entry in a pull request (except 'pyup-update' branches which are excluded)
+- Allow root domain deploments (such has my-domain.com) as well as multi subdomain deployments (such as subdom-2.subdom-1.my-domain.com).
+- Added support for custom Prolific completion codes and actions.
+- Added tests for EC2 `get_all_instances` and `get_instance_details`
+
+#### Fixed
+- Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`     
+- Fixed markers configuration in pytest.ini files
+- Fixed/Cleaned up .coveragerc
+- DNS record creation now uses `UPSERT` instead of `CREATE`, preventing errors when redeploying experiments with existing DNS entries
+- Fixes related to randomly failing Bartlett demo CI test:
+  - Set button click handler to 'disabled' in demos' HTML template code to prevent possible race conditions
+  - `BotBase` now validates that `participant_id` is present in the URL (except for `/ad` URLs where it's assigned during sign-up)
+  - Enable `.btn-success` in `createParticipant()` and `loadParticipant()` only after server response assigns `participantId`.
+  - Extract participant ID from URL in `Bot.sign_up` after clicking the Start button
+  - Added checks in `Bot.sign_up` and `Bot.sign_off` to assure `bot.participant_id` is set
+
+#### Changed
+- Renamed label used in pyup Pull Requests from 'enhancement' to 'dependencies'
+
 #### Removed
 - Removed Danger and its dependencies
-- **BREAKING:** Removed support for DSS/DSA SSH keys due to paramiko 4.0.0 upgrade and industry-wide deprecation for security reasons
+- Removed support for DSS/DSA SSH keys due to paramiko 4.0.0 upgrade and industry-wide deprecation for security reasons
 
 #### Updated
 - Updated dependencies
