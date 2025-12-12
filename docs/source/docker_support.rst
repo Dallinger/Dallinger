@@ -235,6 +235,20 @@ Given an IP address or a DNS name of the server and a username, add the host to 
 
 The ``server_pem`` configuration will be used automatically for SSH authentication when connecting to the server.
 
+**Supported SSH Key Types:**
+
+Dallinger supports the following SSH key types (DSS/DSA keys are NOT supported):
+
+* **Ed25519** (recommended) - Modern, fast, and secure. Generate with: ``ssh-keygen -t ed25519 -m PEM -f ~/.ssh/my-key.pem``
+* **RSA** (2048-bit or higher) - Most compatible. Generate with: ``ssh-keygen -t rsa -b 4096 -m PEM -f ~/.ssh/my-key.pem``
+* **ECDSA** (256-bit or higher) - Modern and secure. Generate with: ``ssh-keygen -t ecdsa -b 521 -m PEM -f ~/.ssh/my-key.pem``
+
+The ``-m PEM`` flag ensures the key is saved in PEM format (though modern OpenSSH format also works with paramiko).
+
+.. note::
+
+    DSS/DSA keys are no longer supported as they have been deprecated industry-wide since 2015 due to security weaknesses (limited to 1024-bit key length).
+
 Dallinger verifies that ``docker`` and ``docker compose`` are installed, and installs them if they are not.
 The installation should take a couple of minutes.
 

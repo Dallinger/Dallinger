@@ -31,10 +31,12 @@
 #### Removed
 - Removed Danger and its dependencies
 - Removed automatic ssh-agent key management; SSH keys are now used directly via key files
+- Removed support for DSS/DSA SSH keys due to paramiko 4.0.0 upgrade and industry-wide deprecation for security reasons
 
 #### Updated
 - Updated dependencies
 - Enhanced documentation for `server_pem` and `ec2_default_pem` configuration variables, including SSH setup instructions, security group ingress rules, and AWS documentation links for key pair creation and SSH connections
+- Upgraded paramiko to 4.0.0
 
 ## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
 
