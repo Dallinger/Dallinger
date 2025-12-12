@@ -192,6 +192,8 @@ imagesize==1.4.1
     # via sphinx
 iniconfig==2.3.0
     # via pytest
+invoke==2.2.1
+    # via paramiko
 ipykernel==7.1.0
     # via
     #   jupyter
@@ -374,7 +376,7 @@ pandas==2.3.3
     #   tablib
 pandocfilters==1.5.1
     # via nbconvert
-paramiko==3.5.1
+paramiko==4.0.0
     # via
     #   dallinger
     #   sshtunnel

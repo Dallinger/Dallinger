@@ -61,6 +61,21 @@ the commandline, or by setting the ``ec2_default_pem`` value in your `~/.dalling
 For more information about creating PEM files in AWS, see
 https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html.
 
+**Supported SSH Key Types:**
+
+AWS EC2 and Dallinger support the following key types:
+
+* **RSA** (2048-bit or higher) - Most common and compatible. Generate with: ``ssh-keygen -t rsa -b 4096 -m PEM -f ~/.ssh/my-key.pem``
+* **Ed25519** - Modern and secure (recommended). Generate with: ``ssh-keygen -t ed25519 -m PEM -f ~/.ssh/my-key.pem``
+* **ECDSA** (256-bit or higher) - Modern and secure. Generate with: ``ssh-keygen -t ecdsa -b 521 -m PEM -f ~/.ssh/my-key.pem``
+
+The ``-m PEM`` flag ensures the key is saved in PEM format (though modern OpenSSH format also works with paramiko).
+
+.. note::
+
+    DSS/DSA keys are NOT supported. They have been deprecated industry-wide since 2015
+    due to security weaknesses (limited to 1024-bit). AWS EC2 does not generate DSS keys.
+
 AWS Region
 ----------
 

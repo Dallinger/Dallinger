@@ -2,6 +2,43 @@
 
 ## [Unreleased]
 
+#### BREAKING
+- Upgraded paramiko to 4.0.0, which removes support for DSS/DSA SSH keys. Users must migrate to RSA (2048+ bit), Ed25519, or ECDSA keys. DSS keys have been deprecated since OpenSSH 7.0 (2015) due to security weaknesses (limited to 1024-bit). Modern infrastructure (AWS EC2, etc.) does not generate DSS keys.
+  
+  **Migration Guide for Users with DSS Keys:**
+  
+  If you have DSS keys, you need to generate new keys and update your servers:
+  
+  1. Generate a new key in PEM format (Ed25519 recommended):
+     ```bash
+     # For Ed25519:
+     ssh-keygen -t ed25519 -m PEM -f ~/.ssh/my-new-key.pem
+     # OR for RSA:
+     ssh-keygen -t rsa -b 4096 -m PEM -f ~/.ssh/my-new-key.pem
+     ```
+     
+     This creates two files: `my-new-key.pem` (private key) and `my-new-key.pem.pub` (public key).
+     
+     If you already have a PEM file without a `.pub` file, generate the public key:
+     ```bash
+     ssh-keygen -y -f ~/.ssh/my-new-key.pem > ~/.ssh/my-new-key.pem.pub
+     ```
+  
+  2. Copy the new public key to your server (while still using your old DSS key for authentication):
+     ```bash
+     ssh-copy-id -i ~/.ssh/my-new-key.pem user@your-server
+     ```
+     
+     This reads `my-new-key.pem.pub` and appends it to `~/.ssh/authorized_keys` on your server. The private key never leaves your machine.
+  
+  3. Update your Dallinger config to use the new key:
+     ```ini
+     [Parameters]
+     server_pem = ~/.ssh/my-new-key.pem
+     ```
+  
+  4. Test the connection, then remove the old DSS key from your server's `~/.ssh/authorized_keys`
+
 #### Added
 - Fail CI if there is no CHANGELOG entry in a pull request (except 'pyup-update' branches which are excluded)
 - Allow root domain deploments (such has my-domain.com) as well as multi subdomain deployments (such as subdom-2.subdom-1.my-domain.com).
@@ -25,9 +62,11 @@
 
 #### Removed
 - Removed Danger and its dependencies
+- Removed support for DSS/DSA SSH keys due to paramiko 4.0.0 upgrade and industry-wide deprecation for security reasons
 
 #### Updated
 - Updated dependencies
+- Upgraded paramiko to 4.0.0
 
 ## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
 
