@@ -3,7 +3,7 @@
 const store = require('./store+json2.min');
 global.store = store;
 // Mock out alert to the command line, so we can see errors
-global.window.alert = console.log;
+window.alert = console.log;
 
 
 function StubFingerprint2() {
@@ -20,7 +20,7 @@ function StubFingerprint2() {
 // Setup run before other beforeEach blocks
 beforeEach(() => {
   // Stub out Fingerprint2 with a deterministic replacement.
-  global.window.Fingerprint2 = StubFingerprint2;
+  window.Fingerprint2 = StubFingerprint2;
   // re-load dallinger2 in each test to avoid interactions between tests:
   jest.resetModules();
 });

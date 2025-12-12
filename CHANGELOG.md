@@ -28,6 +28,23 @@
 
 #### Updated
 - Updated dependencies
+- Updated JavaScript development dependencies:
+  - webpack: 2.4.1 → 5.97.1
+  - jest: 23.6.0 → 29.7.0
+  - browser-sync: updated to 3.0.3
+  - jsdoc: updated to 4.0.4
+  - terser-webpack-plugin: replaced uglify-es for minification
+  - webpack-cli: updated to 5.1.4
+  - Added jest-environment-jsdom for proper DOM testing
+- Updated frontend JavaScript libraries:
+  - Bootstrap: 4.5.0 → 4.6.2 (latest 4.x version with security fixes)
+  - Popper.js: upgraded to 1.16.1 (compatible with Bootstrap 4.6.2)
+  - clipboard.js: 2.0.4 → 2.0.11 (bug fixes and improvements)
+  - require.js: 2.3.5 → 2.3.7 (fixes CVE-2024-38999 prototype pollution vulnerability)
+  - fingerprintjs2: 1.5.1 → 1.8.6 (bug fixes and better browser compatibility)
+- Replaced CDN dependencies with local static files:
+  - fingerprintjs2 now served from local static directory instead of cdnjs.cloudflare.com
+  - Improved reliability and offline capability for experiment deployment
 
 ## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
 
