@@ -27,7 +27,7 @@
 - Removed Danger and its dependencies
 
 #### Updated
-- Updated dependencies
+- Updated dependencies, incl. paramiko to 4.0.0
 
 ## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
 
