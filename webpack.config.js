@@ -1,14 +1,11 @@
-var webpack = require('webpack');
-var BrowserSyncPlugin = require('browser-sync-webpack-plugin');
-var UglifyJsPlugin = webpack.optimize.UglifyJsPlugin;
-var env = process.env.WEBPACK_ENV;
+const path = require('path');
+const TerserPlugin = require('terser-webpack-plugin');
+const BrowserSyncPlugin = require('browser-sync-webpack-plugin');
+const env = process.env.WEBPACK_ENV;
 
-var plugins = [];
+const plugins = [];
 
-if (env === 'build') {
-  // uglify code for production
-  plugins.push(new UglifyJsPlugin({sourceMap: true}));
-} else {
+if (env !== 'build') {
   plugins.push(new BrowserSyncPlugin({
     host: 'localhost',
     port: 6001,
@@ -24,13 +21,24 @@ if (env === 'build') {
 }
 
 module.exports = {
+  mode: env === 'build' ? 'production' : 'development',
   entry: {
     tracker: './dallinger/frontend/static/scripts/tracking/load-tracker.js'
   },
   output: {
-    path: __dirname + '/dallinger/frontend/static/',
+    path: path.join(__dirname, 'dallinger/frontend/static'),
     filename: 'scripts/[name].js'
   },
   devtool: 'source-map',
+  optimization: {
+    minimize: env === 'build',
+    minimizer: [
+      new TerserPlugin({
+        terserOptions: {
+          sourceMap: true
+        }
+      })
+    ]
+  },
   plugins: plugins
 };
