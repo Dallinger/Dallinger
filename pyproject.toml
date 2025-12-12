@@ -47,7 +47,7 @@ dependencies = [
     "heroku3",
     "ipython < 9",
     "numpy < 2.3",
-    "paramiko < 4",
+    "paramiko",
     "pexpect",
     "pip<25.3", # to address temporary incompatibility between pip and pip-compile versions, see https://stackoverflow.com/questions/79802659/trying-to-solve-a-pip-compile-stack-trace-error. We should be able to remove this if we finalize the move to uv.
     "pip-tools",  # TODO: consider removing at some point if we are happy with uv?
