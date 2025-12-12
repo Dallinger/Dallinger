@@ -94,6 +94,8 @@ idna==3.11
     # via
     #   requests
     #   trio
+invoke==2.2.1
+    # via paramiko
 ipython==8.37.0
     # via dallinger
 itsdangerous==2.2.0
@@ -126,7 +128,7 @@ packaging==25.0
     # via
     #   build
     #   gunicorn
-paramiko==3.5.1
+paramiko==4.0.0
     # via dallinger
 parso==0.8.5
     # via jedi
