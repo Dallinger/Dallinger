@@ -80,8 +80,8 @@ be used for SSH authentication when connecting to the instance.
 **Both configuration values are required** for EC2-based deployments. If either is missing
 or if the PEM file doesn't exist at the specified path, the deployment will fail with an error message.
 
-For more information about creating PEM files in AWS, see
-https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html.
+For more information, see the `AWS EC2 documentation on creating key pairs 
+<https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html>`__.
 
 AWS Region
 ----------

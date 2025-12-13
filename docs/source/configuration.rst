@@ -596,13 +596,16 @@ EC2 Configuration
     2. Navigate to "Key Pairs" under "Network & Security"
     3. Click "Create key pair"
     4. Give it a name (e.g., ``my-ec2-keypair``)
-    5. Choose the PEM file format
+    5. Choose the PEM file format (for use with OpenSSH)
     6. Click "Create key pair" - AWS will immediately download the ``.pem`` file to your computer
     7. Move this file to your home directory (e.g., ``mv ~/Downloads/my-ec2-keypair.pem ~/my-ec2-keypair.pem``)
     8. Set restrictive permissions: ``chmod 400 ~/my-ec2-keypair.pem``
 
     **Important:** AWS only allows you to download the private key file once when you create the key pair.
     If you lose the file, you'll need to create a new key pair.
+
+    For more information, see the `AWS EC2 documentation on creating key pairs 
+    <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html>`__.
 
     Example configuration::
 
@@ -624,6 +627,9 @@ EC2 Configuration
 
     **Note:** Both ``ec2_default_pem`` (the AWS key pair name) and ``server_pem``
     (the local private key file path) are required for EC2 deployments.
+
+    For more information on connecting to EC2 instances, see the `AWS EC2 documentation on 
+    connecting using SSH <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connect-to-linux-instance.html>`__.
 
     For example::
 
