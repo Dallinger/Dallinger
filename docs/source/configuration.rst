@@ -598,7 +598,7 @@ EC2 Configuration
     4. Give it a name (e.g., ``my-ec2-keypair``)
     5. Choose the PEM file format
     6. Click "Create key pair" - AWS will immediately download the ``.pem`` file to your computer
-    7. Move this file to your home directory (e.g., ``~/my-ec2-keypair.pem``)
+    7. Move this file to your home directory (e.g., ``mv ~/Downloads/my-ec2-keypair.pem ~/my-ec2-keypair.pem``)
     8. Set restrictive permissions: ``chmod 400 ~/my-ec2-keypair.pem``
 
     **Important:** AWS only allows you to download the private key file once when you create the key pair.
