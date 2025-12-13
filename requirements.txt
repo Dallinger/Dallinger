@@ -223,7 +223,7 @@ typing-extensions==4.15.0
     # via
     #   beautifulsoup4
     #   selenium
-tzdata==2025.2
+tzdata==2025.3
     # via faker
 tzlocal==5.3.1
     # via
