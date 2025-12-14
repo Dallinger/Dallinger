@@ -13,6 +13,9 @@
 - Fixed markers configuration in pytest.ini files
 - Fixed/Cleaned up .coveragerc
 - DNS record creation now uses `UPSERT` instead of `CREATE`, preventing errors when redeploying experiments with existing DNS entries
+- Improved SSH connection retry logic to properly handle transient network errors and SSH handshake timing issues
+- Fixed Docker client cleanup to properly close SSH connections when building images on remote hosts
+- Added better error message when using incompatible PEM key files with EC2 instances
 - Fixes related to randomly failing Bartlett demo CI test:
   - Set button click handler to 'disabled' in demos' HTML template code to prevent possible race conditions
   - `BotBase` now validates that `participant_id` is present in the URL (except for `/ad` URLs where it's assigned during sign-up)
@@ -22,12 +25,15 @@
 
 #### Changed
 - Renamed label used in pyup Pull Requests from 'enhancement' to 'dependencies'
+- **The `server_pem` configuration is now required** for SSH-based deployments (docker-ssh and EC2). PEM file paths are now validated upfront with clear error messages if missing or invalid. This ensures SSH authentication is properly configured before attempting deployments.
 
 #### Removed
 - Removed Danger and its dependencies
+- Removed automatic ssh-agent key management; SSH keys are now used directly via key files
 
 #### Updated
 - Updated dependencies
+- Enhanced documentation for `server_pem` and `ec2_default_pem` configuration variables, including SSH setup instructions and security group ingress rules
 
 ## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
 

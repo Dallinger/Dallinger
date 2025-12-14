@@ -30,7 +30,10 @@ from urllib3.util.retry import Retry
 from yaspin import yaspin
 
 from dallinger.command_line.config import get_configured_hosts, remove_host, store_host
-from dallinger.command_line.utils import Output, run_pre_launch_checks
+from dallinger.command_line.utils import (
+    Output,
+    run_pre_launch_checks,
+)
 from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
@@ -44,6 +47,8 @@ from dallinger.utils import (
     abspath_from_egg,
     print_bold,
 )
+
+from .utils import get_server_pem_path
 
 # Find an identifier for the current user to use as CREATOR of the experiment
 HOSTNAME = gethostname()
@@ -370,7 +375,10 @@ def build_and_push_image(f):
         config = get_config(load=True)
         image_name = config.get("docker_image_name", None)
         local_build = kwargs.get("local_build", False)
-        push_build = kwargs.get("push_build", False)
+
+        # If we build locally we have to push the image to the registry
+        push_build = kwargs.get("push_build", False) or local_build
+
         use_subdomain = should_use_subdomain(
             kwargs.get("app_name"), kwargs.get("archive_path")
         )
@@ -382,11 +390,10 @@ def build_and_push_image(f):
             )
         kwargs["preflight_root_clean"] = preflight_root_clean
 
-        if local_build:
-            # If we build locally we have to push the image to the registry
-            push_build = True
-
+        # Save any current values from environment so we can restore them
         original_docker_host = os.environ.get("DOCKER_HOST")
+
+        docker_client = None
         try:
             if not local_build:
                 # Set DOCKER_HOST to point to the remote server via SSH
@@ -395,13 +402,13 @@ def build_and_push_image(f):
                 ssh_user = server_info.get("user")
                 ensure_remote_host_in_known_hosts(ssh_host, ssh_user)
                 os.environ["DOCKER_HOST"] = (
-                    f"ssh://{ssh_user + '@' if ssh_user else ''}{ssh_host}"
+                    f"ssh://{(ssh_user + '@') if ssh_user else ''}{ssh_host}"
                 )
                 print(
                     f"Attempting to build image on remote host: {os.environ['DOCKER_HOST']}"
                 )
-
-            docker_client = docker.from_env()
+            # Avoid Paramiko by using the system ssh client
+            docker_client = docker.from_env(use_ssh_client=True)
 
             if image_name:
                 try:
@@ -453,13 +460,20 @@ def build_and_push_image(f):
                 # If it's a local build, or if it's a remote build and and push_build, then push.
                 image_name = push.callback(use_existing=True, app_name=app_name)
 
-            return f(image_name=image_name, *args, **kwargs)
+            return f(*args, **dict(kwargs, image_name=image_name))
         finally:
-            # Restore original DOCKER_HOST
-            if original_docker_host is not None:
+            # Close client first so the SSH connection tears down cleanly
+            if docker_client is not None:
+                try:
+                    docker_client.close()
+                except Exception:
+                    pass
+
+            # Restore DOCKER_HOST
+            if original_docker_host is None:
+                os.environ.pop("DOCKER_HOST", None)
+            else:
                 os.environ["DOCKER_HOST"] = original_docker_host
-            elif "DOCKER_HOST" in os.environ:
-                del os.environ["DOCKER_HOST"]
 
     return wrapper
 
@@ -864,7 +878,11 @@ It currently resolves to {ipaddr_experiment}."""
     dashboard_link = (
         f"https://{dashboard_user}:{dashboard_password}@{experiment_hostname}/dashboard"
     )
-    log_command = f"ssh {ssh_user + '@' if ssh_user else ''}{ssh_host} docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
+    pem_path = get_server_pem_path()
+    log_command = (
+        f"ssh -i {pem_path} {(ssh_user + '@') if ssh_user else ''}{ssh_host} "
+        f"docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
+    )
 
     deployment_infos = []
     if push_build:
@@ -982,10 +1000,11 @@ def remote_postgres(server_info, app):
         postgresql_remote_ip = executor.run(
             "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' dallinger-postgresql-1"
         ).strip()
-        # Now we start the tunnel
+        pem_path = get_server_pem_path()
         tunnel = SSHTunnelForwarder(
             ssh_host,
             ssh_username=ssh_user,
+            ssh_pkey=str(pem_path),
             remote_bind_address=(postgresql_remote_ip, 5432),
         )
         tunnel.start()
@@ -1061,6 +1080,7 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         This is a deliberate choice to simplify the connection process, as the server
         is expected to be under our control.
     """
+    pem_path = get_server_pem_path()
     client = paramiko.SSHClient()
 
     known_hosts_path = os.path.expanduser("~/.ssh/known_hosts")
@@ -1075,21 +1095,30 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
 
     print(f"Connecting to {host}")
     with yaspin() as spinner:
-        config = get_config(load=True)
-        server_pem = config.get("server_pem", None)
-        if server_pem:
-            if not os.path.exists(server_pem):
-                raise FileNotFoundError(
-                    f"SSH key file not found: {server_pem}\n"
-                    "Please check that the path in your config file is correct.\n"
-                    "You can set the path in either:\n"
-                    "  - Your experiment's config.txt: server_pem = /path/to/key.pem\n"
-                    "  - Your global config ~/.dallingerconfig: server_pem = /path/to/key.pem"
+        try:
+            client.connect(
+                host,
+                username=user,
+                key_filename=str(pem_path),
+                allow_agent=False,  # don't use ssh-agent
+                look_for_keys=False,  # don't scan ~/.ssh for keys
+            )
+            spinner.ok("Connected.")
+        except paramiko.AuthenticationException:
+            spinner.fail("✖ Authentication failed")
+            raise
+        except ValueError as ex:
+            if "q must be exactly" in str(ex):
+                raise ValueError(
+                    f"The PEM key file at {pem_path} is not compatible with this EC2 instance.\n"
+                    "Make sure you're using the correct EC2 key pair file that matches this instance.\n"
+                    "Check your 'server_pem' configuration or use the correct key file."
                 )
-            client.connect(host, username=user, key_filename=server_pem)
-        else:
-            client.connect(host, username=user)
-        spinner.ok("Connected.")
+            else:
+                raise
+        except Exception:
+            spinner.fail("✖ Connection failed")
+            raise
 
     try:
         client.save_host_keys(known_hosts_path)

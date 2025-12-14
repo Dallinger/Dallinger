@@ -559,3 +559,90 @@ Docker Deployment Configuration
     An integer value which specify `Docker --cpu-shares option <https://docs.docker.com/config/containers/resource_constraints/#configure-the-default-cfs-scheduler>`_ for worker containers.
 
     Defaults to ``1024``, lower this value to limit worker containers CPU usage when CPU cycles are constrained.
+
+``server_pem`` *unicode*
+    **Required for SSH-based deployments** (``dallinger docker-ssh`` and ``dallinger ec2``).
+
+    Full path to the private SSH key (PEM file) used for authenticating to remote servers.
+    The path supports tilde expansion (``~`` will be replaced with your home directory).
+
+    Example::
+
+        server_pem = /path/to/deployment-key.pem
+        server_pem = ~/my-server-key.pem
+
+    This configuration is validated before deployment, and an error will be raised if:
+
+    * The configuration value is not set
+    * The file does not exist at the specified path
+
+    The PEM file must have restrictive permissions (e.g. ``chmod 400 keyfile.pem``).
+
+
+EC2 Configuration
+~~~~~~~~~~~~~~~~~
+
+``ec2_default_pem`` *unicode*
+    The name of the EC2 key pair to use when provisioning instances (without the ``.pem`` extension).
+
+    This key pair name must exist in your AWS account in the region where you're provisioning.
+    Defaults to ``dallinger`` if not specified.
+
+    **Creating an EC2 key pair:**
+
+    Before using Dallinger with EC2, you need to create a key pair in the AWS console:
+
+    1. Go to the EC2 dashboard in your AWS region
+    2. Navigate to "Key Pairs" under "Network & Security"
+    3. Click "Create key pair"
+    4. Give it a name (e.g., ``my-ec2-keypair``)
+    5. Choose the PEM file format (for use with OpenSSH)
+    6. Click "Create key pair" - AWS will immediately download the ``.pem`` file to your computer
+    7. Move this file to your home directory (e.g., ``mv ~/Downloads/my-ec2-keypair.pem ~/my-ec2-keypair.pem``)
+    8. Set restrictive permissions: ``chmod 400 ~/my-ec2-keypair.pem``
+
+    **Important:** AWS only allows you to download the private key file once when you create the key pair.
+    If you lose the file, you'll need to create a new key pair.
+
+    For more information, see the `AWS EC2 documentation on creating key pairs 
+    <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html>`__.
+
+    Example configuration::
+
+        ec2_default_pem = my-ec2-keypair
+
+    .. note::
+        
+        By default, Dallinger will look for this file in your home directory, so for example if you specify::
+
+            ec2_default_pem = my_key
+
+        then it will look for ``~/my_key.pem``.
+
+        Alternatively, you can specify an absolute path, e.g. ``/path/to/my/key`` will resolve to ``/path/to/my/key.pem``.
+
+    When you provision an EC2 instance, this key pair will be associated with the instance.
+    The corresponding local private key file must be specified via the ``server_pem``
+    configuration variable for SSH authentication to work.
+
+    **Note:** Both ``ec2_default_pem`` (the AWS key pair name) and ``server_pem``
+    (the local private key file path) are required for EC2 deployments.
+
+    For more information on connecting to EC2 instances, see the `AWS EC2 documentation on 
+    connecting using SSH <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connect-to-linux-instance.html>`__.
+
+    For example::
+
+        ec2_default_pem = my-ec2-keypair
+        server_pem = ~/my-ec2-keypair.pem
+
+``ec2_default_security_group`` *unicode*
+    The name of the security group to use when provisioning EC2 instances.
+
+    Defaults to ``dallinger``. If the specified security group does not exist,
+    one will be created with ingress rules (firewall rules allowing incoming traffic)
+    for ports 22 (SSH), 80 (HTTP), 443 (HTTPS), and 5000 (direct application access).
+
+    Example::
+
+        ec2_default_security_group = my-security-group
