@@ -183,13 +183,14 @@ Set the ``server_pem`` configuration variable in your experiment's ``config.txt`
 .. code-block:: ini
 
     [Parameters]
-    server_pem = /path/to/your/key.pem
+    server_pem = ~/.ssh/your-key.pem
 
 **Important Notes:**
 
 * The PEM file must exist at the specified path or deployment will fail immediately with an error message
-* The PEM file must have restrictive permissions (e.g. ``chmod 400 keyfile.pem``)
+* The PEM file must have restrictive permissions (e.g. ``chmod 400 ~/.ssh/your-key.pem``)
 * This is the private key corresponding to the public key configured on your server
+* Best practice: Store PEM files in ``~/.ssh/`` directory (the standard location for SSH keys)
 
 Server Prerequisites
 ~~~~~~~~~~~~~~~~~~~~
@@ -208,7 +209,7 @@ Before deploying, verify that you can connect to your server with your PEM key:
 
 .. code-block:: shell
 
-    ssh -i /path/to/your/key.pem ubuntu@server-hostname-or-ip
+    ssh -i ~/.ssh/your-key.pem ubuntu@server-hostname-or-ip
 
 The ``-i`` flag specifies which private key to use for this connection. 
 

@@ -75,7 +75,7 @@ def get_server_pem_path() -> Path:
         raise FileNotFoundError(
             "You have not configured the server_pem config variable!\n"
             "Set it in your experiment's config.txt or ~/.dallingerconfig, for example:\n"
-            "server_pem = /path/to/key.pem"
+            "server_pem = ~/.ssh/your-key.pem"
         )
     pem_path = Path(path_string).expanduser()
     if not pem_path.is_file():
