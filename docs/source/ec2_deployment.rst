@@ -91,11 +91,11 @@ For more information, see the `AWS EC2 documentation on creating key pairs
 
 AWS EC2 and Dallinger support the following key types:
 
-* **RSA** (2048-bit or higher) - Most common and compatible. Generate with: ``ssh-keygen -t rsa -b 4096 -m PEM -f ~/.ssh/my-key.pem``
-* **Ed25519** - Modern and secure (recommended). Generate with: ``ssh-keygen -t ed25519 -m PEM -f ~/.ssh/my-key.pem``
-* **ECDSA** (256-bit or higher) - Modern and secure. Generate with: ``ssh-keygen -t ecdsa -b 521 -m PEM -f ~/.ssh/my-key.pem``
+* **RSA** (2048-bit or higher) - Most common and compatible. Generate with: ``ssh-keygen -t rsa -b 4096 -f ~/.ssh/my-key.pem``
+* **Ed25519** - Modern and secure (recommended). Generate with: ``ssh-keygen -t ed25519 -f ~/.ssh/my-key.pem``
+* **ECDSA** (256-bit or higher) - Modern and secure. Generate with: ``ssh-keygen -t ecdsa -b 521 -f ~/.ssh/my-key.pem``
 
-The ``-m PEM`` flag ensures the key is saved in PEM format (though modern OpenSSH format also works with paramiko).
+Both PEM and OpenSSH private key formats are supported.
 
 .. note::
 
