@@ -25,8 +25,8 @@
 
 #### Changed
 - Renamed label used in pyup Pull Requests from 'enhancement' to 'dependencies'
-- The `server_pem` configuration is now required for SSH-based deployments (docker-ssh and EC2). PEM file paths are now validated upfront with clear error messages if missing or invalid. This ensures SSH authentication is properly configured before attempting deployments.
-- PEM files are now searched in `~/.ssh/` directory first (recommended best practice), with fallback to `~/` for backwards compatibility. A warning is logged when PEM files are found in the legacy `~/` location with migration instructions. All documentation and examples have been updated to promote `~/.ssh/` as the standard location for SSH key files.
+- **The `server_pem` configuration is now required** for SSH-based deployments (docker-ssh and EC2). PEM file paths are now validated upfront with clear error messages if missing or invalid. This ensures SSH authentication is properly configured before attempting deployments.
+- **PEM files are now searched in `~/.ssh/` directory first** (recommended best practice), with fallback to `~/` for backwards compatibility. A warning is logged when PEM files are found in the legacy `~/` location with migration instructions. All documentation and examples have been updated to promote `~/.ssh/` as the standard location for SSH key files.
 - EC2 key pair registration now supports RSA, Ed25519, and ECDSA key types (previously only RSA was supported)
 
 #### Removed
