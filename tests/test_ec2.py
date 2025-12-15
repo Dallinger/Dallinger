@@ -4,7 +4,11 @@ import pandas as pd
 import pytest
 import requests
 
-from dallinger.command_line.lib.ec2 import get_all_instances, get_instance_details
+from dallinger.command_line.lib.ec2 import (
+    get_all_instances,
+    get_instance_details,
+    get_pem_path,
+)
 
 
 class TestGetInstanceDetails:
@@ -94,3 +98,43 @@ class TestGetAllInstances:
             assert "Memory" not in result.columns
             assert "VCPUS" not in result.columns
             assert "Cost" not in result.columns
+
+
+class TestGetPemPath:
+    """Tests for get_pem_path function with ~/.ssh/ priority"""
+
+    def test_finds_key_in_ssh_directory(self, tmp_path, monkeypatch):
+        """Test that key is found in ~/.ssh/ directory (recommended location)"""
+        # Create .ssh directory and key
+        ssh_dir = tmp_path / ".ssh"
+        ssh_dir.mkdir()
+        ssh_pem = ssh_dir / "my-key.pem"
+        ssh_pem.write_text("ssh key")
+
+        monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+
+        result = get_pem_path("my-key")
+        assert result == ssh_pem
+
+    def test_falls_back_to_home_directory(self, tmp_path, monkeypatch):
+        """Test fallback to ~/ when ~/.ssh/ doesn't have key"""
+        # Only create home location
+        home_pem = tmp_path / "my-key.pem"
+        home_pem.write_text("home key")
+
+        monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+
+        result = get_pem_path("my-key")
+        assert result == home_pem
+
+    def test_raises_helpful_error_when_key_not_found(self, tmp_path, monkeypatch):
+        """Test that error message is helpful when key doesn't exist in either location"""
+        monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+
+        with pytest.raises(FileNotFoundError) as excinfo:
+            get_pem_path("missing-key")
+
+        error_msg = str(excinfo.value)
+        assert "Private key file for EC2 keypair 'missing-key' not found." in error_msg
+        assert str(tmp_path / ".ssh" / "missing-key.pem (recommended)") in error_msg
+        assert str(tmp_path / "missing-key.pem (legacy)") in error_msg

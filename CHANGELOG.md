@@ -6,7 +6,7 @@
 - Fail CI if there is no CHANGELOG entry in a pull request (except 'pyup-update' branches which are excluded)
 - Allow root domain deploments (such has my-domain.com) as well as multi subdomain deployments (such as subdom-2.subdom-1.my-domain.com).
 - Added support for custom Prolific completion codes and actions.
-- Added tests for EC2 `get_all_instances` and `get_instance_details`
+- Added tests for EC2 `get_all_instances`, `get_instance_details`, and `get_pem_path`
 
 #### Fixed
 - Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`     
@@ -26,6 +26,7 @@
 #### Changed
 - Renamed label used in pyup Pull Requests from 'enhancement' to 'dependencies'
 - **The `server_pem` configuration is now required** for SSH-based deployments (docker-ssh and EC2). PEM file paths are now validated upfront with clear error messages if missing or invalid. This ensures SSH authentication is properly configured before attempting deployments.
+- **PEM files are now searched in `~/.ssh/` directory first** (recommended best practice), with fallback to `~/` for backwards compatibility. A warning is logged when PEM files are found in the legacy `~/` location with migration instructions. All documentation and examples have been updated to promote `~/.ssh/` as the standard location for SSH key files.
 
 #### Removed
 - Removed Danger and its dependencies
@@ -33,7 +34,7 @@
 
 #### Updated
 - Updated dependencies
-- Enhanced documentation for `server_pem` and `ec2_default_pem` configuration variables, including SSH setup instructions and security group ingress rules
+- Enhanced documentation for `server_pem` and `ec2_default_pem` configuration variables, including SSH setup instructions, security group ingress rules, and AWS documentation links for key pair creation and SSH connections
 
 ## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
 

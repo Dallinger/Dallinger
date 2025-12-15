@@ -566,17 +566,29 @@ Docker Deployment Configuration
     Full path to the private SSH key (PEM file) used for authenticating to remote servers.
     The path supports tilde expansion (``~`` will be replaced with your home directory).
 
+    **Best practice:** Store your PEM files in the ``~/.ssh/`` directory. This is the standard
+    location for SSH authentication files on Unix-like systems and provides a secure, centralized
+    location for managing your keys. Never store PEM files in project directories where they might
+    accidentally be committed to version control.
+
     Example::
 
-        server_pem = /path/to/deployment-key.pem
-        server_pem = ~/my-server-key.pem
+        server_pem = ~/.ssh/my-server-key.pem
+        server_pem = /home/username/.ssh/deployment-key.pem
 
     This configuration is validated before deployment, and an error will be raised if:
 
     * The configuration value is not set
     * The file does not exist at the specified path
 
-    The PEM file must have restrictive permissions (e.g. ``chmod 400 keyfile.pem``).
+    The PEM file must have restrictive permissions. After creating or downloading your PEM file,
+    set the correct permissions::
+
+        chmod 400 ~/.ssh/keyfile.pem
+
+    The ``~/.ssh/`` directory itself should have permissions set to 700::
+
+        chmod 700 ~/.ssh
 
 
 EC2 Configuration
@@ -598,8 +610,17 @@ EC2 Configuration
     4. Give it a name (e.g., ``my-ec2-keypair``)
     5. Choose the PEM file format (for use with OpenSSH)
     6. Click "Create key pair" - AWS will immediately download the ``.pem`` file to your computer
-    7. Move this file to your home directory (e.g., ``mv ~/Downloads/my-ec2-keypair.pem ~/my-ec2-keypair.pem``)
-    8. Set restrictive permissions: ``chmod 400 ~/my-ec2-keypair.pem``
+    7. Move this file to the ``~/.ssh/`` directory (the standard location for SSH keys)::
+
+        mv ~/Downloads/my-ec2-keypair.pem ~/.ssh/
+
+    8. Set the correct permissions on the file and directory::
+
+        chmod 700 ~/.ssh
+        chmod 400 ~/.ssh/my-ec2-keypair.pem
+
+    **Note:** Avoid using spaces in your key pair filename. Use hyphens or underscores instead
+    (e.g., ``my-ec2-key.pem`` or ``my_ec2_key.pem``).
 
     **Important:** AWS only allows you to download the private key file once when you create the key pair.
     If you lose the file, you'll need to create a new key pair.
@@ -613,13 +634,20 @@ EC2 Configuration
 
     .. note::
         
-        By default, Dallinger will look for this file in your home directory, so for example if you specify::
+        By default, Dallinger will look for this file in the ``~/.ssh/`` directory first (recommended best practice),
+        and will fall back to the home directory (``~/``) for backwards compatibility. For example, if you specify::
 
             ec2_default_pem = my_key
 
-        then it will look for ``~/my_key.pem``.
+        then it will look for:
+        
+        1. ``~/.ssh/my_key.pem`` (recommended)
+        2. ``~/my_key.pem`` (legacy fallback)
 
-        Alternatively, you can specify an absolute path, e.g. ``/path/to/my/key`` will resolve to ``/path/to/my/key.pem``.
+        We strongly recommend storing your PEM files in ``~/.ssh/`` following standard SSH key management practices.
+
+        Alternatively, you can specify an absolute path (e.g., ``/path/to/my/key``), which will resolve
+        to ``/path/to/my/key.pem``.
 
     When you provision an EC2 instance, this key pair will be associated with the instance.
     The corresponding local private key file must be specified via the ``server_pem``
@@ -634,7 +662,7 @@ EC2 Configuration
     For example::
 
         ec2_default_pem = my-ec2-keypair
-        server_pem = ~/my-ec2-keypair.pem
+        server_pem = ~/.ssh/my-ec2-keypair.pem
 
 ``ec2_default_security_group`` *unicode*
     The name of the security group to use when provisioning EC2 instances.

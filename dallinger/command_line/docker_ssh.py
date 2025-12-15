@@ -150,7 +150,7 @@ def add(host, user):
     configuration variable in your config.txt or ~/.dallingerconfig:
 
     [Parameters]
-    server_pem = /path/to/your/key.pem
+    server_pem = ~/.ssh/your-key.pem
     """
     prepare_server(host, user)
     store_host(dict(host=host, user=user))

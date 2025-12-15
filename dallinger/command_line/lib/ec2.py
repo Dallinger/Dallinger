@@ -311,16 +311,36 @@ def get_security_group_id(security_group_name, region_name=None):
 
 
 def get_pem_path(key_name) -> Path:
-    """Return a Path to the PEM file for the given key name (e.g. ~/mykey.pem)."""
-    pem_path = Path.home() / f"{key_name}.pem"
-    if not pem_path.exists():
-        raise FileNotFoundError(
-            f"Private key file for EC2 keypair '{key_name}' not found at {pem_path}.\n"
-            "Make sure you have the private key locally and that the path is correct.\n"
-            "Set the EC2 key name in your config with: ec2_default_pem = <keyname>\n"
-            "or place your private key at the expected path (~/<keyname>.pem)."
+    """Return a Path to the PEM file for the given key name.
+
+    Looks for the key in ~/.ssh/ first (best practice), then falls back to ~/
+    for backwards compatibility.
+    """
+    # Try ~/.ssh/ first (best practice)
+    ssh_pem_path = Path.home() / ".ssh" / f"{key_name}.pem"
+    if ssh_pem_path.exists():
+        return ssh_pem_path
+
+    # Fall back to home directory for backwards compatibility
+    home_pem_path = Path.home() / f"{key_name}.pem"
+    if home_pem_path.exists():
+        logger.warning(
+            f"PEM file found at legacy location: {home_pem_path}\n"
+            f"    Recommended: Move to {ssh_pem_path} for better security\n"
+            f"    Command: mkdir -p ~/.ssh && mv '{home_pem_path}' '{ssh_pem_path}' && chmod 400 '{ssh_pem_path}'"
         )
-    return pem_path
+        return home_pem_path
+
+    # Neither location found - provide helpful error message
+    raise FileNotFoundError(
+        f"Private key file for EC2 keypair '{key_name}' not found.\n"
+        "Looked in the following locations:\n"
+        f"  - {ssh_pem_path} (recommended)\n"
+        f"  - {home_pem_path} (legacy)\n\n"
+        "Best practice: Store your PEM file in ~/.ssh/ directory.\n"
+        "Make sure you have the private key locally and that the path is correct.\n"
+        "Set the EC2 key name in your config with: ec2_default_pem = <keyname>"
+    )
 
 
 def register_key_pair(ec2, key_name):
