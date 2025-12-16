@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [v12.0.0](https://github.com/dallinger/dallinger/tree/v12.0.0) (2025-12-16)
+
+#### Breaking Changes
+- Removed ssh-agent based SSH authentication for deployments. SSH deployments now require the `server_pem` configuration variable to be set with a path to an SSH key file.
+
 #### Added
 - Fail CI if there is no CHANGELOG entry in a pull request (except 'pyup-update' branches which are excluded)
 - Allow root domain deploments (such has my-domain.com) as well as multi subdomain deployments (such as subdom-2.subdom-1.my-domain.com).
@@ -25,8 +30,8 @@
 
 #### Changed
 - Renamed label used in pyup Pull Requests from 'enhancement' to 'dependencies'
-- **The `server_pem` configuration is now required** for SSH-based deployments (docker-ssh and EC2). PEM file paths are now validated upfront with clear error messages if missing or invalid. This ensures SSH authentication is properly configured before attempting deployments.
 - **PEM files are now searched in `~/.ssh/` directory first** (recommended best practice), with fallback to `~/` for backwards compatibility. A warning is logged when PEM files are found in the legacy `~/` location with migration instructions. All documentation and examples have been updated to promote `~/.ssh/` as the standard location for SSH key files.
+- PEM file paths are now validated upfront with clear error messages if missing or invalid
 - EC2 key pair registration now supports RSA, Ed25519, and ECDSA key types (previously only RSA was supported)
 
 #### Removed
