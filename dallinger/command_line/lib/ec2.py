@@ -1,9 +1,7 @@
-import base64
 import errno
 import logging
 import os.path
 import socket
-import struct
 import sys
 import time
 from datetime import datetime
@@ -17,7 +15,6 @@ import paramiko
 import requests
 from botocore.exceptions import ClientError
 from paramiko import ssh_exception as pse
-from paramiko.util import deflate_long
 from tenacity import (
     before_sleep_log,
     retry,
@@ -344,18 +341,29 @@ def get_pem_path(key_name) -> Path:
 
 
 def register_key_pair(ec2, key_name):
-    pem_path: Path = get_pem_path(key_name)
-    key = paramiko.RSAKey.from_private_key_file(str(pem_path))
+    """Import a local SSH key into EC2.
 
-    output = b""
-    parts = [
-        b"ssh-rsa",
-        deflate_long(key.public_numbers.e),
-        deflate_long(key.public_numbers.n),
-    ]
-    for part in parts:
-        output += struct.pack(">I", len(part)) + part
-    public_key = b"ssh-rsa " + base64.b64encode(output) + b"\n"
+    Supports RSA, Ed25519, and ECDSA key types.
+    """
+    pem_path: Path = get_pem_path(key_name)
+
+    # Try each supported key type
+    key = None
+    for key_class in [paramiko.RSAKey, paramiko.Ed25519Key, paramiko.ECDSAKey]:
+        try:
+            key = key_class.from_private_key_file(str(pem_path))
+            break
+        except Exception:
+            continue
+
+    if key is None:
+        raise ValueError(
+            f"Unable to load key from {pem_path}. "
+            "Supported key types: RSA, Ed25519, ECDSA (DSS/DSA keys are not supported)"
+        )
+
+    # Get public key in SSH format (works for all types!)
+    public_key = f"{key.get_name()} {key.get_base64()}\n".encode()
     ec2.import_key_pair(KeyName=key_name, PublicKeyMaterial=public_key)
 
 

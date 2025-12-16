@@ -21,9 +21,9 @@ beautifulsoup4==4.14.3
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.42.5
+boto3==1.42.10
     # via dallinger
-botocore==1.42.5
+botocore==1.42.10
     # via
     #   boto3
     #   s3transfer
@@ -94,6 +94,8 @@ idna==3.11
     # via
     #   requests
     #   trio
+invoke==2.2.1
+    # via paramiko
 ipython==8.37.0
     # via dallinger
 itsdangerous==2.2.0
@@ -126,7 +128,7 @@ packaging==25.0
     # via
     #   build
     #   gunicorn
-paramiko==3.5.1
+paramiko==4.0.0
     # via dallinger
 parso==0.8.5
     # via jedi
@@ -223,7 +225,7 @@ typing-extensions==4.15.0
     # via
     #   beautifulsoup4
     #   selenium
-tzdata==2025.2
+tzdata==2025.3
     # via faker
 tzlocal==5.3.1
     # via
@@ -235,7 +237,7 @@ ua-parser==1.0.1
     #   user-agents
 ua-parser-builtins==0.18.0.post1
     # via ua-parser
-urllib3==2.6.1
+urllib3==2.6.2
     # via
     #   botocore
     #   dallinger
@@ -243,7 +245,7 @@ urllib3==2.6.1
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.9.16
+uv==0.9.17
     # via dallinger
 wcwidth==0.2.14
     # via prompt-toolkit

@@ -87,6 +87,21 @@ or if the PEM file doesn't exist at the specified path, the deployment will fail
 For more information, see the `AWS EC2 documentation on creating key pairs 
 <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html>`__.
 
+**Supported SSH Key Types:**
+
+AWS EC2 and Dallinger support the following key types:
+
+* **RSA** (2048-bit or higher) - Most common and compatible. Generate with: ``ssh-keygen -t rsa -b 4096 -f ~/.ssh/my-key.pem``
+* **Ed25519** - Modern and secure (recommended). Generate with: ``ssh-keygen -t ed25519 -f ~/.ssh/my-key.pem``
+* **ECDSA** (256-bit or higher) - Modern and secure. Generate with: ``ssh-keygen -t ecdsa -b 521 -f ~/.ssh/my-key.pem``
+
+Both PEM and OpenSSH private key formats are supported.
+
+.. note::
+
+    DSS/DSA keys are NOT supported. They have been deprecated industry-wide since 2015
+    due to security weaknesses (limited to 1024-bit). AWS EC2 does not generate DSS keys.
+
 AWS Region
 ----------
 

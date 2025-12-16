@@ -1,6 +1,7 @@
 from unittest import mock
 
 import pandas as pd
+import paramiko
 import pytest
 import requests
 
@@ -8,6 +9,7 @@ from dallinger.command_line.lib.ec2 import (
     get_all_instances,
     get_instance_details,
     get_pem_path,
+    register_key_pair,
 )
 
 
@@ -138,3 +140,130 @@ class TestGetPemPath:
         assert "Private key file for EC2 keypair 'missing-key' not found." in error_msg
         assert str(tmp_path / ".ssh" / "missing-key.pem (recommended)") in error_msg
         assert str(tmp_path / "missing-key.pem (legacy)") in error_msg
+
+
+class TestRegisterKeyPair:
+    """Tests for register_key_pair function with multiple key types"""
+
+    def test_rsa_key_registration(self, tmp_path, monkeypatch):
+        """Test that RSA keys can be registered"""
+        # Generate a real RSA key for testing
+        rsa_key = paramiko.RSAKey.generate(2048)
+        key_file = tmp_path / "test-rsa-key.pem"
+        rsa_key.write_private_key_file(str(key_file))
+
+        # Mock get_pem_path to return our test key
+        monkeypatch.setattr(
+            "dallinger.command_line.lib.ec2.get_pem_path", lambda x: str(key_file)
+        )
+
+        # Mock EC2 client
+        mock_ec2 = mock.Mock()
+
+        # Call the function
+        register_key_pair(mock_ec2, "test-key")
+
+        # Verify EC2 import was called
+        mock_ec2.import_key_pair.assert_called_once()
+        call_args = mock_ec2.import_key_pair.call_args
+        assert call_args[1]["KeyName"] == "test-key"
+        assert b"ssh-rsa" in call_args[1]["PublicKeyMaterial"]
+
+    def test_ed25519_key_registration(self, tmp_path, monkeypatch):
+        """Test that Ed25519 keys can be registered"""
+        # Generate an Ed25519 key using cryptography library
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ed25519
+
+        private_key = ed25519.Ed25519PrivateKey.generate()
+        key_file = tmp_path / "test-ed25519-key.pem"
+
+        # Write key in OpenSSH format
+        pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.OpenSSH,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        key_file.write_bytes(pem)
+
+        # Mock get_pem_path to return our test key
+        monkeypatch.setattr(
+            "dallinger.command_line.lib.ec2.get_pem_path", lambda x: str(key_file)
+        )
+
+        # Mock EC2 client
+        mock_ec2 = mock.Mock()
+
+        # Call the function
+        register_key_pair(mock_ec2, "test-key")
+
+        # Verify EC2 import was called
+        mock_ec2.import_key_pair.assert_called_once()
+        call_args = mock_ec2.import_key_pair.call_args
+        assert call_args[1]["KeyName"] == "test-key"
+        assert b"ssh-ed25519" in call_args[1]["PublicKeyMaterial"]
+
+    def test_ecdsa_key_registration(self, tmp_path, monkeypatch):
+        """Test that ECDSA keys can be registered"""
+        # Generate a real ECDSA key for testing
+        ecdsa_key = paramiko.ECDSAKey.generate()
+        key_file = tmp_path / "test-ecdsa-key.pem"
+        ecdsa_key.write_private_key_file(str(key_file))
+
+        # Mock get_pem_path to return our test key
+        monkeypatch.setattr(
+            "dallinger.command_line.lib.ec2.get_pem_path", lambda x: str(key_file)
+        )
+
+        # Mock EC2 client
+        mock_ec2 = mock.Mock()
+
+        # Call the function
+        register_key_pair(mock_ec2, "test-key")
+
+        # Verify EC2 import was called
+        mock_ec2.import_key_pair.assert_called_once()
+        call_args = mock_ec2.import_key_pair.call_args
+        assert call_args[1]["KeyName"] == "test-key"
+        assert b"ecdsa-sha2-nistp256" in call_args[1]["PublicKeyMaterial"]
+
+    def test_invalid_key_raises_error(self, tmp_path, monkeypatch):
+        """Test that invalid key files raise appropriate errors"""
+        # Create a file with invalid content
+        invalid_key_file = tmp_path / "invalid-key.pem"
+        invalid_key_file.write_text("This is not a valid key file")
+
+        # Mock get_pem_path to return our test key
+        monkeypatch.setattr(
+            "dallinger.command_line.lib.ec2.get_pem_path",
+            lambda x: str(invalid_key_file),
+        )
+
+        # Mock EC2 client
+        mock_ec2 = mock.Mock()
+
+        # Call should raise ValueError
+        with pytest.raises(ValueError) as excinfo:
+            register_key_pair(mock_ec2, "test-key")
+
+        assert "Unable to load key" in str(excinfo.value)
+        assert "Supported key types" in str(excinfo.value)
+
+    def test_missing_key_file_raises_error(self, tmp_path, monkeypatch):
+        """Test that missing key files raise appropriate errors"""
+        # Point to a non-existent file
+        missing_file = tmp_path / "missing-key.pem"
+
+        # Mock get_pem_path to return our test key
+        monkeypatch.setattr(
+            "dallinger.command_line.lib.ec2.get_pem_path", lambda x: str(missing_file)
+        )
+
+        # Mock EC2 client
+        mock_ec2 = mock.Mock()
+
+        # Call should raise ValueError
+        with pytest.raises(ValueError) as excinfo:
+            register_key_pair(mock_ec2, "test-key")
+
+        assert "Unable to load key" in str(excinfo.value)
