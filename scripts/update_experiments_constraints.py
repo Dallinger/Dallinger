@@ -36,6 +36,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import dallinger
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEMOS_DIR = REPO_ROOT / "demos" / "dlgr" / "demos"
 CONSTRAINTS_SCRIPT = REPO_ROOT / "dallinger" / "constraints.py"
@@ -63,8 +65,7 @@ def get_current_branch():
 
 
 def get_dallinger_version():
-    result = subprocess.run(["dallinger", "--version"], capture_output=True, text=True, cwd=REPO_ROOT, check=True)
-    return result.stdout.strip()
+    return dallinger.version.__version__
 
 
 def replace_in_file(path, pattern, repl):
