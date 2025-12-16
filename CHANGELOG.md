@@ -33,6 +33,7 @@
 - Removed Danger and its dependencies
 - Removed automatic ssh-agent key management; SSH keys are now used directly via key files
 - Removed support for DSS/DSA SSH keys due to paramiko 4.0.0 upgrade and industry-wide deprecation for security reasons
+- Removed `pip<25.3` version constraint as pip-tools 7.5.2+ now fully supports pip 25.3
 
 #### Updated
 - Updated dependencies
