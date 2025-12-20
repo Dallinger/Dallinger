@@ -334,7 +334,7 @@ nbformat==5.10.4
     #   nbconvert
 nest-asyncio==1.6.0
     # via ipykernel
-nodeenv==1.9.1
+nodeenv==1.10.0
     # via pre-commit
 notebook==7.5.0
     # via jupyter
