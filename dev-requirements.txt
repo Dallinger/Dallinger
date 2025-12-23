@@ -321,7 +321,7 @@ mypy-extensions==1.1.0
     # via black
 myst-parser==4.0.1
     # via dallinger
-nbclient==0.10.2
+nbclient==0.10.4
     # via nbconvert
 nbconvert==7.16.6
     # via
