@@ -315,7 +315,7 @@ mdit-py-plugins==0.5.0
     # via myst-parser
 mdurl==0.1.2
     # via markdown-it-py
-mistune==3.1.4
+mistune==3.2.0
     # via nbconvert
 mypy-extensions==1.1.0
     # via black
