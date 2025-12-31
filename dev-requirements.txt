@@ -531,7 +531,7 @@ s3transfer==0.16.0
     # via boto3
 selenium==4.39.0
     # via dallinger
-send2trash==1.8.3
+send2trash==2.0.0
     # via jupyter-server
 simple-websocket==1.1.0
     # via flask-sock
