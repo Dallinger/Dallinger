@@ -211,7 +211,7 @@ Before deploying, verify that you can connect to your server with your PEM key:
 
     ssh -i ~/.ssh/your-key.pem ubuntu@server-hostname-or-ip
 
-The ``-i`` flag specifies which private key to use for this connection. 
+The ``-i`` flag specifies which private key to use for this connection.
 
 The first time you connect to a new server, SSH will ask you to verify the server's host key:
 
@@ -221,7 +221,7 @@ The first time you connect to a new server, SSH will ask you to verify the serve
     ECDSA key fingerprint is SHA256:...
     Are you sure you want to continue connecting (yes/no)?
 
-Type ``yes`` to accept and add the server to your known hosts. If you can connect successfully after this, 
+Type ``yes`` to accept and add the server to your known hosts. If you can connect successfully after this,
 your SSH key authentication is set up correctly and you're ready to deploy with Dallinger.
 
 Adding a Server
@@ -234,6 +234,9 @@ Given an IP address or a DNS name of the server and a username, add the host to 
     dallinger docker-ssh servers add --user $SERVER_USER --host $SERVER_HOSTNAME_OR_IP
 
 The ``server_pem`` configuration will be used automatically for SSH authentication when connecting to the server.
+
+Server information is stored in ``~/.dallinger/docker-ssh/hosts``. For backward compatibility,
+Dallinger also reads from the old platform-specific location (e.g., ``~/.local/share/dallinger/hosts`` on Linux).
 
 **Supported SSH Key Types:**
 
