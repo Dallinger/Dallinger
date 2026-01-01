@@ -156,7 +156,7 @@ pygments==2.19.2
     # via ipython
 pygtail==0.14.0
     # via dallinger
-pynacl==1.6.1
+pynacl==1.6.2
     # via paramiko
 pyopenssl==25.3.0
     # via dallinger
