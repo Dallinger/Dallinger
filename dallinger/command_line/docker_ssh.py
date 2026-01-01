@@ -7,6 +7,7 @@ import re
 import secrets
 import select
 import socket
+import subprocess
 import sys
 import zipfile
 from contextlib import contextmanager, redirect_stdout
@@ -407,6 +408,9 @@ def build_and_push_image(f):
                 print(
                     f"Attempting to build image on remote host: {os.environ['DOCKER_HOST']}"
                 )
+                # Add server_pem to SSH agent so docker-py's SSH client can use it
+                # (necessary because docker.from_env() does not accept PEM files directly).
+                add_server_pem_to_ssh_agent()
             # Avoid Paramiko by using the system ssh client
             docker_client = docker.from_env(use_ssh_client=True)
 
@@ -1128,6 +1132,31 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         )
 
     return client
+
+
+def add_server_pem_to_ssh_agent():
+    """Add server_pem to SSH agent so docker-py's SSH client can use it.
+
+    Raises:
+        click.ClickException: If ssh-add fails or is not available.
+    """
+    pem_path = get_server_pem_path()
+    try:
+        subprocess.run(
+            ["ssh-add", str(pem_path)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(
+            f"Failed to add SSH key to agent: {e.stderr}\n"
+            f"Make sure ssh-agent is running and the key file exists at {pem_path}"
+        ) from e
+    except FileNotFoundError as e:
+        raise FileNotFoundError(
+            "ssh-add command not found. Please ensure SSH client tools are installed."
+        ) from e
 
 
 def ensure_remote_host_in_known_hosts(host, user=None):
