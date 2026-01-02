@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+#### Fixed
+- Pinned paramiko to <4.0.0 to address incompatibility with sshtunnel
+  (see [discussion](https://github.com/pahaz/sshtunnel/issues/302)).
+
 ## [v12.0.0](https://github.com/dallinger/dallinger/tree/v12.0.0) (2025-12-16)
 
 #### Breaking Changes
@@ -14,7 +18,7 @@
 - Added tests for EC2 `get_all_instances`, `get_instance_details`, `get_pem_path`, and `register_key_pair` (RSA, Ed25519, ECDSA key types)
 
 #### Fixed
-- Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`     
+- Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`
 - Fixed markers configuration in pytest.ini files
 - Fixed/Cleaned up .coveragerc
 - DNS record creation now uses `UPSERT` instead of `CREATE`, preventing errors when redeploying experiments with existing DNS entries
