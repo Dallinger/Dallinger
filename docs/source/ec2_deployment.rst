@@ -73,11 +73,13 @@ Example configuration in `~/.dallingerconfig`::
 
 The ``ec2_default_pem`` value specifies which EC2 key pair to associate with the instance
 when provisioning. Dallinger will look for this key in ``~/.ssh/`` first (recommended),
-then fall back to ``~/`` for backwards compatibility.
+then fall back to ``~/`` for backwards compatibility. Note that this variable needs to be
+without the ``.pem`` extension and without the path prefix (e.g. ``my-ec2-key``).
 
 The ``server_pem`` value specifies the local private key file that will
 be used for SSH authentication when connecting to the instance. It's recommended to
 store this in ``~/.ssh/`` following standard SSH key management practices.
+Note that this variable should be specified as a full path (e.g. ``~/.ssh/my-ec2-key.pem``).
 
 **Both configuration values are required** for EC2-based deployments. If either is missing
 or if the PEM file doesn't exist at the specified path, the deployment will fail with an error message.
