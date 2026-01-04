@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 #### Documentation
-- Made minor clarifications about the use of SSH keys.
+- Made minor clarifications about the use of SSH keys and AWS permissions.
 
 ## [v12.0.0](https://github.com/dallinger/dallinger/tree/v12.0.0) (2025-12-16)
 
