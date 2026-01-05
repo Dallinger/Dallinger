@@ -96,7 +96,7 @@ idna==3.11
     #   trio
 invoke==2.2.1
     # via paramiko
-ipython==8.37.0
+ipython==9.9.0
     # via dallinger
 itsdangerous==2.2.0
     # via
