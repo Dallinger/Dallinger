@@ -84,12 +84,15 @@ def check_for_protected_routes():
 
 
 def _config():
+    from .dashboard import should_auto_authenticate
+
     app.secret_key = app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
     config = get_config(load=True)
-    if config.get("dashboard_password", None):
+
+    if should_auto_authenticate() or config.get("dashboard_password", None):
         app.config["ADMIN_USER"] = dashboard.User(
             userid=config.get("dashboard_user", "admin"),
-            password=config.get("dashboard_password"),
+            password=config.get("dashboard_password", ""),
         )
 
     return config
