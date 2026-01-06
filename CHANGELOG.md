@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+#### Fixed
+- Fixed bug in `dallinger constraints generate` when using `pyproject.toml` in combination with a Git Dallinger dependency.
+
+#### Changed
+- **docker-ssh server storage location moved to `~/.dallinger/docker-ssh/hosts`**: The `dallinger docker-ssh servers add` command now stores server information in `~/.dallinger/docker-ssh/hosts` instead of the platform-specific location (e.g., `~/.local/share/dallinger/hosts` on Linux). This platform-independent location works better with DevContainers and other containerized environments. For backward compatibility, Dallinger continues to read from the old location when present.
+- Dashboard authentication is now disabled if Dallinger detects that it is running in debug mode
+  in GitHub Codespaces. This stops users from having to type in dashboard credentials every time they debug.
+
 #### Documentation
 - Made minor clarifications about the use of SSH keys and AWS permissions.
 

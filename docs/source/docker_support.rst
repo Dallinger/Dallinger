@@ -237,6 +237,9 @@ Given an IP address or a DNS name of the server and a username, add the host to 
 
 The ``server_pem`` configuration will be used automatically for SSH authentication when connecting to the server.
 
+Server information is stored in ``~/.dallinger/docker-ssh/hosts``. For backward compatibility,
+Dallinger also reads from the old platform-specific location (e.g., ``~/.local/share/dallinger/hosts`` on Linux).
+
 **Supported SSH Key Types:**
 
 Dallinger supports the following SSH key types (DSS/DSA keys are NOT supported):

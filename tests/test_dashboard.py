@@ -237,6 +237,22 @@ class TestDashboard:
             is admin_user
         )
 
+    def test_load_user_from_request_in_codespaces(self, admin_user):
+        """Test that load_user_from_request auto-authenticates in GitHub Codespaces."""
+        from dallinger.experiment_server.dashboard import load_user_from_request
+
+        with mock.patch(
+            "dallinger.experiment_server.dashboard.is_running_in_codespaces"
+        ) as mock_codespaces:
+            mock_codespaces.return_value = True
+            # Should return admin_user even without auth headers
+            assert (
+                load_user_from_request(
+                    self.create_request("/dashboard", "http://localhost/")
+                )
+                is admin_user
+            )
+
     def test_unauthorized_debug_mode(self, active_config, env):
         from werkzeug.exceptions import Unauthorized
 
@@ -289,6 +305,15 @@ class TestDashboardCoreRoutes:
     def test_debug_dashboad_unauthorized(self, webapp):
         resp = webapp.get("/dashboard/")
         assert resp.status_code == 401
+
+    def test_dashboard_auto_authenticates_in_codespaces(self, webapp, active_config):
+        """Test that dashboard routes are accessible without login in GitHub Codespaces."""
+        with mock.patch(
+            "dallinger.experiment_server.dashboard.is_running_in_codespaces"
+        ) as mock_codespaces:
+            mock_codespaces.return_value = True
+            resp = webapp.get("/dashboard/")
+            assert resp.status_code == 200
 
     def test_nondebug_dashboad_redirects_to_login(self, webapp, active_config):
         active_config.set("mode", "sandbox")
