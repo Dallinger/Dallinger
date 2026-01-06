@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+#### Changed
+- Dashboard authentication is now disabled if Dallinger detects that it is running in debug mode
+  in GitHub Codespaces. This stops users from having to type in dashboard credentials every time they debug.
+
 #### Documentation
 - Made minor clarifications about the use of SSH keys and AWS permissions.
 
