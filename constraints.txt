@@ -384,7 +384,7 @@ parsimonious==0.10.0
     # via sphinx-js
 parso==0.8.5
     # via jedi
-pathspec==0.12.1
+pathspec==1.0.0
     # via black
 pexpect==4.9.0
     # via
