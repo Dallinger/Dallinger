@@ -664,7 +664,7 @@ user-agents==2.2.0
     # via dallinger
 uv==0.9.21
     # via dallinger
-virtualenv==20.35.4
+virtualenv==20.36.0
     # via
     #   pre-commit
     #   tox
