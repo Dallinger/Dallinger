@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 #### Fixed
+- Pinned paramiko to <4.0.0 to address incompatibility with sshtunnel
+  (see [discussion](https://github.com/pahaz/sshtunnel/issues/302)).
 - Fixed bug in `dallinger constraints generate` when using `pyproject.toml` in combination with a Git Dallinger dependency.
 
 #### Documentation
