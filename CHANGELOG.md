@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+#### Fixed
+- Fixed bug in `dallinger constraints generate` when using `pyproject.toml` in combination with a Git Dallinger dependency.
+
 #### Documentation
 - Made minor clarifications about the use of SSH keys and AWS permissions.
 
