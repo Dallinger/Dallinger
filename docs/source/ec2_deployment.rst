@@ -16,13 +16,11 @@ Required AWS Permissions
 In order to run the ``dallinger ec2`` commands, your AWS user or role needs to
 have the following permissions:
 
-- ``route53:ListHostedZonesByName``
 - ``AmazonEC2FullAccess``
 - ``AmazonRoute53FullAccess``
 
-Make sure these permissions are attached to the IAM user or role you are using
-before proceeding. Without them, you may encounter errors when provisioning
-instances, managing DNS, or configuring networking.
+See :doc:`aws_etc_keys` for more details.
+
 
 Route53 DNS
 ~~~~~~~~~~~
@@ -52,7 +50,7 @@ with ingress rules (firewall rules for incoming traffic) that allow access to:
     * Port 443 (HTTPS) - for secure web traffic
     * Port 5000 - for direct access to the Dallinger application
 
-You can use an existing security group by setting the ``ec2_default_security_group`` 
+You can use an existing security group by setting the ``ec2_default_security_group``
 value in your `~/.dallingerconfig` file.
 
 EC2 SSH Key Pair (PEM File)
@@ -74,17 +72,19 @@ Example configuration in `~/.dallingerconfig`::
     server_pem = ~/.ssh/my-ec2-key.pem
 
 The ``ec2_default_pem`` value specifies which EC2 key pair to associate with the instance
-when provisioning. Dallinger will look for this key in ``~/.ssh/`` first (recommended), 
-then fall back to ``~/`` for backwards compatibility.
+when provisioning. Dallinger will look for this key in ``~/.ssh/`` first (recommended),
+then fall back to ``~/`` for backwards compatibility. Note that this variable needs to be
+without the ``.pem`` extension and without the path prefix (e.g. ``my-ec2-key``).
 
 The ``server_pem`` value specifies the local private key file that will
-be used for SSH authentication when connecting to the instance. It's recommended to 
+be used for SSH authentication when connecting to the instance. It's recommended to
 store this in ``~/.ssh/`` following standard SSH key management practices.
+Note that this variable should be specified as a full path (e.g. ``~/.ssh/my-ec2-key.pem``).
 
 **Both configuration values are required** for EC2-based deployments. If either is missing
 or if the PEM file doesn't exist at the specified path, the deployment will fail with an error message.
 
-For more information, see the `AWS EC2 documentation on creating key pairs 
+For more information, see the `AWS EC2 documentation on creating key pairs
 <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html>`__.
 
 **Supported SSH Key Types:**
@@ -221,7 +221,7 @@ Or filter based on instance state::
     dallinger ec2 list instances --region <region> --running
     dallinger ec2 list instances --region <region> --stopped --terminated
 
-The results will be filtered to show only instances using the key pair specified by 
+The results will be filtered to show only instances using the key pair specified by
 ``ec2_default_pem`` (defaults to "dallinger" if not configured).
 
 **Note**: If ``--region`` is not explicitly specified instances in all regions will be listed.

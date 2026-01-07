@@ -278,8 +278,10 @@ def _get_explicit_dallinger_numbered_release(input_path: Path) -> Optional[str]:
 
 def _get_explicit_dallinger_github_requirement(input_path: Path) -> Optional[str]:
     # e.g. dallinger[docker]@git+https://github.com/Dallinger/Dallinger.git@my-branch#egg=dallinger
+    # or perhaps (in pyproject.toml):
+    # "dallinger[docker] @ git+https://github.com/Dallinger/Dallinger.git@my-branch",
     pattern = re.compile(
-        r"dallinger(?:\[[^\]]+\])?\s*@\s*git\+https://github\.com/Dallinger/Dallinger(?:\.git)?@([^\s#]+)(?:#.*)?"
+        r"dallinger(?:\[[^\]]+\])?\s*@\s*git\+https://github\.com/Dallinger/Dallinger(?:\.git)?@([^\s#\"']+)(?:#.*)?"
     )
     with open(input_path, "r") as f:
         for line in f:

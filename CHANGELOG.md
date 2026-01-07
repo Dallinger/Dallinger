@@ -4,6 +4,12 @@
 
 #### Fixed
 - Fixed bug where `server_pem` was not propagated to the Docker remote build process.
+- Pinned paramiko to <4.0.0 to address incompatibility with sshtunnel
+  (see [discussion](https://github.com/pahaz/sshtunnel/issues/302)).
+- Fixed bug in `dallinger constraints generate` when using `pyproject.toml` in combination with a Git Dallinger dependency.
+
+#### Documentation
+- Made minor clarifications about the use of SSH keys and AWS permissions.
 
 ## [v12.0.0](https://github.com/dallinger/dallinger/tree/v12.0.0) (2025-12-16)
 
