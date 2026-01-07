@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 #### Changed
-- **docker-ssh server storage location moved to `~/.dallinger/docker-ssh/hosts`**: The `dallinger docker-ssh servers add` command now stores server information in `~/.dallinger/docker-ssh/hosts` instead of the platform-specific location (e.g., `~/.local/share/dallinger/hosts` on Linux). This platform-independent location works better with DevContainers and other containerized environments. For backward compatibility, Dallinger continues to read from the old location when present.
+- **docker-ssh server storage location moved to `~/.dallinger/docker-ssh/hosts`**: The `dallinger docker-ssh servers add` command now stores server information in `~/.dallinger/docker-ssh/hosts` instead of the platform-specific location (e.g., `~/.local/share/dallinger/hosts` on Linux). This platform-independent location works better with DevContainers and other containerized environments. Hosts found in the old location are automatically migrated to the new location on first access.
 
 ## [v12.0.0](https://github.com/dallinger/dallinger/tree/v12.0.0) (2025-12-16)
 
