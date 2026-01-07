@@ -189,7 +189,9 @@ Set the ``server_pem`` configuration variable in your experiment's ``config.txt`
 
 * The PEM file must exist at the specified path or deployment will fail immediately with an error message
 * The PEM file must have restrictive permissions (e.g. ``chmod 400 ~/.ssh/your-key.pem``)
-* This is the private key corresponding to the public key configured on your server
+* This is the private key corresponding to the public key configured on your server;
+  this could be a PEM file that you downloaded from AWS, or it might be
+  one you generated yourself, located perhaps at ``~/.ssh/id_rsa`` or ``~/.ssh/id_ed25519``.
 * Best practice: Store PEM files in ``~/.ssh/`` directory (the standard location for SSH keys)
 
 Server Prerequisites
@@ -211,7 +213,7 @@ Before deploying, verify that you can connect to your server with your PEM key:
 
     ssh -i ~/.ssh/your-key.pem ubuntu@server-hostname-or-ip
 
-The ``-i`` flag specifies which private key to use for this connection. 
+The ``-i`` flag specifies which private key to use for this connection.
 
 The first time you connect to a new server, SSH will ask you to verify the server's host key:
 
@@ -221,7 +223,7 @@ The first time you connect to a new server, SSH will ask you to verify the serve
     ECDSA key fingerprint is SHA256:...
     Are you sure you want to continue connecting (yes/no)?
 
-Type ``yes`` to accept and add the server to your known hosts. If you can connect successfully after this, 
+Type ``yes`` to accept and add the server to your known hosts. If you can connect successfully after this,
 your SSH key authentication is set up correctly and you're ready to deploy with Dallinger.
 
 Adding a Server
