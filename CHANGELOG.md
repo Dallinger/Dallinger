@@ -20,6 +20,9 @@
 #### Documentation
 - Made minor clarifications about the use of SSH keys and AWS permissions.
 
+#### Updated
+- Updated dependencies
+
 ## [v12.0.0](https://github.com/dallinger/dallinger/tree/v12.0.0) (2025-12-16)
 
 #### Breaking Changes
