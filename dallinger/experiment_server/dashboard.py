@@ -46,6 +46,9 @@ logger = logging.getLogger(__name__)
 
 def is_running_in_codespaces():
     """Check if the application is running in GitHub Codespaces.
+    by testing the CODESPACES environment variable, which GitHub Codespaces
+    automatically sets to 'true' in its environments
+    (see https://docs.github.com/en/codespaces/developing-in-a-codespace/default-environment-variables-for-your-codespace).
 
     Returns
     -------
