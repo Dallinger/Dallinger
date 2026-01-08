@@ -22,16 +22,6 @@ def test_list_hosts_results(tmp_dirs):
     assert get_configured_hosts() == {"test_host_1": host1, "test_host_2": host2}
 
 
-def test_list_hosts_backward_compat(tmp_dirs):
-    """Test reading from old location for backward compatibility."""
-    from dallinger.command_line.config import OLD_HOSTS_DIR, get_configured_hosts
-
-    OLD_HOSTS_DIR.mkdir(parents=True)
-    host = dict(user="test_user", host="test_host")
-    (OLD_HOSTS_DIR / "test_host").write_text(json.dumps(host))
-    assert get_configured_hosts() == {"test_host": host}
-
-
 def test_migrate_hosts_from_old_location(tmp_dirs):
     """Test that hosts from old location are copied to new location."""
     from dallinger.command_line.config import (
