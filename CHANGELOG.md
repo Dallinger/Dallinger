@@ -2,9 +2,15 @@
 
 ## [Unreleased]
 
-#### Changed
+#### Changed
 - Dashboard authentication is now disabled if Dallinger detects that it is running in debug mode
   in GitHub Codespaces. This stops users from having to type in dashboard credentials every time they debug.
+  
+#### Fixed
+- Fixed bug where `server_pem` was not propagated to the Docker remote build process.
+- Pinned paramiko to <4.0.0 to address incompatibility with sshtunnel
+  (see [discussion](https://github.com/pahaz/sshtunnel/issues/302)).
+- Fixed bug in `dallinger constraints generate` when using `pyproject.toml` in combination with a Git Dallinger dependency.
 
 #### Documentation
 - Made minor clarifications about the use of SSH keys and AWS permissions.
