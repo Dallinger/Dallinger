@@ -3,11 +3,11 @@
 ## [Unreleased]
 
 #### Changed
-- **docker-ssh server storage location moved to `~/.dallinger/docker-ssh/hosts`**: 
+- **docker-ssh server storage location moved to `~/.dallinger/docker-ssh/hosts`**:
   The `dallinger docker-ssh servers add` command now stores server information in `~/.dallinger/docker-ssh/hosts`
   instead of the platform-specific location (e.g., `~/.local/share/dallinger/hosts` on Linux).
   This platform-independent location works better with DevContainers and other containerized environments.
-  Hosts found in the old location are automatically migrated to the new location on first access.
+  Hosts found in the old location are automatically imported to the new location on first access.
 
 #### Documentation
 - Made minor clarifications about the use of SSH keys and AWS permissions.

@@ -47,7 +47,6 @@ def get_configured_hosts():
     hosts_dir = NEW_HOSTS_DIR
     _migrate_hosts(OLD_HOSTS_DIR, NEW_HOSTS_DIR)
     res = {}
-
     if not hosts_dir.is_dir():
         return res
     for host in hosts_dir.iterdir():
