@@ -8,6 +8,14 @@
   instead of the platform-specific location (e.g., `~/.local/share/dallinger/hosts` on Linux).
   This platform-independent location works better with DevContainers and other containerized environments.
   Hosts found in the old location are automatically imported to the new location on first access.
+- Dashboard authentication is now disabled if Dallinger detects that it is running in debug mode
+  in GitHub Codespaces. This stops users from having to type in dashboard credentials every time they debug.
+  
+#### Fixed
+- Fixed bug where `server_pem` was not propagated to the Docker remote build process.
+- Pinned paramiko to <4.0.0 to address incompatibility with sshtunnel
+  (see [discussion](https://github.com/pahaz/sshtunnel/issues/302)).
+- Fixed bug in `dallinger constraints generate` when using `pyproject.toml` in combination with a Git Dallinger dependency.
 
 #### Documentation
 - Made minor clarifications about the use of SSH keys and AWS permissions.

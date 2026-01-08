@@ -7,7 +7,7 @@
     # via -r requirements.in
 ansi2html==1.9.2
     # via dallinger
-apscheduler==3.11.1
+apscheduler==3.11.2
     # via dallinger
 asttokens==3.0.1
     # via stack-data
@@ -21,9 +21,9 @@ beautifulsoup4==4.14.3
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.42.10
+boto3==1.42.19
     # via dallinger
-botocore==1.42.10
+botocore==1.42.19
     # via
     #   boto3
     #   s3transfer
@@ -59,7 +59,7 @@ decorator==5.2.1
     # via ipython
 executing==2.2.1
     # via stack-data
-faker==38.2.0
+faker==40.1.0
     # via dallinger
 flask==3.1.2
     # via
@@ -81,9 +81,7 @@ gevent==25.9.1
     #   dallinger
     #   gunicorn
 greenlet==3.3.0
-    # via
-    #   gevent
-    #   sqlalchemy
+    # via gevent
 gunicorn==23.0.0
     # via dallinger
 h11==0.16.0
@@ -94,8 +92,6 @@ idna==3.11
     # via
     #   requests
     #   trio
-invoke==2.2.1
-    # via paramiko
 ipython==8.37.0
     # via dallinger
 itsdangerous==2.2.0
@@ -128,7 +124,7 @@ packaging==25.0
     # via
     #   build
     #   gunicorn
-paramiko==4.0.0
+paramiko==3.5.1
     # via dallinger
 parso==0.8.5
     # via jedi
@@ -142,7 +138,7 @@ platformdirs==4.5.1
     # via dallinger
 prompt-toolkit==3.0.52
     # via ipython
-psutil==7.1.3
+psutil==7.2.1
     # via dallinger
 psycopg2==2.9.11
     # via dallinger
@@ -156,7 +152,7 @@ pygments==2.19.2
     # via ipython
 pygtail==0.14.0
     # via dallinger
-pynacl==1.6.1
+pynacl==1.6.2
     # via paramiko
 pyopenssl==25.3.0
     # via dallinger
@@ -197,7 +193,7 @@ sniffio==1.3.1
     # via trio
 sortedcontainers==2.4.0
     # via trio
-soupsieve==2.8
+soupsieve==2.8.1
     # via beautifulsoup4
 sqlalchemy==1.4.54
     # via dallinger
@@ -207,7 +203,7 @@ tabulate==0.9.0
     # via dallinger
 tenacity==9.1.2
     # via dallinger
-termcolor==3.2.0
+termcolor==3.3.0
     # via yaspin
 timeago==1.0.16
     # via dallinger
@@ -245,7 +241,7 @@ urllib3==2.6.2
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.9.17
+uv==0.9.21
     # via dallinger
 wcwidth==0.2.14
     # via prompt-toolkit
