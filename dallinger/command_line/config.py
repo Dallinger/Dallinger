@@ -41,27 +41,26 @@ def _migrate_hosts_from_old_location():
 def get_configured_hosts():
     """Look into the user preferences to enumerate the remote ssh hosts
     that were configured for use with dallinger.
-
-    Reads from both the new location (~/.dallinger/docker-ssh/hosts) and
-    the old location (platformdirs) for backward compatibility. If a host
-    exists in both locations, the new location takes precedence.
+    Automatically imports hosts from the old location to the new location
+    (but leaves hosts in the old location to preserve back-compatibility).
     """
     _migrate_hosts_from_old_location()
 
     res = {}
-    for hosts_dir in (OLD_HOSTS_DIR, NEW_HOSTS_DIR):
-        if hosts_dir.is_dir():
-            for host_file in hosts_dir.iterdir():
-                if host_file.is_file():
-                    res[host_file.name] = json.loads(host_file.read_text())
+    hosts_dir = NEW_HOSTS_DIR
+    if not hosts_dir.is_dir():
+        return res
+    for host in hosts_dir.iterdir():
+        res[host.name] = json.loads(host.read_text())
     return res
 
 
 def store_host(host: Dict[str, str]):
     """Store the given ssh host info in the local user config."""
-    if not NEW_HOSTS_DIR.is_dir():
-        NEW_HOSTS_DIR.mkdir(parents=True)
-    (NEW_HOSTS_DIR / host["host"]).write_text(json.dumps(host))
+    hosts_dir = NEW_HOSTS_DIR
+    if not hosts_dir.is_dir():
+        hosts_dir.mkdir(parents=True)
+    (hosts_dir / host["host"]).write_text(json.dumps(host))
 
 
 def remove_host(hostname: str):
