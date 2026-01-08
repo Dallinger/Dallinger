@@ -24,18 +24,18 @@ NEW_HOSTS_DIR = Path.home() / ".dallinger" / "docker-ssh" / "hosts"
 OLD_HOSTS_DIR = Path(APPDIRS.user_data_dir) / "hosts"
 
 
-def _migrate_hosts_from_old_location():
+def _migrate_hosts(source, destination):
     """Copy any hosts from the old location to the new location (if not already present)."""
-    if not OLD_HOSTS_DIR.is_dir():
+    if not source.is_dir():
         return
-    NEW_HOSTS_DIR.mkdir(parents=True, exist_ok=True)
-    for host_file in OLD_HOSTS_DIR.iterdir():
-        if not host_file.is_file():
+    destination.mkdir(parents=True, exist_ok=True)
+    for host in source.iterdir():
+        if not host.is_file():
             continue
-        if (NEW_HOSTS_DIR / host_file.name).exists():
+        if (destination / host.name).exists():
             continue
-        shutil.copy(host_file, NEW_HOSTS_DIR)
-        click.echo(f"Migrated host '{host_file.name}' to new location: {NEW_HOSTS_DIR}")
+        shutil.copy(host, destination)
+        click.echo(f"Migrated host '{host.name}' to new location: {destination}")
 
 
 def get_configured_hosts():
@@ -44,10 +44,10 @@ def get_configured_hosts():
     Automatically imports hosts from the old location to the new location
     (but leaves hosts in the old location to preserve back-compatibility).
     """
-    _migrate_hosts_from_old_location()
-
-    res = {}
     hosts_dir = NEW_HOSTS_DIR
+    _migrate_hosts(OLD_HOSTS_DIR, NEW_HOSTS_DIR)
+    res = {}
+
     if not hosts_dir.is_dir():
         return res
     for host in hosts_dir.iterdir():

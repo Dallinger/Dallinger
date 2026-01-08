@@ -22,7 +22,7 @@ def test_list_hosts_results(tmp_dirs):
     assert get_configured_hosts() == {"test_host_1": host1, "test_host_2": host2}
 
 
-def test_migrate_hosts_from_old_location(tmp_dirs):
+def test_migrate_hosts(tmp_dirs):
     """Test that hosts from old location are copied to new location."""
     from dallinger.command_line.config import (
         NEW_HOSTS_DIR,
