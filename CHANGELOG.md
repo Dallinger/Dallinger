@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+#### Changed
+- Dashboard authentication is now disabled if Dallinger detects that it is running in debug mode
+  in GitHub Codespaces. This stops users from having to type in dashboard credentials every time they debug.
+  
 #### Fixed
 - Fixed bug where `server_pem` was not propagated to the Docker remote build process.
 - Pinned paramiko to <4.0.0 to address incompatibility with sshtunnel

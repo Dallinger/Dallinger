@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 from copy import deepcopy
 from datetime import datetime, timedelta
@@ -41,6 +42,20 @@ from dallinger.utils import (
 from .utils import date_handler, error_response, success_response
 
 logger = logging.getLogger(__name__)
+
+
+def is_running_in_codespaces():
+    """Check if the application is running in GitHub Codespaces.
+    by testing the CODESPACES environment variable, which GitHub Codespaces
+    automatically sets to 'true' in its environments
+    (see https://docs.github.com/en/codespaces/developing-in-a-codespace/default-environment-variables-for-your-codespace).
+
+    Returns
+    -------
+    bool
+        True if running in GitHub Codespaces, False otherwise
+    """
+    return os.getenv("CODESPACES") == "true"
 
 
 class User(UserMixin):
@@ -256,8 +271,18 @@ def load_user(userid):
     return admin_user
 
 
+def should_auto_authenticate():
+    # Auto-authenticate when running in GitHub Codespaces;
+    # this is desirable because URL-based authentication is not available in Codespaces,
+    # so the user would have to type in a username and password each time they debug the experiment.
+    return is_running_in_codespaces()
+
+
 def load_user_from_request(request):
     admin_user = current_app.config.get("ADMIN_USER")
+    if should_auto_authenticate():
+        return admin_user
+
     auth = request.authorization
     if auth:
         if auth["username"] != admin_user.id:
@@ -277,6 +302,13 @@ def unauthorized():
 
 
 dashboard = Blueprint("dashboard", __name__, url_prefix="/dashboard")
+
+
+@dashboard.before_request
+def auto_authenticate():
+    if should_auto_authenticate() and not current_user.is_authenticated:
+        admin_user = current_app.config.get("ADMIN_USER")
+        login_user(admin_user)
 
 
 @dashboard.errorhandler(401)
