@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 #### Changed
+- **docker-ssh server storage location moved to `~/.dallinger/docker-ssh/hosts`**:
+  The `dallinger docker-ssh servers add` command now stores server information in `~/.dallinger/docker-ssh/hosts`
+  instead of the platform-specific location (e.g., `~/.local/share/dallinger/hosts` on Linux).
+  This platform-independent location works better with DevContainers and other containerized environments.
+  Hosts found in the old location are automatically imported to the new location on first access.
 - Dashboard authentication is now disabled if Dallinger detects that it is running in debug mode
   in GitHub Codespaces. This stops users from having to type in dashboard credentials every time they debug.
   

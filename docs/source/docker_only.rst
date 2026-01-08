@@ -115,10 +115,10 @@ We're going to use variations of the same command, so we create an alias for con
 .. code-block:: shell
 
     # On Linux you can use:
-    alias docker-dallinger='docker run --rm -ti -v /etc/group:/etc/group -v ~/.docker:/root/.docker -v ~/.local/share/dallinger/:/root/.local/share/dallinger/ -e HOME=/root -e DALLINGER_NO_EGG_BUILD=1 -v /var/run/docker.sock:/var/run/docker.sock -v $(readlink -f $SSH_AUTH_SOCK):/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent -v ${PWD}:/experiment  ${EXPERIMENT_IMAGE} dallinger'
+    alias docker-dallinger='docker run --rm -ti -v /etc/group:/etc/group -v ~/.docker:/root/.docker -v ~/.dallinger:/root/.dallinger -v ~/.local/share/dallinger/:/root/.local/share/dallinger/ -e HOME=/root -e DALLINGER_NO_EGG_BUILD=1 -v /var/run/docker.sock:/var/run/docker.sock -v $(readlink -f $SSH_AUTH_SOCK):/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent -v ${PWD}:/experiment  ${EXPERIMENT_IMAGE} dallinger'
 
     # On Mac Os you can use:
-    alias docker-dallinger='docker run --rm -ti -v /etc/group:/etc/group -v ~/.docker:/root/.docker -v ~/.local/share/dallinger/:/root/.local/share/dallinger/ -e HOME=/root -e DALLINGER_NO_EGG_BUILD=1 -v /var/run/docker.sock:/var/run/docker.sock -v  ~/.ssh:/root/.ssh -v ${PWD}:/experiment  ${EXPERIMENT_IMAGE} dallinger'
+    alias docker-dallinger='docker run --rm -ti -v /etc/group:/etc/group -v ~/.docker:/root/.docker -v ~/.dallinger:/root/.dallinger -v ~/.local/share/dallinger/:/root/.local/share/dallinger/ -e HOME=/root -e DALLINGER_NO_EGG_BUILD=1 -v /var/run/docker.sock:/var/run/docker.sock -v  ~/.ssh:/root/.ssh -v ${PWD}:/experiment  ${EXPERIMENT_IMAGE} dallinger'
 
 
 Then we can use the alias to run dallinger inside a container:
