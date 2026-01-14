@@ -243,7 +243,7 @@ urllib3==2.6.3
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.9.22
+uv==0.9.25
     # via dallinger
 wcwidth==0.2.14
     # via prompt-toolkit
