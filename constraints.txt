@@ -317,7 +317,7 @@ mistune==3.2.0
     # via nbconvert
 mypy-extensions==1.1.0
     # via black
-myst-parser==4.0.1
+myst-parser==5.0.0
     # via dallinger
 nbclient==0.10.4
     # via nbconvert
