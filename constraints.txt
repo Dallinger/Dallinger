@@ -527,7 +527,7 @@ rq==2.6.1
     # via dallinger
 s3transfer==0.16.0
     # via boto3
-selenium==4.39.0
+selenium==4.40.0
     # via dallinger
 send2trash==2.0.0
     # via jupyter-server
