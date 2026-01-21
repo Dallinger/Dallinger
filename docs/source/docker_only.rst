@@ -21,7 +21,7 @@ Start services needed by dallinger:
 .. code-block:: shell
 
     docker run -d --name dallinger_redis --network=dallinger -v dallinger_redis:/data redis redis-server --appendonly yes
-    docker run -d --name dallinger_postgres --network=dallinger -e POSTGRES_USER=dallinger -e POSTGRES_PASSWORD=dallinger -e POSTGRES_DB=dallinger -v dallinger_postgres:/var/lib/postgresql/data postgres:12
+    docker run -d --name dallinger_postgres --network=dallinger -e POSTGRES_USER=dallinger -e POSTGRES_PASSWORD=dallinger -e POSTGRES_DB=dallinger -v dallinger_postgres:/var/lib/postgresql/data postgres:16
 
 If you have these already created you can remove the existing ones and recreate them. To remove the existing ones run:
 
