@@ -155,7 +155,7 @@ ptyprocess==0.7.0
     # via pexpect
 pure-eval==0.2.3
     # via stack-data
-pycparser==2.23
+pycparser==3.0
     # via cffi
 pygments==2.19.2
     # via ipython
@@ -258,7 +258,7 @@ user-agents==2.2.0
     # via dallinger
 uv==0.9.26
     # via dallinger
-wcwidth==0.2.14
+wcwidth==0.3.0
     # via prompt-toolkit
 websocket-client==1.9.0
     # via selenium

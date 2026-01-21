@@ -432,7 +432,7 @@ pycodestyle==2.14.0
     # via
     #   dallinger
     #   flake8
-pycparser==2.23
+pycparser==3.0
     # via cffi
 pyenchant==3.3.0
     # via sphinxcontrib-spelling
@@ -682,7 +682,7 @@ virtualenv==20.36.1
     # via
     #   pre-commit
     #   tox
-wcwidth==0.2.14
+wcwidth==0.3.0
     # via prompt-toolkit
 webcolors==25.10.0
     # via jsonschema
