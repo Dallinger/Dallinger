@@ -86,7 +86,7 @@ dev = [
     "coverage_pth",
     "flake8",
     "isort",
-    "myst-parser",
+    "myst-parser < 5",
     "pre-commit",
     "pycodestyle",
     "pypandoc",

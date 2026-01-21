@@ -295,7 +295,7 @@ jupyterlab-widgets==3.0.16
     # via ipywidgets
 lark==1.3.1
     # via rfc3987-syntax
-markdown-it-py==4.0.0
+markdown-it-py==3.0.0
     # via
     #   mdit-py-plugins
     #   myst-parser
@@ -323,7 +323,7 @@ mypy-extensions==1.1.0
     # via
     #   black
     #   trio-typing
-myst-parser==5.0.0
+myst-parser==4.0.1
     # via dallinger
 nbclient==0.10.4
     # via nbconvert

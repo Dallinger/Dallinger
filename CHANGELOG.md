@@ -3,6 +3,7 @@
 #### Updated
 - Updated to PostgreSQL 16
 - Update black to 26.1.0
+- Pin myst-parser < 5
 - Updated dependencies
 
 ## [v12.1.0](https://github.com/dallinger/dallinger/tree/v12.1.0) (2026-01-09)
