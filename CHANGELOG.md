@@ -2,6 +2,7 @@
 
 #### Updated
 - Updated to PostgreSQL 16
+- Updated dependencies
 
 ## [v12.1.0](https://github.com/dallinger/dallinger/tree/v12.1.0) (2026-01-09)
 
