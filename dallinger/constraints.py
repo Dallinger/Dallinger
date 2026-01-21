@@ -25,6 +25,7 @@ which is quite a lot faster and also has some useful features such as following 
 We still support pip-compile as a fallback if uv is not available, but if the new logic works well we should
 consider dropping pip-compile entirely.
 """
+
 import contextlib
 import logging
 import os

@@ -4,16 +4,13 @@ from traitlets import Unicode, observe
 
 from dallinger.config import get_config
 
-header_template = Template(
-    """
+header_template = Template("""
 <h2>{{ name }}</h2>
 <div>Status: {{ status }}</div>
 {% if app_id %}<div>App ID: {{ app_id }}</div>{% endif %}
-"""
-)
+""")
 
-config_template = Template(
-    """
+config_template = Template("""
 <table style="min-width: 50%">
 {% for k, v in config %}
 <tr>
@@ -22,8 +19,7 @@ config_template = Template(
 </tr>
 {% endfor %}
 </table>
-"""
-)
+""")
 
 
 class ExperimentWidget(widgets.VBox):

@@ -837,7 +837,7 @@ def bot(app, debug):
     if debug is None:
         verify_id(None, None, app)
 
-    (id, tmp) = setup_experiment(log)
+    id, tmp = setup_experiment(log)
 
     if debug:
         url = debug
