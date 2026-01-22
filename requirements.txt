@@ -104,7 +104,7 @@ jedi==0.19.2
     # via ipython
 jinja2==3.1.6
     # via flask
-jmespath==1.0.1
+jmespath==1.1.0
     # via
     #   boto3
     #   botocore
