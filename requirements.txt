@@ -80,7 +80,7 @@ gevent==25.9.1
     # via
     #   dallinger
     #   gunicorn
-greenlet==3.3.0
+greenlet==3.3.1
     # via
     #   gevent
     #   sqlalchemy
