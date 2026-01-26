@@ -43,7 +43,7 @@ dependencies = [
     "gevent",
     "gunicorn[gevent]",
     "heroku3",
-    "paramiko < 4.0.0",  # Required for compatibility with sshtunnel (see https://github.com/pahaz/sshtunnel/issues/302)
+    "paramiko<4",  # Required for compatibility with sshtunnel (see https://github.com/pahaz/sshtunnel/issues/302)
     "pexpect",
     "pip-tools",  # TODO: consider removing at some point if we are happy with uv?
     "platformdirs",
@@ -55,7 +55,7 @@ dependencies = [
     "requests",
     "rq",
     "selenium",
-    "sqlalchemy < 2",
+    "sqlalchemy<2",
     "tabulate",
     "tenacity",
     "timeago",
@@ -81,13 +81,13 @@ dev = [
     "coverage_pth",
     "flake8",
     "isort",
-    "myst-parser < 5",
+    "myst-parser<5",
     "pre-commit",
     "pycodestyle",
     "pypandoc",
     "pytest",
     "pytest-rerunfailures",
-    "sphinx < 8.2",
+    "sphinx<8.2",
     "sphinx_rtd_theme",
     "sphinxcontrib-spelling",
     "sphinx-js",
@@ -106,7 +106,7 @@ ec2 = [
     "yaspin",
 ]
 jupyter = [
-    "ipython < 9",
+    "ipython<9",
     "ipywidgets",
     "jupyter",
     "jupyter-server",
