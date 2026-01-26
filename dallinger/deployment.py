@@ -132,7 +132,7 @@ def deploy_sandbox_shared_setup(
 
     config = get_config(load=True)
     heroku.sanity_check(config)
-    (heroku_app_id, tmp) = setup_experiment(
+    heroku_app_id, tmp = setup_experiment(
         log, debug=False, app=app, exp_config=exp_config, local_checks=False
     )
 

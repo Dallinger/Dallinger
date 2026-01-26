@@ -313,7 +313,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     from dallinger.docker.tools import build_image
 
     config = get_config(load=True)
-    (heroku_app_id, tmp) = setup_experiment(
+    heroku_app_id, tmp = setup_experiment(
         log, debug=False, app=app, exp_config=exp_config, local_checks=False
     )
     # Register the experiment using all configured registration services.

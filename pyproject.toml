@@ -74,7 +74,7 @@ dependencies = [
 
 [project.optional-dependencies]
 data = [
-    "pandas",
+    "pandas<3",
     "tablib[all]",
 ]
 dev = [
@@ -86,7 +86,7 @@ dev = [
     "coverage_pth",
     "flake8",
     "isort",
-    "myst-parser",
+    "myst-parser < 5",
     "pre-commit",
     "pycodestyle",
     "pypandoc",
@@ -104,7 +104,7 @@ docker = [
     "sshtunnel",
 ]
 ec2 = [
-    "pandas",
+    "pandas<3",
     "paramiko",
     "tqdm",
     "yaspin",

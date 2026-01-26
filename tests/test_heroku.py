@@ -514,7 +514,7 @@ class TestHerokuLocalWrapper:
         cwd = os.getcwd()
         config = get_config(load=True)
 
-        (id, tmp) = setup_experiment(log=mock.Mock(), verbose=True, exp_config={})
+        id, tmp = setup_experiment(log=mock.Mock(), verbose=True, exp_config={})
 
         os.chdir(tmp)
         yield config

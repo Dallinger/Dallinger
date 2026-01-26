@@ -647,14 +647,12 @@ You have two options:
     # Check if we're using nip.io (either provided or generated)
     if dns_host == "nip.io":
         dns_host = get_dns_host(ssh_host)
-        print(
-            f"""{RED}Using {dns_host} as hostname. This might cause problems:{END}
+        print(f"""{RED}Using {dns_host} as hostname. This might cause problems:{END}
 Some browsers might tell users this name is suspicious
 You can override this by creating a DNS A record pointing to
 {GREEN}{ssh_host}{END} and using option --dns-host to deploy the experiment.
 {BLUE}For instance to use the name experiment1.my-custom-domain.example.com
-you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}"""
-        )
+you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}""")
     experiment_hostname = f"{experiment_id}.{dns_host}" if use_subdomain else dns_host
 
     if dns_host != "nip.io":
