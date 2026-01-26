@@ -64,12 +64,9 @@ faker==40.1.2
 flask==3.1.2
     # via
     #   dallinger
-    #   flask-crossdomain
     #   flask-login
     #   flask-sock
     #   flask-wtf
-flask-crossdomain==0.1
-    # via dallinger
 flask-login==0.6.3
     # via dallinger
 flask-sock==0.7.0

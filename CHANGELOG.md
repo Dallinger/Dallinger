@@ -6,6 +6,9 @@
 #### Removed
 - Removed `ua-parser` package from dependencies (still required via `user-agents`).
 
+#### Removed
+- Removed unused `flask-crossdomain` dependency (a local implementation in `dallinger.experiment_server.utils` has been used instead for some time).
+
 #### Updated
 - Updated to PostgreSQL 16
 - Updated black to 26.1.0

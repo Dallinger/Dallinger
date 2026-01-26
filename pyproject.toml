@@ -37,7 +37,6 @@ dependencies = [
     "click",
     "faker",
     "flask",
-    "flask-crossdomain",
     "flask-login",
     "flask-sock",
     "flask-wtf",
