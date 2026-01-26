@@ -6,9 +6,7 @@
 #
     # via -r dev-requirements.in
 alabaster==1.0.0
-    # via
-    #   dallinger
-    #   sphinx
+    # via sphinx
 ansi2html==1.9.2
     # via dallinger
 anyio==4.12.1
@@ -53,9 +51,9 @@ bleach==6.3.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.42.34
+boto3==1.42.35
     # via dallinger
-botocore==1.42.34
+botocore==1.42.35
     # via
     #   boto3
     #   s3transfer
@@ -202,9 +200,7 @@ ipython==8.38.0
     #   ipywidgets
     #   jupyter-console
 ipywidgets==8.1.8
-    # via
-    #   dallinger
-    #   jupyter
+    # via jupyter
 isoduration==20.11.0
     # via jsonschema
 isort==7.0.0
@@ -266,7 +262,6 @@ jupyter-lsp==2.3.0
     # via jupyterlab
 jupyter-server==2.17.0
     # via
-    #   dallinger
     #   jupyter-lsp
     #   jupyterlab
     #   jupyterlab-server
@@ -423,9 +418,7 @@ ptyprocess==0.7.0
 pure-eval==0.2.3
     # via stack-data
 pycodestyle==2.14.0
-    # via
-    #   dallinger
-    #   flake8
+    # via flake8
 pycparser==3.0
     # via cffi
 pyenchant==3.3.0

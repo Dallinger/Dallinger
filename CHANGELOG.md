@@ -10,6 +10,13 @@
 - Removed obsolete `patches.py` module that patched ipykernel's `OutStream.writable()` method. This workaround for pexpect compatibility has been unnecessary since ipykernel 4.9 (April 2018), which added the fix upstream.
 - Removed unused `flask-crossdomain` dependency (a local implementation in `dallinger.experiment_server.utils` has been used instead for some time).
 - Removed unused `pyopenssl` dependency.
+- Removed redundant `paramiko` from `docker` and `ec2` optional dependencies (already in core dependencies).
+- Removed redundant `yaspin` from `ec2` optional dependencies (already in core dependencies).
+- Removed redundant `alabaster` from dev dependencies (transitive dependency of `sphinx`).
+- Removed redundant `pycodestyle` from dev dependencies (transitive dependency of `flake8`).
+- Removed redundant `black` from dev dependencies (already included via `black[jupyter]`).
+- Removed redundant `jupyter-server` from `jupyter` optional dependencies (transitive dependency of `jupyterlab` via `jupyter`).
+- Removed redundant `ipywidgets` from `jupyter` optional dependencies (transitive dependency of `jupyter`).
 
 #### Updated
 - Updated to PostgreSQL 16
