@@ -3,6 +3,9 @@
 #### Changed
 - Replaced third-party `cached_property` package with Python's built-in `functools.cached_property` (available since Python 3.8).
 
+#### Removed
+- Removed `ua-parser` package from dependencies (still required via `user-agents`).
+
 #### Updated
 - Updated to PostgreSQL 16
 - Updated black to 26.1.0

@@ -64,7 +64,6 @@ dependencies = [
     "tenacity",
     "timeago",
     "tzlocal",
-    "ua-parser",
     "urllib3",
     "user-agents",
     "uv",

@@ -242,9 +242,7 @@ tzlocal==5.3.1
     #   apscheduler
     #   dallinger
 ua-parser==1.0.1
-    # via
-    #   dallinger
-    #   user-agents
+    # via user-agents
 ua-parser-builtins==202601
     # via ua-parser
 urllib3==2.6.3
