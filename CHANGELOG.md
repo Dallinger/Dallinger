@@ -7,6 +7,7 @@
 
 #### Removed
 - Removed `ua-parser` package from dependencies (still required via `user-agents`).
+- Removed obsolete `patches.py` module that patched ipykernel's `OutStream.writable()` method. This workaround for pexpect compatibility has been unnecessary since ipykernel 4.9 (April 2018), which added the fix upstream.
 - Removed unused `flask-crossdomain` dependency (a local implementation in `dallinger.experiment_server.utils` has been used instead for some time).
 - Removed unused `pyopenssl` dependency.
 
