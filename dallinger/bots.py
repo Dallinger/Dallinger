@@ -4,11 +4,11 @@ import json
 import logging
 import random
 import uuid
+from functools import cached_property
 from urllib import parse
 
 import gevent
 import requests
-from cached_property import cached_property
 from requests.exceptions import RequestException
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException

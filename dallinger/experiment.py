@@ -12,13 +12,12 @@ import uuid
 import warnings
 from collections import Counter, OrderedDict
 from contextlib import contextmanager
-from functools import wraps
+from functools import cached_property, wraps
 from importlib import import_module
 from operator import itemgetter
 from typing import Any, List, Optional, Union
 
 import requests
-from cached_property import cached_property
 from flask import Blueprint, url_for
 from markupsafe import escape
 from sqlalchemy import String, Table, and_, asc, cast, create_engine, desc, func, or_

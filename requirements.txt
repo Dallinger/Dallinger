@@ -33,8 +33,6 @@ build==1.4.0
     # via
     #   dallinger
     #   pip-tools
-cached-property==2.0.1
-    # via dallinger
 certifi==2026.1.4
     # via
     #   requests

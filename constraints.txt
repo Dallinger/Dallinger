@@ -65,8 +65,6 @@ build==1.4.0
     #   pip-tools
 bump2version==1.0.1
     # via dallinger
-cached-property==2.0.1
-    # via dallinger
 cachetools==6.2.5
     # via tox
 cattrs==24.1.3
