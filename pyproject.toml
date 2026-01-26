@@ -8,7 +8,7 @@ version = "12.2.0a1"
 maintainers = [
   {name = "Jordan Suchow", email = "jws@stevens.edu"},
   {name = "Peter Harrison", email = "pmch2@cam.ac.uk"},
-  {name = "Frank Höger", email="frank.hoeger@ae.mpg.de"},
+  {name = "Frank Höger", email="fmhoeger@mirsem.org"},
 ]
 license = {file = "LICENSE"}
 description = "Laboratory automation for the behavioral and social sciences"
