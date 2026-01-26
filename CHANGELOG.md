@@ -8,6 +8,7 @@
 
 #### Removed
 - Removed unused `flask-crossdomain` dependency (a local implementation in `dallinger.experiment_server.utils` has been used instead for some time).
+- Removed unused `pyopenssl` dependency.
 
 #### Updated
 - Updated to PostgreSQL 16

@@ -108,9 +108,7 @@ coverage-pth==0.0.2
 croniter==6.0.0
     # via rq
 cryptography==46.0.3
-    # via
-    #   paramiko
-    #   pyopenssl
+    # via paramiko
 debugpy==1.8.19
     # via ipykernel
 decorator==5.2.1
@@ -445,8 +443,6 @@ pygtail==0.14.0
     # via dallinger
 pynacl==1.6.2
     # via paramiko
-pyopenssl==25.3.0
-    # via dallinger
 pypandoc==1.16.2
     # via dallinger
 pyproject-api==1.10.0

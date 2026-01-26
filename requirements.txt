@@ -52,9 +52,7 @@ click==8.3.1
 croniter==6.0.0
     # via rq
 cryptography==46.0.3
-    # via
-    #   paramiko
-    #   pyopenssl
+    # via paramiko
 decorator==5.2.1
     # via ipython
 executing==2.2.1
@@ -159,8 +157,6 @@ pygtail==0.14.0
     # via dallinger
 pynacl==1.6.2
     # via paramiko
-pyopenssl==25.3.0
-    # via dallinger
 pyproject-hooks==1.2.0
     # via
     #   build
