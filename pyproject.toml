@@ -44,7 +44,6 @@ dependencies = [
     "gunicorn[gevent]",
     "heroku3",
     "ipython < 9",
-    "numpy < 2.3",
     "paramiko < 4.0.0",  # Required for compatibility with sshtunnel (see https://github.com/pahaz/sshtunnel/issues/302)
     "pexpect",
     "pip-tools",  # TODO: consider removing at some point if we are happy with uv?
@@ -70,6 +69,7 @@ dependencies = [
 
 [project.optional-dependencies]
 data = [
+    "numpy<2.3",
     "pandas<3",
     "tablib[all]",
 ]
@@ -100,6 +100,7 @@ docker = [
     "sshtunnel",
 ]
 ec2 = [
+    "numpy<2.3",
     "pandas<3",
     "paramiko",
     "tqdm",
