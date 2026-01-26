@@ -43,7 +43,6 @@ dependencies = [
     "gevent",
     "gunicorn[gevent]",
     "heroku3",
-    "ipython < 9",
     "paramiko < 4.0.0",  # Required for compatibility with sshtunnel (see https://github.com/pahaz/sshtunnel/issues/302)
     "pexpect",
     "pip-tools",  # TODO: consider removing at some point if we are happy with uv?
@@ -107,6 +106,7 @@ ec2 = [
     "yaspin",
 ]
 jupyter = [
+    "ipython < 9",
     "ipywidgets",
     "jupyter",
     "jupyter-server",

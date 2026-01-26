@@ -2,12 +2,11 @@
 
 #### Changed
 - Replaced third-party `cached_property` package with Python's built-in `functools.cached_property` (available since Python 3.8).
-
-#### Removed
-- Removed `ua-parser` package from dependencies (still required via `user-agents`).
+- Moved `ipython` from core dependencies to `jupyter` optional dependency, reducing install size for users who don't need Jupyter features.
 - Moved `numpy` from core dependencies to `data` and `ec2` optional dependencies.
 
 #### Removed
+- Removed `ua-parser` package from dependencies (still required via `user-agents`).
 - Removed unused `flask-crossdomain` dependency (a local implementation in `dallinger.experiment_server.utils` has been used instead for some time).
 - Removed unused `pyopenssl` dependency.
 
