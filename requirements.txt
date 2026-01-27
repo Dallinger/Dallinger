@@ -9,8 +9,6 @@ ansi2html==1.9.2
     # via dallinger
 apscheduler==3.11.2
     # via dallinger
-asttokens==3.0.1
-    # via stack-data
 async-generator==1.10
     # via trio-typing
 attrs==25.4.0
@@ -23,9 +21,9 @@ beautifulsoup4==4.14.3
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.42.34
+boto3==1.42.35
     # via dallinger
-botocore==1.42.34
+botocore==1.42.35
     # via
     #   boto3
     #   s3transfer
@@ -33,8 +31,6 @@ build==1.4.0
     # via
     #   dallinger
     #   pip-tools
-cached-property==2.0.1
-    # via dallinger
 certifi==2026.1.4
     # via
     #   requests
@@ -54,24 +50,15 @@ click==8.3.1
 croniter==6.0.0
     # via rq
 cryptography==46.0.3
-    # via
-    #   paramiko
-    #   pyopenssl
-decorator==5.2.1
-    # via ipython
-executing==2.2.1
-    # via stack-data
+    # via paramiko
 faker==40.1.2
     # via dallinger
 flask==3.1.2
     # via
     #   dallinger
-    #   flask-crossdomain
     #   flask-login
     #   flask-sock
     #   flask-wtf
-flask-crossdomain==0.1
-    # via dallinger
 flask-login==0.6.3
     # via dallinger
 flask-sock==0.7.0
@@ -98,14 +85,10 @@ idna==3.11
     #   trio
 importlib-metadata==8.7.1
     # via trio-typing
-ipython==8.38.0
-    # via dallinger
 itsdangerous==2.2.0
     # via
     #   flask
     #   flask-wtf
-jedi==0.19.2
-    # via ipython
 jinja2==3.1.6
     # via flask
 jmespath==1.1.0
@@ -118,12 +101,8 @@ markupsafe==3.0.3
     #   jinja2
     #   werkzeug
     #   wtforms
-matplotlib-inline==0.2.1
-    # via ipython
 mypy-extensions==1.1.0
     # via trio-typing
-numpy==2.2.6
-    # via dallinger
 outcome==1.3.0.post0
     # via
     #   trio
@@ -136,36 +115,24 @@ packaging==26.0
     #   wheel
 paramiko==3.5.1
     # via dallinger
-parso==0.8.5
-    # via jedi
 pexpect==4.9.0
-    # via
-    #   dallinger
-    #   ipython
+    # via dallinger
 pip-tools==7.5.2
     # via dallinger
 platformdirs==4.5.1
     # via dallinger
-prompt-toolkit==3.0.52
-    # via ipython
 psutil==7.2.1
     # via dallinger
 psycopg2==2.9.11
     # via dallinger
 ptyprocess==0.7.0
     # via pexpect
-pure-eval==0.2.3
-    # via stack-data
 pycparser==3.0
     # via cffi
-pygments==2.19.2
-    # via ipython
 pygtail==0.14.0
     # via dallinger
 pynacl==1.6.2
     # via paramiko
-pyopenssl==25.3.0
-    # via dallinger
 pyproject-hooks==1.2.0
     # via
     #   build
@@ -207,8 +174,6 @@ soupsieve==2.8.3
     # via beautifulsoup4
 sqlalchemy==1.4.54
     # via dallinger
-stack-data==0.6.3
-    # via ipython
 tabulate==0.9.0
     # via dallinger
 tenacity==9.1.2
@@ -217,10 +182,6 @@ termcolor==3.3.0
     # via yaspin
 timeago==1.0.16
     # via dallinger
-traitlets==5.14.3
-    # via
-    #   ipython
-    #   matplotlib-inline
 trio==0.32.0
     # via
     #   selenium
@@ -244,9 +205,7 @@ tzlocal==5.3.1
     #   apscheduler
     #   dallinger
 ua-parser==1.0.1
-    # via
-    #   dallinger
-    #   user-agents
+    # via user-agents
 ua-parser-builtins==202601
     # via ua-parser
 urllib3==2.6.3
@@ -259,8 +218,6 @@ user-agents==2.2.0
     # via dallinger
 uv==0.9.26
     # via dallinger
-wcwidth==0.4.0
-    # via prompt-toolkit
 websocket-client==1.9.0
     # via selenium
 werkzeug==3.1.5

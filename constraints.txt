@@ -6,9 +6,7 @@
 #
     # via -r constraints.in
 alabaster==1.0.0
-    # via
-    #   dallinger
-    #   sphinx
+    # via sphinx
 ansi2html==1.9.2
     # via dallinger
 anyio==4.12.1
@@ -53,9 +51,9 @@ bleach==6.3.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.42.34
+boto3==1.42.35
     # via dallinger
-botocore==1.42.34
+botocore==1.42.35
     # via
     #   boto3
     #   s3transfer
@@ -64,8 +62,6 @@ build==1.4.0
     #   dallinger
     #   pip-tools
 bump2version==1.0.1
-    # via dallinger
-cached-property==2.0.1
     # via dallinger
 cachetools==6.2.5
     # via tox
@@ -110,9 +106,7 @@ coverage-pth==0.0.2
 croniter==6.0.0
     # via rq
 cryptography==46.0.3
-    # via
-    #   paramiko
-    #   pyopenssl
+    # via paramiko
 debugpy==1.8.19
     # via ipykernel
 decorator==5.2.1
@@ -147,12 +141,9 @@ flake8==7.3.0
 flask==3.1.2
     # via
     #   dallinger
-    #   flask-crossdomain
     #   flask-login
     #   flask-sock
     #   flask-wtf
-flask-crossdomain==0.1
-    # via dallinger
 flask-login==0.6.3
     # via dallinger
 flask-sock==0.7.0
@@ -209,9 +200,7 @@ ipython==8.38.0
     #   ipywidgets
     #   jupyter-console
 ipywidgets==8.1.8
-    # via
-    #   dallinger
-    #   jupyter
+    # via jupyter
 isoduration==20.11.0
     # via jsonschema
 isort==7.0.0
@@ -273,7 +262,6 @@ jupyter-lsp==2.3.0
     # via jupyterlab
 jupyter-server==2.17.0
     # via
-    #   dallinger
     #   jupyter-lsp
     #   jupyterlab
     #   jupyterlab-server
@@ -430,9 +418,7 @@ ptyprocess==0.7.0
 pure-eval==0.2.3
     # via stack-data
 pycodestyle==2.14.0
-    # via
-    #   dallinger
-    #   flake8
+    # via flake8
 pycparser==3.0
     # via cffi
 pyenchant==3.3.0
@@ -450,8 +436,6 @@ pygtail==0.14.0
     # via dallinger
 pynacl==1.6.2
     # via paramiko
-pyopenssl==25.3.0
-    # via dallinger
 pypandoc==1.16.2
     # via dallinger
 pyproject-api==1.10.0
@@ -661,9 +645,7 @@ tzlocal==5.3.1
     #   apscheduler
     #   dallinger
 ua-parser==1.0.1
-    # via
-    #   dallinger
-    #   user-agents
+    # via user-agents
 ua-parser-builtins==202601
     # via ua-parser
 uri-template==1.3.0

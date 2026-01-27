@@ -8,7 +8,7 @@ version = "12.2.0a1"
 maintainers = [
   {name = "Jordan Suchow", email = "jws@stevens.edu"},
   {name = "Peter Harrison", email = "pmch2@cam.ac.uk"},
-  {name = "Frank Höger", email="frank.hoeger@ae.mpg.de"},
+  {name = "Frank Höger", email="fmhoeger@mirsem.org"},
 ]
 license = {file = "LICENSE"}
 description = "Laboratory automation for the behavioral and social sciences"
@@ -34,38 +34,32 @@ dependencies = [
     "beautifulsoup4",
     "boto3",
     "build",
-    "cached-property",
     "click",
     "faker",
     "flask",
-    "flask-crossdomain",
     "flask-login",
     "flask-sock",
     "flask-wtf",
     "gevent",
     "gunicorn[gevent]",
     "heroku3",
-    "ipython < 9",
-    "numpy < 2.3",
-    "paramiko < 4.0.0",  # Required for compatibility with sshtunnel (see https://github.com/pahaz/sshtunnel/issues/302)
+    "paramiko<4",  # Required for compatibility with sshtunnel (see https://github.com/pahaz/sshtunnel/issues/302)
     "pexpect",
     "pip-tools",  # TODO: consider removing at some point if we are happy with uv?
     "platformdirs",
     "psycopg2",
     "psutil",
     "pygtail",
-    "pyopenssl",
     "python-json-logger",
     "redis",
     "requests",
     "rq",
     "selenium",
-    "sqlalchemy < 2",
+    "sqlalchemy<2",
     "tabulate",
     "tenacity",
     "timeago",
     "tzlocal",
-    "ua-parser",
     "urllib3",
     "user-agents",
     "uv",
@@ -74,25 +68,23 @@ dependencies = [
 
 [project.optional-dependencies]
 data = [
+    "numpy<2.3",
     "pandas<3",
     "tablib[all]",
 ]
 dev = [
-    "alabaster",
-    "black",
     "black[jupyter]",
     "bump2version",
     "coverage",
     "coverage_pth",
     "flake8",
     "isort",
-    "myst-parser < 5",
+    "myst-parser<5",
     "pre-commit",
-    "pycodestyle",
     "pypandoc",
     "pytest",
     "pytest-rerunfailures",
-    "sphinx < 8.2",
+    "sphinx<8.2",
     "sphinx_rtd_theme",
     "sphinxcontrib-spelling",
     "sphinx-js",
@@ -100,19 +92,16 @@ dev = [
 ]
 docker = [
     "docker",
-    "paramiko",
     "sshtunnel",
 ]
 ec2 = [
+    "numpy<2.3",
     "pandas<3",
-    "paramiko",
     "tqdm",
-    "yaspin",
 ]
 jupyter = [
-    "ipywidgets",
+    "ipython<9",
     "jupyter",
-    "jupyter-server",
 ]
 
 [project.entry-points.pytest11]

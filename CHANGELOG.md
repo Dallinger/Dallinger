@@ -1,5 +1,23 @@
 ## [Unreleased]
 
+#### Changed
+- Replaced third-party `cached_property` package with Python's built-in `functools.cached_property` (available since Python 3.8).
+- Moved `ipython` from core dependencies to `jupyter` optional dependency, reducing install size for users who don't need Jupyter features.
+- Moved `numpy` from core dependencies to `data` and `ec2` optional dependencies.
+
+#### Removed
+- Removed `ua-parser` package from dependencies (still required via `user-agents`).
+- Removed obsolete `patches.py` module that patched ipykernel's `OutStream.writable()` method. This workaround for pexpect compatibility has been unnecessary since ipykernel 4.9 (April 2018), which added the fix upstream.
+- Removed unused `flask-crossdomain` dependency (a local implementation in `dallinger.experiment_server.utils` has been used instead for some time).
+- Removed unused `pyopenssl` dependency.
+- Removed redundant `paramiko` from `docker` and `ec2` optional dependencies (already in core dependencies).
+- Removed redundant `yaspin` from `ec2` optional dependencies (already in core dependencies).
+- Removed redundant `alabaster` from dev dependencies (transitive dependency of `sphinx`).
+- Removed redundant `pycodestyle` from dev dependencies (transitive dependency of `flake8`).
+- Removed redundant `black` from dev dependencies (already included via `black[jupyter]`).
+- Removed redundant `jupyter-server` from `jupyter` optional dependencies (transitive dependency of `jupyterlab` via `jupyter`).
+- Removed redundant `ipywidgets` from `jupyter` optional dependencies (transitive dependency of `jupyter`).
+
 #### Updated
 - Updated to PostgreSQL 16
 - Updated black to 26.1.0

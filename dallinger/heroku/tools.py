@@ -9,10 +9,10 @@ import subprocess
 import sys
 import time
 import traceback
+from functools import cached_property
 from shlex import quote
 
 import psutil
-from cached_property import cached_property
 
 from dallinger.config import SENSITIVE_KEY_NAMES
 from dallinger.utils import check_call, check_output, port_is_open
