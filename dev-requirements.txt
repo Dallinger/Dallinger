@@ -464,7 +464,7 @@ python-json-logger==4.0.0
     # via
     #   dallinger
     #   jupyter-events
-pytokens==0.4.0
+pytokens==0.4.1
     # via black
 pytz==2025.2
     # via
