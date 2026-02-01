@@ -334,7 +334,7 @@ notebook-shim==0.2.4
     # via
     #   jupyterlab
     #   notebook
-numpy==2.2.6
+numpy==2.4.2
     # via
     #   dallinger
     #   pandas
