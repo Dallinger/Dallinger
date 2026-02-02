@@ -192,7 +192,7 @@ ipykernel==7.1.0
     #   jupyter
     #   jupyter-console
     #   jupyterlab
-ipython==8.38.0
+ipython==9.10.0
     # via
     #   black
     #   dallinger
