@@ -18,6 +18,9 @@
 - Removed redundant `jupyter-server` from `jupyter` optional dependencies (transitive dependency of `jupyterlab` via `jupyter`).
 - Removed redundant `ipywidgets` from `jupyter` optional dependencies (transitive dependency of `jupyter`).
 
+#### Fixed
+- Fixed `TypeError` in `dallinger constraints generate` when `constraints=None` and `uv pip compile` fails.
+
 #### Updated
 - Updated to PostgreSQL 16
 - Updated black to 26.1.0
