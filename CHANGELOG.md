@@ -1,5 +1,10 @@
 # Change Log
 
+## [v11.5.6](https://github.com/dallinger/dallinger/tree/v11.5.6) (2026-01-12)
+
+#### Fixed
+- Fixed `TypeError` in `dallinger constraints generate` when `constraints=None` and `uv pip compile` fails.
+
 ## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
 
 #### Fixed
@@ -98,6 +103,11 @@
 
 #### Removed
 - Dropped support for Python 3.9
+
+## [v11.3.2](https://github.com/dallinger/dallinger/tree/v11.3.2) (2025-10-12)
+
+#### Fixed
+- We now use the Docker bitnamilegacy repository for pgbouncer as the bitnami repository has been deleted. This is a temporary fix until we move to building our own pgbouncer image.
 
 ## [v11.3.1](https://github.com/dallinger/dallinger/tree/v11.3.1) (2025-05-25)
 
