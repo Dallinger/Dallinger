@@ -53,7 +53,9 @@
         function handleNewParticipant() {
             let url = "/ad?generate_tokens=true&recruiter={{ recruiter }}&source=dashboard";
             log("Recruiting new participant...");
-            window.open(url, "_blank").focus();
+            // Use origin to avoid propagating any credentials in window.location.href.
+            let participantUrl = new URL(url, window.location.origin);
+            window.open(participantUrl.toString(), "_blank").focus();
         }
 
         function handleInitDB() {
