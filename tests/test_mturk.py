@@ -2,6 +2,7 @@ import datetime
 import hmac
 import os
 import socket
+import sys
 import time
 from hashlib import sha1
 from unittest import mock
@@ -52,10 +53,12 @@ def test_session_desc():
 
 
 def name_with_hostname_prefix():
-    # Including the hostname in content created in the MTurk sandbox helps
-    # identify its source when reviewing records there.
+    # Including the hostname and Python version in content created in the MTurk
+    # sandbox helps identify its source when reviewing records there, and prevents
+    # collisions between parallel CI jobs running different Python versions.
     hostname = socket.gethostname()
-    name = "{}:{}".format(hostname, generate_random_id(size=32))
+    py_version = "py{}.{}".format(*sys.version_info[:2])
+    name = "{}:{}:{}".format(hostname, py_version, generate_random_id(size=32))
     return name
 
 
