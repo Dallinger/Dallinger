@@ -393,7 +393,7 @@ def _pip_compile(in_file, out_file, constraints: Optional[list] = None):
                 f"See if you can adjust {in_file.name} to resolve the dependency conflicts, "
                 "e.g. by selecting different package versions or removing version pins entirely.\n\n"
             )
-            if len(constraints) > 0:
+            if constraints:
                 msg += f"Note that these packages need to be compatible with the pins specified in {constraints}.\n\n"
             msg += (
                 "If you can't resolve the issue, but you want to proceed anyway, you can manually create an empty constraints.txt file "
