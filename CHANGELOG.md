@@ -21,6 +21,7 @@
 #### Fixed
 - Fixed `TypeError` in `dallinger constraints generate` when `constraints=None` and `uv pip compile` fails.
 - Fixed flaky MTurk test by including Python version in qualification names to prevent collisions between parallel CI jobs.
+- Fixed new participant link to avoid propagating credentials from the dashboard URL.
 
 #### Updated
 - Updated to PostgreSQL 16
