@@ -187,7 +187,7 @@ importlib-metadata==8.7.1
     # via trio-typing
 iniconfig==2.3.0
     # via pytest
-ipykernel==7.1.0
+ipykernel==7.2.0
     # via
     #   jupyter
     #   jupyter-console
