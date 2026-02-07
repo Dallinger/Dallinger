@@ -93,6 +93,11 @@ Recruitment (General)
 ``auto_recruit`` *boolean*
     A boolean on whether recruitment should be automatic.
 
+``allow_repeat_worker_ids`` *boolean*
+    Allows a worker to create multiple participants with the same ``worker_id``.
+    This is useful for recruiters like Prolific when a study is configured to
+    allow multiple submissions from the same participant. Defaults to ``False``.
+
 ``browser_exclude_rule`` *unicode - comma separated*
     A set of rules you can apply to prevent participants with unsupported web
     browsers from participating in your experiment. Valid exclustion values are:
