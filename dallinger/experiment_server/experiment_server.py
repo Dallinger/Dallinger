@@ -904,10 +904,15 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         session.query(models.Participant).filter_by(worker_id=worker_id).one_or_none()
     )
 
-    if already_participated:
+    allow_repeat_worker_ids = config.get("allow_repeat_worker_ids", False)
+    if already_participated and not allow_repeat_worker_ids:
         db.logger.warning("Worker has already participated.")
         return error_response(
             error_type="/participant POST: worker has already participated.", status=403
+        )
+    if already_participated and allow_repeat_worker_ids:
+        db.logger.info(
+            "Worker has already participated; allowing repeat due to config."
         )
 
     duplicate = (
