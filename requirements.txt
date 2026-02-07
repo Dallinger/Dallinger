@@ -51,7 +51,7 @@ croniter==6.0.0
     # via rq
 cryptography==46.0.3
     # via paramiko
-faker==40.1.2
+faker==40.4.0
     # via dallinger
 flask==3.1.2
     # via
