@@ -825,6 +825,30 @@ class TestParticipantCreateRoute:
 
         assert resp.status_code == 403
 
+    def test_allows_duplicate_participant_for_worker_when_config_enabled(
+        self, a, active_config, db_session, webapp
+    ):
+        p = a.participant()
+        active_config.set("allow_repeat_worker_ids", True)
+
+        resp = webapp.post(
+            "/participant/{}/{}/{}/debug".format(p.worker_id, p.hit_id, "new-assignment")
+        )
+
+        assert resp.status_code == 200
+
+    def test_allows_duplicate_participant_for_worker_when_config_enabled(
+        self, a, active_config, db_session, webapp
+    ):
+        p = a.participant()
+        active_config.set("allow_repeat_worker_ids", True)
+
+        resp = webapp.post(
+            "/participant/{}/{}/{}/debug".format(p.worker_id, "new-hit", "new-assign")
+        )
+
+        assert resp.status_code == 200
+
     def test_sets_status_when_participant_is_overrecruited(self, webapp, overrecruited):
         worker_id = "1"
         hit_id = "1"
