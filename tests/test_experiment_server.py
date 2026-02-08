@@ -832,7 +832,9 @@ class TestParticipantCreateRoute:
         active_config.set("allow_repeat_worker_ids", True)
 
         resp = webapp.post(
-            "/participant/{}/{}/{}/debug".format(p.worker_id, p.hit_id, "new-assignment")
+            "/participant/{}/{}/{}/debug".format(
+                p.worker_id, p.hit_id, "new-assignment"
+            )
         )
 
         assert resp.status_code == 200
