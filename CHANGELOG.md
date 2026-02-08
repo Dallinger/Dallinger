@@ -19,6 +19,7 @@
 - Removed redundant `ipywidgets` from `jupyter` optional dependencies (transitive dependency of `jupyter`).
 
 #### Fixed
+- Fixed doubled experiment ID in Redis Docker container and volume names for docker-ssh deployments (e.g. `diagrams-expertise-redis_diagrams-expertise-1` is now `diagrams-expertise-redis-1`).
 - Fixed `TypeError` in `dallinger constraints generate` when `constraints=None` and `uv pip compile` fails.
 - Fixed flaky MTurk test by including Python version in qualification names to prevent collisions between parallel CI jobs.
 - Fixed new participant link to avoid propagating credentials from the dashboard URL.
