@@ -920,7 +920,7 @@ def get_experiment_id_from_archive(archive_path):
 
 
 def remove_redis_volumes(app_name, executor):
-    redis_volume_name = f"{app_name}_dallinger_{app_name}_redis_data"
+    redis_volume_name = f"{app_name}_redis_data"
     stdout = io.StringIO()
     with redirect_stdout(stdout):
         try:
