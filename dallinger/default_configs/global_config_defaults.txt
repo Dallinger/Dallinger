@@ -28,6 +28,7 @@ replay = False
 [Recruiter]
 auto_recruit = False
 assign_qualifications = False
+allow_repeat_worker_ids = False
 us_only = False
 disable_when_duration_exceeded = True
 
