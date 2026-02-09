@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 #### Changed
+- Added `CI_STATUS_PROBE.md`, a non-functional file used to verify CI status checks in a sample pull request.
 - Replaced third-party `cached_property` package with Python's built-in `functools.cached_property` (available since Python 3.8).
 - Moved `ipython` from core dependencies to `jupyter` optional dependency, reducing install size for users who don't need Jupyter features.
 - Moved `numpy` from core dependencies to `data` and `ec2` optional dependencies.
