@@ -3,6 +3,7 @@ import os
 import click
 
 from .lib.ec2 import (
+    DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER,
     _get_instance_id_from,
     _get_instance_row_from,
     create_dns_records,
@@ -121,8 +122,11 @@ def list__instance_types(ctx, region):
 @click.option("--storage", default=32, type=int, help="Storage in GB; default is 32 GB")
 @click.option(
     "--image_name",
-    default="ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-20250516",
-    help="Image name; default is Ubuntu 24.04",
+    default=DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER,
+    help=(
+        "Image name, AMI id, or SSM parameter. Default uses Canonical's "
+        "Ubuntu 24.04 SSM parameter."
+    ),
 )
 @click.option(
     "--security_group_name",

@@ -4,11 +4,14 @@ import pandas as pd
 import paramiko
 import pytest
 import requests
+from botocore.exceptions import ClientError
 
 from dallinger.command_line.lib.ec2 import (
+    DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER,
     _get_instance_row_from,
     get_all_instances,
     get_instance_details,
+    get_image_id,
     get_pem_path,
     register_key_pair,
 )
@@ -101,6 +104,52 @@ class TestGetAllInstances:
             assert "Memory" not in result.columns
             assert "VCPUS" not in result.columns
             assert "Cost" not in result.columns
+
+
+class TestGetImageId:
+    """Tests for get_image_id using SSM parameters"""
+
+    def test_ssm_parameter_returns_ami_id(self, monkeypatch):
+        """Test that SSM parameters resolve to an AMI id"""
+        ec2 = mock.Mock()
+        ec2.meta.region_name = "us-east-1"
+        ec2.describe_images = mock.Mock()
+        ssm = mock.Mock()
+        ssm.get_parameter.return_value = {"Parameter": {"Value": "ami-123456"}}
+        monkeypatch.setattr(
+            "dallinger.command_line.lib.ec2.get_ssm_client",
+            lambda region_name=None: ssm,
+        )
+
+        result = get_image_id(ec2, DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER)
+
+        assert result == "ami-123456"
+        ssm.get_parameter.assert_called_once_with(
+            Name=DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER
+        )
+        ec2.describe_images.assert_not_called()
+
+    def test_missing_ssm_parameter_raises_helpful_error(self, monkeypatch):
+        """Test that missing SSM parameters raise a helpful error"""
+        ec2 = mock.Mock()
+        ec2.meta.region_name = "us-east-1"
+        ec2.describe_images = mock.Mock()
+        ssm = mock.Mock()
+        ssm.get_parameter.side_effect = ClientError(
+            {"Error": {"Code": "ParameterNotFound", "Message": "Not found"}},
+            "GetParameter",
+        )
+        monkeypatch.setattr(
+            "dallinger.command_line.lib.ec2.get_ssm_client",
+            lambda region_name=None: ssm,
+        )
+
+        with pytest.raises(Exception) as excinfo:
+            get_image_id(ec2, DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER)
+
+        message = str(excinfo.value)
+        assert "SSM parameter" in message
+        assert "us-east-1" in message
 
 
 class TestGetInstanceRowFrom:

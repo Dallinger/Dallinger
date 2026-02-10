@@ -32,6 +32,10 @@ from ..docker_ssh import prepare_server as dallinger_prepare_server
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER = (
+    "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
+)
+
 
 def get_keys(region_name=None):
     from dallinger.config import get_config
@@ -65,6 +69,10 @@ def url_to_country_city(url):
 
 def get_ec2_client(region_name=None):
     return boto3.client("ec2", **get_keys(region_name))
+
+
+def get_ssm_client(region_name=None):
+    return boto3.client("ssm", **get_keys(region_name))
 
 
 def get_53_client():
@@ -437,6 +445,25 @@ def wait_for_instance(host, user="ubuntu", n_tries=10):
 
 
 def get_image_id(ec2, image_name):
+    if image_name.startswith("ami-"):
+        return image_name
+
+    if image_name.startswith("/aws/service/"):
+        region_name = ec2.meta.region_name
+        ssm = get_ssm_client(region_name)
+        try:
+            response = ssm.get_parameter(Name=image_name)
+        except ClientError as exc:
+            raise Exception(
+                f"SSM parameter '{image_name}' not found in region '{region_name}'."
+            ) from exc
+        ami_id = response["Parameter"]["Value"]
+        if not ami_id.startswith("ami-"):
+            raise Exception(
+                f"SSM parameter '{image_name}' returned unexpected value '{ami_id}'."
+            )
+        return ami_id
+
     response = ec2.describe_images(
         IncludeDeprecated=False,
         Filters=[
@@ -446,8 +473,18 @@ def get_image_id(ec2, image_name):
             },
         ],
     )
-    assert len(response["Images"]) == 1
-    return response["Images"][0]["ImageId"]
+    images = response["Images"]
+    if len(images) != 1:
+        region_name = ec2.meta.region_name
+        if len(images) == 0:
+            raise Exception(
+                f"No AMI found for name '{image_name}' in region '{region_name}'."
+            )
+        raise Exception(
+            f"Multiple AMIs found for name '{image_name}' in region '{region_name}'. "
+            "Provide a unique AMI name, an AMI id, or an SSM parameter."
+        )
+    return images[0]["ImageId"]
 
 
 def setup_ssh_keys(ec2, key_name, region_name=None):
