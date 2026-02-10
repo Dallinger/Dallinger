@@ -240,7 +240,7 @@ Prolific Recruitment
 
 ``prolific_is_custom_screening`` *bool*
     Whether or not this study includes a custom screening. Default is `False`.
-    See https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/CreateStudy for more information.
+    See https://docs.prolific.com/api-reference/studies/create-study for more information.
 
 .. _prolific-completion-config:
 ``prolific_recruitment_config`` *unicode - JSON formatted*
@@ -254,7 +254,7 @@ Prolific Recruitment
         - ``peripheral_requirements``
         - ``filters``
 
-    See the `Prolific API Documentation <https://docs.prolific.com/docs/api-docs/public/#tag/Studies/paths/~1api~1v1~1studies~1/post>`__
+    See the `Prolific API Documentation <https://docs.prolific.com/api-reference/studies/create-study>`__
     for details.
 
     Configuration can also be stored in a separate JSON file, and included by using the
@@ -342,7 +342,7 @@ Prolific Recruitment
     details on storing completion code configuration in a separate file.
 
     See the `Prolific API Documentation
-    <https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/CreateStudy>`__
+    <https://docs.prolific.com/api-reference/studies/create-study>`__
     for details on supported actions.
 
 ``prolific_completion_codes`` *unicode - JSON formatted*

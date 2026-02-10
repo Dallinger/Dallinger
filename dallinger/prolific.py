@@ -124,7 +124,7 @@ class ProlificService:
     def get_participant_submission(self, submission_id: str) -> dict:
         """Retrieve details of a participant Submission
 
-        See: https://docs.prolific.com/docs/api-docs/public/#tag/Submissions/Submission-object
+        See: https://docs.prolific.com/api-reference/submissions
 
         This is roughly equivalent to an Assignment on MTurk.
 
@@ -432,7 +432,7 @@ class ProlificService:
             increase_places: Whether to increase available study places
 
         Calls the 'Bulk screen out submissions' route in the Prolific API
-        (see https://docs.prolific.com/docs/api-docs/public/#tag/Submissions/operation/BulkScreenOutSubmissions).
+        (see https://docs.prolific.com/api-reference/submissions).
 
         The Prolific documentation for this route is reproduced below:
 
@@ -681,7 +681,7 @@ class DevProlificService(ProlificService):
             if method == "GET":
                 if re.match(r"/studies/[a-z0-9]+/", endpoint):
                     # method="GET", endpoint=f"/studies/{study_id}/"
-                    # Response based on example at https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/GetStudy
+                    # Response based on example at https://docs.prolific.com/api-reference/studies/get-study
                     response = {
                         "id": "60d9aadeb86739de712faee0",
                         "name": "Study about API's",

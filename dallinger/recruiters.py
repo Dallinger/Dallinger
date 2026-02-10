@@ -593,7 +593,7 @@ class ProlificRecruiter(Recruiter):
                 },
             }
 
-        See "completion_codes" under https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/CreateStudy
+        See "completion_codes" under https://docs.prolific.com/api-reference/studies/create-study
 
         Returns:
             List[dict]: Each dict contains:
@@ -778,7 +778,7 @@ class ProlificRecruiter(Recruiter):
 
         The cc (Completion Code) query parameter is specific to a
         combination of experiment ID and "code type". See further:
-        https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/CreateStudy
+        https://docs.prolific.com/api-reference/studies/create-study
         """
         code = self.completion_code_map.get(code_type)
         if code is None:
