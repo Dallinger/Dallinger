@@ -6,6 +6,7 @@ import pytest
 import requests
 
 from dallinger.command_line.lib.ec2 import (
+    _get_instance_row_from,
     get_all_instances,
     get_instance_details,
     get_pem_path,
@@ -100,6 +101,24 @@ class TestGetAllInstances:
             assert "Memory" not in result.columns
             assert "VCPUS" not in result.columns
             assert "Cost" not in result.columns
+
+
+class TestGetInstanceRowFrom:
+    """Tests for _get_instance_row_from when no instances exist"""
+
+    def test_no_instances_raises_helpful_error(self, monkeypatch):
+        """Test that missing instances raise a helpful error"""
+        mock_ec2 = mock.Mock()
+        mock_ec2.describe_instances.return_value = {"Reservations": []}
+        monkeypatch.setattr(
+            "dallinger.command_line.lib.ec2.get_ec2_client",
+            lambda *args, **kwargs: mock_ec2,
+        )
+
+        with pytest.raises(Exception) as excinfo:
+            _get_instance_row_from(region_name="us-east-1", instance_name="missing")
+
+        assert "No instances found" in str(excinfo.value)
 
 
 class TestGetPemPath:

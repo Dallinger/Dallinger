@@ -146,7 +146,17 @@ def get_instances(region_name):
                 }
             )
 
-    return pd.DataFrame(instances)
+    columns = [
+        "name",
+        "instance_id",
+        "instance_type",
+        "region",
+        "state",
+        "public_dns_name",
+        "pem",
+        "uptime",
+    ]
+    return pd.DataFrame(instances, columns=columns)
 
 
 def get_all_instances(region_name=None):
