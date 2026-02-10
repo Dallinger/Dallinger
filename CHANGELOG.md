@@ -3,6 +3,8 @@
 ## [v11.5.6](https://github.com/dallinger/dallinger/tree/v11.5.6) (2026-01-12)
 
 #### Fixed
+- Fixed Prolific study creation failure caused by removed `eligibility_requirements` API field; replaced with `filters` per [Prolific's updated API](https://docs.prolific.com/api-reference/studies/create-study).
+- Fixed dead Prolific API documentation URLs throughout codebase and docs.
 - Fixed `TypeError` in `dallinger constraints generate` when `constraints=None` and `uv pip compile` fails.
 - Fixed flaky MTurk test by including Python version in qualification names to prevent collisions between parallel CI jobs.
 - Fixed new participant link to avoid propagating credentials from the dashboard URL.

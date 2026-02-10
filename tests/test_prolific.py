@@ -20,7 +20,7 @@ study_request = {
     "completion_option": "url",
     "description": "fake HIT description",
     "device_compatibility": ["desktop"],
-    "eligibility_requirements": [],
+    "filters": [],
     "estimated_completion_time": 5,
     "external_study_url": "https://www.example.com/ad?recruiter=prolific&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}",
     "internal_name": "fake experiment title (TEST_EXPERIMENT_UID)",
@@ -36,13 +36,13 @@ study_request = {
 }
 
 # If you need to created a study for testing which targets just your
-# own worker, you can add the worker ID to the eligibility_requirements,
+# own worker, you can add the worker ID to the filters,
 # then run test_make_quick_study() (after removing the @pytest.mark.skip)
 private_study_request = {
     "completion_code": "A1B2C3D4",
     "completion_option": "url",
     "description": "(Uses allow_list with one ID)",
-    "eligibility_requirements": [
+    "filters": [
         {
             # Add your worker ID here
             "attributes": [{"name": "white_list", "value": []}],

@@ -252,7 +252,7 @@ Prolific Recruitment
 
         - ``device_compatibility``
         - ``peripheral_requirements``
-        - ``eligibility_requirements``
+        - ``filters``
 
     See the `Prolific API Documentation <https://docs.prolific.com/docs/api-docs/public/#tag/Studies/paths/~1api~1v1~1studies~1/post>`__
     for details.
@@ -263,7 +263,7 @@ Prolific Recruitment
     valid JSON as contents::
 
         {
-            "eligibility_requirements": [
+            "filters": [
                 {
                     "attributes": [
                         {
@@ -284,7 +284,7 @@ Prolific Recruitment
     You can also specify the devices you expect the participants to have, e.g.::
 
         {
-            "eligibility_requirements": […],
+            "filters": […],
             "device_compatibility": ["desktop"],
             "peripheral_requirements": ["audio", "microphone"]
         }
