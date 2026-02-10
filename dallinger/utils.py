@@ -16,6 +16,8 @@ import tempfile
 import warnings
 import webbrowser
 from datetime import datetime
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import distribution as get_distribution
 from importlib.metadata import files as files_metadata
 from importlib.util import find_spec
 from pathlib import Path
@@ -69,11 +71,6 @@ def setup_warning_hooks():
     warnings.simplefilter("default", Warning)
     warnings.simplefilter("ignore", category=sa_exc.SAWarning)
 
-
-try:
-    from pip._vendor import pkg_resources
-except ImportError:
-    pkg_resources = None
 
 fake = Faker()
 
@@ -467,8 +464,8 @@ def check_experiment_dependencies(requirements_file):
     for dep in dependencies:
         if find_spec(dep) is None:
             try:
-                pkg_resources.get_distribution(dep)
-            except (pkg_resources.DistributionNotFound, AttributeError):
+                get_distribution(dep)
+            except PackageNotFoundError:
                 raise ValueError(
                     f"Please install the '{dep}' package to run this experiment."
                 )
