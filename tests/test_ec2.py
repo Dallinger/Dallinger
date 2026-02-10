@@ -1,17 +1,17 @@
 from unittest import mock
 
-from botocore.exceptions import ClientError
 import pandas as pd
 import paramiko
 import pytest
 import requests
+from botocore.exceptions import ClientError
 
 from dallinger.command_line.lib.ec2 import (
     DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER,
     _get_instance_row_from,
     get_all_instances,
-    get_instance_details,
     get_image_id,
+    get_instance_details,
     get_pem_path,
     register_key_pair,
 )
@@ -129,11 +129,18 @@ class TestGetImageId:
         )
         ec2.describe_images.assert_not_called()
 
-    def test_missing_ssm_parameter_raises_helpful_error(self, monkeypatch):
-        """Test that missing SSM parameters raise a helpful error"""
+    def test_missing_ssm_parameter_falls_back_to_describe_images(self, monkeypatch):
+        """Test that missing SSM parameters fall back to describe_images"""
         ec2 = mock.Mock()
         ec2.meta.region_name = "us-east-1"
-        ec2.describe_images = mock.Mock()
+        ec2.describe_images.return_value = {
+            "Images": [
+                {
+                    "ImageId": "ami-fallback123",
+                    "Name": "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-20250101",
+                }
+            ]
+        }
         ssm = mock.Mock()
         ssm.get_parameter.side_effect = ClientError(
             {"Error": {"Code": "ParameterNotFound", "Message": "Not found"}},
@@ -144,12 +151,10 @@ class TestGetImageId:
             lambda region_name=None: ssm,
         )
 
-        with pytest.raises(Exception) as excinfo:
-            get_image_id(ec2, DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER)
+        result = get_image_id(ec2, DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER)
 
-        message = str(excinfo.value)
-        assert "SSM parameter" in message
-        assert "us-east-1" in message
+        assert result == "ami-fallback123"
+        ec2.describe_images.assert_called_once()
 
 
 class TestGetInstanceRowFrom:
