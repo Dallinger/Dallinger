@@ -49,7 +49,7 @@ click==8.3.1
     #   rq
 croniter==6.0.0
     # via rq
-cryptography==46.0.3
+cryptography==46.0.5
     # via paramiko
 faker==40.1.2
     # via dallinger
