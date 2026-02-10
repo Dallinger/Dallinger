@@ -680,7 +680,7 @@ class TestProlificRecruiter:
             details = json.load(f)
         cleaned_details = recruiter.clean_qualification_attributes(details)
         assert details.keys() == cleaned_details.keys(), "Keys should be the same"
-        requirements = cleaned_details["eligibility_requirements"]
+        requirements = cleaned_details["filters"]
 
         assert requirements == [
             {
