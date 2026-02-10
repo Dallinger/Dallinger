@@ -687,7 +687,7 @@ class ProlificRecruiter(Recruiter):
             "description": self.config.get("description"),
             # may be overriden in prolific_recruitment_config, but it's required
             # so we provide a default of "allow anyone":
-            "eligibility_requirements": [],
+            "filters": [],
             "estimated_completion_time": self.config.get(
                 "prolific_estimated_completion_minutes"
             ),
@@ -997,14 +997,14 @@ class ProlificRecruiter(Recruiter):
         """
         cleaned_requirements = [
             self.clean_qualification_requirement(requirement)
-            for requirement in experiment_details["eligibility_requirements"]
+            for requirement in experiment_details["filters"]
         ]
         cleaned_requirements = [
             requirement
             for requirement in cleaned_requirements
             if requirement is not None
         ]
-        experiment_details["eligibility_requirements"] = cleaned_requirements
+        experiment_details["filters"] = cleaned_requirements
         return experiment_details
 
     @property
@@ -1015,7 +1015,7 @@ class ProlificRecruiter(Recruiter):
         details = self.hit_details(hit_id, sandbox)
         return {
             "device_compatibility": details["device_compatibility"],
-            "eligibility_requirements": details["eligibility_requirements"],
+            "filters": details["filters"],
             "peripheral_requirements": details["peripheral_requirements"],
         }
 

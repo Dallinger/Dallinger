@@ -213,7 +213,7 @@ def fake_parsed_prolific_study():
         "reward": 13,
         "device_compatibility": ["desktop"],
         "peripheral_requirements": [],
-        "eligibility_requirements": [],
+        "filters": [],
         "status": "ACTIVE",
     }
 
