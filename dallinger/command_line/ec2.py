@@ -240,7 +240,7 @@ def ec2__start(ctx, dns, name, region, dns_host):
 
     instance_row = wait_for_instance_state_change(region, name, "running")
 
-    create_dns_records(dns_host, user, instance_row["public_dns_name"])
+    create_dns_records(dns_host, user, instance_row["public_dns_name"], upsert=True)
 
 
 @ec2.command("restart")

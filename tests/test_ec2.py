@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from unittest import mock
 
 import pandas as pd
@@ -6,6 +7,8 @@ import pytest
 import requests
 
 from dallinger.command_line.lib.ec2 import (
+    create_dns_record,
+    create_dns_records,
     get_all_instances,
     get_instance_details,
     get_pem_path,
@@ -267,3 +270,80 @@ class TestRegisterKeyPair:
             register_key_pair(mock_ec2, "test-key")
 
         assert "Unable to load key" in str(excinfo.value)
+
+
+class TestCreateDnsRecord:
+    def _route_53(self):
+        route_53 = mock.Mock()
+        route_53.change_resource_record_sets.return_value = {
+            "ResponseMetadata": {"HTTPStatusCode": 200},
+            "ChangeInfo": {"Id": "change-id"},
+        }
+        route_53.get_change.return_value = {"ChangeInfo": {"Status": "INSYNC"}}
+        return route_53
+
+    def test_create_dns_record_defaults_to_create(self):
+        route_53 = self._route_53()
+        with (
+            mock.patch(
+                "dallinger.command_line.lib.ec2.filter_zone_ids",
+                return_value=["Z123"],
+            ),
+            mock.patch(
+                "dallinger.command_line.lib.ec2.yaspin",
+                return_value=nullcontext(),
+            ),
+            mock.patch("dallinger.command_line.lib.ec2.Executor"),
+        ):
+            create_dns_record(
+                "lucas-large.cap-experiments.com",
+                "ubuntu",
+                "ec2-host",
+                route_53=route_53,
+            )
+        change = route_53.change_resource_record_sets.call_args.kwargs["ChangeBatch"][
+            "Changes"
+        ][0]
+        assert change["Action"] == "CREATE"
+
+    def test_create_dns_record_allows_upsert(self):
+        route_53 = self._route_53()
+        with (
+            mock.patch(
+                "dallinger.command_line.lib.ec2.filter_zone_ids",
+                return_value=["Z123"],
+            ),
+            mock.patch(
+                "dallinger.command_line.lib.ec2.yaspin",
+                return_value=nullcontext(),
+            ),
+            mock.patch("dallinger.command_line.lib.ec2.Executor"),
+        ):
+            create_dns_record(
+                "lucas-large.cap-experiments.com",
+                "ubuntu",
+                "ec2-host",
+                route_53=route_53,
+                upsert=True,
+            )
+        change = route_53.change_resource_record_sets.call_args.kwargs["ChangeBatch"][
+            "Changes"
+        ][0]
+        assert change["Action"] == "UPSERT"
+
+
+class TestCreateDnsRecords:
+    def test_create_dns_records_passes_upsert(self):
+        with mock.patch(
+            "dallinger.command_line.lib.ec2.create_dns_record"
+        ) as create_record:
+            create_dns_records(
+                "lucas-large.cap-experiments.com",
+                "ubuntu",
+                "ec2-host",
+                upsert=True,
+            )
+
+        assert create_record.call_count == 2
+        for call in create_record.call_args_list:
+            assert call.kwargs["upsert"] is True

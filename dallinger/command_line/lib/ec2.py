@@ -615,18 +615,19 @@ def remove_dns_records(zone_id, dns_host, route_53=None, confirm=False):
         print(f"Removed DNS record {dns_host}")
 
 
-def create_dns_record(dns_host, user, host, route_53=None):
+def create_dns_record(dns_host, user, host, route_53=None, upsert=False):
     if route_53 is None:
         route_53 = get_53_client()
 
     filtered_hosts = filter_zone_ids(get_domain(dns_host), route_53)
     hosted_zone_id = filtered_hosts[0]
+    action = "UPSERT" if upsert else "CREATE"
     response = route_53.change_resource_record_sets(
         HostedZoneId=hosted_zone_id,
         ChangeBatch={
             "Changes": [
                 {
-                    "Action": "UPSERT",
+                    "Action": action,
                     "ResourceRecordSet": {
                         "Type": "CNAME",
                         "Name": dns_host,
@@ -738,10 +739,10 @@ def prepare_instance(
     )
 
 
-def create_dns_records(dns_host, user, host):
+def create_dns_records(dns_host, user, host, upsert=False):
     if dns_host is not None:
-        create_dns_record(dns_host, user, host)
-        create_dns_record("*." + dns_host, user, host)
+        create_dns_record(dns_host, user, host, upsert=upsert)
+        create_dns_record("*." + dns_host, user, host, upsert=upsert)
 
 
 def remove_dns_record(dns_host, remove_dallinger_host=True):
