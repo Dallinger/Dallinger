@@ -277,7 +277,7 @@ class ProlificService:
         completion_code: str,
         completion_option: str,
         description: str,
-        eligibility_requirements: List[dict],
+        filters: List[dict],
         estimated_completion_time: int,
         external_study_url: str,
         internal_name: str,
@@ -321,7 +321,7 @@ class ProlificService:
             "completion_code": completion_code,
             "completion_option": completion_option,
             "description": description,
-            "eligibility_requirements": eligibility_requirements,
+            "filters": filters,
             "estimated_completion_time": estimated_completion_time,
             "external_study_url": external_study_url,
             "internal_name": internal_name,
@@ -348,7 +348,7 @@ class ProlificService:
         completion_code: str,
         completion_option: str,
         description: str,
-        eligibility_requirements: List[dict],  # can be empty, but not None
+        filters: List[dict],  # can be empty, but not None
         estimated_completion_time: int,
         external_study_url: str,
         internal_name: str,
