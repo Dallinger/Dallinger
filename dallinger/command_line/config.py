@@ -56,10 +56,12 @@ def get_configured_hosts():
 
 def store_host(host: Dict[str, str]):
     """Store the given ssh host info in the local user config."""
-    hosts_dir = NEW_HOSTS_DIR
-    if not hosts_dir.is_dir():
-        hosts_dir.mkdir(parents=True)
-    (hosts_dir / host["host"]).write_text(json.dumps(host))
+    # TODO: Remove the dual-write after a few releases once all tooling
+    # reads from NEW_HOSTS_DIR only.
+    for hosts_dir in (NEW_HOSTS_DIR, OLD_HOSTS_DIR):
+        if not hosts_dir.is_dir():
+            hosts_dir.mkdir(parents=True, exist_ok=True)
+        (hosts_dir / host["host"]).write_text(json.dumps(host))
 
 
 def remove_host(hostname: str):

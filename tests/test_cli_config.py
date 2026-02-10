@@ -93,6 +93,16 @@ def test_store_host(tmp_dirs):
     assert get_configured_hosts() == {"test_host_1": host1, "test_host_2": host2}
 
 
+def test_store_host_writes_both_locations(tmp_dirs):
+    from dallinger.command_line.config import NEW_HOSTS_DIR, OLD_HOSTS_DIR, store_host
+
+    host = dict(user="test_user", host="test_host")
+    store_host(host)
+
+    assert json.loads((NEW_HOSTS_DIR / "test_host").read_text()) == host
+    assert json.loads((OLD_HOSTS_DIR / "test_host").read_text()) == host
+
+
 @pytest.fixture(autouse=True)
 def tmp_dirs():
     """Monkey patch the host directory constants to provide pristine directories to each test."""
