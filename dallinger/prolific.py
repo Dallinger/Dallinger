@@ -124,7 +124,7 @@ class ProlificService:
     def get_participant_submission(self, submission_id: str) -> dict:
         """Retrieve details of a participant Submission
 
-        See: https://docs.prolific.com/docs/api-docs/public/#tag/Submissions/Submission-object
+        See: https://docs.prolific.com/api-reference/submissions
 
         This is roughly equivalent to an Assignment on MTurk.
 
@@ -277,7 +277,7 @@ class ProlificService:
         completion_codes: List[str],
         completion_option: str,
         description: str,
-        eligibility_requirements: List[dict],
+        filters: List[dict],
         estimated_completion_time: int,
         external_study_url: str,
         internal_name: str,
@@ -321,7 +321,7 @@ class ProlificService:
             "completion_codes": completion_codes,
             "completion_option": completion_option,
             "description": description,
-            "eligibility_requirements": eligibility_requirements,
+            "filters": filters,
             "estimated_completion_time": estimated_completion_time,
             "external_study_url": external_study_url,
             "internal_name": internal_name,
@@ -348,7 +348,7 @@ class ProlificService:
         completion_codes: List[dict],
         completion_option: str,
         description: str,
-        eligibility_requirements: List[dict],  # can be empty, but not None
+        filters: List[dict],  # can be empty, but not None
         estimated_completion_time: int,
         external_study_url: str,
         internal_name: str,
@@ -432,7 +432,7 @@ class ProlificService:
             increase_places: Whether to increase available study places
 
         Calls the 'Bulk screen out submissions' route in the Prolific API
-        (see https://docs.prolific.com/docs/api-docs/public/#tag/Submissions/operation/BulkScreenOutSubmissions).
+        (see https://docs.prolific.com/api-reference/submissions).
 
         The Prolific documentation for this route is reproduced below:
 
@@ -681,7 +681,7 @@ class DevProlificService(ProlificService):
             if method == "GET":
                 if re.match(r"/studies/[a-z0-9]+/", endpoint):
                     # method="GET", endpoint=f"/studies/{study_id}/"
-                    # Response based on example at https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/GetStudy
+                    # Response based on example at https://docs.prolific.com/api-reference/studies/get-study
                     response = {
                         "id": "60d9aadeb86739de712faee0",
                         "name": "Study about API's",
