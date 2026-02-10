@@ -1,10 +1,10 @@
 from unittest import mock
 
+from botocore.exceptions import ClientError
 import pandas as pd
 import paramiko
 import pytest
 import requests
-from botocore.exceptions import ClientError
 
 from dallinger.command_line.lib.ec2 import (
     DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER,
