@@ -909,7 +909,8 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         if not allow_repeat_worker_ids:
             db.logger.warning("Worker has already participated.")
             return error_response(
-                error_type="/participant POST: worker has already participated.", status=403
+                error_type="/participant POST: worker has already participated.",
+                status=403,
             )
         else:
             db.logger.info(
