@@ -24,6 +24,21 @@ Make sure these permissions are attached to the IAM user or role you are using
 before proceeding. Without them, you may encounter errors when provisioning
 instances, managing DNS, or configuring networking.
 
+If you use the default Ubuntu AMI lookup, you also need permission to read
+Canonical's public SSM parameters. A restricted policy example is::
+
+    {
+        "Effect": "Allow",
+        "Action": "ssm:GetParameter",
+        "Resource": "arn:aws:ssm:*:aws:parameter/aws/service/canonical/ubuntu/*"
+    }
+
+If you prefer not to grant this permission, you can pass an explicit AMI id
+when provisioning instead of using the default.
+
+See :doc:`aws_etc_keys` for more details.
+
+
 Route53 DNS
 ~~~~~~~~~~~
 
