@@ -384,7 +384,7 @@ pexpect==4.9.0
     # via
     #   dallinger
     #   ipython
-pip-tools==7.5.2
+pip-tools==7.5.3
     # via dallinger
 platformdirs==4.5.1
     # via
