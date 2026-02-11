@@ -26,6 +26,10 @@ from ..docker_ssh import prepare_server as dallinger_prepare_server
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER = (
+    "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
+)
+
 
 def get_keys(region_name=None):
     from dallinger.config import get_config
@@ -59,6 +63,10 @@ def url_to_country_city(url):
 
 def get_ec2_client(region_name=None):
     return boto3.client("ec2", **get_keys(region_name))
+
+
+def get_ssm_client(region_name=None):
+    return boto3.client("ssm", **get_keys(region_name))
 
 
 def get_53_client():
@@ -140,7 +148,17 @@ def get_instances(region_name):
                 }
             )
 
-    return pd.DataFrame(instances)
+    columns = [
+        "name",
+        "instance_id",
+        "instance_type",
+        "region",
+        "state",
+        "public_dns_name",
+        "pem",
+        "uptime",
+    ]
+    return pd.DataFrame(instances, columns=columns)
 
 
 def get_all_instances(region_name=None):
@@ -338,7 +356,60 @@ def wait_for_instance(host, user="ubuntu", n_tries=10):
     return _wait_for_instance()
 
 
+def _get_latest_ubuntu_image_id(ec2):
+    """Fallback: find the latest Ubuntu 24.04 AMI via ec2.describe_images."""
+    response = ec2.describe_images(
+        IncludeDeprecated=False,
+        Owners=["099720109477"],  # Canonical
+        Filters=[
+            {
+                "Name": "name",
+                "Values": [
+                    "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"
+                ],
+            },
+            {"Name": "state", "Values": ["available"]},
+        ],
+    )
+    images = response["Images"]
+    if not images:
+        raise Exception(
+            f"No Ubuntu 24.04 AMI found in region '{ec2.meta.region_name}'."
+        )
+    # Sort by name descending — the date suffix (YYYYMMDD) makes this work
+    images.sort(key=lambda img: img["Name"], reverse=True)
+    latest = images[0]
+    print(f"Resolved latest Ubuntu 24.04 AMI: {latest['ImageId']} ({latest['Name']})")
+    return latest["ImageId"]
+
+
 def get_image_id(ec2, image_name):
+    if image_name.startswith("ami-"):
+        return image_name
+
+    if image_name.startswith("/aws/service/"):
+        region_name = ec2.meta.region_name
+        ssm = get_ssm_client(region_name)
+        try:
+            response = ssm.get_parameter(Name=image_name)
+        except ClientError as exc:
+            error_code = exc.response.get("Error", {}).get("Code", "")
+            if error_code in ("AccessDeniedException", "ParameterNotFound"):
+                print(
+                    f"Warning: SSM lookup failed ({error_code}). "
+                    f"Falling back to describe_images for the latest Ubuntu 24.04 AMI."
+                )
+                return _get_latest_ubuntu_image_id(ec2)
+            raise Exception(
+                f"SSM parameter '{image_name}' not found in region '{region_name}'."
+            ) from exc
+        ami_id = response["Parameter"]["Value"]
+        if not ami_id.startswith("ami-"):
+            raise Exception(
+                f"SSM parameter '{image_name}' returned unexpected value '{ami_id}'."
+            )
+        return ami_id
+
     response = ec2.describe_images(
         IncludeDeprecated=False,
         Filters=[
@@ -348,8 +419,18 @@ def get_image_id(ec2, image_name):
             },
         ],
     )
-    assert len(response["Images"]) == 1
-    return response["Images"][0]["ImageId"]
+    images = response["Images"]
+    if len(images) != 1:
+        region_name = ec2.meta.region_name
+        if len(images) == 0:
+            raise Exception(
+                f"No AMI found for name '{image_name}' in region '{region_name}'."
+            )
+        raise Exception(
+            f"Multiple AMIs found for name '{image_name}' in region '{region_name}'. "
+            "Provide a unique AMI name, an AMI id, or an SSM parameter."
+        )
+    return images[0]["ImageId"]
 
 
 def setup_ssh_keys(ec2, key_name, region_name=None):
