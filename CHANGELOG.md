@@ -4,6 +4,7 @@
 - Replaced third-party `cached_property` package with Python's built-in `functools.cached_property` (available since Python 3.8).
 - Moved `ipython` from core dependencies to `jupyter` optional dependency, reducing install size for users who don't need Jupyter features.
 - Moved `numpy` from core dependencies to `data` and `ec2` optional dependencies.
+- EC2 provisioning now defaults to Canonical's Ubuntu 24.04 SSM parameter instead of a pinned AMI name. Falls back to `ec2.describe_images` if SSM access is denied (e.g. missing `ssm:GetParameter` permission).
 
 #### Removed
 - Removed `ua-parser` package from dependencies (still required via `user-agents`).
@@ -24,6 +25,7 @@
 - Fixed `TypeError` in `dallinger constraints generate` when `constraints=None` and `uv pip compile` fails.
 - Fixed flaky MTurk test by including Python version in qualification names to prevent collisions between parallel CI jobs.
 - Fixed new participant link to avoid propagating credentials from the dashboard URL.
+- Fixed EC2 teardown to show a clear error when no instances exist in a region.
 
 #### Updated
 - Updated to PostgreSQL 16
