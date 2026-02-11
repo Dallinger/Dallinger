@@ -19,6 +19,18 @@ have the following permissions:
 - ``AmazonEC2FullAccess``
 - ``AmazonRoute53FullAccess``
 
+If you use the default Ubuntu AMI lookup, you also need permission to read
+Canonical's public SSM parameter. A restricted policy example is::
+
+    {
+        "Effect": "Allow",
+        "Action": "ssm:GetParameter",
+        "Resource": "arn:aws:ssm:*:aws:parameter/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
+    }
+
+If you prefer not to grant this permission, you can pass an explicit AMI id
+when provisioning instead of using the default.
+
 See :doc:`aws_etc_keys` for more details.
 
 
