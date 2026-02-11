@@ -4,9 +4,13 @@ import pandas as pd
 import paramiko
 import pytest
 import requests
+from botocore.exceptions import ClientError
 
 from dallinger.command_line.lib.ec2 import (
+    DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER,
+    _get_instance_row_from,
     get_all_instances,
+    get_image_id,
     get_instance_details,
     get_pem_path,
     register_key_pair,
@@ -100,6 +104,75 @@ class TestGetAllInstances:
             assert "Memory" not in result.columns
             assert "VCPUS" not in result.columns
             assert "Cost" not in result.columns
+
+
+class TestGetImageId:
+    """Tests for get_image_id using SSM parameters"""
+
+    def test_ssm_parameter_returns_ami_id(self, monkeypatch):
+        """Test that SSM parameters resolve to an AMI id"""
+        ec2 = mock.Mock()
+        ec2.meta.region_name = "us-east-1"
+        ec2.describe_images = mock.Mock()
+        ssm = mock.Mock()
+        ssm.get_parameter.return_value = {"Parameter": {"Value": "ami-123456"}}
+        monkeypatch.setattr(
+            "dallinger.command_line.lib.ec2.get_ssm_client",
+            lambda region_name=None: ssm,
+        )
+
+        result = get_image_id(ec2, DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER)
+
+        assert result == "ami-123456"
+        ssm.get_parameter.assert_called_once_with(
+            Name=DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER
+        )
+        ec2.describe_images.assert_not_called()
+
+    def test_missing_ssm_parameter_falls_back_to_describe_images(self, monkeypatch):
+        """Test that missing SSM parameters fall back to describe_images"""
+        ec2 = mock.Mock()
+        ec2.meta.region_name = "us-east-1"
+        ec2.describe_images.return_value = {
+            "Images": [
+                {
+                    "ImageId": "ami-fallback123",
+                    "Name": "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-20250101",
+                }
+            ]
+        }
+        ssm = mock.Mock()
+        ssm.get_parameter.side_effect = ClientError(
+            {"Error": {"Code": "ParameterNotFound", "Message": "Not found"}},
+            "GetParameter",
+        )
+        monkeypatch.setattr(
+            "dallinger.command_line.lib.ec2.get_ssm_client",
+            lambda region_name=None: ssm,
+        )
+
+        result = get_image_id(ec2, DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER)
+
+        assert result == "ami-fallback123"
+        ec2.describe_images.assert_called_once()
+
+
+class TestGetInstanceRowFrom:
+    """Tests for _get_instance_row_from when no instances exist"""
+
+    def test_no_instances_raises_helpful_error(self, monkeypatch):
+        """Test that missing instances raise a helpful error"""
+        mock_ec2 = mock.Mock()
+        mock_ec2.describe_instances.return_value = {"Reservations": []}
+        monkeypatch.setattr(
+            "dallinger.command_line.lib.ec2.get_ec2_client",
+            lambda *args, **kwargs: mock_ec2,
+        )
+
+        with pytest.raises(Exception) as excinfo:
+            _get_instance_row_from(region_name="us-east-1", instance_name="missing")
+
+        assert "No instances found" in str(excinfo.value)
 
 
 class TestGetPemPath:

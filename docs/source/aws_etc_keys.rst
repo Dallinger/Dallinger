@@ -76,6 +76,19 @@ to grant the following additional permissions::
     AmazonEC2FullAccess
     AmazonRoute53FullAccess
 
+If you use the default Ubuntu AMI lookup when provisioning EC2 instances, you
+will also need permission to read Canonical's public SSM parameters. A
+restricted policy example is::
+
+    {
+        "Effect": "Allow",
+        "Action": "ssm:GetParameter",
+        "Resource": "arn:aws:ssm:*:aws:parameter/aws/service/canonical/ubuntu/*"
+    }
+
+If you prefer not to grant this permission, you can pass an explicit AMI id
+when provisioning instead of using the default.
+
 You may want to assign these permissions by creating a Dallinger Group in
 the IAM console and assigning users to it.
 
