@@ -6,6 +6,9 @@
 - Moved `numpy` from core dependencies to `data` and `ec2` optional dependencies.
 - EC2 provisioning now defaults to Canonical's Ubuntu 24.04 SSM parameter instead of a pinned AMI name. Falls back to `ec2.describe_images` if SSM access is denied (e.g. missing `ssm:GetParameter` permission).
 
+#### Added
+- Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
+
 #### Removed
 - Removed `ua-parser` package from dependencies (still required via `user-agents`).
 - Removed obsolete `patches.py` module that patched ipykernel's `OutStream.writable()` method. This workaround for pexpect compatibility has been unnecessary since ipykernel 4.9 (April 2018), which added the fix upstream.
