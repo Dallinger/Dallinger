@@ -51,6 +51,7 @@ default_keys = (
     ("approve_requirement", int, []),
     ("assign_qualifications", bool, []),
     ("auto_recruit", bool, []),
+    ("allow_repeat_worker_ids", bool, []),
     ("aws_access_key_id", str, ["AWS_ACCESS_KEY_ID"], True),
     (
         "aws_region",

@@ -5,6 +5,9 @@
 - Moved `ipython` from core dependencies to `jupyter` optional dependency, reducing install size for users who don't need Jupyter features.
 - Moved `numpy` from core dependencies to `data` and `ec2` optional dependencies.
 
+#### Added
+- Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
+
 #### Removed
 - Removed `ua-parser` package from dependencies (still required via `user-agents`).
 - Removed obsolete `patches.py` module that patched ipykernel's `OutStream.writable()` method. This workaround for pexpect compatibility has been unnecessary since ipykernel 4.9 (April 2018), which added the fix upstream.
