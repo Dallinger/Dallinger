@@ -1329,15 +1329,18 @@ def get_remote_identity(executor: "Executor"):
     return uid, gid, home_dir
 
 
-def ensure_remote_path_ownership(executor: "Executor", path: str, uid: str, gid: str):
+def ensure_remote_path_ownership(
+    executor: "Executor", path: str, uid: str, gid: str, recursive: bool = False
+):
     ownership = f"{uid}:{gid}"
     quoted_path = quote(path)
+    recursive_flag = "-R " if recursive else ""
     chown_status = executor.run(
-        f"chown -R {ownership} {quoted_path} >/dev/null 2>&1 && echo ok || echo fail",
+        f"chown {recursive_flag}{ownership} {quoted_path} >/dev/null 2>&1 && echo ok || echo fail",
         raise_=False,
     ).strip()
     if chown_status != "ok":
-        executor.run(f"sudo -n chown -R {ownership} {quoted_path}")
+        executor.run(f"sudo -n chown {recursive_flag}{ownership} {quoted_path}")
 
 
 def prepare_remote_experiment_paths(
