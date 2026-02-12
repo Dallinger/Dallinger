@@ -67,16 +67,48 @@ def url_to_country_city(url):
     }
 
 
+_AUTH_FAILURE_MSG = (
+    "AWS authentication failed. "
+    "Please check that (1) your AWS credentials are correct and not expired, "
+    "and (2) your system clock is in sync (e.g. run 'timedatectl' on Linux "
+    "or 'w32tm /query /status' on Windows)."
+)
+
+_AUTH_FAILURE_CODES = {"AuthFailure", "InvalidClientTokenId", "RequestExpired"}
+
+
+class _BotoClientProxy:
+    """Wraps a boto3 client to add a helpful hint to auth-related errors."""
+
+    def __init__(self, client):
+        self._client = client
+
+    def __getattr__(self, name):
+        attr = getattr(self._client, name)
+        if not callable(attr):
+            return attr
+
+        def wrapper(*args, **kwargs):
+            try:
+                return attr(*args, **kwargs)
+            except ClientError as e:
+                if e.response.get("Error", {}).get("Code") in _AUTH_FAILURE_CODES:
+                    raise click.ClickException(_AUTH_FAILURE_MSG) from e
+                raise
+
+        return wrapper
+
+
 def get_ec2_client(region_name=None):
-    return boto3.client("ec2", **get_keys(region_name))
+    return _BotoClientProxy(boto3.client("ec2", **get_keys(region_name)))
 
 
 def get_ssm_client(region_name=None):
-    return boto3.client("ssm", **get_keys(region_name))
+    return _BotoClientProxy(boto3.client("ssm", **get_keys(region_name)))
 
 
 def get_53_client():
-    return boto3.client("route53", **get_keys())
+    return _BotoClientProxy(boto3.client("route53", **get_keys()))
 
 
 def list_regions():
