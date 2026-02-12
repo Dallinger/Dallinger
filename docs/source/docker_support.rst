@@ -331,12 +331,14 @@ If you use an older Dallinger release and notice mixed ownership (some files own
 others by ``ubuntu``), you can still use the normal ``dallinger docker-ssh deploy`` flow.
 The safest pattern is: run the path-preparation commands in an SSH session on the deployment server,
 then run the ``dallinger docker-ssh deploy`` command locally.
+Replace ``DEPLOY_USER`` with the actual server account used for deployment
+(for example the same ``--user`` value from ``dallinger docker-ssh servers add``).
 
 .. code-block:: shell
 
     SERVER_NAME=<configured-docker-ssh-server>
     APP_ID=<your-app-id>  # choose an explicit app id so paths are predictable
-    DEPLOY_USER=ubuntu
+    DEPLOY_USER=<ssh-user-for-that-server>  # e.g. ubuntu, debian, ec2-user, or $(whoami)
 
     # On the remote server, pre-create the bind-mount source paths
     # and set ownership to the deploy user.
