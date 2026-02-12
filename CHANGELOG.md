@@ -1,6 +1,6 @@
 # Change Log
 
-## [v11.5.6](https://github.com/dallinger/dallinger/tree/v11.5.6) (2026-01-12)
+## [v11.5.6](https://github.com/dallinger/dallinger/tree/v11.5.6) (2026-02-12)
 
 #### Changed
 - EC2 provisioning now defaults to Canonical's Ubuntu 24.04 SSM parameter instead of a pinned AMI name. Falls back to `ec2.describe_images` if SSM access is denied (e.g. missing `ssm:GetParameter` permission).
