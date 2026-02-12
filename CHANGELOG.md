@@ -9,6 +9,7 @@
 - EC2 provisioning now defaults to Canonical's Ubuntu 24.04 SSM parameter instead of a pinned AMI name. Falls back to `ec2.describe_images` if SSM access is denied (e.g. missing `ssm:GetParameter` permission).
 
 #### Fixed
+- Improved error message for AWS authentication failures (wrong credentials, expired tokens, clock skew) in EC2 commands: now displays a concise, actionable message instead of a full stack trace.
 - Replaced remaining `pkg_resources` usage with `importlib.metadata` (in CI Docker entry point test and dependency checker).
 - Fixed Prolific study creation failure caused by removed `eligibility_requirements` API field; replaced with `filters` per [Prolific's updated API](https://docs.prolific.com/api-reference/studies/create-study).
 - Fixed dead Prolific API documentation URLs throughout codebase and docs.
