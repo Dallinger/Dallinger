@@ -1,23 +1,7 @@
-## [Unreleased]
+## [v12.1.1](https://github.com/dallinger/dallinger/tree/v12.1.1) (2026-02-11)
 
 #### Changed
-- Replaced third-party `cached_property` package with Python's built-in `functools.cached_property` (available since Python 3.8).
-- Moved `ipython` from core dependencies to `jupyter` optional dependency, reducing install size for users who don't need Jupyter features.
-- Moved `numpy` from core dependencies to `data` and `ec2` optional dependencies.
 - EC2 provisioning now defaults to Canonical's Ubuntu 24.04 SSM parameter instead of a pinned AMI name. Falls back to `ec2.describe_images` if SSM access is denied (e.g. missing `ssm:GetParameter` permission).
-
-#### Removed
-- Removed `ua-parser` package from dependencies (still required via `user-agents`).
-- Removed obsolete `patches.py` module that patched ipykernel's `OutStream.writable()` method. This workaround for pexpect compatibility has been unnecessary since ipykernel 4.9 (April 2018), which added the fix upstream.
-- Removed unused `flask-crossdomain` dependency (a local implementation in `dallinger.experiment_server.utils` has been used instead for some time).
-- Removed unused `pyopenssl` dependency.
-- Removed redundant `paramiko` from `docker` and `ec2` optional dependencies (already in core dependencies).
-- Removed redundant `yaspin` from `ec2` optional dependencies (already in core dependencies).
-- Removed redundant `alabaster` from dev dependencies (transitive dependency of `sphinx`).
-- Removed redundant `pycodestyle` from dev dependencies (transitive dependency of `flake8`).
-- Removed redundant `black` from dev dependencies (already included via `black[jupyter]`).
-- Removed redundant `jupyter-server` from `jupyter` optional dependencies (transitive dependency of `jupyterlab` via `jupyter`).
-- Removed redundant `ipywidgets` from `jupyter` optional dependencies (transitive dependency of `jupyter`).
 
 #### Fixed
 - Fixed Prolific study creation failure caused by removed `eligibility_requirements` API field; replaced with `filters` per [Prolific's updated API](https://docs.prolific.com/api-reference/studies/create-study).
