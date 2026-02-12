@@ -328,22 +328,26 @@ File ownership on older versions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If you use an older Dallinger release and notice mixed ownership (some files owned by ``root``,
-others by ``ubuntu``), make ownership deterministic before starting containers:
+others by ``ubuntu``), you can still use the normal ``dallinger docker-ssh deploy`` flow.
+The safest pattern is: run the path-preparation commands in an SSH session on the deployment server,
+then run the ``dallinger docker-ssh deploy`` command locally.
 
 .. code-block:: shell
 
-    APP_ID=<your-app-id>
+    SERVER_NAME=<configured-docker-ssh-server>
+    APP_ID=<your-app-id>  # choose an explicit app id so paths are predictable
     DEPLOY_USER=ubuntu
 
-    # Make the bind mount sources exist and be owned by the deploy user.
+    # On the remote server, pre-create the bind-mount source paths
+    # and set ownership to the deploy user.
     sudo mkdir -p "/home/${DEPLOY_USER}/dallinger/${APP_ID}" "/home/${DEPLOY_USER}/dallinger-data/${APP_ID}"
     sudo touch "/home/${DEPLOY_USER}/dallinger/${APP_ID}/logs.jsonl"
     sudo chown -R "${DEPLOY_USER}:${DEPLOY_USER}" "/home/${DEPLOY_USER}/dallinger/${APP_ID}" "/home/${DEPLOY_USER}/dallinger-data/${APP_ID}"
 
-    # Ensure compose has explicit numeric ids for container user mapping.
-    export UID="$(id -u "${DEPLOY_USER}")"
-    export GID="$(id -g "${DEPLOY_USER}")"
-    docker compose -f "/home/${DEPLOY_USER}/dallinger/${APP_ID}/docker-compose.yml" up -d
+    # Then deploy as usual (from your local machine):
+    dallinger docker-ssh deploy --server "${SERVER_NAME}" --app "${APP_ID}"
+    # Or for an existing app:
+    dallinger docker-ssh deploy --server "${SERVER_NAME}" --app "${APP_ID}" --update
 
 If you mount additional host paths via ``docker_volumes`` (for example ``~/Dallinger/app/logs.jsonl``),
 create those files/directories first and set ownership with ``chown`` before launching containers.
