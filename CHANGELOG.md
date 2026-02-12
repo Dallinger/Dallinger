@@ -31,6 +31,7 @@
 - Fixed flaky MTurk test by including Python version in qualification names to prevent collisions between parallel CI jobs.
 - Fixed new participant link to avoid propagating credentials from the dashboard URL.
 - Fixed EC2 teardown to show a clear error when no instances exist in a region.
+- Fixed non-deterministic ownership of host-mounted files in `dallinger docker-ssh deploy` by resolving remote `uid`/`gid`/`HOME`, rendering explicit compose identities and bind paths, and pre-creating key host paths with the deploy user's ownership.
 
 #### Updated
 - Updated to PostgreSQL 16
