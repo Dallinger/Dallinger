@@ -671,6 +671,8 @@ It currently resolves to {ipaddr_experiment}."""
             raise click.Abort
 
     executor = Executor(ssh_host, user=ssh_user, app=app_identifier)
+    # Use the remote UID/GID in docker compose so host-mounted files
+    # are created with predictable ownership on the server.
     remote_uid, remote_gid, remote_home_dir = get_remote_identity(executor)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
