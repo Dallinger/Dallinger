@@ -329,8 +329,8 @@ File ownership on older versions
 
 If you use an older Dallinger release and notice mixed ownership (some files owned by ``root``,
 others by ``ubuntu``), you can still use the normal ``dallinger docker-ssh deploy`` flow.
-The safest pattern is: run the path-preparation commands in an SSH session on the deployment server,
-then run the ``dallinger docker-ssh deploy`` command locally.
+The safest pattern is: SSH into the deployment server and run the following commands, then run
+the ``dallinger docker-ssh deploy`` command locally.
 Replace ``DEPLOY_USER`` with the actual server account used for deployment
 (for example the same ``--user`` value from ``dallinger docker-ssh servers add``).
 
