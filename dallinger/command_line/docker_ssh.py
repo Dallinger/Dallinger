@@ -1097,17 +1097,51 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.load_system_host_keys()
 
+    connect_kwargs = dict(
+        hostname=host,
+        username=user,
+        key_filename=str(pem_path),
+        allow_agent=False,  # don't use ssh-agent
+        look_for_keys=False,  # don't scan ~/.ssh for keys
+    )
+
     print(f"Connecting to {host}")
     with yaspin() as spinner:
         try:
-            client.connect(
-                host,
-                username=user,
-                key_filename=str(pem_path),
-                allow_agent=False,  # don't use ssh-agent
-                look_for_keys=False,  # don't scan ~/.ssh for keys
-            )
+            client.connect(**connect_kwargs)
             spinner.ok("Connected.")
+        except paramiko.ssh_exception.BadHostKeyException as exc:
+            # Host key changed — common when an EC2 instance is rebuilt.
+            spinner.stop()
+            click.echo(
+                f"\nThe host key for '{exc.hostname}' has changed.\n"
+                "This is expected if the server was recently rebuilt, "
+                "but could indicate a security issue.\n"
+                f"  Expected: {exc.expected_key.get_base64()}\n"
+                f"  Got:      {exc.key.get_base64()}"
+            )
+            if not click.confirm(
+                "Update the host key and continue connecting?",
+                default=True,
+            ):
+                raise click.Abort()
+            # Remove all stale entries (all key types) from known_hosts.
+            # ssh-keygen -R handles plain and hashed hostnames alike.
+            subprocess.run(
+                ["ssh-keygen", "-R", exc.hostname],
+                capture_output=True,
+            )
+            # Recreate the client from the cleaned known_hosts so no
+            # stale keys remain in memory for any key type.
+            client = paramiko.SSHClient()
+            try:
+                client.load_host_keys(known_hosts_path)
+            except IOError:
+                pass
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            spinner.start()
+            client.connect(**connect_kwargs)
+            spinner.ok("Connected (host key updated).")
         except paramiko.AuthenticationException:
             spinner.fail("✖ Authentication failed")
             raise
