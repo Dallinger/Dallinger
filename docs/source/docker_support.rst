@@ -324,36 +324,6 @@ To stop an experiment and remove its containers from the server, run:
       When deploying to a server using docker, the experiment can save files to the directory ``/var/lib/dallinger``.
       This directory will be visible on the server as ``~/dallinger-data/${experiment_id}``.
 
-File ownership on older versions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-If you use an older Dallinger release and notice mixed ownership (some files owned by ``root``,
-others by ``ubuntu``), you can still use the normal ``dallinger docker-ssh deploy`` flow.
-The safest pattern is: SSH into the deployment server and run the following commands, then run
-the ``dallinger docker-ssh deploy`` command locally.
-Replace ``DEPLOY_USER`` with the actual server account used for deployment
-(for example the same ``--user`` value from ``dallinger docker-ssh servers add``).
-
-.. code-block:: shell
-
-    SERVER_NAME=<configured-docker-ssh-server>
-    APP_ID=<your-app-id>  # choose an explicit app id so paths are predictable
-    DEPLOY_USER=<ssh-user-for-that-server>  # e.g. ubuntu, debian, ec2-user, or $(whoami)
-
-    # On the remote server, pre-create the bind-mount source paths
-    # and set ownership to the deploy user.
-    sudo mkdir -p "/home/${DEPLOY_USER}/dallinger/${APP_ID}" "/home/${DEPLOY_USER}/dallinger-data/${APP_ID}"
-    sudo touch "/home/${DEPLOY_USER}/dallinger/${APP_ID}/logs.jsonl"
-    sudo chown -R "${DEPLOY_USER}:${DEPLOY_USER}" "/home/${DEPLOY_USER}/dallinger/${APP_ID}" "/home/${DEPLOY_USER}/dallinger-data/${APP_ID}"
-
-    # Then deploy as usual (from your local machine):
-    dallinger docker-ssh deploy --server "${SERVER_NAME}" --app "${APP_ID}"
-    # Or for an existing app:
-    dallinger docker-ssh deploy --server "${SERVER_NAME}" --app "${APP_ID}" --update
-
-If you mount additional host paths via ``docker_volumes`` (for example ``~/Dallinger/app/logs.jsonl``),
-create those files/directories first and set ownership with ``chown`` before launching containers.
-
 
 Support for python dependencies in private repositories
 *******************************************************
