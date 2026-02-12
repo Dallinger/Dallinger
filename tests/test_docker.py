@@ -71,11 +71,17 @@ def test_add_image_name(tempdir):
     )
 
 
-def get_yaml(config):
+def get_yaml(config, uid=None, gid=None, home_dir=None):
     from dallinger.command_line.docker_ssh import get_docker_compose_yml
 
     yaml_contents = get_docker_compose_yml(
-        config, "dlgr-8c43a887", "ghcr.io/dallinger/dallinger/bartlett1932", "foobar"
+        config,
+        "dlgr-8c43a887",
+        "ghcr.io/dallinger/dallinger/bartlett1932",
+        "foobar",
+        uid=uid,
+        gid=gid,
+        home_dir=home_dir,
     )
     return yaml.safe_load(yaml_contents)
 
@@ -86,3 +92,20 @@ def test_num_dynos():
     result = get_yaml({"num_dynos_worker": n})
     for i in range(n):
         assert f"worker_{i + 1}" in result["services"]
+
+
+def test_get_docker_compose_yml_explicit_user_and_home():
+    """Remote deployments should render deterministic uid/gid and home path."""
+    result = get_yaml({}, uid="1001", gid="1002", home_dir="/home/ubuntu")
+    assert result["services"]["web"]["user"] == "1001:1002"
+    assert result["services"]["worker_1"]["user"] == "1001:1002"
+    assert (
+        result["services"]["web"]["volumes"][0]
+        == "/home/ubuntu/dallinger-data/dlgr-8c43a887:/var/lib/dallinger"
+    )
+
+
+def test_get_docker_compose_yml_default_user_placeholders():
+    """When no remote ids are provided, keep compose placeholders."""
+    result = get_yaml({})
+    assert result["services"]["web"]["user"] == "${UID}:${GID}"

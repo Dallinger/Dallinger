@@ -324,6 +324,30 @@ To stop an experiment and remove its containers from the server, run:
       When deploying to a server using docker, the experiment can save files to the directory ``/var/lib/dallinger``.
       This directory will be visible on the server as ``~/dallinger-data/${experiment_id}``.
 
+File ownership on older versions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you use an older Dallinger release and notice mixed ownership (some files owned by ``root``,
+others by ``ubuntu``), make ownership deterministic before starting containers:
+
+.. code-block:: shell
+
+    APP_ID=<your-app-id>
+    DEPLOY_USER=ubuntu
+
+    # Make the bind mount sources exist and be owned by the deploy user.
+    sudo mkdir -p "/home/${DEPLOY_USER}/dallinger/${APP_ID}" "/home/${DEPLOY_USER}/dallinger-data/${APP_ID}"
+    sudo touch "/home/${DEPLOY_USER}/dallinger/${APP_ID}/logs.jsonl"
+    sudo chown -R "${DEPLOY_USER}:${DEPLOY_USER}" "/home/${DEPLOY_USER}/dallinger/${APP_ID}" "/home/${DEPLOY_USER}/dallinger-data/${APP_ID}"
+
+    # Ensure compose has explicit numeric ids for container user mapping.
+    export UID="$(id -u "${DEPLOY_USER}")"
+    export GID="$(id -g "${DEPLOY_USER}")"
+    docker compose -f "/home/${DEPLOY_USER}/dallinger/${APP_ID}/docker-compose.yml" up -d
+
+If you mount additional host paths via ``docker_volumes`` (for example ``~/Dallinger/app/logs.jsonl``),
+create those files/directories first and set ownership with ``chown`` before launching containers.
+
 
 Support for python dependencies in private repositories
 *******************************************************

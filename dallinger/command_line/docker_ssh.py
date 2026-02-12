@@ -671,6 +671,7 @@ It currently resolves to {ipaddr_experiment}."""
             raise click.Abort
 
     executor = Executor(ssh_host, user=ssh_user, app=app_identifier)
+    remote_uid, remote_gid, remote_home_dir = get_remote_identity(executor)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
     if not use_subdomain and not preflight_root_clean:
@@ -773,12 +774,24 @@ It currently resolves to {ipaddr_experiment}."""
     )
     cfg.update(config_options)
     del cfg["host"]  # The uppercase variable will be used instead
-    executor.run(f"mkdir -p dallinger/{experiment_id}")
+    prepare_remote_experiment_paths(
+        executor=executor,
+        experiment_id=experiment_id,
+        home_dir=remote_home_dir,
+        uid=remote_uid,
+        gid=remote_gid,
+    )
     postgresql_password = token_urlsafe(16)
     sftp.putfo(
         BytesIO(
             get_docker_compose_yml(
-                cfg, experiment_id, image_name, postgresql_password, executor
+                cfg,
+                experiment_id,
+                image_name,
+                postgresql_password,
+                uid=remote_uid,
+                gid=remote_gid,
+                home_dir=remote_home_dir,
             ).encode()
         ),
         f"dallinger/{experiment_id}/docker-compose.yml",
@@ -1296,26 +1309,79 @@ class Executor:
                     break
 
 
+def parse_remote_numeric_id(value: str, name: str) -> str:
+    parsed = value.strip()
+    if not parsed.isdigit():
+        raise click.ClickException(
+            f"Could not determine a numeric {name} on the remote host. Got: {value!r}"
+        )
+    return parsed
+
+
+def get_remote_identity(executor: "Executor"):
+    uid = parse_remote_numeric_id(executor.run("id -u"), "uid")
+    gid = parse_remote_numeric_id(executor.run("id -g"), "gid")
+    home_dir = executor.run('printf "%s" "$HOME"').strip()
+    if not home_dir:
+        home_dir = executor.run("getent passwd $(id -u) | cut -d: -f6").strip()
+    if not home_dir:
+        raise click.ClickException("Could not determine the remote HOME directory.")
+    return uid, gid, home_dir
+
+
+def ensure_remote_path_ownership(executor: "Executor", path: str, uid: str, gid: str):
+    ownership = f"{uid}:{gid}"
+    quoted_path = quote(path)
+    chown_status = executor.run(
+        f"chown -R {ownership} {quoted_path} >/dev/null 2>&1 && echo ok || echo fail",
+        raise_=False,
+    ).strip()
+    if chown_status != "ok":
+        executor.run(f"sudo -n chown -R {ownership} {quoted_path}")
+
+
+def prepare_remote_experiment_paths(
+    executor: "Executor",
+    experiment_id: str,
+    home_dir: str,
+    uid: str,
+    gid: str,
+):
+    experiment_dir = f"{home_dir}/dallinger/{experiment_id}"
+    data_dir = f"{home_dir}/dallinger-data/{experiment_id}"
+    log_path = f"{experiment_dir}/{JSON_LOGFILE}"
+    for path in (experiment_dir, data_dir):
+        executor.run(f"mkdir -p {quote(path)}")
+        ensure_remote_path_ownership(executor, path, uid, gid)
+    executor.run(f"touch {quote(log_path)}")
+    ensure_remote_path_ownership(executor, log_path, uid, gid)
+
+
 def get_docker_compose_yml(
     config: Dict[str, str],
     experiment_id: str,
     experiment_image: str,
     postgresql_password: str,
-    executor: Executor = None,
+    uid: str = None,
+    gid: str = None,
+    home_dir: str = None,
 ) -> str:
     """Generate a docker-compose.yml file based on the given"""
     docker_volumes = config.get("docker_volumes", "")
     logger_filename = JSON_LOGFILE
     if logger_filename:
-        if executor:
-            # touch the logger file so that it exists when the container starts
-            executor.run(f"touch $HOME/dallinger/{experiment_id}/{logger_filename}")
         new_volume = f"./{logger_filename}:/experiment/{logger_filename}"
         if docker_volumes:
             docker_volumes = f"{docker_volumes},{new_volume}"
         else:
             docker_volumes = new_volume
     config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
+    if uid is None:
+        uid = "${UID}"
+    if gid is None:
+        gid = "${GID}"
+    if home_dir is None:
+        home_dir = "${HOME}"
 
     return DOCKER_COMPOSE_EXP_TPL.render(
         experiment_id=experiment_id,
@@ -1323,6 +1389,9 @@ def get_docker_compose_yml(
         config=config_str,
         docker_volumes=docker_volumes,
         postgresql_password=postgresql_password,
+        uid=uid,
+        gid=gid,
+        home_dir=home_dir,
     )
 
 
