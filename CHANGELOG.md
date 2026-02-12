@@ -6,6 +6,7 @@
 - EC2 provisioning now defaults to Canonical's Ubuntu 24.04 SSM parameter instead of a pinned AMI name. Falls back to `ec2.describe_images` if SSM access is denied (e.g. missing `ssm:GetParameter` permission).
 
 #### Fixed
+- Pinned `pip-tools >= 7.5.3` to fix `AttributeError: 'InstallRequirement' object has no attribute 'use_pep517'` with pip 25.x.
 - Replaced remaining `pkg_resources` usage with `importlib.metadata` (in CI Docker entry point test and dependency checker).
 - Fixed `TypeError` in `dallinger constraints generate` when `constraints=None` and `uv pip compile` fails.
 - Fixed flaky MTurk test by including Python version in qualification names to prevent collisions between parallel CI jobs.

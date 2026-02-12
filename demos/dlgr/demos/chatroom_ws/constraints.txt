@@ -222,7 +222,7 @@ pip==25.2
     # via
     #   dallinger
     #   pip-tools
-pip-tools==7.5.0
+pip-tools==7.5.3
     # via
     #   -c https://raw.githubusercontent.com/Dallinger/Dallinger/release-11.5/dev-requirements.txt
     #   dallinger

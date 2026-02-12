@@ -53,7 +53,7 @@ dependencies = [
     "paramiko < 4",
     "pexpect",
     "pip",
-    "pip-tools",  # TODO: consider removing at some point if we are happy with uv?
+    "pip-tools >= 7.5.3",  # TODO: consider removing at some point if we are happy with uv?
     "platformdirs",
     "psycopg2",
     "psutil",
