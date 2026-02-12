@@ -23,6 +23,7 @@
 - Removed redundant `ipywidgets` from `jupyter` optional dependencies (transitive dependency of `jupyter`).
 
 #### Fixed
+- Replaced remaining `pkg_resources` usage with `importlib.metadata` (in CI Docker entry point test and dependency checker).
 - Fixed Prolific study creation failure caused by removed `eligibility_requirements` API field; replaced with `filters` per [Prolific's updated API](https://docs.prolific.com/api-reference/studies/create-study).
 - Fixed dead Prolific API documentation URLs throughout codebase and docs.
 - Fixed `BadHostKeyException` crash when connecting to a rebuilt EC2 instance whose SSH host key has changed. The user is now prompted to confirm the key update before continuing.
