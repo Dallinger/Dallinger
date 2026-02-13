@@ -1318,29 +1318,49 @@ def parse_remote_numeric_id(value: str, name: str) -> str:
     return parsed
 
 
-def get_remote_identity(executor: "Executor"):
-    uid = parse_remote_numeric_id(executor.run("id -u"), "uid")
-    gid = parse_remote_numeric_id(executor.run("id -g"), "gid")
-    home_dir = executor.run('printf "%s" "$HOME"').strip()
-    if not home_dir:
-        home_dir = executor.run("getent passwd $(id -u) | cut -d: -f6").strip()
-    if not home_dir:
-        raise click.ClickException("Could not determine the remote HOME directory.")
+def parse_remote_identity_output(output: str):
+    values = {}
+    for line in output.splitlines():
+        if line.startswith("STEP:") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip()
+
+    uid_value = values.get("uid")
+    gid_value = values.get("gid")
+    home_dir = values.get("home")
+    if uid_value is None or gid_value is None or not home_dir:
+        raise click.ClickException(
+            "Could not determine remote identity values (uid, gid, home)."
+        )
+
+    uid = parse_remote_numeric_id(uid_value, "uid")
+    gid = parse_remote_numeric_id(gid_value, "gid")
     return uid, gid, home_dir
 
 
-def ensure_remote_path_ownership(
-    executor: "Executor", path: str, uid: str, gid: str, recursive: bool = False
-):
-    ownership = f"{uid}:{gid}"
-    quoted_path = quote(path)
-    recursive_flag = "-R " if recursive else ""
-    chown_status = executor.run(
-        f"chown {recursive_flag}{ownership} {quoted_path} >/dev/null 2>&1 && echo ok || echo fail",
-        raise_=False,
-    ).strip()
-    if chown_status != "ok":
-        executor.run(f"sudo -n chown {recursive_flag}{ownership} {quoted_path}")
+def get_remote_identity(executor: "Executor"):
+    identity_script = """
+set -eu
+echo "STEP:identity:start"
+uid=$(id -u)
+gid=$(id -g)
+home_dir="${HOME:-}"
+if [ -z "$home_dir" ]; then
+    home_dir=$(getent passwd "$uid" | cut -d: -f6 || true)
+fi
+if [ -z "$home_dir" ]; then
+    home_dir=$(awk -F: -v uid="$uid" '$3 == uid { print $6; exit }' /etc/passwd || true)
+fi
+if [ -z "$home_dir" ]; then
+    echo "STEP:identity:error:no_home" >&2
+    exit 1
+fi
+echo "STEP:identity:resolved"
+printf 'uid=%s\\ngid=%s\\nhome=%s\\n' "$uid" "$gid" "$home_dir"
+""".strip()
+    output = executor.run(f"sh -lc {quote(identity_script)}")
+    return parse_remote_identity_output(output)
 
 
 def prepare_remote_experiment_paths(
@@ -1353,11 +1373,48 @@ def prepare_remote_experiment_paths(
     experiment_dir = f"{home_dir}/dallinger/{experiment_id}"
     data_dir = f"{home_dir}/dallinger-data/{experiment_id}"
     log_path = f"{experiment_dir}/{JSON_LOGFILE}"
-    for path in (experiment_dir, data_dir):
-        executor.run(f"mkdir -p {quote(path)}")
-        ensure_remote_path_ownership(executor, path, uid, gid)
-    executor.run(f"touch {quote(log_path)}")
-    ensure_remote_path_ownership(executor, log_path, uid, gid)
+    ownership = f"{uid}:{gid}"
+    path_setup_script = f"""
+set -eu
+echo "STEP:paths:start"
+experiment_dir={quote(experiment_dir)}
+data_dir={quote(data_dir)}
+log_path={quote(log_path)}
+ownership={quote(ownership)}
+
+echo "STEP:paths:mkdir"
+mkdir -p "$experiment_dir" "$data_dir"
+
+echo "STEP:paths:touch_log"
+touch "$log_path"
+
+echo "STEP:paths:chown:experiment_dir"
+if chown "$ownership" "$experiment_dir" >/dev/null 2>&1; then
+    echo "STEP:paths:chown:experiment_dir:ok"
+else
+    echo "STEP:paths:chown:experiment_dir:sudo"
+    sudo -n chown "$ownership" "$experiment_dir"
+fi
+
+echo "STEP:paths:chown:data_dir"
+if chown "$ownership" "$data_dir" >/dev/null 2>&1; then
+    echo "STEP:paths:chown:data_dir:ok"
+else
+    echo "STEP:paths:chown:data_dir:sudo"
+    sudo -n chown "$ownership" "$data_dir"
+fi
+
+echo "STEP:paths:chown:log"
+if chown "$ownership" "$log_path" >/dev/null 2>&1; then
+    echo "STEP:paths:chown:log:ok"
+else
+    echo "STEP:paths:chown:log:sudo"
+    sudo -n chown "$ownership" "$log_path"
+fi
+
+echo "STEP:paths:done"
+""".strip()
+    executor.run(f"sh -lc {quote(path_setup_script)}")
 
 
 def get_docker_compose_yml(

@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import click
+import pytest
 import yaml
 
 
@@ -109,3 +111,26 @@ def test_get_docker_compose_yml_default_user_placeholders():
     """When no remote ids are provided, keep compose placeholders."""
     result = get_yaml({})
     assert result["services"]["web"]["user"] == "${UID}:${GID}"
+
+
+def test_parse_remote_identity_output_with_step_markers():
+    from dallinger.command_line.docker_ssh import parse_remote_identity_output
+
+    output = "\n".join(
+        (
+            "STEP:identity:start",
+            "uid=1000",
+            "gid=1001",
+            "home=/home/ubuntu",
+            "STEP:identity:resolved",
+        )
+    )
+    assert parse_remote_identity_output(output) == ("1000", "1001", "/home/ubuntu")
+
+
+def test_parse_remote_identity_output_raises_for_missing_home():
+    from dallinger.command_line.docker_ssh import parse_remote_identity_output
+
+    output = "\n".join(("STEP:identity:start", "uid=1000", "gid=1001"))
+    with pytest.raises(click.ClickException):
+        parse_remote_identity_output(output)
