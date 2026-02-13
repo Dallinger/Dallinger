@@ -308,6 +308,151 @@ def get_existing_remote_experiments(executor):
     return sorted(existing)
 
 
+def get_postgresql_major_from_server_compose(compose_yml: str):
+    match = re.search(r"image:\s*postgres:(\d+)", compose_yml)
+    if not match:
+        return None
+    return match.group(1)
+
+
+def detect_postgresql_major_version_mismatch(logs: str):
+    if "database files are incompatible with server" not in logs.lower():
+        return None
+
+    initialized_match = re.search(r"initialized by PostgreSQL version (\d+)", logs)
+    running_match = re.search(r"this version (\d+)", logs)
+    initialized_major = initialized_match.group(1) if initialized_match else "unknown"
+    running_major = running_match.group(1) if running_match else "unknown"
+    return initialized_major, running_major
+
+
+def print_postgresql_upgrade_guidance(
+    server: str,
+    data_major: str,
+    expected_major: str,
+    runtime_major: str = None,
+):
+    runtime_text = (
+        f" (runtime image reported {runtime_major})"
+        if runtime_major and runtime_major != expected_major
+        else ""
+    )
+    print(
+        f"{RED}PostgreSQL data version mismatch detected on server '{server}'.{END}\n"
+        f"The existing PostgreSQL volume was initialized with version {data_major}, "
+        f"but deployment expects version {expected_major}{runtime_text}.\n"
+        "Deployment has been stopped before database cleanup to avoid partial failures.\n\n"
+        "Before resetting, export data for all apps. Then run:\n"
+        f"  dallinger docker-ssh reset-db --server {server}\n\n"
+        "The reset command purges the shared PostgreSQL data volume, which removes all app databases."
+    )
+
+
+def ensure_postgresql_compatibility_or_abort(
+    executor, server: str, expected_major: str
+):
+    if not expected_major:
+        return
+
+    try:
+        data_major = get_postgresql_data_volume_major(executor)
+    except click.ClickException:
+        raise
+    except Exception:
+        logs = executor.run(
+            "docker compose -f ~/dallinger/docker-compose.yml logs --tail=200 postgresql",
+            raise_=False,
+        )
+        mismatch = detect_postgresql_major_version_mismatch(logs)
+        if mismatch:
+            initialized_major, runtime_major = mismatch
+            print_postgresql_upgrade_guidance(
+                server=server,
+                data_major=initialized_major,
+                expected_major=expected_major,
+                runtime_major=runtime_major,
+            )
+            raise click.Abort()
+        return
+
+    if data_major is None or data_major == expected_major:
+        return
+
+    print_postgresql_upgrade_guidance(
+        server=server,
+        data_major=data_major,
+        expected_major=expected_major,
+    )
+    raise click.Abort()
+
+
+def get_running_app_containers(executor):
+    raw = executor.run(
+        "docker ps --format '{{.Names}}' --filter network=dallinger", raise_=False
+    )
+    core_patterns = (
+        r"^dozzle$",
+        r"^dallinger[-_]postgresql[-_]\d+$",
+        r"^dallinger[-_]httpserver[-_]\d+$",
+    )
+    running = []
+    for line in raw.splitlines():
+        name = line.strip()
+        if not name:
+            continue
+        if any(re.match(pattern, name) for pattern in core_patterns):
+            continue
+        running.append(name)
+    return running
+
+
+def get_postgresql_data_volumes(executor):
+    output = executor.run(
+        "docker volume ls --format '{{.Name}}' | sed -n '/dallinger_pg_data$/p'",
+        raise_=False,
+    )
+    volumes = sorted({line.strip() for line in output.splitlines() if line.strip()})
+    return volumes
+
+
+def get_single_postgresql_data_volume(executor, required=False):
+    volumes = get_postgresql_data_volumes(executor)
+    if not volumes:
+        if required:
+            raise click.ClickException(
+                "Could not find a PostgreSQL data volume ending with 'dallinger_pg_data'."
+            )
+        return None
+    if len(volumes) > 1:
+        joined = ", ".join(volumes)
+        raise click.ClickException(
+            f"Found multiple PostgreSQL data volumes ({joined}). Resolve this before continuing."
+        )
+    return volumes[0]
+
+
+def parse_postgresql_major_from_pg_version(value: str):
+    match = re.match(r"^\s*(\d+)\s*$", value)
+    if not match:
+        return None
+    return match.group(1)
+
+
+def get_postgresql_data_volume_major(executor):
+    volume_name = get_single_postgresql_data_volume(executor, required=False)
+    if volume_name is None:
+        return None
+    output = executor.run(
+        "docker run --rm "
+        f"-v {quote(volume_name)}:/var/lib/postgresql/data "
+        "alpine sh -lc "
+        "'if [ -f /var/lib/postgresql/data/PG_VERSION ]; then cat /var/lib/postgresql/data/PG_VERSION; fi'",
+        raise_=False,
+    )
+    major = parse_postgresql_major_from_pg_version(output)
+    return major
+
+
 def ensure_root_domain_ready(server, update):
     if update:
         return True
@@ -719,6 +864,9 @@ It currently resolves to {ipaddr_experiment}."""
     sftp = get_sftp(ssh_host, user=ssh_user)
     dozzle_base = "/logs" if not use_subdomain else ""
     rendered_compose = DOCKER_COMPOSE_SERVER_TPL.render(dozzle_base=dozzle_base)
+    expected_postgresql_major = get_postgresql_major_from_server_compose(
+        rendered_compose
+    )
     sftp.putfo(BytesIO(rendered_compose.encode()), "dallinger/docker-compose.yml")
     caddy_template = CADDYFILE_SUBDOMAIN if use_subdomain else CADDYFILE_ROOT
     caddy_kwargs = {"host": dns_host, "tls": tls}
@@ -736,6 +884,9 @@ It currently resolves to {ipaddr_experiment}."""
 
     print("Launching http, postgresql and dozzle servers.")
     executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
+    ensure_postgresql_compatibility_or_abort(
+        executor, server=server, expected_major=expected_postgresql_major
+    )
 
     if not update:
         print("Starting experiment.")
@@ -956,6 +1107,43 @@ def stats(server):
     ssh_user = server_info.get("user")
     executor = Executor(ssh_host, user=ssh_user)
     executor.run_and_echo("docker stats")
+
+
+@docker_ssh.command("reset-db")
+@option_server
+def reset_db(server):
+    """Destructively reset shared PostgreSQL storage for this server."""
+    server_info = CONFIGURED_HOSTS[server]
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
+    executor = Executor(ssh_host, user=ssh_user)
+
+    running_apps = get_running_app_containers(executor)
+    if running_apps:
+        print(
+            f"{RED}Cannot reset PostgreSQL while experiment app containers are running.{END}\n"
+            f"Running app containers:\n  {' '.join(running_apps)}\n"
+            "Stop or destroy running apps first, and export any data you need before continuing."
+        )
+        raise click.Abort()
+
+    print(
+        f"{RED}This operation is destructive.{END}\n"
+        "It will remove the shared PostgreSQL data volume and purge all app databases.\n"
+        "Export all app data first (dallinger docker-ssh apps/export)."
+    )
+    if not click.confirm("Proceed with PostgreSQL reset?", default=False):
+        raise click.Abort()
+
+    print("Stopping core services.")
+    executor.run("docker compose -f ~/dallinger/docker-compose.yml down")
+
+    volume = get_single_postgresql_data_volume(executor, required=True)
+    executor.run(f"docker volume rm {quote(volume)}")
+
+    print_bold(
+        "PostgreSQL storage was reset. You can now redeploy apps; they will use fresh databases."
+    )
 
 
 @docker_ssh.command()

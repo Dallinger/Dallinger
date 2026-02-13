@@ -32,6 +32,8 @@
 - Fixed flaky MTurk test by including Python version in qualification names to prevent collisions between parallel CI jobs.
 - Fixed new participant link to avoid propagating credentials from the dashboard URL.
 - Fixed EC2 teardown to show a clear error when no instances exist in a region.
+- Improved `docker-ssh` PostgreSQL compatibility preflight: deployments now detect incompatible PostgreSQL data volumes early and abort with clear export-and-reset guidance.
+- Added `dallinger docker-ssh reset-db`, a destructive reset command that clears the shared PostgreSQL data volume after confirming no app containers are running.
 
 #### Updated
 - Updated to PostgreSQL 16
