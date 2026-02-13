@@ -1,5 +1,8 @@
+import importlib
 from pathlib import Path
 
+import click
+import pytest
 import yaml
 
 
@@ -86,3 +89,225 @@ def test_num_dynos():
     result = get_yaml({"num_dynos_worker": n})
     for i in range(n):
         assert f"worker_{i + 1}" in result["services"]
+
+
+def test_detect_postgresql_major_version_mismatch():
+    from dallinger.command_line.docker_ssh import (
+        detect_postgresql_major_version_mismatch,
+    )
+
+    logs = (
+        "FATAL:  database files are incompatible with server\n"
+        "DETAIL:  The data directory was initialized by PostgreSQL version 12, "
+        "which is not compatible with this version 16.12."
+    )
+    assert detect_postgresql_major_version_mismatch(logs) == ("12", "16")
+
+
+def test_detect_postgresql_major_version_mismatch_returns_none_without_marker():
+    from dallinger.command_line.docker_ssh import (
+        detect_postgresql_major_version_mismatch,
+    )
+
+    assert detect_postgresql_major_version_mismatch("database system is ready") is None
+
+
+def test_parse_postgresql_major_from_pg_version():
+    from dallinger.command_line.docker_ssh import parse_postgresql_major_from_pg_version
+
+    assert parse_postgresql_major_from_pg_version("12\n") == "12"
+
+
+def test_parse_postgresql_major_from_pg_version_invalid():
+    from dallinger.command_line.docker_ssh import parse_postgresql_major_from_pg_version
+
+    assert parse_postgresql_major_from_pg_version("12.1\n") is None
+    assert parse_postgresql_major_from_pg_version("") is None
+
+
+def test_get_running_app_containers_filters_core_services():
+    from dallinger.command_line.docker_ssh import get_running_app_containers
+
+    class ExecutorStub:
+        def run(self, cmd, raise_=True):
+            del raise_
+            assert "docker ps" in cmd
+            return "\n".join(
+                (
+                    "dozzle",
+                    "dallinger-postgresql-1",
+                    "dallinger_httpserver_1",
+                    "psynet-06_web_1",
+                    "psynet-06_pgbouncer",
+                )
+            )
+
+    assert get_running_app_containers(ExecutorStub()) == [
+        "psynet-06_web_1",
+        "psynet-06_pgbouncer",
+    ]
+
+
+def test_ensure_postgresql_compatibility_or_abort_aborts_on_version_mismatch(
+    monkeypatch,
+):
+    from dallinger.command_line.docker_ssh import (
+        ensure_postgresql_compatibility_or_abort,
+    )
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    monkeypatch.setattr(
+        docker_ssh, "get_postgresql_data_volume_major", lambda executor: "12"
+    )
+
+    with pytest.raises(click.Abort):
+        ensure_postgresql_compatibility_or_abort(
+            object(), server="myserver", expected_major="16"
+        )
+
+
+def test_ensure_postgresql_compatibility_or_abort_allows_matching_version(monkeypatch):
+    from dallinger.command_line.docker_ssh import (
+        ensure_postgresql_compatibility_or_abort,
+    )
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    monkeypatch.setattr(
+        docker_ssh, "get_postgresql_data_volume_major", lambda executor: "16"
+    )
+    ensure_postgresql_compatibility_or_abort(
+        object(), server="myserver", expected_major="16"
+    )
+
+
+def test_ensure_postgresql_compatibility_or_abort_allows_missing_volume_version(
+    monkeypatch,
+):
+    from dallinger.command_line.docker_ssh import (
+        ensure_postgresql_compatibility_or_abort,
+    )
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    monkeypatch.setattr(
+        docker_ssh, "get_postgresql_data_volume_major", lambda executor: None
+    )
+    ensure_postgresql_compatibility_or_abort(
+        object(), server="myserver", expected_major="16"
+    )
+
+
+def test_ensure_postgresql_compatibility_or_abort_uses_log_fallback(monkeypatch):
+    from dallinger.command_line.docker_ssh import (
+        ensure_postgresql_compatibility_or_abort,
+    )
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    def fail_probe(executor):
+        raise RuntimeError("probe failed")
+
+    monkeypatch.setattr(docker_ssh, "get_postgresql_data_volume_major", fail_probe)
+
+    class ExecutorStub:
+        def run(self, cmd, raise_=True):
+            del raise_
+            assert "logs --tail=200 postgresql" in cmd
+            return (
+                "FATAL: database files are incompatible with server\n"
+                "DETAIL: The data directory was initialized by PostgreSQL version 12, "
+                "which is not compatible with this version 16.12."
+            )
+
+    with pytest.raises(click.Abort):
+        ensure_postgresql_compatibility_or_abort(
+            ExecutorStub(), server="myserver", expected_major="16"
+        )
+
+
+def test_reset_db_aborts_if_apps_running(monkeypatch):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    monkeypatch.setattr(
+        docker_ssh,
+        "CONFIGURED_HOSTS",
+        {"srv": {"host": "example.org", "user": "ubuntu"}},
+    )
+
+    class ExecutorStub:
+        def run(self, cmd, raise_=True):
+            del cmd, raise_
+            return ""
+
+    monkeypatch.setattr(
+        docker_ssh, "Executor", lambda host, user=None, app=None: ExecutorStub()
+    )
+    monkeypatch.setattr(
+        docker_ssh, "get_running_app_containers", lambda executor: ["psynet-06_web_1"]
+    )
+
+    with pytest.raises(click.Abort):
+        docker_ssh.reset_db.callback(server="srv")
+
+
+def test_reset_db_requires_confirmation(monkeypatch):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    monkeypatch.setattr(
+        docker_ssh,
+        "CONFIGURED_HOSTS",
+        {"srv": {"host": "example.org", "user": "ubuntu"}},
+    )
+
+    commands = []
+
+    class ExecutorStub:
+        def run(self, cmd, raise_=True):
+            del raise_
+            commands.append(cmd)
+            return ""
+
+    monkeypatch.setattr(
+        docker_ssh, "Executor", lambda host, user=None, app=None: ExecutorStub()
+    )
+    monkeypatch.setattr(docker_ssh, "get_running_app_containers", lambda executor: [])
+    monkeypatch.setattr(click, "confirm", lambda *args, **kwargs: False)
+
+    with pytest.raises(click.Abort):
+        docker_ssh.reset_db.callback(server="srv")
+
+    assert commands == []
+
+
+def test_reset_db_executes_reset_sequence(monkeypatch):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    monkeypatch.setattr(
+        docker_ssh,
+        "CONFIGURED_HOSTS",
+        {"srv": {"host": "example.org", "user": "ubuntu"}},
+    )
+
+    commands = []
+
+    class ExecutorStub:
+        def run(self, cmd, raise_=True):
+            del raise_
+            commands.append(cmd)
+            return ""
+
+    monkeypatch.setattr(
+        docker_ssh, "Executor", lambda host, user=None, app=None: ExecutorStub()
+    )
+    monkeypatch.setattr(docker_ssh, "get_running_app_containers", lambda executor: [])
+    monkeypatch.setattr(click, "confirm", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        docker_ssh,
+        "get_single_postgresql_data_volume",
+        lambda executor, required=False: "dallinger_pg_data",
+    )
+    docker_ssh.reset_db.callback(server="srv")
+
+    assert commands == [
+        "docker compose -f ~/dallinger/docker-compose.yml down",
+        "docker volume rm dallinger_pg_data",
+    ]
