@@ -15,7 +15,7 @@ services:
   web:
     restart: unless-stopped
     image: {{ experiment_image }}
-    user: "${UID}:${GID}"
+    user: "{{ uid }}:{{ gid }}"
     command: dallinger_heroku_web
     depends_on: &commondepends
       redis_{{ experiment_id }}:
@@ -36,7 +36,7 @@ services:
         aliases:
           - {{ experiment_id }}_web
     volumes:
-      - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
+      - {{ home_dir }}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
     {%- if docker_volumes | length > 0 %}
       {%- for volume in docker_volumes.split(",") %}
       - {{ volume | string() }}
@@ -52,13 +52,13 @@ services:
     cpu_shares: {{ config["docker_worker_cpu_shares"] }}
     depends_on:
       <<: *commondepends
-    user: "${UID}:${GID}"
+    user: "{{ uid }}:{{ gid }}"
     environment:
       <<: *commonenv
     networks:
       - dallinger
     volumes:
-      - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
+      - {{ home_dir }}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
     {%- if docker_volumes | length > 0 %}
       {%- for volume in docker_volumes.split(",") %}
       - {{ volume | string() }}
@@ -89,7 +89,7 @@ services:
   clock:
     restart: unless-stopped
     image: {{ experiment_image }}
-    user: "${UID}:${GID}"
+    user: "{{ uid }}:{{ gid }}"
     command: dallinger_heroku_clock
     depends_on:
       <<: *commondepends
@@ -101,7 +101,7 @@ services:
         aliases:
           - {{ experiment_id }}_clock
     volumes:
-      - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
+      - {{ home_dir }}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
 {%- endif %}
 
 volumes:

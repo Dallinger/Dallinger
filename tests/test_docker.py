@@ -1,6 +1,38 @@
+import os
+import pwd
+import subprocess
 from pathlib import Path
 
+import click
+import pytest
 import yaml
+
+
+class LocalShellExecutor:
+    def __init__(self, env=None):
+        self.env = os.environ.copy()
+        if env:
+            for key, value in env.items():
+                if value is None:
+                    self.env.pop(key, None)
+                else:
+                    self.env[key] = value
+
+    def run(self, cmd, raise_=True):
+        completed = subprocess.run(
+            cmd,
+            shell=True,
+            executable="/bin/sh",
+            text=True,
+            capture_output=True,
+            env=self.env,
+            check=False,
+        )
+        if raise_ and completed.returncode != 0:
+            from dallinger.command_line.docker_ssh import ExecuteException
+
+            raise ExecuteException(completed.stderr.strip() or completed.stdout.strip())
+        return completed.stdout
 
 
 def test_get_docker_compose_yml_extra_config():
@@ -71,11 +103,17 @@ def test_add_image_name(tempdir):
     )
 
 
-def get_yaml(config):
+def get_yaml(config, uid=None, gid=None, home_dir=None):
     from dallinger.command_line.docker_ssh import get_docker_compose_yml
 
     yaml_contents = get_docker_compose_yml(
-        config, "dlgr-8c43a887", "ghcr.io/dallinger/dallinger/bartlett1932", "foobar"
+        config,
+        "dlgr-8c43a887",
+        "ghcr.io/dallinger/dallinger/bartlett1932",
+        "foobar",
+        uid=uid,
+        gid=gid,
+        home_dir=home_dir,
     )
     return yaml.safe_load(yaml_contents)
 
@@ -86,3 +124,96 @@ def test_num_dynos():
     result = get_yaml({"num_dynos_worker": n})
     for i in range(n):
         assert f"worker_{i + 1}" in result["services"]
+
+
+def test_get_docker_compose_yml_explicit_user_and_home():
+    """Remote deployments should render deterministic uid/gid and home path."""
+    result = get_yaml({}, uid="1001", gid="1002", home_dir="/home/ubuntu")
+    assert result["services"]["web"]["user"] == "1001:1002"
+    assert result["services"]["worker_1"]["user"] == "1001:1002"
+    assert (
+        result["services"]["web"]["volumes"][0]
+        == "/home/ubuntu/dallinger-data/dlgr-8c43a887:/var/lib/dallinger"
+    )
+
+
+def test_get_docker_compose_yml_default_user_placeholders():
+    """When no remote ids are provided, keep compose placeholders."""
+    result = get_yaml({})
+    assert result["services"]["web"]["user"] == "${UID}:${GID}"
+
+
+def test_parse_remote_identity_output_with_step_markers():
+    from dallinger.command_line.docker_ssh import parse_remote_identity_output
+
+    output = "\n".join(
+        (
+            "STEP:identity:start",
+            "uid=1000",
+            "gid=1001",
+            "home=/home/ubuntu",
+            "STEP:identity:resolved",
+        )
+    )
+    assert parse_remote_identity_output(output) == ("1000", "1001", "/home/ubuntu")
+
+
+def test_parse_remote_identity_output_raises_for_missing_home():
+    from dallinger.command_line.docker_ssh import parse_remote_identity_output
+
+    output = "\n".join(("STEP:identity:start", "uid=1000", "gid=1001"))
+    with pytest.raises(click.ClickException):
+        parse_remote_identity_output(output)
+
+
+def test_get_remote_identity_uses_home_env_value(tmp_path):
+    from dallinger.command_line.docker_ssh import get_remote_identity
+
+    expected_home = str(tmp_path / "home-from-env")
+    executor = LocalShellExecutor(env={"HOME": expected_home})
+    uid, gid, home_dir = get_remote_identity(executor)
+    assert uid == str(os.getuid())
+    assert gid == str(os.getgid())
+    assert home_dir == expected_home
+
+
+def test_get_remote_identity_falls_back_when_home_empty():
+    from dallinger.command_line.docker_ssh import get_remote_identity
+
+    executor = LocalShellExecutor(env={"HOME": ""})
+    uid, gid, home_dir = get_remote_identity(executor)
+    assert uid == str(os.getuid())
+    assert gid == str(os.getgid())
+    assert home_dir == pwd.getpwuid(os.getuid()).pw_dir
+
+
+def test_prepare_remote_experiment_paths_creates_paths_and_logfile(tmp_path):
+    from dallinger.command_line.docker_ssh import (
+        JSON_LOGFILE,
+        prepare_remote_experiment_paths,
+    )
+
+    home_dir = tmp_path / "remote-home"
+    home_dir.mkdir()
+    experiment_id = "dlgr-path-test"
+    uid = str(os.getuid())
+    gid = str(os.getgid())
+    executor = LocalShellExecutor()
+
+    prepare_remote_experiment_paths(
+        executor,
+        experiment_id=experiment_id,
+        home_dir=str(home_dir),
+        uid=uid,
+        gid=gid,
+    )
+
+    experiment_dir = home_dir / "dallinger" / experiment_id
+    data_dir = home_dir / "dallinger-data" / experiment_id
+    log_path = experiment_dir / JSON_LOGFILE
+
+    assert experiment_dir.is_dir()
+    assert data_dir.is_dir()
+    assert log_path.is_file()
+    assert log_path.stat().st_uid == os.getuid()
+    assert log_path.stat().st_gid == os.getgid()

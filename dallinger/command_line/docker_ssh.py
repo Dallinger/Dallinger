@@ -671,6 +671,7 @@ It currently resolves to {ipaddr_experiment}."""
             raise click.Abort
 
     executor = Executor(ssh_host, user=ssh_user, app=app_identifier)
+    remote_uid, remote_gid, remote_home_dir = get_remote_identity(executor)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
     if not use_subdomain and not preflight_root_clean:
@@ -773,12 +774,24 @@ It currently resolves to {ipaddr_experiment}."""
     )
     cfg.update(config_options)
     del cfg["host"]  # The uppercase variable will be used instead
-    executor.run(f"mkdir -p dallinger/{experiment_id}")
+    prepare_remote_experiment_paths(
+        executor=executor,
+        experiment_id=experiment_id,
+        home_dir=remote_home_dir,
+        uid=remote_uid,
+        gid=remote_gid,
+    )
     postgresql_password = token_urlsafe(16)
     sftp.putfo(
         BytesIO(
             get_docker_compose_yml(
-                cfg, experiment_id, image_name, postgresql_password, executor
+                cfg,
+                experiment_id,
+                image_name,
+                postgresql_password,
+                uid=remote_uid,
+                gid=remote_gid,
+                home_dir=remote_home_dir,
             ).encode()
         ),
         f"dallinger/{experiment_id}/docker-compose.yml",
@@ -1296,26 +1309,139 @@ class Executor:
                     break
 
 
+def parse_remote_numeric_id(value: str, name: str) -> str:
+    parsed = value.strip()
+    if not parsed.isdigit():
+        raise click.ClickException(
+            f"Could not determine a numeric {name} on the remote host. Got: {value!r}"
+        )
+    return parsed
+
+
+def parse_remote_identity_output(output: str):
+    values = {}
+    for line in output.splitlines():
+        if line.startswith("STEP:") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip()
+
+    uid_value = values.get("uid")
+    gid_value = values.get("gid")
+    home_dir = values.get("home")
+    if uid_value is None or gid_value is None or not home_dir:
+        raise click.ClickException(
+            "Could not determine remote identity values (uid, gid, home)."
+        )
+
+    uid = parse_remote_numeric_id(uid_value, "uid")
+    gid = parse_remote_numeric_id(gid_value, "gid")
+    return uid, gid, home_dir
+
+
+def get_remote_identity(executor: "Executor"):
+    identity_script = """
+set -eu
+echo "STEP:identity:start"
+uid=$(id -u)
+gid=$(id -g)
+home_dir="${HOME:-}"
+if [ -z "$home_dir" ]; then
+    home_dir=$(getent passwd "$uid" | cut -d: -f6 || true)
+fi
+if [ -z "$home_dir" ]; then
+    home_dir=$(awk -F: -v uid="$uid" '$3 == uid { print $6; exit }' /etc/passwd || true)
+fi
+if [ -z "$home_dir" ]; then
+    echo "STEP:identity:error:no_home" >&2
+    exit 1
+fi
+echo "STEP:identity:resolved"
+printf 'uid=%s\\ngid=%s\\nhome=%s\\n' "$uid" "$gid" "$home_dir"
+""".strip()
+    output = executor.run(f"sh -lc {quote(identity_script)}")
+    return parse_remote_identity_output(output)
+
+
+def prepare_remote_experiment_paths(
+    executor: "Executor",
+    experiment_id: str,
+    home_dir: str,
+    uid: str,
+    gid: str,
+):
+    experiment_dir = f"{home_dir}/dallinger/{experiment_id}"
+    data_dir = f"{home_dir}/dallinger-data/{experiment_id}"
+    log_path = f"{experiment_dir}/{JSON_LOGFILE}"
+    ownership = f"{uid}:{gid}"
+    path_setup_script = f"""
+set -eu
+echo "STEP:paths:start"
+experiment_dir={quote(experiment_dir)}
+data_dir={quote(data_dir)}
+log_path={quote(log_path)}
+ownership={quote(ownership)}
+
+echo "STEP:paths:mkdir"
+mkdir -p "$experiment_dir" "$data_dir"
+
+echo "STEP:paths:touch_log"
+touch "$log_path"
+
+echo "STEP:paths:chown:experiment_dir"
+if chown "$ownership" "$experiment_dir" >/dev/null 2>&1; then
+    echo "STEP:paths:chown:experiment_dir:ok"
+else
+    echo "STEP:paths:chown:experiment_dir:sudo"
+    sudo -n chown "$ownership" "$experiment_dir"
+fi
+
+echo "STEP:paths:chown:data_dir"
+if chown "$ownership" "$data_dir" >/dev/null 2>&1; then
+    echo "STEP:paths:chown:data_dir:ok"
+else
+    echo "STEP:paths:chown:data_dir:sudo"
+    sudo -n chown "$ownership" "$data_dir"
+fi
+
+echo "STEP:paths:chown:log"
+if chown "$ownership" "$log_path" >/dev/null 2>&1; then
+    echo "STEP:paths:chown:log:ok"
+else
+    echo "STEP:paths:chown:log:sudo"
+    sudo -n chown "$ownership" "$log_path"
+fi
+
+echo "STEP:paths:done"
+""".strip()
+    executor.run(f"sh -lc {quote(path_setup_script)}")
+
+
 def get_docker_compose_yml(
     config: Dict[str, str],
     experiment_id: str,
     experiment_image: str,
     postgresql_password: str,
-    executor: Executor = None,
+    uid: str = None,
+    gid: str = None,
+    home_dir: str = None,
 ) -> str:
     """Generate a docker-compose.yml file based on the given"""
     docker_volumes = config.get("docker_volumes", "")
     logger_filename = JSON_LOGFILE
     if logger_filename:
-        if executor:
-            # touch the logger file so that it exists when the container starts
-            executor.run(f"touch $HOME/dallinger/{experiment_id}/{logger_filename}")
         new_volume = f"./{logger_filename}:/experiment/{logger_filename}"
         if docker_volumes:
             docker_volumes = f"{docker_volumes},{new_volume}"
         else:
             docker_volumes = new_volume
     config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
+    if uid is None:
+        uid = "${UID}"
+    if gid is None:
+        gid = "${GID}"
+    if home_dir is None:
+        home_dir = "${HOME}"
 
     return DOCKER_COMPOSE_EXP_TPL.render(
         experiment_id=experiment_id,
@@ -1323,6 +1449,9 @@ def get_docker_compose_yml(
         config=config_str,
         docker_volumes=docker_volumes,
         postgresql_password=postgresql_password,
+        uid=uid,
+        gid=gid,
+        home_dir=home_dir,
     )
 
 
