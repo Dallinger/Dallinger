@@ -221,8 +221,9 @@ class Configuration:
         # For now this is limited to "auto_recruit", but in the future it can be extended
         # to other parameters as well
         if key == "auto_recruit":
-            from dallinger.db import redis_conn
             from redis.exceptions import RedisError
+
+            from dallinger.db import redis_conn
 
             try:
                 auto_recruit = redis_conn.get("auto_recruit")
