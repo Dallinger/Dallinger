@@ -124,6 +124,7 @@ dallinger docker-ssh sandbox \
   --server "${TARGET_SERVER}" \
   --local_build \
   -c dashboard_password ci-smoke-password \
+  -c recruiter hotair \
   -c auto_recruit false | tee "${DEPLOY_LOG}"
 
 APP_ID="$(DEPLOY_LOG_PATH="${DEPLOY_LOG}" python3 - <<'PY'
