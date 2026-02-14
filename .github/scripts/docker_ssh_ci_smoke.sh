@@ -6,6 +6,7 @@ TARGET_HOST="localhost"
 TARGET_SSH_PORT="2222"
 TARGET_SERVER="${TARGET_HOST}:${TARGET_SSH_PORT}"
 TARGET_USER="root"
+EXPERIMENT_IMAGE="ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5"
 TMP_ROOT="${RUNNER_TEMP:-/tmp}/dallinger-docker-ssh-ci"
 SSH_KEY_PATH="${TMP_ROOT}/id_ed25519"
 CI_HOME="${TMP_ROOT}/home"
@@ -86,6 +87,7 @@ chmod 600 "${HOME}/.ssh/server.pem"
 cat > "${HOME}/.dallingerconfig" <<EOF
 [Parameters]
 server_pem = ${HOME}/.ssh/server.pem
+docker_image_name = ${EXPERIMENT_IMAGE}
 EOF
 
 export SKIP_PYTHON_VERSION_CHECK=true
@@ -93,7 +95,7 @@ export SKIP_PYTHON_VERSION_CHECK=true
 cd "${EXPERIMENT_DIR}"
 dallinger docker-ssh servers add --host "${TARGET_SERVER}" --user "${TARGET_USER}"
 
-dallinger docker-ssh sandbox --server "${TARGET_SERVER}" -c dashboard_password ci-smoke-password | tee "${DEPLOY_LOG}"
+dallinger docker-ssh sandbox --server "${TARGET_SERVER}" --local_build -c dashboard_password ci-smoke-password | tee "${DEPLOY_LOG}"
 
 APP_ID="$(DEPLOY_LOG_PATH="${DEPLOY_LOG}" python3 - <<'PY'
 import os
