@@ -92,7 +92,7 @@ you can see the four containers created:
     edef75321fcc   bartlett1932:e3ca8804   "dallinger_heroku_web"   11 minutes ago   Up 11 minutes             0.0.0.0:5000->5000/tcp, :::5000->5000/tcp   bartlett1932_web_1
     7fe2d5bda159   bartlett1932:e3ca8804   "dallinger_heroku_wo…"   11 minutes ago   Up 11 minutes                                                         bartlett1932_worker_1
     0c3cd206983d   redis                   "docker-entrypoint.s…"   11 minutes ago   Up 11 minutes (healthy)   0.0.0.0:6379->6379/tcp, :::6379->6379/tcp   bartlett1932_redis_1
-    12f8bb837a91   postgres:16             "docker-entrypoint.s…"   11 minutes ago   Up 11 minutes (healthy)   0.0.0.0:5432->5432/tcp, :::5432->5432/tcp   bartlett1932_postgresql_1
+    12f8bb837a91   postgres:12             "docker-entrypoint.s…"   11 minutes ago   Up 11 minutes (healthy)   0.0.0.0:5432->5432/tcp, :::5432->5432/tcp   bartlett1932_postgresql_1
 
 .. note::
 
@@ -126,4 +126,4 @@ They will not be visible when running ``docker ps`` since they're stopped, but t
     93a0a61495a6   bartlett1932:e3ca8804   "dallinger_heroku_wo…"   About a minute ago   Exited (0) 8 seconds ago             bartlett1932_worker_1
     d78af2bfcf31   bartlett1932:e3ca8804   "dallinger_heroku_web"   About a minute ago   Exited (0) 4 seconds ago             bartlett1932_web_1
     0c3cd206983d   redis                   "docker-entrypoint.s…"   35 minutes ago       Exited (0) 3 seconds ago             bartlett1932_redis_1
-    12f8bb837a91   postgres:16             "docker-entrypoint.s…"   35 minutes ago       Exited (0) 3 seconds ago             bartlett1932_postgresql_1
+    12f8bb837a91   postgres:12             "docker-entrypoint.s…"   35 minutes ago       Exited (0) 3 seconds ago             bartlett1932_postgresql_1

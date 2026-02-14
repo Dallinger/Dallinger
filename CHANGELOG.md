@@ -1,3 +1,8 @@
+## [Unreleased]
+
+#### Reverted
+- Reverted upgrade to PostgreSQL 16
+
 ## [v12.1.1](https://github.com/dallinger/dallinger/tree/v12.1.1) (2026-02-11)
 
 #### Changed

@@ -23,11 +23,11 @@ Vagrant.configure("2") do |config|
     sudo apt-get install -y python3.6 python-pip
 
     # Postgres setup
-    sudo apt-get install -y postgresql-16 postgresql-server-dev-16
+    sudo apt-get install -y postgresql-9.5 postgresql-server-dev-9.5
     sudo -u postgres createuser -ds ubuntu
     createdb dallinger
     # trust all connections
-    sudo sed /etc/postgresql/16/main/pg_hba.conf -e 's/md5/trust/g' --in-place
+    sudo sed /etc/postgresql/9.5/main/pg_hba.conf -e 's/md5/trust/g' --in-place
     sudo service postgresql reload
 
     # Virtual environment
