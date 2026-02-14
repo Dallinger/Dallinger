@@ -120,7 +120,11 @@ cd "${EXPERIMENT_DIR}"
 dallinger docker-ssh servers add --host "${TARGET_SERVER}" --user "${TARGET_USER}"
 ensure_remote_docker_ready
 
-dallinger docker-ssh sandbox --server "${TARGET_SERVER}" --local_build -c dashboard_password ci-smoke-password | tee "${DEPLOY_LOG}"
+dallinger docker-ssh sandbox \
+  --server "${TARGET_SERVER}" \
+  --local_build \
+  -c dashboard_password ci-smoke-password \
+  -c auto_recruit false | tee "${DEPLOY_LOG}"
 
 APP_ID="$(DEPLOY_LOG_PATH="${DEPLOY_LOG}" python3 - <<'PY'
 import os
