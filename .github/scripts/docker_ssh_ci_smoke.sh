@@ -80,6 +80,7 @@ ssh-add "${SSH_KEY_PATH}" >/dev/null
 
 export HOME="${CI_HOME}"
 mkdir -p "${HOME}/.ssh"
+touch "${HOME}/.ssh/known_hosts"
 cp "${SSH_KEY_PATH}" "${HOME}/.ssh/server.pem"
 chmod 600 "${HOME}/.ssh/server.pem"
 cat > "${HOME}/.dallingerconfig" <<EOF

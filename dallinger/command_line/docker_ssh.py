@@ -1143,8 +1143,11 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
     try:
         client.load_host_keys(known_hosts_path)
     except IOError:
-        # The known_hosts file might not exist yet; we'll create it after connecting.
+        # Paramiko may try to save host keys during connect(), which requires
+        # the target file to already exist.
         os.makedirs(os.path.dirname(known_hosts_path), exist_ok=True)
+        Path(known_hosts_path).touch(exist_ok=True)
+        client.load_host_keys(known_hosts_path)
 
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.load_system_host_keys()

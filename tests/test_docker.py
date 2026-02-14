@@ -101,3 +101,58 @@ def test_is_loopback_host():
     assert is_loopback_host("localhost")
     assert is_loopback_host("127.0.0.2")
     assert not is_loopback_host("203.0.113.10")
+
+
+def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypatch):
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    key_path = tmp_path / "server.pem"
+    key_path.write_text("dummy")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: key_path)
+
+    class DummySpinner:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def ok(self, *_):
+            return None
+
+        def fail(self, *_):
+            return None
+
+        def stop(self):
+            return None
+
+        def start(self):
+            return None
+
+    monkeypatch.setattr(docker_ssh, "yaspin", lambda *args, **kwargs: DummySpinner())
+
+    class DummyClient:
+        def load_host_keys(self, filename):
+            if not Path(filename).exists():
+                raise IOError("missing")
+
+        def set_missing_host_key_policy(self, policy):
+            return None
+
+        def load_system_host_keys(self):
+            return None
+
+        def connect(self, **kwargs):
+            return None
+
+        def save_host_keys(self, filename):
+            assert Path(filename).exists()
+
+    monkeypatch.setattr(docker_ssh.paramiko, "SSHClient", DummyClient)
+
+    client = docker_ssh.get_connected_ssh_client("localhost:2222", user="root")
+    assert isinstance(client, DummyClient)
+    assert (tmp_path / ".ssh" / "known_hosts").exists()
