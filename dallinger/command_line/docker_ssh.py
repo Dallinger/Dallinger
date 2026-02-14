@@ -596,7 +596,7 @@ def _deploy_in_mode(
     # We deleted this because synchronizing configs between local and remote can cause problems especially when using
     # different credential managers
     # copy_docker_config(ssh_host, ssh_user)
-    HAS_TLS = ssh_host != "localhost"
+    HAS_TLS = ssh_host not in {"localhost", "127.0.0.1", "::1"}
     # We abuse the mturk contact_email_on_error to provide an email for let's encrypt certificate
     email_addr = config.get("contact_email_on_error")
     if HAS_TLS:
@@ -874,6 +874,7 @@ It currently resolves to {ipaddr_experiment}."""
             dns_host=dns_host,
             dozzle_password=dozzle_password,
             context="ssh",
+            verify=HAS_TLS,
         )
         print(launch_data.get("recruitment_msg"))
 

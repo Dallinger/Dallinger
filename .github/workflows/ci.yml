@@ -229,6 +229,24 @@ jobs:
         continue-on-error: true
         run: for container in $(docker ps -a -q); do echo "***** $(docker ps -a|grep $container) *******"; docker logs $container; done
 
+  docker-ssh-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install Ubuntu packages
+        run: sudo apt-get --yes install openssh-client
+      - name: Install Dallinger and docker dependencies
+        run: |
+          pip install --upgrade pip wheel
+          pip install -e .[data,docker]
+      - name: Run docker-ssh smoke test against ephemeral Ubuntu host
+        run: bash .github/scripts/docker_ssh_ci_smoke.sh
+
   pre-commit:
     runs-on: ubuntu-latest
     steps:
