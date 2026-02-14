@@ -182,7 +182,7 @@ termcolor==3.3.0
     # via yaspin
 timeago==1.0.16
     # via dallinger
-trio==0.32.0
+trio==0.33.0
     # via
     #   selenium
     #   trio-typing

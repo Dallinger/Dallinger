@@ -618,7 +618,7 @@ traitlets==5.14.3
     #   nbclient
     #   nbconvert
     #   nbformat
-trio==0.32.0
+trio==0.33.0
     # via
     #   selenium
     #   trio-typing
