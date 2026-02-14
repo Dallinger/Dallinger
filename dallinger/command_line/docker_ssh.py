@@ -577,9 +577,7 @@ def set_dozzle_password(executor, sftp, new_password):
 
 def ensure_postgres_schema_permissions(executor, experiment_id):
     # PostgreSQL 15+ no longer grants CREATE on schema public to all users.
-    grant_schema_script = (
-        f'GRANT USAGE, CREATE ON SCHEMA public TO "{experiment_id}"'
-    )
+    grant_schema_script = f'GRANT USAGE, CREATE ON SCHEMA public TO "{experiment_id}"'
     executor.run(
         "docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql "
         f'psql -U dallinger -d "{experiment_id}" -c {quote(grant_schema_script)}'
