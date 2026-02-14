@@ -1,7 +1,9 @@
 import os
 from tempfile import NamedTemporaryFile
+from unittest import mock
 
 import pytest
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 from dallinger.config import LOCAL_CONFIG, Configuration, get_config
 
@@ -200,6 +202,15 @@ worldwide = false
 
         redis_conn.set("auto_recruit", 1)
         assert active_config.get("auto_recruit") is True
+
+    def test_auto_recruit_falls_back_when_redis_unavailable(self, active_config):
+        active_config.set("auto_recruit", False)
+
+        with mock.patch(
+            "dallinger.db.redis_conn.get",
+            side_effect=RedisConnectionError("redis unavailable"),
+        ):
+            assert active_config.get("auto_recruit") is False
 
 
 @pytest.mark.usefixtures("experiment_dir_merged")
