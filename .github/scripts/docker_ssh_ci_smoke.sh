@@ -3,6 +3,8 @@ set -euo pipefail
 
 TARGET_CONTAINER="dallinger-ssh-target-ci"
 TARGET_HOST="localhost"
+TARGET_SSH_PORT="2222"
+TARGET_SERVER="${TARGET_HOST}:${TARGET_SSH_PORT}"
 TARGET_USER="root"
 TMP_ROOT="${RUNNER_TEMP:-/tmp}/dallinger-docker-ssh-ci"
 SSH_KEY_PATH="${TMP_ROOT}/id_ed25519"
@@ -11,6 +13,7 @@ DEPLOY_LOG="${TMP_ROOT}/deploy.log"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 EXPERIMENT_DIR="${REPO_ROOT}/demos/dlgr/demos/bartlett1932"
 SSH_OPTS=(
+  -p "${TARGET_SSH_PORT}"
   -i "${SSH_KEY_PATH}"
   -o StrictHostKeyChecking=no
   -o UserKnownHostsFile=/dev/null
@@ -49,9 +52,7 @@ docker run -d \
   --name "${TARGET_CONTAINER}" \
   --hostname "${TARGET_CONTAINER}" \
   --privileged \
-  -p 22:22 \
-  -p 80:80 \
-  -p 443:443 \
+  -p "${TARGET_SSH_PORT}:22" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   ubuntu:24.04 sleep infinity >/dev/null
 
@@ -89,9 +90,9 @@ EOF
 export SKIP_PYTHON_VERSION_CHECK=true
 
 cd "${EXPERIMENT_DIR}"
-dallinger docker-ssh servers add --host "${TARGET_HOST}" --user "${TARGET_USER}"
+dallinger docker-ssh servers add --host "${TARGET_SERVER}" --user "${TARGET_USER}"
 
-dallinger docker-ssh sandbox --server "${TARGET_HOST}" -c dashboard_password ci-smoke-password | tee "${DEPLOY_LOG}"
+dallinger docker-ssh sandbox --server "${TARGET_SERVER}" -c dashboard_password ci-smoke-password | tee "${DEPLOY_LOG}"
 
 APP_ID="$(DEPLOY_LOG_PATH="${DEPLOY_LOG}" python3 - <<'PY'
 import os
@@ -105,7 +106,7 @@ PY
 )"
 
 if [[ -z "${APP_ID}" ]]; then
-  APP_ID="$(dallinger docker-ssh apps --server "${TARGET_HOST}" | awk '/^dlgr-/{print; exit}')"
+  APP_ID="$(dallinger docker-ssh apps --server "${TARGET_SERVER}" | awk '/^dlgr-/{print; exit}')"
 fi
 
 if [[ -z "${APP_ID}" ]]; then
@@ -113,5 +114,5 @@ if [[ -z "${APP_ID}" ]]; then
   exit 1
 fi
 
-dallinger docker-ssh destroy --server "${TARGET_HOST}" --app "${APP_ID}"
+dallinger docker-ssh destroy --server "${TARGET_SERVER}" --app "${APP_ID}"
 

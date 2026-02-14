@@ -32,6 +32,7 @@
 - Fixed flaky MTurk test by including Python version in qualification names to prevent collisions between parallel CI jobs.
 - Fixed new participant link to avoid propagating credentials from the dashboard URL.
 - Fixed EC2 teardown to show a clear error when no instances exist in a region.
+- Fixed Docker SSH localhost deployments in CI by allowing SSH hosts with explicit ports (for example, `localhost:2222`) and correctly handling loopback TLS verification.
 
 #### Updated
 - Updated to PostgreSQL 16

@@ -86,3 +86,18 @@ def test_num_dynos():
     result = get_yaml({"num_dynos_worker": n})
     for i in range(n):
         assert f"worker_{i + 1}" in result["services"]
+
+
+def test_split_ssh_host_port():
+    from dallinger.command_line.docker_ssh import split_ssh_host_port
+
+    assert split_ssh_host_port("example.com") == ("example.com", 22)
+    assert split_ssh_host_port("localhost:2222") == ("localhost", 2222)
+
+
+def test_is_loopback_host():
+    from dallinger.command_line.docker_ssh import is_loopback_host
+
+    assert is_loopback_host("localhost")
+    assert is_loopback_host("127.0.0.2")
+    assert not is_loopback_host("203.0.113.10")
