@@ -567,7 +567,12 @@ def set_dozzle_password(executor, sftp, new_password):
         }
     }
     sftp.putfo(BytesIO(json.dumps(dozzle_users).encode()), "dallinger/dozzle-users.yml")
-    executor.restart_dozzle()
+    dozzle_running = executor.run(
+        "docker ps --filter name=^dozzle$ --format '{{.ID}}'",
+        raise_=False,
+    ).strip()
+    if dozzle_running:
+        executor.restart_dozzle()
 
 
 @docker_ssh.command("set-dozzle-password")

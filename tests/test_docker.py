@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest import mock
 
 import click
 import yaml
@@ -213,3 +214,25 @@ def test_get_sftp_sets_working_directory_to_remote_home(monkeypatch):
     sftp = docker_ssh.get_sftp("localhost")
     assert sftp is client.sftp
     assert sftp.changed_to == "/home/tester"
+
+
+def test_set_dozzle_password_skips_restart_when_not_running():
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    executor = mock.Mock()
+
+    def run_side_effect(command, raise_=True):
+        if "test -f ~/dallinger/.env.json" in command:
+            return ""
+        if "docker ps --filter name=^dozzle$" in command:
+            return ""
+        return ""
+
+    executor.run.side_effect = run_side_effect
+    sftp = mock.Mock()
+
+    docker_ssh.set_dozzle_password(executor, sftp, "secret-password")
+
+    assert sftp.putfo.call_count == 2
+    executor.restart_dozzle.assert_not_called()
