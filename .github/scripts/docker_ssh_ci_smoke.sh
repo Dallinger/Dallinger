@@ -30,6 +30,28 @@ show_remote_state() {
     "for c in \$(docker ps -a -q); do echo \"===== \$c =====\"; docker logs \"\$c\" || true; done" || true
 }
 
+ensure_remote_docker_ready() {
+  if ssh "${SSH_OPTS[@]}" "${TARGET_USER}@${TARGET_HOST}" "docker info >/dev/null 2>&1"; then
+    echo "Remote Docker daemon already running"
+    return
+  fi
+
+  ssh "${SSH_OPTS[@]}" "${TARGET_USER}@${TARGET_HOST}" \
+    "nohup dockerd >/var/log/dockerd.log 2>&1 </dev/null &"
+
+  for _ in {1..60}; do
+    if ssh "${SSH_OPTS[@]}" "${TARGET_USER}@${TARGET_HOST}" "docker info >/dev/null 2>&1"; then
+      echo "Remote Docker daemon ready"
+      return
+    fi
+    sleep 1
+  done
+
+  echo "Remote Docker daemon failed to start" >&2
+  ssh "${SSH_OPTS[@]}" "${TARGET_USER}@${TARGET_HOST}" "tail -n 200 /var/log/dockerd.log || true" || true
+  exit 1
+}
+
 cleanup() {
   set +e
   if [[ -f "${SSH_KEY_PATH}" ]]; then
@@ -54,7 +76,6 @@ docker run -d \
   --hostname "${TARGET_CONTAINER}" \
   --privileged \
   -p "${TARGET_SSH_PORT}:22" \
-  -v /var/run/docker.sock:/var/run/docker.sock \
   ubuntu:24.04 sleep infinity >/dev/null
 
 docker exec "${TARGET_CONTAINER}" bash -lc \
@@ -94,6 +115,7 @@ export SKIP_PYTHON_VERSION_CHECK=true
 
 cd "${EXPERIMENT_DIR}"
 dallinger docker-ssh servers add --host "${TARGET_SERVER}" --user "${TARGET_USER}"
+ensure_remote_docker_ready
 
 dallinger docker-ssh sandbox --server "${TARGET_SERVER}" --local_build -c dashboard_password ci-smoke-password | tee "${DEPLOY_LOG}"
 
