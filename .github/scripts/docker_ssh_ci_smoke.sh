@@ -37,7 +37,7 @@ ensure_remote_docker_ready() {
   fi
 
   ssh "${SSH_OPTS[@]}" "${TARGET_USER}@${TARGET_HOST}" \
-    "nohup dockerd >/var/log/dockerd.log 2>&1 </dev/null &"
+    "nohup dockerd --storage-driver=vfs >/var/log/dockerd.log 2>&1 </dev/null &"
 
   for _ in {1..60}; do
     if ssh "${SSH_OPTS[@]}" "${TARGET_USER}@${TARGET_HOST}" "docker info >/dev/null 2>&1"; then
