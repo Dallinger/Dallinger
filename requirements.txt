@@ -119,7 +119,7 @@ pexpect==4.9.0
     # via dallinger
 pip-tools==7.5.3
     # via dallinger
-platformdirs==4.5.1
+platformdirs==4.9.0
     # via dallinger
 psutil==7.2.2
     # via dallinger
