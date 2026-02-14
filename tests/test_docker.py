@@ -177,3 +177,39 @@ def test_option_update_parses_as_boolean():
     result_update = runner.invoke(cmd, ["--update"])
     assert result_update.exit_code == 0
     assert "True:bool" in result_update.output
+
+
+def test_get_sftp_sets_working_directory_to_remote_home(monkeypatch):
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    class DummyStdout:
+        def read(self):
+            return b"/home/tester\n"
+
+    class DummySFTP:
+        changed_to = None
+
+        def chdir(self, path):
+            self.changed_to = path
+
+    class DummyClient:
+        def __init__(self):
+            self.sftp = DummySFTP()
+
+        def open_sftp(self):
+            return self.sftp
+
+        def exec_command(self, command):
+            assert command == 'printf %s "$HOME"'
+            return None, DummyStdout(), None
+
+    client = DummyClient()
+    monkeypatch.setattr(
+        docker_ssh, "get_connected_ssh_client", lambda host, user=None: client
+    )
+
+    sftp = docker_ssh.get_sftp("localhost")
+    assert sftp is client.sftp
+    assert sftp.changed_to == "/home/tester"

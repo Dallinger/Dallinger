@@ -1415,7 +1415,15 @@ class ExecuteException(Exception):
 
 def get_sftp(host, user=None) -> paramiko.SFTPClient:
     client = get_connected_ssh_client(host, user)
-    return client.open_sftp()
+    sftp = client.open_sftp()
+    try:
+        _, stdout, _ = client.exec_command('printf %s "$HOME"')
+        remote_home = stdout.read().decode().strip()
+        if remote_home:
+            sftp.chdir(remote_home)
+    except Exception:
+        pass
+    return sftp
 
 
 logging.getLogger("paramiko.transport").setLevel(logging.ERROR)
