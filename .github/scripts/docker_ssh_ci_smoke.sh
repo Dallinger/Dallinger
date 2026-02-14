@@ -77,6 +77,8 @@ docker run -d \
   --privileged \
   --cgroupns=host \
   -p "${TARGET_SSH_PORT}:22" \
+  -p "80:80" \
+  -p "443:443" \
   ubuntu:24.04 sleep infinity >/dev/null
 
 docker exec "${TARGET_CONTAINER}" bash -lc \
