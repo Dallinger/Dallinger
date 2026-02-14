@@ -741,6 +741,17 @@ class Testhandle_launch_data:
             mock_post.return_value = result
             assert handler("/some-launch-url", error=log) == {"message": "msg!"}
 
+    def test_verify_argument(self, handler):
+        log = mock.Mock()
+        with mock.patch("dallinger.deployment.requests.post") as mock_post:
+            result = mock.Mock(
+                ok=True, json=mock.Mock(return_value={"message": "msg!"})
+            )
+            mock_post.return_value = result
+            handler("/some-launch-url", error=log, verify=False)
+
+        mock_post.assert_called_once_with("/some-launch-url", verify=False)
+
     def test_failure_mock(self, handler):
         log = mock.Mock()
         with mock.patch("dallinger.deployment.requests.post") as mock_post:
