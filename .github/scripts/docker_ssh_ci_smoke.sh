@@ -75,6 +75,7 @@ docker run -d \
   --name "${TARGET_CONTAINER}" \
   --hostname "${TARGET_CONTAINER}" \
   --privileged \
+  --cgroupns=host \
   -p "${TARGET_SSH_PORT}:22" \
   ubuntu:24.04 sleep infinity >/dev/null
 
