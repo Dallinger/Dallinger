@@ -236,3 +236,17 @@ def test_set_dozzle_password_skips_restart_when_not_running():
 
     assert sftp.putfo.call_count == 2
     executor.restart_dozzle.assert_not_called()
+
+
+def test_ensure_postgres_schema_permissions_grants_create():
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    executor = mock.Mock()
+
+    docker_ssh.ensure_postgres_schema_permissions(executor, "dlgr-abcdef12")
+
+    assert executor.run.call_count == 1
+    command = executor.run.call_args[0][0]
+    assert 'psql -U dallinger -d "dlgr-abcdef12"' in command
+    assert "GRANT USAGE, CREATE ON SCHEMA public TO" in command

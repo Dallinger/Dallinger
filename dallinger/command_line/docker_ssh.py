@@ -575,6 +575,17 @@ def set_dozzle_password(executor, sftp, new_password):
         executor.restart_dozzle()
 
 
+def ensure_postgres_schema_permissions(executor, experiment_id):
+    # PostgreSQL 15+ no longer grants CREATE on schema public to all users.
+    grant_schema_script = (
+        f'GRANT USAGE, CREATE ON SCHEMA public TO "{experiment_id}"'
+    )
+    executor.run(
+        "docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql "
+        f'psql -U dallinger -d "{experiment_id}" -c {quote(grant_schema_script)}'
+    )
+
+
 @docker_ssh.command("set-dozzle-password")
 @option_server
 @click.password_option()
@@ -892,6 +903,7 @@ It currently resolves to {ipaddr_experiment}."""
     executor.run(
         f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
     )
+    ensure_postgres_schema_permissions(executor, experiment_id)
 
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
