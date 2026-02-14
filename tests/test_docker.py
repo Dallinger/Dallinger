@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import click
 import yaml
 
 
@@ -156,3 +157,23 @@ def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypa
     client = docker_ssh.get_connected_ssh_client("localhost:2222", user="root")
     assert isinstance(client, DummyClient)
     assert (tmp_path / ".ssh" / "known_hosts").exists()
+
+
+def test_option_update_parses_as_boolean():
+    from click.testing import CliRunner
+
+    from dallinger.command_line.docker_ssh import option_update
+
+    @click.command()
+    @option_update
+    def cmd(update):
+        click.echo(f"{update!r}:{type(update).__name__}")
+
+    runner = CliRunner()
+    result_default = runner.invoke(cmd, [])
+    assert result_default.exit_code == 0
+    assert "False:bool" in result_default.output
+
+    result_update = runner.invoke(cmd, ["--update"])
+    assert result_update.exit_code == 0
+    assert "True:bool" in result_update.output

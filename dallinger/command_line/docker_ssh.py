@@ -261,7 +261,7 @@ option_server = click.option(
 option_update = click.option(
     "--update",
     "-u",
-    flag_value="update",
+    is_flag=True,
     default=False,
     help="Update an existing experiment",
 )
