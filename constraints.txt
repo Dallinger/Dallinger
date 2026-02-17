@@ -364,7 +364,7 @@ packaging==26.0
     #   tox
     #   trio-typing
     #   wheel
-pandas==2.3.3
+pandas==3.0.1
     # via
     #   dallinger
     #   tablib
