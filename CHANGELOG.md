@@ -34,6 +34,7 @@
 - Updated black to 26.1.0
 - Pinned myst-parser < 5
 - Pinned pandas < 3
+- Updated isort to 8
 - Updated dependencies
 
 ## [v12.1.2](https://github.com/dallinger/dallinger/tree/v12.1.2) (2026-02-13)
