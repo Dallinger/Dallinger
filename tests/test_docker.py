@@ -110,7 +110,9 @@ def test_resolve_export_app_no_apps(monkeypatch):
 
     server_info = {"host": "example.com"}
     monkeypatch.setattr(docker_ssh, "Executor", lambda *args, **kwargs: object())
-    monkeypatch.setattr(docker_ssh, "get_existing_remote_experiments", lambda executor: [])
+    monkeypatch.setattr(
+        docker_ssh, "get_existing_remote_experiments", lambda executor: []
+    )
 
     with pytest.raises(click.UsageError) as excinfo:
         docker_ssh._resolve_export_app(None, "server-1", server_info)
