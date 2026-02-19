@@ -203,7 +203,7 @@ ipywidgets==8.1.8
     # via jupyter
 isoduration==20.11.0
     # via jsonschema
-isort==7.0.0
+isort==8.0.0
     # via dallinger
 itsdangerous==2.2.0
     # via
