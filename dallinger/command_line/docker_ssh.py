@@ -964,7 +964,14 @@ def stats(server):
 
 
 @docker_ssh.command()
-@click.option("--app", required=True, help="Name of the experiment app to export")
+@click.option(
+    "--app",
+    default=None,
+    help=(
+        "Name of the experiment app to export. If omitted and only one app exists "
+        "on the server, it will be selected automatically"
+    ),
+)
 @click.option(
     "--local",
     is_flag=True,
@@ -981,6 +988,7 @@ def stats(server):
 def export(app, local, no_scrub, server):
     """Export database to a local file."""
     server_info = CONFIGURED_HOSTS[server]
+    app = _resolve_export_app(app, server, server_info)
     with remote_postgres(server_info, app) as db_uri:
         export_db_uri(
             app,
@@ -988,6 +996,38 @@ def export(app, local, no_scrub, server):
             local=local,
             scrub_pii=not no_scrub,
         )
+
+
+def _resolve_export_app(app, server, server_info):
+    if app:
+        return app
+
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
+    executor = Executor(ssh_host, user=ssh_user)
+    apps = get_existing_remote_experiments(executor)
+    if not apps:
+        raise click.UsageError(
+            "No apps found on server '{}'.".format(server)
+            + " Run `dallinger docker-ssh apps --server {}` to list apps.".format(
+                server
+            )
+        )
+    if len(apps) == 1:
+        selected_app = apps[0]
+        print(
+            "Auto-selecting app '{}' because it's the only app on server '{}'.".format(
+                selected_app, server
+            )
+        )
+        return selected_app
+    listing = ", ".join(apps)
+    raise click.UsageError(
+        "Multiple apps found on server '{}': {}.".format(server, listing)
+        + " Please specify --app or run `dallinger docker-ssh apps --server {}`.".format(
+            server
+        )
+    )
 
 
 @contextmanager

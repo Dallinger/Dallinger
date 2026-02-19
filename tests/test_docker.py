@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import click
+import pytest
 import yaml
 
 
@@ -86,3 +88,52 @@ def test_num_dynos():
     result = get_yaml({"num_dynos_worker": n})
     for i in range(n):
         assert f"worker_{i + 1}" in result["services"]
+
+
+def test_resolve_export_app_auto_selects_single(monkeypatch, capsys):
+    from dallinger.command_line import docker_ssh
+
+    server_info = {"host": "example.com"}
+    monkeypatch.setattr(docker_ssh, "Executor", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        docker_ssh, "get_existing_remote_experiments", lambda executor: ["only-app"]
+    )
+
+    selected = docker_ssh._resolve_export_app(None, "server-1", server_info)
+
+    assert selected == "only-app"
+    assert "Auto-selecting app" in capsys.readouterr().out
+
+
+def test_resolve_export_app_no_apps(monkeypatch):
+    from dallinger.command_line import docker_ssh
+
+    server_info = {"host": "example.com"}
+    monkeypatch.setattr(docker_ssh, "Executor", lambda *args, **kwargs: object())
+    monkeypatch.setattr(docker_ssh, "get_existing_remote_experiments", lambda executor: [])
+
+    with pytest.raises(click.UsageError) as excinfo:
+        docker_ssh._resolve_export_app(None, "server-1", server_info)
+
+    message = str(excinfo.value)
+    assert "No apps found on server 'server-1'." in message
+    assert "dallinger docker-ssh apps --server server-1" in message
+
+
+def test_resolve_export_app_multiple_apps(monkeypatch):
+    from dallinger.command_line import docker_ssh
+
+    server_info = {"host": "example.com"}
+    monkeypatch.setattr(docker_ssh, "Executor", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        docker_ssh,
+        "get_existing_remote_experiments",
+        lambda executor: ["app-one", "app-two"],
+    )
+
+    with pytest.raises(click.UsageError) as excinfo:
+        docker_ssh._resolve_export_app(None, "server-1", server_info)
+
+    message = str(excinfo.value)
+    assert "Multiple apps found on server 'server-1': app-one, app-two." in message
+    assert "Please specify --app" in message
