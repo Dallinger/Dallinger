@@ -941,10 +941,11 @@ def apps(server):
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
     executor = Executor(ssh_host, user=ssh_user)
-    # The caddy configuration files are used as source of truth
-    # to get the list of installed apps
-    apps = executor.run("ls ~/dallinger/caddy.d")
-    for app in apps.split():
+    apps = get_existing_remote_experiments(executor)
+    if not apps:
+        print("No apps found.")
+        return []
+    for app in apps:
         print(app)
     return apps
 

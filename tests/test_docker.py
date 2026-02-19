@@ -139,3 +139,23 @@ def test_resolve_export_app_multiple_apps(monkeypatch):
     message = str(excinfo.value)
     assert "Multiple apps found on server 'server-1': app-one, app-two." in message
     assert "Please specify --app" in message
+
+
+def test_get_existing_remote_experiments_includes_root_domain():
+    from dallinger.command_line import docker_ssh
+
+    class FakeExecutor:
+        def run(self, cmd, raise_=True):
+            if cmd == "ls -1 ~/dallinger/caddy.d":
+                return ""
+            if cmd == "ls -1 ~/dallinger":
+                return "root-app\ncaddy.d\ndeploy_logs\n"
+            if cmd.startswith(
+                "test -f ~/dallinger/root-app/docker-compose.yml && echo yes"
+            ):
+                return "yes\n"
+            return ""
+
+    apps = docker_ssh.get_existing_remote_experiments(FakeExecutor())
+
+    assert apps == ["root-app"]
