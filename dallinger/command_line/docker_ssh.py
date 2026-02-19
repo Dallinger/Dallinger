@@ -508,14 +508,19 @@ def get_dotenv_values(executor):
 
 
 def set_dozzle_password(executor, sftp, new_password):
+    import bcrypt
+
     dotenv_values = get_dotenv_values(executor)
     dotenv_values["DOZZLE_PASSWORD"] = new_password
     sftp.putfo(BytesIO(json.dumps(dotenv_values).encode()), "dallinger/.env.json")
+    hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode(
+        "utf-8"
+    )
     dozzle_users = {
         "users": {
             "dallinger": {
                 "name": "Dallinger",
-                "password": hashlib.sha256(new_password.encode("utf-8")).hexdigest(),
+                "password": hashed,
                 "email": "dallinger@example.com",
             }
         }
