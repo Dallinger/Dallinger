@@ -1,3 +1,4 @@
+import importlib
 from pathlib import Path
 
 import click
@@ -91,7 +92,7 @@ def test_num_dynos():
 
 
 def test_resolve_export_app_auto_selects_single(monkeypatch, capsys):
-    import dallinger.command_line.docker_ssh as docker_ssh
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
 
     server_info = {"host": "example.com"}
     monkeypatch.setattr(docker_ssh, "Executor", lambda *args, **kwargs: object())
@@ -106,7 +107,7 @@ def test_resolve_export_app_auto_selects_single(monkeypatch, capsys):
 
 
 def test_resolve_export_app_no_apps(monkeypatch):
-    import dallinger.command_line.docker_ssh as docker_ssh
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
 
     server_info = {"host": "example.com"}
     monkeypatch.setattr(docker_ssh, "Executor", lambda *args, **kwargs: object())
@@ -123,7 +124,7 @@ def test_resolve_export_app_no_apps(monkeypatch):
 
 
 def test_resolve_export_app_multiple_apps(monkeypatch):
-    import dallinger.command_line.docker_ssh as docker_ssh
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
 
     server_info = {"host": "example.com"}
     monkeypatch.setattr(docker_ssh, "Executor", lambda *args, **kwargs: object())
@@ -142,7 +143,7 @@ def test_resolve_export_app_multiple_apps(monkeypatch):
 
 
 def test_get_existing_remote_experiments_includes_root_domain():
-    import dallinger.command_line.docker_ssh as docker_ssh
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
 
     class FakeExecutor:
         def run(self, cmd, raise_=True):
