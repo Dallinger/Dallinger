@@ -25,7 +25,7 @@ asttokens==3.0.1
     # via stack-data
 async-generator==1.10
     # via trio-typing
-async-lru==2.1.0
+async-lru==2.2.0
     # via jupyterlab
 attrs==25.4.0
     # via
