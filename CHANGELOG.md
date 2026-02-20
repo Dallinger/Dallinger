@@ -8,6 +8,7 @@
 - Added `tomli` as a dependency for Python 3.10 so pyproject extras can be parsed without a traceback.
 - Improved `dallinger docker-ssh` server selection UX: when multiple servers are configured and `--server` is omitted (and for `servers remove` when `--host` is omitted), users now choose from a numbered list; explicit host/server options and single-server behavior remain unchanged.
 - Migrated CLI table rendering from `tabulate` to Rich tables for consistent formatting and non-interactive output behavior.
+- Improved EC2/provisioning CLI output: replaced noisy error messages and bare data dumps with clearer progress indicators (spinners/checkmarks plus list progress where appropriate), clarified `--dns` vs `--dns-host` option help text, and added friendly validation/errors for EC2 instance lookup and selector usage (`--name`/`--dns`).
 
 #### Added
 - Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
