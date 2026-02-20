@@ -935,7 +935,13 @@ def remove_redis_volumes(app_name, executor):
 
 @docker_ssh.command()
 @option_server
-def apps(server):
+@click.option(
+    "--all",
+    "include_stopped",
+    is_flag=True,
+    help="Include apps that are not currently running",
+)
+def apps(server, include_stopped):
     """List dallinger apps running on the remote server."""
     server_info = CONFIGURED_HOSTS[server]
     ssh_host = server_info["host"]
@@ -945,6 +951,11 @@ def apps(server):
     if not apps:
         print("No apps found.")
         return []
+    if not include_stopped:
+        apps = [app for app in apps if _app_is_running(executor, app)]
+        if not apps:
+            print("No running apps found. Use --all to list stopped apps.")
+            return []
     for app in apps:
         print(app)
     return apps
@@ -1026,6 +1037,14 @@ def _resolve_export_app(app, server, server_info):
             server
         )
     )
+
+
+def _app_is_running(executor, app):
+    result = executor.run(
+        f"docker compose -f ~/dallinger/{app}/docker-compose.yml ps -q",
+        raise_=False,
+    )
+    return bool(result.strip())
 
 
 @contextmanager

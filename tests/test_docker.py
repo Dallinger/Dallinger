@@ -160,3 +160,26 @@ def test_get_existing_remote_experiments_includes_root_domain():
     apps = docker_ssh.get_existing_remote_experiments(FakeExecutor())
 
     assert apps == ["root-app"]
+
+
+def test_app_is_running_true_when_compose_has_output():
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    class FakeExecutor:
+        def run(self, cmd, raise_=True):
+            assert (
+                cmd == "docker compose -f ~/dallinger/test-app/docker-compose.yml ps -q"
+            )
+            return "container-id\n"
+
+    assert docker_ssh._app_is_running(FakeExecutor(), "test-app") is True
+
+
+def test_app_is_running_false_when_compose_empty():
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    class FakeExecutor:
+        def run(self, cmd, raise_=True):
+            return ""
+
+    assert docker_ssh._app_is_running(FakeExecutor(), "test-app") is False
