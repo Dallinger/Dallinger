@@ -995,7 +995,7 @@ def stats(server):
 def export(app, local, no_scrub, server):
     """Export database to a local file."""
     server_info = CONFIGURED_HOSTS[server]
-    app = _resolve_export_app(app, server, server_info)
+    app = app or get_default_app(server, server_info=server_info, emit=print)
     with remote_postgres(server_info, app) as db_uri:
         export_db_uri(
             app,
@@ -1003,12 +1003,6 @@ def export(app, local, no_scrub, server):
             local=local,
             scrub_pii=not no_scrub,
         )
-
-
-def _resolve_export_app(app, server, server_info):
-    if app:
-        return app
-    return get_default_app(server, server_info=server_info, emit=print)
 
 
 def get_default_app(server, server_info=None, prefer_running=True, emit=None):
