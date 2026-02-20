@@ -930,6 +930,53 @@ def remove_redis_volumes(app_name, executor):
                 raise ExecuteException(err)
 
 
+def list_remote_apps(server, include_stopped=False, server_info=None, executor=None):
+    """List app names on a configured remote server.
+
+    Parameters
+    ----------
+    server : str
+        Name of the configured server.
+    include_stopped : bool, optional
+        When True, include apps that are not currently running.
+    server_info : dict, optional
+        Server configuration dictionary (host/user), if already available.
+    executor : Executor, optional
+        Remote command executor, if already available.
+
+    Returns
+    -------
+    list of str
+        Sorted app names discovered on the server.
+
+    Raises
+    ------
+    click.UsageError
+        If the server is not configured.
+    """
+    if server_info is None:
+        try:
+            server_info = CONFIGURED_HOSTS[server]
+        except KeyError as exc:
+            raise click.UsageError(
+                "Unknown server '{}'. Run `dallinger docker-ssh servers list`.".format(
+                    server
+                )
+            ) from exc
+
+    if executor is None:
+        ssh_host = server_info["host"]
+        ssh_user = server_info.get("user")
+        executor = Executor(ssh_host, user=ssh_user)
+
+    apps = get_existing_remote_experiments(executor)
+    if include_stopped or not apps:
+        return apps
+
+    running_projects = _get_running_compose_projects(executor)
+    return [app for app in apps if app in running_projects]
+
+
 @docker_ssh.command()
 @option_server
 @click.option(
@@ -940,23 +987,20 @@ def remove_redis_volumes(app_name, executor):
 )
 def apps(server, include_stopped):
     """List dallinger apps running on the remote server."""
-    server_info = CONFIGURED_HOSTS[server]
-    ssh_host = server_info["host"]
-    ssh_user = server_info.get("user")
-    executor = Executor(ssh_host, user=ssh_user)
-    apps = get_existing_remote_experiments(executor)
-    if not apps:
+    all_apps = list_remote_apps(server, include_stopped=True)
+    if not all_apps:
         print("No apps found.")
         return []
     if not include_stopped:
-        running_projects = _get_running_compose_projects(executor)
-        apps = [app for app in apps if app in running_projects]
-        if not apps:
+        visible_apps = list_remote_apps(server, include_stopped=False)
+        if not visible_apps:
             print("No running apps found. Use --all to list stopped apps.")
             return []
-    for app in apps:
+    else:
+        visible_apps = all_apps
+    for app in visible_apps:
         print(app)
-    return apps
+    return visible_apps
 
 
 @docker_ssh.command()
@@ -995,7 +1039,7 @@ def stats(server):
 def export(app, local, no_scrub, server):
     """Export database to a local file."""
     server_info = CONFIGURED_HOSTS[server]
-    app = app or get_default_app(server, server_info=server_info)
+    app = app or get_running_app(server, server_info=server_info)
     with remote_postgres(server_info, app) as db_uri:
         export_db_uri(
             app,
@@ -1005,8 +1049,8 @@ def export(app, local, no_scrub, server):
         )
 
 
-def get_default_app(server, server_info=None, prefer_running=True):
-    """Determine the default docker-ssh app for a server.
+def get_running_app(server, server_info=None):
+    """Determine the currently deployed app on a server.
 
     Parameters
     ----------
@@ -1014,8 +1058,7 @@ def get_default_app(server, server_info=None, prefer_running=True):
         Name of the configured server.
     server_info : dict, optional
         Server configuration dictionary (host/user), if already available.
-    prefer_running : bool, optional
-        When True, prefer running apps when selecting a default.
+
     Returns
     -------
     str
@@ -1023,64 +1066,35 @@ def get_default_app(server, server_info=None, prefer_running=True):
 
     Raises
     ------
-    click.UsageError
-        If no default app can be determined.
+    ValueError
+        If zero or multiple apps are found running on the server.
     """
     if server_info is None:
         try:
             server_info = CONFIGURED_HOSTS[server]
         except KeyError as exc:
-            raise click.UsageError(
-                "Unknown server '{}'. Run `dallinger docker-ssh servers list`.".format(
-                    server
-                )
+            raise ValueError(
+                f"Unknown server '{server}', expected one of {list(CONFIGURED_HOSTS.keys())}."
             ) from exc
 
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
     executor = Executor(ssh_host, user=ssh_user)
-    apps = get_existing_remote_experiments(executor)
-    if not apps:
-        raise click.UsageError(
-            "No apps found on server '{}'.".format(server)
-            + " Run `dallinger docker-ssh apps --server {}` to list apps.".format(
-                server
-            )
-        )
-    if prefer_running:
-        running = sorted(set(apps) & _get_running_compose_projects(executor))
-        if len(running) == 1:
-            selected_app = running[0]
-            return selected_app
-        if len(running) > 1:
-            listing = ", ".join(running)
-            raise click.UsageError(
-                "Multiple running apps found on server '{}': {}.".format(
-                    server, listing
-                )
-                + " Please specify --app or run `dallinger docker-ssh apps --server {}`.".format(
-                    server
-                )
-            )
-    if len(apps) == 1:
-        selected_app = apps[0]
-        return selected_app
-    listing = ", ".join(apps)
-    if prefer_running:
-        raise click.UsageError(
-            "No running apps found on server '{}'. Stopped apps: {}.".format(
-                server, listing
-            )
-            + " Please specify --app or run `dallinger docker-ssh apps --server {} --all`.".format(
-                server
-            )
-        )
-    raise click.UsageError(
-        "Multiple apps found on server '{}': {}.".format(server, listing)
-        + " Please specify --app or run `dallinger docker-ssh apps --server {}`.".format(
-            server
-        )
+    running = list_remote_apps(
+        server,
+        include_stopped=False,
+        server_info=server_info,
+        executor=executor,
     )
+    if len(running) == 1:
+        return running[0]
+    if len(running) > 1:
+        listing = ", ".join(running)
+        raise ValueError(
+            f"Multiple running apps found on server '{server}': {listing}."
+        )
+    if len(running) == 0:
+        raise click.UsageError(f"No running apps found on server '{server}'.")
 
 
 def _get_running_compose_projects(executor):
