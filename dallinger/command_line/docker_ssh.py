@@ -221,12 +221,44 @@ def copy_docker_config(host, user):
 
 
 CONFIGURED_HOSTS = get_configured_hosts()
-if len(CONFIGURED_HOSTS) == 1:
-    default_server = tuple(CONFIGURED_HOSTS.keys())[0]
-    server_prompt = False
-else:
-    default_server = None
-    server_prompt = "Choose one of the configured servers (add one with `dallinger docker-ssh servers add`)\n"
+
+
+def resolve_server_option(ctx, param, value):
+    hosts = tuple(CONFIGURED_HOSTS.keys())
+
+    if value is not None:
+        return value
+
+    if len(hosts) == 1:
+        return hosts[0]
+
+    if len(hosts) == 0:
+        raise click.UsageError(
+            "No server configured. Use `dallinger docker-ssh servers add` to add one."
+        )
+
+    if ctx is not None and getattr(ctx, "resilient_parsing", False):
+        return None
+
+    if not sys.stdin.isatty():
+        choices = ", ".join(hosts)
+        raise click.UsageError(
+            "Please provide `--server` in non-interactive mode. "
+            f"Configured servers: {choices}"
+        )
+
+    click.echo(
+        "Choose one of the configured servers "
+        "(add one with `dallinger docker-ssh servers add`):"
+    )
+    for idx, host in enumerate(hosts, start=1):
+        click.echo(f"  {idx}) {host}")
+
+    selected_idx = click.prompt(
+        "Select server number", type=click.IntRange(1, len(hosts))
+    )
+    return hosts[selected_idx - 1]
+
 
 # Click options
 option_app_name = click.option(
@@ -249,11 +281,11 @@ option_dns_host = click.option(
 )
 option_server = click.option(
     "--server",
-    required=True,
-    default=default_server,
+    required=False,
+    default=None,
     help="Name of the remote server",
-    prompt=server_prompt,
     type=click.Choice(tuple(CONFIGURED_HOSTS.keys())),
+    callback=resolve_server_option,
 )
 option_update = click.option(
     "--update",
