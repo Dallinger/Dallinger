@@ -1008,6 +1008,42 @@ def export(app, local, no_scrub, server):
 def _resolve_export_app(app, server, server_info):
     if app:
         return app
+    return get_default_app(server, server_info=server_info, emit=print)
+
+
+def get_default_app(server, server_info=None, prefer_running=True, emit=None):
+    """Determine the default docker-ssh app for a server.
+
+    Parameters
+    ----------
+    server : str
+        Name of the configured server.
+    server_info : dict, optional
+        Server configuration dictionary (host/user), if already available.
+    prefer_running : bool, optional
+        When True, prefer running apps when selecting a default.
+    emit : callable, optional
+        Optional callback for status messages (e.g., print).
+
+    Returns
+    -------
+    str
+        The selected app name.
+
+    Raises
+    ------
+    click.UsageError
+        If no default app can be determined.
+    """
+    if server_info is None:
+        try:
+            server_info = CONFIGURED_HOSTS[server]
+        except KeyError as exc:
+            raise click.UsageError(
+                "Unknown server '{}'. Run `dallinger docker-ssh servers list`.".format(
+                    server
+                )
+            ) from exc
 
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
@@ -1020,37 +1056,49 @@ def _resolve_export_app(app, server, server_info):
                 server
             )
         )
-    running = sorted(set(apps) & _get_running_compose_projects(executor))
-    if len(running) == 1:
-        selected_app = running[0]
-        print(
-            "Auto-selecting running app '{}' on server '{}'.".format(
-                selected_app, server
+    if prefer_running:
+        running = sorted(set(apps) & _get_running_compose_projects(executor))
+        if len(running) == 1:
+            selected_app = running[0]
+            if emit:
+                emit(
+                    "Auto-selecting running app '{}' on server '{}'.".format(
+                        selected_app, server
+                    )
+                )
+            return selected_app
+        if len(running) > 1:
+            listing = ", ".join(running)
+            raise click.UsageError(
+                "Multiple running apps found on server '{}': {}.".format(
+                    server, listing
+                )
+                + " Please specify --app or run `dallinger docker-ssh apps --server {}`.".format(
+                    server
+                )
             )
-        )
+    if len(apps) == 1:
+        selected_app = apps[0]
+        if emit:
+            emit(
+                "Auto-selecting app '{}' even though it is not currently running on server '{}'.".format(
+                    selected_app, server
+                )
+            )
         return selected_app
-    if len(running) > 1:
-        listing = ", ".join(running)
+    listing = ", ".join(apps)
+    if prefer_running:
         raise click.UsageError(
-            "Multiple running apps found on server '{}': {}.".format(server, listing)
-            + " Please specify --app or run `dallinger docker-ssh apps --server {}`.".format(
+            "No running apps found on server '{}'. Stopped apps: {}.".format(
+                server, listing
+            )
+            + " Please specify --app or run `dallinger docker-ssh apps --server {} --all`.".format(
                 server
             )
         )
-    if len(apps) == 1:
-        selected_app = apps[0]
-        print(
-            "Auto-selecting app '{}' even though it is not currently running on server '{}'.".format(
-                selected_app, server
-            )
-        )
-        return selected_app
-    listing = ", ".join(apps)
     raise click.UsageError(
-        "No running apps found on server '{}'. Stopped apps: {}.".format(
-            server, listing
-        )
-        + " Please specify --app or run `dallinger docker-ssh apps --server {} --all`.".format(
+        "Multiple apps found on server '{}': {}.".format(server, listing)
+        + " Please specify --app or run `dallinger docker-ssh apps --server {}`.".format(
             server
         )
     )
