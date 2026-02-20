@@ -995,7 +995,7 @@ def stats(server):
 def export(app, local, no_scrub, server):
     """Export database to a local file."""
     server_info = CONFIGURED_HOSTS[server]
-    app = app or get_default_app(server, server_info=server_info, emit=print)
+    app = app or get_default_app(server, server_info=server_info)
     with remote_postgres(server_info, app) as db_uri:
         export_db_uri(
             app,
@@ -1005,7 +1005,7 @@ def export(app, local, no_scrub, server):
         )
 
 
-def get_default_app(server, server_info=None, prefer_running=True, emit=None):
+def get_default_app(server, server_info=None, prefer_running=True):
     """Determine the default docker-ssh app for a server.
 
     Parameters
@@ -1016,9 +1016,6 @@ def get_default_app(server, server_info=None, prefer_running=True, emit=None):
         Server configuration dictionary (host/user), if already available.
     prefer_running : bool, optional
         When True, prefer running apps when selecting a default.
-    emit : callable, optional
-        Optional callback for status messages (e.g., print).
-
     Returns
     -------
     str
@@ -1054,12 +1051,6 @@ def get_default_app(server, server_info=None, prefer_running=True, emit=None):
         running = sorted(set(apps) & _get_running_compose_projects(executor))
         if len(running) == 1:
             selected_app = running[0]
-            if emit:
-                emit(
-                    "Auto-selecting running app '{}' on server '{}'.".format(
-                        selected_app, server
-                    )
-                )
             return selected_app
         if len(running) > 1:
             listing = ", ".join(running)
@@ -1073,12 +1064,6 @@ def get_default_app(server, server_info=None, prefer_running=True, emit=None):
             )
     if len(apps) == 1:
         selected_app = apps[0]
-        if emit:
-            emit(
-                "Auto-selecting app '{}' even though it is not currently running on server '{}'.".format(
-                    selected_app, server
-                )
-            )
         return selected_app
     listing = ", ".join(apps)
     if prefer_running:

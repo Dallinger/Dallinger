@@ -91,7 +91,7 @@ def test_num_dynos():
         assert f"worker_{i + 1}" in result["services"]
 
 
-def test_get_default_app_prefers_single_running(monkeypatch, capsys):
+def test_get_default_app_prefers_single_running(monkeypatch):
     docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
 
     server_info = {"host": "example.com"}
@@ -105,12 +105,9 @@ def test_get_default_app_prefers_single_running(monkeypatch, capsys):
         docker_ssh, "_get_running_compose_projects", lambda executor: {"app-two"}
     )
 
-    selected = docker_ssh.get_default_app(
-        "server-1", server_info=server_info, emit=print
-    )
+    selected = docker_ssh.get_default_app("server-1", server_info=server_info)
 
     assert selected == "app-two"
-    assert "Auto-selecting running app" in capsys.readouterr().out
 
 
 def test_get_default_app_no_apps(monkeypatch):
@@ -130,7 +127,7 @@ def test_get_default_app_no_apps(monkeypatch):
     assert "dallinger docker-ssh apps --server server-1" in message
 
 
-def test_get_default_app_auto_selects_single_stopped(monkeypatch, capsys):
+def test_get_default_app_auto_selects_single_stopped(monkeypatch):
     docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
 
     server_info = {"host": "example.com"}
@@ -142,12 +139,9 @@ def test_get_default_app_auto_selects_single_stopped(monkeypatch, capsys):
         docker_ssh, "_get_running_compose_projects", lambda executor: set()
     )
 
-    selected = docker_ssh.get_default_app(
-        "server-1", server_info=server_info, emit=print
-    )
+    selected = docker_ssh.get_default_app("server-1", server_info=server_info)
 
     assert selected == "only-app"
-    assert "not currently running" in capsys.readouterr().out
 
 
 def test_get_default_app_multiple_running_apps(monkeypatch):
