@@ -37,15 +37,6 @@ DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER = (
 )
 
 
-class PlainClickException(click.ClickException):
-    """Click exception without the default 'Error:' prefix."""
-
-    def show(self, file=None):
-        if file is None:
-            file = click.get_text_stream("stderr")
-        click.echo(self.format_message(), file=file)
-
-
 def _resolve_default_region_name():
     """Resolve default region for user-facing messages."""
     try:
@@ -967,7 +958,7 @@ def _get_instance_row_from(
     filter_by="state == 'running'",
 ):
     if (instance_name is None) == (public_dns_name is None):
-        raise PlainClickException("Provide exactly one of `--name` or `--dns`.")
+        raise click.ClickException("Provide exactly one of `--name` or `--dns`.")
 
     instances_df = get_instances(region_name)
     if filter_by is not None:
@@ -992,7 +983,7 @@ def _get_instance_row_from(
                 f"default AWS region '{default_region}' " "(no `--region` was provided)"
             )
         error_prefix = click.style("✖", fg="red")
-        raise PlainClickException(
+        raise click.ClickException(
             f"{error_prefix} No EC2 instance found for {lookup} in {region_hint}.\n"
             "Tip: Check the instance name/DNS and region. You can list instances with "
             "`dallinger ec2 list instances --region <region>`."
