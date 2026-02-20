@@ -159,7 +159,12 @@ def add(host, user):
 
 @servers.command()
 @click.option(
-    "--host", required=True, help="IP address or dns name of the remote server"
+    "--host",
+    required=False,
+    default=None,
+    callback=lambda ctx, param, value: resolve_server_option(ctx, param, value),
+    type=str,
+    help="IP address or dns name of the remote server",
 )
 def remove(host):
     """Remove server from list of known remote servers.
@@ -224,9 +229,19 @@ CONFIGURED_HOSTS = get_configured_hosts()
 
 
 def resolve_server_option(ctx, param, value):
-    hosts = tuple(CONFIGURED_HOSTS.keys())
+    hosts = tuple(get_configured_hosts().keys())
+    option_name = (
+        f"--{param.name.replace('_', '-')}" if param is not None else "--server"
+    )
+    action = ctx.command.name if ctx is not None and ctx.command is not None else None
 
     if value is not None:
+        if value not in hosts:
+            choices = ", ".join(hosts) if hosts else "<none>"
+            raise click.BadParameter(
+                f"Unknown server '{value}'. Configured servers: {choices}",
+                param=param,
+            )
         return value
 
     if len(hosts) == 1:
@@ -243,20 +258,26 @@ def resolve_server_option(ctx, param, value):
     if not sys.stdin.isatty():
         choices = ", ".join(hosts)
         raise click.UsageError(
-            "Please provide `--server` in non-interactive mode. "
+            f"Please provide `{option_name}` in non-interactive mode. "
             f"Configured servers: {choices}"
         )
 
-    click.echo(
-        "Choose one of the configured servers "
-        "(add one with `dallinger docker-ssh servers add`):"
-    )
+    if action == "remove":
+        click.echo("Choose which configured server to remove:")
+    else:
+        click.echo(
+            "Choose one of the configured servers "
+            "(add one with `dallinger docker-ssh servers add`):"
+        )
     for idx, host in enumerate(hosts, start=1):
         click.echo(f"  {idx}) {host}")
 
-    selected_idx = click.prompt(
-        "Select server number", type=click.IntRange(1, len(hosts))
+    number_prompt = (
+        "Select server number to remove"
+        if action == "remove"
+        else "Select server number"
     )
+    selected_idx = click.prompt(number_prompt, type=click.IntRange(1, len(hosts)))
     return hosts[selected_idx - 1]
 
 
