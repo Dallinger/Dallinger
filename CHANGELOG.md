@@ -7,14 +7,12 @@
 
 #### Added
 - Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
-- Auto-select the `docker-ssh export` app, preferring running apps and giving clearer guidance when multiple apps exist.
 - Added `get_running_app` helper for selecting a default `docker-ssh` app programmatically.
 
 #### Fixed
 - Fixed `get_page_from_directory` route returning 500 errors with full tracebacks for missing templates (e.g. from vulnerability scanners). Now returns 404, matching the existing `get_page` behavior.
 - Fixed Dozzle login failing on deployments using Dozzle v8+. The `set_dozzle_password` function was using SHA256 hashing, which is no longer supported by recent Dozzle versions. Now uses bcrypt. Also pinned Dozzle image to v10.0.2 to prevent future breaking changes from `:latest`.
-- Fixed `docker-ssh apps` to include root-domain deployments.
-- Fixed `docker-ssh apps` to hide stopped apps by default (use `--all` to include them).
+- Fixed `docker-ssh export` and `docker-ssh apps` for root-domain deployments.
 
 #### Removed
 - Removed `ua-parser` package from dependencies (still required via `user-agents`).
@@ -71,7 +69,7 @@
   Hosts found in the old location are automatically imported to the new location on first access.
 - Dashboard authentication is now disabled if Dallinger detects that it is running in debug mode
   in GitHub Codespaces. This stops users from having to type in dashboard credentials every time they debug.
-  
+
 #### Fixed
 - Fixed bug where `server_pem` was not propagated to the Docker remote build process.
 - Pinned paramiko to <4.0.0 to address incompatibility with sshtunnel
