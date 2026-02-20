@@ -994,9 +994,8 @@ def stats(server):
 @option_server
 def export(app, local, no_scrub, server):
     """Export database to a local file."""
-    server_info = CONFIGURED_HOSTS[server]
-    app = app or get_default_app(server, server_info=server_info, emit=print)
-    with remote_postgres(server_info, app) as db_uri:
+    app = app or get_default_app(server, emit=print)
+    with remote_postgres(server, app) as db_uri:
         export_db_uri(
             app,
             db_uri=db_uri,
@@ -1029,15 +1028,7 @@ def get_default_app(server, server_info=None, prefer_running=True, emit=None):
     click.UsageError
         If no default app can be determined.
     """
-    if server_info is None:
-        try:
-            server_info = CONFIGURED_HOSTS[server]
-        except KeyError as exc:
-            raise click.UsageError(
-                "Unknown server '{}'. Run `dallinger docker-ssh servers list`.".format(
-                    server
-                )
-            ) from exc
+    server_info = _get_server_info(server, server_info=server_info)
 
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
@@ -1106,14 +1097,30 @@ def _get_running_compose_projects(executor):
     return {entry.strip() for entry in result.splitlines() if entry.strip()}
 
 
+def _get_server_info(server, server_info=None):
+    if server_info is not None:
+        return server_info
+    if isinstance(server, dict):
+        return server
+    try:
+        return CONFIGURED_HOSTS[server]
+    except KeyError as exc:
+        raise click.UsageError(
+            "Unknown server '{}'. Run `dallinger docker-ssh servers list`.".format(
+                server
+            )
+        ) from exc
+
+
 @contextmanager
-def remote_postgres(server_info, app):
+def remote_postgres(server, app, server_info=None):
     """A context manager that opens an ssh tunnel to the remote host and
     returns a database URI to connect to it.
     """
     from sshtunnel import SSHTunnelForwarder
 
     try:
+        server_info = _get_server_info(server, server_info=server_info)
         ssh_host = server_info["host"]
         ssh_user = server_info.get("user")
         executor = Executor(ssh_host, user=ssh_user, app=app)
