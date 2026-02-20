@@ -286,20 +286,17 @@ def should_use_subdomain(app_name, archive_path):
 def get_existing_remote_experiments(executor):
     existing = set()
 
-    caddy_listing = executor.run("ls -1 ~/dallinger/caddy.d", raise_=False)
-    for entry in caddy_listing.splitlines():
-        if entry:
-            existing.add(entry)
-
-    app_listing = executor.run("ls -1 ~/dallinger", raise_=False)
-    for entry in app_listing.splitlines():
-        if not entry or entry in {"caddy.d", "deploy_logs"}:
+    listing = executor.run(
+        "ls -1 ~/dallinger/caddy.d 2>/dev/null || true; "
+        "ls -1 ~/dallinger/*/docker-compose.yml 2>/dev/null || true",
+        raise_=False,
+    )
+    for entry in listing.splitlines():
+        if not entry:
             continue
-        has_compose = executor.run(
-            f"test -f ~/dallinger/{entry}/docker-compose.yml && echo yes",
-            raise_=False,
-        )
-        if has_compose.strip():
+        if entry.endswith("/docker-compose.yml"):
+            existing.add(Path(entry).parent.name)
+        else:
             existing.add(entry)
 
     return sorted(existing)

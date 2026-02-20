@@ -147,15 +147,11 @@ def test_get_existing_remote_experiments_includes_root_domain():
 
     class FakeExecutor:
         def run(self, cmd, raise_=True):
-            if cmd == "ls -1 ~/dallinger/caddy.d":
-                return ""
-            if cmd == "ls -1 ~/dallinger":
-                return "root-app\ncaddy.d\ndeploy_logs\n"
-            if cmd.startswith(
-                "test -f ~/dallinger/root-app/docker-compose.yml && echo yes"
-            ):
-                return "yes\n"
-            return ""
+            assert cmd == (
+                "ls -1 ~/dallinger/caddy.d 2>/dev/null || true; "
+                "ls -1 ~/dallinger/*/docker-compose.yml 2>/dev/null || true"
+            )
+            return "/home/ubuntu/dallinger/root-app/docker-compose.yml\n"
 
     apps = docker_ssh.get_existing_remote_experiments(FakeExecutor())
 
