@@ -7,7 +7,7 @@
 
 #### Added
 - Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
-- Auto-select the `docker-ssh export` app when the server has only one app, with clearer guidance when multiple apps exist.
+- Auto-select the `docker-ssh export` app, preferring running apps and giving clearer guidance when multiple apps exist.
 
 #### Fixed
 - Fixed `get_page_from_directory` route returning 500 errors with full tracebacks for missing templates (e.g. from vulnerability scanners). Now returns 404, matching the existing `get_page` behavior.

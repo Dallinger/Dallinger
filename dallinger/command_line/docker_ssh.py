@@ -1020,18 +1020,37 @@ def _resolve_export_app(app, server, server_info):
                 server
             )
         )
+    running = sorted(set(apps) & _get_running_compose_projects(executor))
+    if len(running) == 1:
+        selected_app = running[0]
+        print(
+            "Auto-selecting running app '{}' on server '{}'.".format(
+                selected_app, server
+            )
+        )
+        return selected_app
+    if len(running) > 1:
+        listing = ", ".join(running)
+        raise click.UsageError(
+            "Multiple running apps found on server '{}': {}.".format(server, listing)
+            + " Please specify --app or run `dallinger docker-ssh apps --server {}`.".format(
+                server
+            )
+        )
     if len(apps) == 1:
         selected_app = apps[0]
         print(
-            "Auto-selecting app '{}' because it's the only app on server '{}'.".format(
+            "Auto-selecting app '{}' even though it is not currently running on server '{}'.".format(
                 selected_app, server
             )
         )
         return selected_app
     listing = ", ".join(apps)
     raise click.UsageError(
-        "Multiple apps found on server '{}': {}.".format(server, listing)
-        + " Please specify --app or run `dallinger docker-ssh apps --server {}`.".format(
+        "No running apps found on server '{}'. Stopped apps: {}.".format(
+            server, listing
+        )
+        + " Please specify --app or run `dallinger docker-ssh apps --server {} --all`.".format(
             server
         )
     )

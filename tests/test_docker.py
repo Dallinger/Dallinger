@@ -91,19 +91,24 @@ def test_num_dynos():
         assert f"worker_{i + 1}" in result["services"]
 
 
-def test_resolve_export_app_auto_selects_single(monkeypatch, capsys):
+def test_resolve_export_app_auto_selects_single_running(monkeypatch, capsys):
     docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
 
     server_info = {"host": "example.com"}
     monkeypatch.setattr(docker_ssh, "Executor", lambda *args, **kwargs: object())
     monkeypatch.setattr(
-        docker_ssh, "get_existing_remote_experiments", lambda executor: ["only-app"]
+        docker_ssh,
+        "get_existing_remote_experiments",
+        lambda executor: ["app-one", "app-two"],
+    )
+    monkeypatch.setattr(
+        docker_ssh, "_get_running_compose_projects", lambda executor: {"app-two"}
     )
 
     selected = docker_ssh._resolve_export_app(None, "server-1", server_info)
 
-    assert selected == "only-app"
-    assert "Auto-selecting app" in capsys.readouterr().out
+    assert selected == "app-two"
+    assert "Auto-selecting running app" in capsys.readouterr().out
 
 
 def test_resolve_export_app_no_apps(monkeypatch):
@@ -123,7 +128,25 @@ def test_resolve_export_app_no_apps(monkeypatch):
     assert "dallinger docker-ssh apps --server server-1" in message
 
 
-def test_resolve_export_app_multiple_apps(monkeypatch):
+def test_resolve_export_app_auto_selects_single_stopped(monkeypatch, capsys):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    server_info = {"host": "example.com"}
+    monkeypatch.setattr(docker_ssh, "Executor", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        docker_ssh, "get_existing_remote_experiments", lambda executor: ["only-app"]
+    )
+    monkeypatch.setattr(
+        docker_ssh, "_get_running_compose_projects", lambda executor: set()
+    )
+
+    selected = docker_ssh._resolve_export_app(None, "server-1", server_info)
+
+    assert selected == "only-app"
+    assert "not currently running" in capsys.readouterr().out
+
+
+def test_resolve_export_app_multiple_running_apps(monkeypatch):
     docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
 
     server_info = {"host": "example.com"}
@@ -133,13 +156,42 @@ def test_resolve_export_app_multiple_apps(monkeypatch):
         "get_existing_remote_experiments",
         lambda executor: ["app-one", "app-two"],
     )
+    monkeypatch.setattr(
+        docker_ssh,
+        "_get_running_compose_projects",
+        lambda executor: {"app-one", "app-two"},
+    )
 
     with pytest.raises(click.UsageError) as excinfo:
         docker_ssh._resolve_export_app(None, "server-1", server_info)
 
     message = str(excinfo.value)
-    assert "Multiple apps found on server 'server-1': app-one, app-two." in message
+    assert (
+        "Multiple running apps found on server 'server-1': app-one, app-two." in message
+    )
     assert "Please specify --app" in message
+
+
+def test_resolve_export_app_no_running_apps_multiple(monkeypatch):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    server_info = {"host": "example.com"}
+    monkeypatch.setattr(docker_ssh, "Executor", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        docker_ssh,
+        "get_existing_remote_experiments",
+        lambda executor: ["app-one", "app-two"],
+    )
+    monkeypatch.setattr(
+        docker_ssh, "_get_running_compose_projects", lambda executor: set()
+    )
+
+    with pytest.raises(click.UsageError) as excinfo:
+        docker_ssh._resolve_export_app(None, "server-1", server_info)
+
+    message = str(excinfo.value)
+    assert "No running apps found on server 'server-1'." in message
+    assert "--all" in message
 
 
 def test_get_existing_remote_experiments_includes_root_domain():
