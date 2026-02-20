@@ -952,7 +952,8 @@ def apps(server, include_stopped):
         print("No apps found.")
         return []
     if not include_stopped:
-        apps = [app for app in apps if _app_is_running(executor, app)]
+        running_projects = _get_running_compose_projects(executor)
+        apps = [app for app in apps if app in running_projects]
         if not apps:
             print("No running apps found. Use --all to list stopped apps.")
             return []
@@ -1039,12 +1040,12 @@ def _resolve_export_app(app, server, server_info):
     )
 
 
-def _app_is_running(executor, app):
+def _get_running_compose_projects(executor):
     result = executor.run(
-        f"docker compose -f ~/dallinger/{app}/docker-compose.yml ps -q",
+        "docker ps --format '{{.Label \"com.docker.compose.project\"}}'",
         raise_=False,
     )
-    return bool(result.strip())
+    return {entry.strip() for entry in result.splitlines() if entry.strip()}
 
 
 @contextmanager

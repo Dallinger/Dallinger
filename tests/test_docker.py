@@ -162,24 +162,31 @@ def test_get_existing_remote_experiments_includes_root_domain():
     assert apps == ["root-app"]
 
 
-def test_app_is_running_true_when_compose_has_output():
+def test_get_running_compose_projects_deduplicates():
     docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
 
     class FakeExecutor:
         def run(self, cmd, raise_=True):
             assert (
-                cmd == "docker compose -f ~/dallinger/test-app/docker-compose.yml ps -q"
+                cmd == "docker ps --format '{{.Label \"com.docker.compose.project\"}}'"
             )
-            return "container-id\n"
+            return "app-one\n\napp-one\napp-two\n"
 
-    assert docker_ssh._app_is_running(FakeExecutor(), "test-app") is True
+    apps = docker_ssh._get_running_compose_projects(FakeExecutor())
+
+    assert apps == {"app-one", "app-two"}
 
 
-def test_app_is_running_false_when_compose_empty():
+def test_get_running_compose_projects_empty_returns_empty_set():
     docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
 
     class FakeExecutor:
         def run(self, cmd, raise_=True):
+            assert (
+                cmd == "docker ps --format '{{.Label \"com.docker.compose.project\"}}'"
+            )
             return ""
 
-    assert docker_ssh._app_is_running(FakeExecutor(), "test-app") is False
+    apps = docker_ssh._get_running_compose_projects(FakeExecutor())
+
+    assert apps == set()
