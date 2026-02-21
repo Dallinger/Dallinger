@@ -1094,7 +1094,12 @@ def stats(server):
 def export(app, local, no_scrub, server):
     """Export database to a local file."""
     server_info = CONFIGURED_HOSTS[server]
-    app = app or select_running_app(server, server_info=server_info)
+    if app is None:
+        try:
+            app = select_running_app(server, server_info=server_info)
+        except ValueError as exc:
+            raise click.UsageError(str(exc)) from exc
+        click.echo(f"Exporting data from app '{app}'.")
     with remote_postgres(server_info, app) as db_uri:
         export_db_uri(
             app,
