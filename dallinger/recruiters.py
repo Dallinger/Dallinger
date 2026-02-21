@@ -14,10 +14,9 @@ from typing import Optional
 
 import flask
 import requests
-import tabulate
 from sqlalchemy import func
 
-from dallinger.command_line.utils import Output
+from dallinger.command_line.utils import Output, render_rich_table
 from dallinger.config import get_config
 from dallinger.db import get_queue, redis_conn, scoped_session_decorator, session
 from dallinger.experiment_server.utils import crossdomain, success_response
@@ -321,7 +320,7 @@ class Recruiter:
         out = Output()
         out.log("Found {} hit[s]:".format(len(formatted_hit_list)))
         out.log(
-            tabulate.tabulate(
+            render_rich_table(
                 formatted_hit_list,
                 headers=[
                     "Hit ID",

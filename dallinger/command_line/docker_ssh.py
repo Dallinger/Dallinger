@@ -27,11 +27,16 @@ import paramiko
 import requests
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
+from rich.text import Text
 from urllib3.util.retry import Retry
 from yaspin import yaspin
 
 from dallinger.command_line.config import get_configured_hosts, remove_host, store_host
-from dallinger.command_line.utils import Output, run_pre_launch_checks
+from dallinger.command_line.utils import (
+    Output,
+    render_rich_table,
+    run_pre_launch_checks,
+)
 from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
@@ -283,7 +288,33 @@ def should_use_subdomain(app_name, archive_path):
     return False
 
 
-def get_existing_remote_experiments(executor):
+def _resolve_server_info(server, server_info=None, exc_type=click.UsageError):
+    if server_info is not None:
+        return server_info
+
+    try:
+        return CONFIGURED_HOSTS[server]
+    except KeyError as exc:
+        if exc_type is ValueError:
+            raise ValueError(
+                f"Unknown server '{server}', expected one of {list(CONFIGURED_HOSTS.keys())}."
+            ) from exc
+        raise click.UsageError(
+            "Unknown server '{}'. Run `dallinger docker-ssh servers list`.".format(
+                server
+            )
+        ) from exc
+
+
+def _resolve_executor(server_info, executor=None, app=None):
+    if executor is not None:
+        return executor
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
+    return Executor(ssh_host, user=ssh_user, app=app)
+
+
+def _discover_server_apps(executor):
     existing = set()
 
     listing = executor.run(
@@ -310,7 +341,7 @@ def ensure_root_domain_ready(server, update):
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
     executor = Executor(ssh_host, user=ssh_user)
-    conflicts = get_existing_remote_experiments(executor)
+    conflicts = _discover_server_apps(executor)
     if not conflicts:
         return True
 
@@ -340,7 +371,7 @@ def ensure_root_domain_ready(server, update):
         destroy.callback(server=server, app=name)
 
     executor = Executor(ssh_host, user=ssh_user)
-    remaining = get_existing_remote_experiments(executor)
+    remaining = _discover_server_apps(executor)
     if remaining:
         print(
             f"{RED}Some experiments are still present: {', '.join(remaining)}. Aborting.{END}"
@@ -673,7 +704,7 @@ It currently resolves to {ipaddr_experiment}."""
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
     if not use_subdomain and not preflight_root_clean:
-        conflicts = get_existing_remote_experiments(executor)
+        conflicts = _discover_server_apps(executor)
         if conflicts:
             joined = ", ".join(conflicts)
             print(
@@ -930,7 +961,44 @@ def remove_redis_volumes(app_name, executor):
                 raise ExecuteException(err)
 
 
-def list_remote_apps(server, include_stopped=False, server_info=None, executor=None):
+def get_app_statuses(server, server_info=None, executor=None):
+    """Return each discovered app and its status on a configured server.
+
+    Parameters
+    ----------
+    server : str
+        Name of the configured server.
+    server_info : dict, optional
+        Server configuration dictionary (host/user), if already available.
+    executor : Executor, optional
+        Remote command executor, if already available.
+
+    Returns
+    -------
+    dict of str to dict of str to str
+        Map of app name to status metadata. Currently includes a single
+        ``state`` field with value "running" or "inactive".
+
+    Raises
+    ------
+    click.UsageError
+        If the server is not configured.
+    """
+    server_info = _resolve_server_info(server, server_info=server_info)
+    executor = _resolve_executor(server_info, executor=executor)
+
+    app_names = _discover_server_apps(executor)
+    running_projects = _get_running_app_names(executor)
+
+    return {
+        app_name: {
+            "state": "running" if app_name in running_projects else "inactive",
+        }
+        for app_name in app_names
+    }
+
+
+def list_server_apps(server, include_stopped=False, server_info=None, executor=None):
     """List app names on a configured remote server.
 
     Parameters
@@ -954,52 +1022,39 @@ def list_remote_apps(server, include_stopped=False, server_info=None, executor=N
     click.UsageError
         If the server is not configured.
     """
-    if server_info is None:
-        try:
-            server_info = CONFIGURED_HOSTS[server]
-        except KeyError as exc:
-            raise click.UsageError(
-                "Unknown server '{}'. Run `dallinger docker-ssh servers list`.".format(
-                    server
-                )
-            ) from exc
-
-    if executor is None:
-        ssh_host = server_info["host"]
-        ssh_user = server_info.get("user")
-        executor = Executor(ssh_host, user=ssh_user)
-
-    apps = get_existing_remote_experiments(executor)
-    if include_stopped or not apps:
-        return apps
-
-    running_projects = _get_running_compose_projects(executor)
-    return [app for app in apps if app in running_projects]
+    statuses = get_app_statuses(server, server_info=server_info, executor=executor)
+    if include_stopped:
+        return list(statuses.keys())
+    return [
+        app_name
+        for app_name, details in statuses.items()
+        if details.get("state") == "running"
+    ]
 
 
 @docker_ssh.command()
 @option_server
-@click.option(
-    "--all",
-    "include_stopped",
-    is_flag=True,
-    help="Include apps that are not currently running",
-)
-def apps(server, include_stopped):
+def apps(server):
     """List dallinger apps running on the remote server."""
-    all_apps = list_remote_apps(server, include_stopped=True)
+    statuses = get_app_statuses(server)
+    all_apps = list(statuses.keys())
     if not all_apps:
         print("No apps found.")
         return []
-    if not include_stopped:
-        visible_apps = list_remote_apps(server, include_stopped=False)
-        if not visible_apps:
-            print("No running apps found. Use --all to list stopped apps.")
-            return []
-    else:
-        visible_apps = all_apps
-    for app in visible_apps:
-        print(app)
+    visible_apps = sorted(
+        all_apps,
+        key=lambda app_name: (
+            statuses[app_name].get("state") != "running",
+            app_name,
+        ),
+    )
+
+    rows = []
+    for app_name in visible_apps:
+        state = statuses[app_name]["state"]
+        style = "green" if state == "running" else "red"
+        rows.append([app_name, Text(state, style=style)])
+    print(render_rich_table(rows, headers=["app", "state"]))
     return visible_apps
 
 
@@ -1039,7 +1094,7 @@ def stats(server):
 def export(app, local, no_scrub, server):
     """Export database to a local file."""
     server_info = CONFIGURED_HOSTS[server]
-    app = app or get_running_app(server, server_info=server_info)
+    app = app or select_running_app(server, server_info=server_info)
     with remote_postgres(server_info, app) as db_uri:
         export_db_uri(
             app,
@@ -1049,7 +1104,7 @@ def export(app, local, no_scrub, server):
         )
 
 
-def get_running_app(server, server_info=None):
+def select_running_app(server, server_info=None):
     """Determine the currently deployed app on a server.
 
     Parameters
@@ -1069,18 +1124,11 @@ def get_running_app(server, server_info=None):
     ValueError
         If zero or multiple apps are found running on the server.
     """
-    if server_info is None:
-        try:
-            server_info = CONFIGURED_HOSTS[server]
-        except KeyError as exc:
-            raise ValueError(
-                f"Unknown server '{server}', expected one of {list(CONFIGURED_HOSTS.keys())}."
-            ) from exc
-
-    ssh_host = server_info["host"]
-    ssh_user = server_info.get("user")
-    executor = Executor(ssh_host, user=ssh_user)
-    running = list_remote_apps(
+    server_info = _resolve_server_info(
+        server, server_info=server_info, exc_type=ValueError
+    )
+    executor = _resolve_executor(server_info)
+    running = list_server_apps(
         server,
         include_stopped=False,
         server_info=server_info,
@@ -1097,7 +1145,7 @@ def get_running_app(server, server_info=None):
         raise click.UsageError(f"No running apps found on server '{server}'.")
 
 
-def _get_running_compose_projects(executor):
+def _get_running_app_names(executor):
     result = executor.run(
         "docker ps --format '{{.Label \"com.docker.compose.project\"}}'",
         raise_=False,

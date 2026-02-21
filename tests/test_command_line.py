@@ -1201,9 +1201,9 @@ class TestApps:
             yield output_instance
 
     @pytest.fixture
-    def tabulate(self):
-        with mock.patch("tabulate.tabulate") as tabulate:
-            yield tabulate
+    def render_rich_table(self):
+        with mock.patch("dallinger.command_line.render_rich_table") as table_renderer:
+            yield table_renderer
 
     @pytest.fixture
     def apps(self):
@@ -1212,7 +1212,7 @@ class TestApps:
         return apps
 
     def test_apps(
-        self, apps, custom_app_output, console_output, tabulate, active_config
+        self, apps, custom_app_output, console_output, render_rich_table, active_config
     ):
         active_config["team"] = "fake team"
         result = CliRunner().invoke(apps)
@@ -1224,10 +1224,9 @@ class TestApps:
                 mock.call(["heroku", "config", "--json", "--app", "dlgr-another-uid"]),
             ]
         )
-        tabulate.assert_called_with(
+        render_rich_table.assert_called_with(
             [["my-uid", "2018-01-01T12:00Z", "https://dlgr-my-uid.herokuapp.com"]],
-            ["UID", "Started", "URL"],
-            tablefmt="psql",
+            headers=["UID", "Started", "URL"],
         )
 
 

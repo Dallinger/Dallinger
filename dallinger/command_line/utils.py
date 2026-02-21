@@ -5,9 +5,14 @@ import re
 import sys
 import tempfile
 from functools import wraps
+from io import StringIO
 from pathlib import Path
 
 import click
+from rich import box
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
 
 from dallinger.config import get_config, initialize_experiment_package
 from dallinger.constraints import (
@@ -58,6 +63,40 @@ class Output:
         if blather is None:
             blather = sys.stdout.write
         self.blather = blather
+
+
+def render_rich_table(rows, headers=None, box_style=box.SQUARE, show_header=True):
+    """Render a Rich table and return it as text."""
+    if headers is None:
+        headers = []
+    if not headers and rows:
+        headers = ["" for _ in rows[0]]
+        show_header = False
+
+    table = Table(box=box_style, show_header=show_header)
+    for header in headers:
+        table.add_column(str(header))
+    for row in rows:
+        normalized_cells = []
+        for value in row:
+            if value is None:
+                normalized_cells.append(Text(""))
+            elif isinstance(value, Text):
+                normalized_cells.append(value)
+            elif hasattr(value, "__rich_console__"):
+                normalized_cells.append(value)
+            else:
+                normalized_cells.append(Text(str(value)))
+        table.add_row(*normalized_cells)
+
+    buffer = StringIO()
+    Console(
+        file=buffer,
+        force_terminal=True,
+        color_system="standard",
+        no_color=False,
+    ).print(table)
+    return buffer.getvalue().rstrip("\n")
 
 
 def get_server_pem_path() -> Path:
