@@ -90,11 +90,13 @@ def render_rich_table(rows, headers=None, box_style=box.SQUARE, show_header=True
         table.add_row(*normalized_cells)
 
     buffer = StringIO()
+    is_interactive = sys.stdout.isatty() and os.environ.get("TERM", "") != "dumb"
+    use_color = is_interactive and "NO_COLOR" not in os.environ
     Console(
         file=buffer,
-        force_terminal=True,
-        color_system="standard",
-        no_color=False,
+        force_terminal=is_interactive,
+        color_system="standard" if use_color else None,
+        no_color=not use_color,
     ).print(table)
     return buffer.getvalue().rstrip("\n")
 

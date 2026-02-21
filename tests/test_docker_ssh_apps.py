@@ -138,14 +138,9 @@ def test_apps_outputs_table_for_all_apps(monkeypatch, capsys):
     output_lines = capsys.readouterr().out.strip().splitlines()
     assert listed == ["beta", "alpha"]
     assert any("app" in line and "state" in line for line in output_lines)
-    assert any(
-        "beta" in line and "running" in line and "\x1b[" in line
-        for line in output_lines
-    )
-    assert any(
-        "alpha" in line and "inactive" in line and "\x1b[" in line
-        for line in output_lines
-    )
+    assert any("beta" in line and "running" in line for line in output_lines)
+    assert any("alpha" in line and "inactive" in line for line in output_lines)
+    assert "\x1b[" not in "\n".join(output_lines)
 
 
 def test_apps_outputs_table_when_all_inactive(monkeypatch, capsys):
@@ -165,11 +160,6 @@ def test_apps_outputs_table_when_all_inactive(monkeypatch, capsys):
     output_lines = capsys.readouterr().out.strip().splitlines()
     assert listed == ["alpha", "beta"]
     assert any("app" in line and "state" in line for line in output_lines)
-    assert any(
-        "alpha" in line and "inactive" in line and "\x1b[" in line
-        for line in output_lines
-    )
-    assert any(
-        "beta" in line and "inactive" in line and "\x1b[" in line
-        for line in output_lines
-    )
+    assert any("alpha" in line and "inactive" in line for line in output_lines)
+    assert any("beta" in line and "inactive" in line for line in output_lines)
+    assert "\x1b[" not in "\n".join(output_lines)
