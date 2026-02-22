@@ -311,6 +311,11 @@ def _build_executor(server_info, app=None):
     return Executor(ssh_host, user=ssh_user, app=app)
 
 
+def _executor_for_server(server, app=None):
+    server_info = _resolve_server_info(server)
+    return _build_executor(server_info, app=app)
+
+
 def _discover_server_apps(executor):
     existing = set()
 
@@ -334,10 +339,7 @@ def ensure_root_domain_ready(server, update):
     if update:
         return True
 
-    server_info = CONFIGURED_HOSTS[server]
-    ssh_host = server_info["host"]
-    ssh_user = server_info.get("user")
-    executor = Executor(ssh_host, user=ssh_user)
+    executor = _executor_for_server(server)
     conflicts = _discover_server_apps(executor)
     if not conflicts:
         return True
@@ -367,7 +369,7 @@ def ensure_root_domain_ready(server, update):
         print_bold(f"Destroying {name} on server {server}")
         destroy.callback(server=server, app=name)
 
-    executor = Executor(ssh_host, user=ssh_user)
+    executor = _executor_for_server(server)
     remaining = _discover_server_apps(executor)
     if remaining:
         print(
@@ -1018,10 +1020,7 @@ def apps(server):
 @option_server
 def stats(server):
     """Get resource usage stats from remote server."""
-    server_info = CONFIGURED_HOSTS[server]
-    ssh_host = server_info["host"]
-    ssh_user = server_info.get("user")
-    executor = Executor(ssh_host, user=ssh_user)
+    executor = _executor_for_server(server)
     executor.run_and_echo("docker stats")
 
 
