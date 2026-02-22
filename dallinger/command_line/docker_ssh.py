@@ -20,7 +20,7 @@ from pathlib import Path
 from secrets import token_urlsafe
 from shlex import quote
 from socket import gethostbyname_ex, gethostname
-from typing import Dict
+from typing import Dict, Literal
 from uuid import uuid4
 
 import click
@@ -57,8 +57,18 @@ from .utils import get_server_pem_path
 
 @dataclass(frozen=True)
 class App:
+    """A discovered remote docker-ssh app and its runtime state.
+
+    Parameters
+    ----------
+    name : str
+        App/project name on the remote server.
+    state : Literal["running", "inactive"]
+        Runtime state label used by CLI output and app selection logic.
+    """
+
     name: str
-    state: str
+    state: Literal["running", "inactive"]
 
 
 # Find an identifier for the current user to use as CREATOR of the experiment

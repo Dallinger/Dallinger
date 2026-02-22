@@ -66,7 +66,28 @@ class Output:
 
 
 def render_rich_table(rows, headers=None, box_style=box.SQUARE, show_header=True):
-    """Render a Rich table and return it as text."""
+    """Render tabular data to a string using Rich.
+
+    Parameters
+    ----------
+    rows : Sequence[Sequence[Any]]
+        Row values to render. Values may be plain Python objects,
+        :class:`rich.text.Text`, or any Rich renderable object.
+    headers : Sequence[str] or None, optional
+        Column headers. If omitted and ``rows`` is non-empty, the table is
+        rendered without a header row.
+    box_style : rich.box.Box, optional
+        Rich box style used to draw table borders.
+    show_header : bool, optional
+        Whether to render the header row. This is automatically disabled when
+        ``headers`` is not provided.
+
+    Returns
+    -------
+    str
+        Rendered table text. ANSI color is only included in interactive
+        terminals (unless ``NO_COLOR`` is set).
+    """
     if headers is None:
         headers = []
     if not headers and rows:
