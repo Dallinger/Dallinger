@@ -11,6 +11,7 @@ import subprocess
 import sys
 import zipfile
 from contextlib import contextmanager, redirect_stdout
+from dataclasses import dataclass
 from email.utils import parseaddr
 from functools import wraps
 from getpass import getuser
@@ -52,6 +53,13 @@ from dallinger.utils import (
 )
 
 from .utils import get_server_pem_path
+
+
+@dataclass(frozen=True)
+class App:
+    name: str
+    state: str
+
 
 # Find an identifier for the current user to use as CREATOR of the experiment
 HOSTNAME = gethostname()
@@ -288,27 +296,16 @@ def should_use_subdomain(app_name, archive_path):
     return False
 
 
-def _resolve_server_info(server, server_info=None, exc_type=click.UsageError):
-    if server_info is not None:
-        return server_info
-
+def _resolve_server_info(server):
     try:
         return CONFIGURED_HOSTS[server]
     except KeyError as exc:
-        if exc_type is ValueError:
-            raise ValueError(
-                f"Unknown server '{server}', expected one of {list(CONFIGURED_HOSTS.keys())}."
-            ) from exc
-        raise click.UsageError(
-            "Unknown server '{}'. Run `dallinger docker-ssh servers list`.".format(
-                server
-            )
+        raise ValueError(
+            f"Unknown server '{server}', expected one of {list(CONFIGURED_HOSTS.keys())}."
         ) from exc
 
 
-def _resolve_executor(server_info, executor=None, app=None):
-    if executor is not None:
-        return executor
+def _build_executor(server_info, app=None):
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
     return Executor(ssh_host, user=ssh_user, app=app)
@@ -961,74 +958,35 @@ def remove_redis_volumes(app_name, executor):
                 raise ExecuteException(err)
 
 
-def get_app_statuses(server, server_info=None, executor=None):
-    """Return each discovered app and its status on a configured server.
+def get_apps(server):
+    """Return discovered apps and their status on a configured server.
 
     Parameters
     ----------
     server : str
         Name of the configured server.
-    server_info : dict, optional
-        Server configuration dictionary (host/user), if already available.
-    executor : Executor, optional
-        Remote command executor, if already available.
-
     Returns
     -------
-    dict of str to dict of str to str
-        Map of app name to status metadata. Currently includes a single
-        ``state`` field with value "running" or "inactive".
+    list of App
+        App objects discovered on the server, each with ``name`` and ``state``.
 
     Raises
     ------
-    click.UsageError
+    ValueError
         If the server is not configured.
     """
-    server_info = _resolve_server_info(server, server_info=server_info)
-    executor = _resolve_executor(server_info, executor=executor)
+    server_info = _resolve_server_info(server)
+    executor = _build_executor(server_info)
 
     app_names = _discover_server_apps(executor)
     running_projects = _get_running_app_names(executor)
 
-    return {
-        app_name: {
-            "state": "running" if app_name in running_projects else "inactive",
-        }
-        for app_name in app_names
-    }
-
-
-def list_server_apps(server, include_stopped=False, server_info=None, executor=None):
-    """List app names on a configured remote server.
-
-    Parameters
-    ----------
-    server : str
-        Name of the configured server.
-    include_stopped : bool, optional
-        When True, include apps that are not currently running.
-    server_info : dict, optional
-        Server configuration dictionary (host/user), if already available.
-    executor : Executor, optional
-        Remote command executor, if already available.
-
-    Returns
-    -------
-    list of str
-        Sorted app names discovered on the server.
-
-    Raises
-    ------
-    click.UsageError
-        If the server is not configured.
-    """
-    statuses = get_app_statuses(server, server_info=server_info, executor=executor)
-    if include_stopped:
-        return list(statuses.keys())
     return [
-        app_name
-        for app_name, details in statuses.items()
-        if details.get("state") == "running"
+        App(
+            name=app_name,
+            state="running" if app_name in running_projects else "inactive",
+        )
+        for app_name in app_names
     ]
 
 
@@ -1036,26 +994,24 @@ def list_server_apps(server, include_stopped=False, server_info=None, executor=N
 @option_server
 def apps(server):
     """List dallinger apps running on the remote server."""
-    statuses = get_app_statuses(server)
-    all_apps = list(statuses.keys())
-    if not all_apps:
+    try:
+        apps = get_apps(server)
+    except ValueError as exc:
+        raise click.UsageError(str(exc)) from exc
+    if not apps:
         print("No apps found.")
         return []
     visible_apps = sorted(
-        all_apps,
-        key=lambda app_name: (
-            statuses[app_name].get("state") != "running",
-            app_name,
-        ),
+        apps,
+        key=lambda app: (app.state != "running", app.name),
     )
 
     rows = []
-    for app_name in visible_apps:
-        state = statuses[app_name]["state"]
-        style = "green" if state == "running" else "red"
-        rows.append([app_name, Text(state, style=style)])
+    for app in visible_apps:
+        style = "green" if app.state == "running" else "red"
+        rows.append([app.name, Text(app.state, style=style)])
     print(render_rich_table(rows, headers=["app", "state"]))
-    return visible_apps
+    return [app.name for app in visible_apps]
 
 
 @docker_ssh.command()
@@ -1093,10 +1049,13 @@ def stats(server):
 @option_server
 def export(app, local, no_scrub, server):
     """Export database to a local file."""
-    server_info = CONFIGURED_HOSTS[server]
+    try:
+        server_info = _resolve_server_info(server)
+    except ValueError as exc:
+        raise click.UsageError(str(exc)) from exc
     if app is None:
         try:
-            app = select_running_app(server, server_info=server_info)
+            app = select_running_app(server)
         except ValueError as exc:
             raise click.UsageError(str(exc)) from exc
         click.echo(f"Exporting data from app '{app}'.")
@@ -1109,16 +1068,13 @@ def export(app, local, no_scrub, server):
         )
 
 
-def select_running_app(server, server_info=None):
+def select_running_app(server):
     """Determine the currently deployed app on a server.
 
     Parameters
     ----------
     server : str
         Name of the configured server.
-    server_info : dict, optional
-        Server configuration dictionary (host/user), if already available.
-
     Returns
     -------
     str
@@ -1129,16 +1085,8 @@ def select_running_app(server, server_info=None):
     ValueError
         If zero or multiple apps are found running on the server.
     """
-    server_info = _resolve_server_info(
-        server, server_info=server_info, exc_type=ValueError
-    )
-    executor = _resolve_executor(server_info)
-    running = list_server_apps(
-        server,
-        include_stopped=False,
-        server_info=server_info,
-        executor=executor,
-    )
+    apps = get_apps(server)
+    running = [app.name for app in apps if app.state == "running"]
     if len(running) == 1:
         return running[0]
     if len(running) > 1:
@@ -1147,7 +1095,7 @@ def select_running_app(server, server_info=None):
             f"Multiple running apps found on server '{server}': {listing}."
         )
     if len(running) == 0:
-        raise click.UsageError(f"No running apps found on server '{server}'.")
+        raise ValueError(f"No running apps found on server '{server}'.")
 
 
 def _get_running_app_names(executor):
