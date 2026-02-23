@@ -104,16 +104,21 @@ def test_add_image_name(tempdir):
 
 
 def get_yaml(config, uid=None, gid=None, home_dir=None):
-    from dallinger.command_line.docker_ssh import get_docker_compose_yml
+    from dallinger.command_line.docker_ssh import RemoteIdentity, get_docker_compose_yml
 
+    if uid is None:
+        uid = "${UID}"
+    if gid is None:
+        gid = "${GID}"
+    if home_dir is None:
+        home_dir = "${HOME}"
+    identity = RemoteIdentity(uid=uid, gid=gid, home_dir=home_dir)
     yaml_contents = get_docker_compose_yml(
         config,
         "dlgr-8c43a887",
         "ghcr.io/dallinger/dallinger/bartlett1932",
         "foobar",
-        uid=uid,
-        gid=gid,
-        home_dir=home_dir,
+        identity=identity,
     )
     return yaml.safe_load(yaml_contents)
 
@@ -144,7 +149,10 @@ def test_get_docker_compose_yml_default_user_placeholders():
 
 
 def test_parse_remote_identity_output_with_step_markers():
-    from dallinger.command_line.docker_ssh import parse_remote_identity_output
+    from dallinger.command_line.docker_ssh import (
+        RemoteIdentity,
+        parse_remote_identity_output,
+    )
 
     output = "\n".join(
         (
@@ -155,7 +163,9 @@ def test_parse_remote_identity_output_with_step_markers():
             "STEP:identity:resolved",
         )
     )
-    assert parse_remote_identity_output(output) == ("1000", "1001", "/home/ubuntu")
+    assert parse_remote_identity_output(output) == RemoteIdentity(
+        uid="1000", gid="1001", home_dir="/home/ubuntu"
+    )
 
 
 def test_parse_remote_identity_output_raises_for_missing_home():
@@ -171,25 +181,26 @@ def test_get_remote_identity_uses_home_env_value(tmp_path):
 
     expected_home = str(tmp_path / "home-from-env")
     executor = LocalShellExecutor(env={"HOME": expected_home})
-    uid, gid, home_dir = get_remote_identity(executor)
-    assert uid == str(os.getuid())
-    assert gid == str(os.getgid())
-    assert home_dir == expected_home
+    identity = get_remote_identity(executor)
+    assert identity.uid == str(os.getuid())
+    assert identity.gid == str(os.getgid())
+    assert identity.home_dir == expected_home
 
 
 def test_get_remote_identity_falls_back_when_home_empty():
     from dallinger.command_line.docker_ssh import get_remote_identity
 
     executor = LocalShellExecutor(env={"HOME": ""})
-    uid, gid, home_dir = get_remote_identity(executor)
-    assert uid == str(os.getuid())
-    assert gid == str(os.getgid())
-    assert home_dir == pwd.getpwuid(os.getuid()).pw_dir
+    identity = get_remote_identity(executor)
+    assert identity.uid == str(os.getuid())
+    assert identity.gid == str(os.getgid())
+    assert identity.home_dir == pwd.getpwuid(os.getuid()).pw_dir
 
 
 def test_prepare_remote_experiment_paths_creates_paths_and_logfile(tmp_path):
     from dallinger.command_line.docker_ssh import (
         JSON_LOGFILE,
+        RemoteIdentity,
         prepare_remote_experiment_paths,
     )
 
@@ -200,12 +211,9 @@ def test_prepare_remote_experiment_paths_creates_paths_and_logfile(tmp_path):
     gid = str(os.getgid())
     executor = LocalShellExecutor()
 
+    identity = RemoteIdentity(uid=uid, gid=gid, home_dir=str(home_dir))
     prepare_remote_experiment_paths(
-        executor,
-        experiment_id=experiment_id,
-        home_dir=str(home_dir),
-        uid=uid,
-        gid=gid,
+        executor, experiment_id=experiment_id, identity=identity
     )
 
     experiment_dir = home_dir / "dallinger" / experiment_id

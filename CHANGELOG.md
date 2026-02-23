@@ -5,6 +5,7 @@
 - Moved `ipython` from core dependencies to `jupyter` optional dependency, reducing install size for users who don't need Jupyter features.
 - Moved `numpy` from core dependencies to `data` and `ec2` optional dependencies.
 - EC2 provisioning now defaults to Canonical's Ubuntu 24.04 SSM parameter instead of a pinned AMI name. Falls back to `ec2.describe_images` if SSM access is denied (e.g. missing `ssm:GetParameter` permission).
+- Refactored docker-ssh remote identity handling to use a shared `RemoteIdentity` value object and simpler path-ownership setup.
 
 #### Added
 - Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
@@ -32,6 +33,7 @@
 - Fixed new participant link to avoid propagating credentials from the dashboard URL.
 - Fixed EC2 teardown to show a clear error when no instances exist in a region.
 - Fixed non-deterministic ownership of host-mounted files in `dallinger docker-ssh deploy` by resolving remote `uid`/`gid`/`HOME`, rendering explicit compose identities and bind paths, and pre-creating key host paths with the deploy user's ownership.
+- Fixed docker-ssh compose template resolution to load templates relative to `docker_ssh.py` instead of relying on `abspath_from_egg`; this avoids stale installed-resource lookups.
 
 #### Updated
 - Updated to PostgreSQL 16
@@ -50,7 +52,7 @@
   Hosts found in the old location are automatically imported to the new location on first access.
 - Dashboard authentication is now disabled if Dallinger detects that it is running in debug mode
   in GitHub Codespaces. This stops users from having to type in dashboard credentials every time they debug.
-  
+
 #### Fixed
 - Fixed bug where `server_pem` was not propagated to the Docker remote build process.
 - Pinned paramiko to <4.0.0 to address incompatibility with sshtunnel

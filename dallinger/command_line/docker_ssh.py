@@ -11,6 +11,7 @@ import subprocess
 import sys
 import zipfile
 from contextlib import contextmanager, redirect_stdout
+from dataclasses import dataclass
 from email.utils import parseaddr
 from functools import wraps
 from getpass import getuser
@@ -45,7 +46,6 @@ from dallinger.utils import (
     GREEN,
     JSON_LOGFILE,
     RED,
-    abspath_from_egg,
     print_bold,
 )
 
@@ -58,17 +58,21 @@ try:
 except (KeyError, OSError):  # Python >= 3.13 raises OSError
     USER = "user"
 
+SSH_TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "docker" / "ssh_templates"
 DOCKER_COMPOSE_SERVER_TPL = Template(
-    abspath_from_egg(
-        "dallinger", "dallinger/docker/ssh_templates/docker-compose-server.yml.j2"
-    ).read_text()
+    (SSH_TEMPLATES_DIR / "docker-compose-server.yml.j2").read_text()
 )
 
 DOCKER_COMPOSE_EXP_TPL = Template(
-    abspath_from_egg(
-        "dallinger", "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2"
-    ).read_text()
+    (SSH_TEMPLATES_DIR / "docker-compose-experiment.yml.j2").read_text()
 )
+
+
+@dataclass(frozen=True)
+class RemoteIdentity:
+    uid: str
+    gid: str
+    home_dir: str
 
 
 CADDYFILE_SUBDOMAIN = """
@@ -671,7 +675,7 @@ It currently resolves to {ipaddr_experiment}."""
             raise click.Abort
 
     executor = Executor(ssh_host, user=ssh_user, app=app_identifier)
-    remote_uid, remote_gid, remote_home_dir = get_remote_identity(executor)
+    remote_identity = get_remote_identity(executor)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
     if not use_subdomain and not preflight_root_clean:
@@ -777,9 +781,7 @@ It currently resolves to {ipaddr_experiment}."""
     prepare_remote_experiment_paths(
         executor=executor,
         experiment_id=experiment_id,
-        home_dir=remote_home_dir,
-        uid=remote_uid,
-        gid=remote_gid,
+        identity=remote_identity,
     )
     postgresql_password = token_urlsafe(16)
     sftp.putfo(
@@ -789,9 +791,7 @@ It currently resolves to {ipaddr_experiment}."""
                 experiment_id,
                 image_name,
                 postgresql_password,
-                uid=remote_uid,
-                gid=remote_gid,
-                home_dir=remote_home_dir,
+                identity=remote_identity,
             ).encode()
         ),
         f"dallinger/{experiment_id}/docker-compose.yml",
@@ -1318,7 +1318,7 @@ def parse_remote_numeric_id(value: str, name: str) -> str:
     return parsed
 
 
-def parse_remote_identity_output(output: str):
+def parse_remote_identity_output(output: str) -> RemoteIdentity:
     values = {}
     for line in output.splitlines():
         if line.startswith("STEP:") or "=" not in line:
@@ -1336,10 +1336,10 @@ def parse_remote_identity_output(output: str):
 
     uid = parse_remote_numeric_id(uid_value, "uid")
     gid = parse_remote_numeric_id(gid_value, "gid")
-    return uid, gid, home_dir
+    return RemoteIdentity(uid=uid, gid=gid, home_dir=home_dir)
 
 
-def get_remote_identity(executor: "Executor"):
+def get_remote_identity(executor: "Executor") -> RemoteIdentity:
     identity_script = """
 set -eu
 echo "STEP:identity:start"
@@ -1347,7 +1347,15 @@ uid=$(id -u)
 gid=$(id -g)
 home_dir="${HOME:-}"
 if [ -z "$home_dir" ]; then
-    home_dir=$(getent passwd "$uid" | cut -d: -f6 || true)
+    if command -v getent >/dev/null 2>&1; then
+        home_dir=$(getent passwd "$uid" | cut -d: -f6 || true)
+    fi
+fi
+if [ -z "$home_dir" ]; then
+    user_name=$(id -un || true)
+    if [ -n "$user_name" ]; then
+        home_dir=$(eval echo "~$user_name" || true)
+    fi
 fi
 if [ -z "$home_dir" ]; then
     home_dir=$(awk -F: -v uid="$uid" '$3 == uid { print $6; exit }' /etc/passwd || true)
@@ -1366,14 +1374,12 @@ printf 'uid=%s\\ngid=%s\\nhome=%s\\n' "$uid" "$gid" "$home_dir"
 def prepare_remote_experiment_paths(
     executor: "Executor",
     experiment_id: str,
-    home_dir: str,
-    uid: str,
-    gid: str,
-):
-    experiment_dir = f"{home_dir}/dallinger/{experiment_id}"
-    data_dir = f"{home_dir}/dallinger-data/{experiment_id}"
+    identity: RemoteIdentity,
+) -> None:
+    experiment_dir = f"{identity.home_dir}/dallinger/{experiment_id}"
+    data_dir = f"{identity.home_dir}/dallinger-data/{experiment_id}"
     log_path = f"{experiment_dir}/{JSON_LOGFILE}"
-    ownership = f"{uid}:{gid}"
+    ownership = f"{identity.uid}:{identity.gid}"
     path_setup_script = f"""
 set -eu
 echo "STEP:paths:start"
@@ -1388,29 +1394,15 @@ mkdir -p "$experiment_dir" "$data_dir"
 echo "STEP:paths:touch_log"
 touch "$log_path"
 
-echo "STEP:paths:chown:experiment_dir"
-if chown "$ownership" "$experiment_dir" >/dev/null 2>&1; then
-    echo "STEP:paths:chown:experiment_dir:ok"
-else
-    echo "STEP:paths:chown:experiment_dir:sudo"
-    sudo -n chown "$ownership" "$experiment_dir"
-fi
-
-echo "STEP:paths:chown:data_dir"
-if chown "$ownership" "$data_dir" >/dev/null 2>&1; then
-    echo "STEP:paths:chown:data_dir:ok"
-else
-    echo "STEP:paths:chown:data_dir:sudo"
-    sudo -n chown "$ownership" "$data_dir"
-fi
-
-echo "STEP:paths:chown:log"
-if chown "$ownership" "$log_path" >/dev/null 2>&1; then
-    echo "STEP:paths:chown:log:ok"
-else
-    echo "STEP:paths:chown:log:sudo"
-    sudo -n chown "$ownership" "$log_path"
-fi
+for path in "$experiment_dir" "$data_dir" "$log_path"; do
+    echo "STEP:paths:chown:${{path}}"
+    if chown "$ownership" "$path" >/dev/null 2>&1; then
+        echo "STEP:paths:chown:${{path}}:ok"
+    else
+        echo "STEP:paths:chown:${{path}}:sudo"
+        sudo -n chown "$ownership" "$path"
+    fi
+done
 
 echo "STEP:paths:done"
 """.strip()
@@ -1422,9 +1414,7 @@ def get_docker_compose_yml(
     experiment_id: str,
     experiment_image: str,
     postgresql_password: str,
-    uid: str = None,
-    gid: str = None,
-    home_dir: str = None,
+    identity: RemoteIdentity,
 ) -> str:
     """Generate a docker-compose.yml file based on the given"""
     docker_volumes = config.get("docker_volumes", "")
@@ -1436,23 +1426,17 @@ def get_docker_compose_yml(
         else:
             docker_volumes = new_volume
     config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
-    if uid is None:
-        uid = "${UID}"
-    if gid is None:
-        gid = "${GID}"
-    if home_dir is None:
-        home_dir = "${HOME}"
-
-    return DOCKER_COMPOSE_EXP_TPL.render(
+    rendered = DOCKER_COMPOSE_EXP_TPL.render(
         experiment_id=experiment_id,
         experiment_image=experiment_image,
         config=config_str,
         docker_volumes=docker_volumes,
         postgresql_password=postgresql_password,
-        uid=uid,
-        gid=gid,
-        home_dir=home_dir,
+        uid=identity.uid,
+        gid=identity.gid,
+        home_dir=identity.home_dir,
     )
+    return rendered
 
 
 def get_retrying_http_client():
