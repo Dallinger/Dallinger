@@ -294,11 +294,7 @@ def _merge_extras(ctx, extras):
     ctx_extras = []
     if ctx and ctx.obj:
         ctx_extras = ctx.obj.get("extras", [])
-    combined = []
-    for extra in list(ctx_extras) + list(extras or []):
-        if extra not in combined:
-            combined.append(extra)
-    return combined
+    return sorted({*ctx_extras, *(extras or [])})
 
 
 def _find_input_path(extras: Optional[List[str]] = None) -> Path:
