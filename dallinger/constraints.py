@@ -71,6 +71,10 @@ class PyprojectTomlError(ConstraintsCliError, ValueError):
     """Raised when pyproject.toml cannot be parsed."""
 
 
+class MissingPyprojectError(ConstraintsCliError, ValueError):
+    """Raised when extras are requested but pyproject.toml is missing."""
+
+
 @click.group()
 @extra_option
 def constraints_cli(extras):
@@ -281,11 +285,11 @@ def _find_input_path(extras: Optional[List[str]] = None) -> Path:
     if extras:
         if not pyproject_path.exists():
             if requirements_path.exists():
-                raise ValueError(
+                raise MissingPyprojectError(
                     "Extras require pyproject.toml. Only requirements.txt was found. "
                     "Use pyproject.toml for projects with optional extras, or omit --extra."
                 )
-            raise ValueError(
+            raise MissingPyprojectError(
                 "Extras require pyproject.toml. No pyproject.toml or requirements.txt found. "
                 "Create a pyproject.toml with [project.optional-dependencies] to use --extra."
             )
