@@ -49,50 +49,45 @@ constraints_path = Path("constraints.txt")
 extra_option_help = (
     "Optional extra to include (requires pyproject.toml). May be repeated."
 )
+extra_option = click.option(
+    "--extra",
+    "--e",
+    "-e",
+    "extras",
+    multiple=True,
+    help=extra_option_help,
+)
 
 
-class UnknownExtraError(ValueError):
+class ConstraintsCliError(ValueError):
+    """Base error for constraints CLI validation failures."""
+
+
+class UnknownExtraError(ConstraintsCliError):
     """Raised when a requested extra is not defined in pyproject.toml."""
 
 
-class PyprojectTomlError(ValueError):
+class PyprojectTomlError(ConstraintsCliError):
     """Raised when pyproject.toml cannot be parsed."""
 
 
 @click.group()
-@click.option(
-    "--extra",
-    "--e",
-    "-e",
-    "extras",
-    multiple=True,
-    help=extra_option_help,
-)
+@extra_option
 def constraints_cli(extras):
     """Dallinger constraints file utilities."""
     ctx = click.get_current_context()
-    ctx.obj = {"extras": list(extras)}
+    ctx.obj = list(extras)
 
 
 @constraints_cli.command()
-@click.option(
-    "--extra",
-    "--e",
-    "-e",
-    "extras",
-    multiple=True,
-    help=extra_option_help,
-)
-@click.pass_context
-def check(ctx, extras):
+@extra_option
+@click.pass_obj
+def check(group_extras, extras):
     """
     Check the working directory to see whether a constraints.txt file exists and is up to date. Raises a ValueError if not.
     """
-    extras = _merge_extras(ctx, extras)
-    try:
-        check_constraints(extras=extras)
-    except (UnknownExtraError, PyprojectTomlError) as exc:
-        raise click.ClickException(str(exc)) from exc
+    extras = _combine_extras(group_extras, extras)
+    _run_with_cli_errors(check_constraints, extras=extras)
 
 
 def check_constraints(extras: Optional[List[str]] = None):
@@ -145,24 +140,14 @@ def assert_constraints_file_presence():
 
 
 @constraints_cli.command()
-@click.option(
-    "--extra",
-    "--e",
-    "-e",
-    "extras",
-    multiple=True,
-    help=extra_option_help,
-)
-@click.pass_context
-def generate(ctx, extras):
+@extra_option
+@click.pass_obj
+def generate(group_extras, extras):
     """
     Generate a constraints.txt file for the current directory.
     """
-    extras = _merge_extras(ctx, extras)
-    try:
-        generate_constraints(extras=extras)
-    except (UnknownExtraError, PyprojectTomlError) as exc:
-        raise click.ClickException(str(exc)) from exc
+    extras = _combine_extras(group_extras, extras)
+    _run_with_cli_errors(generate_constraints, extras=extras)
 
 
 def generate_constraints(extras: Optional[List[str]] = None):
@@ -224,26 +209,16 @@ def generate_constraints(extras: Optional[List[str]] = None):
 
 
 @constraints_cli.command()
-@click.option(
-    "--extra",
-    "--e",
-    "-e",
-    "extras",
-    multiple=True,
-    help=extra_option_help,
-)
-@click.pass_context
-def ensure(ctx, extras):
+@extra_option
+@click.pass_obj
+def ensure(group_extras, extras):
     """
     Ensure that a constraints.txt file exists for the specified directory,
     preserving the existing constraints.txt file if it exists and is up to date,
     and updating it if it is out of date.
     """
-    extras = _merge_extras(ctx, extras)
-    try:
-        ensure_constraints_file_presence(Path.cwd(), extras=extras)
-    except (UnknownExtraError, PyprojectTomlError) as exc:
-        raise click.ClickException(str(exc)) from exc
+    extras = _combine_extras(group_extras, extras)
+    _run_with_cli_errors(ensure_constraints_file_presence, Path.cwd(), extras=extras)
 
 
 def ensure_constraints_file_presence(directory, extras: Optional[List[str]] = None):
@@ -290,11 +265,15 @@ def ensure_constraints_file_presence(directory, extras: Optional[List[str]] = No
         generate_constraints(extras=extras)
 
 
-def _merge_extras(ctx, extras):
-    ctx_extras = []
-    if ctx and ctx.obj:
-        ctx_extras = ctx.obj.get("extras", [])
-    return sorted({*ctx_extras, *(extras or [])})
+def _combine_extras(group_extras, extras):
+    return sorted({*(group_extras or []), *(extras or [])})
+
+
+def _run_with_cli_errors(func, *args, **kwargs):
+    try:
+        func(*args, **kwargs)
+    except ConstraintsCliError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 def _find_input_path(extras: Optional[List[str]] = None) -> Path:
