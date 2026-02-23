@@ -59,6 +59,7 @@ dependencies = [
     "tabulate",
     "tenacity",
     "timeago",
+    "tomli; python_version < '3.11'",
     "tzlocal",
     "urllib3",
     "user-agents",
