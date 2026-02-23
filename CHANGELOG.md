@@ -8,6 +8,7 @@
 
 #### Added
 - Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
+- Added repeatable `--extra` support to the constraints generator (`dallinger constraints generate/check/ensure`). Extras influence the constraints signature (md5), are passed to the resolver (uv pip compile), and require pyproject.toml when specified. When both pyproject.toml and requirements.txt exist and extras are provided, pyproject.toml is preferred.
 
 #### Fixed
 - Fixed `get_page_from_directory` route returning 500 errors with full tracebacks for missing templates (e.g. from vulnerability scanners). Now returns 404, matching the existing `get_page` behavior.
