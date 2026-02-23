@@ -63,23 +63,11 @@ class ConstraintsCliError(Exception):
     """Base error for constraints CLI validation failures."""
 
 
-class ConstraintsFileNotFoundError(FileNotFoundError, ConstraintsCliError):
-    """Raised when expected files are missing for constraints operations."""
-
-
-class ConstraintsRuntimeError(RuntimeError, ConstraintsCliError):
-    """Raised when constraints operations fail at runtime."""
-
-
-class ConstraintsValueError(ValueError, ConstraintsCliError):
-    """Raised when constraints inputs are invalid."""
-
-
-class UnknownExtraError(ConstraintsValueError):
+class UnknownExtraError(ConstraintsCliError, ValueError):
     """Raised when a requested extra is not defined in pyproject.toml."""
 
 
-class PyprojectTomlError(ConstraintsValueError):
+class PyprojectTomlError(ConstraintsCliError, ValueError):
     """Raised when pyproject.toml cannot be parsed."""
 
 
@@ -118,7 +106,7 @@ def check_constraints(extras: Optional[List[str]] = None):
     input_path = _find_input_path(extras=extras)
 
     if not _constraints_up_to_date(input_path, extras=extras):
-        raise ConstraintsValueError(
+        raise ValueError(
             f"constraints.txt file in {Path.cwd()} is not up to date with {input_path.name}."
         )
     logger.info(
@@ -128,7 +116,7 @@ def check_constraints(extras: Optional[List[str]] = None):
 
 def assert_python_version_file_presence():
     if not python_version_path.exists():
-        raise ConstraintsFileNotFoundError(
+        raise FileNotFoundError(
             f"The experiment directory ({Path.cwd()}) is missing a .python-version file. "
             "Please create a text file called .python-version in your experiment directory, "
             "and write the Python version you wish to use in that file (just as numbers, e.g. 3.12.10). "
@@ -145,7 +133,7 @@ def ensure_python_version_file_presence():
 
 def assert_constraints_file_presence():
     if not constraints_path.exists():
-        raise ConstraintsFileNotFoundError(
+        raise FileNotFoundError(
             f"{constraints_path.name} file not found in {Path.cwd()}. "
             "You can create one by running `dallinger constraints generate` in your experiment directory."
         )
@@ -293,11 +281,11 @@ def _find_input_path(extras: Optional[List[str]] = None) -> Path:
     if extras:
         if not pyproject_path.exists():
             if requirements_path.exists():
-                raise ConstraintsValueError(
+                raise ValueError(
                     "Extras require pyproject.toml. Only requirements.txt was found. "
                     "Use pyproject.toml for projects with optional extras, or omit --extra."
                 )
-            raise ConstraintsValueError(
+            raise ValueError(
                 "Extras require pyproject.toml. No pyproject.toml or requirements.txt found. "
                 "Create a pyproject.toml with [project.optional-dependencies] to use --extra."
             )
@@ -456,7 +444,7 @@ def _get_implied_dallinger_reference(
             with open(tmpfile.name, "r", encoding="utf-8") as f:
                 for line in f:
                     print(f"  {line.rstrip()}")
-            raise ConstraintsValueError(
+            raise ValueError(
                 f"Failed to retrieve an implied Dallinger reference from {input_path} "
                 "(see above for the indirect dependency list that was searched). "
                 "Consider specifying Dallinger explicitly in the requirements.txt file."
@@ -472,13 +460,13 @@ def _test_dallinger_dev_requirements_path(url: str):
     try:
         response = requests.get(url, timeout=10)
     except requests.exceptions.ConnectionError as e:
-        raise ConstraintsRuntimeError(
+        raise RuntimeError(
             """It looks like you're offline. Dallinger can't generate constraints
 To get a valid constraints.txt file you can copy the requirements.txt file:
 cp requirements.txt constraints.txt"""
         ) from e
     if response.status_code != 200:
-        raise ConstraintsValueError(
+        raise ValueError(
             f"{url} not found. Please make sure your specified Dallinger "
             "version exists in the Dallinger repository. "
         )
@@ -498,7 +486,7 @@ def _pip_compile(
         # `uv pip compile` intelligently infers the Python version from the working directory, looking for example
         # for a `.python-version` file or a `.venv` directory. We therefore should make sure we are running from the
         # experiment directory.
-        raise ConstraintsValueError(
+        raise ValueError(
             f"The input file ({in_file}) is not in the current working directory ({Path.cwd()}). "
             "Please rerun this command from the same directory as the input file."
         )
@@ -520,7 +508,7 @@ def _pip_compile(
             cmd += ["--extra", extra]
     else:
         if extras:
-            raise ConstraintsValueError(
+            raise ValueError(
                 "Extras are only supported when using uv. Install uv (pip install uv) or omit --extra."
             )
         logger.info(
@@ -566,7 +554,7 @@ def _pip_compile(
                 "If you can't resolve the issue, but you want to proceed anyway, you can manually create an empty constraints.txt file "
                 f"at {out_file}. See below output for more details:\n\n{message}"
             )
-            raise ConstraintsRuntimeError(msg) from e
+            raise RuntimeError(msg) from e
         else:
             print(message)
             raise e
@@ -580,7 +568,7 @@ def _check_pip_compile_output(out_file):
     if not _python_versions_consistent(
         requested_python_version, obtained_python_version
     ):
-        raise ConstraintsValueError(
+        raise ValueError(
             f"pip-compile produced a constraints.txt file with the wrong Python version "
             f"(the .python-version file requested {requested_python_version}, "
             f"but pip-compile used {obtained_python_version}). "
