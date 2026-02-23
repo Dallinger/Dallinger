@@ -269,6 +269,7 @@ def _find_input_path(extras: Optional[List[str]] = None) -> Path:
     requirements_path.write_text("dallinger\n")
     return requirements_path
 
+
 def _get_constraints_signature(
     input_path: Path, extras: Optional[List[str]] = None
 ) -> str:
