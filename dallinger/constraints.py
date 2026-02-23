@@ -51,6 +51,10 @@ extra_option_help = (
 )
 
 
+class UnknownExtraError(ValueError):
+    """Raised when a requested extra is not defined in pyproject.toml."""
+
+
 @click.group()
 @click.option(
     "--extra",
@@ -81,7 +85,10 @@ def check(ctx, extras):
     Check the working directory to see whether a constraints.txt file exists and is up to date. Raises a ValueError if not.
     """
     extras = _merge_extras(ctx, extras)
-    check_constraints(extras=extras)
+    try:
+        check_constraints(extras=extras)
+    except UnknownExtraError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 def check_constraints(extras: Optional[List[str]] = None):
@@ -148,7 +155,10 @@ def generate(ctx, extras):
     Generate a constraints.txt file for the current directory.
     """
     extras = _merge_extras(ctx, extras)
-    generate_constraints(extras=extras)
+    try:
+        generate_constraints(extras=extras)
+    except UnknownExtraError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 def generate_constraints(extras: Optional[List[str]] = None):
@@ -226,7 +236,10 @@ def ensure(ctx, extras):
     and updating it if it is out of date.
     """
     extras = _merge_extras(ctx, extras)
-    ensure_constraints_file_presence(Path.cwd(), extras=extras)
+    try:
+        ensure_constraints_file_presence(Path.cwd(), extras=extras)
+    except UnknownExtraError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 def ensure_constraints_file_presence(directory, extras: Optional[List[str]] = None):
@@ -297,6 +310,7 @@ def _find_input_path(extras: Optional[List[str]] = None) -> Path:
                 "Extras require pyproject.toml. No pyproject.toml or requirements.txt found. "
                 "Create a pyproject.toml with [project.optional-dependencies] to use --extra."
             )
+        _validate_extras(extras, pyproject_path)
         return pyproject_path
     if requirements_path.exists():
         return requirements_path
@@ -307,6 +321,58 @@ def _find_input_path(extras: Optional[List[str]] = None) -> Path:
     )
     requirements_path.write_text("dallinger\n")
     return requirements_path
+
+
+def _validate_extras(extras: List[str], input_path: Path) -> None:
+    available_extras = _get_available_extras(input_path)
+    if not available_extras:
+        raise UnknownExtraError(
+            "No extras are defined in pyproject.toml under [project.optional-dependencies]."
+        )
+    missing_extras = [extra for extra in extras if extra not in available_extras]
+    if missing_extras:
+        missing_label = "extra" if len(missing_extras) == 1 else "extras"
+        available_label = ", ".join(sorted(available_extras))
+        raise UnknownExtraError(
+            f"Unknown {missing_label}: {', '.join(missing_extras)}. "
+            f"Available extras: {available_label}"
+        )
+
+
+def _get_available_extras(input_path: Path) -> List[str]:
+    data = _read_pyproject_toml(input_path)
+    if data is not None:
+        optional_deps = data.get("project", {}).get("optional-dependencies", {})
+        if isinstance(optional_deps, dict):
+            return list(optional_deps.keys())
+        return []
+    return _parse_optional_dependency_keys(input_path)
+
+
+def _read_pyproject_toml(input_path: Path) -> Optional[dict]:
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        return None
+    return tomllib.loads(input_path.read_text(encoding="utf-8"))
+
+
+def _parse_optional_dependency_keys(input_path: Path) -> List[str]:
+    in_optional_section = False
+    extras = []
+    for raw_line in input_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            in_optional_section = line == "[project.optional-dependencies]"
+            continue
+        if not in_optional_section or "=" not in line:
+            continue
+        key = line.split("=", 1)[0].strip().strip('"').strip("'")
+        if key and key not in extras:
+            extras.append(key)
+    return extras
 
 
 def _get_constraints_signature(

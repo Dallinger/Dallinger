@@ -344,3 +344,19 @@ def test_dallinger_constraints_allows_extras_after_subcommand(
     assert result.exit_code == 0, result.output
     call_args = mock_check.call_args[0][0]
     assert "--extra" in call_args
+
+
+def test_dallinger_constraints_unknown_extra_is_click_error(
+    in_tempdir, python_version_file
+):
+    Path("pyproject.toml").write_text(
+        "[project]\nname = 'test'\ndependencies = ['dallinger==11.4.0']\n"
+        "[project.optional-dependencies]\ndev = ['pytest']\n"
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(dallinger_cli, ["constraints", "generate", "--e", "sphinx"])
+
+    assert result.exit_code != 0
+    assert "Unknown extra" in result.output
+    assert "Traceback" not in result.output

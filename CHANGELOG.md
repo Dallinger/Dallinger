@@ -11,6 +11,7 @@
 - Added repeatable `--extra` support to the constraints generator (`dallinger constraints generate/check/ensure`). Extras influence the constraints signature (md5), are passed to the resolver (uv pip compile), and require pyproject.toml when specified. When both pyproject.toml and requirements.txt exist and extras are provided, pyproject.toml is preferred.
 
 #### Fixed
+- Improved `dallinger constraints ... --extra` error reporting for unknown extras so it fails with a clean CLI message instead of a traceback.
 - Fixed `get_page_from_directory` route returning 500 errors with full tracebacks for missing templates (e.g. from vulnerability scanners). Now returns 404, matching the existing `get_page` behavior.
 - Fixed Dozzle login failing on deployments using Dozzle v8+. The `set_dozzle_password` function was using SHA256 hashing, which is no longer supported by recent Dozzle versions. Now uses bcrypt. Also pinned Dozzle image to v10.0.2 to prevent future breaking changes from `:latest`.
 
