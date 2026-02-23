@@ -2,27 +2,33 @@
   "name": "dallinger",
   "version": "0.1.0",
   "description": "Dallinger experiment server",
-  "dependencies": {},
   "devDependencies": {
-    "browser-sync": "^2.18.8",
-    "browser-sync-webpack-plugin": "^1.1.4",
+    "browser-sync": "^3.0.4",
+    "browser-sync-webpack-plugin": "^2.4.0",
     "fingerprintjs2": "^1.5.1",
-    "jest": "^23.6.0",
-    "jsdoc": "^3.6.3",
-    "uglify-es": "^3.0.28",
-    "webpack": "^2.4.1"
+    "jest": "^30.2.0",
+    "jest-environment-jsdom": "^30.2.0",
+    "jsdoc": "^4.0.5",
+    "webpack": "^5.105.2",
+    "webpack-cli": "^6.0.1"
+  },
+  "resolutions": {
+    "kind-of": "^6.0.3",
+    "lodash": "^4.17.21",
+    "minimatch": "^10.2.2"
   },
   "engines": {
     "node": ">= 8.15.0"
   },
   "scripts": {
-    "build": "webpack",
+    "build": "WEBPACK_ENV=build webpack",
     "dev": "webpack --watch",
     "test": "jest"
   },
   "jest": {
     "collectCoverage": true,
     "coverageDirectory": "coverage",
+    "testEnvironment": "jsdom",
     "roots": [
       "<rootDir>/dallinger/"
     ],
