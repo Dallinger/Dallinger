@@ -55,6 +55,10 @@ class UnknownExtraError(ValueError):
     """Raised when a requested extra is not defined in pyproject.toml."""
 
 
+class PyprojectTomlError(ValueError):
+    """Raised when pyproject.toml cannot be parsed."""
+
+
 @click.group()
 @click.option(
     "--extra",
@@ -87,7 +91,7 @@ def check(ctx, extras):
     extras = _merge_extras(ctx, extras)
     try:
         check_constraints(extras=extras)
-    except UnknownExtraError as exc:
+    except (UnknownExtraError, PyprojectTomlError) as exc:
         raise click.ClickException(str(exc)) from exc
 
 
@@ -157,7 +161,7 @@ def generate(ctx, extras):
     extras = _merge_extras(ctx, extras)
     try:
         generate_constraints(extras=extras)
-    except UnknownExtraError as exc:
+    except (UnknownExtraError, PyprojectTomlError) as exc:
         raise click.ClickException(str(exc)) from exc
 
 
@@ -238,7 +242,7 @@ def ensure(ctx, extras):
     extras = _merge_extras(ctx, extras)
     try:
         ensure_constraints_file_presence(Path.cwd(), extras=extras)
-    except UnknownExtraError as exc:
+    except (UnknownExtraError, PyprojectTomlError) as exc:
         raise click.ClickException(str(exc)) from exc
 
 
@@ -341,41 +345,29 @@ def _validate_extras(extras: List[str], input_path: Path) -> None:
 
 def _get_available_extras(input_path: Path) -> List[str]:
     data = _read_pyproject_toml(input_path)
-    if data is not None:
-        optional_deps = data.get("project", {}).get("optional-dependencies", {})
-        if isinstance(optional_deps, dict):
-            return list(optional_deps.keys())
-        return []
-    return _parse_optional_dependency_keys(input_path)
+    optional_deps = data.get("project", {}).get("optional-dependencies", {})
+    if isinstance(optional_deps, dict):
+        return list(optional_deps.keys())
+    return []
 
 
-def _read_pyproject_toml(input_path: Path) -> Optional[dict]:
+def _read_pyproject_toml(input_path: Path) -> dict:
     try:
         import tomllib
     except ModuleNotFoundError:
         try:
             import tomli as tomllib
         except ModuleNotFoundError:
-            return None
-    return tomllib.loads(input_path.read_text(encoding="utf-8"))
-
-
-def _parse_optional_dependency_keys(input_path: Path) -> List[str]:
-    in_optional_section = False
-    extras = []
-    for raw_line in input_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("[") and line.endswith("]"):
-            in_optional_section = line == "[project.optional-dependencies]"
-            continue
-        if not in_optional_section or "=" not in line:
-            continue
-        key = line.split("=", 1)[0].strip().strip('"').strip("'")
-        if key and key not in extras:
-            extras.append(key)
-    return extras
+            raise PyprojectTomlError(
+                "TOML parsing requires tomli on Python < 3.11. "
+                "Install Dallinger with dependencies or add tomli."
+            )
+    try:
+        return tomllib.loads(input_path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as exc:
+        raise PyprojectTomlError(
+            f"{input_path} could not be parsed as TOML. Fix the file and try again."
+        ) from exc
 
 
 def _get_constraints_signature(
