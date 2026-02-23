@@ -4,8 +4,8 @@ import re
 from pathlib import Path
 from unittest.mock import patch
 
-from click.testing import CliRunner
 import pytest
+from click.testing import CliRunner
 
 from dallinger.command_line import dallinger as dallinger_cli
 from dallinger.constraints import (
