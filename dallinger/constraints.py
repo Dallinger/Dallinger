@@ -269,13 +269,6 @@ def _find_input_path(extras: Optional[List[str]] = None) -> Path:
     requirements_path.write_text("dallinger\n")
     return requirements_path
 
-
-def _get_md5sum(input_path: Path) -> str:
-    with open(input_path, "rb") as f:
-        file_bytes = f.read()
-    return md5(file_bytes).hexdigest()
-
-
 def _get_constraints_signature(
     input_path: Path, extras: Optional[List[str]] = None
 ) -> str:
