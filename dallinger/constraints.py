@@ -46,15 +46,19 @@ python_version_path = Path(".python-version")
 requirements_path = Path("requirements.txt")
 pyproject_path = Path("pyproject.toml")
 constraints_path = Path("constraints.txt")
+extra_option_help = (
+    "Optional extra to include (requires pyproject.toml). May be repeated."
+)
 
 
 @click.group()
 @click.option(
     "--extra",
+    "--e",
     "-e",
     "extras",
     multiple=True,
-    help="Optional extra to include (requires pyproject.toml). May be repeated.",
+    help=extra_option_help,
 )
 def constraints_cli(extras):
     """Dallinger constraints file utilities."""
@@ -63,12 +67,20 @@ def constraints_cli(extras):
 
 
 @constraints_cli.command()
+@click.option(
+    "--extra",
+    "--e",
+    "-e",
+    "extras",
+    multiple=True,
+    help=extra_option_help,
+)
 @click.pass_context
-def check(ctx):
+def check(ctx, extras):
     """
     Check the working directory to see whether a constraints.txt file exists and is up to date. Raises a ValueError if not.
     """
-    extras = ctx.obj.get("extras", []) if ctx.obj else []
+    extras = _merge_extras(ctx, extras)
     check_constraints(extras=extras)
 
 
@@ -122,12 +134,20 @@ def assert_constraints_file_presence():
 
 
 @constraints_cli.command()
+@click.option(
+    "--extra",
+    "--e",
+    "-e",
+    "extras",
+    multiple=True,
+    help=extra_option_help,
+)
 @click.pass_context
-def generate(ctx):
+def generate(ctx, extras):
     """
     Generate a constraints.txt file for the current directory.
     """
-    extras = ctx.obj.get("extras", []) if ctx.obj else []
+    extras = _merge_extras(ctx, extras)
     generate_constraints(extras=extras)
 
 
@@ -190,14 +210,22 @@ def generate_constraints(extras: Optional[List[str]] = None):
 
 
 @constraints_cli.command()
+@click.option(
+    "--extra",
+    "--e",
+    "-e",
+    "extras",
+    multiple=True,
+    help=extra_option_help,
+)
 @click.pass_context
-def ensure(ctx):
+def ensure(ctx, extras):
     """
     Ensure that a constraints.txt file exists for the specified directory,
     preserving the existing constraints.txt file if it exists and is up to date,
     and updating it if it is out of date.
     """
-    extras = ctx.obj.get("extras", []) if ctx.obj else []
+    extras = _merge_extras(ctx, extras)
     ensure_constraints_file_presence(Path.cwd(), extras=extras)
 
 
@@ -243,6 +271,17 @@ def ensure_constraints_file_presence(directory, extras: Optional[List[str]] = No
 
     with working_directory(directory):
         generate_constraints(extras=extras)
+
+
+def _merge_extras(ctx, extras):
+    ctx_extras = []
+    if ctx and ctx.obj:
+        ctx_extras = ctx.obj.get("extras", [])
+    combined = []
+    for extra in list(ctx_extras) + list(extras or []):
+        if extra not in combined:
+            combined.append(extra)
+    return combined
 
 
 def _find_input_path(extras: Optional[List[str]] = None) -> Path:
