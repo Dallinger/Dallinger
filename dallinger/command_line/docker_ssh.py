@@ -159,7 +159,12 @@ def add(host, user):
 
 @servers.command()
 @click.option(
-    "--host", required=True, help="IP address or dns name of the remote server"
+    "--host",
+    required=False,
+    default=None,
+    callback=lambda ctx, param, value: resolve_server_option(ctx, param, value),
+    type=str,
+    help="IP address or dns name of the remote server",
 )
 def remove(host):
     """Remove server from list of known remote servers.
@@ -221,12 +226,60 @@ def copy_docker_config(host, user):
 
 
 CONFIGURED_HOSTS = get_configured_hosts()
-if len(CONFIGURED_HOSTS) == 1:
-    default_server = tuple(CONFIGURED_HOSTS.keys())[0]
-    server_prompt = False
-else:
-    default_server = None
-    server_prompt = "Choose one of the configured servers (add one with `dallinger docker-ssh servers add`)\n"
+
+
+def resolve_server_option(ctx, param, value):
+    hosts = tuple(get_configured_hosts().keys())
+    option_name = (
+        f"--{param.name.replace('_', '-')}" if param is not None else "--server"
+    )
+    action = ctx.command.name if ctx is not None and ctx.command is not None else None
+
+    if value is not None:
+        if value not in hosts:
+            choices = ", ".join(hosts) if hosts else "<none>"
+            raise click.BadParameter(
+                f"Unknown server '{value}'. Configured servers: {choices}",
+                param=param,
+            )
+        return value
+
+    if len(hosts) == 1:
+        return hosts[0]
+
+    if len(hosts) == 0:
+        raise click.UsageError(
+            "No server configured. Use `dallinger docker-ssh servers add` to add one."
+        )
+
+    if ctx is not None and getattr(ctx, "resilient_parsing", False):
+        return None
+
+    if not sys.stdin.isatty():
+        choices = ", ".join(hosts)
+        raise click.UsageError(
+            f"Please provide `{option_name}` in non-interactive mode. "
+            f"Configured servers: {choices}"
+        )
+
+    if action == "remove":
+        click.echo("Choose which configured server to remove:")
+    else:
+        click.echo(
+            "Choose one of the configured servers "
+            "(add one with `dallinger docker-ssh servers add`):"
+        )
+    for idx, host in enumerate(hosts, start=1):
+        click.echo(f"  {idx}) {host}")
+
+    number_prompt = (
+        "Select server number to remove"
+        if action == "remove"
+        else "Select server number"
+    )
+    selected_idx = click.prompt(number_prompt, type=click.IntRange(1, len(hosts)))
+    return hosts[selected_idx - 1]
+
 
 # Click options
 option_app_name = click.option(
@@ -249,11 +302,11 @@ option_dns_host = click.option(
 )
 option_server = click.option(
     "--server",
-    required=True,
-    default=default_server,
+    required=False,
+    default=None,
     help="Name of the remote server",
-    prompt=server_prompt,
     type=click.Choice(tuple(CONFIGURED_HOSTS.keys())),
+    callback=resolve_server_option,
 )
 option_update = click.option(
     "--update",
