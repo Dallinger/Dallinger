@@ -255,9 +255,10 @@ def test_extras_influence_signature(in_tempdir):
     assert sig_both != sig_docker
     assert sig_both != sig_test
     # Order should not matter
-    assert _get_constraints_signature(
-        Path("pyproject.toml"), extras=["test", "docker"]
-    ) == sig_both
+    assert (
+        _get_constraints_signature(Path("pyproject.toml"), extras=["test", "docker"])
+        == sig_both
+    )
 
 
 @pytest.mark.slow
