@@ -15,6 +15,7 @@
 #### Fixed
 - Fixed `get_page_from_directory` route returning 500 errors with full tracebacks for missing templates (e.g. from vulnerability scanners). Now returns 404, matching the existing `get_page` behavior.
 - Fixed Dozzle login failing on deployments using Dozzle v8+. The `set_dozzle_password` function was using SHA256 hashing, which is no longer supported by recent Dozzle versions. Now uses bcrypt. Also pinned Dozzle image to v10.0.2 to prevent future breaking changes from `:latest`.
+- Fixed `rq_gevent_worker` compatibility with newer `rq` versions where `StopRequested` and log color helpers moved/changed modules.
 
 #### Removed
 - Removed the `constraints-cli` alias; use `dallinger constraints` instead.
@@ -34,6 +35,8 @@
 - Updated black to 26.1.0
 - Pinned myst-parser < 5
 - Pinned pandas < 3
+- Pinned chardet < 6
+- Updated isort to 8
 - Updated dependencies
 
 ## [v12.1.2](https://github.com/dallinger/dallinger/tree/v12.1.2) (2026-02-13)
