@@ -35,6 +35,7 @@
 - Updated black to 26.1.0
 - Pinned myst-parser < 5
 - Pinned pandas < 3
+- Pinned chardet < 6
 - Updated isort to 8
 - Updated dependencies
 
