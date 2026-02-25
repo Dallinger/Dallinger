@@ -15,7 +15,9 @@
   "resolutions": {
     "kind-of": "^6.0.3",
     "lodash": "^4.17.21",
-    "minimatch": "^10.2.2"
+    "**/resp-modifier/minimatch": "^10.2.2",
+    "**/glob/minimatch": "^10.2.2",
+    "**/test-exclude/minimatch": "^3.1.2"
   },
   "engines": {
     "node": ">= 8.15.0"
