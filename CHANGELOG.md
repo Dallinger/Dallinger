@@ -17,6 +17,9 @@
 - Improved EC2/provisioning CLI output: replaced noisy error messages and bare data dumps with clearer progress indicators (spinners/checkmarks plus list progress where appropriate), clarified `--dns` vs `--dns-host` option help text, and added friendly validation/errors for EC2 instance lookup and selector usage (`--name`/`--dns`).
 - Replaced `tqdm` progress display in EC2 CLI paths with `rich.progress` for consistent spinner/bar output and simplified dependency surface.
 - Adjusted EC2 all-regions listing log level from WARNING to INFO to avoid signaling normal behavior as an issue.
+- Modernized frontend JavaScript tooling:
+  - Upgraded to webpack 5 and webpack-cli 6, replacing legacy UglifyJS plugin usage with webpack's native production optimization settings.
+  - Upgraded frontend test/docs tooling to Jest 30 and JSDoc 4, and configured Jest to use the explicit `jsdom` environment package required by modern Jest.
 
 ### Added
 
@@ -33,6 +36,7 @@
 - Fixed noisy Docker socket permission output in `dallinger docker-ssh servers add` by checking Docker usability, attempting group-permission remediation, and showing a concise actionable error if Docker remains unavailable.
 
 ### Removed
+- Fixed Jest coverage instrumentation failures (`TypeError: minimatch is not a function`) by splitting Yarn resolutions so `test-exclude` uses a callable-compatible minimatch line while modern dependency paths continue to use minimatch 10.
 
 - Removed the `constraints-cli` alias; use `dallinger constraints` instead.
 - Removed `ua-parser` package from dependencies (still required via `user-agents`).
