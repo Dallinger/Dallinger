@@ -724,7 +724,10 @@ def get_page(page):
 @app.route("/<directory>/<page>", methods=["GET"])
 def get_page_from_directory(directory, page):
     """Get a page from a given directory."""
-    return render_template(directory + "/" + page + ".html")
+    try:
+        return render_template(directory + "/" + page + ".html")
+    except TemplateNotFound:
+        abort(404)
 
 
 @app.route("/consent")

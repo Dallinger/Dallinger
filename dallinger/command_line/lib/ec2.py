@@ -67,16 +67,48 @@ def url_to_country_city(url):
     }
 
 
+_AUTH_FAILURE_MSG = (
+    "AWS authentication failed. "
+    "Please check that (1) your AWS credentials are correct and not expired, "
+    "and (2) your system clock is in sync (e.g. run 'timedatectl' on Linux "
+    "or 'w32tm /query /status' on Windows)."
+)
+
+_AUTH_FAILURE_CODES = {"AuthFailure", "InvalidClientTokenId", "RequestExpired"}
+
+
+class _BotoClientProxy:
+    """Wraps a boto3 client to add a helpful hint to auth-related errors."""
+
+    def __init__(self, client):
+        self._client = client
+
+    def __getattr__(self, name):
+        attr = getattr(self._client, name)
+        if not callable(attr):
+            return attr
+
+        def wrapper(*args, **kwargs):
+            try:
+                return attr(*args, **kwargs)
+            except ClientError as e:
+                if e.response.get("Error", {}).get("Code") in _AUTH_FAILURE_CODES:
+                    raise click.ClickException(_AUTH_FAILURE_MSG) from e
+                raise
+
+        return wrapper
+
+
 def get_ec2_client(region_name=None):
-    return boto3.client("ec2", **get_keys(region_name))
+    return _BotoClientProxy(boto3.client("ec2", **get_keys(region_name)))
 
 
 def get_ssm_client(region_name=None):
-    return boto3.client("ssm", **get_keys(region_name))
+    return _BotoClientProxy(boto3.client("ssm", **get_keys(region_name)))
 
 
 def get_53_client():
-    return boto3.client("route53", **get_keys())
+    return _BotoClientProxy(boto3.client("route53", **get_keys()))
 
 
 def list_regions():
@@ -551,10 +583,12 @@ def boot_instance(ec2, image_id, instance_type, key_name, instance_name, region_
     instance = response["Instances"][0]
     instance_id = instance["InstanceId"]
 
-    print(f"Waiting for {instance_name} to be ready...")
-    waiter = get_ec2_client(region_name).get_waiter("instance_running")
-    waiter.wait(InstanceIds=[instance_id])
-    print(f"{instance_name} is ready!")
+    with yaspin(
+        text=f"Waiting for {instance_name} to be ready...", color="green"
+    ) as sp:
+        waiter = get_ec2_client(region_name).get_waiter("instance_running")
+        waiter.wait(InstanceIds=[instance_id])
+        sp.ok("✔")
     return instance_id
 
 
@@ -579,9 +613,6 @@ def increase_storage(
     if ec2 is None:
         assert region_name is not None
         ec2 = get_ec2_client(region_name)
-    # Set sufficient storage
-    print(f"Increasing storage of {instance_name} to {storage_in_gb} GB...")
-
     # get volume id
     response = ec2.describe_instances(InstanceIds=[instance_id])
     instance = response["Reservations"][0]["Instances"][0]
@@ -594,16 +625,19 @@ def increase_storage(
         volume_size < storage_in_gb
     ), f"Volume size {volume_size} GB is already greater than {storage_in_gb} GB"
 
-    # increase volume size
-    ec2.modify_volume(
-        VolumeId=volume_id,
-        Size=storage_in_gb,
-    )
+    with yaspin(
+        text=f"Increasing storage of {instance_name} to {storage_in_gb} GB...",
+        color="green",
+    ) as sp:
+        ec2.modify_volume(
+            VolumeId=volume_id,
+            Size=storage_in_gb,
+        )
 
-    print(f"Waiting for {instance_name} to be ready...")
-    waiter = ec2.get_waiter("volume_in_use")
-    waiter.wait(VolumeIds=[volume_id])
-    print(f"{instance_name} is ready!")
+        sp.text = "Waiting for volume to be ready..."
+        waiter = ec2.get_waiter("volume_in_use")
+        waiter.wait(VolumeIds=[volume_id])
+        sp.ok("✔")
 
     # Extend partition
     host, user, ip_address = (
@@ -636,14 +670,21 @@ def increase_storage(
     selected_volume = selected_volumes[0]
     selected_partition = volume_to_partitions[selected_volume][0]
 
+    print("Disk usage before resize:")
     print(executor.run("df -h"))
-    print(executor.run("lsblk"))
-    time.sleep(20)
-    executor.run(f"sudo growpart /dev/{selected_volume} 1")
 
-    time.sleep(10)
-    executor.run(f"sudo resize2fs /dev/{selected_partition}")
+    with yaspin(
+        text=f"Resizing partition /dev/{selected_volume}...", color="green"
+    ) as sp:
+        time.sleep(20)
+        executor.run(f"sudo growpart /dev/{selected_volume} 1")
 
+        sp.text = f"Resizing filesystem on /dev/{selected_partition}..."
+        time.sleep(10)
+        executor.run(f"sudo resize2fs /dev/{selected_partition}")
+        sp.ok("✔")
+
+    print("Disk usage after resize:")
     print(executor.run("df -h"))
     return host, user, ip_address, executor
 
@@ -724,8 +765,9 @@ def create_dns_record(dns_host, user, host, route_53=None):
     ), "Failed to set up DNS record"
 
     with yaspin(
-        text="Waiting for DNS record to be set up (can take up to two minutes)..."
-    ):
+        text=f"Waiting for DNS record for {dns_host} (can take up to two minutes)...",
+        color="green",
+    ) as sp:
         change_id = response["ChangeInfo"]["Id"]
         n_tries = 24
         wait = 5
@@ -737,13 +779,13 @@ def create_dns_record(dns_host, user, host, route_53=None):
             time.sleep(wait)
         else:
             raise Exception(f"DNS record setup timed out after {timeout} seconds.")
+        sp.ok("✔")
 
     is_wild_card = dns_host.startswith("*.")
     full_domain = dns_host.replace("*.", "")
     test_host = f"test.{full_domain}" if is_wild_card else dns_host
 
     dns_executor = Executor(test_host, user)
-    print("DNS record set up!")
     return dns_executor
 
 
@@ -839,19 +881,22 @@ def prepare_docker_experiment_setup(
 ):
     from dallinger.config import get_config
 
-    config = get_config(load=True)
-    assert config.get("dashboard_user") and config.get(
-        "dashboard_password"
-    ), "dashboard_user and dashboard_password must be set in ~/.dallingerconfig"
+    with yaspin(text="Loading Dallinger configuration...", color="green") as sp:
+        config = get_config(load=True)
+        assert config.get("dashboard_user") and config.get(
+            "dashboard_password"
+        ), "dashboard_user and dashboard_password must be set in ~/.dallingerconfig"
+        sp.ok("✔")
 
     dallinger_prepare_server(host, user)
 
     create_dns_records(dns_host, user, host)
 
-    dallinger_store_host(dict(host=host, user=user))
-    if dns_host:
-        dallinger_store_host(dict(host=dns_host, user=user))
-    print("Host registered in dallinger")
+    with yaspin(text="Registering host in Dallinger...", color="green") as sp:
+        dallinger_store_host(dict(host=host, user=user))
+        if dns_host:
+            dallinger_store_host(dict(host=dns_host, user=user))
+        sp.ok("✔")
 
 
 def provision(

@@ -14,12 +14,13 @@ import signal
 import gevent
 import gevent.pool
 from rq import Worker
-from rq.exceptions import DequeueTimeout
+from rq.cli.helpers import green
+from rq.exceptions import DequeueTimeout, StopRequested
 from rq.job import JobStatus
 from rq.logutils import setup_loghandlers
 from rq.timeouts import BaseDeathPenalty, JobTimeoutException
 from rq.version import VERSION
-from rq.worker import StopRequested, WorkerStatus, blue, green
+from rq.worker import WorkerStatus
 
 
 class GeventDeathPenalty(BaseDeathPenalty):
@@ -207,8 +208,7 @@ class GeventWorker(Worker):
                 if result is not None:
                     job, queue = result
                     self.log.info(
-                        "%s: %s (%s)"
-                        % (green(queue.name), blue(job.description), job.id)
+                        "%s: %s (%s)" % (green(queue.name), job.description, job.id)
                     )
                 break
             except DequeueTimeout:

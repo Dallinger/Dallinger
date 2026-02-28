@@ -6,11 +6,21 @@
 - Moved `numpy` from core dependencies to `data` and `ec2` optional dependencies.
 - EC2 provisioning now defaults to Canonical's Ubuntu 24.04 SSM parameter instead of a pinned AMI name. Falls back to `ec2.describe_images` if SSM access is denied (e.g. missing `ssm:GetParameter` permission).
 - Refactored docker-ssh remote identity handling to use a shared `RemoteIdentity` value object and simpler path-ownership setup.
+- Improved provisioning output: replaced noisy error messages and bare data dumps with yaspin spinners and green checkmarks for all long-running steps (Docker check/install, storage resize, DNS record creation, etc.).
+- Added `tomli` as a dependency for Python 3.10 so pyproject extras can be parsed without a traceback.
+- Improved `dallinger docker-ssh` server selection UX: when multiple servers are configured and `--server` is omitted (and for `servers remove` when `--host` is omitted), users now choose from a numbered list; explicit host/server options and single-server behavior remain unchanged.
 
 #### Added
 - Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
+- Added repeatable `--extra` support to the constraints generator (`dallinger constraints generate/check/ensure`). Extras influence the constraints signature (md5), are passed to the resolver (uv pip compile), and require pyproject.toml when specified. When both pyproject.toml and requirements.txt exist and extras are provided, pyproject.toml is preferred.
+
+#### Fixed
+- Fixed `get_page_from_directory` route returning 500 errors with full tracebacks for missing templates (e.g. from vulnerability scanners). Now returns 404, matching the existing `get_page` behavior.
+- Fixed Dozzle login failing on deployments using Dozzle v8+. The `set_dozzle_password` function was using SHA256 hashing, which is no longer supported by recent Dozzle versions. Now uses bcrypt. Also pinned Dozzle image to v10.0.2 to prevent future breaking changes from `:latest`.
+- Fixed `rq_gevent_worker` compatibility with newer `rq` versions where `StopRequested` and log color helpers moved/changed modules.
 
 #### Removed
+- Removed the `constraints-cli` alias; use `dallinger constraints` instead.
 - Removed `ua-parser` package from dependencies (still required via `user-agents`).
 - Removed obsolete `patches.py` module that patched ipykernel's `OutStream.writable()` method. This workaround for pexpect compatibility has been unnecessary since ipykernel 4.9 (April 2018), which added the fix upstream.
 - Removed unused `flask-crossdomain` dependency (a local implementation in `dallinger.experiment_server.utils` has been used instead for some time).
@@ -22,6 +32,27 @@
 - Removed redundant `black` from dev dependencies (already included via `black[jupyter]`).
 - Removed redundant `jupyter-server` from `jupyter` optional dependencies (transitive dependency of `jupyterlab` via `jupyter`).
 - Removed redundant `ipywidgets` from `jupyter` optional dependencies (transitive dependency of `jupyter`).
+
+#### Updated
+- Updated black to 26.1.0
+- Pinned myst-parser < 5
+- Pinned pandas < 3
+- Pinned chardet < 6
+- Updated isort to 8
+- Updated dependencies
+
+## [v12.1.2](https://github.com/dallinger/dallinger/tree/v12.1.2) (2026-02-13)
+
+#### Reverted
+- Reverted upgrade to PostgreSQL 16
+
+#### Fixed
+- Improved error message for AWS authentication failures (wrong credentials, expired tokens, clock skew) in EC2 commands: now displays a concise, actionable message instead of a full stack trace.
+
+## [v12.1.1](https://github.com/dallinger/dallinger/tree/v12.1.1) (2026-02-11) [YANKED]
+
+#### Changed
+- EC2 provisioning now defaults to Canonical's Ubuntu 24.04 SSM parameter instead of a pinned AMI name. Falls back to `ec2.describe_images` if SSM access is denied (e.g. missing `ssm:GetParameter` permission).
 
 #### Fixed
 - Replaced remaining `pkg_resources` usage with `importlib.metadata` (in CI Docker entry point test and dependency checker).
@@ -37,10 +68,6 @@
 
 #### Updated
 - Updated to PostgreSQL 16
-- Updated black to 26.1.0
-- Pinned myst-parser < 5
-- Pinned pandas < 3
-- Updated dependencies
 
 ## [v12.1.0](https://github.com/dallinger/dallinger/tree/v12.1.0) (2026-01-09)
 
