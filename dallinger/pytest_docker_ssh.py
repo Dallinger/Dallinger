@@ -170,10 +170,15 @@ class DockerSSHServer:
             ["docker-ssh", "servers", "remove", "--host", self.server], check=False
         )
 
-    def list_apps(self):
+    def run_apps_command(self, *, check=True):
         return self.run_dallinger(
-            ["docker-ssh", "apps", "--server", self.server], check=False
-        ).stdout
+            ["docker-ssh", "apps", "--server", self.server], check=check
+        )
+
+    def list_apps(self):
+        result = self.run_apps_command(check=False)
+        output = f"{result.stdout}\n{result.stderr}"
+        return sorted(set(re.findall(r"\bdlgr-[0-9a-f]{8}\b", output)))
 
     def deploy_sandbox(self):
         result = self.run_dallinger(
@@ -217,9 +222,9 @@ class DockerSSHServer:
         if remote_apps:
             return remote_apps[0]
 
-        for line in self.list_apps().splitlines():
-            if line.startswith("dlgr-"):
-                return line.strip()
+        command_apps = self.list_apps()
+        if command_apps:
+            return command_apps[0]
 
         raise RuntimeError(
             "Could not determine deployed app id from deploy output or app list.\n"
