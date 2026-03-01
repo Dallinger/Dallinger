@@ -51,6 +51,7 @@ class DockerSSHServer:
     ssh_user: str
     ssh_key_path: Path
     home_dir: Path
+    repo_root: Path
     experiment_dir: Path
 
     @property
@@ -61,11 +62,17 @@ class DockerSSHServer:
         env = os.environ.copy()
         env["HOME"] = str(self.home_dir)
         env["SKIP_PYTHON_VERSION_CHECK"] = "true"
+        existing_pythonpath = env.get("PYTHONPATH")
+        repo_root = str(self.repo_root)
+        if existing_pythonpath:
+            env["PYTHONPATH"] = f"{repo_root}:{existing_pythonpath}"
+        else:
+            env["PYTHONPATH"] = repo_root
         return env
 
     def run_dallinger(self, args, *, check=True, timeout=300):
         return _run_command(
-            ["dallinger", *args],
+            ["python3", "-m", "dallinger.command_line", *args],
             check=check,
             env=self._dallinger_env(),
             cwd=self.experiment_dir,
@@ -194,8 +201,8 @@ def docker_ssh_server(tmp_path_factory):
         pytest.skip("need RUN_DOCKER environment variable")
     if shutil.which("docker") is None:
         pytest.skip("docker executable not available")
-    if shutil.which("dallinger") is None:
-        pytest.skip("dallinger executable not available")
+    if shutil.which("python3") is None:
+        pytest.skip("python3 executable not available")
     if shutil.which("ssh") is None:
         pytest.skip("ssh executable not available")
     if shutil.which("ssh-keygen") is None:
@@ -319,6 +326,7 @@ def docker_ssh_server(tmp_path_factory):
             ssh_user=SSH_USER,
             ssh_key_path=ssh_key_path,
             home_dir=home_dir,
+            repo_root=repo_root,
             experiment_dir=experiment_dir,
         )
         for _ in range(SSH_WAIT_SECONDS):
