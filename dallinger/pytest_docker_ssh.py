@@ -166,7 +166,6 @@ class DockerSSHServer:
                 "--server",
                 self.server,
                 "--local_build",
-                "--verbose",
                 "-c",
                 "dashboard_password",
                 "pytest-dashboard-password",
