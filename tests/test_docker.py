@@ -299,8 +299,7 @@ def test_build_and_push_image_logs_registry_lookup_errors(monkeypatch, capsys):
     import importlib
 
     import docker
-
-    from dallinger.command_line import docker as docker_cmd
+    import dallinger.command_line.docker as docker_cmd
 
     docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
 
