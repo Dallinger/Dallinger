@@ -299,9 +299,9 @@ def test_build_and_push_image_logs_registry_lookup_errors(monkeypatch, capsys):
     import importlib
 
     import docker
-    import dallinger.command_line.docker as docker_cmd
 
     docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    docker_cmd = importlib.import_module("dallinger.command_line.docker")
 
     class FakeConfig:
         def get(self, key, default=None):
