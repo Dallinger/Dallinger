@@ -180,13 +180,18 @@ class DockerSSHServer:
         output = f"{result.stdout}\n{result.stderr}"
         return sorted(set(re.findall(r"\bdlgr-[0-9a-f]{8}\b", output)))
 
-    def deploy_sandbox(self):
+    def deploy_sandbox(self, app_id=None):
+        requested_app_id = app_id or f"dlgr-{uuid.uuid4().hex[:8]}"
         result = self.run_dallinger(
             [
                 "docker-ssh",
                 "sandbox",
                 "--server",
                 self.server,
+                "--app",
+                requested_app_id,
+                "--dns-host",
+                "nip.io",
                 "--local_build",
                 "-c",
                 "dashboard_password",
@@ -208,29 +213,7 @@ class DockerSSHServer:
         parsed_app_id = match.group(1) if match else None
         if parsed_app_id:
             return parsed_app_id
-
-        remote_apps_raw = self.run_ssh(
-            "ls -1 ~/dallinger/caddy.d 2>/dev/null || true", check=False
-        ).stdout
-        remote_apps = [
-            line.strip()
-            for line in remote_apps_raw.splitlines()
-            if line.strip().startswith("dlgr-")
-        ]
-        if parsed_app_id and parsed_app_id in remote_apps:
-            return parsed_app_id
-        if remote_apps:
-            return remote_apps[0]
-
-        command_apps = self.list_apps()
-        if command_apps:
-            return command_apps[0]
-
-        raise RuntimeError(
-            "Could not determine deployed app id from deploy output or app list.\n"
-            f"Deploy output:\n{output}\n"
-            f"Remote apps output:\n{remote_apps_raw}"
-        )
+        return requested_app_id
 
     def destroy_app(self, app_id):
         self.run_dallinger(
