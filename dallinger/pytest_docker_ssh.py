@@ -201,6 +201,8 @@ class DockerSSHServer:
         output = f"{result.stdout}\n{result.stderr}"
         match = re.search(r"Experiment (dlgr-[0-9a-f]{8}) started\.", output)
         parsed_app_id = match.group(1) if match else None
+        if parsed_app_id:
+            return parsed_app_id
 
         remote_apps_raw = self.run_ssh(
             "ls -1 ~/dallinger/caddy.d 2>/dev/null || true", check=False
