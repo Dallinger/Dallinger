@@ -6,7 +6,7 @@ from unittest import mock
 import pytest
 from tzlocal import get_localzone
 
-pytest_plugins = ["pytest_dallinger"]
+pytest_plugins = ["pytest_dallinger", "dallinger.pytest_docker_ssh"]
 
 
 @pytest.fixture(scope="module")
@@ -112,9 +112,7 @@ def experiment_dir_merged(experiment_dir, active_config):
     with standard Dallinger files by the same process that occurs in production.
     """
     from dallinger.constraints import ensure_constraints_file_presence
-    from dallinger.utils import (
-        assemble_experiment_temp_dir,
-    )
+    from dallinger.utils import assemble_experiment_temp_dir
 
     current_dir = os.getcwd()
     ensure_constraints_file_presence(current_dir)
