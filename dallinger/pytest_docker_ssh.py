@@ -200,8 +200,20 @@ class DockerSSHServer:
         )
         output = f"{result.stdout}\n{result.stderr}"
         match = re.search(r"Experiment (dlgr-[0-9a-f]{8}) started\.", output)
-        if match:
-            return match.group(1)
+        parsed_app_id = match.group(1) if match else None
+
+        remote_apps_raw = self.run_ssh(
+            "ls -1 ~/dallinger/caddy.d 2>/dev/null || true", check=False
+        ).stdout
+        remote_apps = [
+            line.strip()
+            for line in remote_apps_raw.splitlines()
+            if line.strip().startswith("dlgr-")
+        ]
+        if parsed_app_id and parsed_app_id in remote_apps:
+            return parsed_app_id
+        if remote_apps:
+            return remote_apps[0]
 
         for line in self.list_apps().splitlines():
             if line.startswith("dlgr-"):
@@ -209,7 +221,8 @@ class DockerSSHServer:
 
         raise RuntimeError(
             "Could not determine deployed app id from deploy output or app list.\n"
-            f"Deploy output:\n{output}"
+            f"Deploy output:\n{output}\n"
+            f"Remote apps output:\n{remote_apps_raw}"
         )
 
     def destroy_app(self, app_id):
