@@ -109,7 +109,7 @@ class DockerSSHServer:
             return
 
         self.run_ssh(
-            "nohup dockerd --storage-driver=vfs >/var/log/dockerd.log 2>&1 </dev/null &"
+            "nohup dockerd --storage-driver=vfs --iptables=false >/var/log/dockerd.log 2>&1 </dev/null &"
         )
         for _ in range(DOCKER_WAIT_SECONDS):
             if self.run_ssh("docker info >/dev/null 2>&1", check=False).returncode == 0:
