@@ -108,9 +108,26 @@ class DockerSSHServer:
         if self.run_ssh("docker info >/dev/null 2>&1", check=False).returncode == 0:
             return
 
-        self.run_ssh(
-            "nohup dockerd --storage-driver=vfs --iptables=false >/var/log/dockerd.log 2>&1 </dev/null &"
+        start_command = (
+            "nohup dockerd --storage-driver=vfs >/var/log/dockerd.log 2>&1 </dev/null &"
         )
+        self.run_ssh(start_command)
+        for _ in range(DOCKER_WAIT_SECONDS):
+            if self.run_ssh("docker info >/dev/null 2>&1", check=False).returncode == 0:
+                return
+            time.sleep(1)
+
+        # In restricted container runtimes, nftables often cannot create NAT
+        # chains. Retry using legacy iptables userspace if available.
+        self.run_ssh("pkill -f dockerd >/dev/null 2>&1 || true", check=False)
+        self.run_ssh(
+            (
+                "update-alternatives --set iptables /usr/sbin/iptables-legacy >/dev/null 2>&1 || true; "
+                "update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy >/dev/null 2>&1 || true"
+            ),
+            check=False,
+        )
+        self.run_ssh(start_command)
         for _ in range(DOCKER_WAIT_SECONDS):
             if self.run_ssh("docker info >/dev/null 2>&1", check=False).returncode == 0:
                 return
