@@ -4,6 +4,7 @@ import shlex
 import shutil
 import socket
 import subprocess
+import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -53,6 +54,7 @@ class DockerSSHServer:
     home_dir: Path
     repo_root: Path
     experiment_dir: Path
+    python_executable: str
 
     @property
     def server(self):
@@ -72,7 +74,12 @@ class DockerSSHServer:
 
     def run_dallinger(self, args, *, check=True, timeout=300):
         return _run_command(
-            ["python3", "-m", "dallinger.command_line", *args],
+            [
+                self.python_executable,
+                "-c",
+                "import sys; from dallinger.command_line import dallinger; sys.exit(dallinger())",
+                *args,
+            ],
             check=check,
             env=self._dallinger_env(),
             cwd=self.experiment_dir,
@@ -201,8 +208,8 @@ def docker_ssh_server(tmp_path_factory):
         pytest.skip("need RUN_DOCKER environment variable")
     if shutil.which("docker") is None:
         pytest.skip("docker executable not available")
-    if shutil.which("python3") is None:
-        pytest.skip("python3 executable not available")
+    if not sys.executable:
+        pytest.skip("python executable not available")
     if shutil.which("ssh") is None:
         pytest.skip("ssh executable not available")
     if shutil.which("ssh-keygen") is None:
@@ -328,6 +335,7 @@ def docker_ssh_server(tmp_path_factory):
             home_dir=home_dir,
             repo_root=repo_root,
             experiment_dir=experiment_dir,
+            python_executable=sys.executable,
         )
         for _ in range(SSH_WAIT_SECONDS):
             if server.run_ssh("echo ok", check=False).returncode == 0:
