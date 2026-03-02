@@ -32,6 +32,8 @@ from ..docker_ssh import prepare_server as dallinger_prepare_server
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_AWS_REGION = "us-east-1"
+
 DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER = (
     "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
 )
@@ -39,6 +41,7 @@ DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER = (
 
 def _resolve_default_region_name():
     """Resolve default region for user-facing messages."""
+    configured_region = None
     try:
         from dallinger.config import get_config
 
@@ -47,10 +50,13 @@ def _resolve_default_region_name():
             config.load(strict=False)
         configured_region = config.get("aws_region", None)
     except Exception:
-        configured_region = None
+        logger.warning(
+            "Could not read configured aws_region; falling back to session/default.",
+            exc_info=True,
+        )
 
     session_region = boto3.session.Session().region_name
-    return configured_region or session_region or "us-east-1"
+    return configured_region or session_region or DEFAULT_AWS_REGION
 
 
 def get_keys(region_name=None):
@@ -63,7 +69,7 @@ def get_keys(region_name=None):
         keys = {
             "aws_access_key_id": config.get("aws_access_key_id"),
             "aws_secret_access_key": config.get("aws_secret_access_key"),
-            "region_name": region_name or config.get("aws_region", "us-east-1"),
+            "region_name": region_name or config.get("aws_region", DEFAULT_AWS_REGION),
         }
     return keys
 
