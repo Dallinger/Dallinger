@@ -60,7 +60,7 @@
 - Pinned pandas < 3
 - Pinned chardet < 6
 - Updated isort to 8
-- Updated dependencies
+- Updated dependencies (*)
 
 ## [v12.1.2](https://github.com/dallinger/dallinger/tree/v12.1.2) (2026-02-13)
 
