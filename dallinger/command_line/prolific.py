@@ -70,12 +70,11 @@ def list_workspaces(ctx, show_all_columns):
         {k: v for k, v in row.items() if k not in columns_to_exclude}
         for row in prolific_service_from_config().get_workspaces()
     ]
+    if not filtered_workspaces_data:
+        click.echo("No workspaces found.")
+        return
 
-    headers = (
-        [key for key in filtered_workspaces_data[0].keys()]
-        if filtered_workspaces_data
-        else []
-    )
+    headers = [key for key in filtered_workspaces_data[0].keys()]
     rows = [
         [row.get(header, "") for header in headers] for row in filtered_workspaces_data
     ]
@@ -121,6 +120,10 @@ def list_studies(ctx, sort_by, published):
     if sort_by is not None:
         filtered_studies.sort(key=lambda x: x[sort_by], reverse=True)
 
+    if not filtered_studies:
+        click.echo("No studies found.")
+        return
+
     def format_cost(cost):
         return f"£{cost / 100:.2f}"
 
@@ -153,6 +156,6 @@ def list_studies(ctx, sort_by, published):
         }
     )
 
-    headers = [key for key in formatted_studies[0].keys()] if formatted_studies else []
+    headers = [key for key in formatted_studies[0].keys()]
     rows = [[row.get(header, "") for header in headers] for row in formatted_studies]
     print(render_rich_table(rows, headers=headers))
