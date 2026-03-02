@@ -939,7 +939,7 @@ def generate_constraints():
 #    dallinger constraints generate
 #    dallinger constraints check (throws error if constraints.txt is not up to date)
 #    dallinger constraints ensure (creates/updates constraints.txt if it is missing/out of date)
-dallinger.add_command(constraints_cli)
+dallinger.add_command(constraints_cli, name="constraints")
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
