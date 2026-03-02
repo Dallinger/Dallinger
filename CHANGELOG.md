@@ -12,9 +12,6 @@
 - Improved provisioning output: replaced noisy error messages and bare data dumps with yaspin spinners and green checkmarks for all long-running steps (Docker check/install, storage resize, DNS record creation, etc.).
 - Added `tomli` as a dependency for Python 3.10 so pyproject extras can be parsed without a traceback.
 - Improved `dallinger docker-ssh` server selection UX: when multiple servers are configured and `--server` is omitted (and for `servers remove` when `--host` is omitted), users now choose from a numbered list; explicit host/server options and single-server behavior remain unchanged.
-
-#### Added
-- Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
 - Added repeatable `--extra` support to the constraints generator (`dallinger constraints generate/check/ensure`). Extras influence the constraints signature (md5), are passed to the resolver (uv pip compile), and require pyproject.toml when specified. When both pyproject.toml and requirements.txt exist and extras are provided, pyproject.toml is preferred.
 
 #### Fixed
