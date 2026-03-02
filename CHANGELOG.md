@@ -7,14 +7,17 @@
 - Improved provisioning output: replaced noisy error messages and bare data dumps with yaspin spinners and green checkmarks for all long-running steps (Docker check/install, storage resize, DNS record creation, etc.).
 - Added `tomli` as a dependency for Python 3.10 so pyproject extras can be parsed without a traceback.
 - Improved `dallinger docker-ssh` server selection UX: when multiple servers are configured and `--server` is omitted (and for `servers remove` when `--host` is omitted), users now choose from a numbered list; explicit host/server options and single-server behavior remain unchanged.
+- Migrated CLI table rendering from `tabulate` to Rich tables for consistent formatting and non-interactive output behavior.
 
 #### Added
 - Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
+- Added `get_running_app` helper for selecting a default `docker-ssh` app programmatically.
 - Added repeatable `--extra` support to the constraints generator (`dallinger constraints generate/check/ensure`). Extras influence the constraints signature (md5), are passed to the resolver (uv pip compile), and require pyproject.toml when specified. When both pyproject.toml and requirements.txt exist and extras are provided, pyproject.toml is preferred.
 
 #### Fixed
 - Fixed `get_page_from_directory` route returning 500 errors with full tracebacks for missing templates (e.g. from vulnerability scanners). Now returns 404, matching the existing `get_page` behavior.
 - Fixed Dozzle login failing on deployments using Dozzle v8+. The `set_dozzle_password` function was using SHA256 hashing, which is no longer supported by recent Dozzle versions. Now uses bcrypt. Also pinned Dozzle image to v10.0.2 to prevent future breaking changes from `:latest`.
+- Fixed `docker-ssh export` and `docker-ssh apps` for root-domain deployments.
 - Fixed `rq_gevent_worker` compatibility with newer `rq` versions where `StopRequested` and log color helpers moved/changed modules.
 
 #### Removed
@@ -75,7 +78,7 @@
   Hosts found in the old location are automatically imported to the new location on first access.
 - Dashboard authentication is now disabled if Dallinger detects that it is running in debug mode
   in GitHub Codespaces. This stops users from having to type in dashboard credentials every time they debug.
-  
+
 #### Fixed
 - Fixed bug where `server_pem` was not propagated to the Docker remote build process.
 - Pinned paramiko to <4.0.0 to address incompatibility with sshtunnel

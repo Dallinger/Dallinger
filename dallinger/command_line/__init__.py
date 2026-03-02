@@ -15,7 +15,6 @@ from pathlib import Path
 
 import click
 import requests
-import tabulate
 from rq import Worker
 from sqlalchemy import exc as sa_exc
 
@@ -28,6 +27,7 @@ from dallinger.command_line.utils import (
     Output,
     header,
     log,
+    render_rich_table,
     require_exp_directory,
     run_pre_launch_checks,
     verify_id,
@@ -357,7 +357,10 @@ def email_test():
     config = get_config(load=True)
     settings = EmailConfig(config)
     out.log("Email Config")
-    out.log(tabulate.tabulate(settings.as_dict().items()), chevrons=False)
+    out.log(
+        render_rich_table([[key, value] for key, value in settings.as_dict().items()]),
+        chevrons=False,
+    )
     problems = settings.validate()
     if problems:
         out.error(
@@ -427,11 +430,22 @@ def compensate(recruiter, worker_id, email, dollars, sandbox):
             return
 
     out.log("HIT Details")
-    out.log(tabulate.tabulate(result["hit"].items()), chevrons=False)
+    out.log(
+        render_rich_table([[key, value] for key, value in result["hit"].items()]),
+        chevrons=False,
+    )
     out.log("Qualification Details")
-    out.log(tabulate.tabulate(result["qualification"].items()), chevrons=False)
+    out.log(
+        render_rich_table(
+            [[key, value] for key, value in result["qualification"].items()]
+        ),
+        chevrons=False,
+    )
     out.log("Worker Notification")
-    out.log(tabulate.tabulate(result["email"].items()), chevrons=False)
+    out.log(
+        render_rich_table([[key, value] for key, value in result["email"].items()]),
+        chevrons=False,
+    )
 
 
 @dallinger.command()
@@ -683,7 +697,10 @@ def extend_mturk_hit(hit_id, assignments, duration_hours, sandbox):
             return
 
     out.log("Updated HIT Details")
-    out.log(tabulate.tabulate(hit_info.items()), chevrons=False)
+    out.log(
+        render_rich_table([[key, value] for key, value in hit_info.items()]),
+        chevrons=False,
+    )
 
 
 @dallinger.command()
@@ -906,7 +923,7 @@ def apps():
         out.log(
             "Found {} heroku apps running for user {}".format(len(listing), my_user)
         )
-        out.log(tabulate.tabulate(listing, headers, tablefmt="psql"), chevrons=False)
+        out.log(render_rich_table(listing, headers=headers), chevrons=False)
     else:
         out.log("No heroku apps found for user {}".format(my_user))
 
