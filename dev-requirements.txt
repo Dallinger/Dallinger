@@ -179,7 +179,7 @@ idna==3.11
     #   jsonschema
     #   requests
     #   trio
-imagesize==1.4.1
+imagesize==2.0.0
     # via sphinx
 iniconfig==2.3.0
     # via pytest
