@@ -141,7 +141,7 @@ python-dateutil==2.9.0.post0
     #   heroku3
 python-json-logger==4.0.0
     # via dallinger
-pytz==2025.2
+pytz==2026.1
     # via croniter
 redis==7.2.0
     # via
