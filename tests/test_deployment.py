@@ -494,7 +494,8 @@ class TestSetupExperiment:
         (Path(tmp_egg) / "funniest").mkdir()
         (Path(tmp_egg) / "funniest" / "__init__.py").write_text("")
         (Path(tmp_egg) / "README").write_text("Foobar")
-        (Path(tmp_egg) / "setup.py").write_text(textwrap.dedent("""\
+        (Path(tmp_egg) / "setup.py").write_text(
+            textwrap.dedent("""\
         from setuptools import setup
 
         setup(name='funniest',
@@ -506,7 +507,8 @@ class TestSetupExperiment:
             license='MIT',
             packages=['funniest'],
             zip_safe=False)
-        """))
+        """)
+        )
         with mock.patch(
             "dallinger.utils.get_editable_dallinger_path"
         ) as get_editable_dallinger_path:

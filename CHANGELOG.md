@@ -10,6 +10,7 @@
 - Replaced third-party `cached_property` package with Python's built-in `functools.cached_property` (available since Python 3.8).
 - Moved `ipython` from core dependencies to `jupyter` optional dependency, reducing install size for users who don't need Jupyter features.
 - Moved `numpy` from core dependencies to `data` and `ec2` optional dependencies.
+- Migrated linting/formatting from `black`, `flake8`, and `isort` to Ruff (`ruff check` + `ruff format`) while preserving existing style settings and pre-commit integration.
 - Improved provisioning output: replaced noisy error messages and bare data dumps with yaspin spinners and green checkmarks for all long-running steps (Docker check/install, storage resize, DNS record creation, etc.).
 - Added `tomli` as a dependency for Python 3.10 so pyproject extras can be parsed without a traceback.
 - Improved `dallinger docker-ssh` server selection UX: when multiple servers are configured and `--server` is omitted (and for `servers remove` when `--host` is omitted), users now choose from a numbered list; explicit host/server options and single-server behavior remain unchanged.
