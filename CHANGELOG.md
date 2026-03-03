@@ -60,7 +60,8 @@
 - Pinned pandas < 3
 - Pinned chardet < 6
 - Updated isort to 8
-- Updated dependencies (*)
+- Pinned markdown-it-py < 4 to keep production and dev lock files on the same version (myst-parser requires 3.x)
+- Updated dependencies
 
 ## [v12.1.2](https://github.com/dallinger/dallinger/tree/v12.1.2) (2026-02-13)
 
