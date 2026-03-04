@@ -5,9 +5,11 @@
 - Moved `ipython` from core dependencies to `jupyter` optional dependency, reducing install size for users who don't need Jupyter features.
 - Moved `numpy` from core dependencies to `data` and `ec2` optional dependencies.
 - EC2 provisioning now defaults to Canonical's Ubuntu 24.04 SSM parameter instead of a pinned AMI name. Falls back to `ec2.describe_images` if SSM access is denied (e.g. missing `ssm:GetParameter` permission).
+- Replaced the shell-based `docker-ssh` CI smoke check with pytest-based integration tests using a reusable Docker SSH server fixture.
 
 #### Added
 - Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
+- Added reusable pytest fixtures for `docker-ssh` integration testing (`docker_ssh_server` and `fresh_docker_ssh_server`) and expanded docker-ssh integration coverage.
 
 #### Removed
 - Removed `ua-parser` package from dependencies (still required via `user-agents`).
@@ -33,6 +35,8 @@
 - Fixed new participant link to avoid propagating credentials from the dashboard URL.
 - Fixed EC2 teardown to show a clear error when no instances exist in a region.
 - Fixed Docker SSH localhost deployments in CI by allowing SSH hosts with explicit ports (for example, `localhost:2222`) and correctly handling loopback TLS verification.
+- Improved Docker SSH deployment robustness by fixing `--update` flag parsing, ensuring missing `known_hosts` files are created, and avoiding premature Dozzle restarts.
+- Improved Docker SSH runtime reliability in CI-like environments by hardening nested Docker startup and deploy defaults (including Redis fallback behavior and PostgreSQL schema permissions for experiment users).
 
 #### Updated
 - Updated to PostgreSQL 16
