@@ -211,10 +211,10 @@ def prepare_server(host, user):
             sp.text = "Installing Docker..."
             executor.check_sudo()
             executor.run("wget -O - https://get.docker.com | sudo -n bash")
-            executor.run("sudo -n adduser $(id --user --name) docker")
-            # Log in again in case we need to be part of the `docker` group
-            executor = Executor(host, user)
-            if not _docker_is_usable(executor):
+            executor, docker_usable = _grant_docker_group_and_refresh_session(
+                executor, host, user, check_sudo=False
+            )
+            if not docker_usable:
                 sp.fail("✖")
                 raise click.ClickException(
                     "Docker installed, but it is still not usable by this user. "
@@ -228,11 +228,10 @@ def prepare_server(host, user):
             return
 
         sp.text = "Configuring Docker permissions..."
-        executor.check_sudo()
-        executor.run("sudo -n adduser $(id --user --name) docker")
-        # Reconnect so the current session gets updated group membership
-        executor = Executor(host, user)
-        if _docker_is_usable(executor):
+        executor, docker_usable = _grant_docker_group_and_refresh_session(
+            executor, host, user
+        )
+        if docker_usable:
             sp.ok("✔")
             return
 
@@ -248,6 +247,14 @@ def _docker_is_usable(executor):
         executor.run("docker ps >/dev/null 2>&1 && echo usable", raise_=False).strip()
         == "usable"
     )
+
+
+def _grant_docker_group_and_refresh_session(executor, host, user, check_sudo=True):
+    if check_sudo:
+        executor.check_sudo()
+    executor.run("sudo -n adduser $(id --user --name) docker")
+    refreshed_executor = Executor(host, user)
+    return refreshed_executor, _docker_is_usable(refreshed_executor)
 
 
 def copy_docker_config(host, user):
