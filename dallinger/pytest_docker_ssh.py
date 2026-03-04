@@ -202,7 +202,9 @@ class DockerSSHServer:
         output = f"{result.stdout}\n{result.stderr}"
         return sorted(set(re.findall(r"\bdlgr-[0-9a-f]{8}\b", output)))
 
-    def _sandbox_args(self, app_id, *, update=False):
+    def _sandbox_args(
+        self, app_id, *, update=False, docker_image_name=EXPERIMENT_IMAGE
+    ):
         args = [
             "docker-ssh",
             "sandbox",
@@ -222,19 +224,23 @@ class DockerSSHServer:
             "-c",
             "auto_recruit",
             "false",
-            "-c",
-            "docker_image_name",
-            EXPERIMENT_IMAGE,
         ]
+        if docker_image_name is not None:
+            args.extend(["-c", "docker_image_name", docker_image_name])
         if update:
             args.append("--update")
         return args
 
-    def deploy_sandbox(self, app_id=None):
+    def deploy_sandbox(self, app_id=None, *, docker_image_name=EXPERIMENT_IMAGE):
         requested_app_id = app_id or f"dlgr-{uuid.uuid4().hex[:8]}"
         try:
             result = self.run_dallinger(
-                self._sandbox_args(requested_app_id, update=False), timeout=1200
+                self._sandbox_args(
+                    requested_app_id,
+                    update=False,
+                    docker_image_name=docker_image_name,
+                ),
+                timeout=1200,
             )
         except RuntimeError as exc:
             diagnostics = self._collect_remote_diagnostics()
@@ -246,10 +252,13 @@ class DockerSSHServer:
             return parsed_app_id
         return requested_app_id
 
-    def update_sandbox(self, app_id):
+    def update_sandbox(self, app_id, *, docker_image_name=EXPERIMENT_IMAGE):
         try:
             return self.run_dallinger(
-                self._sandbox_args(app_id, update=True), timeout=1200
+                self._sandbox_args(
+                    app_id, update=True, docker_image_name=docker_image_name
+                ),
+                timeout=1200,
             )
         except RuntimeError as exc:
             diagnostics = self._collect_remote_diagnostics()

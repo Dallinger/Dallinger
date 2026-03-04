@@ -86,7 +86,7 @@ def test_docker_ssh_update_refreshes_served_template(fresh_docker_ssh_server, tm
     }
     app_id = None
     try:
-        app_id = fresh_docker_ssh_server.deploy_sandbox()
+        app_id = fresh_docker_ssh_server.deploy_sandbox(docker_image_name=None)
 
         response_before = fresh_docker_ssh_server.fetch_experiment_page(
             app_id, "/instructions/instruct-ready", query=query
@@ -96,7 +96,9 @@ def test_docker_ssh_update_refreshes_served_template(fresh_docker_ssh_server, tm
         assert marker_after not in response_before.text
 
         template_path.write_text(f"{original_template}\n<!-- {marker_after} -->\n")
-        update_result = fresh_docker_ssh_server.update_sandbox(app_id)
+        update_result = fresh_docker_ssh_server.update_sandbox(
+            app_id, docker_image_name=None
+        )
         update_output = f"{update_result.stdout}\n{update_result.stderr}"
         assert (
             "Skipping experiment launch logic because we are in update mode."
