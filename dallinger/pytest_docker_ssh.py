@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+import requests
 
 EXPERIMENT_IMAGE = "ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5"
 SSH_USER = "root"
@@ -175,6 +176,9 @@ class DockerSSHServer:
             ["docker-ssh", "apps", "--server", self.server], check=check
         )
 
+    def run_servers_list_command(self, *, check=True):
+        return self.run_dallinger(["docker-ssh", "servers", "list"], check=check)
+
     def _collect_remote_diagnostics(self):
         diagnostics = []
         commands = (
@@ -198,34 +202,39 @@ class DockerSSHServer:
         output = f"{result.stdout}\n{result.stderr}"
         return sorted(set(re.findall(r"\bdlgr-[0-9a-f]{8}\b", output)))
 
+    def _sandbox_args(self, app_id, *, update=False):
+        args = [
+            "docker-ssh",
+            "sandbox",
+            "--server",
+            self.server,
+            "--app",
+            app_id,
+            "--dns-host",
+            "nip.io",
+            "--local_build",
+            "-c",
+            "dashboard_password",
+            "pytest-dashboard-password",
+            "-c",
+            "recruiter",
+            "hotair",
+            "-c",
+            "auto_recruit",
+            "false",
+            "-c",
+            "docker_image_name",
+            EXPERIMENT_IMAGE,
+        ]
+        if update:
+            args.append("--update")
+        return args
+
     def deploy_sandbox(self, app_id=None):
         requested_app_id = app_id or f"dlgr-{uuid.uuid4().hex[:8]}"
         try:
             result = self.run_dallinger(
-                [
-                    "docker-ssh",
-                    "sandbox",
-                    "--server",
-                    self.server,
-                    "--app",
-                    requested_app_id,
-                    "--dns-host",
-                    "nip.io",
-                    "--local_build",
-                    "-c",
-                    "dashboard_password",
-                    "pytest-dashboard-password",
-                    "-c",
-                    "recruiter",
-                    "hotair",
-                    "-c",
-                    "auto_recruit",
-                    "false",
-                    "-c",
-                    "docker_image_name",
-                    EXPERIMENT_IMAGE,
-                ],
-                timeout=1200,
+                self._sandbox_args(requested_app_id, update=False), timeout=1200
             )
         except RuntimeError as exc:
             diagnostics = self._collect_remote_diagnostics()
@@ -236,6 +245,28 @@ class DockerSSHServer:
         if parsed_app_id:
             return parsed_app_id
         return requested_app_id
+
+    def update_sandbox(self, app_id):
+        try:
+            return self.run_dallinger(
+                self._sandbox_args(app_id, update=True), timeout=1200
+            )
+        except RuntimeError as exc:
+            diagnostics = self._collect_remote_diagnostics()
+            raise RuntimeError(f"{exc}\n\nRemote diagnostics:\n{diagnostics}") from exc
+
+    def experiment_base_url(self, app_id):
+        target_ip = socket.gethostbyname(self.ssh_host)
+        return f"https://{app_id}.{target_ip}.nip.io"
+
+    def fetch_experiment_page(self, app_id, path, *, query=None, timeout=30):
+        query = query or {}
+        return requests.get(
+            f"{self.experiment_base_url(app_id)}{path}",
+            params=query,
+            timeout=timeout,
+            verify=False,
+        )
 
     def destroy_app(self, app_id):
         try:
