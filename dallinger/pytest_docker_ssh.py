@@ -175,6 +175,24 @@ class DockerSSHServer:
             ["docker-ssh", "apps", "--server", self.server], check=check
         )
 
+    def _collect_remote_diagnostics(self):
+        diagnostics = []
+        commands = (
+            ("docker ps -a", "docker ps -a"),
+            (
+                'for c in $(docker ps -aq); do echo "===== $c ====="; docker logs "$c" || true; done',
+                "docker container logs",
+            ),
+            ("tail -n 200 /var/log/dockerd.log || true", "dockerd log tail"),
+        )
+        for command, label in commands:
+            result = self.run_ssh(command, check=False, timeout=180)
+            diagnostics.append(
+                f"--- {label} (exit {result.returncode}) ---\n"
+                f"{result.stdout}\n{result.stderr}"
+            )
+        return "\n".join(diagnostics)
+
     def list_apps(self):
         result = self.run_apps_command(check=False)
         output = f"{result.stdout}\n{result.stderr}"
@@ -182,32 +200,36 @@ class DockerSSHServer:
 
     def deploy_sandbox(self, app_id=None):
         requested_app_id = app_id or f"dlgr-{uuid.uuid4().hex[:8]}"
-        result = self.run_dallinger(
-            [
-                "docker-ssh",
-                "sandbox",
-                "--server",
-                self.server,
-                "--app",
-                requested_app_id,
-                "--dns-host",
-                "nip.io",
-                "--local_build",
-                "-c",
-                "dashboard_password",
-                "pytest-dashboard-password",
-                "-c",
-                "recruiter",
-                "hotair",
-                "-c",
-                "auto_recruit",
-                "false",
-                "-c",
-                "docker_image_name",
-                EXPERIMENT_IMAGE,
-            ],
-            timeout=1200,
-        )
+        try:
+            result = self.run_dallinger(
+                [
+                    "docker-ssh",
+                    "sandbox",
+                    "--server",
+                    self.server,
+                    "--app",
+                    requested_app_id,
+                    "--dns-host",
+                    "nip.io",
+                    "--local_build",
+                    "-c",
+                    "dashboard_password",
+                    "pytest-dashboard-password",
+                    "-c",
+                    "recruiter",
+                    "hotair",
+                    "-c",
+                    "auto_recruit",
+                    "false",
+                    "-c",
+                    "docker_image_name",
+                    EXPERIMENT_IMAGE,
+                ],
+                timeout=1200,
+            )
+        except RuntimeError as exc:
+            diagnostics = self._collect_remote_diagnostics()
+            raise RuntimeError(f"{exc}\n\nRemote diagnostics:\n{diagnostics}") from exc
         output = f"{result.stdout}\n{result.stderr}"
         match = re.search(r"Experiment (dlgr-[0-9a-f]{8}) started\.", output)
         parsed_app_id = match.group(1) if match else None
@@ -216,9 +238,13 @@ class DockerSSHServer:
         return requested_app_id
 
     def destroy_app(self, app_id):
-        self.run_dallinger(
-            ["docker-ssh", "destroy", "--server", self.server, "--app", app_id]
-        )
+        try:
+            self.run_dallinger(
+                ["docker-ssh", "destroy", "--server", self.server, "--app", app_id]
+            )
+        except RuntimeError as exc:
+            diagnostics = self._collect_remote_diagnostics()
+            raise RuntimeError(f"{exc}\n\nRemote diagnostics:\n{diagnostics}") from exc
 
 
 @pytest.fixture(scope="session")
