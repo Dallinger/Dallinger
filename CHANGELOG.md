@@ -5,10 +5,10 @@
 - Moved `ipython` from core dependencies to `jupyter` optional dependency, reducing install size for users who don't need Jupyter features.
 - Moved `numpy` from core dependencies to `data` and `ec2` optional dependencies.
 - EC2 provisioning now defaults to Canonical's Ubuntu 24.04 SSM parameter instead of a pinned AMI name. Falls back to `ec2.describe_images` if SSM access is denied (e.g. missing `ssm:GetParameter` permission).
-- Replaced the shell-based `docker-ssh` CI smoke check with pytest-based integration tests using a reusable Docker SSH server fixture.
 
 #### Added
 - Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
+- Added a new end-to-end `docker-ssh` integration test path in CI using pytest fixtures and an ephemeral SSH target.
 - Added reusable pytest fixtures for `docker-ssh` integration testing (`docker_ssh_server` and `fresh_docker_ssh_server`) and expanded docker-ssh integration coverage.
 
 #### Removed
