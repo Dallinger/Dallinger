@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 import requests
 
-EXPERIMENT_IMAGE = "ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5"
+IMAGE_BASE_PREFIX = "ttl.sh/dallinger-docker-ssh-tests"
 SSH_USER = "root"
 SSH_HOST = "localhost"
 SSH_WAIT_SECONDS = 30
@@ -202,9 +202,7 @@ class DockerSSHServer:
         output = f"{result.stdout}\n{result.stderr}"
         return sorted(set(re.findall(r"\bdlgr-[0-9a-f]{8}\b", output)))
 
-    def _sandbox_args(
-        self, app_id, *, update=False, docker_image_name=EXPERIMENT_IMAGE
-    ):
+    def _sandbox_args(self, app_id, *, update=False, docker_image_name=None):
         args = [
             "docker-ssh",
             "sandbox",
@@ -231,7 +229,7 @@ class DockerSSHServer:
             args.append("--update")
         return args
 
-    def deploy_sandbox(self, app_id=None, *, docker_image_name=EXPERIMENT_IMAGE):
+    def deploy_sandbox(self, app_id=None, *, docker_image_name=None):
         requested_app_id = app_id or f"dlgr-{uuid.uuid4().hex[:8]}"
         try:
             result = self.run_dallinger(
@@ -252,7 +250,7 @@ class DockerSSHServer:
             return parsed_app_id
         return requested_app_id
 
-    def update_sandbox(self, app_id, *, docker_image_name=EXPERIMENT_IMAGE):
+    def update_sandbox(self, app_id, *, docker_image_name=None):
         try:
             return self.run_dallinger(
                 self._sandbox_args(
@@ -314,6 +312,7 @@ def docker_ssh_server(tmp_path_factory):
     home_dir = tmp_root / "home"
     home_ssh_dir = home_dir / ".ssh"
     container_name = f"dallinger-ssh-target-pytest-{uuid.uuid4().hex[:8]}"
+    image_base_name = f"{IMAGE_BASE_PREFIX}-{uuid.uuid4().hex[:10]}"
     ssh_port = _next_open_port()
 
     _run_command(["ssh-keygen", "-t", "ed25519", "-N", "", "-f", str(ssh_key_path)])
@@ -437,7 +436,7 @@ def docker_ssh_server(tmp_path_factory):
         (home_dir / ".dallingerconfig").write_text(
             "[Parameters]\n"
             f"server_pem = {server_pem}\n"
-            f"docker_image_name = {EXPERIMENT_IMAGE}\n"
+            f"docker_image_base_name = {image_base_name}\n"
         )
 
         server.add_server()

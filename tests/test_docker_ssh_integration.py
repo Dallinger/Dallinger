@@ -74,7 +74,13 @@ def test_docker_ssh_update_refreshes_served_template(fresh_docker_ssh_server, tm
     original_template = template_path.read_text()
     marker_before = "UPDATE-MARKER-BEFORE"
     marker_after = "UPDATE-MARKER-AFTER"
-    template_path.write_text(f"{original_template}\n<!-- {marker_before} -->\n")
+    before_template = original_template.replace(
+        "<h1>Instructions</h1>",
+        f"<h1>Instructions {marker_before}</h1>",
+        1,
+    )
+    assert before_template != original_template
+    template_path.write_text(before_template)
     fresh_docker_ssh_server.experiment_dir = copied_experiment_dir
 
     query = {
@@ -86,7 +92,7 @@ def test_docker_ssh_update_refreshes_served_template(fresh_docker_ssh_server, tm
     }
     app_id = None
     try:
-        app_id = fresh_docker_ssh_server.deploy_sandbox(docker_image_name=None)
+        app_id = fresh_docker_ssh_server.deploy_sandbox()
 
         response_before = fresh_docker_ssh_server.fetch_experiment_page(
             app_id, "/instructions/instruct-ready", query=query
@@ -95,10 +101,14 @@ def test_docker_ssh_update_refreshes_served_template(fresh_docker_ssh_server, tm
         assert marker_before in response_before.text
         assert marker_after not in response_before.text
 
-        template_path.write_text(f"{original_template}\n<!-- {marker_after} -->\n")
-        update_result = fresh_docker_ssh_server.update_sandbox(
-            app_id, docker_image_name=None
+        after_template = original_template.replace(
+            "<h1>Instructions</h1>",
+            f"<h1>Instructions {marker_after}</h1>",
+            1,
         )
+        assert after_template != original_template
+        template_path.write_text(after_template)
+        update_result = fresh_docker_ssh_server.update_sandbox(app_id)
         update_output = f"{update_result.stdout}\n{update_result.stderr}"
         assert (
             "Skipping experiment launch logic because we are in update mode."
