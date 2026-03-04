@@ -240,8 +240,10 @@ jobs:
           python-version: "3.13"
       - name: Install Ubuntu packages
         run: |
+          sudo apt-get update
           sudo apt-get --yes install openssh-client
-          sudo apt-get --yes install docker-buildx || sudo apt-get --yes install docker-buildx-plugin
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Install Dallinger and pytest dependencies
         run: |
           pip install --upgrade pip wheel
