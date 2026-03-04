@@ -5,6 +5,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from dataclasses import dataclass
@@ -109,15 +110,15 @@ class DockerSSHServer:
         if self.run_ssh("docker info >/dev/null 2>&1", check=False).returncode == 0:
             return
 
-        start_command = (
-            "nohup dockerd --storage-driver=vfs >/var/log/dockerd.log 2>&1 </dev/null &"
-        )
-        self.run_ssh(start_command)
+        start_default = "nohup dockerd >/var/log/dockerd.log 2>&1 </dev/null &"
+        self.run_ssh(start_default)
         for _ in range(DOCKER_WAIT_SECONDS):
             if self.run_ssh("docker info >/dev/null 2>&1", check=False).returncode == 0:
                 return
             time.sleep(1)
 
+        # If the default storage driver cannot start in this environment, retry
+        # with vfs and legacy iptables for maximum compatibility.
         # In restricted container runtimes, nftables often cannot create NAT
         # chains. Retry using legacy iptables userspace if available.
         self.run_ssh("pkill -f dockerd >/dev/null 2>&1 || true", check=False)
@@ -128,7 +129,10 @@ class DockerSSHServer:
             ),
             check=False,
         )
-        self.run_ssh(start_command)
+        start_vfs = (
+            "nohup dockerd --storage-driver=vfs >/var/log/dockerd.log 2>&1 </dev/null &"
+        )
+        self.run_ssh(start_vfs)
         for _ in range(DOCKER_WAIT_SECONDS):
             if self.run_ssh("docker info >/dev/null 2>&1", check=False).returncode == 0:
                 return
@@ -148,6 +152,7 @@ class DockerSSHServer:
             "docker ps -aq --filter 'name=^dlgr-' | xargs -r docker rm -f >/dev/null 2>&1 || true; "
             "docker network ls --filter 'name=^dallinger$' -q | xargs -r docker network rm >/dev/null 2>&1 || true; "
             "docker volume ls --filter 'name=^dlgr-' -q | xargs -r docker volume rm >/dev/null 2>&1 || true; "
+            "docker system prune -af --volumes >/dev/null 2>&1 || true; "
             "rm -rf ~/dallinger >/dev/null 2>&1 || true"
         )
         self.run_ssh(cleanup_command, check=False)
@@ -286,7 +291,7 @@ class DockerSSHServer:
 
 
 @pytest.fixture(scope="session")
-def docker_ssh_server(tmp_path_factory):
+def docker_ssh_server():
     if not os.environ.get("RUN_DOCKER"):
         pytest.skip("need RUN_DOCKER environment variable")
     if shutil.which("docker") is None:
@@ -303,17 +308,32 @@ def docker_ssh_server(tmp_path_factory):
         pytest.skip("docker daemon not available")
 
     repo_root = Path(__file__).resolve().parents[1]
-    experiment_dir = repo_root / "demos" / "dlgr" / "demos" / "bartlett1932"
-    if not experiment_dir.exists():
-        pytest.skip(f"Experiment directory not found: {experiment_dir}")
+    source_experiment_dir = repo_root / "demos" / "dlgr" / "demos" / "bartlett1932"
+    if not source_experiment_dir.exists():
+        pytest.skip(f"Experiment directory not found: {source_experiment_dir}")
 
-    tmp_root = tmp_path_factory.mktemp("docker-ssh-server")
+    pytest_workspace = repo_root / ".pytest-docker-ssh"
+    pytest_workspace.mkdir(exist_ok=True)
+    tmp_root = Path(tempfile.mkdtemp(prefix="docker-ssh-server-", dir=pytest_workspace))
     ssh_key_path = tmp_root / "id_ed25519"
     home_dir = tmp_root / "home"
     home_ssh_dir = home_dir / ".ssh"
     container_name = f"dallinger-ssh-target-pytest-{uuid.uuid4().hex[:8]}"
+    docker_data_volume = f"{container_name}-docker-data"
     image_base_name = f"{IMAGE_BASE_PREFIX}-{uuid.uuid4().hex[:10]}"
+    experiment_dir = tmp_root / "bartlett1932"
     ssh_port = _next_open_port()
+
+    shutil.copytree(source_experiment_dir, experiment_dir)
+    config_path = experiment_dir / "config.txt"
+    config_text = config_path.read_text()
+    config_text = re.sub(
+        r"^docker_image_base_name\s*=.*$",
+        f"docker_image_base_name = {image_base_name}",
+        config_text,
+        flags=re.MULTILINE,
+    )
+    config_path.write_text(config_text)
 
     _run_command(["ssh-keygen", "-t", "ed25519", "-N", "", "-f", str(ssh_key_path)])
 
@@ -327,6 +347,8 @@ def docker_ssh_server(tmp_path_factory):
         container_name,
         "--privileged",
         "--cgroupns=host",
+        "-v",
+        f"{docker_data_volume}:/var/lib/docker",
         "-p",
         f"{ssh_port}:22",
         "-p",
@@ -446,6 +468,7 @@ def docker_ssh_server(tmp_path_factory):
             server.reset_remote_state()
             server.remove_server()
         _run_command(["docker", "rm", "-f", container_name], check=False)
+        _run_command(["docker", "volume", "rm", "-f", docker_data_volume], check=False)
 
 
 @pytest.fixture

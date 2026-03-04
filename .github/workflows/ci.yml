@@ -239,7 +239,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install Ubuntu packages
-        run: sudo apt-get --yes install openssh-client
+        run: sudo apt-get --yes install openssh-client docker-buildx
       - name: Install Dallinger and pytest dependencies
         run: |
           pip install --upgrade pip wheel
