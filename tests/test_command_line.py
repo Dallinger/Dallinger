@@ -1,6 +1,7 @@
 import os
 import re
 import subprocess
+from pathlib import Path
 from time import sleep
 from unittest import mock
 from uuid import UUID
@@ -1242,3 +1243,27 @@ def test_get_editable_dallinger_path():
             ]
             result = get_editable_dallinger_path()
             assert result == "/a path/where many/directories/have/a/space/in them"
+
+
+def test_get_editable_dallinger_path_pep660(tmp_path, monkeypatch):
+    from dallinger.utils import get_editable_dallinger_path
+
+    monkeypatch.setattr("dallinger.utils.os.path.isfile", lambda _: False)
+
+    source_root = tmp_path / "workspace"
+    source_root.mkdir()
+    direct_url_path = tmp_path / "direct_url.json"
+    direct_url_path.write_text(
+        '{"dir_info": {"editable": true}, "url": "file://%s"}' % source_root
+    )
+
+    class FakeDist:
+        files = [Path("dallinger-12.2.0a1.dist-info/direct_url.json")]
+
+        @staticmethod
+        def locate_file(_path):
+            return direct_url_path
+
+    monkeypatch.setattr("dallinger.utils.get_distribution", lambda _: FakeDist())
+
+    assert get_editable_dallinger_path() == str(source_root.resolve())

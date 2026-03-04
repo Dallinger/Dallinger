@@ -180,6 +180,15 @@ def test_option_update_parses_as_boolean():
     assert "True:bool" in result_update.output
 
 
+def test_get_required_dallinger_version_prerelease_falls_back_to_latest(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("dallinger==12.2.0a1\n")
+
+    assert get_required_dallinger_version(str(tmp_path)) == ""
+
+
 def test_get_sftp_sets_working_directory_to_remote_home(monkeypatch):
     import importlib
 
