@@ -239,7 +239,9 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install Ubuntu packages
-        run: sudo apt-get --yes install openssh-client docker-buildx
+        run: |
+          sudo apt-get --yes install openssh-client
+          sudo apt-get --yes install docker-buildx || sudo apt-get --yes install docker-buildx-plugin
       - name: Install Dallinger and pytest dependencies
         run: |
           pip install --upgrade pip wheel
