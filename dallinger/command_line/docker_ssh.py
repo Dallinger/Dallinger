@@ -288,7 +288,21 @@ def should_use_subdomain(app_name, archive_path):
 
 
 def split_ssh_host_port(host):
-    """Parse host strings in host or host:port form."""
+    """Parse SSH host strings into ``(host, port)``.
+
+    Accepts unbracketed hosts in ``host`` or ``host:port`` form, and
+    bracketed IPv6 hosts in ``[host]`` or ``[host]:port`` form.
+    If no port is provided, defaults to 22.
+
+    Examples
+    --------
+    >>> split_ssh_host_port("example.com")
+    ('example.com', 22)
+    >>> split_ssh_host_port("localhost:2222")
+    ('localhost', 2222)
+    >>> split_ssh_host_port("[::1]:2200")
+    ('::1', 2200)
+    """
     if host.startswith("["):
         bracket_end = host.find("]")
         if bracket_end == -1:
