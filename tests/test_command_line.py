@@ -1261,6 +1261,14 @@ class TestEc2Stub:
         assert "pip install dallinger[ec2]" in result.output
         assert result.exit_code == 1
 
+    def test_ec2_stub_shows_install_message_for_subcommands(self):
+        result = CliRunner().invoke(
+            dallinger.command_line.dallinger,
+            ["ec2", "provision", "--region", "us-east-1"],
+        )
+        assert "EC2 support is not installed" in result.output
+        assert result.exit_code == 1
+
 
 def test_get_editable_dallinger_path():
     from dallinger.utils import get_editable_dallinger_path

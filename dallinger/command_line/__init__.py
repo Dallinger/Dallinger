@@ -129,14 +129,14 @@ try:
     dallinger.add_command(ec2)
 except ImportError:
 
-    @dallinger.group("ec2", invoke_without_command=True)
-    @click.pass_context
-    def ec2_stub(ctx):
+    @dallinger.command("ec2", context_settings={"ignore_unknown_options": True})
+    @click.argument("args", nargs=-1, type=click.UNPROCESSED)
+    def ec2_stub(args):
         """EC2 commands (requires the ec2 extra)."""
         log(
             "EC2 support is not installed. " "Run: pip install dallinger[ec2]",
         )
-        ctx.exit(1)
+        raise SystemExit(1)
 
 
 dallinger.add_command(prolific)
