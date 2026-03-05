@@ -1298,11 +1298,7 @@ class Executor:
         """Run the given command and block until it completes.
         If `raise` is True and the command fails, print the reason and raise an exception.
         """
-        channel = self.client.get_transport().open_session()
-        channel.exec_command(cmd)
-        status = channel.recv_exit_status()
-        stdout = channel.recv(10**10).decode()
-        stderr = channel.recv_stderr(10**10).decode()
+        status, stdout, stderr = self._run_with_status(cmd)
         if raise_ and status != 0:
             print(f"Error: exit code was not 0 ({status})")
             print(stdout)
@@ -1310,10 +1306,19 @@ class Executor:
             compose_logs = self.print_docker_compose_logs()
             if _is_remote_disk_full_error(stdout, stderr, compose_logs):
                 print(get_remote_disk_full_guidance(self.host, self.app))
+                self.offer_safe_disk_cleanup()
             raise ExecuteException(
                 f"An error occurred when running the following command on the remote server: \n{cmd}"
             )
         return stdout
+
+    def _run_with_status(self, cmd):
+        channel = self.client.get_transport().open_session()
+        channel.exec_command(cmd)
+        status = channel.recv_exit_status()
+        stdout = channel.recv(10**10).decode()
+        stderr = channel.recv_stderr(10**10).decode()
+        return status, stdout, stderr
 
     def print_docker_compose_logs(self):
         if self.app:
@@ -1392,6 +1397,32 @@ class Executor:
                 if len(x) == 0 or x in "qQ":
                     break
 
+    def offer_safe_disk_cleanup(self):
+        if not (sys.stdin.isatty() and sys.stdout.isatty()):
+            print("Non-interactive session detected; skipping automatic cleanup.")
+            return
+        if not click.confirm(
+            "Run safe Docker cleanup now on the remote host? "
+            "(unused images + stopped containers)",
+            default=False,
+        ):
+            return
+        print("Running safe cleanup steps on the remote host:")
+        for description, command in (
+            ("Remove unused images", "docker image prune -af"),
+            ("Remove stopped containers", "docker container prune -f"),
+        ):
+            print(f"- {description}: {command}")
+            status, stdout, stderr = self._run_with_status(command)
+            if status != 0:
+                print(f"Cleanup step failed with exit code {status}.")
+                if stdout:
+                    print(stdout)
+                if stderr:
+                    print(stderr)
+                return
+        print("Safe cleanup completed. Re-run your previous command.")
+
 
 def get_docker_compose_yml(
     config: Dict[str, str],
@@ -1466,24 +1497,13 @@ def get_remote_disk_full_guidance(host, app=None):
     guidance = [
         "",
         f"Remote Docker host '{host}' appears to be out of disk space.",
-        "Suggested cleanup steps (run on the remote host):",
-        "  docker system df",
+        "Safe cleanup steps (low-risk) are:",
         "  docker image prune -af",
         "  docker container prune -f",
-        "  docker volume prune -f",
-        "  docker network prune -f",
         "",
-        "If that is not enough, run this broader cleanup (destructive):",
-        "  docker system prune -af --volumes",
+        "Dallinger can run these safe steps for you automatically.",
+        "We intentionally do not auto-prune volumes here, to avoid data loss.",
     ]
-    if app:
-        guidance.extend(
-            [
-                "",
-                "App-specific cleanup:",
-                f"  docker compose -f ~/dallinger/{app}/docker-compose.yml down -v",
-            ]
-        )
     guidance.append("")
     return "\n".join(guidance)
 

@@ -270,15 +270,14 @@ def test_is_remote_disk_full_error_detects_common_markers():
     assert not _is_remote_disk_full_error("authentication failed")
 
 
-def test_get_remote_disk_full_guidance_includes_app_cleanup():
+def test_get_remote_disk_full_guidance_recommends_safe_cleanup_only():
     from dallinger.command_line.docker_ssh import get_remote_disk_full_guidance
 
     guidance = get_remote_disk_full_guidance("example.org", app="dlgr-abcd1234")
     assert (
         "Remote Docker host 'example.org' appears to be out of disk space." in guidance
     )
-    assert "docker system prune -af --volumes" in guidance
-    assert (
-        "docker compose -f ~/dallinger/dlgr-abcd1234/docker-compose.yml down -v"
-        in guidance
-    )
+    assert "docker image prune -af" in guidance
+    assert "docker container prune -f" in guidance
+    assert "do not auto-prune volumes" in guidance
+    assert "docker system prune -af --volumes" not in guidance
