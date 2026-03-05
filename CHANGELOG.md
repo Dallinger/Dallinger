@@ -9,6 +9,8 @@
 - Improved `dallinger docker-ssh` server selection UX: when multiple servers are configured and `--server` is omitted (and for `servers remove` when `--host` is omitted), users now choose from a numbered list; explicit host/server options and single-server behavior remain unchanged.
 - Migrated CLI table rendering from `tabulate` to Rich tables for consistent formatting and non-interactive output behavior.
 - Improved EC2/provisioning CLI output: replaced noisy error messages and bare data dumps with clearer progress indicators (spinners/checkmarks plus list progress where appropriate), clarified `--dns` vs `--dns-host` option help text, and added friendly validation/errors for EC2 instance lookup and selector usage (`--name`/`--dns`).
+- Replaced `tqdm` progress display in EC2 CLI paths with `rich.progress` for consistent spinner/bar output and simplified dependency surface.
+- Adjusted EC2 all-regions listing log level from WARNING to INFO to avoid signaling normal behavior as an issue.
 
 #### Added
 - Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
@@ -29,6 +31,7 @@
 - Removed unused `pyopenssl` dependency.
 - Removed redundant `paramiko` from `docker` and `ec2` optional dependencies (already in core dependencies).
 - Removed redundant `yaspin` from `ec2` optional dependencies (already in core dependencies).
+- Removed `tqdm` from the `ec2` optional dependency set and generated dev requirements after migrating EC2 progress rendering to Rich.
 - Removed redundant `alabaster` from dev dependencies (transitive dependency of `sphinx`).
 - Removed redundant `pycodestyle` from dev dependencies (transitive dependency of `flake8`).
 - Removed redundant `black` from dev dependencies (already included via `black[jupyter]`).
