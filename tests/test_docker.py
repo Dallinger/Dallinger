@@ -259,3 +259,26 @@ def test_ensure_postgres_schema_permissions_grants_create():
     command = executor.run.call_args[0][0]
     assert 'psql -U dallinger -d "dlgr-abcdef12"' in command
     assert "GRANT USAGE, CREATE ON SCHEMA public TO" in command
+
+
+def test_is_remote_disk_full_error_detects_common_markers():
+    from dallinger.command_line.docker_ssh import _is_remote_disk_full_error
+
+    assert _is_remote_disk_full_error("no space left on device")
+    assert _is_remote_disk_full_error("psycopg2.errors.DiskFull")
+    assert _is_remote_disk_full_error("Error response from daemon: disk full")
+    assert not _is_remote_disk_full_error("authentication failed")
+
+
+def test_get_remote_disk_full_guidance_includes_app_cleanup():
+    from dallinger.command_line.docker_ssh import get_remote_disk_full_guidance
+
+    guidance = get_remote_disk_full_guidance("example.org", app="dlgr-abcd1234")
+    assert (
+        "Remote Docker host 'example.org' appears to be out of disk space." in guidance
+    )
+    assert "docker system prune -af --volumes" in guidance
+    assert (
+        "docker compose -f ~/dallinger/dlgr-abcd1234/docker-compose.yml down -v"
+        in guidance
+    )

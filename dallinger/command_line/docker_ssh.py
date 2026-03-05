@@ -1301,15 +1301,19 @@ class Executor:
         channel = self.client.get_transport().open_session()
         channel.exec_command(cmd)
         status = channel.recv_exit_status()
+        stdout = channel.recv(10**10).decode()
+        stderr = channel.recv_stderr(10**10).decode()
         if raise_ and status != 0:
             print(f"Error: exit code was not 0 ({status})")
-            print(channel.recv(10**10).decode())
-            print(channel.recv_stderr(10**10).decode())
-            self.print_docker_compose_logs()
+            print(stdout)
+            print(stderr)
+            compose_logs = self.print_docker_compose_logs()
+            if _is_remote_disk_full_error(stdout, stderr, compose_logs):
+                print(get_remote_disk_full_guidance(self.host, self.app))
             raise ExecuteException(
                 f"An error occurred when running the following command on the remote server: \n{cmd}"
             )
-        return channel.recv(10**10).decode()
+        return stdout
 
     def print_docker_compose_logs(self):
         if self.app:
@@ -1320,10 +1324,14 @@ class Executor:
             status = channel.recv_exit_status()
             if status != 0:
                 print("`docker compose` logs failed to run.")
+                return ""
             else:
+                logs = channel.recv(10**10).decode()
                 print("*** BEGIN docker compose logs ***")
-                print(channel.recv(10**10).decode())
+                print(logs)
                 print("*** END docker compose logs ***\n")
+                return logs
+        return ""
 
     def check_sudo(self):
         """Make sure the current user is authorized to invoke sudo without providing a password.
@@ -1440,6 +1448,44 @@ def get_dns_host(ssh_host):
 
 class ExecuteException(Exception):
     pass
+
+
+def _is_remote_disk_full_error(*outputs):
+    output = "\n".join(str(chunk) for chunk in outputs if chunk).lower()
+    return any(
+        marker in output
+        for marker in (
+            "no space left on device",
+            "diskfull",
+            "disk full",
+        )
+    )
+
+
+def get_remote_disk_full_guidance(host, app=None):
+    guidance = [
+        "",
+        f"Remote Docker host '{host}' appears to be out of disk space.",
+        "Suggested cleanup steps (run on the remote host):",
+        "  docker system df",
+        "  docker image prune -af",
+        "  docker container prune -f",
+        "  docker volume prune -f",
+        "  docker network prune -f",
+        "",
+        "If that is not enough, run this broader cleanup (destructive):",
+        "  docker system prune -af --volumes",
+    ]
+    if app:
+        guidance.extend(
+            [
+                "",
+                "App-specific cleanup:",
+                f"  docker compose -f ~/dallinger/{app}/docker-compose.yml down -v",
+            ]
+        )
+    guidance.append("")
+    return "\n".join(guidance)
 
 
 def get_sftp(host, user=None) -> paramiko.SFTPClient:
