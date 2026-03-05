@@ -41,22 +41,11 @@ DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER = (
 
 def _resolve_default_region_name():
     """Resolve default region for user-facing messages."""
-    configured_region = None
-    try:
-        from dallinger.config import get_config
+    from dallinger.config import get_config
 
-        config = get_config(load=False)
-        if not config.ready:
-            config.load(strict=False)
-        configured_region = config.get("aws_region", None)
-    except Exception:
-        logger.warning(
-            "Could not read configured aws_region; falling back to session/default.",
-            exc_info=True,
-        )
+    config = get_config(load=True)
 
-    session_region = boto3.session.Session().region_name
-    return configured_region or session_region or DEFAULT_AWS_REGION
+    return config.get("aws_region", DEFAULT_AWS_REGION)
 
 
 def get_keys(region_name=None):
