@@ -15,6 +15,7 @@ import paramiko
 import requests
 from botocore.exceptions import ClientError
 from paramiko import ssh_exception as pse
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from tenacity import (
     before_sleep_log,
     retry,
@@ -22,7 +23,6 @@ from tenacity import (
     stop_after_attempt,
     wait_fixed,
 )
-from tqdm import tqdm
 from yaspin import yaspin
 
 from ..config import remove_host as dallinger_remove_host
@@ -222,13 +222,28 @@ def get_instances(region_name, show_spinner=True):
 
 def get_all_instances(region_name=None):
     if region_name is None:
-        logger.warning("Listing instances in all regions...")
+        logger.info("Listing instances in all regions...")
         instance_dfs = []
         all_regions = get_ec2_client().describe_regions()["Regions"]
-        pb = tqdm(all_regions, total=len(all_regions))
-        for region in pb:
-            pb.set_description("Retrieving instances in " + region["RegionName"])
-            instance_dfs.append(get_instances(region["RegionName"], show_spinner=False))
+        with Progress(
+            SpinnerColumn(style="green"),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("{task.completed}/{task.total}"),
+            transient=True,
+        ) as progress:
+            task = progress.add_task(
+                "Retrieving instances in all regions...", total=len(all_regions)
+            )
+            for region in all_regions:
+                progress.update(
+                    task,
+                    description=f"Retrieving instances in {region['RegionName']}...",
+                )
+                instance_dfs.append(
+                    get_instances(region["RegionName"], show_spinner=False)
+                )
+                progress.advance(task)
         click.echo(
             click.style("✔ Finished retrieving instances in all regions.", fg="green")
         )
@@ -291,14 +306,24 @@ def list_instances(region_name=None, filtered_states=[], pem=None):
 
 def get_instance_types(region_name=None):
     ec2 = get_ec2_client(region_name)
-    pb = tqdm()
-    response = ec2.describe_instance_types()
-    instance_types = response["InstanceTypes"]
-    pb.update(len(instance_types))
-    while "NextToken" in response:
-        response = ec2.describe_instance_types(NextToken=response["NextToken"])
-        instance_types += response["InstanceTypes"]
-        pb.update(len(instance_types))
+    with Progress(
+        SpinnerColumn(style="green"),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Retrieving instance types...", total=None)
+        response = ec2.describe_instance_types()
+        instance_types = response["InstanceTypes"]
+        progress.update(
+            task, description=f"Retrieving instance types... ({len(instance_types)})"
+        )
+        while "NextToken" in response:
+            response = ec2.describe_instance_types(NextToken=response["NextToken"])
+            instance_types += response["InstanceTypes"]
+            progress.update(
+                task,
+                description=f"Retrieving instance types... ({len(instance_types)})",
+            )
 
     instance_type_metadata = []
     for instance_type in instance_types:
