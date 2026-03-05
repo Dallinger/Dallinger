@@ -32,9 +32,20 @@ from ..docker_ssh import prepare_server as dallinger_prepare_server
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_AWS_REGION = "us-east-1"
+
 DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER = (
     "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
 )
+
+
+def _resolve_default_region_name():
+    """Resolve default region for user-facing messages."""
+    from dallinger.config import get_config
+
+    config = get_config(load=True)
+
+    return config.get("aws_region", DEFAULT_AWS_REGION)
 
 
 def get_keys(region_name=None):
@@ -47,7 +58,7 @@ def get_keys(region_name=None):
         keys = {
             "aws_access_key_id": config.get("aws_access_key_id"),
             "aws_secret_access_key": config.get("aws_secret_access_key"),
-            "region_name": region_name or config.get("aws_region", "us-east-1"),
+            "region_name": region_name or config.get("aws_region", DEFAULT_AWS_REGION),
         }
     return keys
 
@@ -157,8 +168,18 @@ def get_instance_details(instance_types, region_name=None):
     return price_df
 
 
-def get_instances(region_name):
-    reservations = get_ec2_client(region_name).describe_instances()["Reservations"]
+def get_instances(region_name, show_spinner=True):
+    display_region = region_name or _resolve_default_region_name()
+    if show_spinner:
+        with yaspin(
+            text=f"Retrieving instances in {display_region}...", color="green"
+        ) as sp:
+            reservations = get_ec2_client(region_name).describe_instances()[
+                "Reservations"
+            ]
+            sp.ok("✔")
+    else:
+        reservations = get_ec2_client(region_name).describe_instances()["Reservations"]
     instances = []
     for reservation in reservations:
         for instance in reservation["Instances"]:
@@ -207,7 +228,10 @@ def get_all_instances(region_name=None):
         pb = tqdm(all_regions, total=len(all_regions))
         for region in pb:
             pb.set_description("Retrieving instances in " + region["RegionName"])
-            instance_dfs.append(get_instances(region["RegionName"]))
+            instance_dfs.append(get_instances(region["RegionName"], show_spinner=False))
+        click.echo(
+            click.style("✔ Finished retrieving instances in all regions.", fg="green")
+        )
         instance_df = pd.concat(instance_dfs)
     else:
         instance_df = get_instances(region_name)
@@ -928,13 +952,12 @@ def _get_instance_row_from(
     public_dns_name=None,
     filter_by="state == 'running'",
 ):
+    if (instance_name is None) == (public_dns_name is None):
+        raise click.ClickException("Provide exactly one of `--name` or `--dns`.")
+
     instances_df = get_instances(region_name)
     if filter_by is not None:
         instances_df = instances_df.query(filter_by)
-
-    assert (
-        sum([var is None for var in [instance_name, public_dns_name]]) == 1
-    ), "Provide either instance_name or public_dns"
     if instance_name is not None:
         selected_instances = instances_df.query(f"name == '{instance_name}'")
     else:
@@ -942,7 +965,24 @@ def _get_instance_row_from(
             f"public_dns_name == '{public_dns_name}'"
         )
     if len(selected_instances) == 0:
-        raise Exception("No instances found")
+        lookup = (
+            f"name '{instance_name}'"
+            if instance_name is not None
+            else f"public DNS '{public_dns_name}'"
+        )
+        if region_name is not None:
+            region_hint = f"region '{region_name}'"
+        else:
+            default_region = _resolve_default_region_name()
+            region_hint = (
+                f"default AWS region '{default_region}' " "(no `--region` was provided)"
+            )
+        error_prefix = click.style("✖", fg="red")
+        raise click.ClickException(
+            f"{error_prefix} No EC2 instance found for {lookup} in {region_hint}.\n"
+            "Tip: Check the instance name/DNS and region. You can list instances with "
+            "`dallinger ec2 list instances --region <region>`."
+        )
     elif len(selected_instances) > 1:
         raise Exception("Multiple running instances found")
     else:

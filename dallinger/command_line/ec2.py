@@ -24,6 +24,11 @@ from .lib.ec2 import (
 from .utils import get_server_pem_path
 
 
+def _validate_instance_selector(name, dns):
+    if (name is None) == (dns is None):
+        raise click.UsageError("Provide exactly one of `--name` or `--dns`.")
+
+
 def get_config(strict=True):
     from dallinger.config import get_config
 
@@ -59,7 +64,11 @@ def ssh(ctx):
 
 @ssh.command("web")
 @click.option("--app", required=True, help="App name")
-@click.option("--dns", required=True, help="Server name")
+@click.option(
+    "--dns",
+    required=True,
+    help="Public DNS of the EC2 instance (AWS hostname), e.g. ec2-...compute.amazonaws.com",
+)
 def ssh__web(app, dns):
     """SSH to a web app container on an EC2 instance"""
     cfg = get_instance_config()
@@ -135,7 +144,7 @@ def list__instance_types(ctx, region):
 )
 @click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
+    help="Custom DNS host (e.g. myexp.example.com) to create/update in Route53; distinct from --dns (instance public DNS).",
     default=None,
 )
 @click.pass_context
@@ -172,13 +181,18 @@ def ec2__provision(
 
 
 @ec2.command("increase-storage")
-@click.option("--dns", default=None, help="Public DNS name")
+@click.option(
+    "--dns",
+    default=None,
+    help="Public DNS of the EC2 instance (AWS hostname). Use this OR --name.",
+)
 @click.option("--name", default=None, help="Instance ID")
 @click.option("--region", default=None, help="Region name")
 @click.option("--storage", required=True, type=int, help="Storage in GB")
 @click.pass_context
 def ec2__increase_storage(ctx, dns, name, region, storage):
     """Increase the disk storage on an EC2 instance"""
+    _validate_instance_selector(name, dns)
     instance_row = _get_instance_row_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
@@ -188,17 +202,22 @@ def ec2__increase_storage(ctx, dns, name, region, storage):
 
 
 @ec2.command("stop")
-@click.option("--dns", default=None, help="Public DNS name")
+@click.option(
+    "--dns",
+    default=None,
+    help="Public DNS of the EC2 instance (AWS hostname). Use this OR --name.",
+)
 @click.option("--name", default=None, help="Instance ID")
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
+    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS).",
     default=None,
 )
 @click.pass_context
 def ec2__stop(ctx, dns, name, region, dns_host):
     """Stop (pause) an existing EC2 instance"""
+    _validate_instance_selector(name, dns)
     instance_id = _get_instance_id_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
@@ -208,17 +227,22 @@ def ec2__stop(ctx, dns, name, region, dns_host):
 
 
 @ec2.command("start")
-@click.option("--dns", default=None, help="Public DNS name")
+@click.option(
+    "--dns",
+    default=None,
+    help="Public DNS of the EC2 instance (AWS hostname). Use this OR --name.",
+)
 @click.option("--name", default=None, help="Instance ID")
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
+    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS).",
     default=None,
 )
 @click.pass_context
 def ec2__start(ctx, dns, name, region, dns_host):
     """Start a stopped EC2 instance"""
+    _validate_instance_selector(name, dns)
     from dallinger.command_line.config import get_configured_hosts
 
     CONFIGURED_HOSTS = get_configured_hosts()
@@ -248,12 +272,17 @@ def ec2__start(ctx, dns, name, region, dns_host):
 
 
 @ec2.command("restart")
-@click.option("--dns", default=None, help="Public DNS name")
+@click.option(
+    "--dns",
+    default=None,
+    help="Public DNS of the EC2 instance (AWS hostname). Use this OR --name.",
+)
 @click.option("--name", default=None, help="Instance ID")
 @click.option("--region", default=None, help="Region name")
 @click.pass_context
 def ec2__restart(ctx, dns, name, region):
     """Restart a running EC2 instance"""
+    _validate_instance_selector(name, dns)
     instance_id = _get_instance_id_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
@@ -261,17 +290,22 @@ def ec2__restart(ctx, dns, name, region):
 
 
 @ec2.command("teardown")
-@click.option("--dns", default=None, help="Public DNS name")
+@click.option(
+    "--dns",
+    default=None,
+    help="Public DNS of the EC2 instance (AWS hostname). Use this OR --name.",
+)
 @click.option("--name", default=None, help="Instance ID")
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
+    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS).",
     default=None,
 )
 @click.pass_context
 def ec2__teardown(ctx, dns, name, region, dns_host):
     """Teardown an EC2 instance"""
+    _validate_instance_selector(name, dns)
     instance_id = _get_instance_id_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )

@@ -1,5 +1,6 @@
 from unittest import mock
 
+import click
 import pandas as pd
 import paramiko
 import pytest
@@ -160,6 +161,22 @@ class TestGetImageId:
 class TestGetInstanceRowFrom:
     """Tests for _get_instance_row_from when no instances exist"""
 
+    def test_requires_exactly_one_selector_when_both_missing(self):
+        with pytest.raises(click.ClickException) as excinfo:
+            _get_instance_row_from(region_name="us-east-1")
+
+        assert "exactly one of `--name` or `--dns`" in str(excinfo.value)
+
+    def test_requires_exactly_one_selector_when_both_provided(self):
+        with pytest.raises(click.ClickException) as excinfo:
+            _get_instance_row_from(
+                region_name="us-east-1",
+                instance_name="example-name",
+                public_dns_name="example-dns",
+            )
+
+        assert "exactly one of `--name` or `--dns`" in str(excinfo.value)
+
     def test_no_instances_raises_helpful_error(self, monkeypatch):
         """Test that missing instances raise a helpful error"""
         mock_ec2 = mock.Mock()
@@ -169,10 +186,29 @@ class TestGetInstanceRowFrom:
             lambda *args, **kwargs: mock_ec2,
         )
 
-        with pytest.raises(Exception) as excinfo:
+        with pytest.raises(click.ClickException) as excinfo:
             _get_instance_row_from(region_name="us-east-1", instance_name="missing")
 
-        assert "No instances found" in str(excinfo.value)
+        assert "No EC2 instance found" in str(excinfo.value)
+        assert "us-east-1" in str(excinfo.value)
+        assert "name 'missing'" in str(excinfo.value)
+
+    def test_no_instances_without_region_mentions_region_hint(self, monkeypatch):
+        """Test that missing region in lookup is explicitly called out."""
+        mock_ec2 = mock.Mock()
+        mock_ec2.describe_instances.return_value = {"Reservations": []}
+        monkeypatch.setattr(
+            "dallinger.command_line.lib.ec2.get_ec2_client",
+            lambda *args, **kwargs: mock_ec2,
+        )
+
+        with pytest.raises(click.ClickException) as excinfo:
+            _get_instance_row_from(region_name=None, instance_name="missing")
+
+        message = str(excinfo.value)
+        assert "No EC2 instance found" in message
+        assert "default AWS region" in message
+        assert "no `--region` was provided" in message
 
 
 class TestGetPemPath:
