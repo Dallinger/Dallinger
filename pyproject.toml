@@ -99,7 +99,6 @@ docker = [
 ec2 = [
     "numpy<2.3",
     "pandas<3",
-    "tqdm",
 ]
 jupyter = [
     "ipython<9",
