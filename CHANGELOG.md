@@ -22,6 +22,7 @@
 - Fixed Dozzle login failing on deployments using Dozzle v8+. The `set_dozzle_password` function was using SHA256 hashing, which is no longer supported by recent Dozzle versions. Now uses bcrypt. Also pinned Dozzle image to v10.0.2 to prevent future breaking changes from `:latest`.
 - Fixed `docker-ssh export` and `docker-ssh apps` for root-domain deployments.
 - Fixed `rq_gevent_worker` compatibility with newer `rq` versions where `StopRequested` and log color helpers moved/changed modules.
+- Fixed noisy Docker socket permission output in `dallinger docker-ssh servers add` by checking Docker usability, attempting group-permission remediation, and showing a concise actionable error if Docker remains unavailable.
 
 #### Removed
 - Removed the `constraints-cli` alias; use `dallinger constraints` instead.

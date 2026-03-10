@@ -206,16 +206,55 @@ def prepare_server(host, user):
         raise
 
     with yaspin(text="Checking for Docker...", color="green") as sp:
-        if executor.run("command -v docker", raise_=False).strip():
-            sp.ok("✔")
-        else:
+        docker_installed = bool(executor.run("command -v docker", raise_=False).strip())
+        if not docker_installed:
             sp.text = "Installing Docker..."
             executor.check_sudo()
             executor.run("wget -O - https://get.docker.com | sudo -n bash")
-            executor.run("sudo -n adduser $(id --user --name) docker")
+            executor, docker_usable = _grant_docker_group_and_refresh_session(
+                executor, host, user, check_sudo=False
+            )
+            if not docker_usable:
+                sp.fail("✖")
+                raise click.ClickException(
+                    "Docker installed, but it is still not usable by this user. "
+                    "Ensure the Docker daemon is running and the user can access the Docker socket."
+                )
             sp.ok("✔")
-            # Log in again in case we need to be part of the `docker` group
-            executor = Executor(host, user)
+            return
+
+        if _docker_is_usable(executor):
+            sp.ok("✔")
+            return
+
+        sp.text = "Configuring Docker permissions..."
+        executor, docker_usable = _grant_docker_group_and_refresh_session(
+            executor, host, user
+        )
+        if docker_usable:
+            sp.ok("✔")
+            return
+
+        sp.fail("✖")
+        raise click.ClickException(
+            "Docker is installed but not usable by this user. "
+            "Ensure the Docker daemon is running and the user can access the Docker socket."
+        )
+
+
+def _docker_is_usable(executor):
+    return (
+        executor.run("docker ps >/dev/null 2>&1 && echo usable", raise_=False).strip()
+        == "usable"
+    )
+
+
+def _grant_docker_group_and_refresh_session(executor, host, user, check_sudo=True):
+    if check_sudo:
+        executor.check_sudo()
+    executor.run("sudo -n adduser $(id --user --name) docker")
+    refreshed_executor = Executor(host, user)
+    return refreshed_executor, _docker_is_usable(refreshed_executor)
 
 
 def copy_docker_config(host, user):
