@@ -1230,6 +1230,46 @@ class TestApps:
         )
 
 
+class TestEc2Stub:
+    """When the ec2 extra is not installed, a stub command should appear."""
+
+    @pytest.fixture(autouse=True)
+    def _patch_ec2_import(self):
+        """Rebuild the CLI group with the ec2 import forced to fail."""
+        import builtins
+        import importlib
+
+        real_import = builtins.__import__
+
+        def _block_ec2(name, *args, **kwargs):
+            if name == "dallinger.command_line.ec2":
+                raise ImportError("fake")
+            return real_import(name, *args, **kwargs)
+
+        with mock.patch("builtins.__import__", side_effect=_block_ec2):
+            importlib.reload(dallinger.command_line)
+            yield
+        importlib.reload(dallinger.command_line)
+
+    def test_ec2_stub_visible_in_help(self):
+        result = CliRunner().invoke(dallinger.command_line.dallinger, ["--help"])
+        assert "ec2" in result.output
+
+    def test_ec2_stub_shows_install_message(self):
+        result = CliRunner().invoke(dallinger.command_line.dallinger, ["ec2"])
+        assert "EC2 support is not installed" in result.output
+        assert "pip install dallinger[ec2]" in result.output
+        assert result.exit_code == 1
+
+    def test_ec2_stub_shows_install_message_for_subcommands(self):
+        result = CliRunner().invoke(
+            dallinger.command_line.dallinger,
+            ["ec2", "provision", "--region", "us-east-1"],
+        )
+        assert "EC2 support is not installed" in result.output
+        assert result.exit_code == 1
+
+
 def test_get_editable_dallinger_path():
     from dallinger.utils import get_editable_dallinger_path
 
