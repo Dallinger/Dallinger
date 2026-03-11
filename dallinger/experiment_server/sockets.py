@@ -183,9 +183,17 @@ class Client:
                     ),
                 )
                 if isinstance(e, ConnectionClosed):
-                    raise
-                raise ConnectionClosed(self.ws.close_reason, self.ws.close_message)
-            # log('Sent to {}: {}'.format(self, message), level='debug')
+                    log(
+                        "Websocket connection closed unexpectedly: {}\n\n{}\n\n{}".format(
+                            e, self.ws.close_reason, self.ws.close_message
+                        ),
+                        level="info",
+                    )
+                else:
+                    log(
+                        "Socket error while sending message: {}".format(e),
+                        level="error",
+                    )
 
     def subscribe(self, channel):
         """Start listening to messages on the specified channel."""
