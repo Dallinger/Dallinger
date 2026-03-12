@@ -6,6 +6,7 @@
 - The "Could not import EC2 support" warning is no longer printed on every CLI invocation; a stub `ec2` subcommand now shows the message only when `dallinger ec2` is actually used.
 ### Changed
 
+- Standardized `CHANGELOG.md` Markdown formatting and added a repository `.markdownlint.jsonc` config to support linting without flagging intentional changelog structure.
 - Replaced third-party `cached_property` package with Python's built-in `functools.cached_property` (available since Python 3.8).
 - Moved `ipython` from core dependencies to `jupyter` optional dependency, reducing install size for users who don't need Jupyter features.
 - Moved `numpy` from core dependencies to `data` and `ec2` optional dependencies.
