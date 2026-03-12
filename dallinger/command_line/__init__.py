@@ -134,7 +134,7 @@ except ImportError:
     def ec2_stub(args):
         """EC2 commands (requires the ec2 extra)."""
         log(
-            "EC2 support is not installed. " "Run: pip install dallinger[ec2]",
+            "EC2 support is not installed. Run: pip install dallinger[ec2]",
         )
         raise SystemExit(1)
 
