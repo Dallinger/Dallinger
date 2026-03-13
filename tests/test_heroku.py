@@ -5,6 +5,7 @@ import time
 from unittest import mock
 
 import pytest
+import redis
 
 from dallinger.config import get_config
 
@@ -47,19 +48,25 @@ class TestClockScheduler:
         with mock.patch("apscheduler.schedulers.blocking.BlockingScheduler.start"):
             yield heroku.clock.scheduler
 
+    @pytest.fixture
+    def patched_wait_for_redis(self, setup):
+        with mock.patch("dallinger.heroku.clock.wait_for_redis_ready") as patched:
+            yield patched
+
     def teardown(self):
         os.chdir("../..")
 
     def test_scheduler_has_job(self, setup):
         assert len(self.clock.scheduler.get_jobs()) > 0
 
-    def test_launch_loads_config(self, patched_scheduler):
+    def test_launch_loads_config(self, patched_scheduler, patched_wait_for_redis):
         self.clock.launch()
+        patched_wait_for_redis.assert_called_once_with()
         patched_scheduler.start.assert_called_once()
         assert get_config().ready
 
     def test_launch_registers_additional_tasks(
-        self, patched_scheduler, tasks_with_cleanup
+        self, patched_scheduler, patched_wait_for_redis, tasks_with_cleanup
     ):
         tasks_with_cleanup.append(
             {
@@ -70,6 +77,7 @@ class TestClockScheduler:
         )
 
         self.clock.launch()
+        patched_wait_for_redis.assert_called_once_with()
         jobs = patched_scheduler.get_jobs()
         func_names = [job.func_ref for job in jobs]
 
@@ -77,6 +85,45 @@ class TestClockScheduler:
             "dallinger_experiment.dallinger_experiment:TestExperiment.test_task"
             in func_names
         )
+
+    def test_wait_for_redis_ready_returns_when_ping_succeeds(self, setup):
+        mock_redis = mock.Mock()
+
+        with mock.patch.object(self.clock.db, "redis_conn", mock_redis):
+            self.clock.wait_for_redis_ready(timeout=1, interval=0)
+
+        mock_redis.ping.assert_called_once_with()
+
+    def test_wait_for_redis_ready_retries_busy_loading(self, setup):
+        mock_redis = mock.Mock()
+        mock_redis.ping.side_effect = [
+            redis.exceptions.BusyLoadingError("loading"),
+            True,
+        ]
+
+        with (
+            mock.patch.object(self.clock.db, "redis_conn", mock_redis),
+            mock.patch("dallinger.heroku.clock.time.sleep") as sleep,
+        ):
+            self.clock.wait_for_redis_ready(timeout=1, interval=0.1)
+
+        assert mock_redis.ping.call_count == 2
+        sleep.assert_called_once_with(0.1)
+
+    def test_wait_for_redis_ready_times_out(self, setup):
+        mock_redis = mock.Mock()
+        mock_redis.ping.side_effect = redis.exceptions.ConnectionError("down")
+
+        with (
+            mock.patch.object(self.clock.db, "redis_conn", mock_redis),
+            mock.patch(
+                "dallinger.heroku.clock.time.monotonic",
+                side_effect=[0, 0, 2],
+            ),
+            mock.patch("dallinger.heroku.clock.time.sleep"),
+        ):
+            with pytest.raises(RuntimeError, match="Redis did not become ready"):
+                self.clock.wait_for_redis_ready(timeout=1, interval=0.1)
 
 
 @pytest.mark.usefixtures("experiment_dir", "active_config")
