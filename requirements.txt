@@ -47,7 +47,7 @@ click==8.3.1
     #   flask
     #   pip-tools
     #   rq
-croniter==6.0.0
+croniter==6.1.0
     # via rq
 cryptography==46.0.5
     # via paramiko
