@@ -429,7 +429,7 @@ pygtail==0.14.0
     # via dallinger
 pynacl==1.6.2
     # via paramiko
-pypandoc==1.16.2
+pypandoc==1.17
     # via dallinger
 pyproject-api==1.10.0
     # via tox
