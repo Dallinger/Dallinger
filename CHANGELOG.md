@@ -29,6 +29,7 @@
 
 ### Fixed
 
+- Fixed frontend npm audit vulnerabilities by updating transitive JavaScript dependencies in `yarn.lock`, including patched versions of `immutable`, `minimatch`, `ajv`, and related build tooling packages.
 - Fixed `get_page_from_directory` route returning 500 errors with full tracebacks for missing templates (e.g. from vulnerability scanners). Now returns 404, matching the existing `get_page` behavior.
 - Fixed Dozzle login failing on deployments using Dozzle v8+. The `set_dozzle_password` function was using SHA256 hashing, which is no longer supported by recent Dozzle versions. Now uses bcrypt. Also pinned Dozzle image to v10.0.2 to prevent future breaking changes from `:latest`.
 - Fixed `docker-ssh export` and `docker-ssh apps` for root-domain deployments.
