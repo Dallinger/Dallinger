@@ -44,6 +44,7 @@ dependencies = [
     "gevent",
     "gunicorn[gevent]",
     "heroku3",
+    "markdown-it-py<4",  # Transitive dep of rich; pinned <4 because myst-parser requires 3.x and both lock files must resolve the same version
     "paramiko<4",  # Required for compatibility with sshtunnel (see https://github.com/pahaz/sshtunnel/issues/302)
     "pexpect",
     "pip-tools",  # TODO: consider removing at some point if we are happy with uv?

@@ -19,9 +19,9 @@ beautifulsoup4==4.14.3
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.42.55
+boto3==1.42.69
     # via dallinger
-botocore==1.42.55
+botocore==1.42.69
     # via
     #   boto3
     #   s3transfer
@@ -29,7 +29,7 @@ build==1.4.0
     # via
     #   dallinger
     #   pip-tools
-certifi==2026.1.4
+certifi==2026.2.25
     # via
     #   requests
     #   selenium
@@ -39,7 +39,7 @@ cffi==2.0.0
     #   pynacl
 chardet==5.2.0
     # via dallinger
-charset-normalizer==3.4.4
+charset-normalizer==3.4.6
     # via requests
 click==8.3.1
     # via
@@ -47,11 +47,11 @@ click==8.3.1
     #   flask
     #   pip-tools
     #   rq
-croniter==6.0.0
+croniter==6.2.2
     # via rq
 cryptography==46.0.5
     # via paramiko
-faker==40.5.1
+faker==40.11.0
     # via dallinger
 flask==3.1.3
     # via
@@ -93,12 +93,18 @@ jmespath==1.1.0
     # via
     #   boto3
     #   botocore
+markdown-it-py==3.0.0
+    # via
+    #   dallinger
+    #   rich
 markupsafe==3.0.3
     # via
     #   flask
     #   jinja2
     #   werkzeug
     #   wtforms
+mdurl==0.1.2
+    # via markdown-it-py
 outcome==1.3.0.post0
     # via
     #   trio
@@ -114,7 +120,7 @@ pexpect==4.9.0
     # via dallinger
 pip-tools==7.5.3
     # via dallinger
-platformdirs==4.9.2
+platformdirs==4.9.4
     # via dallinger
 psutil==7.2.2
     # via dallinger
@@ -124,6 +130,8 @@ ptyprocess==0.7.0
     # via pexpect
 pycparser==3.0
     # via cffi
+pygments==2.19.2
+    # via rich
 pygtail==0.14.0
     # via dallinger
 pynacl==1.6.2
@@ -141,9 +149,7 @@ python-dateutil==2.9.0.post0
     #   heroku3
 python-json-logger==4.0.0
     # via dallinger
-pytz==2025.2
-    # via croniter
-redis==7.2.0
+redis==7.3.0
     # via
     #   dallinger
     #   rq
@@ -151,6 +157,8 @@ requests==2.32.5
     # via
     #   dallinger
     #   heroku3
+rich==14.3.3
+    # via dallinger
 rq==2.7.0
     # via dallinger
 s3transfer==0.16.0
@@ -168,8 +176,6 @@ sortedcontainers==2.4.0
 soupsieve==2.8.3
     # via beautifulsoup4
 sqlalchemy==1.4.54
-    # via dallinger
-tabulate==0.9.0
     # via dallinger
 tenacity==9.1.4
     # via dallinger
@@ -193,7 +199,7 @@ tzlocal==5.3.1
     #   dallinger
 ua-parser==1.0.1
     # via user-agents
-ua-parser-builtins==202602
+ua-parser-builtins==202603
     # via ua-parser
 urllib3==2.6.3
     # via
@@ -203,7 +209,7 @@ urllib3==2.6.3
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.10.5
+uv==0.10.11
     # via dallinger
 websocket-client==1.9.0
     # via selenium
