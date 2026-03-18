@@ -37,7 +37,7 @@ cffi==2.0.0
     # via
     #   cryptography
     #   pynacl
-chardet==5.2.0
+chardet==7.2.0
     # via dallinger
 charset-normalizer==3.4.6
     # via requests
