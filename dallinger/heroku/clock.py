@@ -1,8 +1,10 @@
 """A clock process."""
 
+import time
 from collections import defaultdict
 from datetime import datetime
 
+import redis
 from apscheduler.schedulers.blocking import BlockingScheduler
 from sqlalchemy import text
 
@@ -13,6 +15,30 @@ from dallinger.models import Participant
 from dallinger.utils import ParticipationTime
 
 scheduler = BlockingScheduler()
+
+
+def wait_for_redis_ready(timeout=60, interval=0.5):
+    """Wait for Redis to accept commands before starting scheduled tasks."""
+    deadline = time.monotonic() + timeout
+    last_error = None
+
+    while time.monotonic() < deadline:
+        try:
+            if db.redis_conn.ping():
+                return
+        except (
+            redis.exceptions.BusyLoadingError,
+            redis.exceptions.ConnectionError,
+            redis.exceptions.TimeoutError,
+        ) as err:
+            last_error = err
+            print(f"Waiting for Redis to become ready: {err}")
+
+        time.sleep(interval)
+
+    raise RuntimeError(
+        "Redis did not become ready before clock startup timeout."
+    ) from last_error
 
 
 def run_check(participants, config, reference_time):
@@ -91,4 +117,5 @@ def launch():
                 **dict(args["kwargs"]),
             )
 
+    wait_for_redis_ready()
     scheduler.start()
