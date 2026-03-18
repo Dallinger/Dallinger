@@ -1,4 +1,4 @@
-# flake8: noqa
+# ruff: noqa
 
 # Vendored copy from git://github.com/reallistic/rq-gevent-worker.git
 # because there isn't a working release.

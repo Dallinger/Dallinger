@@ -13,8 +13,8 @@ Current build status: |status|
 The tests include:
 
 * Making sure that a source distribution of the Python package can be created.
-* Running `flake8 <https://flake8.readthedocs.io>`_ to make sure Python code
-  conforms to the `PEP 8 <https://www.python.org/dev/peps/pep-0008/>`_ style guide.
+* Running `Ruff <https://docs.astral.sh/ruff/>`_ to lint, organize imports,
+  and format Python code.
 * Running the tests for the Python code using `pytest <http://doc.pytest.org/>`_
   and making sure they pass on Python 3.10, 3.11, 3.12, and 3.13.
 * Making sure that `code coverage <https://coverage.readthedocs.io/>`_
@@ -84,10 +84,10 @@ To run the JavaScript tests, run::
 Linting
 ~~~~~~~
 
-To run black::
+To run Ruff linting and import organization::
 
-  black dallinger
+  ruff check dallinger dallinger_scripts demos tests
 
-To run flake8::
+To run Ruff formatting::
 
-	flake8
+  ruff format dallinger dallinger_scripts demos tests

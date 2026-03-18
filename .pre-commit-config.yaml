@@ -1,9 +1,9 @@
 repos:
 
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.15.4
+  rev: v0.15.6
   hooks:
-    - id: ruff
+    - id: ruff-check
       args: [--fix, --exit-non-zero-on-fix]
       files: ^(tests|dallinger|dallinger_scripts|demos)/
       types_or: [python, pyi]
