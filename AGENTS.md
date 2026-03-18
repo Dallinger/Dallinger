@@ -6,7 +6,7 @@ finalizing a contribution.
 
 ## Setup
 
-Install Dallinger with dev dependencies (includes pre-commit, black, pytest, tox):
+Install Dallinger with dev dependencies (includes pre-commit, ruff, pytest, tox):
 
 ```bash
 python -m pip install -e ".[dev]"
