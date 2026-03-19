@@ -458,7 +458,7 @@ python-dateutil==2.9.0.post0
     #   heroku3
     #   jupyter-client
     #   pandas
-python-discovery==1.1.3
+python-discovery==1.2.0
     # via virtualenv
 python-json-logger==4.0.0
     # via
