@@ -57,11 +57,9 @@
 
 ### Updated
 
-- Updated black to 26.1.0
 - Pinned myst-parser < 5
 - Pinned pandas < 3
 - Pinned chardet < 6
-- Updated isort to 8
 - Pinned markdown-it-py < 4 to keep production and dev lock files on the same version (myst-parser requires 3.x)
 - Updated dependencies
 
