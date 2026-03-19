@@ -9,7 +9,7 @@ ansi2html==1.9.2
     # via dallinger
 apscheduler==3.11.2
     # via dallinger
-attrs==25.4.0
+attrs==26.1.0
     # via
     #   outcome
     #   trio
