@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 #### Changed
+- Don't raise exceptions on websocket client disconnects.
 - The "Could not import EC2 support" warning is no longer printed on every CLI invocation; a stub `ec2` subcommand now shows the message only when `dallinger ec2` is actually used.
 ### Changed
 

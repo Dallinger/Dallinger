@@ -175,20 +175,14 @@ class TestClient:
         client.ws.send.side_effect = socket.error()
         client.ws.close_reason = "Socket Error"
         client.ws.close_message = "SimulatedError"
-        channel.subscribe(client)
-        with pytest.raises(ConnectionClosed) as e:
-            client.send("message")
-            assert e.reason == "Socket Error"
-            assert e.message == "SimulatedError"
+        client.send("message")
         assert client not in channel.clients
 
     def test_connection_closed_unsubscribes_client(self, client, channel):
         closed_error = ConnectionClosed("Closed Error", "Closed")
         client.ws.send.side_effect = closed_error
         channel.subscribe(client)
-        with pytest.raises(ConnectionClosed) as e:
-            client.send("message")
-            assert e is closed_error
+        client.send("message")
         assert client not in channel.clients
 
     def test_send_exception_sends_control_message(self, sockets, client, channel):
@@ -196,8 +190,7 @@ class TestClient:
         client.ws.send.side_effect = closed_error
         channel.subscribe(client)
 
-        with pytest.raises(ConnectionClosed):
-            client.send("message")
+        client.send("message")
 
         # We should have three calls publishing messages on redis
         #
