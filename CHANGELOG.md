@@ -27,6 +27,7 @@
 - Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
 - Added a new end-to-end `docker-ssh` integration test path in CI using pytest fixtures and an ephemeral SSH target.
 - Added reusable pytest fixtures for `docker-ssh` integration testing (`docker_ssh_server` and `fresh_docker_ssh_server`) and expanded docker-ssh integration coverage.
+- Added a dedicated pytest selector for docker-ssh smoke tests (`--docker-ssh-smoke`) plus regression tests that verify smoke-test marker gating behavior.
 - Added `get_running_app` helper for selecting a default `docker-ssh` app programmatically.
 - Added repeatable `--extra` support to the constraints generator (`dallinger constraints generate/check/ensure`). Extras influence the constraints signature (md5), are passed to the resolver (uv pip compile), and require pyproject.toml when specified. When both pyproject.toml and requirements.txt exist and extras are provided, pyproject.toml is preferred.
 
