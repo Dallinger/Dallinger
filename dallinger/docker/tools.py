@@ -8,6 +8,7 @@ from subprocess import CalledProcessError, check_output
 import click
 import docker
 from jinja2 import Template
+from packaging.version import InvalidVersion, Version
 from pip._internal.network.session import PipSession
 from pip._internal.req import parse_requirements
 
@@ -250,11 +251,28 @@ def get_required_dallinger_version(experiment_tmp_path: str) -> str:
     if not dallinger_requirements:
         print("Could not determine Dallinger version. Using latest")
         return ""
+
+    def _normalize_version(version_text: str) -> str:
+        try:
+            parsed_version = Version(version_text)
+        except InvalidVersion:
+            return version_text
+        if parsed_version.is_prerelease or parsed_version.is_devrelease:
+            print(
+                f"Dallinger version {parsed_version} is not guaranteed to have a published base image tag. "
+                "Using latest"
+            )
+            return ""
+        return version_text
+
     # pip-compile should have created a single spec in the form "dallinger==7.2.0"
     if "==" in dallinger_requirements[0]:
-        return dallinger_requirements[0].split("==")[1]
+        return _normalize_version(dallinger_requirements[0].split("==")[1])
     # Or we might have a requirement like `file:dallinger-7.2.0-py3-none-any.whl`
-    return parse_wheel_filename(dallinger_requirements[0][len("file:") :]).version
+    wheel_version = parse_wheel_filename(
+        dallinger_requirements[0][len("file:") :]
+    ).version
+    return _normalize_version(str(wheel_version))
 
 
 def get_experiment_image_tag(experiment_tmp_path: str) -> str:

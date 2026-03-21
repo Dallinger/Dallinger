@@ -25,6 +25,9 @@
 ### Added
 
 - Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
+- Added a new end-to-end `docker-ssh` integration test path in CI using pytest fixtures and an ephemeral SSH target.
+- Added reusable pytest fixtures for `docker-ssh` integration testing (`docker_ssh_server` and `fresh_docker_ssh_server`) and expanded docker-ssh integration coverage.
+- Added a dedicated pytest selector for docker-ssh smoke tests (`--docker-ssh-smoke`) plus regression tests that verify smoke-test marker gating behavior.
 - Added `get_running_app` helper for selecting a default `docker-ssh` app programmatically.
 - Added repeatable `--extra` support to the constraints generator (`dallinger constraints generate/check/ensure`). Extras influence the constraints signature (md5), are passed to the resolver (uv pip compile), and require pyproject.toml when specified. When both pyproject.toml and requirements.txt exist and extras are provided, pyproject.toml is preferred.
 
@@ -91,6 +94,9 @@
 - Fixed flaky MTurk test by including Python version in qualification names to prevent collisions between parallel CI jobs.
 - Fixed new participant link to avoid propagating credentials from the dashboard URL.
 - Fixed EC2 teardown to show a clear error when no instances exist in a region.
+- Fixed Docker SSH localhost deployments in CI by allowing SSH hosts with explicit ports (for example, `localhost:2222`) and correctly handling loopback TLS verification.
+- Improved Docker SSH deployment robustness by fixing `--update` flag parsing, ensuring missing `known_hosts` files are created, and avoiding premature Dozzle restarts.
+- Improved Docker SSH runtime reliability in CI-like environments by hardening nested Docker startup and deploy defaults (including Redis fallback behavior and PostgreSQL schema permissions for experiment users).
 
 ### Updated
 

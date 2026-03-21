@@ -1,5 +1,8 @@
 from pathlib import Path
+from unittest import mock
 
+import click
+import pytest
 import yaml
 
 
@@ -86,3 +89,224 @@ def test_num_dynos():
     result = get_yaml({"num_dynos_worker": n})
     for i in range(n):
         assert f"worker_{i + 1}" in result["services"]
+
+
+def test_split_ssh_host_port():
+    from dallinger.command_line.docker_ssh import split_ssh_host_port
+
+    assert split_ssh_host_port("example.com") == ("example.com", 22)
+    assert split_ssh_host_port("localhost:2222") == ("localhost", 2222)
+    assert split_ssh_host_port("::1") == ("::1", 22)
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "",
+        ":2222",
+        "example.com:abc",
+        "example.com:70000",
+        "[::1]:abc",
+        "[::1]:70000",
+        "[::1",
+        "example.com:22:33",
+    ],
+)
+def test_split_ssh_host_port_rejects_invalid_host_formats(host):
+    from dallinger.command_line.docker_ssh import split_ssh_host_port
+
+    with pytest.raises(click.UsageError):
+        split_ssh_host_port(host)
+
+
+def test_is_loopback_host():
+    from dallinger.command_line.docker_ssh import is_loopback_host
+
+    assert is_loopback_host("localhost")
+    assert is_loopback_host("127.0.0.2")
+    assert not is_loopback_host("203.0.113.10")
+
+
+def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypatch):
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    key_path = tmp_path / "server.pem"
+    key_path.write_text("dummy")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: key_path)
+
+    class DummySpinner:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def ok(self, *_):
+            return None
+
+        def fail(self, *_):
+            return None
+
+        def stop(self):
+            return None
+
+        def start(self):
+            return None
+
+    monkeypatch.setattr(docker_ssh, "yaspin", lambda *args, **kwargs: DummySpinner())
+
+    class DummyClient:
+        def load_host_keys(self, filename):
+            if not Path(filename).exists():
+                raise IOError("missing")
+
+        def set_missing_host_key_policy(self, policy):
+            return None
+
+        def load_system_host_keys(self):
+            return None
+
+        def connect(self, **kwargs):
+            return None
+
+        def save_host_keys(self, filename):
+            assert Path(filename).exists()
+
+    monkeypatch.setattr(docker_ssh.paramiko, "SSHClient", DummyClient)
+
+    client = docker_ssh.get_connected_ssh_client("localhost:2222", user="root")
+    assert isinstance(client, DummyClient)
+    assert (tmp_path / ".ssh" / "known_hosts").exists()
+
+
+def test_option_update_parses_as_boolean():
+    from click.testing import CliRunner
+
+    from dallinger.command_line.docker_ssh import option_update
+
+    @click.command()
+    @option_update
+    def cmd(update):
+        click.echo(f"{update!r}:{type(update).__name__}")
+
+    runner = CliRunner()
+    result_default = runner.invoke(cmd, [])
+    assert result_default.exit_code == 0
+    assert "False:bool" in result_default.output
+
+    result_update = runner.invoke(cmd, ["--update"])
+    assert result_update.exit_code == 0
+    assert "True:bool" in result_update.output
+
+
+def test_get_required_dallinger_version_prerelease_falls_back_to_latest(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("dallinger==12.2.0a1\n")
+
+    assert get_required_dallinger_version(str(tmp_path)) == ""
+
+
+def test_get_sftp_sets_working_directory_to_remote_home(monkeypatch):
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    class DummyStdout:
+        def read(self):
+            return b"/home/tester\n"
+
+    class DummySFTP:
+        changed_to = None
+
+        def chdir(self, path):
+            self.changed_to = path
+
+    class DummyClient:
+        def __init__(self):
+            self.sftp = DummySFTP()
+
+        def open_sftp(self):
+            return self.sftp
+
+        def exec_command(self, command):
+            assert command == 'printf %s "$HOME"'
+            return None, DummyStdout(), None
+
+    client = DummyClient()
+    monkeypatch.setattr(
+        docker_ssh, "get_connected_ssh_client", lambda host, user=None: client
+    )
+
+    sftp = docker_ssh.get_sftp("localhost")
+    assert sftp is client.sftp
+    assert sftp.changed_to == "/home/tester"
+
+
+def test_set_dozzle_password_skips_restart_when_not_running():
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    executor = mock.Mock()
+
+    def run_side_effect(command, raise_=True):
+        if "test -f ~/dallinger/.env.json" in command:
+            return ""
+        if "docker ps --filter name=^dozzle$" in command:
+            return ""
+        return ""
+
+    executor.run.side_effect = run_side_effect
+    sftp = mock.Mock()
+
+    docker_ssh.set_dozzle_password(executor, sftp, "secret-password")
+
+    assert sftp.putfo.call_count == 2
+    executor.restart_dozzle.assert_not_called()
+
+
+def test_ensure_postgres_schema_permissions_grants_create():
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    executor = mock.Mock()
+
+    docker_ssh.ensure_postgres_schema_permissions(executor, "dlgr-abcdef12")
+
+    assert executor.run.call_count == 1
+    command = executor.run.call_args[0][0]
+    assert 'psql -U dallinger -d "dlgr-abcdef12"' in command
+    assert "GRANT USAGE, CREATE ON SCHEMA public TO" in command
+
+
+def test_is_remote_disk_full_error_detects_common_markers():
+    from dallinger.command_line.docker_ssh import _is_remote_disk_full_error
+
+    assert _is_remote_disk_full_error("no space left on device")
+    assert _is_remote_disk_full_error("psycopg2.errors.DiskFull")
+    assert _is_remote_disk_full_error("Error response from daemon: disk full")
+    assert not _is_remote_disk_full_error("authentication failed")
+
+
+def test_get_remote_disk_full_guidance_recommends_safe_cleanup_only():
+    from dallinger.command_line.docker_ssh import get_remote_disk_full_guidance
+
+    guidance = get_remote_disk_full_guidance("example.org", app="dlgr-abcd1234")
+    assert (
+        "Remote Docker host 'example.org' appears to be out of disk space." in guidance
+    )
+    assert "docker image prune -af" in guidance
+    assert "docker container prune -f" in guidance
+    assert "do not auto-prune volumes" in guidance
+    assert "docker system prune -af --volumes" not in guidance
+
+
+def test_docker_ssh_fixture_precondition_uses_pytest_fail():
+    from dallinger.pytest_docker_ssh import _skip_or_fail
+
+    with pytest.raises(pytest.fail.Exception):
+        _skip_or_fail("missing dependency")

@@ -221,11 +221,20 @@ class Configuration:
         # For now this is limited to "auto_recruit", but in the future it can be extended
         # to other parameters as well
         if key == "auto_recruit":
+            from redis.exceptions import RedisError
+
             from dallinger.db import redis_conn
 
-            auto_recruit = redis_conn.get("auto_recruit")
-            if auto_recruit is not None:
-                return bool(int(auto_recruit))
+            try:
+                auto_recruit = redis_conn.get("auto_recruit")
+            except (RedisError, OSError) as exc:
+                logger.debug(
+                    "Could not read auto_recruit from Redis, using configured value: %s",
+                    exc,
+                )
+            else:
+                if auto_recruit is not None:
+                    return bool(int(auto_recruit))
         if not self.ready:
             raise RuntimeError("Config not loaded")
         for layer in self.data:
