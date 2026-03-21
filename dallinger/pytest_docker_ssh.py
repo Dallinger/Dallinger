@@ -383,7 +383,7 @@ def docker_ssh_server():
                 (
                     "apt-get update && "
                     "DEBIAN_FRONTEND=noninteractive apt-get install -y "
-                    "openssh-server sudo curl wget ca-certificates docker.io"
+                    "openssh-server sudo curl wget ca-certificates docker.io docker-compose-v2"
                 ),
             ],
             timeout=600,
