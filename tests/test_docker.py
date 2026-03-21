@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest import mock
 
 import click
+import pytest
 import yaml
 
 
@@ -95,6 +96,27 @@ def test_split_ssh_host_port():
 
     assert split_ssh_host_port("example.com") == ("example.com", 22)
     assert split_ssh_host_port("localhost:2222") == ("localhost", 2222)
+    assert split_ssh_host_port("::1") == ("::1", 22)
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "",
+        ":2222",
+        "example.com:abc",
+        "example.com:70000",
+        "[::1]:abc",
+        "[::1]:70000",
+        "[::1",
+        "example.com:22:33",
+    ],
+)
+def test_split_ssh_host_port_rejects_invalid_host_formats(host):
+    from dallinger.command_line.docker_ssh import split_ssh_host_port
+
+    with pytest.raises(click.UsageError):
+        split_ssh_host_port(host)
 
 
 def test_is_loopback_host():
@@ -281,3 +303,19 @@ def test_get_remote_disk_full_guidance_recommends_safe_cleanup_only():
     assert "docker container prune -f" in guidance
     assert "do not auto-prune volumes" in guidance
     assert "docker system prune -af --volumes" not in guidance
+
+
+def test_docker_ssh_fixture_precondition_uses_pytest_skip_outside_ci(monkeypatch):
+    from dallinger.pytest_docker_ssh import _skip_or_fail
+
+    monkeypatch.delenv("CI", raising=False)
+    with pytest.raises(pytest.skip.Exception):
+        _skip_or_fail("missing dependency")
+
+
+def test_docker_ssh_fixture_precondition_uses_pytest_fail_in_ci(monkeypatch):
+    from dallinger.pytest_docker_ssh import _skip_or_fail
+
+    monkeypatch.setenv("CI", "true")
+    with pytest.raises(pytest.fail.Exception):
+        _skip_or_fail("missing dependency")

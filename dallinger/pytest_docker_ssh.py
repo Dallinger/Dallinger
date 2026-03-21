@@ -21,6 +21,12 @@ SSH_WAIT_SECONDS = 30
 DOCKER_WAIT_SECONDS = 60
 
 
+def _skip_or_fail(message):
+    if os.environ.get("CI", "").strip().lower() in {"1", "true", "yes"}:
+        pytest.fail(message, pytrace=False)
+    pytest.skip(message)
+
+
 def _run_command(command, *, check=True, env=None, cwd=None, timeout=300):
     completed = subprocess.run(
         command,
@@ -158,6 +164,7 @@ class DockerSSHServer:
         self.run_ssh(cleanup_command, check=False)
 
     def add_server(self):
+        self.ensure_remote_docker_ready()
         self.run_dallinger(
             [
                 "docker-ssh",
@@ -169,7 +176,6 @@ class DockerSSHServer:
                 self.ssh_user,
             ]
         )
-        self.ensure_remote_docker_ready()
 
     def remove_server(self):
         self.run_dallinger(
@@ -293,24 +299,24 @@ class DockerSSHServer:
 @pytest.fixture(scope="session")
 def docker_ssh_server():
     if not os.environ.get("RUN_DOCKER"):
-        pytest.skip("need RUN_DOCKER environment variable")
+        _skip_or_fail("need RUN_DOCKER environment variable")
     if shutil.which("docker") is None:
-        pytest.skip("docker executable not available")
+        _skip_or_fail("docker executable not available")
     if not sys.executable:
-        pytest.skip("python executable not available")
+        _skip_or_fail("python executable not available")
     if shutil.which("ssh") is None:
-        pytest.skip("ssh executable not available")
+        _skip_or_fail("ssh executable not available")
     if shutil.which("ssh-keygen") is None:
-        pytest.skip("ssh-keygen executable not available")
+        _skip_or_fail("ssh-keygen executable not available")
 
     docker_info = _run_command(["docker", "info"], check=False)
     if docker_info.returncode != 0:
-        pytest.skip("docker daemon not available")
+        _skip_or_fail("docker daemon not available")
 
     repo_root = Path(__file__).resolve().parents[1]
     source_experiment_dir = repo_root / "demos" / "dlgr" / "demos" / "bartlett1932"
     if not source_experiment_dir.exists():
-        pytest.skip(f"Experiment directory not found: {source_experiment_dir}")
+        _skip_or_fail(f"Experiment directory not found: {source_experiment_dir}")
 
     pytest_workspace = repo_root / ".pytest-docker-ssh"
     pytest_workspace.mkdir(exist_ok=True)
@@ -365,7 +371,7 @@ def docker_ssh_server():
             "address already in use"
             in f"{run_target.stdout}\n{run_target.stderr}".lower()
         ):
-            pytest.skip("docker-ssh fixture requires free local ports 80 and 443")
+            _skip_or_fail("docker-ssh fixture requires free local ports 80 and 443")
         raise RuntimeError(
             "Failed to start docker-ssh target container.\n"
             f"STDOUT:\n{run_target.stdout}\nSTDERR:\n{run_target.stderr}"
@@ -461,9 +467,6 @@ def docker_ssh_server():
             f"docker_image_base_name = {image_base_name}\n"
         )
 
-        # `docker-ssh servers add` now verifies Docker availability remotely.
-        # Ensure the daemon is running before registration in CI containers.
-        server.ensure_remote_docker_ready()
         server.add_server()
         yield server
     finally:

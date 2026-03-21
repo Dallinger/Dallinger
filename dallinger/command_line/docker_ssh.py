@@ -413,6 +413,22 @@ def split_ssh_host_port(host):
     >>> split_ssh_host_port("[::1]:2200")
     ('::1', 2200)
     """
+    host = host.strip()
+    if not host:
+        raise click.UsageError("Invalid host format ''. Use host or host:port.")
+
+    def _parse_port(port_text):
+        if not port_text.isdigit():
+            raise click.UsageError(
+                f"Invalid host format '{host}'. Use host or host:port."
+            )
+        parsed_port = int(port_text)
+        if parsed_port < 1 or parsed_port > 65535:
+            raise click.UsageError(
+                f"Invalid port '{parsed_port}' in host '{host}'. Port must be between 1 and 65535."
+            )
+        return parsed_port
+
     if host.startswith("["):
         bracket_end = host.find("]")
         if bracket_end == -1:
@@ -420,17 +436,32 @@ def split_ssh_host_port(host):
                 f"Invalid host format '{host}'. Use host or host:port."
             )
         parsed_host = host[1:bracket_end]
+        if not parsed_host:
+            raise click.UsageError(
+                f"Invalid host format '{host}'. Use host or host:port."
+            )
         suffix = host[bracket_end + 1 :]
         if not suffix:
             return parsed_host, 22
-        if suffix.startswith(":") and suffix[1:].isdigit():
-            return parsed_host, int(suffix[1:])
+        if suffix.startswith(":"):
+            return parsed_host, _parse_port(suffix[1:])
         raise click.UsageError(f"Invalid host format '{host}'. Use host or host:port.")
 
     if host.count(":") == 1:
         parsed_host, port_candidate = host.rsplit(":", 1)
-        if port_candidate.isdigit():
-            return parsed_host, int(port_candidate)
+        if not parsed_host:
+            raise click.UsageError(
+                f"Invalid host format '{host}'. Use host or host:port."
+            )
+        return parsed_host, _parse_port(port_candidate)
+
+    if host.count(":") > 1:
+        try:
+            ipaddress.ip_address(host)
+        except ValueError as exc:
+            raise click.UsageError(
+                f"Invalid host format '{host}'. Use host or host:port."
+            ) from exc
 
     return host, 22
 
