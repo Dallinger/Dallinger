@@ -325,12 +325,16 @@ def pytest_collection_modifyitems(config, items):
         reason="need --docker-ssh-smoke option to run"
     )
     for item in items:
+        if "docker_ssh_smoke" in item.keywords:
+            if not run_docker_ssh_smoke:
+                item.add_marker(skip_docker_ssh_smoke)
+            # docker-ssh smoke tests are gated only by --docker-ssh-smoke.
+            # They should not additionally require --runslow or RUN_DOCKER.
+            continue
         if "slow" in item.keywords and not run_slow:
             item.add_marker(skip_slow)
         if "docker" in item.keywords and not run_docker:
             item.add_marker(skip_docker)
-        if "docker_ssh_smoke" in item.keywords and not run_docker_ssh_smoke:
-            item.add_marker(skip_docker_ssh_smoke)
 
 
 def pytest_configure():

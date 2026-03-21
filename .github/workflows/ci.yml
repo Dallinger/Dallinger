@@ -249,9 +249,7 @@ jobs:
           pip install --upgrade pip wheel
           pip install -e .[data,docker] pytest
       - name: Run docker-ssh integration tests
-        run: |
-          RUN_DOCKER=1 \
-          python -m pytest tests/test_docker_ssh_integration.py --runslow --docker-ssh-smoke -q
+        run: python -m pytest tests/test_docker_ssh_integration.py --docker-ssh-smoke -q
 
   pre-commit:
     runs-on: ubuntu-latest

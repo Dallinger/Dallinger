@@ -22,12 +22,7 @@ DOCKER_WAIT_SECONDS = 60
 
 
 def _skip_or_fail(message):
-    if _skip_or_fail.strict_preconditions:
-        pytest.fail(message, pytrace=False)
-    pytest.skip(message)
-
-
-_skip_or_fail.strict_preconditions = False
+    pytest.fail(message, pytrace=False)
 
 
 def _run_command(command, *, check=True, env=None, cwd=None, timeout=300):
@@ -300,12 +295,7 @@ class DockerSSHServer:
 
 
 @pytest.fixture(scope="session")
-def docker_ssh_server(pytestconfig):
-    _skip_or_fail.strict_preconditions = bool(
-        pytestconfig.getoption("--docker-ssh-smoke")
-    )
-    if not os.environ.get("RUN_DOCKER"):
-        _skip_or_fail("need RUN_DOCKER environment variable")
+def docker_ssh_server():
     if shutil.which("docker") is None:
         _skip_or_fail("docker executable not available")
     if not sys.executable:
