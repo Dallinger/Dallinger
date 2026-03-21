@@ -251,8 +251,7 @@ jobs:
       - name: Run docker-ssh integration tests
         run: |
           RUN_DOCKER=1 \
-          DALLINGER_DOCKER_SSH_STRICT_PRECONDITIONS=1 \
-          python -m pytest tests/test_docker_ssh_integration.py --runslow -q
+          python -m pytest tests/test_docker_ssh_integration.py --runslow --docker-ssh-smoke -q
 
   pre-commit:
     runs-on: ubuntu-latest

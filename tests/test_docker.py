@@ -305,27 +305,17 @@ def test_get_remote_disk_full_guidance_recommends_safe_cleanup_only():
     assert "docker system prune -af --volumes" not in guidance
 
 
-def test_docker_ssh_fixture_precondition_uses_pytest_skip_outside_ci(monkeypatch):
+def test_docker_ssh_fixture_precondition_uses_pytest_skip_by_default(monkeypatch):
     from dallinger.pytest_docker_ssh import _skip_or_fail
 
-    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setattr(_skip_or_fail, "strict_preconditions", False)
     with pytest.raises(pytest.skip.Exception):
         _skip_or_fail("missing dependency")
 
 
-def test_docker_ssh_fixture_precondition_uses_pytest_fail_in_ci(monkeypatch):
+def test_docker_ssh_fixture_precondition_uses_pytest_fail_in_strict_mode(monkeypatch):
     from dallinger.pytest_docker_ssh import _skip_or_fail
 
-    monkeypatch.setenv("CI", "true")
-    monkeypatch.setenv("DALLINGER_DOCKER_SSH_STRICT_PRECONDITIONS", "1")
+    monkeypatch.setattr(_skip_or_fail, "strict_preconditions", True)
     with pytest.raises(pytest.fail.Exception):
-        _skip_or_fail("missing dependency")
-
-
-def test_docker_ssh_fixture_precondition_skips_in_ci_without_strict_mode(monkeypatch):
-    from dallinger.pytest_docker_ssh import _skip_or_fail
-
-    monkeypatch.setenv("CI", "true")
-    monkeypatch.delenv("DALLINGER_DOCKER_SSH_STRICT_PRECONDITIONS", raising=False)
-    with pytest.raises(pytest.skip.Exception):
         _skip_or_fail("missing dependency")

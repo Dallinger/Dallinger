@@ -301,23 +301,36 @@ def pytest_addoption(parser):
         default=False,
         help="Run tests which create S3 buckets",
     )
+    parser.addoption(
+        "--docker-ssh-smoke",
+        action="store_true",
+        default=False,
+        help="Run docker-ssh smoke integration tests",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
-    run_slow = run_docker = False
+    run_slow = run_docker = run_docker_ssh_smoke = False
     if config.getoption("--runslow"):
         # --runslow given in cli: do not skip slow tests
         run_slow = True
     if os.environ.get("RUN_DOCKER"):
         # RUN_DOCKER environment variable set: do not skip docker tests
         run_docker = True
+    if config.getoption("--docker-ssh-smoke"):
+        run_docker_ssh_smoke = True
     skip_slow = pytest.mark.skip(reason="need --runslow option to run")
     skip_docker = pytest.mark.skip(reason="need RUN_DOCKER environment variable")
+    skip_docker_ssh_smoke = pytest.mark.skip(
+        reason="need --docker-ssh-smoke option to run"
+    )
     for item in items:
         if "slow" in item.keywords and not run_slow:
             item.add_marker(skip_slow)
         if "docker" in item.keywords and not run_docker:
             item.add_marker(skip_docker)
+        if "docker_ssh_smoke" in item.keywords and not run_docker_ssh_smoke:
+            item.add_marker(skip_docker_ssh_smoke)
 
 
 def pytest_configure():

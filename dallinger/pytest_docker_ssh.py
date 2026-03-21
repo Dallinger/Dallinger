@@ -22,16 +22,12 @@ DOCKER_WAIT_SECONDS = 60
 
 
 def _skip_or_fail(message):
-    strict_preconditions = os.environ.get(
-        "DALLINGER_DOCKER_SSH_STRICT_PRECONDITIONS", ""
-    ).strip().lower() in {"1", "true", "yes"}
-    if strict_preconditions and os.environ.get("CI", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-    }:
+    if _skip_or_fail.strict_preconditions:
         pytest.fail(message, pytrace=False)
     pytest.skip(message)
+
+
+_skip_or_fail.strict_preconditions = False
 
 
 def _run_command(command, *, check=True, env=None, cwd=None, timeout=300):
@@ -304,7 +300,10 @@ class DockerSSHServer:
 
 
 @pytest.fixture(scope="session")
-def docker_ssh_server():
+def docker_ssh_server(pytestconfig):
+    _skip_or_fail.strict_preconditions = bool(
+        pytestconfig.getoption("--docker-ssh-smoke")
+    )
     if not os.environ.get("RUN_DOCKER"):
         _skip_or_fail("need RUN_DOCKER environment variable")
     if shutil.which("docker") is None:

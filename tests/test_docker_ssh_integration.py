@@ -6,6 +6,7 @@ import pytest
 
 @pytest.mark.docker
 @pytest.mark.slow
+@pytest.mark.docker_ssh_smoke
 def test_docker_ssh_fixture_sandbox_deploy_destroy(fresh_docker_ssh_server):
     app_id = fresh_docker_ssh_server.deploy_sandbox()
 
@@ -16,6 +17,7 @@ def test_docker_ssh_fixture_sandbox_deploy_destroy(fresh_docker_ssh_server):
 
 @pytest.mark.docker
 @pytest.mark.slow
+@pytest.mark.docker_ssh_smoke
 def test_docker_ssh_apps_lists_deployed_app(fresh_docker_ssh_server):
     app_id = fresh_docker_ssh_server.deploy_sandbox()
 
@@ -34,6 +36,7 @@ def test_docker_ssh_apps_lists_deployed_app(fresh_docker_ssh_server):
 
 @pytest.mark.docker
 @pytest.mark.slow
+@pytest.mark.docker_ssh_smoke
 def test_docker_ssh_servers_list_includes_fixture_server(docker_ssh_server):
     result = docker_ssh_server.run_servers_list_command(check=False)
     output = f"{result.stdout}\n{result.stderr}"
@@ -44,6 +47,7 @@ def test_docker_ssh_servers_list_includes_fixture_server(docker_ssh_server):
 
 @pytest.mark.docker
 @pytest.mark.slow
+@pytest.mark.docker_ssh_smoke
 def test_docker_ssh_destroy_missing_app_reports_error(fresh_docker_ssh_server):
     missing_app_id = "dlgr-deadbeef"
     result = fresh_docker_ssh_server.run_dallinger(
@@ -64,6 +68,7 @@ def test_docker_ssh_destroy_missing_app_reports_error(fresh_docker_ssh_server):
 
 @pytest.mark.docker
 @pytest.mark.slow
+@pytest.mark.docker_ssh_smoke
 def test_docker_ssh_update_refreshes_served_template(fresh_docker_ssh_server, tmp_path):
     original_experiment_dir = fresh_docker_ssh_server.experiment_dir
     copied_experiment_dir = tmp_path / "bartlett1932-copy"
