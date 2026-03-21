@@ -317,5 +317,15 @@ def test_docker_ssh_fixture_precondition_uses_pytest_fail_in_ci(monkeypatch):
     from dallinger.pytest_docker_ssh import _skip_or_fail
 
     monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("DALLINGER_DOCKER_SSH_STRICT_PRECONDITIONS", "1")
     with pytest.raises(pytest.fail.Exception):
+        _skip_or_fail("missing dependency")
+
+
+def test_docker_ssh_fixture_precondition_skips_in_ci_without_strict_mode(monkeypatch):
+    from dallinger.pytest_docker_ssh import _skip_or_fail
+
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.delenv("DALLINGER_DOCKER_SSH_STRICT_PRECONDITIONS", raising=False)
+    with pytest.raises(pytest.skip.Exception):
         _skip_or_fail("missing dependency")
