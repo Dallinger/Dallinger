@@ -38,7 +38,9 @@ def _conftest_module():
 
 
 def _integration_module():
-    integration_path = Path(__file__).resolve().parent / "test_docker_ssh_integration.py"
+    integration_path = (
+        Path(__file__).resolve().parent / "test_docker_ssh_integration.py"
+    )
     return _load_module(integration_path, "dallinger_docker_ssh_integration_tests")
 
 
