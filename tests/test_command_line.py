@@ -1202,9 +1202,9 @@ class TestApps:
             yield output_instance
 
     @pytest.fixture
-    def tabulate(self):
-        with mock.patch("tabulate.tabulate") as tabulate:
-            yield tabulate
+    def render_rich_table(self):
+        with mock.patch("dallinger.command_line.render_rich_table") as table_renderer:
+            yield table_renderer
 
     @pytest.fixture
     def apps(self):
@@ -1213,7 +1213,7 @@ class TestApps:
         return apps
 
     def test_apps(
-        self, apps, custom_app_output, console_output, tabulate, active_config
+        self, apps, custom_app_output, console_output, render_rich_table, active_config
     ):
         active_config["team"] = "fake team"
         result = CliRunner().invoke(apps)
@@ -1225,11 +1225,50 @@ class TestApps:
                 mock.call(["heroku", "config", "--json", "--app", "dlgr-another-uid"]),
             ]
         )
-        tabulate.assert_called_with(
+        render_rich_table.assert_called_with(
             [["my-uid", "2018-01-01T12:00Z", "https://dlgr-my-uid.herokuapp.com"]],
-            ["UID", "Started", "URL"],
-            tablefmt="psql",
+            headers=["UID", "Started", "URL"],
         )
+
+
+class TestEc2Stub:
+    """When the ec2 extra is not installed, a stub command should appear."""
+
+    @pytest.fixture(autouse=True)
+    def _patch_ec2_import(self):
+        """Rebuild the CLI group with the ec2 import forced to fail."""
+        import builtins
+        import importlib
+
+        real_import = builtins.__import__
+
+        def _block_ec2(name, *args, **kwargs):
+            if name == "dallinger.command_line.ec2":
+                raise ImportError("fake")
+            return real_import(name, *args, **kwargs)
+
+        with mock.patch("builtins.__import__", side_effect=_block_ec2):
+            importlib.reload(dallinger.command_line)
+            yield
+        importlib.reload(dallinger.command_line)
+
+    def test_ec2_stub_visible_in_help(self):
+        result = CliRunner().invoke(dallinger.command_line.dallinger, ["--help"])
+        assert "ec2" in result.output
+
+    def test_ec2_stub_shows_install_message(self):
+        result = CliRunner().invoke(dallinger.command_line.dallinger, ["ec2"])
+        assert "EC2 support is not installed" in result.output
+        assert "pip install dallinger[ec2]" in result.output
+        assert result.exit_code == 1
+
+    def test_ec2_stub_shows_install_message_for_subcommands(self):
+        result = CliRunner().invoke(
+            dallinger.command_line.dallinger,
+            ["ec2", "provision", "--region", "us-east-1"],
+        )
+        assert "EC2 support is not installed" in result.output
+        assert result.exit_code == 1
 
 
 def test_get_editable_dallinger_path():

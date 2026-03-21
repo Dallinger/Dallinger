@@ -56,15 +56,14 @@ Install Postgresql
 On MacOS, we recommend installing using Homebrew:
 ::
 
-    brew install postgresql@16
-    brew link postgresql@16
+    brew install postgresql
 
 
 Postgresql can then be started and stopped using:
 ::
 
-    brew services start postgresql@16
-    brew services stop postgresql@16
+    brew services start postgresql
+    brew services stop postgresql
 
 
 Create the databases
@@ -371,18 +370,17 @@ hook installed with:
 
 ::
 
-    pre-commit install
+    pre-commit install --install-hooks
 
-This will install a pre-commit hook to check for flake8 violations, and enforce
-a standard Python source code format via `black
-<https://black.readthedocs.io/en/stable/>`__. You can run the `black` code
-formatter and flake8 checks manually at any time by running:
+This installs the pre-commit hook and pre-installs its environments. Dallinger
+uses Ruff in pre-commit for linting and formatting. You can run all checks
+manually at any time by running:
 
 ::
 
     pre-commit run --all-files
 
-You may also want to install a black plugin for your own code editor, though this is not strictly necessary, since the pre-commit hook will run `black` for you on commit.
+You may also want to enable Ruff integration in your code editor, though this is not strictly necessary, since the pre-commit hook will run Ruff for you on commit.
 
 Install the dlgr.demos sub-package
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -457,7 +455,7 @@ Should that not work for whatever reason, you can search `here <https://docs.pyt
 Install Postgresql
 ~~~~~~~~~~~~~~~~~~
 
-The lowest version of Postgresql that Dallinger v5 supports is 14.
+The lowest version of Postgresql that Dallinger v5 supports is 9.4.
 
 Postgres can be installed using the following instructions:
 
@@ -749,18 +747,17 @@ hook installed with:
 
 ::
 
-    pre-commit install
+    pre-commit install --install-hooks
 
-This will install a pre-commit hook to check for flake8 violations, and enforce
-a standard Python source code format via `black
-<https://black.readthedocs.io/en/stable/>`__. You can run the `black` code
-formatter and flake8 checks manually at any time by running:
+This installs the pre-commit hook and pre-installs its environments. Dallinger
+uses Ruff in pre-commit for linting and formatting. You can run all checks
+manually at any time by running:
 
 ::
 
     pre-commit run --all-files
 
-You may also want to install a black plugin for your own code editor, though this is not strictly necessary, since the pre-commit hook will run `black` for you on commit.
+You may also want to enable Ruff integration in your code editor, though this is not strictly necessary, since the pre-commit hook will run Ruff for you on commit.
 
 Install the dlgr.demos sub-package
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -1,6 +1,6 @@
 services:
   postgresql:
-    image: postgres:16
+    image: postgres:12
     restart: unless-stopped
     environment:
       POSTGRES_USER: dallinger
@@ -30,7 +30,7 @@ services:
   dozzle:
     container_name: dozzle
     restart: unless-stopped
-    image: amir20/dozzle:latest
+    image: amir20/dozzle:v10.0.2
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./dozzle-users.yml:/data/users.yml

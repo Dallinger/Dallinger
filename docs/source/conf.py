@@ -1,4 +1,4 @@
-# flake8: noqa
+# ruff: noqa
 #
 # Dallinger documentation build configuration file, created by
 # sphinx-quickstart on Wed Aug 10 14:50:29 2016.
@@ -60,7 +60,7 @@ try:
 except ImportError:
     pass
 else:
-    sphinxcontrib.spelling  # to satisfy flake8
+    sphinxcontrib.spelling  # to satisfy Ruff (F401)
     extensions.append("sphinxcontrib.spelling")
 
 # Add any paths that contain templates here, relative to this directory.

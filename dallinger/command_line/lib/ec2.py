@@ -15,6 +15,7 @@ import paramiko
 import requests
 from botocore.exceptions import ClientError
 from paramiko import ssh_exception as pse
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from tenacity import (
     before_sleep_log,
     retry,
@@ -22,7 +23,6 @@ from tenacity import (
     stop_after_attempt,
     wait_fixed,
 )
-from tqdm import tqdm
 from yaspin import yaspin
 
 from ..config import remove_host as dallinger_remove_host
@@ -32,9 +32,20 @@ from ..docker_ssh import prepare_server as dallinger_prepare_server
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_AWS_REGION = "us-east-1"
+
 DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER = (
     "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
 )
+
+
+def _resolve_default_region_name():
+    """Resolve default region for user-facing messages."""
+    from dallinger.config import get_config
+
+    config = get_config(load=True)
+
+    return config.get("aws_region", DEFAULT_AWS_REGION)
 
 
 def get_keys(region_name=None):
@@ -47,7 +58,7 @@ def get_keys(region_name=None):
         keys = {
             "aws_access_key_id": config.get("aws_access_key_id"),
             "aws_secret_access_key": config.get("aws_secret_access_key"),
-            "region_name": region_name or config.get("aws_region", "us-east-1"),
+            "region_name": region_name or config.get("aws_region", DEFAULT_AWS_REGION),
         }
     return keys
 
@@ -157,8 +168,18 @@ def get_instance_details(instance_types, region_name=None):
     return price_df
 
 
-def get_instances(region_name):
-    reservations = get_ec2_client(region_name).describe_instances()["Reservations"]
+def get_instances(region_name, show_spinner=True):
+    display_region = region_name or _resolve_default_region_name()
+    if show_spinner:
+        with yaspin(
+            text=f"Retrieving instances in {display_region}...", color="green"
+        ) as sp:
+            reservations = get_ec2_client(region_name).describe_instances()[
+                "Reservations"
+            ]
+            sp.ok("✔")
+    else:
+        reservations = get_ec2_client(region_name).describe_instances()["Reservations"]
     instances = []
     for reservation in reservations:
         for instance in reservation["Instances"]:
@@ -201,13 +222,31 @@ def get_instances(region_name):
 
 def get_all_instances(region_name=None):
     if region_name is None:
-        logger.warning("Listing instances in all regions...")
+        logger.info("Listing instances in all regions...")
         instance_dfs = []
         all_regions = get_ec2_client().describe_regions()["Regions"]
-        pb = tqdm(all_regions, total=len(all_regions))
-        for region in pb:
-            pb.set_description("Retrieving instances in " + region["RegionName"])
-            instance_dfs.append(get_instances(region["RegionName"]))
+        with Progress(
+            SpinnerColumn(style="green"),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("{task.completed}/{task.total}"),
+            transient=True,
+        ) as progress:
+            task = progress.add_task(
+                "Retrieving instances in all regions...", total=len(all_regions)
+            )
+            for region in all_regions:
+                progress.update(
+                    task,
+                    description=f"Retrieving instances in {region['RegionName']}...",
+                )
+                instance_dfs.append(
+                    get_instances(region["RegionName"], show_spinner=False)
+                )
+                progress.advance(task)
+        click.echo(
+            click.style("✔ Finished retrieving instances in all regions.", fg="green")
+        )
         instance_df = pd.concat(instance_dfs)
     else:
         instance_df = get_instances(region_name)
@@ -267,14 +306,24 @@ def list_instances(region_name=None, filtered_states=[], pem=None):
 
 def get_instance_types(region_name=None):
     ec2 = get_ec2_client(region_name)
-    pb = tqdm()
-    response = ec2.describe_instance_types()
-    instance_types = response["InstanceTypes"]
-    pb.update(len(instance_types))
-    while "NextToken" in response:
-        response = ec2.describe_instance_types(NextToken=response["NextToken"])
-        instance_types += response["InstanceTypes"]
-        pb.update(len(instance_types))
+    with Progress(
+        SpinnerColumn(style="green"),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Retrieving instance types...", total=None)
+        response = ec2.describe_instance_types()
+        instance_types = response["InstanceTypes"]
+        progress.update(
+            task, description=f"Retrieving instance types... ({len(instance_types)})"
+        )
+        while "NextToken" in response:
+            response = ec2.describe_instance_types(NextToken=response["NextToken"])
+            instance_types += response["InstanceTypes"]
+            progress.update(
+                task,
+                description=f"Retrieving instance types... ({len(instance_types)})",
+            )
 
     instance_type_metadata = []
     for instance_type in instance_types:
@@ -583,10 +632,12 @@ def boot_instance(ec2, image_id, instance_type, key_name, instance_name, region_
     instance = response["Instances"][0]
     instance_id = instance["InstanceId"]
 
-    print(f"Waiting for {instance_name} to be ready...")
-    waiter = get_ec2_client(region_name).get_waiter("instance_running")
-    waiter.wait(InstanceIds=[instance_id])
-    print(f"{instance_name} is ready!")
+    with yaspin(
+        text=f"Waiting for {instance_name} to be ready...", color="green"
+    ) as sp:
+        waiter = get_ec2_client(region_name).get_waiter("instance_running")
+        waiter.wait(InstanceIds=[instance_id])
+        sp.ok("✔")
     return instance_id
 
 
@@ -611,9 +662,6 @@ def increase_storage(
     if ec2 is None:
         assert region_name is not None
         ec2 = get_ec2_client(region_name)
-    # Set sufficient storage
-    print(f"Increasing storage of {instance_name} to {storage_in_gb} GB...")
-
     # get volume id
     response = ec2.describe_instances(InstanceIds=[instance_id])
     instance = response["Reservations"][0]["Instances"][0]
@@ -626,16 +674,19 @@ def increase_storage(
         volume_size < storage_in_gb
     ), f"Volume size {volume_size} GB is already greater than {storage_in_gb} GB"
 
-    # increase volume size
-    ec2.modify_volume(
-        VolumeId=volume_id,
-        Size=storage_in_gb,
-    )
+    with yaspin(
+        text=f"Increasing storage of {instance_name} to {storage_in_gb} GB...",
+        color="green",
+    ) as sp:
+        ec2.modify_volume(
+            VolumeId=volume_id,
+            Size=storage_in_gb,
+        )
 
-    print(f"Waiting for {instance_name} to be ready...")
-    waiter = ec2.get_waiter("volume_in_use")
-    waiter.wait(VolumeIds=[volume_id])
-    print(f"{instance_name} is ready!")
+        sp.text = "Waiting for volume to be ready..."
+        waiter = ec2.get_waiter("volume_in_use")
+        waiter.wait(VolumeIds=[volume_id])
+        sp.ok("✔")
 
     # Extend partition
     host, user, ip_address = (
@@ -668,14 +719,21 @@ def increase_storage(
     selected_volume = selected_volumes[0]
     selected_partition = volume_to_partitions[selected_volume][0]
 
+    print("Disk usage before resize:")
     print(executor.run("df -h"))
-    print(executor.run("lsblk"))
-    time.sleep(20)
-    executor.run(f"sudo growpart /dev/{selected_volume} 1")
 
-    time.sleep(10)
-    executor.run(f"sudo resize2fs /dev/{selected_partition}")
+    with yaspin(
+        text=f"Resizing partition /dev/{selected_volume}...", color="green"
+    ) as sp:
+        time.sleep(20)
+        executor.run(f"sudo growpart /dev/{selected_volume} 1")
 
+        sp.text = f"Resizing filesystem on /dev/{selected_partition}..."
+        time.sleep(10)
+        executor.run(f"sudo resize2fs /dev/{selected_partition}")
+        sp.ok("✔")
+
+    print("Disk usage after resize:")
     print(executor.run("df -h"))
     return host, user, ip_address, executor
 
@@ -756,8 +814,9 @@ def create_dns_record(dns_host, user, host, route_53=None):
     ), "Failed to set up DNS record"
 
     with yaspin(
-        text="Waiting for DNS record to be set up (can take up to two minutes)..."
-    ):
+        text=f"Waiting for DNS record for {dns_host} (can take up to two minutes)...",
+        color="green",
+    ) as sp:
         change_id = response["ChangeInfo"]["Id"]
         n_tries = 24
         wait = 5
@@ -769,13 +828,13 @@ def create_dns_record(dns_host, user, host, route_53=None):
             time.sleep(wait)
         else:
             raise Exception(f"DNS record setup timed out after {timeout} seconds.")
+        sp.ok("✔")
 
     is_wild_card = dns_host.startswith("*.")
     full_domain = dns_host.replace("*.", "")
     test_host = f"test.{full_domain}" if is_wild_card else dns_host
 
     dns_executor = Executor(test_host, user)
-    print("DNS record set up!")
     return dns_executor
 
 
@@ -871,19 +930,22 @@ def prepare_docker_experiment_setup(
 ):
     from dallinger.config import get_config
 
-    config = get_config(load=True)
-    assert config.get("dashboard_user") and config.get(
-        "dashboard_password"
-    ), "dashboard_user and dashboard_password must be set in ~/.dallingerconfig"
+    with yaspin(text="Loading Dallinger configuration...", color="green") as sp:
+        config = get_config(load=True)
+        assert config.get("dashboard_user") and config.get(
+            "dashboard_password"
+        ), "dashboard_user and dashboard_password must be set in ~/.dallingerconfig"
+        sp.ok("✔")
 
     dallinger_prepare_server(host, user)
 
     create_dns_records(dns_host, user, host)
 
-    dallinger_store_host(dict(host=host, user=user))
-    if dns_host:
-        dallinger_store_host(dict(host=dns_host, user=user))
-    print("Host registered in dallinger")
+    with yaspin(text="Registering host in Dallinger...", color="green") as sp:
+        dallinger_store_host(dict(host=host, user=user))
+        if dns_host:
+            dallinger_store_host(dict(host=dns_host, user=user))
+        sp.ok("✔")
 
 
 def provision(
@@ -915,13 +977,12 @@ def _get_instance_row_from(
     public_dns_name=None,
     filter_by="state == 'running'",
 ):
+    if (instance_name is None) == (public_dns_name is None):
+        raise click.ClickException("Provide exactly one of `--name` or `--dns`.")
+
     instances_df = get_instances(region_name)
     if filter_by is not None:
         instances_df = instances_df.query(filter_by)
-
-    assert (
-        sum([var is None for var in [instance_name, public_dns_name]]) == 1
-    ), "Provide either instance_name or public_dns"
     if instance_name is not None:
         selected_instances = instances_df.query(f"name == '{instance_name}'")
     else:
@@ -929,7 +990,24 @@ def _get_instance_row_from(
             f"public_dns_name == '{public_dns_name}'"
         )
     if len(selected_instances) == 0:
-        raise Exception("No instances found")
+        lookup = (
+            f"name '{instance_name}'"
+            if instance_name is not None
+            else f"public DNS '{public_dns_name}'"
+        )
+        if region_name is not None:
+            region_hint = f"region '{region_name}'"
+        else:
+            default_region = _resolve_default_region_name()
+            region_hint = (
+                f"default AWS region '{default_region}' " "(no `--region` was provided)"
+            )
+        error_prefix = click.style("✖", fg="red")
+        raise click.ClickException(
+            f"{error_prefix} No EC2 instance found for {lookup} in {region_hint}.\n"
+            "Tip: Check the instance name/DNS and region. You can list instances with "
+            "`dallinger ec2 list instances --region <region>`."
+        )
     elif len(selected_instances) > 1:
         raise Exception("Multiple running instances found")
     else:

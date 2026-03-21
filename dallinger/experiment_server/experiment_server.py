@@ -724,7 +724,10 @@ def get_page(page):
 @app.route("/<directory>/<page>", methods=["GET"])
 def get_page_from_directory(directory, page):
     """Get a page from a given directory."""
-    return render_template(directory + "/" + page + ".html")
+    try:
+        return render_template(directory + "/" + page + ".html")
+    except TemplateNotFound:
+        abort(404)
 
 
 @app.route("/consent")
@@ -1647,8 +1650,7 @@ def transformation_get(node_id):
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(
-            error_type="/node/transformations, "
-            "node {} does not exist".format(node_id)
+            error_type="/node/transformations, node {} does not exist".format(node_id)
         )
 
     # execute the request
@@ -1690,7 +1692,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(
-            error_type="/transformation POST, " "node {} does not exist".format(node_id)
+            error_type="/transformation POST, node {} does not exist".format(node_id)
         )
 
     info_in = models.Info.query.get(info_in_id)

@@ -3,7 +3,7 @@ alabaster
 coverage
 coverage_pth
 codecov
-flake8
+ruff
 myst_parser
 pypandoc
 pytest

@@ -6,7 +6,7 @@ from sqlalchemy.orm import class_mapper
 
 def copy_from(source, dest, engine_or_conn, columns=(), **flags):
     """Import a table from a file. For flags, see the PostgreSQL documentation
-    at https://www.postgresql.org/docs/16/sql-copy.html.
+    at http://www.postgresql.org/docs/9.5/static/sql-copy.html.
 
     Examples: ::
         with open('/path/to/file.tsv') as fp:

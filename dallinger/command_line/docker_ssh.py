@@ -12,6 +12,7 @@ import subprocess
 import sys
 import zipfile
 from contextlib import contextmanager, redirect_stdout
+from dataclasses import dataclass
 from email.utils import parseaddr
 from functools import wraps
 from getpass import getuser
@@ -20,7 +21,7 @@ from pathlib import Path
 from secrets import token_urlsafe
 from shlex import quote
 from socket import gethostbyname_ex, gethostname
-from typing import Dict
+from typing import Dict, Literal
 from uuid import uuid4
 
 import click
@@ -28,12 +29,14 @@ import paramiko
 import requests
 from jinja2 import Template
 from requests.adapters import HTTPAdapter
+from rich.text import Text
 from urllib3.util.retry import Retry
 from yaspin import yaspin
 
 from dallinger.command_line.config import get_configured_hosts, remove_host, store_host
 from dallinger.command_line.utils import (
     Output,
+    render_rich_table,
     run_pre_launch_checks,
 )
 from dallinger.config import get_config
@@ -51,6 +54,23 @@ from dallinger.utils import (
 )
 
 from .utils import get_server_pem_path
+
+
+@dataclass(frozen=True)
+class App:
+    """A discovered remote docker-ssh app and its runtime state.
+
+    Parameters
+    ----------
+    name : str
+        App/project name on the remote server.
+    state : Literal["running", "inactive"]
+        Runtime state label used by CLI output and app selection logic.
+    """
+
+    name: str
+    state: Literal["running", "inactive"]
+
 
 # Find an identifier for the current user to use as CREATOR of the experiment
 HOSTNAME = gethostname()
@@ -160,7 +180,12 @@ def add(host, user):
 
 @servers.command()
 @click.option(
-    "--host", required=True, help="IP address or dns name of the remote server"
+    "--host",
+    required=False,
+    default=None,
+    callback=lambda ctx, param, value: resolve_server_option(ctx, param, value),
+    type=str,
+    help="IP address or dns name of the remote server",
 )
 def remove(host):
     """Remove server from list of known remote servers.
@@ -181,19 +206,56 @@ def prepare_server(host, user):
             ) from exc
         raise
 
-    print("Checking docker presence")
-    try:
-        executor.run("docker ps")
-    except ExecuteException:
-        print("Installing docker")
+    with yaspin(text="Checking for Docker...", color="green") as sp:
+        docker_installed = bool(executor.run("command -v docker", raise_=False).strip())
+        if not docker_installed:
+            sp.text = "Installing Docker..."
+            executor.check_sudo()
+            executor.run("wget -O - https://get.docker.com | sudo -n bash")
+            executor, docker_usable = _grant_docker_group_and_refresh_session(
+                executor, host, user, check_sudo=False
+            )
+            if not docker_usable:
+                sp.fail("✖")
+                raise click.ClickException(
+                    "Docker installed, but it is still not usable by this user. "
+                    "Ensure the Docker daemon is running and the user can access the Docker socket."
+                )
+            sp.ok("✔")
+            return
+
+        if _docker_is_usable(executor):
+            sp.ok("✔")
+            return
+
+        sp.text = "Configuring Docker permissions..."
+        executor, docker_usable = _grant_docker_group_and_refresh_session(
+            executor, host, user
+        )
+        if docker_usable:
+            sp.ok("✔")
+            return
+
+        sp.fail("✖")
+        raise click.ClickException(
+            "Docker is installed but not usable by this user. "
+            "Ensure the Docker daemon is running and the user can access the Docker socket."
+        )
+
+
+def _docker_is_usable(executor):
+    return (
+        executor.run("docker ps >/dev/null 2>&1 && echo usable", raise_=False).strip()
+        == "usable"
+    )
+
+
+def _grant_docker_group_and_refresh_session(executor, host, user, check_sudo=True):
+    if check_sudo:
         executor.check_sudo()
-        executor.run("wget -O - https://get.docker.com | sudo -n bash")
-        executor.run("sudo -n adduser $(id --user --name) docker")
-        print("Docker installed")
-        # Log in again in case we need to be part of the `docker` group
-        executor = Executor(host, user)
-    else:
-        print("Docker daemon already installed")
+    executor.run("sudo -n adduser $(id --user --name) docker")
+    refreshed_executor = Executor(host, user)
+    return refreshed_executor, _docker_is_usable(refreshed_executor)
 
 
 def copy_docker_config(host, user):
@@ -224,12 +286,60 @@ def copy_docker_config(host, user):
 
 
 CONFIGURED_HOSTS = get_configured_hosts()
-if len(CONFIGURED_HOSTS) == 1:
-    default_server = tuple(CONFIGURED_HOSTS.keys())[0]
-    server_prompt = False
-else:
-    default_server = None
-    server_prompt = "Choose one of the configured servers (add one with `dallinger docker-ssh servers add`)\n"
+
+
+def resolve_server_option(ctx, param, value):
+    hosts = tuple(get_configured_hosts().keys())
+    option_name = (
+        f"--{param.name.replace('_', '-')}" if param is not None else "--server"
+    )
+    action = ctx.command.name if ctx is not None and ctx.command is not None else None
+
+    if value is not None:
+        if value not in hosts:
+            choices = ", ".join(hosts) if hosts else "<none>"
+            raise click.BadParameter(
+                f"Unknown server '{value}'. Configured servers: {choices}",
+                param=param,
+            )
+        return value
+
+    if len(hosts) == 1:
+        return hosts[0]
+
+    if len(hosts) == 0:
+        raise click.UsageError(
+            "No server configured. Use `dallinger docker-ssh servers add` to add one."
+        )
+
+    if ctx is not None and getattr(ctx, "resilient_parsing", False):
+        return None
+
+    if not sys.stdin.isatty():
+        choices = ", ".join(hosts)
+        raise click.UsageError(
+            f"Please provide `{option_name}` in non-interactive mode. "
+            f"Configured servers: {choices}"
+        )
+
+    if action == "remove":
+        click.echo("Choose which configured server to remove:")
+    else:
+        click.echo(
+            "Choose one of the configured servers "
+            "(add one with `dallinger docker-ssh servers add`):"
+        )
+    for idx, host in enumerate(hosts, start=1):
+        click.echo(f"  {idx}) {host}")
+
+    number_prompt = (
+        "Select server number to remove"
+        if action == "remove"
+        else "Select server number"
+    )
+    selected_idx = click.prompt(number_prompt, type=click.IntRange(1, len(hosts)))
+    return hosts[selected_idx - 1]
+
 
 # Click options
 option_app_name = click.option(
@@ -252,11 +362,11 @@ option_dns_host = click.option(
 )
 option_server = click.option(
     "--server",
-    required=True,
-    default=default_server,
+    required=False,
+    default=None,
     help="Name of the remote server",
-    prompt=server_prompt,
     type=click.Choice(tuple(CONFIGURED_HOSTS.keys())),
+    callback=resolve_server_option,
 )
 option_update = click.option(
     "--update",
@@ -346,37 +456,55 @@ def docker_host_uri(host, user=None, port=22):
     return f"ssh://{user_part}{host}{port_part}"
 
 
-def get_existing_remote_experiments(executor):
+def _resolve_server_info(server):
+    try:
+        return CONFIGURED_HOSTS[server]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown server '{server}', expected one of {list(CONFIGURED_HOSTS.keys())}."
+        ) from exc
+
+
+def _build_executor(server_info, app=None):
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
+    return Executor(ssh_host, user=ssh_user, app=app)
+
+
+def _executor_for_server(server, app=None):
+    server_info = _resolve_server_info(server)
+    return _build_executor(server_info, app=app)
+
+
+def _discover_server_apps(executor):
     existing = set()
 
-    caddy_listing = executor.run("ls -1 ~/dallinger/caddy.d", raise_=False)
-    for entry in caddy_listing.splitlines():
-        if entry:
-            existing.add(entry)
-
-    app_listing = executor.run("ls -1 ~/dallinger", raise_=False)
-    for entry in app_listing.splitlines():
-        if not entry or entry in {"caddy.d", "deploy_logs"}:
+    listing = executor.run(
+        "ls -1 ~/dallinger/caddy.d 2>/dev/null || true; "
+        "ls -1 ~/dallinger/*/docker-compose.yml 2>/dev/null || true",
+        raise_=False,
+    )
+    for entry in listing.splitlines():
+        if not entry:
             continue
-        has_compose = executor.run(
-            f"test -f ~/dallinger/{entry}/docker-compose.yml && echo yes",
-            raise_=False,
-        )
-        if has_compose.strip():
+        if entry.endswith("/docker-compose.yml"):
+            existing.add(Path(entry).parent.name)
+        else:
             existing.add(entry)
 
     return sorted(existing)
+
+
+def get_existing_remote_experiments(executor):
+    return _discover_server_apps(executor)
 
 
 def ensure_root_domain_ready(server, update):
     if update:
         return True
 
-    server_info = CONFIGURED_HOSTS[server]
-    ssh_host = server_info["host"]
-    ssh_user = server_info.get("user")
-    executor = Executor(ssh_host, user=ssh_user)
-    conflicts = get_existing_remote_experiments(executor)
+    executor = _executor_for_server(server)
+    conflicts = _discover_server_apps(executor)
     if not conflicts:
         return True
 
@@ -405,8 +533,8 @@ def ensure_root_domain_ready(server, update):
         print_bold(f"Destroying {name} on server {server}")
         destroy.callback(server=server, app=name)
 
-    executor = Executor(ssh_host, user=ssh_user)
-    remaining = get_existing_remote_experiments(executor)
+    executor = _executor_for_server(server)
+    remaining = _discover_server_apps(executor)
     if remaining:
         print(
             f"{RED}Some experiments are still present: {', '.join(remaining)}. Aborting.{END}"
@@ -568,14 +696,19 @@ def get_dotenv_values(executor):
 
 
 def set_dozzle_password(executor, sftp, new_password):
+    import bcrypt
+
     dotenv_values = get_dotenv_values(executor)
     dotenv_values["DOZZLE_PASSWORD"] = new_password
     sftp.putfo(BytesIO(json.dumps(dotenv_values).encode()), "dallinger/.env.json")
+    hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode(
+        "utf-8"
+    )
     dozzle_users = {
         "users": {
             "dallinger": {
                 "name": "Dallinger",
-                "password": hashlib.sha256(new_password.encode("utf-8")).hexdigest(),
+                "password": hashed,
                 "email": "dallinger@example.com",
             }
         }
@@ -749,7 +882,7 @@ It currently resolves to {ipaddr_experiment}."""
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
     if not use_subdomain and not preflight_root_clean:
-        conflicts = get_existing_remote_experiments(executor)
+        conflicts = _discover_server_apps(executor)
         if conflicts:
             joined = ", ".join(conflicts)
             print(
@@ -998,7 +1131,7 @@ def get_experiment_id_from_archive(archive_path):
 
 
 def remove_redis_volumes(app_name, executor):
-    redis_volume_name = f"{app_name}_dallinger_{app_name}_redis_data"
+    redis_volume_name = f"{app_name}_redis_data"
     stdout = io.StringIO()
     with redirect_stdout(stdout):
         try:
@@ -1009,35 +1142,79 @@ def remove_redis_volumes(app_name, executor):
                 raise ExecuteException(err)
 
 
+def get_apps(server):
+    """Return discovered apps and their status on a configured server.
+
+    Parameters
+    ----------
+    server : str
+        Name of the configured server.
+    Returns
+    -------
+    list of App
+        App objects discovered on the server, each with ``name`` and ``state``.
+
+    Raises
+    ------
+    ValueError
+        If the server is not configured.
+    """
+    server_info = _resolve_server_info(server)
+    executor = _build_executor(server_info)
+
+    app_names = _discover_server_apps(executor)
+    running_projects = _get_running_app_names(executor)
+
+    return [
+        App(
+            name=app_name,
+            state="running" if app_name in running_projects else "inactive",
+        )
+        for app_name in app_names
+    ]
+
+
 @docker_ssh.command()
 @option_server
 def apps(server):
     """List dallinger apps running on the remote server."""
-    server_info = CONFIGURED_HOSTS[server]
-    ssh_host = server_info["host"]
-    ssh_user = server_info.get("user")
-    executor = Executor(ssh_host, user=ssh_user)
-    # The caddy configuration files are used as source of truth
-    # to get the list of installed apps
-    apps = executor.run("ls ~/dallinger/caddy.d")
-    for app in apps.split():
-        print(app)
-    return apps
+    try:
+        apps = get_apps(server)
+    except ValueError as exc:
+        raise click.UsageError(str(exc)) from exc
+    if not apps:
+        print("No apps found.")
+        return []
+    visible_apps = sorted(
+        apps,
+        key=lambda app: (app.state != "running", app.name),
+    )
+
+    rows = []
+    for app in visible_apps:
+        style = "green" if app.state == "running" else "red"
+        rows.append([app.name, Text(app.state, style=style)])
+    print(render_rich_table(rows, headers=["app", "state"]))
+    return [app.name for app in visible_apps]
 
 
 @docker_ssh.command()
 @option_server
 def stats(server):
     """Get resource usage stats from remote server."""
-    server_info = CONFIGURED_HOSTS[server]
-    ssh_host = server_info["host"]
-    ssh_user = server_info.get("user")
-    executor = Executor(ssh_host, user=ssh_user)
+    executor = _executor_for_server(server)
     executor.run_and_echo("docker stats")
 
 
 @docker_ssh.command()
-@click.option("--app", required=True, help="Name of the experiment app to export")
+@click.option(
+    "--app",
+    default=None,
+    help=(
+        "Name of the experiment app to export. If omitted and only one app exists "
+        "on the server, it will be selected automatically"
+    ),
+)
 @click.option(
     "--local",
     is_flag=True,
@@ -1053,7 +1230,16 @@ def stats(server):
 @option_server
 def export(app, local, no_scrub, server):
     """Export database to a local file."""
-    server_info = CONFIGURED_HOSTS[server]
+    try:
+        server_info = _resolve_server_info(server)
+    except ValueError as exc:
+        raise click.UsageError(str(exc)) from exc
+    if app is None:
+        try:
+            app = select_running_app(server)
+        except ValueError as exc:
+            raise click.UsageError(str(exc)) from exc
+        click.echo(f"Exporting data from app '{app}'.")
     with remote_postgres(server_info, app) as db_uri:
         export_db_uri(
             app,
@@ -1061,6 +1247,44 @@ def export(app, local, no_scrub, server):
             local=local,
             scrub_pii=not no_scrub,
         )
+
+
+def select_running_app(server):
+    """Determine the currently deployed app on a server.
+
+    Parameters
+    ----------
+    server : str
+        Name of the configured server.
+    Returns
+    -------
+    str
+        The selected app name.
+
+    Raises
+    ------
+    ValueError
+        If zero or multiple apps are found running on the server.
+    """
+    apps = get_apps(server)
+    running = [app.name for app in apps if app.state == "running"]
+    if len(running) == 1:
+        return running[0]
+    if len(running) > 1:
+        listing = ", ".join(running)
+        raise ValueError(
+            f"Multiple running apps found on server '{server}': {listing}."
+        )
+    if len(running) == 0:
+        raise ValueError(f"No running apps found on server '{server}'.")
+
+
+def _get_running_app_names(executor):
+    result = executor.run(
+        "docker ps --format '{{.Label \"com.docker.compose.project\"}}'",
+        raise_=False,
+    )
+    return {entry.strip() for entry in result.splitlines() if entry.strip()}
 
 
 @contextmanager

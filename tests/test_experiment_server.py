@@ -746,7 +746,6 @@ class TestParticipantByAssignmentRoute:
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
 class TestParticipantCreateRoute:
-
     def create_participant(self, a, **kw):
         if "recruiter_name" in kw:
             kw["recruiter_id"] = kw["recruiter_name"]
@@ -762,8 +761,8 @@ class TestParticipantCreateRoute:
             mock_exp.protected_routes = []
             mock_exp.is_overrecruited.return_value = True
             mock_exp.quorum = 50
-            mock_exp.create_participant.side_effect = (
-                lambda **args: self.create_participant(a, **args)
+            mock_exp.create_participant.side_effect = lambda **args: (
+                self.create_participant(a, **args)
             )
             mock_class.return_value = mock_exp
 
@@ -777,8 +776,8 @@ class TestParticipantCreateRoute:
             mock_exp.protected_routes = []
             mock_exp.is_overrecruited.return_value = False
             mock_exp.quorum = None
-            mock_exp.create_participant.side_effect = (
-                lambda **args: self.create_participant(a, **args)
+            mock_exp.create_participant.side_effect = lambda **args: (
+                self.create_participant(a, **args)
             )
             mock_class.return_value = mock_exp
 

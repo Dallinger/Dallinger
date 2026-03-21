@@ -23,9 +23,7 @@ arrow==1.4.0
     # via isoduration
 asttokens==3.0.1
     # via stack-data
-async-generator==1.10
-    # via trio-typing
-async-lru==2.1.0
+async-lru==2.3.0
     # via jupyterlab
 attrs==25.4.0
     # via
@@ -45,15 +43,13 @@ beautifulsoup4==4.14.3
     # via
     #   dallinger
     #   nbconvert
-black==26.1.0
-    # via dallinger
 bleach==6.3.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.42.47
+boto3==1.42.71
     # via dallinger
-botocore==1.42.47
+botocore==1.42.71
     # via
     #   boto3
     #   s3transfer
@@ -63,11 +59,11 @@ build==1.4.0
     #   pip-tools
 bump2version==1.0.1
     # via dallinger
-cachetools==7.0.1
+cachetools==7.0.5
     # via tox
 cattrs==24.1.3
     # via sphinx-js
-certifi==2026.1.4
+certifi==2026.2.25
     # via
     #   httpcore
     #   httpx
@@ -81,12 +77,11 @@ cffi==2.0.0
 cfgv==3.5.0
     # via pre-commit
 chardet==5.2.0
-    # via tox
-charset-normalizer==3.4.4
+    # via dallinger
+charset-normalizer==3.4.6
     # via requests
 click==8.3.1
     # via
-    #   black
     #   dallinger
     #   flask
     #   pip-tools
@@ -97,13 +92,13 @@ comm==0.2.3
     # via
     #   ipykernel
     #   ipywidgets
-coverage==7.13.4
+coverage==7.13.5
     # via
     #   coverage-pth
     #   dallinger
 coverage-pth==0.0.2
     # via dallinger
-croniter==6.0.0
+croniter==6.2.2
     # via rq
 cryptography==46.0.5
     # via paramiko
@@ -128,17 +123,16 @@ et-xmlfile==2.0.0
     # via openpyxl
 executing==2.2.1
     # via stack-data
-faker==40.4.0
+faker==40.11.0
     # via dallinger
 fastjsonschema==2.21.2
     # via nbformat
-filelock==3.20.3
+filelock==3.25.2
     # via
+    #   python-discovery
     #   tox
     #   virtualenv
-flake8==7.3.0
-    # via dallinger
-flask==3.1.2
+flask==3.1.3
     # via
     #   dallinger
     #   flask-login
@@ -156,11 +150,11 @@ gevent==25.9.1
     # via
     #   dallinger
     #   gunicorn
-greenlet==3.3.1
+greenlet==3.3.2
     # via
     #   gevent
     #   sqlalchemy
-gunicorn==25.0.3
+gunicorn==25.1.0
     # via dallinger
 h11==0.16.0
     # via
@@ -172,7 +166,7 @@ httpcore==1.0.9
     # via httpx
 httpx==0.28.1
     # via jupyterlab
-identify==2.6.16
+identify==2.6.18
     # via pre-commit
 idna==3.11
     # via
@@ -181,10 +175,8 @@ idna==3.11
     #   jsonschema
     #   requests
     #   trio
-imagesize==1.4.1
+imagesize==2.0.0
     # via sphinx
-importlib-metadata==8.7.1
-    # via trio-typing
 iniconfig==2.3.0
     # via pytest
 ipykernel==7.2.0
@@ -194,7 +186,6 @@ ipykernel==7.2.0
     #   jupyterlab
 ipython==8.38.0
     # via
-    #   black
     #   dallinger
     #   ipykernel
     #   ipywidgets
@@ -203,8 +194,6 @@ ipywidgets==8.1.8
     # via jupyter
 isoduration==20.11.0
     # via jsonschema
-isort==7.0.0
-    # via dallinger
 itsdangerous==2.2.0
     # via
     #   flask
@@ -269,7 +258,7 @@ jupyter-server==2.17.0
     #   notebook-shim
 jupyter-server-terminals==0.5.4
     # via jupyter-server
-jupyterlab==4.5.4
+jupyterlab==4.5.6
     # via
     #   jupyter
     #   notebook
@@ -285,8 +274,10 @@ lark==1.3.1
     # via rfc3987-syntax
 markdown-it-py==3.0.0
     # via
+    #   dallinger
     #   mdit-py-plugins
     #   myst-parser
+    #   rich
 markupsafe==3.0.3
     # via
     #   flask
@@ -299,18 +290,12 @@ matplotlib-inline==0.2.1
     # via
     #   ipykernel
     #   ipython
-mccabe==0.7.0
-    # via flake8
 mdit-py-plugins==0.5.0
     # via myst-parser
 mdurl==0.1.2
     # via markdown-it-py
 mistune==3.2.0
     # via nbconvert
-mypy-extensions==1.1.0
-    # via
-    #   black
-    #   trio-typing
 myst-parser==4.0.1
     # via dallinger
 nbclient==0.10.4
@@ -328,7 +313,7 @@ nest-asyncio==1.6.0
     # via ipykernel
 nodeenv==1.10.0
     # via pre-commit
-notebook==7.5.3
+notebook==7.5.5
     # via jupyter
 notebook-shim==0.2.4
     # via
@@ -348,7 +333,6 @@ outcome==1.3.0.post0
     #   trio-websocket
 packaging==26.0
     # via
-    #   black
     #   build
     #   gunicorn
     #   ipykernel
@@ -362,7 +346,6 @@ packaging==26.0
     #   pytest-rerunfailures
     #   sphinx
     #   tox
-    #   trio-typing
     #   wheel
 pandas==2.3.3
     # via
@@ -378,19 +361,17 @@ parsimonious==0.10.0
     # via sphinx-js
 parso==0.8.6
     # via jedi
-pathspec==1.0.4
-    # via black
 pexpect==4.9.0
     # via
     #   dallinger
     #   ipython
 pip-tools==7.5.3
     # via dallinger
-platformdirs==4.5.1
+platformdirs==4.9.4
     # via
-    #   black
     #   dallinger
     #   jupyter-core
+    #   python-discovery
     #   tox
     #   virtualenv
 pluggy==1.6.0
@@ -417,26 +398,23 @@ ptyprocess==0.7.0
     #   terminado
 pure-eval==0.2.3
     # via stack-data
-pycodestyle==2.14.0
-    # via flake8
 pycparser==3.0
     # via cffi
 pyenchant==3.3.0
     # via sphinxcontrib-spelling
-pyflakes==3.4.0
-    # via flake8
 pygments==2.19.2
     # via
     #   ipython
     #   jupyter-console
     #   nbconvert
     #   pytest
+    #   rich
     #   sphinx
 pygtail==0.14.0
     # via dallinger
 pynacl==1.6.2
     # via paramiko
-pypandoc==1.16.2
+pypandoc==1.17
     # via dallinger
 pyproject-api==1.10.0
     # via tox
@@ -460,16 +438,14 @@ python-dateutil==2.9.0.post0
     #   heroku3
     #   jupyter-client
     #   pandas
+python-discovery==1.2.0
+    # via virtualenv
 python-json-logger==4.0.0
     # via
     #   dallinger
     #   jupyter-events
-pytokens==0.4.1
-    # via black
-pytz==2025.2
-    # via
-    #   croniter
-    #   pandas
+pytz==2026.1.post1
+    # via pandas
 pyyaml==6.0.3
     # via
     #   jupyter-events
@@ -482,7 +458,7 @@ pyzmq==27.1.0
     #   jupyter-client
     #   jupyter-console
     #   jupyter-server
-redis==7.1.1
+redis==7.3.0
     # via
     #   dallinger
     #   rq
@@ -491,7 +467,7 @@ referencing==0.37.0
     #   jsonschema
     #   jsonschema-specifications
     #   jupyter-events
-regex==2026.1.15
+regex==2026.2.28
     # via parsimonious
 requests==2.32.5
     # via
@@ -511,15 +487,19 @@ rfc3986-validator==0.1.1
     #   jupyter-events
 rfc3987-syntax==1.1.0
     # via jsonschema
+rich==14.3.3
+    # via dallinger
 rpds-py==0.30.0
     # via
     #   jsonschema
     #   referencing
-rq==2.6.1
+rq==2.7.0
+    # via dallinger
+ruff==0.15.6
     # via dallinger
 s3transfer==0.16.0
     # via boto3
-selenium==4.40.0
+selenium==4.41.0
     # via dallinger
 send2trash==2.1.0
     # via jupyter-server
@@ -573,10 +553,8 @@ stack-data==0.6.3
     # via ipython
 tablib==3.9.0
     # via dallinger
-tabulate==0.9.0
-    # via
-    #   dallinger
-    #   tablib
+tabulate==0.10.0
+    # via tablib
 tenacity==9.1.4
     # via dallinger
 termcolor==3.3.0
@@ -589,9 +567,9 @@ timeago==1.0.16
     # via dallinger
 tinycss2==1.4.0
     # via bleach
-tokenize-rt==6.2.0
-    # via black
-tornado==6.5.4
+tomli-w==1.2.0
+    # via tox
+tornado==6.5.5
     # via
     #   ipykernel
     #   jupyter-client
@@ -599,9 +577,7 @@ tornado==6.5.4
     #   jupyterlab
     #   notebook
     #   terminado
-tox==4.34.1
-    # via dallinger
-tqdm==4.67.3
+tox==4.50.1
     # via dallinger
 traitlets==5.14.3
     # via
@@ -618,24 +594,16 @@ traitlets==5.14.3
     #   nbclient
     #   nbconvert
     #   nbformat
-trio==0.32.0
+trio==0.33.0
     # via
     #   selenium
-    #   trio-typing
     #   trio-websocket
-trio-typing==0.10.0
-    # via selenium
 trio-websocket==0.12.2
-    # via selenium
-types-certifi==2021.10.8.3
-    # via selenium
-types-urllib3==1.26.25.14
     # via selenium
 typing-extensions==4.15.0
     # via
     #   beautifulsoup4
     #   selenium
-    #   trio-typing
 tzdata==2025.3
     # via
     #   arrow
@@ -646,7 +614,7 @@ tzlocal==5.3.1
     #   dallinger
 ua-parser==1.0.1
     # via user-agents
-ua-parser-builtins==202602
+ua-parser-builtins==202603
     # via ua-parser
 uri-template==1.3.0
     # via jsonschema
@@ -659,9 +627,9 @@ urllib3==2.6.3
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.10.2
+uv==0.10.11
     # via dallinger
-virtualenv==20.36.1
+virtualenv==21.2.0
     # via
     #   pre-commit
     #   tox
@@ -677,7 +645,7 @@ websocket-client==1.9.0
     # via
     #   jupyter-server
     #   selenium
-werkzeug==3.1.5
+werkzeug==3.1.6
     # via
     #   flask
     #   flask-login
@@ -697,8 +665,6 @@ xlwt==1.3.0
     # via tablib
 yaspin==3.4.0
     # via dallinger
-zipp==3.23.0
-    # via importlib-metadata
 zope-event==6.1
     # via gevent
 zope-interface==8.2

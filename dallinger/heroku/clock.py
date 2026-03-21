@@ -1,8 +1,10 @@
 """A clock process."""
 
+import time
 from collections import defaultdict
 from datetime import datetime
 
+import redis
 from apscheduler.schedulers.blocking import BlockingScheduler
 from sqlalchemy import text
 
@@ -13,6 +15,30 @@ from dallinger.models import Participant
 from dallinger.utils import ParticipationTime
 
 scheduler = BlockingScheduler()
+
+
+def wait_for_redis_ready(timeout=60, interval=0.5):
+    """Wait for Redis to accept commands before starting scheduled tasks."""
+    deadline = time.monotonic() + timeout
+    last_error = None
+
+    while time.monotonic() < deadline:
+        try:
+            if db.redis_conn.ping():
+                return
+        except (
+            redis.exceptions.BusyLoadingError,
+            redis.exceptions.ConnectionError,
+            redis.exceptions.TimeoutError,
+        ) as err:
+            last_error = err
+            print(f"Waiting for Redis to become ready: {err}")
+
+        time.sleep(interval)
+
+    raise RuntimeError(
+        "Redis did not become ready before clock startup timeout."
+    ) from last_error
 
 
 def run_check(participants, config, reference_time):
@@ -48,13 +74,15 @@ def check_db_for_missing_notifications():
 def warn_on_idle_transactions():
     """Warn if any DB sessions are idle in transaction for > 1 second."""
     with db.engine.connect() as conn:
-        result = conn.execute(text("""
+        result = conn.execute(
+            text("""
             SELECT pid, state, xact_start, query, now() - xact_start AS idle_time
             FROM pg_stat_activity
             WHERE state = 'idle in transaction'
               AND xact_start IS NOT NULL
               AND now() - xact_start > interval '1 second'
-        """))
+        """)
+        )
         for row in result:
             print(
                 f"Session idle in transaction! pid={row.pid}, "
@@ -89,4 +117,5 @@ def launch():
                 **dict(args["kwargs"]),
             )
 
+    wait_for_redis_ready()
     scheduler.start()

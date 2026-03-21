@@ -92,15 +92,15 @@ The easiest way to install Postgresql :ref:`is to use docker <docker-for-postgre
 On MacOS, we recommend installing using Homebrew:
 ::
 
-    brew install postgresql@16
-    brew link postgresql@16
+    brew install postgresql@12
+    brew link postgresql@12
 
 
 Postgresql can then be started and stopped using:
 ::
 
-    brew services start postgresql@16
-    brew services stop postgresql@16
+    brew services start postgresql@12
+    brew services stop postgresql@12
 
 
 Create the databases
@@ -425,7 +425,7 @@ Should that not work for whatever reason, you can search `here <https://docs.pyt
 Install Postgresql
 ~~~~~~~~~~~~~~~~~~
 
-The lowest version of Postgresql that Dallinger v5 supports is 14.
+The lowest version of Postgresql that Dallinger v5 supports is 9.4.
 
 Postgres can be installed using the following instructions:
 

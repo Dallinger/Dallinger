@@ -1,5 +1,5 @@
 # /// script
-# dependencies = ["click", "requests"]
+# dependencies = ["click", "requests", "tomli; python_version < '3.11'"]
 # ///
 #
 # You can run this script directly without installing Dallinger,
@@ -35,7 +35,7 @@ import subprocess
 import tempfile
 from hashlib import md5
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import click
 import requests
@@ -46,31 +46,70 @@ python_version_path = Path(".python-version")
 requirements_path = Path("requirements.txt")
 pyproject_path = Path("pyproject.toml")
 constraints_path = Path("constraints.txt")
+extra_option_help = (
+    "Optional extra to include (requires pyproject.toml). May be repeated."
+)
+extra_option = click.option(
+    "--extra",
+    "--e",
+    "-e",
+    "extras",
+    multiple=True,
+    help=extra_option_help,
+)
+
+
+class ConstraintsCliError(Exception):
+    """Base error for constraints CLI validation failures."""
+
+
+class UnknownExtraError(ConstraintsCliError, ValueError):
+    """Raised when a requested extra is not defined in pyproject.toml."""
+
+
+class PyprojectTomlError(ConstraintsCliError, ValueError):
+    """Raised when pyproject.toml cannot be parsed."""
+
+
+class MissingPyprojectError(ConstraintsCliError, ValueError):
+    """Raised when extras are requested but pyproject.toml is missing."""
 
 
 @click.group()
-def constraints_cli():
+@extra_option
+def constraints_cli(extras):
     """Dallinger constraints file utilities."""
+    ctx = click.get_current_context()
+    ctx.obj = list(extras)
 
 
 @constraints_cli.command()
-def check():
+@extra_option
+@click.pass_obj
+def check(group_extras, extras):
     """
     Check the working directory to see whether a constraints.txt file exists and is up to date. Raises a ValueError if not.
     """
-    check_constraints()
+    extras = _combine_extras(group_extras, extras)
+    _run_with_cli_errors(check_constraints, extras=extras)
 
 
-def check_constraints():
+def check_constraints(extras: Optional[List[str]] = None):
     """
     Check the working directory to see whether a constraints.txt file exists and is up to date. Raises a ValueError if not.
+
+    Parameters
+    ----------
+    extras : list of str, optional
+        Optional extras to include in the constraints signature (requires pyproject.toml).
     """
+    extras = extras or []
     assert_python_version_file_presence()
     assert_constraints_file_presence()
 
-    input_path = _find_input_path()
+    input_path = _find_input_path(extras=extras)
 
-    if not _constraints_up_to_date(input_path):
+    if not _constraints_up_to_date(input_path, extras=extras):
         raise ValueError(
             f"constraints.txt file in {Path.cwd()} is not up to date with {input_path.name}."
         )
@@ -105,14 +144,17 @@ def assert_constraints_file_presence():
 
 
 @constraints_cli.command()
-def generate():
+@extra_option
+@click.pass_obj
+def generate(group_extras, extras):
     """
     Generate a constraints.txt file for the current directory.
     """
-    generate_constraints()
+    extras = _combine_extras(group_extras, extras)
+    _run_with_cli_errors(generate_constraints, extras=extras)
 
 
-def generate_constraints():
+def generate_constraints(extras: Optional[List[str]] = None):
     """
     Generate a constraints.txt file for the current working directory.
 
@@ -137,13 +179,20 @@ def generate_constraints():
     For a version of this function that does not automatically overwrite the constraints.txt file,
     see ``ensure_constraints_file_presence``.
 
+    Parameters
+    ----------
+    extras : list of str, optional
+        Optional extras to include (requires pyproject.toml). When provided, pyproject.toml
+        is preferred over requirements.txt if both exist.
+
     """
-    input_path = _find_input_path()
+    extras = extras or []
+    input_path = _find_input_path(extras=extras)
     output_path = Path("constraints.txt")
 
     ensure_python_version_file_presence()
 
-    dallinger_reference = _get_dallinger_reference(input_path)
+    dallinger_reference = _get_dallinger_reference(input_path, extras=extras)
     dallinger_dev_requirements_path = _get_dallinger_dev_requirements_path(
         dallinger_reference
     )
@@ -157,22 +206,26 @@ def generate_constraints():
         input_path,
         output_path,
         constraints=[dallinger_dev_requirements_path],
+        extras=extras,
     )
 
     _make_constraints_paths_relative()
 
 
 @constraints_cli.command()
-def ensure():
+@extra_option
+@click.pass_obj
+def ensure(group_extras, extras):
     """
     Ensure that a constraints.txt file exists for the specified directory,
     preserving the existing constraints.txt file if it exists and is up to date,
     and updating it if it is out of date.
     """
-    ensure_constraints_file_presence(Path.cwd())
+    extras = _combine_extras(group_extras, extras)
+    _run_with_cli_errors(ensure_constraints_file_presence, Path.cwd(), extras=extras)
 
 
-def ensure_constraints_file_presence(directory):
+def ensure_constraints_file_presence(directory, extras: Optional[List[str]] = None):
     """
     Ensures that a ``constraints.txt`` file exists in the specified directory.
 
@@ -184,11 +237,19 @@ def ensure_constraints_file_presence(directory):
       then no action will be taken.
     - If an automatically generated ``constraints.txt`` file exists already, but it seems out-of-date,
       then ``constraints.txt`` will be automatically updated.
+
+    Parameters
+    ----------
+    directory : path-like
+        Directory in which to ensure constraints.txt exists.
+    extras : list of str, optional
+        Optional extras to include (requires pyproject.toml).
     """
+    extras = extras or []
     if os.environ.get("SKIP_DEPENDENCY_CHECK"):
         return
 
-    input_path = _find_input_path()
+    input_path = _find_input_path(extras=extras)
 
     if constraints_path.exists():
         if not _constraints_autogenerated():
@@ -197,7 +258,7 @@ def ensure_constraints_file_presence(directory):
                 constraints_path,
             )
             return
-        if _constraints_up_to_date(input_path):
+        if _constraints_up_to_date(input_path, extras=extras):
             logger.info("%s is up to date with %s.", constraints_path, input_path)
             return
         logger.info(
@@ -205,27 +266,103 @@ def ensure_constraints_file_presence(directory):
         )
 
     with working_directory(directory):
-        generate_constraints()
+        generate_constraints(extras=extras)
 
 
-def _find_input_path() -> Path:
+def _combine_extras(group_extras, extras):
+    return sorted({*(group_extras or []), *(extras or [])})
+
+
+def _run_with_cli_errors(func, *args, **kwargs):
+    try:
+        func(*args, **kwargs)
+    except ConstraintsCliError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
+def _find_input_path(extras: Optional[List[str]] = None) -> Path:
+    extras = extras or []
+    if extras:
+        if not pyproject_path.exists():
+            if requirements_path.exists():
+                raise MissingPyprojectError(
+                    "Extras require pyproject.toml. Only requirements.txt was found. "
+                    "Use pyproject.toml for projects with optional extras, or omit --extra."
+                )
+            raise MissingPyprojectError(
+                "Extras require pyproject.toml. No pyproject.toml or requirements.txt found. "
+                "Create a pyproject.toml with [project.optional-dependencies] to use --extra."
+            )
+        _validate_extras(extras, pyproject_path)
+        return pyproject_path
     if requirements_path.exists():
-        input_path = requirements_path
-    elif pyproject_path.exists():
-        input_path = pyproject_path
-    else:
-        logger.warning(
-            "No requirements.txt or pyproject.toml file found, will autogenerate a requirements.txt"
+        return requirements_path
+    if pyproject_path.exists():
+        return pyproject_path
+    logger.warning(
+        "No requirements.txt or pyproject.toml file found, will autogenerate a requirements.txt"
+    )
+    requirements_path.write_text("dallinger\n")
+    return requirements_path
+
+
+def _validate_extras(extras: List[str], input_path: Path) -> None:
+    available_extras = _get_available_extras(input_path)
+    if not available_extras:
+        raise UnknownExtraError(
+            "No extras are defined in pyproject.toml under [project.optional-dependencies]."
         )
-        requirements_path.write_text("dallinger\n")
-        input_path = requirements_path
+    missing_extras = [extra for extra in extras if extra not in available_extras]
+    if missing_extras:
+        missing_label = "extra" if len(missing_extras) == 1 else "extras"
+        available_label = ", ".join(sorted(available_extras))
+        raise UnknownExtraError(
+            f"Unknown {missing_label}: {', '.join(missing_extras)}. "
+            f"Available extras: {available_label}"
+        )
 
-    return input_path
+
+def _get_available_extras(input_path: Path) -> List[str]:
+    data = _read_pyproject_toml(input_path)
+    optional_deps = data.get("project", {}).get("optional-dependencies", {})
+    if isinstance(optional_deps, dict):
+        return list(optional_deps.keys())
+    return []
 
 
-def _get_md5sum(input_path: Path) -> str:
+def _read_pyproject_toml(input_path: Path) -> dict:
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        try:
+            import tomli as tomllib
+        except ModuleNotFoundError:
+            raise PyprojectTomlError(
+                "TOML parsing requires tomli on Python < 3.11. "
+                "Install Dallinger with dependencies or add tomli."
+            )
+    try:
+        return tomllib.loads(input_path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as exc:
+        raise PyprojectTomlError(
+            f"{input_path} could not be parsed as TOML. Fix the file and try again."
+        ) from exc
+
+
+def _get_constraints_signature(
+    input_path: Path, extras: Optional[List[str]] = None
+) -> str:
+    """
+    Compute a signature for the constraints input (influences when constraints are considered stale).
+
+    Includes input file content and extras (when provided) so that different extra selections
+    produce different constraints.
+    """
     with open(input_path, "rb") as f:
         file_bytes = f.read()
+    if extras:
+        extras_part = b"|extras:" + ",".join(sorted(extras)).encode()
+        return md5(file_bytes + extras_part).hexdigest()
     return md5(file_bytes).hexdigest()
 
 
@@ -234,12 +371,16 @@ def _constraints_autogenerated() -> bool:
     return bool(re.search(r"This file (is|was) autogenerated", text))
 
 
-def _constraints_up_to_date(input_path: Path) -> bool:
+def _constraints_up_to_date(
+    input_path: Path, extras: Optional[List[str]] = None
+) -> bool:
     assert_python_version_file_presence()
+    extras = extras or []
     python_version = _get_requested_python_version()
+    signature = _get_constraints_signature(input_path, extras=extras)
     return (
         f"Python {python_version}\n" in constraints_path.read_text()
-        and _get_md5sum(input_path) in constraints_path.read_text()
+        and signature in constraints_path.read_text()
     )
 
 
@@ -248,12 +389,14 @@ def _get_requested_python_version() -> str:
     return python_version_path.read_text().strip()
 
 
-def _get_dallinger_reference(input_path: Path) -> str:
+def _get_dallinger_reference(
+    input_path: Path, extras: Optional[List[str]] = None
+) -> str:
     explicit_reference = _get_explicit_dallinger_reference(input_path)
     if explicit_reference:
         return explicit_reference
     else:
-        return _get_implied_dallinger_reference(input_path)
+        return _get_implied_dallinger_reference(input_path, extras=extras)
 
 
 def _get_explicit_dallinger_reference(input_path: Path) -> Optional[str]:
@@ -294,9 +437,12 @@ def _get_explicit_dallinger_github_requirement(input_path: Path) -> Optional[str
     return None
 
 
-def _get_implied_dallinger_reference(input_path: Path) -> str:
+def _get_implied_dallinger_reference(
+    input_path: Path, extras: Optional[List[str]] = None
+) -> str:
+    extras = extras or []
     with tempfile.NamedTemporaryFile(suffix=".txt") as tmpfile:
-        _pip_compile(input_path, tmpfile.name, constraints=None)
+        _pip_compile(input_path, tmpfile.name, constraints=None, extras=extras)
         retrieved = _get_explicit_dallinger_reference(Path(tmpfile.name))
         if retrieved is None:
             with open(tmpfile.name, "r", encoding="utf-8") as f:
@@ -330,9 +476,15 @@ cp requirements.txt constraints.txt"""
         )
 
 
-def _pip_compile(in_file, out_file, constraints: Optional[list] = None):
+def _pip_compile(
+    in_file,
+    out_file,
+    constraints: Optional[list] = None,
+    extras: Optional[List[str]] = None,
+):
     in_file = Path(in_file)
     out_file = Path(out_file)
+    extras = extras or []
 
     if not in_file.resolve().parent == Path.cwd():
         # `uv pip compile` intelligently infers the Python version from the working directory, looking for example
@@ -345,8 +497,8 @@ def _pip_compile(in_file, out_file, constraints: Optional[list] = None):
 
     use_uv = uv_available()
     requested_python_version = _get_requested_python_version()
-    md5sum = _get_md5sum(in_file)
-    compile_info = f"dallinger constraints generate\n#\n# Compiled from a {Path(in_file).name} file with md5sum {md5sum} and a .python-version file requesting Python {requested_python_version}"
+    signature = _get_constraints_signature(in_file, extras=extras)
+    compile_info = f"dallinger constraints generate\n#\n# Compiled from a {Path(in_file).name} file with md5sum {signature} and a .python-version file requesting Python {requested_python_version}"
 
     if use_uv:
         cmd = [
@@ -356,7 +508,13 @@ def _pip_compile(in_file, out_file, constraints: Optional[list] = None):
             "--python-version",
             requested_python_version,
         ]
+        for extra in extras:
+            cmd += ["--extra", extra]
     else:
+        if extras:
+            raise ValueError(
+                "Extras are only supported when using uv. Install uv (pip install uv) or omit --extra."
+            )
         logger.info(
             "Calling `pip-compile` (consider installing uv for faster compilation)..."
         )
