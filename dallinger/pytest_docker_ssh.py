@@ -383,7 +383,7 @@ def docker_ssh_server():
                 (
                     "apt-get update && "
                     "DEBIAN_FRONTEND=noninteractive apt-get install -y "
-                    "openssh-server sudo curl wget ca-certificates"
+                    "openssh-server sudo curl wget ca-certificates docker.io"
                 ),
             ],
             timeout=600,
@@ -461,6 +461,9 @@ def docker_ssh_server():
             f"docker_image_base_name = {image_base_name}\n"
         )
 
+        # `docker-ssh servers add` now verifies Docker availability remotely.
+        # Ensure the daemon is running before registration in CI containers.
+        server.ensure_remote_docker_ready()
         server.add_server()
         yield server
     finally:
