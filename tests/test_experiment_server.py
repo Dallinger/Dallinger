@@ -321,7 +321,7 @@ class TestWorkerComplete:
 
         assert (
             models.Notification.query.one().event_type
-            == "BotRecruiterSubmissionComplete"
+            == "RecruiterSubmissionComplete"
         )
 
     def test_records_notification_for_non_mturk_recruiter(
@@ -1918,38 +1918,21 @@ class TestRecruiterSubmissionComplete:
         runner.experiment.on_recruiter_submission_complete.assert_called_once()
 
 
-class TestBotRecruiterSubmissionComplete:
+class TestBotRecruiterUsesRecruiterSubmissionComplete:
     @pytest.fixture
     def runner(self, standard_args):
         from dallinger.experiment_server.worker_events import (
-            BotRecruiterSubmissionComplete,
+            RecruiterSubmissionComplete,
         )
 
-        return BotRecruiterSubmissionComplete(**standard_args)
+        return RecruiterSubmissionComplete(**standard_args)
 
-    def test_participant_status_set(self, runner):
+    def test_calls_on_recruiter_submission_complete(self, runner):
         runner()
-        assert runner.participant.status == "approved"
-
-    def test_participant_end_time_set(self, runner):
-        runner()
-        assert runner.participant.end_time == end_time
-
-    def test_submission_successful_called_on_experiment(self, runner):
-        runner()
-        runner.experiment.submission_successful.assert_called_once_with(
-            participant=runner.participant
+        runner.experiment.on_recruiter_submission_complete.assert_called_once_with(
+            participant=runner.participant,
+            event=runner.data,
         )
-
-    def test_approve_hit_called_on_recruiter(self, runner):
-        runner()
-        runner.participant.recruiter.approve_hit.assert_called_once_with(
-            "some assignment id"
-        )
-
-    def test_recruit_called_on_experiment(self, runner):
-        runner()
-        runner.experiment.recruit.assert_called_once()
 
 
 class TestBotAssignmentRejected:

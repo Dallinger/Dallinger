@@ -2201,7 +2201,7 @@ class BotRecruiter(Recruiter):
     def on_task_completion(self):
         return {
             "new_status": "submitted",
-            "action": "BotRecruiterSubmissionComplete",
+            "action": "RecruiterSubmissionComplete",
         }
 
     def verify_status_of(self, participants: list[Participant]):
