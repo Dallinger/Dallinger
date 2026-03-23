@@ -320,8 +320,7 @@ class TestWorkerComplete:
         )
 
         assert (
-            models.Notification.query.one().event_type
-            == "RecruiterSubmissionComplete"
+            models.Notification.query.one().event_type == "RecruiterSubmissionComplete"
         )
 
     def test_records_notification_for_non_mturk_recruiter(
