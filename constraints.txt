@@ -9,7 +9,7 @@ alabaster==1.0.0
     # via sphinx
 ansi2html==1.9.2
     # via dallinger
-anyio==4.12.1
+anyio==4.13.0
     # via
     #   httpx
     #   jupyter-server
