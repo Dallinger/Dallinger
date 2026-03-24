@@ -149,7 +149,7 @@ python-dateutil==2.9.0.post0
     #   heroku3
 python-json-logger==4.0.0
     # via dallinger
-redis==7.3.0
+redis==7.4.0
     # via
     #   dallinger
     #   rq
