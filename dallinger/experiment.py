@@ -1618,7 +1618,7 @@ class Experiment:
         # Page
         items = q.offset(start).limit(length).all()
 
-        # Rows (strings escaped; non-strings pretty-printed inside <code>)
+        # Rows (raw JSON-native values; presentation handled client-side)
         rows, all_keys = [], set()
         for obj in items:
             data = obj.__json__() or {}
@@ -1630,11 +1630,13 @@ class Experiment:
                 if value is None:
                     coerced[key] = None
                 elif isinstance(value, (str, bytes)):
-                    coerced[key] = escape(value)
+                    if isinstance(value, bytes):
+                        coerced[key] = value.decode("utf-8", errors="replace")
+                    else:
+                        coerced[key] = value
                 else:
-                    coerced[key] = (
-                        f"<code>{escape(json.dumps(value, default=date_handler))}</code>"
-                    )
+                    # Ensure the value can be JSON-encoded for the dashboard API.
+                    coerced[key] = json.loads(json.dumps(value, default=date_handler))
             rows.append(coerced)
             all_keys.update(coerced.keys())
 
