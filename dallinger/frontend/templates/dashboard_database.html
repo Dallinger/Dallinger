@@ -205,6 +205,37 @@
       // Filtering on boolean fields using the search panes requires
       // their values to be converted to strings
       updateBooleanProperties(globals.datatablesOptions.data);
+
+      // Render raw JSON safely for display, without changing the underlying data model.
+      globals.datatablesOptions.columnDefs = (globals.datatablesOptions.columnDefs || []).concat([{
+        targets: '_all',
+        render: function (data, type, row, meta) {
+          if (data === null || data === undefined) {
+            return type === 'display' ? '' : data;
+          }
+
+          const isDisplayLike = (type === 'display' || type === 'filter');
+          const asText = (value) => $.fn.dataTable.render.text().display(String(value));
+          const asCode = (value) => '<code>' + asText(value) + '</code>';
+          const isObject = (typeof data === 'object');
+
+          if (isObject) {
+            const jsonText = JSON.stringify(data);
+            return isDisplayLike ? asCode(jsonText) : jsonText;
+          }
+
+          if (isDisplayLike && (typeof data === 'number' || typeof data === 'boolean')) {
+            return asCode(data);
+          }
+
+          if (isDisplayLike) {
+            return asText(data);
+          }
+
+          return data;
+        }
+      }]);
+
       $('#database-table').DataTable(globals.datatablesOptions);
     });
   </script>
