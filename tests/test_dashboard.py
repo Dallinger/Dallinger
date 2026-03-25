@@ -735,8 +735,6 @@ class TestDashboardDatabase:
 
     def test_table_columns_and_data_participant(self, a, db_session):
         """Columns now come from table_columns(); data formatting changed."""
-        from markupsafe import escape
-
         from dallinger.experiment_server.experiment_server import Experiment
 
         exp = Experiment(db_session)
@@ -756,14 +754,12 @@ class TestDashboardDatabase:
         assert isinstance(page["data"], list) and page["data"]
 
         row = page["data"][0]
-        # id and type will be strings or <code>…</code> depending on __json__()
-        # but worker_id is explicitly injected and should be plain (escaped) string
-        assert row["worker_id"] == escape(p.worker_id)
+        # worker_id is explicitly injected and should be a plain string
+        assert row["worker_id"] == p.worker_id
 
-        # Dict fields like details are rendered as <code>JSON</code>
+        # Dict fields like details are returned as raw objects (rendered client-side)
         if "details" in row:
-            assert row["details"].startswith("<code>")
-            assert row["details"].endswith("</code>")
+            assert isinstance(row["details"], dict)
 
     def test_table_data_search_and_order(self, a, db_session):
         """Global search and ordering by a column should work."""
@@ -794,7 +790,7 @@ class TestDashboardDatabase:
             order_dir="desc",
         )
         ids = [d["id"] for d in page_all["data"]]
-        assert ids == ["<code>2</code>", "<code>1</code>"]
+        assert ids == [2, 1]
 
     def test_prep_datatables_options(self):
         """Ensure server-side flags and column normalization are applied."""
