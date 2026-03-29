@@ -440,7 +440,7 @@ python-dateutil==2.9.0.post0
     #   pandas
 python-discovery==1.2.0
     # via virtualenv
-python-json-logger==4.0.0
+python-json-logger==4.1.0
     # via
     #   dallinger
     #   jupyter-events
