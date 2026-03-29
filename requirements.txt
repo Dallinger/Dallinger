@@ -130,7 +130,7 @@ ptyprocess==0.7.0
     # via pexpect
 pycparser==3.0
     # via cffi
-pygments==2.19.2
+pygments==2.20.0
     # via rich
 pygtail==0.14.0
     # via dallinger
