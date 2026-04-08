@@ -146,7 +146,7 @@ flask-wtf==1.2.2
     # via dallinger
 fqdn==1.5.1
     # via jsonschema
-gevent==25.9.1
+gevent==26.4.0
     # via
     #   dallinger
     #   gunicorn
