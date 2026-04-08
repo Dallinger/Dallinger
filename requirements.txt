@@ -65,7 +65,7 @@ flask-sock==0.7.0
     # via dallinger
 flask-wtf==1.2.2
     # via dallinger
-gevent==25.9.1
+gevent==26.4.0
     # via
     #   dallinger
     #   gunicorn
