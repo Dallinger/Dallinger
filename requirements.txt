@@ -163,7 +163,7 @@ rq==2.7.0
     # via dallinger
 s3transfer==0.16.0
     # via boto3
-selenium==4.41.0
+selenium==4.42.0
     # via dallinger
 simple-websocket==1.1.0
     # via flask-sock
