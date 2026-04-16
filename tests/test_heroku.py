@@ -602,16 +602,18 @@ class TestHerokuLocalWrapper:
     def test_gives_up_after_timeout(self, heroku):
         from dallinger.heroku.tools import HerokuTimeoutError
 
-        with pytest.raises(HerokuTimeoutError):
-            heroku.start(timeout_secs=1)
+        with mock.patch.object(heroku, "_up_and_running", return_value=False):
+            with pytest.raises(HerokuTimeoutError):
+                heroku.start(timeout_secs=1)
 
     def test_quits_on_gunicorn_startup_error(self, heroku):
         from dallinger.heroku.tools import HerokuStartupError
 
         heroku.verbose = False  # more coverage
         heroku._stream = mock.Mock(return_value=["[DONE] Killing all processes"])
-        with pytest.raises(HerokuStartupError):
-            heroku.start()
+        with mock.patch.object(heroku, "_up_and_running", return_value=False):
+            with pytest.raises(HerokuStartupError):
+                heroku.start()
 
     def test_start_fails_if_port_never_opens(self, heroku):
         from dallinger.heroku.tools import HerokuStartupError
@@ -619,7 +621,7 @@ class TestHerokuLocalWrapper:
         heroku._stream = mock.Mock(
             return_value=["apple", "orange", heroku.STREAM_SENTINEL]
         )
-        with mock.patch("dallinger.utils.port_is_open", return_value=False):
+        with mock.patch.object(heroku, "_up_and_running", return_value=False):
             with pytest.raises(HerokuStartupError):
                 heroku.start()
         assert not heroku.is_running
@@ -631,7 +633,7 @@ class TestHerokuLocalWrapper:
             return_value=["apple", "orange", heroku.STREAM_SENTINEL]
         )
         heroku._log_failure = mock.Mock()
-        with mock.patch("dallinger.utils.port_is_open", return_value=False):
+        with mock.patch.object(heroku, "_up_and_running", return_value=False):
             with pytest.raises(HerokuStartupError):
                 heroku.start()
         heroku._log_failure.assert_called_once()
