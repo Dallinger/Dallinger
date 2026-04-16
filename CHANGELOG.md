@@ -6,6 +6,7 @@
 - The "Could not import EC2 support" warning is no longer printed on every CLI invocation; a stub `ec2` subcommand now shows the message only when `dallinger ec2` is actually used.
 ### Changed
 
+- Bumped `actions/checkout` (`v4` → `v5`), `actions/cache` (`v4` → `v5`), `actions/setup-python` (`v5` → `v6`), `actions/setup-node` (`v4` → `v5`), `nanasess/setup-chromedriver` (`v2.2.2` → `v2.4.0`), `docker/setup-buildx-action` (`v3` → `v4`), `docker/build-push-action` (`v5` → `v7`), and `docker/login-action` (`v3` → `v4`), and `codecov/codecov-action` (`v4` → `v6`) in GitHub Actions workflows to use the Node.js 24 runtime, resolving the deprecation warning for Node.js 20 actions.
 - Standardized `CHANGELOG.md` Markdown formatting and added a repository `.markdownlint.jsonc` config to support linting without flagging intentional changelog structure.
 - Replaced third-party `cached_property` package with Python's built-in `functools.cached_property` (available since Python 3.8).
 - Moved `ipython` from core dependencies to `jupyter` optional dependency, reducing install size for users who don't need Jupyter features.
