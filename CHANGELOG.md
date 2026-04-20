@@ -1,6 +1,19 @@
 # Changelog
 
-## [Unreleased]
+## [v12.2.0](https://github.com/dallinger/dallinger/tree/v12.2.0) (2026-04-20)
+
+### Migration Notes
+
+- `numpy` moved from core dependencies to the `data` and `ec2` optional extras. Experiments that relied on numpy being installed transitively must now either install `dallinger[data]` (or `dallinger[ec2]`) or declare numpy in their own requirements.
+- `ipython` moved from core dependencies to the `jupyter` optional extra. Install with `pip install dallinger[jupyter]` if you need IPython.
+- The `constraints-cli` console-script alias has been removed; use `dallinger constraints` instead.
+- Linting/formatting migrated from `black`, `flake8`, and `isort` to Ruff (`ruff check` + `ruff format`) across pre-commit, tox style checks, and developer docs while preserving existing style settings. Contributors must run `pre-commit install --install-hooks` to refresh local hook environments.
+
+### Added
+
+- Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
+- Added `get_running_app` helper for selecting a default `docker-ssh` app programmatically.
+- Added repeatable `--extra` support to the constraints generator (`dallinger constraints generate/check/ensure`). Extras influence the constraints signature (md5), are passed to the resolver (uv pip compile), and require pyproject.toml when specified. When both pyproject.toml and requirements.txt exist and extras are provided, pyproject.toml is preferred.
 
 ### Changed
 
@@ -8,25 +21,16 @@
 - Bumped `actions/checkout` (`v4` → `v5`), `actions/cache` (`v4` → `v5`), `actions/setup-python` (`v5` → `v6`), `actions/setup-node` (`v4` → `v5`), `nanasess/setup-chromedriver` (`v2.2.2` → `v2.4.0`), `docker/setup-buildx-action` (`v3` → `v4`), `docker/build-push-action` (`v5` → `v7`), and `docker/login-action` (`v3` → `v4`), and `codecov/codecov-action` (`v4` → `v6`) in GitHub Actions workflows to use the Node.js 24 runtime, resolving the deprecation warning for Node.js 20 actions.
 - Standardized `CHANGELOG.md` Markdown formatting and added a repository `.markdownlint.jsonc` config to support linting without flagging intentional changelog structure.
 - Replaced third-party `cached_property` package with Python's built-in `functools.cached_property` (available since Python 3.8).
-- Moved `ipython` from core dependencies to `jupyter` optional dependency, reducing install size for users who don't need Jupyter features.
-- Moved `numpy` from core dependencies to `data` and `ec2` optional dependencies.
 - Improved provisioning output: replaced noisy error messages and bare data dumps with yaspin spinners and green checkmarks for all long-running steps (Docker check/install, storage resize, DNS record creation, etc.).
 - Added `tomli` as a dependency for Python 3.10 so pyproject extras can be parsed without a traceback.
 - Improved `dallinger docker-ssh` server selection UX: when multiple servers are configured and `--server` is omitted (and for `servers remove` when `--host` is omitted), users now choose from a numbered list; explicit host/server options and single-server behavior remain unchanged.
 - Migrated CLI table rendering from `tabulate` to Rich tables for consistent formatting and non-interactive output behavior.
-- Migrated linting/formatting from `black`, `flake8`, and `isort` to Ruff (`ruff check` + `ruff format`) across pre-commit, tox style checks, and developer docs while preserving existing style settings; run `pre-commit install --install-hooks` to refresh local hook environments.
 - Improved EC2/provisioning CLI output: replaced noisy error messages and bare data dumps with clearer progress indicators (spinners/checkmarks plus list progress where appropriate), clarified `--dns` vs `--dns-host` option help text, and added friendly validation/errors for EC2 instance lookup and selector usage (`--name`/`--dns`).
 - Replaced `tqdm` progress display in EC2 CLI paths with `rich.progress` for consistent spinner/bar output and simplified dependency surface.
 - Adjusted EC2 all-regions listing log level from WARNING to INFO to avoid signaling normal behavior as an issue.
 - Modernized frontend JavaScript tooling:
   - Upgraded to webpack 5 and webpack-cli 6, replacing legacy UglifyJS plugin usage with webpack's native production optimization settings.
   - Upgraded frontend test/docs tooling to Jest 30 and JSDoc 4, and configured Jest to use the explicit `jsdom` environment package required by modern Jest.
-
-### Added
-
-- Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
-- Added `get_running_app` helper for selecting a default `docker-ssh` app programmatically.
-- Added repeatable `--extra` support to the constraints generator (`dallinger constraints generate/check/ensure`). Extras influence the constraints signature (md5), are passed to the resolver (uv pip compile), and require pyproject.toml when specified. When both pyproject.toml and requirements.txt exist and extras are provided, pyproject.toml is preferred.
 
 ### Fixed
 
@@ -37,12 +41,10 @@
 - Fixed `docker-ssh export` and `docker-ssh apps` for root-domain deployments.
 - Fixed `rq_gevent_worker` compatibility with newer `rq` versions where `StopRequested` and log color helpers moved/changed modules.
 - Fixed noisy Docker socket permission output in `dallinger docker-ssh servers add` by checking Docker usability, attempting group-permission remediation, and showing a concise actionable error if Docker remains unavailable.
+- Fixed Jest coverage instrumentation failures (`TypeError: minimatch is not a function`) by splitting Yarn resolutions so `test-exclude` uses a callable-compatible minimatch line while modern dependency paths continue to use minimatch 10.
 
 ### Removed
 
-- Fixed Jest coverage instrumentation failures (`TypeError: minimatch is not a function`) by splitting Yarn resolutions so `test-exclude` uses a callable-compatible minimatch line while modern dependency paths continue to use minimatch 10.
-
-- Removed the `constraints-cli` alias; use `dallinger constraints` instead.
 - Removed `ua-parser` package from dependencies (still required via `user-agents`).
 - Removed obsolete `patches.py` module that patched ipykernel's `OutStream.writable()` method. This workaround for pexpect compatibility has been unnecessary since ipykernel 4.9 (April 2018), which added the fix upstream.
 - Removed unused `flask-crossdomain` dependency (a local implementation in `dallinger.experiment_server.utils` has been used instead for some time).
