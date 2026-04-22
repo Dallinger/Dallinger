@@ -80,7 +80,7 @@ chardet==5.2.0
     # via dallinger
 charset-normalizer==3.4.7
     # via requests
-click==8.3.2
+click==8.3.3
     # via
     #   dallinger
     #   flask
