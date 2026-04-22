@@ -63,7 +63,7 @@ cachetools==7.0.5
     # via tox
 cattrs==24.1.3
     # via sphinx-js
-certifi==2026.2.25
+certifi==2026.4.22
     # via
     #   httpcore
     #   httpx
