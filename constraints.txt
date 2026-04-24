@@ -606,7 +606,7 @@ typing-extensions==4.15.0
     # via
     #   beautifulsoup4
     #   selenium
-tzdata==2026.1
+tzdata==2026.2
     # via
     #   arrow
     #   pandas
