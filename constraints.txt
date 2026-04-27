@@ -150,7 +150,7 @@ gevent==26.4.0
     # via
     #   dallinger
     #   gunicorn
-greenlet==3.4.0
+greenlet==3.5.0
     # via
     #   gevent
     #   sqlalchemy
