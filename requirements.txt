@@ -199,7 +199,7 @@ tzlocal==5.3.1
     #   dallinger
 ua-parser==1.0.2
     # via user-agents
-ua-parser-builtins==202603
+ua-parser-builtins==202605
     # via ua-parser
 urllib3==2.6.3
     # via
