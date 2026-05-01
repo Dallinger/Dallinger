@@ -359,7 +359,7 @@ paramiko==3.5.1
     #   sshtunnel
 parsimonious==0.10.0
     # via sphinx-js
-parso==0.8.6
+parso==0.8.7
     # via jedi
 pexpect==4.9.0
     # via
