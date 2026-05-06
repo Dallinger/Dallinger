@@ -450,9 +450,7 @@ class DebugDeployment(HerokuLocalDeployment):
     def execute(self, heroku):
         server_url = get_base_url()
         try:
-            self.server_readiness_check(
-                server_url, timeout=0.001
-            )  # TODO: restore default 30s
+            self.server_readiness_check(server_url, timeout=30)
         except RuntimeError:
             self.out.error(
                 f"Server at {server_url} did not become ready in time. "
