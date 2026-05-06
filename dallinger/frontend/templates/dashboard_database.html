@@ -193,19 +193,6 @@
         }
       };
 
-      function updateBooleanProperties(data) {
-        data.forEach(function(item) {
-          for (let property in item) {
-            if (typeof item[property] === 'boolean') {
-              item[property] = String(item[property]);
-            }
-          }
-        });
-      }
-      // Filtering on boolean fields using the search panes requires
-      // their values to be converted to strings
-      updateBooleanProperties(globals.datatablesOptions.data);
-
       // Render raw JSON safely for display, without changing the underlying data model.
       globals.datatablesOptions.columnDefs = (globals.datatablesOptions.columnDefs || []).concat([{
         targets: '_all',
