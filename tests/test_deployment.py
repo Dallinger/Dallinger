@@ -2,9 +2,11 @@ import configparser
 import os
 import re
 import shutil
+import socket
 import sys
 import tempfile
 import textwrap
+import time
 import uuid
 from pathlib import Path
 from unittest import mock
@@ -860,6 +862,10 @@ class Testhandle_launch_data:
             mock_print.assert_not_called()
 
 
+def _noop_readiness_check(*args, **kwargs):
+    pass
+
+
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
 class TestDebugServer:
@@ -868,7 +874,12 @@ class TestDebugServer:
         from dallinger.deployment import DebugDeployment
 
         debugger = DebugDeployment(
-            output, verbose=True, bot=False, proxy_port=None, exp_config={}
+            output,
+            verbose=True,
+            bot=False,
+            proxy_port=None,
+            exp_config={},
+            server_readiness_check=_noop_readiness_check,
         )
         yield debugger
         if debugger.status_thread:
@@ -885,6 +896,7 @@ class TestDebugServer:
             proxy_port=None,
             exp_config={},
             no_browsers=True,
+            server_readiness_check=_noop_readiness_check,
         )
         yield debugger
         if debugger.status_thread:
@@ -1009,6 +1021,105 @@ class TestDebugServer:
                 mock.call("msg!"),
             ]
         )
+
+
+class TestWaitForServer:
+    @pytest.fixture
+    def subject(self):
+        from dallinger.deployment import wait_for_server
+
+        return wait_for_server
+
+    def test_returns_when_server_is_listening(self, subject):
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        sock.listen(1)
+        port = sock.getsockname()[1]
+        try:
+            subject(f"http://127.0.0.1:{port}", timeout=2)
+        finally:
+            sock.close()
+
+    def test_raises_when_server_not_listening(self, subject):
+        with pytest.raises(RuntimeError, match="did not become ready"):
+            subject("http://127.0.0.1:19999", timeout=0.05, interval=0.01)
+
+    def test_respects_timeout(self, subject):
+        start = time.monotonic()
+        with pytest.raises(RuntimeError):
+            subject("http://127.0.0.1:19999", timeout=0.1, interval=0.02)
+        elapsed = time.monotonic() - start
+        assert elapsed < 0.5
+
+    def test_ignores_path_in_url(self, subject):
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        sock.listen(1)
+        port = sock.getsockname()[1]
+        try:
+            subject(f"http://127.0.0.1:{port}/some/path", timeout=2)
+        finally:
+            sock.close()
+
+    def test_defaults_port_80(self, subject):
+        # URL without explicit port should default to 80
+        with pytest.raises(RuntimeError, match="did not become ready"):
+            subject("http://127.0.0.1", timeout=0.05, interval=0.01)
+
+
+class TestDebugServerExecuteWaitsForServer:
+    @pytest.fixture
+    def output(self):
+        from dallinger.command_line import Output
+
+        return Output(log=mock.Mock(), error=mock.Mock(), blather=mock.Mock())
+
+    def test_execute_returns_early_when_server_unreachable(self, output):
+        from dallinger.deployment import DebugDeployment
+
+        debugger = DebugDeployment(
+            output,
+            verbose=True,
+            bot=False,
+            proxy_port=None,
+            exp_config={},
+            server_readiness_check=mock.Mock(side_effect=RuntimeError("not ready")),
+        )
+        heroku = mock.Mock()
+        with mock.patch(
+            "dallinger.deployment.get_base_url",
+            return_value="http://127.0.0.1:5000",
+        ):
+            debugger.execute(heroku)
+        debugger.out.error.assert_called_once()
+        assert "did not become ready in time" in debugger.out.error.call_args[0][0]
+        debugger.out.log.assert_not_called()
+
+    def test_execute_proceeds_when_server_reachable(self, output, dashboard_config):
+        from dallinger.deployment import DebugDeployment
+
+        debugger = DebugDeployment(
+            output,
+            verbose=True,
+            bot=False,
+            proxy_port=None,
+            exp_config={},
+            server_readiness_check=mock.Mock(),
+        )
+        heroku = mock.Mock()
+        with mock.patch(
+            "dallinger.deployment.get_base_url",
+            return_value="http://127.0.0.1:5000",
+        ):
+            with mock.patch(
+                "dallinger.deployment.handle_launch_data",
+                return_value={"status": "success", "recruitment_msg": "ok"},
+            ):
+                debugger.execute(heroku)
+        debugger.out.log.assert_any_call(
+            "Server is running on http://127.0.0.1:5000. Press Ctrl+C to exit."
+        )
+        debugger.out.log.assert_any_call("Launching the experiment...")
 
 
 if os.environ.get("CI"):

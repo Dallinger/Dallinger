@@ -380,13 +380,48 @@ class HerokuLocalDeployment:
         raise NotImplementedError()
 
 
+def wait_for_server(server_url, timeout, interval=0.5):
+    """Wait for the server at *server_url* to accept TCP connections."""
+    import socket
+
+    parsed = urlparse(server_url)
+    host = parsed.hostname or "localhost"
+    port = parsed.port or 80
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            with socket.create_connection(
+                (host, port), timeout=min(interval, remaining)
+            ):
+                return
+        except OSError:
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                time.sleep(min(interval, remaining))
+    raise RuntimeError(
+        f"Server at {server_url} did not become ready within {timeout} seconds"
+    )
+
+
 class DebugDeployment(HerokuLocalDeployment):
     dispatch = {
         r"[^\"]{} (.*)$".format(recruiters.NEW_RECRUIT_LOG_PREFIX): "new_recruit",
         r"{}".format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
     }
 
-    def __init__(self, output, verbose, bot, proxy_port, exp_config, no_browsers=False):
+    def __init__(
+        self,
+        output,
+        verbose,
+        bot,
+        proxy_port,
+        exp_config,
+        no_browsers=False,
+        server_readiness_check=wait_for_server,
+    ):
         self.out = output
         self.verbose = verbose
         self.bot = bot
@@ -396,6 +431,7 @@ class DebugDeployment(HerokuLocalDeployment):
         self.complete = False
         self.status_thread = None
         self.no_browsers = no_browsers
+        self.server_readiness_check = server_readiness_check
         self.environ = {
             "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
         }
@@ -412,12 +448,24 @@ class DebugDeployment(HerokuLocalDeployment):
             self.exp_config["recruiter"] = "bots"
 
     def execute(self, heroku):
-        base_url = get_base_url()
-        self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
+        server_url = get_base_url()
+        try:
+            self.server_readiness_check(
+                server_url, timeout=0.001
+            )  # TODO: restore default 30s
+        except RuntimeError:
+            self.out.error(
+                f"Server at {server_url} did not become ready in time. "
+                f"Check that gunicorn is starting correctly."
+            )
+            return
+        self.out.log(
+            "Server is running on {}. Press Ctrl+C to exit.".format(server_url)
+        )
         self.out.log("Launching the experiment...")
         try:
             result = handle_launch_data(
-                "{}/launch".format(base_url), error=self.out.error, attempts=1
+                "{}/launch".format(server_url), error=self.out.error, attempts=1
             )
         except Exception:
             # Show output from server
@@ -426,7 +474,7 @@ class DebugDeployment(HerokuLocalDeployment):
         else:
             if result["status"] == "success":
                 self.out.log(result["recruitment_msg"])
-                dashboard_url = self.with_proxy_port("{}/dashboard/".format(base_url))
+                dashboard_url = self.with_proxy_port("{}/dashboard/".format(server_url))
                 self.display_dashboard_access_details(dashboard_url)
                 if not self.no_browsers:
                     self.async_open_dashboard(dashboard_url)
