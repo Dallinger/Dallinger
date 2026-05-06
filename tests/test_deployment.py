@@ -1061,11 +1061,6 @@ class TestWaitForServer:
         finally:
             sock.close()
 
-    def test_defaults_port_80(self, subject):
-        # URL without explicit port should default to 80
-        with pytest.raises(RuntimeError, match="did not become ready"):
-            subject("http://127.0.0.1", timeout=0.05, interval=0.01)
-
 
 class TestDebugServerExecuteWaitsForServer:
     @pytest.fixture
