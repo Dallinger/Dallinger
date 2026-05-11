@@ -347,7 +347,7 @@ packaging==26.1
     #   sphinx
     #   tox
     #   wheel
-pandas==2.3.3
+pandas==3.0.3
     # via
     #   dallinger
     #   tablib
