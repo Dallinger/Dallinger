@@ -290,7 +290,7 @@ matplotlib-inline==0.2.1
     # via
     #   ipykernel
     #   ipython
-mdit-py-plugins==0.5.0
+mdit-py-plugins==0.6.1
     # via myst-parser
 mdurl==0.1.2
     # via markdown-it-py
