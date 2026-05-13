@@ -6,6 +6,10 @@
 
 - Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock`: `follow-redirects` 1.15.9 → 1.16.0, `lodash` 4.17.23 → 4.18.1, and `picomatch` 2.3.1 → 2.3.2 / 4.0.3 → 4.0.4.
 
+### Updated
+
+- Updated dependencies
+
 ## [v12.2.0](https://github.com/dallinger/dallinger/tree/v12.2.0) (2026-04-20)
 
 ### Migration Notes
