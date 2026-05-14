@@ -471,7 +471,7 @@ referencing==0.37.0
     #   jupyter-events
 regex==2026.5.9
     # via parsimonious
-requests==2.34.0
+requests==2.34.2
     # via
     #   dallinger
     #   docker
