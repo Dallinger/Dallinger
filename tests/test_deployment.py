@@ -2,7 +2,6 @@ import configparser
 import os
 import re
 import shutil
-import socket
 import sys
 import tempfile
 import textwrap
@@ -1030,36 +1029,51 @@ class TestWaitForServer:
 
         return wait_for_server
 
-    def test_returns_when_server_is_listening(self, subject):
-        sock = socket.socket()
-        sock.bind(("127.0.0.1", 0))
-        sock.listen(1)
-        port = sock.getsockname()[1]
-        try:
-            subject(f"http://127.0.0.1:{port}", timeout=2)
-        finally:
-            sock.close()
+    def test_returns_when_server_responds(self, subject):
+        with mock.patch("dallinger.deployment.requests") as mock_requests:
+            mock_requests.ConnectionError = requests.ConnectionError
+            mock_requests.Timeout = requests.Timeout
+            subject("http://127.0.0.1:5000", timeout=2)
+        mock_requests.get.assert_called()
 
-    def test_raises_when_server_not_listening(self, subject):
-        with pytest.raises(RuntimeError, match="did not become ready"):
-            subject("http://127.0.0.1:19999", timeout=0.05, interval=0.01)
+    def test_returns_on_error_status(self, subject):
+        """Any HTTP response (even 500) means the worker is alive."""
+        with mock.patch("dallinger.deployment.requests") as mock_requests:
+            mock_requests.ConnectionError = requests.ConnectionError
+            mock_requests.Timeout = requests.Timeout
+            mock_requests.get.return_value = mock.Mock(status_code=500)
+            subject("http://127.0.0.1:5000", timeout=2)
+
+    def test_raises_when_server_not_responding(self, subject):
+        with mock.patch("dallinger.deployment.requests") as mock_requests:
+            mock_requests.ConnectionError = requests.ConnectionError
+            mock_requests.Timeout = requests.Timeout
+            mock_requests.get.side_effect = requests.ConnectionError()
+            with pytest.raises(RuntimeError, match="did not become ready"):
+                subject("http://127.0.0.1:5000", timeout=0.05, interval=0.01)
+
+    def test_retries_then_succeeds(self, subject):
+        """Retries on ConnectionError, then succeeds."""
+        with mock.patch("dallinger.deployment.requests") as mock_requests:
+            mock_requests.ConnectionError = requests.ConnectionError
+            mock_requests.Timeout = requests.Timeout
+            mock_requests.get.side_effect = [
+                requests.ConnectionError(),
+                mock.Mock(status_code=200),
+            ]
+            subject("http://127.0.0.1:5000", timeout=2, interval=0.01)
+        assert mock_requests.get.call_count == 2
 
     def test_respects_timeout(self, subject):
-        start = time.monotonic()
-        with pytest.raises(RuntimeError):
-            subject("http://127.0.0.1:19999", timeout=0.1, interval=0.02)
-        elapsed = time.monotonic() - start
-        assert elapsed < 0.5
-
-    def test_ignores_path_in_url(self, subject):
-        sock = socket.socket()
-        sock.bind(("127.0.0.1", 0))
-        sock.listen(1)
-        port = sock.getsockname()[1]
-        try:
-            subject(f"http://127.0.0.1:{port}/some/path", timeout=2)
-        finally:
-            sock.close()
+        with mock.patch("dallinger.deployment.requests") as mock_requests:
+            mock_requests.ConnectionError = requests.ConnectionError
+            mock_requests.Timeout = requests.Timeout
+            mock_requests.get.side_effect = requests.ConnectionError()
+            start = time.monotonic()
+            with pytest.raises(RuntimeError):
+                subject("http://127.0.0.1:5000", timeout=0.1, interval=0.02)
+            elapsed = time.monotonic() - start
+            assert elapsed < 0.5
 
 
 class TestDebugServerExecuteWaitsForServer:
@@ -1069,10 +1083,14 @@ class TestDebugServerExecuteWaitsForServer:
 
         return Output(log=mock.Mock(), error=mock.Mock(), blather=mock.Mock())
 
-    def test_execute_returns_early_when_server_unreachable(self, output):
+    @pytest.fixture
+    def subject(self):
         from dallinger.deployment import DebugDeployment
 
-        debugger = DebugDeployment(
+        return DebugDeployment
+
+    def test_execute_returns_early_when_server_unreachable(self, subject, output):
+        debugger = subject(
             output,
             verbose=True,
             bot=False,
@@ -1090,10 +1108,10 @@ class TestDebugServerExecuteWaitsForServer:
         assert "did not become ready in time" in debugger.out.error.call_args[0][0]
         debugger.out.log.assert_not_called()
 
-    def test_execute_proceeds_when_server_reachable(self, output, dashboard_config):
-        from dallinger.deployment import DebugDeployment
-
-        debugger = DebugDeployment(
+    def test_execute_proceeds_when_server_reachable(
+        self, subject, output, dashboard_config
+    ):
+        debugger = subject(
             output,
             verbose=True,
             bot=False,

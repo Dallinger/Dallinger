@@ -381,25 +381,19 @@ class HerokuLocalDeployment:
 
 
 def wait_for_server(server_url, timeout, interval=0.5):
-    """Wait for the server at *server_url* to accept TCP connections."""
-    import socket
-
-    parsed = urlparse(server_url)
-    host = parsed.hostname or "localhost"
-    port = parsed.port or 80
+    """Wait for the server at *server_url* to respond to HTTP requests."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break
         try:
-            with socket.create_connection(
-                (host, port), timeout=min(interval, remaining)
-            ):
-                return
-        except OSError:
+            requests.get(server_url, timeout=min(interval, remaining))
+            return
+        except (requests.ConnectionError, requests.Timeout):
             remaining = deadline - time.monotonic()
             if remaining > 0:
+                print(f"Waiting for {server_url} ...")
                 time.sleep(min(interval, remaining))
     raise RuntimeError(
         f"Server at {server_url} did not become ready within {timeout} seconds"
