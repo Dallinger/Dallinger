@@ -80,8 +80,7 @@
 
 ### Fixed
 
-#### Fixed
-- Fixed race condition in `DebugDeployment` where the `/launch` request could fire before the selected web dyno was accepting connections (when `num_dynos_web > 1`). A TCP readiness check now runs before launching.
+- Fixed race condition in `DebugDeployment` where the `/launch` request could fire before the selected web dyno was accepting connections. `heroku local` now runs with a single web dyno (multiple dynos provide no load distribution locally), and an HTTP readiness check now runs before launching.
 - Improved error message for AWS authentication failures (wrong credentials, expired tokens, clock skew) in EC2 commands: now displays a concise, actionable message instead of a full stack trace.
 
 ## [v12.1.1](https://github.com/dallinger/dallinger/tree/v12.1.1) (2026-02-11) [YANKED]
