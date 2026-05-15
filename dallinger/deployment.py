@@ -312,7 +312,17 @@ class HerokuLocalDeployment:
     DO_INIT_DB = True
 
     def configure(self):
-        self.exp_config.update({"mode": "debug"})
+        config = get_config()
+        original = self.exp_config.get("num_dynos_web") or (
+            config.get("num_dynos_web") if config.ready else None
+        )
+        if original is not None and original > 1:
+            self.out.log(
+                f"Overriding num_dynos_web={original} → 1 "
+                "(multiple web dynos provide no load distribution in local mode; "
+                "all traffic hits one dyno regardless)"
+            )
+        self.exp_config.update({"mode": "debug", "num_dynos_web": 1})
 
     def setup(self):
         self.exp_id, self.tmp_dir = setup_experiment(
@@ -414,7 +424,6 @@ class DebugDeployment(HerokuLocalDeployment):
         proxy_port,
         exp_config,
         no_browsers=False,
-        server_readiness_check=wait_for_server,
     ):
         self.out = output
         self.verbose = verbose
@@ -425,7 +434,6 @@ class DebugDeployment(HerokuLocalDeployment):
         self.complete = False
         self.status_thread = None
         self.no_browsers = no_browsers
-        self.server_readiness_check = server_readiness_check
         self.environ = {
             "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
         }
@@ -443,14 +451,7 @@ class DebugDeployment(HerokuLocalDeployment):
 
     def execute(self, heroku):
         server_url = get_base_url()
-        try:
-            self.server_readiness_check(server_url, timeout=30)
-        except RuntimeError:
-            self.out.error(
-                f"Server at {server_url} did not become ready in time. "
-                f"Check that gunicorn is starting correctly."
-            )
-            return
+        wait_for_server(server_url, timeout=60)
         self.out.log(
             "Server is running on {}. Press Ctrl+C to exit.".format(server_url)
         )
@@ -584,7 +585,8 @@ class LoaderDeployment(HerokuLocalDeployment):
         self.zip_path = None
 
     def configure(self):
-        self.exp_config.update({"mode": "debug", "loglevel": 0})
+        super().configure()
+        self.exp_config.update({"loglevel": 0})
 
         self.zip_path = data.find_experiment_export(self.app_id)
         if self.zip_path is None:

@@ -861,10 +861,6 @@ class Testhandle_launch_data:
             mock_print.assert_not_called()
 
 
-def _noop_readiness_check(*args, **kwargs):
-    pass
-
-
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
 class TestDebugServer:
@@ -878,7 +874,6 @@ class TestDebugServer:
             bot=False,
             proxy_port=None,
             exp_config={},
-            server_readiness_check=_noop_readiness_check,
         )
         yield debugger
         if debugger.status_thread:
@@ -895,7 +890,6 @@ class TestDebugServer:
             proxy_port=None,
             exp_config={},
             no_browsers=True,
-            server_readiness_check=_noop_readiness_check,
         )
         yield debugger
         if debugger.status_thread:
@@ -998,17 +992,18 @@ class TestDebugServer:
 
     def test_failure(self, debugger):
         with mock.patch("dallinger.deployment.HerokuLocalDeployment.WRAPPER_CLASS"):
-            with mock.patch("dallinger.deployment.requests.post") as mock_post:
-                mock_post.return_value = mock.Mock(
-                    ok=False,
-                    json=mock.Mock(return_value={"message": "msg!"}),
-                    raise_for_status=mock.Mock(
-                        side_effect=requests.exceptions.HTTPError
-                    ),
-                    status_code=500,
-                    text="Failure",
-                )
-                debugger.run()
+            with mock.patch("dallinger.deployment.wait_for_server"):
+                with mock.patch("dallinger.deployment.requests.post") as mock_post:
+                    mock_post.return_value = mock.Mock(
+                        ok=False,
+                        json=mock.Mock(return_value={"message": "msg!"}),
+                        raise_for_status=mock.Mock(
+                            side_effect=requests.exceptions.HTTPError
+                        ),
+                        status_code=500,
+                        text="Failure",
+                    )
+                    debugger.run()
 
         # Only one launch attempt should be made in debug mode
         debugger.out.error.assert_has_calls(
@@ -1076,63 +1071,78 @@ class TestWaitForServer:
             assert elapsed < 0.5
 
 
-class TestDebugServerExecuteWaitsForServer:
+class TestHerokuLocalDeploymentNumDynos:
     @pytest.fixture
     def output(self):
         from dallinger.command_line import Output
 
         return Output(log=mock.Mock(), error=mock.Mock(), blather=mock.Mock())
 
-    @pytest.fixture
-    def subject(self):
+    def test_configure_forces_single_web_dyno(self, output):
         from dallinger.deployment import DebugDeployment
 
-        return DebugDeployment
-
-    def test_execute_returns_early_when_server_unreachable(self, subject, output):
-        debugger = subject(
+        debugger = DebugDeployment(
             output,
-            verbose=True,
+            verbose=False,
             bot=False,
             proxy_port=None,
-            exp_config={},
-            server_readiness_check=mock.Mock(side_effect=RuntimeError("not ready")),
+            exp_config={"num_dynos_web": 4},
         )
-        heroku = mock.Mock()
-        with mock.patch(
-            "dallinger.deployment.get_base_url",
-            return_value="http://127.0.0.1:5000",
-        ):
-            debugger.execute(heroku)
-        debugger.out.error.assert_called_once()
-        assert "did not become ready in time" in debugger.out.error.call_args[0][0]
-        debugger.out.log.assert_not_called()
+        debugger.configure()
+        assert debugger.exp_config["num_dynos_web"] == 1
 
-    def test_execute_proceeds_when_server_reachable(
-        self, subject, output, dashboard_config
-    ):
-        debugger = subject(
+    def test_configure_warns_when_exp_config_has_multiple_web_dynos(self, output):
+        from dallinger.deployment import DebugDeployment
+
+        debugger = DebugDeployment(
             output,
-            verbose=True,
+            verbose=False,
             bot=False,
             proxy_port=None,
-            exp_config={},
-            server_readiness_check=mock.Mock(),
+            exp_config={"num_dynos_web": 3},
         )
-        heroku = mock.Mock()
-        with mock.patch(
-            "dallinger.deployment.get_base_url",
-            return_value="http://127.0.0.1:5000",
-        ):
-            with mock.patch(
-                "dallinger.deployment.handle_launch_data",
-                return_value={"status": "success", "recruitment_msg": "ok"},
-            ):
-                debugger.execute(heroku)
-        debugger.out.log.assert_any_call(
-            "Server is running on http://127.0.0.1:5000. Press Ctrl+C to exit."
+        debugger.configure()
+        logged = " ".join(str(c) for c in output.log.call_args_list)
+        assert "num_dynos_web" in logged
+        assert "3" in logged
+
+    def test_configure_warns_when_global_config_has_multiple_web_dynos(self, output):
+        from dallinger.deployment import DebugDeployment
+
+        debugger = DebugDeployment(
+            output, verbose=False, bot=False, proxy_port=None, exp_config={}
         )
-        debugger.out.log.assert_any_call("Launching the experiment...")
+        mock_config = mock.Mock()
+        mock_config.ready = True
+        mock_config.get.return_value = 4
+        with mock.patch("dallinger.deployment.get_config", return_value=mock_config):
+            debugger.configure()
+        logged = " ".join(str(c) for c in output.log.call_args_list)
+        assert "num_dynos_web" in logged
+        assert "4" in logged
+
+    def test_configure_does_not_warn_when_already_1(self, output):
+        from dallinger.deployment import DebugDeployment
+
+        debugger = DebugDeployment(
+            output,
+            verbose=False,
+            bot=False,
+            proxy_port=None,
+            exp_config={"num_dynos_web": 1},
+        )
+        debugger.configure()
+        assert debugger.exp_config["num_dynos_web"] == 1
+        output.log.assert_not_called()
+
+    def test_configure_forces_single_web_dyno_when_not_set(self, output):
+        from dallinger.deployment import DebugDeployment
+
+        debugger = DebugDeployment(
+            output, verbose=False, bot=False, proxy_port=None, exp_config={}
+        )
+        debugger.configure()
+        assert debugger.exp_config["num_dynos_web"] == 1
 
 
 if os.environ.get("CI"):
