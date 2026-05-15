@@ -450,15 +450,13 @@ class DebugDeployment(HerokuLocalDeployment):
             self.exp_config["recruiter"] = "bots"
 
     def execute(self, heroku):
-        server_url = get_base_url()
-        wait_for_server(server_url, timeout=60)
-        self.out.log(
-            "Server is running on {}. Press Ctrl+C to exit.".format(server_url)
-        )
+        base_url = get_base_url()
+        wait_for_server(base_url, timeout=60)
+        self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
         self.out.log("Launching the experiment...")
         try:
             result = handle_launch_data(
-                "{}/launch".format(server_url), error=self.out.error, attempts=1
+                "{}/launch".format(base_url), error=self.out.error, attempts=1
             )
         except Exception:
             # Show output from server
@@ -467,7 +465,7 @@ class DebugDeployment(HerokuLocalDeployment):
         else:
             if result["status"] == "success":
                 self.out.log(result["recruitment_msg"])
-                dashboard_url = self.with_proxy_port("{}/dashboard/".format(server_url))
+                dashboard_url = self.with_proxy_port("{}/dashboard/".format(base_url))
                 self.display_dashboard_access_details(dashboard_url)
                 if not self.no_browsers:
                     self.async_open_dashboard(dashboard_url)
