@@ -535,7 +535,7 @@ class HerokuLocalWrapper:
             if self.verbose:
                 self.out.blather(line)
             line = line.strip()
-            if port_is_open(port):
+            if self._up_and_running(port):
                 return True
 
             if self._redis_not_running(line):
@@ -614,6 +614,9 @@ class HerokuLocalWrapper:
                 yield line.decode("utf-8")
             else:
                 yield line
+
+    def _up_and_running(self, port):
+        return port_is_open(port)
 
     def _redis_not_running(self, line):
         if isinstance(line, bytes):
