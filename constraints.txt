@@ -104,7 +104,7 @@ cryptography==48.0.0
     # via paramiko
 debugpy==1.8.20
     # via ipykernel
-decorator==5.2.1
+decorator==5.3.0
     # via ipython
 defusedxml==0.7.1
     # via
