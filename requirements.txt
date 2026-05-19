@@ -159,7 +159,7 @@ requests==2.34.0
     #   heroku3
 rich==15.0.0
     # via dallinger
-rq==2.8.0
+rq==2.9.0
     # via dallinger
 s3transfer==0.17.0
     # via boto3
