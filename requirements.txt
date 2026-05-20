@@ -29,7 +29,7 @@ build==1.5.0
     # via
     #   dallinger
     #   pip-tools
-certifi==2026.4.22
+certifi==2026.5.20
     # via
     #   requests
     #   selenium
