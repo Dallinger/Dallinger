@@ -19,7 +19,6 @@ from typing import Any, List, Optional, Union
 
 import requests
 from flask import Blueprint, url_for
-from markupsafe import escape
 from sqlalchemy import String, Table, and_, asc, cast, create_engine, desc, func, or_
 from sqlalchemy.orm import scoped_session, sessionmaker, undefer
 from sqlalchemy.orm.attributes import InstrumentedAttribute

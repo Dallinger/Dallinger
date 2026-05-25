@@ -30,6 +30,7 @@
 
 ### Fixed
 
+- Fixed manual entity failure by switching to client-side formatting of data tables
 - Fixed frontend npm audit vulnerabilities by updating transitive JavaScript dependencies in `yarn.lock`, including patched versions of `immutable`, `minimatch`, `ajv`, and related build tooling packages.
 - Fixed clock process startup after Redis restarts by waiting for Redis to finish loading before scheduled tasks begin.
 - Fixed `get_page_from_directory` route returning 500 errors with full tracebacks for missing templates (e.g. from vulnerability scanners). Now returns 404, matching the existing `get_page` behavior.
