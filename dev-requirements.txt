@@ -168,7 +168,7 @@ httpx==0.28.1
     # via jupyterlab
 identify==2.6.19
     # via pre-commit
-idna==3.15
+idna==3.17
     # via
     #   anyio
     #   httpx
