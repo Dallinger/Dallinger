@@ -499,7 +499,7 @@ rq==2.8.0
     # via dallinger
 ruff==0.15.12
     # via dallinger
-s3transfer==0.17.0
+s3transfer==0.18.0
     # via boto3
 selenium==4.44.0
     # via dallinger
