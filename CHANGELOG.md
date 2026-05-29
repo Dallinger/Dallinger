@@ -31,7 +31,10 @@
 
 ### Updated
 
-- Updated dependencies; pinned rpds-py < 2026.5.1
+- Updated Python dependencies; pinned rpds-py < 2026.5.1
+- Updated JavaScript build/test tooling and transitive development dependencies:
+  - `webpack` 5.107.2 → 5.108.3 and `webpack-cli` 7.0.3 → 7.1.0.
+  - Added Yarn resolutions for patched transitive `js-yaml`, `ws`, `engine.io`, `engine.io-client`, and `socket.io-adapter` versions.
 
 ## [v12.2.0](https://github.com/dallinger/dallinger/tree/v12.2.0) (2026-04-20)
 
