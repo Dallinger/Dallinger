@@ -4,6 +4,7 @@ import logging
 import os
 import re
 from datetime import datetime
+from functools import wraps
 from json import dumps, loads
 
 import gevent
@@ -66,19 +67,36 @@ def launch_error_response(error_text):
     return error_response(error_text=error_text, status=500, simple=True)
 
 
+def launch_error_guard(error_prefix):
+    """Return simple JSON for exceptions raised while preparing `/launch`."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as ex:
+                if request.path == "/launch":
+                    return launch_error_response(
+                        "{}: {}".format(error_prefix, str(ex))
+                    )
+                raise
+
+        return wrapper
+
+    return decorator
+
+
 @app.before_request
+@launch_error_guard("Failed to load configuration before /launch")
 def _load_config():
-    try:
-        _config()
-    except Exception as ex:
-        if request.path == "/launch":
-            return launch_error_response(
-                "Failed to load configuration before /launch: {}".format(str(ex))
-            )
-        raise
+    _config()
 
 
 @app.before_request
+@launch_error_guard(
+    "Failed to load experiment before /launch while checking protected routes"
+)
 def check_for_protected_routes():
     if current_user.is_authenticated:
         return
@@ -88,15 +106,7 @@ def check_for_protected_routes():
     except AttributeError:
         return
 
-    try:
-        protected = Experiment(no_configure=True).protected_routes
-    except Exception as ex:
-        if request.path == "/launch":
-            return launch_error_response(
-                "Failed to load experiment before /launch while checking protected "
-                "routes: {}".format(str(ex))
-            )
-        raise
+    protected = Experiment(no_configure=True).protected_routes
     if active_rule in protected:
         raise PermissionError(
             f'Unauthorized call to protected route "{active_rule}": {request}'
@@ -156,18 +166,10 @@ except ImportError:
 
 
 @app.before_request
+@launch_error_guard("Experiment before_request failed before /launch")
 def before_request():
     if exp_klass is not None:
-        try:
-            return exp_klass.before_request()
-        except Exception as ex:
-            if request.path == "/launch":
-                return launch_error_response(
-                    "Experiment before_request failed before /launch: {}".format(
-                        str(ex)
-                    )
-                )
-            raise
+        return exp_klass.before_request()
 
 
 @app.after_request
