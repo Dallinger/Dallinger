@@ -102,7 +102,7 @@ croniter==6.2.2
     # via rq
 cryptography==48.0.0
     # via paramiko
-debugpy==1.8.20
+debugpy==1.8.21
     # via ipykernel
 decorator==5.2.1
     # via ipython
