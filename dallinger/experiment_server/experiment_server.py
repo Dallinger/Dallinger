@@ -77,9 +77,7 @@ def launch_error_guard(error_prefix):
                 return func(*args, **kwargs)
             except Exception as ex:
                 if request.path == "/launch":
-                    return launch_error_response(
-                        "{}: {}".format(error_prefix, str(ex))
-                    )
+                    return launch_error_response("{}: {}".format(error_prefix, str(ex)))
                 raise
 
         return wrapper
