@@ -1688,11 +1688,10 @@ class TestLaunchRoute:
     def test_launch_reports_before_request_error(self, webapp):
         from dallinger.experiment_server import experiment_server
 
-        with mock.patch.object(
-            experiment_server.exp_klass,
-            "before_request",
-            side_effect=RuntimeError("hook exploded"),
-        ):
+        mock_exp_klass = mock.Mock()
+        mock_exp_klass.before_request.side_effect = RuntimeError("hook exploded")
+        mock_exp_klass.after_request.side_effect = lambda request, response: response
+        with mock.patch.object(experiment_server, "exp_klass", mock_exp_klass):
             resp = webapp.post("/launch", data={})
 
         self.assert_launch_error(resp, "hook exploded")
