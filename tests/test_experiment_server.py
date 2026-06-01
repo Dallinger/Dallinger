@@ -1722,9 +1722,7 @@ class TestLaunchRoute:
             with (
                 mock.patch(
                     "dallinger.experiment_server.experiment_server.Experiment",
-                    side_effect=TypeError(
-                        "unexpected keyword argument 'no_configure'"
-                    ),
+                    side_effect=TypeError("unexpected keyword argument 'no_configure'"),
                 ),
                 mock.patch(
                     "dallinger.deployment.requests.post",
