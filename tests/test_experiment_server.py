@@ -3,6 +3,7 @@ from datetime import datetime
 from unittest import mock
 
 import pytest
+import requests
 
 from dallinger import db, models
 
@@ -1656,6 +1657,18 @@ class TestTransformationPost:
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
 class TestLaunchRoute:
+    class _RequestsResponse:
+        def __init__(self, flask_response):
+            self.status_code = flask_response.status_code
+            self.text = flask_response.get_data(as_text=True)
+            self.ok = flask_response.status_code < 400
+
+        def json(self):
+            return json.loads(self.text)
+
+        def raise_for_status(self):
+            raise requests.exceptions.HTTPError
+
     def assert_launch_error(self, resp, message):
         assert resp.status_code == 500
         data = json.loads(resp.get_data())
@@ -1695,6 +1708,47 @@ class TestLaunchRoute:
             resp = webapp.post("/launch", data={})
 
         self.assert_launch_error(resp, "hook exploded")
+
+    def test_local_debug_launch_reports_protected_route_load_error(self, webapp):
+        from dallinger.deployment import handle_launch_data
+
+        error = mock.Mock()
+        app_config = webapp.application.config
+        original_testing = app_config["TESTING"]
+        original_propagate_exceptions = app_config.get("PROPAGATE_EXCEPTIONS")
+        app_config.update({"TESTING": False, "PROPAGATE_EXCEPTIONS": False})
+
+        try:
+            with (
+                mock.patch(
+                    "dallinger.experiment_server.experiment_server.Experiment",
+                    side_effect=TypeError(
+                        "unexpected keyword argument 'no_configure'"
+                    ),
+                ),
+                mock.patch(
+                    "dallinger.deployment.requests.post",
+                    side_effect=lambda _: self._RequestsResponse(
+                        webapp.post("/launch", data={})
+                    ),
+                ),
+                pytest.raises(requests.exceptions.HTTPError),
+            ):
+                handle_launch_data(
+                    "http://localhost:5001/launch", error=error, attempts=1
+                )
+        finally:
+            app_config.update(
+                {
+                    "TESTING": original_testing,
+                    "PROPAGATE_EXCEPTIONS": original_propagate_exceptions,
+                }
+            )
+
+        error.assert_any_call(
+            "Failed to load experiment before /launch while checking protected "
+            "routes: unexpected keyword argument 'no_configure'"
+        )
 
     def test_launch_with_recruitment(self, webapp, active_config):
         with mock.patch(
