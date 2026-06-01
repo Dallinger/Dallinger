@@ -61,9 +61,21 @@ WAITING_ROOM_CHANNEL = "quorum"
 app = Flask("Experiment_Server")
 
 
+def launch_error_response(error_text):
+    """Return a JSON error for failures that happen before `/launch` runs."""
+    return error_response(error_text=error_text, status=500, simple=True)
+
+
 @app.before_request
 def _load_config():
-    _config()
+    try:
+        _config()
+    except Exception as ex:
+        if request.path == "/launch":
+            return launch_error_response(
+                "Failed to load configuration before /launch: {}".format(str(ex))
+            )
+        raise
 
 
 @app.before_request
@@ -76,7 +88,15 @@ def check_for_protected_routes():
     except AttributeError:
         return
 
-    protected = Experiment(no_configure=True).protected_routes
+    try:
+        protected = Experiment(no_configure=True).protected_routes
+    except Exception as ex:
+        if request.path == "/launch":
+            return launch_error_response(
+                "Failed to load experiment before /launch while checking protected "
+                "routes: {}".format(str(ex))
+            )
+        raise
     if active_rule in protected:
         raise PermissionError(
             f'Unauthorized call to protected route "{active_rule}": {request}'
@@ -138,7 +158,16 @@ except ImportError:
 @app.before_request
 def before_request():
     if exp_klass is not None:
-        return exp_klass.before_request()
+        try:
+            return exp_klass.before_request()
+        except Exception as ex:
+            if request.path == "/launch":
+                return launch_error_response(
+                    "Experiment before_request failed before /launch: {}".format(
+                        str(ex)
+                    )
+                )
+            raise
 
 
 @app.after_request

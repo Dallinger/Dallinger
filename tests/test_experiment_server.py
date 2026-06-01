@@ -1656,10 +1656,46 @@ class TestTransformationPost:
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
 class TestLaunchRoute:
+    def assert_launch_error(self, resp, message):
+        assert resp.status_code == 500
+        data = json.loads(resp.get_data())
+        assert data["status"] == "error"
+        assert message in data["message"]
+
     def test_launch(self, webapp):
         resp = webapp.post("/launch", data={})
         data = json.loads(resp.get_data())
         assert "recruitment_msg" in data
+
+    def test_launch_reports_config_load_error(self, webapp):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server._config",
+            side_effect=RuntimeError("config exploded"),
+        ):
+            resp = webapp.post("/launch", data={})
+
+        self.assert_launch_error(resp, "config exploded")
+
+    def test_launch_reports_protected_route_load_error(self, webapp):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment",
+            side_effect=TypeError("unexpected keyword argument 'no_configure'"),
+        ):
+            resp = webapp.post("/launch", data={})
+
+        self.assert_launch_error(resp, "unexpected keyword argument 'no_configure'")
+
+    def test_launch_reports_before_request_error(self, webapp):
+        from dallinger.experiment_server import experiment_server
+
+        with mock.patch.object(
+            experiment_server.exp_klass,
+            "before_request",
+            side_effect=RuntimeError("hook exploded"),
+        ):
+            resp = webapp.post("/launch", data={})
+
+        self.assert_launch_error(resp, "hook exploded")
 
     def test_launch_with_recruitment(self, webapp, active_config):
         with mock.patch(
