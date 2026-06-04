@@ -49,6 +49,30 @@ Ubuntu packages needed beyond a stock Python image:
 
 - `python3.12-venv`, `libpq-dev`, `python3-dev`, `build-essential` (editable install / `psycopg2`)
 - `postgresql`, `redis-server` (required for most tests and local experiment runs)
+- **Google Chrome** (preinstalled on many cloud images at `/usr/local/bin/google-chrome`)
+- **Chromedriver** (must match the installed Chrome major version)
+- **Heroku CLI** (for `dallinger debug` / `heroku local`)
+
+Install Chromedriver to match `google-chrome --version` (example for Chrome `148.0.7778.96`):
+
+```bash
+CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+')
+curl -fsSL "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" -o /tmp/chromedriver.zip
+unzip -qo /tmp/chromedriver.zip -d /tmp
+sudo mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver
+sudo chmod +x /usr/local/bin/chromedriver
+chromedriver --version
+```
+
+Install Heroku CLI (same as CI):
+
+```bash
+curl -fsSL https://cli-assets.heroku.com/install.sh | sh
+heroku --version
+```
+
+Quick sanity check for Chromedriver: run a headless Selenium session (requires the editable
+`dallinger` install, which pulls in `selenium`).
 
 After install, start services before tests or `dallinger develop`:
 
