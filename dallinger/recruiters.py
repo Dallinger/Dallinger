@@ -532,10 +532,28 @@ class ProlificRecruiter(Recruiter):
         return pay_per_submission / (median_session_duration / 60)
 
     def get_status(self) -> ProlificRecruitmentStatus:
-        submissions = self.prolificservice.get_submissions(self.current_study_id)
+        study_id = self.current_study_id
+        if not study_id:
+            logger.info(
+                "Skipping Prolific status check because no current study ID is recorded."
+            )
+            return ProlificRecruitmentStatus(
+                recruiter_name=self.nickname,
+                participant_status_counts={},
+                study_id="",
+                study_status="",
+                study_cost=0,
+                currency="£",
+                internal_name=self.config.get("id"),
+                base_payment_cents=self.base_payment_cents,
+                median_session_duration_minutes=None,
+                real_wage_per_hour_excluding_bonuses=None,
+            )
+
+        submissions = self.prolificservice.get_submissions(study_id)
         submission_status_counts = dict(Counter([s["status"] for s in submissions]))
-        study = self.prolificservice.get_study(self.current_study_id)
-        total_cost = self.prolificservice.get_total_cost(self.current_study_id) / 100
+        study = self.prolificservice.get_study(study_id)
+        total_cost = self.prolificservice.get_total_cost(study_id) / 100
 
         durations_minutes, total_reward = self.get_durations_and_total_reward(
             submissions
