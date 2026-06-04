@@ -499,6 +499,18 @@ def test_screen_out_single_id(subject):
     )
 
 
+def test_get_submissions_requires_study_id(subject):
+    subject._req = mock.MagicMock()
+
+    with pytest.raises(ProlificServiceException) as exc_info:
+        subject.get_submissions(None)
+
+    assert (
+        str(exc_info.value) == "Cannot fetch Prolific submissions without a study_id."
+    )
+    subject._req.assert_not_called()
+
+
 class TestDevProlificServiceScreenOut:
     @pytest.fixture
     def participants(self, a):
