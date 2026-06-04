@@ -445,6 +445,30 @@ def test_translate_draft_study(
     assert subject.draft_study(**study_request) == expected_project_id
 
 
+def test_get_submissions_filters_by_study(subject):
+    """get_submissions fetches submissions for the supplied study only."""
+    study_id = "study_123"
+    expected_results = [{"id": "submission_456"}]
+    subject._req = mock.MagicMock(return_value={"results": expected_results})
+
+    assert subject.get_submissions(study_id) == expected_results
+
+    subject._req.assert_called_once_with(
+        method="GET", endpoint="/submissions/", params={"study": study_id}
+    )
+
+
+@pytest.mark.parametrize("study_id", [None, ""])
+def test_get_submissions_requires_study_id(subject, study_id):
+    """get_submissions does not allow unfiltered Prolific submission requests."""
+    subject._req = mock.MagicMock()
+
+    with pytest.raises(ProlificServiceException, match="without a study ID"):
+        subject.get_submissions(study_id)
+
+    subject._req.assert_not_called()
+
+
 def test_screen_out_multiple_ids(subject):
     """Test that screen_out sends the correct payload to Prolific's API when given multiple submission IDs."""
     study_id = "study_123"

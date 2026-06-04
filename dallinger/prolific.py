@@ -171,6 +171,11 @@ class ProlificService:
             }
         ]
         """
+        if not study_id:
+            raise ProlificServiceException(
+                "Cannot fetch Prolific submissions without a study ID."
+            )
+
         query_params = {"study": study_id}
         return self._req(method="GET", endpoint="/submissions/", params=query_params)[
             "results"
