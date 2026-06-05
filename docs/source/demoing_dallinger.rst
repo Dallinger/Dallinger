@@ -10,6 +10,11 @@ To test out Dallinger, we'll run a demo experiment in "debug" mode.
 
 .. note::
 
+    If you do not have the Heroku CLI installed, you can use ``dallinger develop``
+    instead of ``dallinger debug``. See :doc:`developing_dallinger_setup_guide`.
+
+.. note::
+
     Running the demo in "sandbox" mode as opposed to "debug" mode will require a Heroku account.
     More information for :doc:`running in "sandbox" mode <demos_on_heroku>`.
 

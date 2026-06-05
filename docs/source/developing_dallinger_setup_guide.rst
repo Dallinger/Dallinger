@@ -776,3 +776,80 @@ installation command:
 
 Next, you'll need :doc:`access keys for AWS, Heroku,
 etc. <aws_etc_keys>`.
+
+
+Chromedriver
+------------
+
+The full test suite and browser-based :doc:`bots <running_bots>` require
+`Chromedriver <https://developer.chrome.com/docs/chromedriver>`__ installed and
+on your ``PATH``. The driver version must match your installed Google Chrome
+(or Chromium) build.
+
+Check your Chrome version, then download the matching driver from the
+`Chrome for Testing <https://googlechromelabs.github.io/chrome-for-testing/>`__
+availability dashboard. On Linux, a typical install looks like:
+
+::
+
+    CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+')
+    curl -fsSL "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" -o /tmp/chromedriver.zip
+    unzip -qo /tmp/chromedriver.zip -d /tmp
+    sudo mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver
+    sudo chmod +x /usr/local/bin/chromedriver
+    chromedriver --version
+
+On macOS, install Chrome if needed, then download the ``mac-x64`` or
+``mac-arm64`` Chromedriver archive for the same version and place the
+``chromedriver`` binary on your ``PATH``.
+
+Verify the setup with a headless browser session (``selenium`` is installed
+with Dallinger):
+
+::
+
+    python -c "from selenium import webdriver; from selenium.webdriver.chrome.options import Options; from selenium.webdriver.chrome.service import Service; o=Options(); o.add_argument('--headless=new'); d=webdriver.Chrome(service=Service(), options=o); d.get('https://example.com'); print(d.title); d.quit()"
+
+
+Running experiments without ``heroku local``
+--------------------------------------------
+
+``dallinger develop`` provides an alternative to ``dallinger debug`` that does
+not require ``heroku local``. It still needs
+PostgreSQL and Redis running locally.
+
+From an experiment directory (for example, a demo under ``demos/dlgr/demos/``):
+
+::
+
+    dallinger develop bootstrap
+    dallinger develop debug --port 5000
+
+The recruitment URL for the built-in "hotair" recruiter is:
+
+::
+
+    http://127.0.0.1:5000/ad?generate_tokens=true&recruiter=hotair
+
+Some demos pin a Python version in ``.python-version``. If your environment
+uses a different version, either install the pinned release or set
+``SKIP_PYTHON_VERSION_CHECK=1`` when running ``dallinger verify`` or
+``dallinger develop``.
+
+See also :doc:`demoing_dallinger` for the classic ``dallinger debug`` workflow,
+which uses the Heroku CLI.
+
+
+Contributor install shortcut
+----------------------------
+
+Repository contributors (including automated agents) often install everything
+needed for linting and testing in one step from the repository root:
+
+::
+
+    python -m pip install -e ".[dev]"
+    python -m pip install -e demos
+
+This editable install includes ``pre-commit``, ``ruff``, ``pytest``, and ``tox``.
+See :doc:`running_the_tests` for how to run checks locally.

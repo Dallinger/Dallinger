@@ -10,6 +10,29 @@ Current build status: |status|
 .. |status| image:: https://github.com/dallinger/Dallinger/actions/workflows/deploy.yml/badge.svg
    :target: https://github.com/Dallinger/Dallinger/actions?query=workflow%3Arelease
 
+Prerequisites
+-------------
+
+Most Python tests expect **PostgreSQL** and **Redis** to be running locally.
+See the :doc:`developer installation guide <developing_dallinger_setup_guide>`
+for setup instructions.
+
+Set environment variables to match CI before running ``pytest`` or ``tox``:
+
+::
+
+    export DATABASE_URL=postgresql://dallinger:dallinger@localhost/dallinger
+    export PORT=5000
+
+The full ``tox`` suite (``tox`` or ``tox -e tests``) also requires
+**Chromedriver** (version-matched to Chrome) and the **Heroku CLI** for tests
+that launch ``dallinger debug``. Browser-based bot tests need Chromedriver as
+well. For a lighter pass without those dependencies, use ``tox -e fast`` or
+plain ``pytest`` (which still needs PostgreSQL and Redis).
+
+Optional credentials (AWS, Prolific, MTurk worker ID) are required only for
+specific integration tests; see below.
+
 The tests include:
 
 * Making sure that a source distribution of the Python package can be created.
