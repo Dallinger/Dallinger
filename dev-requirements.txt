@@ -571,7 +571,7 @@ tinycss2==1.4.0
     # via bleach
 tomli-w==1.2.0
     # via tox
-tornado==6.5.5
+tornado==6.5.7
     # via
     #   ipykernel
     #   jupyter-client
