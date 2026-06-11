@@ -540,6 +540,17 @@ class TestProlificRecruiter:
 
         assert ex_info.match("Can't run a Prolific Study from localhost")
 
+    def test_get_status_without_current_study_does_not_call_prolific(self, recruiter):
+        status = recruiter.get_status()
+
+        recruiter.prolificservice.get_submissions.assert_not_called()
+        recruiter.prolificservice.get_study.assert_not_called()
+        recruiter.prolificservice.get_total_cost.assert_not_called()
+        assert status.study_id == ""
+        assert status.study_status == ""
+        assert status.study_cost == 0
+        assert status.participant_status_counts == {}
+
     def test_normalize_entry_information_standardizes_participant_data(self, recruiter):
         prolific_format = {
             "STUDY_ID": "some study ID",
