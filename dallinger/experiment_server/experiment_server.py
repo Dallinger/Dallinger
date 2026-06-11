@@ -4,6 +4,7 @@ import logging
 import os
 import re
 from datetime import datetime
+from functools import wraps
 from json import dumps, loads
 
 import gevent
@@ -61,12 +62,39 @@ WAITING_ROOM_CHANNEL = "quorum"
 app = Flask("Experiment_Server")
 
 
+def launch_error_response(error_text):
+    """Return a JSON error for failures that happen before `/launch` runs."""
+    return error_response(error_text=error_text, status=500, simple=True)
+
+
+def launch_error_guard(error_prefix):
+    """Return simple JSON for exceptions raised while preparing `/launch`."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as ex:
+                if request.path == "/launch":
+                    return launch_error_response("{}: {}".format(error_prefix, str(ex)))
+                raise
+
+        return wrapper
+
+    return decorator
+
+
 @app.before_request
+@launch_error_guard("Failed to load configuration before /launch")
 def _load_config():
     _config()
 
 
 @app.before_request
+@launch_error_guard(
+    "Failed to load experiment before /launch while checking protected routes"
+)
 def check_for_protected_routes():
     if current_user.is_authenticated:
         return
@@ -136,6 +164,7 @@ except ImportError:
 
 
 @app.before_request
+@launch_error_guard("Experiment before_request failed before /launch")
 def before_request():
     if exp_klass is not None:
         return exp_klass.before_request()
