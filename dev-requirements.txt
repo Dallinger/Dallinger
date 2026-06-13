@@ -127,7 +127,7 @@ faker==40.15.0
     # via dallinger
 fastjsonschema==2.21.2
     # via nbformat
-filelock==3.29.0
+filelock==3.29.4
     # via
     #   python-discovery
     #   tox
