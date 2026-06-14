@@ -781,6 +781,49 @@ class TestProlificRecruiter:
             ]
         )
 
+    def test_returned_assignment_correction_is_not_repeated(self, a, recruiter, queue):
+        from dallinger.experiment_server.worker_events import AssignmentReturned
+
+        p1 = a.participant(assignment_id="aaa111", recruiter_id="prolific")
+        p1.failed = True
+        recruiter._record_current_study_id("some-study-id")
+        recruiter.prolificservice.get_assignments_for_study.return_value = {
+            p1.assignment_id: {
+                "participant_id": p1.assignment_id,
+                "hit_id": "some-study-id",
+                "worker_id": "some-prolific-worker-id-1",
+                "started_at": "2021-05-20T11:23:00.457Z",
+                "status": "RETURNED",
+            },
+        }
+
+        recruiter.verify_status_of([p1])
+
+        queue.enqueue.assert_called_once_with(
+            mock.ANY, "AssignmentReturned", "aaa111", p1.id
+        )
+
+        experiment = mock.Mock()
+        experiment.assignment_returned.side_effect = lambda participant: setattr(
+            participant, "status", "working"
+        )
+        AssignmentReturned(
+            participant=p1,
+            assignment_id=p1.assignment_id,
+            experiment=experiment,
+            session=mock.Mock(),
+            config={},
+            now=datetime.now(),
+            receive_time=datetime.now(),
+        )()
+
+        assert p1.status == "returned"
+
+        queue.reset_mock()
+        recruiter.verify_status_of([p1])
+
+        queue.enqueue.assert_not_called()
+
     def test_verify_status_copes_with_assignments_not_in_prolific(
         self, a, recruiter, queue
     ):

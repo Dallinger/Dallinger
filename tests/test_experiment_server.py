@@ -2061,6 +2061,18 @@ class TestAssignmentReturned:
         runner()
         assert runner.participant.status == "returned"
 
+    def test_returned_status_wins_over_experiment_hook(self, runner):
+        runner.participant.failed = True
+
+        def reset_status(participant):
+            participant.status = "working"
+
+        runner.experiment.assignment_returned.side_effect = reset_status
+
+        runner()
+
+        assert runner.participant.status == "returned"
+
     def test_sets_participant_end_time(self, runner):
         runner()
         assert runner.participant.end_time == end_time

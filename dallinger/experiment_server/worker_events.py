@@ -259,6 +259,8 @@ class AssignmentReturned(WorkerEvent):
             self.update_participant_end_time()
             self.participant.status = "returned"
             self.experiment.assignment_returned(participant=self.participant)
+            # The external return event is authoritative even if hooks mutate status.
+            self.participant.status = "returned"
 
 
 class RecruiterSubmissionComplete(WorkerEvent):
