@@ -532,7 +532,7 @@ class ProlificRecruiter(Recruiter):
         return pay_per_submission / (median_session_duration / 60)
 
     def get_status(self) -> ProlificRecruitmentStatus:
-        study_id = self.current_study_id
+        study_id = self._prolific_study_id_for_status_report()
         if not study_id:
             logger.info(
                 "Skipping Prolific status check because no current study ID is recorded."
@@ -876,7 +876,18 @@ class ProlificRecruiter(Recruiter):
             or participant.hit_id
         )
 
+    def _prolific_study_id_for_status_report(self) -> Optional[str]:
+        participants = (
+            session.query(Participant).filter_by(recruiter_id=self.nickname).all()
+        )
+        return self._prolific_study_id_from_participants(participants)
+
     def prolific_study_id_for_status_verification(
+        self, participants: list[Participant]
+    ) -> Optional[str]:
+        return self._prolific_study_id_from_participants(participants)
+
+    def _prolific_study_id_from_participants(
         self, participants: list[Participant]
     ) -> Optional[str]:
         study_id = self.current_study_id

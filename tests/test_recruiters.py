@@ -551,6 +551,62 @@ class TestProlificRecruiter:
         assert status.study_cost == 0
         assert status.participant_status_counts == {}
 
+    def test_get_status_recovers_missing_current_study_from_participants(
+        self, a, recruiter
+    ):
+        participant = a.participant(
+            assignment_id="aaa111",
+            hit_id="study-from-participant",
+            recruiter_id="prolific",
+        )
+        recruiter.prolificservice.get_submissions.return_value = [
+            {
+                "participant_id": participant.assignment_id,
+                "hit_id": participant.hit_id,
+                "worker_id": "some-prolific-worker-id",
+                "started_at": "2021-05-20T11:23:00.457Z",
+                "status": "RETURNED",
+            },
+        ]
+        recruiter.prolificservice.get_study.return_value = {
+            "id": participant.hit_id,
+            "status": "ACTIVE",
+            "internal_name": "test-experiment",
+        }
+        recruiter.prolificservice.get_total_cost.return_value = 1234
+
+        status = recruiter.get_status()
+
+        recruiter.prolificservice.get_submissions.assert_called_once_with(
+            "study-from-participant"
+        )
+        recruiter.prolificservice.get_study.assert_called_once_with(
+            "study-from-participant"
+        )
+        recruiter.prolificservice.get_total_cost.assert_called_once_with(
+            "study-from-participant"
+        )
+        assert recruiter.current_study_id == "study-from-participant"
+        assert status.study_id == "study-from-participant"
+        assert status.study_status == "ACTIVE"
+        assert status.study_cost == 12.34
+        assert status.participant_status_counts == {"RETURNED": 1}
+
+    def test_get_status_does_not_recover_ambiguous_current_study(self, a, recruiter):
+        a.participant(assignment_id="aaa111", hit_id="study-1", recruiter_id="prolific")
+        a.participant(assignment_id="bbb222", hit_id="study-2", recruiter_id="prolific")
+
+        status = recruiter.get_status()
+
+        recruiter.prolificservice.get_submissions.assert_not_called()
+        recruiter.prolificservice.get_study.assert_not_called()
+        recruiter.prolificservice.get_total_cost.assert_not_called()
+        assert recruiter.current_study_id is None
+        assert status.study_id == ""
+        assert status.study_status == ""
+        assert status.study_cost == 0
+        assert status.participant_status_counts == {}
+
     def test_verify_status_without_current_study_does_not_call_prolific(
         self, a, recruiter
     ):
