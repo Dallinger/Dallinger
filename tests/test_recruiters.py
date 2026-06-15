@@ -551,6 +551,58 @@ class TestProlificRecruiter:
         assert status.study_cost == 0
         assert status.participant_status_counts == {}
 
+    def test_verify_status_without_current_study_does_not_call_prolific(
+        self, a, recruiter
+    ):
+        participant = a.participant(assignment_id="some assignment")
+        participant.hit_id = None
+
+        recruiter.verify_status_of([participant])
+
+        recruiter.prolificservice.get_assignments_for_study.assert_not_called()
+
+    def test_verify_status_recovers_missing_current_study_from_participants(
+        self, a, recruiter, queue
+    ):
+        participant = a.participant(
+            assignment_id="aaa111",
+            hit_id="study-from-participant",
+            recruiter_id="prolific",
+        )
+        recruiter.prolificservice.get_assignments_for_study.return_value = {
+            participant.assignment_id: {
+                "participant_id": participant.assignment_id,
+                "hit_id": participant.hit_id,
+                "worker_id": "some-prolific-worker-id",
+                "started_at": "2021-05-20T11:23:00.457Z",
+                "status": "RETURNED",
+            },
+        }
+
+        recruiter.verify_status_of([participant])
+
+        recruiter.prolificservice.get_assignments_for_study.assert_called_once_with(
+            "study-from-participant"
+        )
+        queue.enqueue.assert_called_once_with(
+            mock.ANY, "AssignmentReturned", participant.assignment_id, participant.id
+        )
+        assert recruiter.current_study_id == "study-from-participant"
+
+    def test_verify_status_does_not_recover_ambiguous_current_study(
+        self, a, recruiter, queue
+    ):
+        participants = [
+            a.participant(assignment_id="aaa111", hit_id="study-1"),
+            a.participant(assignment_id="bbb222", hit_id="study-2"),
+        ]
+
+        recruiter.verify_status_of(participants)
+
+        recruiter.prolificservice.get_assignments_for_study.assert_not_called()
+        queue.enqueue.assert_not_called()
+        assert recruiter.current_study_id is None
+
     def test_normalize_entry_information_standardizes_participant_data(self, recruiter):
         prolific_format = {
             "STUDY_ID": "some study ID",
@@ -583,6 +635,7 @@ class TestProlificRecruiter:
 
     def test_reward_bonus_passes_only_whats_needed(self, a, recruiter):
         participant = a.participant(assignment_id="some assignement")
+        recruiter._record_current_study_id("test_study_id")
         recruiter.reward_bonus(
             participant=participant,
             amount=2.99,
@@ -590,10 +643,75 @@ class TestProlificRecruiter:
         )
 
         recruiter.prolificservice.pay_session_bonus.assert_called_once_with(
-            study_id=recruiter.current_study_id,
+            study_id="test_study_id",
             worker_id=participant.worker_id,
             amount=2.99,
         )
+
+    def test_reward_bonus_recovers_missing_study_id_from_submission(self, a, recruiter):
+        participant = a.participant(assignment_id="some assignment")
+        recruiter.prolificservice.get_participant_submission.return_value = {
+            "hit_id": "study-from-submission"
+        }
+
+        recruiter.reward_bonus(
+            participant=participant,
+            amount=2.99,
+            reason="well done!",
+        )
+
+        recruiter.prolificservice.get_participant_submission.assert_called_once_with(
+            participant.assignment_id
+        )
+        recruiter.prolificservice.pay_session_bonus.assert_called_once_with(
+            study_id="study-from-submission",
+            worker_id=participant.worker_id,
+            amount=2.99,
+        )
+        assert recruiter.current_study_id == "study-from-submission"
+
+    def test_reward_bonus_recovers_missing_study_id_from_participant(
+        self, a, recruiter
+    ):
+        participant = a.participant(
+            assignment_id="some assignment", hit_id="study-from-participant"
+        )
+        recruiter.prolificservice.get_participant_submission.return_value = {
+            "status": "RETURNED"
+        }
+
+        recruiter.reward_bonus(
+            participant=participant,
+            amount=2.99,
+            reason="well done!",
+        )
+
+        recruiter.prolificservice.pay_session_bonus.assert_called_once_with(
+            study_id="study-from-participant",
+            worker_id=participant.worker_id,
+            amount=2.99,
+        )
+        assert recruiter.current_study_id == "study-from-participant"
+
+    def test_reward_bonus_logs_exception_when_study_id_cannot_be_resolved(
+        self, a, recruiter
+    ):
+        participant = mock.Mock(
+            assignment_id="some assignment", worker_id="some worker", hit_id=None
+        )
+        recruiter.prolificservice.get_participant_submission.return_value = {
+            "status": "RETURNED"
+        }
+
+        with mock.patch("dallinger.recruiters.logger") as mock_logger:
+            recruiter.reward_bonus(
+                participant=participant,
+                amount=2.99,
+                reason="well done!",
+            )
+
+        recruiter.prolificservice.pay_session_bonus.assert_not_called()
+        mock_logger.exception.assert_called_once()
 
     def test_reward_bonus_logs_exception(self, a, recruiter):
         from dallinger.prolific import ProlificServiceException
@@ -753,6 +871,7 @@ class TestProlificRecruiter:
     def test_verify_status_triggers_corrections(self, a, recruiter, queue):
         p1 = a.participant(assignment_id="aaa111", recruiter_id="prolific")
         p2 = a.participant(assignment_id="bbb222", recruiter_id="prolific")
+        recruiter._record_current_study_id("some-study-id")
 
         # Set up mock response from Prolific regarding these participants:
         recruiter.prolificservice.get_assignments_for_study.return_value = {
@@ -786,6 +905,7 @@ class TestProlificRecruiter:
     ):
         p1 = a.participant(assignment_id="aaa111", recruiter_id="prolific")
         p2 = a.participant(assignment_id="bbb222", recruiter_id="prolific")
+        recruiter._record_current_study_id("some-study-id")
 
         # Set up mock response from Prolific where only the first participant is included:
         recruiter.prolificservice.get_assignments_for_study.return_value = {

@@ -833,12 +833,78 @@ class ProlificRecruiter(Recruiter):
         """Reward the Prolific worker for a specified assignment with a bonus."""
         try:
             return self.prolificservice.pay_session_bonus(
-                study_id=self.current_study_id,
+                study_id=self.prolific_study_id_for_bonus(participant),
                 worker_id=participant.worker_id,
                 amount=amount,
             )
         except ProlificServiceException as ex:
             handle_recruitment_error(ex)
+
+    def prolific_study_id_for_bonus(self, participant: Participant) -> str:
+        study_id = self.current_study_id
+        if study_id:
+            return study_id
+
+        submission = self.prolificservice.get_participant_submission(
+            participant.assignment_id
+        )
+        study_id = self._prolific_study_id_from_submission_or_participant(
+            submission, participant
+        )
+        if study_id:
+            logger.warning(
+                "Recovered missing Prolific study ID %s from submission %s.",
+                study_id,
+                participant.assignment_id,
+            )
+            self._record_current_study_id(study_id)
+            return study_id
+
+        raise ProlificServiceException(
+            "Cannot pay Prolific bonus because no current study ID is recorded "
+            f"and submission {participant.assignment_id} did not include a study ID."
+        )
+
+    @staticmethod
+    def _prolific_study_id_from_submission_or_participant(
+        submission, participant: Participant
+    ) -> Optional[str]:
+        return (
+            submission.get("hit_id")
+            or submission.get("study_id")
+            or submission.get("study")
+            or participant.hit_id
+        )
+
+    def prolific_study_id_for_status_verification(
+        self, participants: list[Participant]
+    ) -> Optional[str]:
+        study_id = self.current_study_id
+        if study_id:
+            return study_id
+
+        study_ids = {
+            participant.hit_id
+            for participant in participants
+            if getattr(participant, "hit_id", None)
+        }
+        if len(study_ids) == 1:
+            study_id = next(iter(study_ids))
+            logger.warning(
+                "Recovered missing Prolific study ID %s from participant records.",
+                study_id,
+            )
+            self._record_current_study_id(study_id)
+            return study_id
+
+        if len(study_ids) > 1:
+            logger.warning(
+                "Cannot recover missing Prolific study ID from participant records "
+                "because multiple study IDs were found: %s.",
+                sorted(study_ids),
+            )
+
+        return None
 
     def on_task_completion(self):
         """We cannot perform post-submission actions (approval, bonus payment)
@@ -896,10 +962,15 @@ class ProlificRecruiter(Recruiter):
         discrepancies found, correct the local status by enqueuing an
         asynchronous worker event.
         """
+        study_id = self.prolific_study_id_for_status_verification(participants)
+        if not study_id:
+            logger.info(
+                "Skipping Prolific status verification because no current study ID is recorded."
+            )
+            return
+
         q = get_queue()
-        assignments_by_id = self.prolificservice.get_assignments_for_study(
-            self.current_study_id
-        )
+        assignments_by_id = self.prolificservice.get_assignments_for_study(study_id)
 
         for participant in participants:
             latest_data = assignments_by_id.get(participant.assignment_id)
