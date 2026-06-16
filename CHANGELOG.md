@@ -11,6 +11,8 @@
   by sharing dashboard-compatible durable recruiter state and stable
   deployment-keyed lookup.
 - Fixed Prolific status polling so it does not make unscoped submissions API requests when no current study ID is recorded.
+- Fixed Prolific submissions lookups so status checks retrieve all paginated
+  submissions instead of only the first page.
 - Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock`: `follow-redirects` 1.15.9 → 1.16.0, `lodash` 4.17.23 → 4.18.1, and `picomatch` 2.3.1 → 2.3.2 / 4.0.3 → 4.0.4.
 
 ### Updated

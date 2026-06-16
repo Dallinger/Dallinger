@@ -511,6 +511,66 @@ def test_get_submissions_requires_study_id(subject):
     subject._req.assert_not_called()
 
 
+def test_get_submissions_returns_all_pages(subject):
+    first_page = [{"id": f"submission-{i}"} for i in range(100)]
+    second_page = [{"id": "submission-100"}]
+    subject._req = mock.MagicMock(
+        side_effect=[{"results": first_page}, {"results": second_page}]
+    )
+
+    assert subject.get_submissions("study_123") == first_page + second_page
+    assert subject._req.call_args_list == [
+        mock.call(
+            method="GET",
+            endpoint="/submissions/",
+            params={
+                "study": "study_123",
+                "ordering": "started_at",
+                "page": 1,
+                "page_size": 100,
+            },
+        ),
+        mock.call(
+            method="GET",
+            endpoint="/submissions/",
+            params={
+                "study": "study_123",
+                "ordering": "started_at",
+                "page": 2,
+                "page_size": 100,
+            },
+        ),
+    ]
+
+
+def test_get_submissions_checks_next_page_after_full_page(subject):
+    first_page = [{"id": f"submission-{i}"} for i in range(100)]
+    subject._req = mock.MagicMock(
+        side_effect=[{"results": first_page}, {"results": []}]
+    )
+
+    assert subject.get_submissions("study_123") == first_page
+    assert subject._req.call_count == 2
+
+
+def test_get_submissions_returns_more_than_two_pages(subject):
+    pages = [
+        [{"id": f"submission-{i}"} for i in range(100)],
+        [{"id": f"submission-{i}"} for i in range(100, 200)],
+        [{"id": f"submission-{i}"} for i in range(200, 250)],
+    ]
+    subject._req = mock.MagicMock(side_effect=[{"results": page} for page in pages])
+
+    assert subject.get_submissions("study_123") == [
+        item for page in pages for item in page
+    ]
+    assert [call.kwargs["params"]["page"] for call in subject._req.call_args_list] == [
+        1,
+        2,
+        3,
+    ]
+
+
 class TestDevProlificServiceScreenOut:
     @pytest.fixture
     def participants(self, a):

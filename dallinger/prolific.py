@@ -153,7 +153,7 @@ class ProlificService:
 
         return get_amount(rewards) + get_amount(bonuses)
 
-    def get_submissions(self, study_id: str) -> dict:
+    def get_submissions(self, study_id: str) -> List[dict]:
         """
         Fetch /submissions endpoint for a given study_id and return the result
 
@@ -176,10 +176,26 @@ class ProlificService:
                 "Cannot fetch Prolific submissions without a study_id."
             )
 
-        query_params = {"study": study_id}
-        return self._req(method="GET", endpoint="/submissions/", params=query_params)[
-            "results"
-        ]
+        page_size = 100
+        page = 1
+        submissions = []
+
+        while True:
+            query_params = {
+                "study": study_id,
+                "ordering": "started_at",
+                "page": page,
+                "page_size": page_size,
+            }
+            results = self._req(
+                method="GET", endpoint="/submissions/", params=query_params
+            )["results"]
+            submissions.extend(results)
+
+            if len(results) < page_size:
+                return submissions
+
+            page += 1
 
     def get_studies(self, states: List[str] = None) -> List[dict]:
         if not states:
