@@ -193,7 +193,7 @@ typing-extensions==4.15.0
     # via
     #   beautifulsoup4
     #   selenium
-tzlocal==5.3.1
+tzlocal==5.4.2
     # via
     #   apscheduler
     #   dallinger
