@@ -189,6 +189,18 @@ class SharedMixin:
                     obj.fail()
 
 
+class RecruiterState(Base):
+    """Durable recruiter state shared by web, worker, and clock processes."""
+
+    __tablename__ = "recruiter_state"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recruiter_id = Column(String(50), nullable=False, unique=True, index=True)
+    current_study_id = Column(String(100), nullable=True)
+    experiment_id = Column(String(100), nullable=True)
+    deployment_id = Column(String(100), nullable=True)
+
+
 class Participant(Base, SharedMixin):
     """An ex silico participant."""
 
