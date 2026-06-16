@@ -225,6 +225,7 @@ def deploy_image(image_name, mode, config_options):
     heroku_conn = Heroku3Client(session=requests.session())
     print(f"Creating Heroku app in {mode} mode")
     app_name = "dlgr-" + dallinger_uid.split("-")[0]
+    config_dict["DALLINGER_DEPLOYMENT_ID"] = app_name
     app = heroku_conn.create_app(stack_id_or_name="container", name=app_name)
     app_hostname = app.domains()[0].hostname
     config_dict["HOST"] = app_hostname

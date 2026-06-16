@@ -189,6 +189,28 @@ class SharedMixin:
                     obj.fail()
 
 
+class RecruiterState(Base):
+    """Durable recruiter state shared by web, worker, and clock processes."""
+
+    __tablename__ = "recruiter_state"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recruiter_id = Column(String(50), nullable=False, unique=True, index=True)
+    current_study_id = Column(String(100), nullable=True)
+    experiment_id = Column(String(100), nullable=True)
+    deployment_id = Column(String(100), nullable=True)
+
+    def __json__(self):
+        """Return a JSON representation for dashboard database views."""
+        return {
+            "id": self.id,
+            "recruiter_id": self.recruiter_id,
+            "current_study_id": self.current_study_id,
+            "experiment_id": self.experiment_id,
+            "deployment_id": self.deployment_id,
+        }
+
+
 class Participant(Base, SharedMixin):
     """An ex silico participant."""
 

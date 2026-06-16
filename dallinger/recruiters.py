@@ -14,7 +14,8 @@ from typing import Optional
 
 import flask
 import requests
-from sqlalchemy import func
+from sqlalchemy import func, inspect
+from sqlalchemy.exc import SQLAlchemyError
 
 from dallinger.command_line.utils import Output, render_rich_table
 from dallinger.config import get_config
@@ -22,7 +23,7 @@ from dallinger.db import get_queue, redis_conn, scoped_session_decorator, sessio
 from dallinger.experiment_server.utils import crossdomain, success_response
 from dallinger.experiment_server.worker_events import worker_function
 from dallinger.heroku import tools as heroku_tools
-from dallinger.models import Participant, Recruitment
+from dallinger.models import Participant, RecruiterState, Recruitment
 from dallinger.mturk import (
     DuplicateQualificationNameError,
     MTurkQualificationRequirements,
@@ -884,7 +885,16 @@ class ProlificRecruiter(Recruiter):
         """Return the ID of the Study associated with the active experiment ID
         if any such Study exists.
         """
-        return self.store.get(self.study_id_storage_key)
+        for key in self.study_id_storage_keys:
+            study_id = self.store.get(key)
+            if study_id:
+                self._cache_current_study_id(study_id)
+                return study_id
+
+        study_id = self._current_study_id_from_db()
+        if study_id:
+            self._cache_current_study_id(study_id)
+        return study_id
 
     @property
     def is_in_progress(self) -> bool:
@@ -931,8 +941,108 @@ class ProlificRecruiter(Recruiter):
         experiment_id = self.config.get("id")
         return "{}:{}".format(self.__class__.__name__, experiment_id)
 
+    @property
+    def study_id_storage_keys(self):
+        """Return Redis keys that may hold the current Prolific study ID."""
+        keys = []
+        deployment_id = self.deployment_storage_id
+        if deployment_id:
+            keys.append(f"{self.__class__.__name__}:deployment:{deployment_id}")
+        keys.append(self.study_id_storage_key)
+        return list(dict.fromkeys(keys))
+
+    @property
+    def deployment_storage_id(self):
+        """Return a process-stable deployment ID when one is configured."""
+        return os.getenv("DALLINGER_DEPLOYMENT_ID") or os.getenv("DALLINGER_UID")
+
     def _record_current_study_id(self, study_id):
-        self.store.set(self.study_id_storage_key, study_id)
+        self._cache_current_study_id(study_id)
+        self._record_current_study_id_in_db(study_id)
+
+    def _cache_current_study_id(self, study_id):
+        """Cache the current study ID under all known Redis lookup keys."""
+        for key in self.study_id_storage_keys:
+            self.store.set(key, study_id)
+
+    def _current_study_id_from_db(self):
+        if not self._recruiter_state_table_exists():
+            return None
+
+        try:
+            state = (
+                session.query(RecruiterState)
+                .filter_by(recruiter_id=self.nickname)
+                .one_or_none()
+            )
+        except SQLAlchemyError:
+            session.rollback()
+            logger.warning(
+                "Could not read persisted recruiter state for %s.",
+                self.nickname,
+                exc_info=True,
+            )
+            return None
+
+        if state is None or not state.current_study_id:
+            return None
+
+        self._warn_if_identity_changed(state)
+        return state.current_study_id
+
+    def _record_current_study_id_in_db(self, study_id):
+        if not self._recruiter_state_table_exists():
+            return
+
+        try:
+            state = (
+                session.query(RecruiterState)
+                .filter_by(recruiter_id=self.nickname)
+                .one_or_none()
+            )
+            if state is None:
+                state = RecruiterState(recruiter_id=self.nickname)
+                session.add(state)
+            state.current_study_id = study_id
+            state.experiment_id = self.config.get("id")
+            state.deployment_id = self.deployment_storage_id
+        except SQLAlchemyError:
+            session.rollback()
+            logger.warning(
+                "Could not persist current Prolific study ID for %s.",
+                self.nickname,
+                exc_info=True,
+            )
+
+    def _recruiter_state_table_exists(self):
+        try:
+            return inspect(session.get_bind()).has_table(RecruiterState.__tablename__)
+        except SQLAlchemyError:
+            logger.warning(
+                "Could not check for persisted recruiter state table.",
+                exc_info=True,
+            )
+            return False
+
+    def _warn_if_identity_changed(self, state):
+        current_experiment_id = self.config.get("id")
+        current_deployment_id = self.deployment_storage_id
+        if state.experiment_id and state.experiment_id != current_experiment_id:
+            logger.warning(
+                "Recovered Prolific study ID %s from database state recorded with "
+                "config id %s, but this process is using config id %s.",
+                state.current_study_id,
+                state.experiment_id,
+                current_experiment_id,
+            )
+        if state.deployment_id and state.deployment_id != current_deployment_id:
+            logger.warning(
+                "Recovered Prolific study ID %s from database state recorded with "
+                "deployment id %s, but this process is using deployment id %s.",
+                state.current_study_id,
+                state.deployment_id,
+                current_deployment_id,
+            )
 
     def load_service(self, sandbox):
         return prolific_service_from_config()

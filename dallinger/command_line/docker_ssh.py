@@ -896,6 +896,7 @@ It currently resolves to {ipaddr_experiment}."""
             "mode": mode,
             "CREATOR": f"{USER}@{HOSTNAME}",
             "DALLINGER_UID": experiment_uuid,
+            "DALLINGER_DEPLOYMENT_ID": experiment_id,
             "ADMIN_USER": "admin",
             "docker_image_name": image_name,
         }

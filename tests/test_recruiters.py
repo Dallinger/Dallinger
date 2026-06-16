@@ -445,7 +445,9 @@ class TestProlificRecruiter:
             "dallinger.recruiters", os=mock.DEFAULT, get_base_url=mock.DEFAULT
         ) as mocks:
             mocks["get_base_url"].return_value = "http://fake-domain"
-            mocks["os"].getenv.return_value = "fake-host-domain"
+            mocks["os"].getenv.side_effect = lambda key, default=None: (
+                "fake-host-domain" if key == "HOST" else default
+            )
             r = ProlificRecruiter(store=hit_id_store)
             r.notifies_admin = notifies_admin
             r.mailer = mailer
@@ -539,6 +541,60 @@ class TestProlificRecruiter:
             recruiter.open_recruitment(n=1)
 
         assert ex_info.match("Can't run a Prolific Study from localhost")
+
+    def test_current_study_id_recovers_from_database_when_config_id_changes(
+        self, recruiter, active_config, db_session
+    ):
+        from dallinger.db import get_all_mapped_classes
+        from dallinger.models import RecruiterState
+
+        active_config.extend({"id": "launch-config-id"})
+        recruiter._record_current_study_id("study-from-launch")
+        db_session.flush()
+
+        state = db_session.query(RecruiterState).one()
+        assert state.id is not None
+        assert state.recruiter_id == "prolific"
+        assert get_all_mapped_classes()["RecruiterState"] == {
+            "cls": RecruiterState,
+            "table": "recruiter_state",
+            "polymorphic_identity": None,
+        }
+        assert Experiment().table_columns(table="recruiter_state") == [
+            {"name": "id", "data": "id"},
+            {"name": "recruiter_id", "data": "recruiter_id"},
+            {"name": "current_study_id", "data": "current_study_id"},
+            {"name": "experiment_id", "data": "experiment_id"},
+        ]
+        table_data = Experiment().table_data(
+            start=0, length=10, table="recruiter_state"
+        )
+        assert table_data["total_count"] == 1
+        assert table_data["data"][0]["recruiter_id"] == "prolific"
+        assert table_data["data"][0]["current_study_id"] == "study-from-launch"
+
+        active_config.extend({"id": "worker-config-id"})
+        recruiter.store.clear()
+
+        assert recruiter.current_study_id == "study-from-launch"
+
+    def test_current_study_id_uses_deployment_storage_key_when_config_id_changes(
+        self, recruiter, active_config
+    ):
+        with mock.patch("dallinger.recruiters.os.getenv") as getenv:
+            getenv.side_effect = lambda key, default=None: (
+                "deployment-1" if key == "DALLINGER_DEPLOYMENT_ID" else default
+            )
+            active_config.extend({"id": "launch-config-id"})
+            recruiter._record_current_study_id("study-from-launch")
+
+            active_config.extend({"id": "worker-config-id"})
+
+            assert recruiter.current_study_id == "study-from-launch"
+            assert (
+                recruiter.store.get("ProlificRecruiter:deployment:deployment-1")
+                == "study-from-launch"
+            )
 
     def test_get_status_without_current_study_does_not_call_prolific(self, recruiter):
         status = recruiter.get_status()
