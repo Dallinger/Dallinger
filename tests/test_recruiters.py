@@ -560,6 +560,18 @@ class TestProlificRecruiter:
             "table": "recruiter_state",
             "polymorphic_identity": None,
         }
+        assert Experiment().table_columns(table="recruiter_state") == [
+            {"name": "id", "data": "id"},
+            {"name": "recruiter_id", "data": "recruiter_id"},
+            {"name": "current_study_id", "data": "current_study_id"},
+            {"name": "experiment_id", "data": "experiment_id"},
+        ]
+        table_data = Experiment().table_data(
+            start=0, length=10, table="recruiter_state"
+        )
+        assert table_data["total_count"] == 1
+        assert table_data["data"][0]["recruiter_id"] == "prolific"
+        assert table_data["data"][0]["current_study_id"] == "study-from-launch"
 
         active_config.extend({"id": "worker-config-id"})
         recruiter.store.clear()
