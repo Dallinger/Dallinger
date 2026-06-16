@@ -161,7 +161,7 @@ rich==15.0.0
     # via dallinger
 rq==2.8.0
     # via dallinger
-s3transfer==0.17.0
+s3transfer==0.19.0
     # via boto3
 selenium==4.44.0
     # via dallinger
