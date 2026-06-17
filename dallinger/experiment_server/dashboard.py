@@ -1064,7 +1064,7 @@ def parse_searchpanes_filters(args) -> dict[str, list[str]]:
 @dashboard.route("/database", methods=["GET", "POST"])
 @login_required
 def dashboard_database():
-    from dallinger.db import get_polymorphic_mapping
+    from dallinger.db import get_mapped_class, get_polymorphic_mapping
     from dallinger.experiment_server.experiment_server import Experiment
 
     exp = Experiment()
@@ -1083,7 +1083,7 @@ def dashboard_database():
         cls = get_polymorphic_mapping(table)[polymorphic_identity]
         label = cls.__name__
     else:
-        label = table.capitalize()
+        label = get_mapped_class(table).__name__
 
     title = "Database View: {}".format(label)
 

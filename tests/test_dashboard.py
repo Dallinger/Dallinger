@@ -733,6 +733,19 @@ class TestDashboardDatabase:
         assert resp.status_code == 200
         assert "<h1>Database View: Network</h1>" in resp.data.decode("utf8")
 
+    def test_render_non_polymorphic_table_uses_class_name(
+        self, db_session, webapp_admin
+    ):
+        from dallinger.models import RecruiterState
+
+        db_session.add(RecruiterState(recruiter_id="prolific"))
+        db_session.commit()
+
+        resp = webapp_admin.get("/dashboard/database?table=recruiter_state")
+
+        assert resp.status_code == 200
+        assert "<h1>Database View: RecruiterState</h1>" in resp.data.decode("utf8")
+
     def test_table_columns_and_data_participant(self, a, db_session):
         """Columns now come from table_columns(); data formatting changed."""
         from dallinger.experiment_server.experiment_server import Experiment
