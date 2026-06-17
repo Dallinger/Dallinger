@@ -511,6 +511,35 @@ def test_get_submissions_requires_study_id(subject):
     subject._req.assert_not_called()
 
 
+@pytest.mark.parametrize("page_lengths", ([100, 1], [100, 0], [100, 100, 50]))
+def test_get_submissions_returns_all_paginated_results(subject, page_lengths):
+    pages = []
+    next_id = 0
+    for length in page_lengths:
+        pages.append(
+            [{"id": f"submission-{i}"} for i in range(next_id, next_id + length)]
+        )
+        next_id += length
+    subject._req = mock.MagicMock(side_effect=[{"results": page} for page in pages])
+
+    assert subject.get_submissions("study_123") == [
+        item for page in pages for item in page
+    ]
+    assert subject._req.call_args_list == [
+        mock.call(
+            method="GET",
+            endpoint="/submissions/",
+            params={
+                "study": "study_123",
+                "ordering": "started_at",
+                "page": page,
+                "page_size": 100,
+            },
+        )
+        for page in range(1, len(page_lengths) + 1)
+    ]
+
+
 class TestDevProlificServiceScreenOut:
     @pytest.fixture
     def participants(self, a):
