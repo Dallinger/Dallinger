@@ -426,7 +426,7 @@ def prolificservice(prolific_config, fake_parsed_prolific_study):
     return service
 
 
-@pytest.mark.usefixtures("prolific_config")
+@pytest.mark.usefixtures("prolific_config", "db_session")
 class TestProlificRecruiter:
     @pytest.fixture
     def recruiter(
