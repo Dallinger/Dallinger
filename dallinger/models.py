@@ -190,7 +190,7 @@ class SharedMixin:
 
 
 class RecruiterState(Base):
-    """Durable recruiter state shared by web, worker, and clock processes."""
+    """Durable recruiter state; Prolific currently uses ``current_study_id``."""
 
     __tablename__ = "recruiter_state"
 

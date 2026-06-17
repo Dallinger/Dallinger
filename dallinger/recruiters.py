@@ -966,15 +966,8 @@ class ProlificRecruiter(Recruiter):
             self.store.set(key, study_id)
 
     def _current_study_id_from_db(self):
-        if not self._recruiter_state_table_exists():
-            return None
-
         try:
-            state = (
-                session.query(RecruiterState)
-                .filter_by(recruiter_id=self.nickname)
-                .one_or_none()
-            )
+            state = self._get_recruiter_state()
         except SQLAlchemyError:
             session.rollback()
             logger.warning(
@@ -991,18 +984,10 @@ class ProlificRecruiter(Recruiter):
         return state.current_study_id
 
     def _record_current_study_id_in_db(self, study_id):
-        if not self._recruiter_state_table_exists():
-            return
-
         try:
-            state = (
-                session.query(RecruiterState)
-                .filter_by(recruiter_id=self.nickname)
-                .one_or_none()
-            )
+            state = self._get_recruiter_state(create=True)
             if state is None:
-                state = RecruiterState(recruiter_id=self.nickname)
-                session.add(state)
+                return
             state.current_study_id = study_id
             state.experiment_id = self.config.get("id")
             state.deployment_id = self.deployment_storage_id
@@ -1014,6 +999,20 @@ class ProlificRecruiter(Recruiter):
                 self.nickname,
                 exc_info=True,
             )
+
+    def _get_recruiter_state(self, create=False):
+        if not self._recruiter_state_table_exists():
+            return None
+
+        state = (
+            session.query(RecruiterState)
+            .filter_by(recruiter_id=self.nickname)
+            .one_or_none()
+        )
+        if state is None and create:
+            state = RecruiterState(recruiter_id=self.nickname)
+            session.add(state)
+        return state
 
     def _recruiter_state_table_exists(self):
         try:

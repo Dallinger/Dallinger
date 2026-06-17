@@ -546,7 +546,6 @@ class TestProlificRecruiter:
     def test_current_study_id_recovers_from_database_when_config_id_changes(
         self, recruiter, active_config, db_session
     ):
-        from dallinger.db import get_all_mapped_classes
         from dallinger.models import RecruiterState
 
         active_config.extend({"id": "launch-config-id"})
@@ -556,23 +555,7 @@ class TestProlificRecruiter:
         state = db_session.query(RecruiterState).one()
         assert state.id is not None
         assert state.recruiter_id == "prolific"
-        assert get_all_mapped_classes()["RecruiterState"] == {
-            "cls": RecruiterState,
-            "table": "recruiter_state",
-            "polymorphic_identity": None,
-        }
-        assert Experiment().table_columns(table="recruiter_state") == [
-            {"name": "id", "data": "id"},
-            {"name": "recruiter_id", "data": "recruiter_id"},
-            {"name": "current_study_id", "data": "current_study_id"},
-            {"name": "experiment_id", "data": "experiment_id"},
-        ]
-        table_data = Experiment().table_data(
-            start=0, length=10, table="recruiter_state"
-        )
-        assert table_data["total_count"] == 1
-        assert table_data["data"][0]["recruiter_id"] == "prolific"
-        assert table_data["data"][0]["current_study_id"] == "study-from-launch"
+        assert state.current_study_id == "study-from-launch"
 
         active_config.extend({"id": "worker-config-id"})
         recruiter.store.clear()

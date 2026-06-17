@@ -725,6 +725,13 @@ class TestDashboardDatabase:
     def test_requires_login(self, webapp):
         assert webapp.get("/dashboard/database").status_code == 401
 
+    def test_database_view_label_uses_model_class_names(self):
+        from dallinger.experiment_server.dashboard import database_view_label
+
+        assert database_view_label("network", "network") == "Network"
+        assert database_view_label("participant", None) == "Participant"
+        assert database_view_label("recruiter_state", None) == "RecruiterState"
+
     def test_render(self, active_config, webapp_admin):
         resp = webapp_admin.get(
             "/dashboard/database?table=network&polymorphic_identity=network"
@@ -733,18 +740,41 @@ class TestDashboardDatabase:
         assert resp.status_code == 200
         assert "<h1>Database View: Network</h1>" in resp.data.decode("utf8")
 
-    def test_render_non_polymorphic_table_uses_class_name(
-        self, db_session, webapp_admin
-    ):
+    def test_recruiter_state_database_view(self, db_session, webapp_admin):
+        from dallinger.db import get_all_mapped_classes
+        from dallinger.experiment_server.experiment_server import Experiment
         from dallinger.models import RecruiterState
 
-        db_session.add(RecruiterState(recruiter_id="prolific"))
+        db_session.add(
+            RecruiterState(
+                recruiter_id="prolific",
+                current_study_id="study-from-launch",
+                experiment_id="launch-config-id",
+            )
+        )
         db_session.commit()
 
-        resp = webapp_admin.get("/dashboard/database?table=recruiter_state")
+        assert get_all_mapped_classes()["RecruiterState"] == {
+            "cls": RecruiterState,
+            "table": "recruiter_state",
+            "polymorphic_identity": None,
+        }
 
+        resp = webapp_admin.get("/dashboard/database?table=recruiter_state")
         assert resp.status_code == 200
         assert "<h1>Database View: RecruiterState</h1>" in resp.data.decode("utf8")
+
+        exp = Experiment(db_session)
+        assert exp.table_columns(table="recruiter_state") == [
+            {"name": "id", "data": "id"},
+            {"name": "recruiter_id", "data": "recruiter_id"},
+            {"name": "current_study_id", "data": "current_study_id"},
+            {"name": "experiment_id", "data": "experiment_id"},
+        ]
+        table_data = exp.table_data(start=0, length=10, table="recruiter_state")
+        assert table_data["total_count"] == 1
+        assert table_data["data"][0]["recruiter_id"] == "prolific"
+        assert table_data["data"][0]["current_study_id"] == "study-from-launch"
 
     def test_table_columns_and_data_participant(self, a, db_session):
         """Columns now come from table_columns(); data formatting changed."""

@@ -1061,10 +1061,19 @@ def parse_searchpanes_filters(args) -> dict[str, list[str]]:
     return filters
 
 
+def database_view_label(table, polymorphic_identity):
+    from dallinger.db import get_mapped_class, get_polymorphic_mapping
+
+    if polymorphic_identity is not None:
+        cls = get_polymorphic_mapping(table)[polymorphic_identity]
+    else:
+        cls = get_mapped_class(table)
+    return cls.__name__
+
+
 @dashboard.route("/database", methods=["GET", "POST"])
 @login_required
 def dashboard_database():
-    from dallinger.db import get_mapped_class, get_polymorphic_mapping
     from dallinger.experiment_server.experiment_server import Experiment
 
     exp = Experiment()
@@ -1079,12 +1088,7 @@ def dashboard_database():
     if table is None and polymorphic_identity is None:
         table = "participant"
 
-    if polymorphic_identity is not None:
-        cls = get_polymorphic_mapping(table)[polymorphic_identity]
-        label = cls.__name__
-    else:
-        label = get_mapped_class(table).__name__
-
+    label = database_view_label(table, polymorphic_identity)
     title = "Database View: {}".format(label)
 
     # Initial page render (columns only, no rows as they will be fetched from the client)
