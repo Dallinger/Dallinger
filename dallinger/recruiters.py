@@ -1006,6 +1006,7 @@ class ProlificRecruiter(Recruiter):
             state.current_study_id = study_id
             state.experiment_id = self.config.get("id")
             state.deployment_id = self.deployment_storage_id
+            session.commit()
         except SQLAlchemyError:
             session.rollback()
             logger.warning(
