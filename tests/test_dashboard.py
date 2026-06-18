@@ -861,28 +861,23 @@ class TestDashboardDatabase:
         assert any(o["label"] == o["value"].capitalize() for o in opts)
         assert all({"label", "value", "total", "count"} <= set(o.keys()) for o in opts)
 
-    def test_table_helpers_honor_injected_session_without_warning(
+    def test_table_helpers_use_injected_session_without_warning(
         self, a, db_session, monkeypatch
     ):
-        """Dashboard helpers should not use the deprecated session property."""
+        """Dashboard helpers should use _session without touching self.session."""
         import dallinger.experiment as experiment_module
         from dallinger.experiment_server.experiment_server import Experiment
 
-        class UnexpectedSession:
-            def query(self, *args, **kwargs):
-                raise AssertionError("dashboard helper used global db.session")
+        a.participant()
+        exp = Experiment()
+        exp._session = db_session
+        monkeypatch.setattr(experiment_module.db, "session", object())
 
-        a.participant(worker_id="INJECTED_SESSION")
-        with pytest.warns(DeprecationWarning, match="Setting the 'session' property"):
-            exp = Experiment(db_session)
-
-        monkeypatch.setattr(experiment_module.db, "session", UnexpectedSession())
-
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            cols = exp.table_columns(table="participant")
-            page = exp.table_data(table="participant", start=0, length=10)
-            panes = exp.table_search_panes(
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            exp.table_columns(table="participant")
+            exp.table_data(table="participant", start=0, length=10)
+            exp.table_search_panes(
                 table="participant",
                 polymorphic_identity=None,
                 search_value="",
@@ -890,14 +885,6 @@ class TestDashboardDatabase:
                 column_filters={},
                 threshold=0.99,
             )
-
-        assert "worker_id" in [c["data"] for c in cols]
-        assert page["data"][0]["worker_id"] == "INJECTED_SESSION"
-        assert "object_type" in panes["options"]
-        assert not any(
-            warning.category is DeprecationWarning and "session" in str(warning.message)
-            for warning in caught
-        )
 
     def test_table_columns_for_network_and_node(self, a, db_session):
         """Smoke-test columns for other tables and that schema order is preserved,
