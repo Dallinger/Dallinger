@@ -87,10 +87,10 @@ jobs:
         uses: actions/checkout@v5
       - name: Install Ubuntu packages
         run: sudo apt-get --yes install pandoc enchant-2 curl
-      - name: Chromedriver setup
-        uses: browser-actions/setup-chrome@v2
-        with:
-          install-chromedriver: true
+      - name: Check Chrome/ChromeDriver versions
+        run: |
+          google-chrome --version
+          chromedriver --version
       - name: Install snap packages
         run: curl https://cli-assets.heroku.com/install.sh | sh
       - name: Set up Node.js
@@ -211,10 +211,10 @@ jobs:
         run: sudo apt-get --yes install enchant-2 curl
       - name: Install and upgrade wheel, pip and tox
         run: pip install --upgrade pip wheel tox build
-      - name: Chromedriver setup
-        uses: browser-actions/setup-chrome@v2
-        with:
-          install-chromedriver: true
+      - name: Check Chrome/ChromeDriver versions
+        run: |
+          google-chrome --version
+          chromedriver --version
       - name: Change dallinger version required by bartlett1932 to match current version
         run: |
           VERSION=$(grep __version__ dallinger/version.py |sed -e 's/__version__ = "//;s/"//')
