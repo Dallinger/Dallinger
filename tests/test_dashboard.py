@@ -737,7 +737,7 @@ class TestDashboardDatabase:
         """Columns now come from table_columns(); data formatting changed."""
         from dallinger.experiment_server.experiment_server import Experiment
 
-        exp = Experiment(db_session)
+        exp = Experiment()
 
         p = a.participant()
 
@@ -765,7 +765,7 @@ class TestDashboardDatabase:
         """Global search and ordering by a column should work."""
         from dallinger.experiment_server.experiment_server import Experiment
 
-        exp = Experiment(db_session)
+        exp = Experiment()
 
         a.participant(worker_id="W_AAA")
         a.participant(worker_id="W_BBB")
@@ -838,7 +838,7 @@ class TestDashboardDatabase:
         """Basic pane computation + special handling for object_type (type column)."""
         from dallinger.experiment_server.experiment_server import Experiment
 
-        exp = Experiment(db_session)
+        exp = Experiment()
 
         a.participant(worker_id="W1", hit_id="H1")
         a.participant(worker_id="W2", hit_id="H2")

@@ -13,7 +13,7 @@ import dallinger
 def exp(db_session):
     from dallinger.experiment import Experiment
 
-    return Experiment(db_session)
+    return Experiment()
 
 
 class TestAPI:
