@@ -1572,10 +1572,10 @@ class Experiment:
 
         if polymorphic_identity is None:
             cls = get_mapped_class(table_obj)
-            base = self.session.query(cls)
+            base = db.session.query(cls)
         else:
             cls = get_polymorphic_mapping(table_obj)[polymorphic_identity]
-            base = self.session.query(cls).filter(cls.type == polymorphic_identity)
+            base = db.session.query(cls).filter(cls.type == polymorphic_identity)
 
         total_count = base.order_by(None).count()
 
@@ -1684,10 +1684,10 @@ class Experiment:
 
         if polymorphic_identity is None:
             cls = get_mapped_class(table_obj)
-            base = self.session.query(cls)
+            base = db.session.query(cls)
         else:
             cls = get_polymorphic_mapping(table_obj)[polymorphic_identity]
-            base = self.session.query(cls).filter(cls.type == polymorphic_identity)
+            base = db.session.query(cls).filter(cls.type == polymorphic_identity)
 
         # Build q_global: global search ONLY (no panes)
         def apply_global_search(q):
@@ -1803,10 +1803,10 @@ class Experiment:
 
         if polymorphic_identity in (None, "None"):
             cls = get_mapped_class(table_obj)
-            q = self.session.query(cls)
+            q = db.session.query(cls)
         else:
             cls = get_polymorphic_mapping(table_obj)[polymorphic_identity]
-            q = self.session.query(cls).filter(cls.type == polymorphic_identity)
+            q = db.session.query(cls).filter(cls.type == polymorphic_identity)
 
         exprs, names = [], []
         for column in table_obj.columns:
@@ -1821,7 +1821,7 @@ class Experiment:
 
         nonempty_counts = []
         if exprs:
-            nonempty_counts = list(self.session.query(*exprs).one())
+            nonempty_counts = list(db.session.query(*exprs).one())
 
         # Fetch one object to obtain its JSON representation and filter out unneeded columns
         obj = q.order_by(None).limit(1).first()
