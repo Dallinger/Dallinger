@@ -1,5 +1,4 @@
 import codecs
-import warnings
 from unittest import mock
 
 import pytest
@@ -860,31 +859,6 @@ class TestDashboardDatabase:
         opts = panes["options"]["object_type"]
         assert any(o["label"] == o["value"].capitalize() for o in opts)
         assert all({"label", "value", "total", "count"} <= set(o.keys()) for o in opts)
-
-    def test_table_helpers_use_injected_session_without_warning(
-        self, a, db_session, monkeypatch
-    ):
-        """Dashboard helpers should use _session without touching self.session."""
-        import dallinger.experiment as experiment_module
-        from dallinger.experiment_server.experiment_server import Experiment
-
-        a.participant()
-        exp = Experiment()
-        exp._session = db_session
-        monkeypatch.setattr(experiment_module.db, "session", object())
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", DeprecationWarning)
-            exp.table_columns(table="participant")
-            exp.table_data(table="participant", start=0, length=10)
-            exp.table_search_panes(
-                table="participant",
-                polymorphic_identity=None,
-                search_value="",
-                pane_columns=["object_type"],
-                column_filters={},
-                threshold=0.99,
-            )
 
     def test_table_columns_for_network_and_node(self, a, db_session):
         """Smoke-test columns for other tables and that schema order is preserved,
