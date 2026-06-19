@@ -12,6 +12,8 @@
   submissions instead of only the first page.
 - Fixed deprecated `Experiment.session` warnings in dashboard table queries while
   preserving injected-session compatibility.
+- Fixed Prolific draft study deletion to use the documented study endpoint and
+  accept documented successful delete responses.
 - Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock`: `follow-redirects` 1.15.9 → 1.16.0, `lodash` 4.17.23 → 4.18.1, and `picomatch` 2.3.1 → 2.3.2 / 4.0.3 → 4.0.4.
 
 ### Removed

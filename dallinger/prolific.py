@@ -505,8 +505,8 @@ class ProlificService:
 
     def delete_study(self, study_id: str) -> bool:
         """Delete a Study entirely. This is only possible on UNPUBLISHED studies."""
-        response = self._req(method="DELETE", endpoint=f"/studies/{study_id}")
-        return response == {"status_code": 204}
+        response = self._req(method="DELETE", endpoint=f"/studies/{study_id}/")
+        return response.get("status_code") in {200, 204}
 
     def pay_session_bonus(self, study_id: str, worker_id: str, amount: float) -> bool:
         """Pay a worker a bonus.
@@ -812,7 +812,7 @@ class DevProlificService(ProlificService):
                 }
 
             elif method == "DELETE":
-                # method="DELETE", endpoint=f"/studies/{study_id}"
+                # method="DELETE", endpoint=f"/studies/{study_id}/"
                 response = {"status_code": 204}
 
         # Submissions
