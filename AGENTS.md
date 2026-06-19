@@ -27,6 +27,13 @@ Run the full pre-commit suite before submitting changes:
 python -m pre_commit run --all-files
 ```
 
+## Changelog
+
+When preparing a Dallinger pull request, add a changelog entry for the PR in the
+unreleased section of `CHANGELOG.md`. Do not create separate changelog fragment
+files for Dallinger. Keep the changelog entry and the pull request description
+up to date as the PR evolves.
+
 ## Tests
 
 Run tests locally before finalizing a contribution:

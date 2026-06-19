@@ -260,6 +260,29 @@ def test_can_create_a_draft_study_and_delete_it(subject):
     assert subject.delete_study(study_id=result["id"])
 
 
+@pytest.mark.parametrize("status_code", [200, 204])
+def test_delete_study_uses_canonical_endpoint(subject, status_code):
+    subject._req = mock.MagicMock(return_value={"status_code": status_code})
+
+    assert subject.delete_study(study_id="study_123")
+    subject._req.assert_called_once_with(
+        method="DELETE", endpoint="/studies/study_123/"
+    )
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"status_code": 404},
+        {"error": "Not found"},
+    ],
+)
+def test_delete_study_returns_false_for_unsuccessful_responses(subject, response):
+    subject._req = mock.MagicMock(return_value=response)
+
+    assert not subject.delete_study(study_id="study_123")
+
+
 @pytest.mark.usefixtures("check_prolific_writes")
 @pytest.mark.slow
 def test_can_add_to_available_place_count(subject):
