@@ -531,12 +531,48 @@ class ProlificRecruiter(Recruiter):
         pay_per_submission = total_reward / len(durations)
         return pay_per_submission / (median_session_duration / 60)
 
+    def _log_study_id_debug(self, event, **context):
+        try:
+            stored_study_id = self.store.get(self.study_id_storage_key)
+        except Exception as error:
+            stored_study_id = f"<store read failed: {error!r}>"
+
+        try:
+            participant_study_ids = sorted(
+                {
+                    participant.hit_id
+                    for participant in session.query(Participant)
+                    .filter_by(recruiter_id=self.nickname)
+                    .all()
+                    if participant.hit_id
+                }
+            )
+        except Exception as error:
+            participant_study_ids = f"<participant lookup failed: {error!r}>"
+
+        logger.warning(
+            "PROLIFIC_STUDY_ID_DEBUG event=%s recruiter=%s config_id=%s "
+            "storage_key=%s stored_study_id=%s participant_study_ids=%s "
+            "DALLINGER_UID=%s DALLINGER_DEPLOYMENT_ID=%s context=%s",
+            event,
+            self.nickname,
+            self.config.get("id"),
+            self.study_id_storage_key,
+            stored_study_id,
+            participant_study_ids,
+            os.getenv("DALLINGER_UID"),
+            os.getenv("DALLINGER_DEPLOYMENT_ID"),
+            context,
+        )
+
     def get_status(self) -> ProlificRecruitmentStatus:
+        self._log_study_id_debug("get_status.start")
         study_id = self.current_study_id
         if not study_id:
             logger.info(
                 "Skipping Prolific status check because no current study ID is recorded."
             )
+            self._log_study_id_debug("get_status.missing_current_study_id")
             return ProlificRecruitmentStatus(
                 recruiter_name=self.nickname,
                 participant_status_counts={},
@@ -550,6 +586,7 @@ class ProlificRecruiter(Recruiter):
                 real_wage_per_hour_excluding_bonuses=None,
             )
 
+        self._log_study_id_debug("get_status.using_current_study_id", study_id=study_id)
         submissions = self.prolificservice.get_submissions(study_id)
         submission_status_counts = dict(Counter([s["status"] for s in submissions]))
         study = self.prolificservice.get_study(study_id)
@@ -688,7 +725,12 @@ class ProlificRecruiter(Recruiter):
         """Create a Study on Prolific."""
 
         logger.debug(f"Opening Prolific recruitment for {n} participants")
+        self._log_study_id_debug("open_recruitment.start", requested_places=n)
         if self.is_in_progress:
+            self._log_study_id_debug(
+                "open_recruitment.already_in_progress",
+                current_study_id=self.current_study_id,
+            )
             raise ProlificRecruiterException(
                 "Tried to open recruitment, but a Prolific Study "
                 f"(ID {self.current_study_id}) is already running for this experiment"
@@ -737,7 +779,15 @@ class ProlificRecruiter(Recruiter):
             "prolific_completion_codes", json.dumps(self.completion_code_map)
         )
         study_info = self.prolificservice.create_study(**study_request)
+        self._log_study_id_debug(
+            "open_recruitment.created_study",
+            created_study_id=study_info.get("id"),
+            external_study_url=study_info.get("external_study_url"),
+        )
         self._record_current_study_id(study_info["id"])
+        self._log_study_id_debug(
+            "open_recruitment.recorded_study", created_study_id=study_info.get("id")
+        )
 
         return {
             "items": [study_info["external_study_url"]],
@@ -747,23 +797,54 @@ class ProlificRecruiter(Recruiter):
     def normalize_entry_information(self, entry_information: dict):
         """Map Prolific Study URL params to our internal keys."""
 
+        logger.warning(
+            "PROLIFIC_STUDY_ID_DEBUG event=normalize_entry_information.raw "
+            "recruiter=%s config_id=%s incoming_keys=%s incoming_STUDY_ID=%s "
+            "incoming_SESSION_ID=%s incoming_PROLIFIC_PID=%s",
+            self.nickname,
+            self.config.get("id"),
+            sorted(entry_information.keys()),
+            entry_information.get("STUDY_ID"),
+            entry_information.get("SESSION_ID"),
+            entry_information.get("PROLIFIC_PID"),
+        )
         participant_data = {
             "hit_id": entry_information.pop("STUDY_ID", None),
             "worker_id": entry_information.pop("PROLIFIC_PID", None),
             "assignment_id": entry_information.pop("SESSION_ID", None),
             "entry_information": entry_information,
         }
+        logger.warning(
+            "PROLIFIC_STUDY_ID_DEBUG event=normalize_entry_information.result "
+            "recruiter=%s config_id=%s participant_hit_id=%s assignment_id=%s "
+            "worker_id=%s remaining_entry_information_keys=%s",
+            self.nickname,
+            self.config.get("id"),
+            participant_data["hit_id"],
+            participant_data["assignment_id"],
+            participant_data["worker_id"],
+            sorted(participant_data["entry_information"].keys()),
+        )
 
         return participant_data
 
     def recruit(self, n: int = 1):
         """Recruit `n` new participants to an existing Prolific Study"""
+        self._log_study_id_debug("recruit.start", requested_places=n)
         if not self.config.get("auto_recruit"):
             logger.debug("auto_recruit is False: recruitment suppressed")
+            self._log_study_id_debug("recruit.suppressed_auto_recruit_false")
             return
 
+        study_id = self.current_study_id
+        if not study_id:
+            self._log_study_id_debug("recruit.missing_current_study_id")
+        else:
+            self._log_study_id_debug(
+                "recruit.using_current_study_id", study_id=study_id
+            )
         return self.prolificservice.add_participants_to_study(
-            study_id=self.current_study_id, number_to_add=n
+            study_id=study_id, number_to_add=n
         )
 
     def approve_hit(self, assignment_id: str):
@@ -832,8 +913,19 @@ class ProlificRecruiter(Recruiter):
     def reward_bonus(self, participant, amount, reason):
         """Reward the Prolific worker for a specified assignment with a bonus."""
         try:
+            study_id = self.current_study_id
+            self._log_study_id_debug(
+                "reward_bonus.using_current_study_id",
+                study_id=study_id,
+                participant_id=getattr(participant, "id", None),
+                participant_hit_id=getattr(participant, "hit_id", None),
+                assignment_id=getattr(participant, "assignment_id", None),
+                worker_id=getattr(participant, "worker_id", None),
+                amount=amount,
+                reason=reason,
+            )
             return self.prolificservice.pay_session_bonus(
-                study_id=self.current_study_id,
+                study_id=study_id,
                 worker_id=participant.worker_id,
                 amount=amount,
             )
@@ -884,7 +976,19 @@ class ProlificRecruiter(Recruiter):
         """Return the ID of the Study associated with the active experiment ID
         if any such Study exists.
         """
-        return self.store.get(self.study_id_storage_key)
+        study_id = self.store.get(self.study_id_storage_key)
+        logger.warning(
+            "PROLIFIC_STUDY_ID_DEBUG event=current_study_id.read recruiter=%s "
+            "config_id=%s storage_key=%s study_id=%s DALLINGER_UID=%s "
+            "DALLINGER_DEPLOYMENT_ID=%s",
+            self.nickname,
+            self.config.get("id"),
+            self.study_id_storage_key,
+            study_id,
+            os.getenv("DALLINGER_UID"),
+            os.getenv("DALLINGER_DEPLOYMENT_ID"),
+        )
+        return study_id
 
     @property
     def is_in_progress(self) -> bool:
@@ -896,10 +1000,22 @@ class ProlificRecruiter(Recruiter):
         discrepancies found, correct the local status by enqueuing an
         asynchronous worker event.
         """
-        q = get_queue()
-        assignments_by_id = self.prolificservice.get_assignments_for_study(
-            self.current_study_id
+        study_id = self.current_study_id
+        self._log_study_id_debug(
+            "verify_status_of.using_current_study_id",
+            study_id=study_id,
+            participants=[
+                {
+                    "id": participant.id,
+                    "status": participant.status,
+                    "hit_id": participant.hit_id,
+                    "assignment_id": participant.assignment_id,
+                }
+                for participant in participants
+            ],
         )
+        q = get_queue()
+        assignments_by_id = self.prolificservice.get_assignments_for_study(study_id)
 
         for participant in participants:
             latest_data = assignments_by_id.get(participant.assignment_id)
@@ -932,7 +1048,9 @@ class ProlificRecruiter(Recruiter):
         return "{}:{}".format(self.__class__.__name__, experiment_id)
 
     def _record_current_study_id(self, study_id):
+        self._log_study_id_debug("record_current_study_id.before", study_id=study_id)
         self.store.set(self.study_id_storage_key, study_id)
+        self._log_study_id_debug("record_current_study_id.after", study_id=study_id)
 
     def load_service(self, sandbox):
         return prolific_service_from_config()
