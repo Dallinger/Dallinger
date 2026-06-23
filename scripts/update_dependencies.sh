@@ -3,6 +3,18 @@
 dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd $dir/..
 set -xe
+
+python - <<'PY'
+import sys
+
+if sys.version_info[:2] != (3, 11):
+    raise SystemExit(
+        "Dependency pins must be compiled with Python 3.11, the lowest "
+        "supported Python version. Run this script with Python 3.11, for "
+        "example: uv run --python 3.11 ./scripts/update_dependencies.sh"
+    )
+PY
+
 export CUSTOM_COMPILE_COMMAND=./scripts/update_dependencies.sh
 pip-compile --rebuild --strip-extras --upgrade constraints.in
 pip-compile --rebuild --strip-extras --upgrade dev-requirements.in

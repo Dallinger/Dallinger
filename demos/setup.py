@@ -22,6 +22,7 @@ setup_args = dict(
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering",
         "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python :: 3.14",
         "Programming Language :: Python :: 3.13",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.11",

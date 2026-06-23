@@ -5,6 +5,9 @@
 ### Changed
 
 - Updated the Dallinger pull request template, branch review command, and agent instructions to use a standardized pull request description and review workflow.
+### Added
+
+- Added support for Python 3.14.
 
 ### Fixed
 
@@ -22,12 +25,15 @@
 - Fixed Prolific draft study deletion to use the documented study endpoint and
   accept documented successful delete responses.
 - Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock`: `follow-redirects` 1.15.9 → 1.16.0, `lodash` 4.17.23 → 4.18.1, and `picomatch` 2.3.1 → 2.3.2 / 4.0.3 → 4.0.4.
+- Fixed generated dependency pins so they remain installable on the lowest
+  supported Python version.
 
 ### Removed
 
 - Removed support for Python 3.10 and the dependency upper bounds that kept
   `ipython`, `myst-parser`, `numpy`, `pandas`, `sphinx`, and `markdown-it-py`
   on Python 3.10-compatible versions.
+- Removed the obsolete `chardet < 6` dependency upper bound.
 - Removed nanasess/setup-chromedriver action to instead use the GitHub-hosted runner's preinstalled Chrome and ChromeDriver versions.
 
 ### Updated

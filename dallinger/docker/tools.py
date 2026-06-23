@@ -76,6 +76,9 @@ class DockerComposeWrapper:
         if editable_dallinger_path:
             volumes.append(f"{editable_dallinger_path}/dallinger:/dallinger/dallinger")
             volumes.append(
+                f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.14/dist-packages/dallinger/"
+            )
+            volumes.append(
                 f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.13/dist-packages/dallinger/"
             )
             volumes.append(

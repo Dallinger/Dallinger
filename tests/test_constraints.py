@@ -59,8 +59,8 @@ class TestGenerateConstraints:
         )
 
     def test_constraints_dallinger_commit(self, in_tempdir, python_version_file):
-        # Note: pip-compile under Python 3.13 failed to compile requirements for a Python 3.12 version of Dallinger.
-        # This might cause problems again when we upgrade to Python 3.14.
+        # Note: pip-compile under a newer Python version has previously failed
+        # to compile requirements for an older Python version of Dallinger.
         # uv is more robust; by that point, perhaps we should consider dropping pip-compile entirely.
         with open("requirements.txt", "w") as f:
             f.write(
