@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Updated the Dallinger pull request template, branch review command, and agent instructions to use a standardized pull request description and review workflow.
+
 ### Fixed
 
 - Fixed `dallinger debug` launch failures that happen before the `/launch` route
@@ -17,6 +21,7 @@
 - Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock`: `follow-redirects` 1.15.9 → 1.16.0, `lodash` 4.17.23 → 4.18.1, and `picomatch` 2.3.1 → 2.3.2 / 4.0.3 → 4.0.4.
 
 ### Removed
+
 - Removed nanasess/setup-chromedriver action to instead use the GitHub-hosted runner's preinstalled Chrome and ChromeDriver versions.
 
 ### Updated
