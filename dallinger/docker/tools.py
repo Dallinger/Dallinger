@@ -250,7 +250,7 @@ def get_required_dallinger_version(experiment_tmp_path: str) -> str:
     if not dallinger_requirements:
         print("Could not determine Dallinger version. Using latest")
         return ""
-    # pip-compile should have created a single spec in the form "dallinger==7.2.0"
+    # The constraints generator should have created a single spec in the form "dallinger==7.2.0"
     if "==" in dallinger_requirements[0]:
         return dallinger_requirements[0].split("==")[1]
     # Or we might have a requirement like `file:dallinger-7.2.0-py3-none-any.whl`

@@ -34,6 +34,8 @@
   `ipython`, `myst-parser`, `numpy`, `pandas`, `sphinx`, and `markdown-it-py`
   on Python 3.10-compatible versions.
 - Removed the unused `chardet` dependency.
+- Removed the `pip-tools` dependency and legacy `pip-compile` fallback from
+  constraints generation.
 - Removed nanasess/setup-chromedriver action to instead use the GitHub-hosted runner's preinstalled Chrome and ChromeDriver versions.
 
 ### Updated
