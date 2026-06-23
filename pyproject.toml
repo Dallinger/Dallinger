@@ -34,7 +34,6 @@ dependencies = [
     "beautifulsoup4",
     "boto3",
     "build",
-    "chardet",
     "click",
     "faker",
     "flask",

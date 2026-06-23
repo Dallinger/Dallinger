@@ -76,8 +76,6 @@ cffi==2.0.0
     #   pynacl
 cfgv==3.5.0
     # via pre-commit
-chardet==7.4.3
-    # via dallinger
 charset-normalizer==3.4.7
     # via requests
 click==8.4.1
