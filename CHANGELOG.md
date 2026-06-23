@@ -25,6 +25,9 @@
 
 ### Removed
 
+- Removed support for Python 3.10 and the dependency upper bounds that kept
+  `ipython`, `myst-parser`, `numpy`, `pandas`, `sphinx`, and `markdown-it-py`
+  on Python 3.10-compatible versions.
 - Removed nanasess/setup-chromedriver action to instead use the GitHub-hosted runner's preinstalled Chrome and ChromeDriver versions.
 
 ### Updated

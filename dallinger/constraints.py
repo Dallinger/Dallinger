@@ -1,5 +1,5 @@
 # /// script
-# dependencies = ["click", "requests", "tomli; python_version < '3.11'"]
+# dependencies = ["click", "requests"]
 # ///
 #
 # You can run this script directly without installing Dallinger,
@@ -33,6 +33,7 @@ import platform
 import re
 import subprocess
 import tempfile
+import tomllib
 from hashlib import md5
 from pathlib import Path
 from typing import List, Optional
@@ -331,16 +332,6 @@ def _get_available_extras(input_path: Path) -> List[str]:
 
 
 def _read_pyproject_toml(input_path: Path) -> dict:
-    try:
-        import tomllib
-    except ModuleNotFoundError:
-        try:
-            import tomli as tomllib
-        except ModuleNotFoundError:
-            raise PyprojectTomlError(
-                "TOML parsing requires tomli on Python < 3.11. "
-                "Install Dallinger with dependencies or add tomli."
-            )
     try:
         return tomllib.loads(input_path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:

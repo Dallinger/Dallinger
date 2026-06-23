@@ -14,14 +14,13 @@ license = {file = "LICENSE"}
 description = "Laboratory automation for the behavioral and social sciences"
 keywords = ["science", "cultural evolution", "experiments", "psychology"]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.10",
     "Framework :: Flask",
     "Topic :: Scientific/Engineering",
     "Intended Audience :: Science/Research",
@@ -44,7 +43,7 @@ dependencies = [
     "gevent",
     "gunicorn[gevent]",
     "heroku3",
-    "markdown-it-py<4",  # Transitive dep of rich; pinned <4 because myst-parser requires 3.x and both lock files must resolve the same version
+    "markdown-it-py",
     "paramiko<4",  # Required for compatibility with sshtunnel (see https://github.com/pahaz/sshtunnel/issues/302)
     "pexpect",
     "pip-tools",  # TODO: consider removing at some point if we are happy with uv?
@@ -61,7 +60,6 @@ dependencies = [
     "sqlalchemy<2",
     "tenacity",
     "timeago",
-    "tomli; python_version < '3.11'",
     "tzlocal",
     "urllib3",
     "user-agents",
@@ -71,21 +69,21 @@ dependencies = [
 
 [project.optional-dependencies]
 data = [
-    "numpy<2.3",
-    "pandas<3",
+    "numpy",
+    "pandas",
     "tablib[all]",
 ]
 dev = [
     "bump2version",
     "coverage",
     "coverage_pth",
-    "myst-parser<5",
+    "myst-parser",
     "pre-commit",
     "pypandoc",
     "pytest",
     "pytest-rerunfailures",
     "ruff",
-    "sphinx<8.2",
+    "sphinx",
     "sphinx_rtd_theme",
     "sphinxcontrib-spelling",
     "sphinx-js",
@@ -96,11 +94,11 @@ docker = [
     "sshtunnel",
 ]
 ec2 = [
-    "numpy<2.3",
-    "pandas<3",
+    "numpy",
+    "pandas",
 ]
 jupyter = [
-    "ipython<9",
+    "ipython",
     "jupyter",
 ]
 

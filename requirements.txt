@@ -15,13 +15,13 @@ attrs==26.1.0
     #   trio
 bcrypt==5.0.0
     # via paramiko
-beautifulsoup4==4.14.3
+beautifulsoup4==4.15.0
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.43.6
+boto3==1.43.36
     # via dallinger
-botocore==1.43.6
+botocore==1.43.36
     # via
     #   boto3
     #   s3transfer
@@ -29,7 +29,7 @@ build==1.5.0
     # via
     #   dallinger
     #   pip-tools
-certifi==2026.4.22
+certifi==2026.6.17
     # via
     #   requests
     #   selenium
@@ -41,7 +41,7 @@ chardet==5.2.0
     # via dallinger
 charset-normalizer==3.4.7
     # via requests
-click==8.3.3
+click==8.4.1
     # via
     #   dallinger
     #   flask
@@ -49,9 +49,9 @@ click==8.3.3
     #   rq
 croniter==6.2.2
     # via rq
-cryptography==48.0.0
+cryptography==49.0.0
     # via paramiko
-faker==40.15.0
+faker==40.23.0
     # via dallinger
 flask==3.1.3
     # via
@@ -65,11 +65,11 @@ flask-sock==0.7.0
     # via dallinger
 flask-wtf==1.3.0
     # via dallinger
-gevent==26.4.0
+gevent==26.5.0
     # via
     #   dallinger
     #   gunicorn
-greenlet==3.5.0
+greenlet==3.5.2
     # via
     #   gevent
     #   sqlalchemy
@@ -79,7 +79,7 @@ h11==0.16.0
     # via wsproto
 heroku3==5.2.1
     # via dallinger
-idna==3.15
+idna==3.18
     # via
     #   requests
     #   trio
@@ -93,7 +93,7 @@ jmespath==1.1.0
     # via
     #   boto3
     #   botocore
-markdown-it-py==3.0.0
+markdown-it-py==4.2.0
     # via
     #   dallinger
     #   rich
@@ -120,7 +120,7 @@ pexpect==4.9.0
     # via dallinger
 pip-tools==7.5.3
     # via dallinger
-platformdirs==4.9.6
+platformdirs==4.10.0
     # via dallinger
 psutil==7.2.2
     # via dallinger
@@ -149,21 +149,21 @@ python-dateutil==2.9.0.post0
     #   heroku3
 python-json-logger==4.1.0
     # via dallinger
-redis==7.4.0
+redis==8.0.1
     # via
     #   dallinger
     #   rq
-requests==2.34.0
+requests==2.34.2
     # via
     #   dallinger
     #   heroku3
 rich==15.0.0
     # via dallinger
-rq==2.8.0
+rq==2.10.0
     # via dallinger
-s3transfer==0.17.0
+s3transfer==0.19.0
     # via boto3
-selenium==4.44.0
+selenium==4.45.0
     # via dallinger
 simple-websocket==1.1.0
     # via flask-sock
@@ -173,7 +173,7 @@ sniffio==1.3.1
     # via trio
 sortedcontainers==2.4.0
     # via trio
-soupsieve==2.8.3
+soupsieve==2.8.4
     # via beautifulsoup4
 sqlalchemy==1.4.54
     # via dallinger
@@ -193,13 +193,13 @@ typing-extensions==4.15.0
     # via
     #   beautifulsoup4
     #   selenium
-tzlocal==5.3.1
+tzlocal==5.4.3
     # via
     #   apscheduler
     #   dallinger
 ua-parser==1.0.2
     # via user-agents
-ua-parser-builtins==202605
+ua-parser-builtins==202606
     # via ua-parser
 urllib3==2.7.0
     # via
@@ -209,7 +209,7 @@ urllib3==2.7.0
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.11.14
+uv==0.11.23
     # via dallinger
 websocket-client==1.9.0
     # via selenium
@@ -229,7 +229,7 @@ yaspin==3.4.0
     # via dallinger
 zope-event==6.2
     # via gevent
-zope-interface==8.4
+zope-interface==8.5
     # via gevent
 
 # The following packages are considered to be unsafe in a requirements file:
