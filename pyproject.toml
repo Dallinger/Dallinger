@@ -67,7 +67,6 @@ dependencies = [
 
 [project.optional-dependencies]
 data = [
-    "numpy",
     "pandas",
     "tablib[all]",
 ]
@@ -92,7 +91,6 @@ docker = [
     "sshtunnel",
 ]
 ec2 = [
-    "numpy",
     "pandas",
 ]
 jupyter = [
