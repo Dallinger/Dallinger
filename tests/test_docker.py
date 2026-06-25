@@ -19,6 +19,26 @@ def test_get_docker_compose_yml_core_config():
     assert "HOME" in result["services"]["worker_1"]["environment"]
 
 
+def test_get_docker_compose_yml_uses_app_scoped_redis():
+    """Experiment containers should not resolve Redis through a shared alias."""
+    result = get_yaml({})
+    services = result["services"]
+
+    assert (
+        services["worker_1"]["environment"]["REDIS_URL"]
+        == "redis://dlgr-8c43a887_redis:6379"
+    )
+    assert services["redis"]["networks"] == {
+        "app": {"aliases": ["dlgr-8c43a887_redis"]}
+    }
+    assert services["web"]["networks"]["app"] is None
+    assert services["worker_1"]["networks"] == ["app"]
+    assert services["pgbouncer"]["networks"]["app"]["aliases"] == [
+        "dlgr-8c43a887_pgbouncer"
+    ]
+    assert result["networks"]["app"]["name"] == "dlgr-8c43a887_app"
+
+
 def test_get_docker_compose_yml_env_vars_always_strings():
     """The docker-compose.yml file we generate should always have strings as
     values in the `environment` section of each service.

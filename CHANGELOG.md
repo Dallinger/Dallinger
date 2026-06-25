@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Fixed Docker SSH deployments so app containers use an app-scoped Redis
+  hostname and private app network, preventing concurrent deployments from
+  resolving another app's Redis service.
 - Fixed `dallinger debug` launch failures that happen before the `/launch` route
   body so they return JSON error messages instead of only a generic HTML 500
   response.
