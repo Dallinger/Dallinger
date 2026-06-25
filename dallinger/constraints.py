@@ -201,7 +201,7 @@ def generate_constraints(extras: Optional[List[str]] = None):
         f"Compiling constraints.txt file from {input_path} and {dallinger_dev_requirements_path}"
     )
 
-    _pip_compile(
+    _compile_with_uv(
         input_path,
         output_path,
         constraints=[dallinger_dev_requirements_path],
@@ -431,7 +431,7 @@ def _get_implied_dallinger_reference(
 ) -> str:
     extras = extras or []
     with tempfile.NamedTemporaryFile(suffix=".txt") as tmpfile:
-        _pip_compile(input_path, tmpfile.name, constraints=None, extras=extras)
+        _compile_with_uv(input_path, tmpfile.name, constraints=None, extras=extras)
         retrieved = _get_explicit_dallinger_reference(Path(tmpfile.name))
         if retrieved is None:
             with open(tmpfile.name, "r", encoding="utf-8") as f:
@@ -465,7 +465,7 @@ cp requirements.txt constraints.txt"""
         )
 
 
-def _pip_compile(
+def _compile_with_uv(
     in_file,
     out_file,
     constraints: Optional[list] = None,
@@ -533,13 +533,6 @@ def _pip_compile(
         else:
             print(message)
             raise e
-
-
-def _python_versions_consistent(v1, v2):
-    for a, b in zip(v1.split("."), v2.split(".")):
-        if int(a) != int(b):
-            return False
-    return True
 
 
 def _make_constraints_paths_relative():
