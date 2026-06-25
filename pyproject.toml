@@ -43,7 +43,6 @@ dependencies = [
     "gevent",
     "gunicorn[gevent]",
     "heroku3",
-    "markdown-it-py",
     "paramiko<4",  # Required for compatibility with sshtunnel (see https://github.com/pahaz/sshtunnel/issues/302)
     "pexpect",
     "platformdirs",
