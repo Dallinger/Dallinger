@@ -855,7 +855,17 @@ class Experiment:
         if participant.end_time is None:
             participant.end_time = event["timestamp"]
         participant.base_pay = config.get("base_payment")
-        participant.recruiter.approve_hit(participant.assignment_id)
+        approval_result = participant.recruiter.approve_hit(participant.assignment_id)
+        if (
+            isinstance(approval_result, recruiters.RecruiterApprovalResult)
+            and not approval_result.approved
+        ):
+            participant.status = approval_result.participant_status
+            if participant.status == "abandoned":
+                self.assignment_abandoned(participant=participant)
+            elif participant.status == "returned":
+                self.assignment_returned(participant=participant)
+            return
 
         # Data Check
         if not self.data_check(participant=participant):
