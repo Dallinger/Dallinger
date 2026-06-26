@@ -1,10 +1,6 @@
-# Pull request
-
-<!-- Provide a concise summary of your changes in the title above. -->
-
 ## Motivation
 
-<!-- Why is this change needed? Link the issue, failing CI job, discussion, or other source when available, and summarize the key evidence. -->
+<!-- Why is this change needed? Reconstruct this from the initial prompt and investigation. Link the issue, failing CI job, discussion, or other source when available, and summarize the key evidence. -->
 
 ## Summary of changes
 
@@ -16,7 +12,7 @@
 
 ## Testing
 
-<!-- List checks run and outcomes. Include command names, manual/demo testing, CI results, and tests intentionally not run with the reason. -->
+<!-- List checks run and outcomes. Include command names, manual/demo testing, CI results, evidence that the change works, and tests intentionally not run with the reason. -->
 
 ## Changelog
 
@@ -24,7 +20,7 @@
 
 ## Automatic code review
 
-<!-- State whether automatic code review has been run, including the command or workflow used. If not run, explain whether it was declined or has not yet been run. -->
+<!-- State whether automatic code review has been run, including whether it used the repo-local `/branch-review` command or another review workflow. If not run, explain whether it was declined or has not yet been prompted. -->
 
 ## Screenshots
 
