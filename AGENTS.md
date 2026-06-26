@@ -34,6 +34,23 @@ unreleased section of `CHANGELOG.md`. Do not create separate changelog fragment
 files for Dallinger. Keep the changelog entry and the pull request description
 up to date as the PR evolves.
 
+## Automatic code review
+
+Before finalizing a Dallinger pull request, prompt the user to run an automatic
+code review. Suggest the repo-local Cursor command `/branch-review`, which
+invokes the `branch-review` skill at `.cursor/skills/branch-review/SKILL.md`.
+This specific command name avoids ambiguity with generic Cursor-provided review
+commands.
+
+If the user runs an automatic review, address any actionable findings before
+finalizing the pull request. If the user declines or the review is not run,
+record that explicitly in the pull request description.
+
+## Pull request descriptions
+
+Use `.github/PULL_REQUEST_TEMPLATE.md` for the required pull request description
+format.
+
 ## Tests
 
 Run tests locally before finalizing a contribution:
