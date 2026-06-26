@@ -14,6 +14,9 @@
 - Fixed `dallinger debug` launch failures that happen before the `/launch` route
   body so they return JSON error messages instead of only a generic HTML 500
   response.
+- Fixed the GitHub Actions `pre-commit` job to avoid the deprecated Node.js 20
+  runtime by replacing `pre-commit/action` with explicit pre-commit installation
+  and execution.
 - Fixed Prolific status polling so it does not make unscoped submissions API requests when no current study ID is recorded.
 - Fixed Prolific submissions lookups so status checks retrieve all paginated
   submissions instead of only the first page.
