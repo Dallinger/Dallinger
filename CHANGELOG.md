@@ -12,6 +12,8 @@
   submission statuses during approval.
 - Fixed Prolific timed-out submissions so they are not marked approved locally
   after Prolific rejects the approval request.
+- Reported Prolific submissions without matching local participants in Prolific
+  recruiter status output.
 - Fixed Docker SSH deployments so app containers use an app-scoped Redis
   hostname and private app network, preventing concurrent deployments from
   resolving another app's Redis service.

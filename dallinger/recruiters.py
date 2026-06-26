@@ -155,12 +155,16 @@ class ProlificRecruitmentStatus(RecruitmentStatus):
             "reward")
         median_session_duration_minutes: float - The median duration in minutes of approved participants in the study
         real_wage_per_hour_excluding_bonuses: float - The wage per hour of approved participants in the study without any bonus
+        unmatched_submission_status_counts: dict - Status counts for Prolific submissions without matching local participants
+        unmatched_submissions: list[dict] - Safe summaries of Prolific submissions without matching local participants
     """
 
     internal_name: str
     base_payment_cents: float
     median_session_duration_minutes: float
     real_wage_per_hour_excluding_bonuses: float
+    unmatched_submission_status_counts: dict
+    unmatched_submissions: list[dict]
 
 
 @dataclass
@@ -543,6 +547,32 @@ class ProlificRecruiter(Recruiter):
         pay_per_submission = total_reward / len(durations)
         return pay_per_submission / (median_session_duration / 60)
 
+    @staticmethod
+    def _submission_reconciliation_summary(submission):
+        return {
+            "assignment_id": submission.get("id"),
+            "worker_id": submission.get("participant_id"),
+            "status": submission.get("status"),
+            "started_at": submission.get("started_at"),
+            "completed_at": submission.get("completed_at"),
+            "returned_at": submission.get("returned_at"),
+        }
+
+    def get_unmatched_submissions(self, study_id, submissions):
+        """Return Prolific submissions that have no matching local participant."""
+        participant_assignment_ids = {
+            assignment_id
+            for (assignment_id,) in session.query(Participant.assignment_id)
+            .filter(Participant.hit_id == study_id)
+            .all()
+            if assignment_id
+        }
+        return [
+            self._submission_reconciliation_summary(submission)
+            for submission in submissions
+            if submission.get("id") not in participant_assignment_ids
+        ]
+
     def get_status(self) -> ProlificRecruitmentStatus:
         study_id = self.current_study_id
         if not study_id:
@@ -560,10 +590,16 @@ class ProlificRecruiter(Recruiter):
                 base_payment_cents=self.base_payment_cents,
                 median_session_duration_minutes=None,
                 real_wage_per_hour_excluding_bonuses=None,
+                unmatched_submission_status_counts={},
+                unmatched_submissions=[],
             )
 
         submissions = self.prolificservice.get_submissions(study_id)
         submission_status_counts = dict(Counter([s["status"] for s in submissions]))
+        unmatched_submissions = self.get_unmatched_submissions(study_id, submissions)
+        unmatched_submission_status_counts = dict(
+            Counter([s["status"] for s in unmatched_submissions])
+        )
         study = self.prolificservice.get_study(study_id)
         total_cost = self.prolificservice.get_total_cost(study_id) / 100
 
@@ -585,6 +621,8 @@ class ProlificRecruiter(Recruiter):
             base_payment_cents=self.base_payment_cents,
             median_session_duration_minutes=median_session_duration_minutes,
             real_wage_per_hour_excluding_bonuses=real_wage_per_hour_excluding_bonuses,
+            unmatched_submission_status_counts=unmatched_submission_status_counts,
+            unmatched_submissions=unmatched_submissions,
         )
 
     @property
@@ -1146,6 +1184,8 @@ class DevProlificRecruiter(DevRecruiter, ProlificRecruiter):
             base_payment_cents=self.base_payment_cents,
             median_session_duration_minutes=0,
             real_wage_per_hour_excluding_bonuses=0,
+            unmatched_submission_status_counts={},
+            unmatched_submissions=[],
         )
 
 
