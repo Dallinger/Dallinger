@@ -8,6 +8,8 @@
 
 ### Fixed
 
+- Reported Prolific submissions without matching local participants in Prolific
+  recruiter status output.
 - Fixed Docker SSH deployments so app containers use an app-scoped Redis
   hostname and private app network, preventing concurrent deployments from
   resolving another app's Redis service.

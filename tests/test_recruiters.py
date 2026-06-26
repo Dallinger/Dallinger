@@ -550,6 +550,73 @@ class TestProlificRecruiter:
         assert status.study_status == ""
         assert status.study_cost == 0
         assert status.participant_status_counts == {}
+        assert status.unmatched_submission_status_counts == {}
+        assert status.unmatched_submissions == []
+
+    def test_get_status_reports_prolific_submissions_without_participants(
+        self, a, recruiter
+    ):
+        study_id = "some-study-id"
+        a.participant(
+            assignment_id="matched-submission-id",
+            hit_id=study_id,
+            recruiter_id="prolific",
+        )
+        recruiter._record_current_study_id(study_id)
+        recruiter.prolificservice.get_submissions.return_value = [
+            {
+                "id": "matched-submission-id",
+                "participant_id": "matched-worker-id",
+                "started_at": "2026-06-26T13:39:23.721000Z",
+                "status": "APPROVED",
+            },
+            {
+                "id": "returned-before-entry-id",
+                "participant_id": "returned-worker-id",
+                "started_at": "2026-06-26T13:40:05.393000Z",
+                "returned_at": "2026-06-26T13:40:30.000000Z",
+                "status": "RETURNED",
+            },
+            {
+                "id": "manually-approved-id",
+                "participant_id": "manually-approved-worker-id",
+                "started_at": "2026-06-26T13:43:00.000000Z",
+                "completed_at": "2026-06-26T13:43:19.981000Z",
+                "status": "APPROVED",
+            },
+        ]
+        recruiter.prolificservice.get_study.return_value = {
+            "id": study_id,
+            "status": "COMPLETED",
+            "internal_name": "fake experiment",
+        }
+        recruiter.prolificservice.get_total_cost.return_value = 123
+
+        status = recruiter.get_status()
+
+        assert status.participant_status_counts == {"APPROVED": 2, "RETURNED": 1}
+        assert status.unmatched_submission_status_counts == {
+            "APPROVED": 1,
+            "RETURNED": 1,
+        }
+        assert status.unmatched_submissions == [
+            {
+                "assignment_id": "returned-before-entry-id",
+                "worker_id": "returned-worker-id",
+                "started_at": "2026-06-26T13:40:05.393000Z",
+                "completed_at": None,
+                "returned_at": "2026-06-26T13:40:30.000000Z",
+                "status": "RETURNED",
+            },
+            {
+                "assignment_id": "manually-approved-id",
+                "worker_id": "manually-approved-worker-id",
+                "started_at": "2026-06-26T13:43:00.000000Z",
+                "completed_at": "2026-06-26T13:43:19.981000Z",
+                "returned_at": None,
+                "status": "APPROVED",
+            },
+        ]
 
     def test_normalize_entry_information_standardizes_participant_data(self, recruiter):
         prolific_format = {
