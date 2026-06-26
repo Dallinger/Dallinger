@@ -10,7 +10,9 @@ services:
         interval: 2s
         timeout: 1s
     networks:
-      - dallinger
+      app:
+        aliases:
+          - {{ experiment_id }}_redis
 
   web:
     restart: unless-stopped
@@ -23,7 +25,7 @@ services:
       pgbouncer:
         condition: service_started
     environment: &commonenv
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://{{ experiment_id }}_redis:6379
       DATABASE_URL: postgresql://{{ experiment_id }}:{{ postgresql_password }}@{{ experiment_id }}_pgbouncer/{{ experiment_id }}
       HOME: /tmp
       HOST: 0.0.0.0
@@ -32,6 +34,7 @@ services:
       {{ key }}: {{ value | string() | tojson }}
     {%- endfor %}
     networks:
+      app:
       dallinger:
         aliases:
           - {{ experiment_id }}_web
@@ -56,7 +59,7 @@ services:
     environment:
       <<: *commonenv
     networks:
-      - dallinger
+      - app
     volumes:
       - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
     {%- if docker_volumes | length > 0 %}
@@ -71,6 +74,9 @@ services:
     image: docker.io/bitnamilegacy/pgbouncer:1.24.1
     container_name: {{ experiment_id }}_pgbouncer
     networks:
+      app:
+        aliases:
+          - {{ experiment_id }}_pgbouncer
       dallinger:
     environment:
       - POSTGRESQL_HOST=postgresql
@@ -97,9 +103,7 @@ services:
       <<: *commonenv
       PORT: 5000
     networks:
-      dallinger:
-        aliases:
-          - {{ experiment_id }}_clock
+      - app
     volumes:
       - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
 {%- endif %}
@@ -108,5 +112,7 @@ volumes:
   redis_data:
 
 networks:
+  app:
+    name: {{ experiment_id }}_app
   dallinger:
     name: dallinger

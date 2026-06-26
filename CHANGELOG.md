@@ -2,8 +2,15 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Updated the Dallinger pull request template, branch review command, and agent instructions to use a standardized pull request description and review workflow.
+
 ### Fixed
 
+- Fixed Docker SSH deployments so app containers use an app-scoped Redis
+  hostname and private app network, preventing concurrent deployments from
+  resolving another app's Redis service.
 - Fixed `dallinger debug` launch failures that happen before the `/launch` route
   body so they return JSON error messages instead of only a generic HTML 500
   response.
@@ -11,7 +18,15 @@
 - Fixed Prolific submissions lookups so status checks retrieve all paginated
   submissions instead of only the first page.
 - Fixed deprecated `Experiment.session` warnings in dashboard table queries.
+- Fixed deprecated `Experiment.session` warnings in dashboard table queries while
+  preserving injected-session compatibility.
+- Fixed Prolific draft study deletion to use the documented study endpoint and
+  accept documented successful delete responses.
 - Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock`: `follow-redirects` 1.15.9 → 1.16.0, `lodash` 4.17.23 → 4.18.1, and `picomatch` 2.3.1 → 2.3.2 / 4.0.3 → 4.0.4.
+
+### Removed
+
+- Removed nanasess/setup-chromedriver action to instead use the GitHub-hosted runner's preinstalled Chrome and ChromeDriver versions.
 
 ### Updated
 
