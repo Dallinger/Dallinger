@@ -484,15 +484,6 @@ def prolific_submission_listener():
 # with the right values when they redirect participants to us
 PROLIFIC_AD_QUERYSTRING = "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
 
-
-@dataclass(frozen=True)
-class _ProlificTerminalStatusHandling:
-    """How to reconcile a terminal Prolific status locally."""
-
-    worker_event_name: str
-    participant_status: str
-
-
 PROLIFIC_TERMINAL_STATUS_HANDLING = {
     "RETURNED": _ProlificTerminalStatusHandling(
         worker_event_name="AssignmentReturned",
@@ -810,11 +801,9 @@ class ProlificRecruiter(Recruiter):
             return self.prolificservice.approve_participant_submission(
                 submission_id=assignment_id
             )
-        except ProlificServiceException as ex:
-            participant_status = None
-            if isinstance(ex, ProlificSubmissionNotApprovableError):
-                handling = PROLIFIC_TERMINAL_STATUS_HANDLING.get(ex.status)
-                participant_status = handling.participant_status if handling else None
+        except ProlificSubmissionNotApprovableError as ex:
+            handling = PROLIFIC_TERMINAL_STATUS_HANDLING.get(ex.status)
+            participant_status = handling.participant_status if handling else None
             next_step = (
                 f"Marking the local participant as '{participant_status}'."
                 if participant_status is not None
@@ -822,14 +811,19 @@ class ProlificRecruiter(Recruiter):
             )
             logger.warning(
                 f"approve_participant_submission for assignment_id '{assignment_id}' "
-                f"failed with error '{str(ex)}'. {next_step}"
+                f"found a non-approvable Prolific submission: {str(ex)}. {next_step}"
             )
-            handle_recruitment_error(ex)
             if participant_status is not None:
                 return RecruiterApprovalResult(
                     approved=False,
                     participant_status=participant_status,
                 )
+        except ProlificServiceException as ex:
+            logger.warning(
+                f"approve_participant_submission for assignment_id '{assignment_id}' "
+                f"failed with error '{str(ex)}'. Will try to proceed anyway."
+            )
+            handle_recruitment_error(ex)
 
     def close_recruitment(self):
         """Do nothing.

@@ -646,13 +646,32 @@ class TestProlificRecruiter:
             ProlificSubmissionNotApprovableError(prolific_status)
         )
 
-        with mock.patch("dallinger.recruiters.logger"):
+        with mock.patch("dallinger.recruiters.logger") as mock_logger:
             result = recruiter.approve_hit("fake-hit-id")
 
         assert result == RecruiterApprovalResult(
             approved=False,
             participant_status=participant_status,
         )
+        mock_logger.warning.assert_called_once()
+        mock_logger.exception.assert_not_called()
+
+    def test_approve_hit_logs_status_warning_without_exception(self, recruiter):
+        from dallinger.prolific import ProlificSubmissionNotApprovableError
+
+        recruiter.prolificservice.approve_participant_submission.side_effect = (
+            ProlificSubmissionNotApprovableError("ACTIVE")
+        )
+
+        with mock.patch("dallinger.recruiters.logger") as mock_logger:
+            result = recruiter.approve_hit("fake-hit-id")
+
+        assert result is None
+        mock_logger.warning.assert_called_once()
+        assert "non-approvable Prolific submission" in str(
+            mock_logger.warning.call_args.args[0]
+        )
+        mock_logger.exception.assert_not_called()
 
     def test_recruit_calls_add_participants_to_study(self, recruiter):
         recruiter.open_recruitment()
