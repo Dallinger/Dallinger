@@ -8,6 +8,8 @@
 
 ### Fixed
 
+- Reduced traceback-style logging for expected non-approvable Prolific
+  submission statuses during approval.
 - Fixed Prolific timed-out submissions so they are not marked approved locally
   after Prolific rejects the approval request.
 - Fixed Docker SSH deployments so app containers use an app-scoped Redis
