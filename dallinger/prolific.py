@@ -25,6 +25,16 @@ class ProlificServiceException(Exception):
     """Some error from Prolific"""
 
 
+class ProlificSubmissionNotApprovableError(ProlificServiceException):
+    """Raised when a Prolific submission is not in an approvable status."""
+
+    def __init__(self, status: str):
+        self.status = status
+        super().__init__(
+            f"Prolific submission is not approvable (current status is '{status}')."
+        )
+
+
 class ProlificServiceNoSuchProject(Exception):
     """A specified project was not found in any of the user's workspaces."""
 
@@ -39,6 +49,13 @@ class ProlificServiceMultipleWorkspacesException(Exception):
 
 class ProlificScreenOutDenied(Exception):
     """Raised when Prolific denies a screen-out request."""
+
+
+def _should_retry_approval_error(exception):
+    """Return whether an approval error should trigger another retry."""
+    if isinstance(exception, ProlificSubmissionNotApprovableError):
+        return exception.status == "ACTIVE"
+    return True
 
 
 ########
@@ -94,6 +111,7 @@ class ProlificService:
     @tenacity.retry(
         wait=tenacity.wait_exponential(multiplier=1, min=2, max=8),
         stop=tenacity.stop_after_attempt(5),
+        retry=tenacity.retry_if_exception(_should_retry_approval_error),
         reraise=True,
     )
     def approve_participant_submission(self, submission_id: str) -> dict:
@@ -110,10 +128,8 @@ class ProlificService:
                 "Participant submission is already approved, no need to approve again."
             )
         elif status != "AWAITING REVIEW":
-            # This will trigger a retry from the decorator
-            raise ProlificServiceException(
-                f"Prolific session not yet submitted (current status is '{status}')."
-            )
+            # ACTIVE may be transient; terminal statuses should fail immediately.
+            raise ProlificSubmissionNotApprovableError(status)
 
         return self._req(
             method="POST",
