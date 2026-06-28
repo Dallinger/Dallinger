@@ -7,7 +7,7 @@
     # via -r requirements.in
 ansi2html==1.9.2
     # via dallinger
-apscheduler==3.11.2
+apscheduler==3.11.3
     # via dallinger
 attrs==26.1.0
     # via
