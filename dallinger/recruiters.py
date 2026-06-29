@@ -484,6 +484,15 @@ def prolific_submission_listener():
 # with the right values when they redirect participants to us
 PROLIFIC_AD_QUERYSTRING = "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
 
+
+@dataclass(frozen=True)
+class _ProlificTerminalStatusHandling:
+    """How to reconcile a terminal Prolific status locally."""
+
+    worker_event_name: str
+    participant_status: str
+
+
 PROLIFIC_TERMINAL_STATUS_HANDLING = {
     "RETURNED": _ProlificTerminalStatusHandling(
         worker_event_name="AssignmentReturned",
