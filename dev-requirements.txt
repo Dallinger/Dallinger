@@ -610,7 +610,7 @@ tzdata==2026.2
     # via
     #   arrow
     #   pandas
-tzlocal==5.3.1
+tzlocal==5.4.4
     # via
     #   apscheduler
     #   dallinger
