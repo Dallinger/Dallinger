@@ -479,9 +479,24 @@ def prolific_submission_listener():
 # with the right values when they redirect participants to us
 PROLIFIC_AD_QUERYSTRING = "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
 
+
+@dataclass(frozen=True)
+class _ProlificTerminalStatusHandling:
+    """How to reconcile a terminal Prolific status locally."""
+
+    worker_event_name: str
+    participant_status: str
+
+
 PROLIFIC_TERMINAL_STATUS_HANDLING = {
-    "RETURNED": ("AssignmentReturned", "returned"),
-    "TIMED-OUT": ("AssignmentAbandoned", "abandoned"),
+    "RETURNED": _ProlificTerminalStatusHandling(
+        worker_event_name="AssignmentReturned",
+        participant_status="returned",
+    ),
+    "TIMED-OUT": _ProlificTerminalStatusHandling(
+        worker_event_name="AssignmentAbandoned",
+        participant_status="abandoned",
+    ),
 }
 
 
@@ -496,7 +511,7 @@ def check_for_prolific_worker_status_discrepancy(local_status, prolific_status):
         return None
 
     handling = PROLIFIC_TERMINAL_STATUS_HANDLING.get(prolific_status)
-    return handling[0] if handling else None
+    return handling.worker_event_name if handling else None
 
 
 class ProlificRecruiter(Recruiter):
@@ -788,7 +803,7 @@ class ProlificRecruiter(Recruiter):
             participant_status = None
             if isinstance(ex, ProlificSubmissionNotApprovableError):
                 handling = PROLIFIC_TERMINAL_STATUS_HANDLING.get(ex.status)
-                participant_status = handling[1] if handling else None
+                participant_status = handling.participant_status if handling else None
             next_step = (
                 f"Marking the local participant as '{participant_status}'."
                 if participant_status is not None
