@@ -35,6 +35,7 @@ from dallinger.notifications import MessengerError, admin_notifier, get_mailer
 from dallinger.prolific import (
     ProlificScreenOutDenied,
     ProlificServiceException,
+    ProlificSubmissionNotApprovableError,
     dev_prolific_service_from_config,
     prolific_service_from_config,
 )
@@ -771,6 +772,13 @@ class ProlificRecruiter(Recruiter):
         try:
             return self.prolificservice.approve_participant_submission(
                 submission_id=assignment_id
+            )
+        except ProlificSubmissionNotApprovableError as ex:
+            status_kind = "transient" if ex.status == "ACTIVE" else "terminal"
+            logger.warning(
+                f"approve_participant_submission for assignment_id '{assignment_id}' "
+                f"found a {status_kind} non-approvable Prolific submission: {str(ex)}. "
+                "Will try to proceed anyway."
             )
         except ProlificServiceException as ex:
             logger.warning(
