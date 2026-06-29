@@ -165,7 +165,12 @@ class ProlificRecruitmentStatus(RecruitmentStatus):
 
 @dataclass
 class RecruiterApprovalResult:
-    """Result of attempting to approve a participant with their recruiter."""
+    """Structured recruiter approval outcome.
+
+    Recruiters may return this when approval does not complete and the
+    experiment should update local participant state instead of continuing
+    through the normal post-submission checks.
+    """
 
     approved: bool
     participant_status: Optional[str] = None
@@ -793,8 +798,14 @@ class ProlificRecruiter(Recruiter):
             study_id=self.current_study_id, number_to_add=n
         )
 
-    def approve_hit(self, assignment_id: str):
-        """Approve a participant's assignment/submission on Prolific"""
+    def approve_hit(self, assignment_id: str) -> dict | RecruiterApprovalResult | None:
+        """Approve a participant's assignment/submission on Prolific.
+
+        Returns Prolific's API response when approval succeeds, a
+        RecruiterApprovalResult when the local participant status should be
+        reconciled with a terminal Prolific status, or None when an approval
+        error has been logged but does not map to a local status update.
+        """
         try:
             return self.prolificservice.approve_participant_submission(
                 submission_id=assignment_id
