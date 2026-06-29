@@ -856,15 +856,7 @@ class Experiment:
             participant.end_time = event["timestamp"]
         participant.base_pay = config.get("base_payment")
         approval_result = participant.recruiter.approve_hit(participant.assignment_id)
-        if (
-            isinstance(approval_result, recruiters.RecruiterApprovalResult)
-            and not approval_result.approved
-        ):
-            participant.status = approval_result.participant_status
-            if participant.status == "abandoned":
-                self.assignment_abandoned(participant=participant)
-            elif participant.status == "returned":
-                self.assignment_returned(participant=participant)
+        if self._handle_failed_recruiter_approval(participant, approval_result):
             return
 
         # Data Check
@@ -915,6 +907,23 @@ class Experiment:
             # NB: if MultiRecruiter is in use, this may not be the same recruiter
             # that provided the participant we're replacing:
             self.recruiter.recruit(n=1)
+
+    def _handle_failed_recruiter_approval(self, participant, approval_result):
+        """Apply local status changes reported by a failed recruiter approval."""
+        if not isinstance(approval_result, recruiters.RecruiterApprovalResult):
+            return False
+        if approval_result.approved:
+            return False
+
+        participant.status = approval_result.participant_status
+        status_handlers = {
+            "abandoned": self.assignment_abandoned,
+            "returned": self.assignment_returned,
+        }
+        status_handler = status_handlers.get(participant.status)
+        if status_handler is not None:
+            status_handler(participant=participant)
+        return True
 
     def participant_task_completed(self, participant):
         """Called when an experiment task is first finished, and prior
