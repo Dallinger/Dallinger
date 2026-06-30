@@ -25,13 +25,13 @@ class ProlificServiceException(Exception):
     """Some error from Prolific"""
 
 
-class ProlificSubmissionNotApprovableError(ProlificServiceException):
-    """Raised when a Prolific submission is not currently approvable."""
+class ProlificSubmissionApprovalStatusError(ProlificServiceException):
+    """Raised when a Prolific submission status blocks approval."""
 
     def __init__(self, status: str):
         self.status = status
         super().__init__(
-            f"Prolific submission is not approvable (current status is '{status}')."
+            f"Prolific submission cannot be approved from status '{status}'."
         )
 
 
@@ -53,7 +53,7 @@ class ProlificScreenOutDenied(Exception):
 
 def _should_retry_approval_error(exception):
     """Return whether an approval error should trigger another retry."""
-    if isinstance(exception, ProlificSubmissionNotApprovableError):
+    if isinstance(exception, ProlificSubmissionApprovalStatusError):
         return exception.status == "ACTIVE"
     return True
 
@@ -129,7 +129,7 @@ class ProlificService:
             )
         elif status != "AWAITING REVIEW":
             # ACTIVE may be transient; terminal statuses should fail immediately.
-            raise ProlificSubmissionNotApprovableError(status)
+            raise ProlificSubmissionApprovalStatusError(status)
 
         return self._req(
             method="POST",

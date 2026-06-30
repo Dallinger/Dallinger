@@ -14,7 +14,7 @@ from dallinger.prolific import (
     ProlificServiceMultipleWorkspacesException,
     ProlificServiceNoSuchProject,
     ProlificServiceNoSuchWorkspaceException,
-    ProlificSubmissionNotApprovableError,
+    ProlificSubmissionApprovalStatusError,
 )
 
 study_request = {
@@ -229,11 +229,11 @@ def test_approve_participant_submission_fails_immediately_for_timed_out_submissi
     service.get_participant_submission = mock.Mock(return_value={"status": "TIMED-OUT"})
     service._req = mock.Mock()
 
-    with pytest.raises(ProlificSubmissionNotApprovableError) as ex_info:
+    with pytest.raises(ProlificSubmissionApprovalStatusError) as ex_info:
         service.approve_participant_submission("fake-submission-id")
 
     assert ex_info.value.status == "TIMED-OUT"
-    assert "not approvable" in str(ex_info.value)
+    assert "cannot be approved from status" in str(ex_info.value)
     service.get_participant_submission.assert_called_once_with("fake-submission-id")
     service._req.assert_not_called()
 

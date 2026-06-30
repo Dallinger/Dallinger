@@ -639,10 +639,10 @@ class TestProlificRecruiter:
     def test_approve_hit_logs_expected_status_warning_without_exception(
         self, recruiter, prolific_status, status_kind
     ):
-        from dallinger.prolific import ProlificSubmissionNotApprovableError
+        from dallinger.prolific import ProlificSubmissionApprovalStatusError
 
         recruiter.prolificservice.approve_participant_submission.side_effect = (
-            ProlificSubmissionNotApprovableError(prolific_status)
+            ProlificSubmissionApprovalStatusError(prolific_status)
         )
 
         with mock.patch("dallinger.recruiters.logger") as mock_logger:
@@ -651,7 +651,7 @@ class TestProlificRecruiter:
         assert result is None
         mock_logger.warning.assert_called_once()
         assert status_kind in str(mock_logger.warning.call_args.args[0])
-        assert "non-approvable Prolific submission" in str(
+        assert "Prolific submission approval status" in str(
             mock_logger.warning.call_args.args[0]
         )
         mock_logger.exception.assert_not_called()
