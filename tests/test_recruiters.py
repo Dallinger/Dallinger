@@ -654,6 +654,9 @@ class TestProlificRecruiter:
         assert "Prolific submission approval status" in str(
             mock_logger.warning.call_args.args[0]
         )
+        assert "Prolific approval was not completed" in str(
+            mock_logger.warning.call_args.args[0]
+        )
         mock_logger.exception.assert_not_called()
 
     def test_recruit_calls_add_participants_to_study(self, recruiter):

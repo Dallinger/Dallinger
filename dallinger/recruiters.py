@@ -778,7 +778,7 @@ class ProlificRecruiter(Recruiter):
             logger.warning(
                 f"approve_participant_submission for assignment_id '{assignment_id}' "
                 f"found a {status_kind} Prolific submission approval status: {str(ex)}. "
-                "Will try to proceed anyway."
+                "Continuing local completion flow; Prolific approval was not completed."
             )
         except ProlificServiceException as ex:
             logger.warning(
