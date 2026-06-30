@@ -629,20 +629,14 @@ class TestProlificRecruiter:
 
         mock_logger.exception.assert_called_once_with("Boom!")
 
-    @pytest.mark.parametrize(
-        "prolific_status, status_kind",
-        [
-            ("ACTIVE", "transient"),
-            ("TIMED-OUT", "terminal"),
-        ],
-    )
-    def test_approve_hit_logs_expected_status_warning_without_exception(
-        self, recruiter, prolific_status, status_kind
+    def test_approve_hit_logs_transient_status_warning_when_still_active(
+        self, recruiter
     ):
-        from dallinger.prolific import ProlificSubmissionApprovalStatusError
+        from dallinger.prolific import ProlificSubmissionActiveError
 
+        # Retries exhausted while the submission was still ACTIVE.
         recruiter.prolificservice.approve_participant_submission.side_effect = (
-            ProlificSubmissionApprovalStatusError(prolific_status)
+            ProlificSubmissionActiveError("ACTIVE")
         )
 
         with mock.patch("dallinger.recruiters.logger") as mock_logger:
@@ -650,13 +644,31 @@ class TestProlificRecruiter:
 
         assert result is None
         mock_logger.warning.assert_called_once()
-        assert status_kind in str(mock_logger.warning.call_args.args[0])
-        assert "Prolific submission approval status" in str(
-            mock_logger.warning.call_args.args[0]
+        message = str(mock_logger.warning.call_args.args[0])
+        assert "transient" in message
+        assert "ACTIVE" in message
+        assert "Prolific approval was not completed" in message
+        mock_logger.exception.assert_not_called()
+
+    def test_approve_hit_logs_terminal_status_warning_without_exception(
+        self, recruiter
+    ):
+        from dallinger.prolific import SubmissionApprovalResult
+
+        # Terminal, approval-blocking status is reported, not raised.
+        recruiter.prolificservice.approve_participant_submission.return_value = (
+            SubmissionApprovalResult(approved=False, status="TIMED-OUT")
         )
-        assert "Prolific approval was not completed" in str(
-            mock_logger.warning.call_args.args[0]
-        )
+
+        with mock.patch("dallinger.recruiters.logger") as mock_logger:
+            result = recruiter.approve_hit("fake-hit-id")
+
+        assert result is None
+        mock_logger.warning.assert_called_once()
+        message = str(mock_logger.warning.call_args.args[0])
+        assert "terminal" in message
+        assert "TIMED-OUT" in message
+        assert "Prolific approval was not completed" in message
         mock_logger.exception.assert_not_called()
 
     def test_recruit_calls_add_participants_to_study(self, recruiter):

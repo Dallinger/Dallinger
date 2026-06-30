@@ -14,7 +14,7 @@ from dallinger.prolific import (
     ProlificServiceMultipleWorkspacesException,
     ProlificServiceNoSuchProject,
     ProlificServiceNoSuchWorkspaceException,
-    ProlificSubmissionApprovalStatusError,
+    SubmissionApprovalResult,
 )
 
 study_request = {
@@ -220,7 +220,7 @@ def test_make_quick_study(subject):
     assert result["name"] == "Test Private Study for One"
 
 
-def test_approve_participant_submission_fails_immediately_for_timed_out_submission():
+def test_approve_participant_submission_returns_unapproved_for_timed_out_submission():
     service = ProlificService(
         api_token="fake-token",
         api_version="v1",
@@ -229,11 +229,10 @@ def test_approve_participant_submission_fails_immediately_for_timed_out_submissi
     service.get_participant_submission = mock.Mock(return_value={"status": "TIMED-OUT"})
     service._req = mock.Mock()
 
-    with pytest.raises(ProlificSubmissionApprovalStatusError) as ex_info:
-        service.approve_participant_submission("fake-submission-id")
+    result = service.approve_participant_submission("fake-submission-id")
 
-    assert ex_info.value.status == "TIMED-OUT"
-    assert "cannot be approved from status" in str(ex_info.value)
+    assert result == SubmissionApprovalResult(approved=False, status="TIMED-OUT")
+    # Terminal status: no retry, no transition request.
     service.get_participant_submission.assert_called_once_with("fake-submission-id")
     service._req.assert_not_called()
 
@@ -257,7 +256,9 @@ def test_approve_participant_submission_retries_active_submission():
         service, "fake-submission-id"
     )
 
-    assert result == {"id": "fake-submission-id"}
+    assert result == SubmissionApprovalResult(
+        approved=True, status="APPROVED", response={"id": "fake-submission-id"}
+    )
     assert service.get_participant_submission.call_args_list == [
         mock.call("fake-submission-id"),
         mock.call("fake-submission-id"),

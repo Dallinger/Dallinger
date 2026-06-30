@@ -35,7 +35,7 @@ from dallinger.notifications import MessengerError, admin_notifier, get_mailer
 from dallinger.prolific import (
     ProlificScreenOutDenied,
     ProlificServiceException,
-    ProlificSubmissionApprovalStatusError,
+    ProlificSubmissionActiveError,
     dev_prolific_service_from_config,
     prolific_service_from_config,
 )
@@ -770,22 +770,35 @@ class ProlificRecruiter(Recruiter):
     def approve_hit(self, assignment_id: str):
         """Approve a participant's assignment/submission on Prolific"""
         try:
-            return self.prolificservice.approve_participant_submission(
+            result = self.prolificservice.approve_participant_submission(
                 submission_id=assignment_id
             )
-        except ProlificSubmissionApprovalStatusError as ex:
-            status_kind = "transient" if ex.status == "ACTIVE" else "terminal"
+        except ProlificSubmissionActiveError as ex:
+            # Retries exhausted while the submission was still ACTIVE.
             logger.warning(
                 f"approve_participant_submission for assignment_id '{assignment_id}' "
-                f"found a {status_kind} Prolific submission approval status: {str(ex)}. "
+                f"found a transient Prolific submission status: '{ex.status}'. "
                 "Continuing local completion flow; Prolific approval was not completed."
             )
+            return None
         except ProlificServiceException as ex:
             logger.warning(
                 f"approve_participant_submission for assignment_id '{assignment_id}' "
                 f"failed with error '{str(ex)}'. Will try to proceed anyway."
             )
             handle_recruitment_error(ex)
+            return None
+
+        if not result.approved:
+            # Terminal, approval-blocking status (e.g. TIMED-OUT, RETURNED):
+            # expected, so warn rather than treating it as an error.
+            logger.warning(
+                f"approve_participant_submission for assignment_id '{assignment_id}' "
+                f"found a terminal Prolific submission status: '{result.status}'. "
+                "Continuing local completion flow; Prolific approval was not completed."
+            )
+
+        return result.response
 
     def close_recruitment(self):
         """Do nothing.

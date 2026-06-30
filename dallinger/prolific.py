@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from dataclasses import dataclass
 from typing import List, Optional, Union
 from uuid import uuid4
 
@@ -25,14 +26,17 @@ class ProlificServiceException(Exception):
     """Some error from Prolific"""
 
 
-class ProlificSubmissionApprovalStatusError(ProlificServiceException):
-    """Raised when a Prolific submission status blocks approval."""
+class ProlificSubmissionActiveError(ProlificServiceException):
+    """Raised when a submission is still ACTIVE and approval should be retried.
 
-    def __init__(self, status: str):
+    This exception exists solely to drive the Tenacity retry while the worker's
+    submission propagates on Prolific's side. Terminal, approval-blocking
+    statuses do not raise; they are reported via ``SubmissionApprovalResult``.
+    """
+
+    def __init__(self, status: str = "ACTIVE"):
         self.status = status
-        super().__init__(
-            f"Prolific submission cannot be approved from status '{status}'."
-        )
+        super().__init__("Prolific submission is still ACTIVE; retrying approval.")
 
 
 class ProlificServiceNoSuchProject(Exception):
@@ -52,15 +56,33 @@ class ProlificScreenOutDenied(Exception):
 
 
 def _should_retry_approval_error(exception):
-    """Return whether an approval error should trigger another retry."""
-    if isinstance(exception, ProlificSubmissionApprovalStatusError):
-        return exception.status == "ACTIVE"
-    return True
+    """Return whether an approval error should trigger another retry.
+
+    Only the transient ACTIVE case is retryable; everything else (terminal
+    statuses, real service errors) is handled by the caller.
+    """
+    return isinstance(exception, ProlificSubmissionActiveError)
 
 
 ########
 # code #
 ########
+
+
+@dataclass(frozen=True)
+class SubmissionApprovalResult:
+    """Outcome of :meth:`ProlificService.approve_participant_submission`.
+
+    ``approved`` is True only when Prolific transitioned the submission to
+    APPROVED (or it was already APPROVED). For terminal, approval-blocking
+    statuses (e.g. TIMED-OUT, RETURNED) ``approved`` is False and ``status``
+    holds the blocking status, rather than raising an exception.
+    """
+
+    approved: bool
+    status: str
+    response: Optional[dict] = None
+
 
 AVAILABLE_STATES = [
     "ACTIVE",
@@ -114,27 +136,45 @@ class ProlificService:
         retry=tenacity.retry_if_exception(_should_retry_approval_error),
         reraise=True,
     )
-    def approve_participant_submission(self, submission_id: str) -> dict:
+    def approve_participant_submission(
+        self, submission_id: str
+    ) -> SubmissionApprovalResult:
         """Mark an assignment as approved.
 
         We do some retrying here, because our first attempt to approve will
         happen more or less simultaneously with the worker submitting
-        the study on Prolific. If we get there first, there will be an error
-        because the submission hasn't happened yet.
+        the study on Prolific. If we get there first, the submission is still
+        ACTIVE and we raise :class:`ProlificSubmissionActiveError` to trigger a
+        retry.
+
+        Terminal, approval-blocking statuses (e.g. TIMED-OUT, RETURNED) cannot
+        be approved and no retry would help, so they are reported as an
+        unapproved :class:`SubmissionApprovalResult` rather than raising.
         """
         status = self.get_participant_submission(submission_id)["status"]
+
         if status == "APPROVED":
             logger.info(
                 "Participant submission is already approved, no need to approve again."
             )
-        elif status != "AWAITING REVIEW":
-            # ACTIVE may be transient; terminal statuses should fail immediately.
-            raise ProlificSubmissionApprovalStatusError(status)
+            return SubmissionApprovalResult(approved=True, status=status)
 
-        return self._req(
+        if status == "ACTIVE":
+            # Transient: the worker likely just submitted; a retry should pick
+            # it up once Prolific marks the submission AWAITING REVIEW.
+            raise ProlificSubmissionActiveError(status)
+
+        if status != "AWAITING REVIEW":
+            # Terminal, approval-blocking status; no retry would help.
+            return SubmissionApprovalResult(approved=False, status=status)
+
+        response = self._req(
             method="POST",
             endpoint=f"/submissions/{submission_id}/transition/",
             json={"action": "APPROVE"},
+        )
+        return SubmissionApprovalResult(
+            approved=True, status="APPROVED", response=response
         )
 
     def get_participant_submission(self, submission_id: str) -> dict:
