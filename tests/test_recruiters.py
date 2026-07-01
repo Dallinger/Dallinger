@@ -650,11 +650,10 @@ class TestProlificRecruiter:
 
         assert result is None
         mock_logger.warning.assert_called_once()
-        assert "expected Prolific status" in str(mock_logger.warning.call_args.args[0])
-        assert prolific_status in str(mock_logger.warning.call_args.args[0])
-        assert "Prolific approval was not completed" in str(
-            mock_logger.warning.call_args.args[0]
-        )
+        message = str(mock_logger.warning.call_args.args[0])
+        assert "expected Prolific status" in message
+        assert prolific_status in message
+        assert "Prolific approval was not completed" in message
         mock_logger.exception.assert_not_called()
         exp_klass.handle_recruitment_error.assert_called_once_with(error)
 
