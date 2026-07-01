@@ -35,7 +35,6 @@ from dallinger.notifications import MessengerError, admin_notifier, get_mailer
 from dallinger.prolific import (
     ProlificScreenOutDenied,
     ProlificServiceException,
-    ProlificSubmissionApprovalStatusError,
     dev_prolific_service_from_config,
     prolific_service_from_config,
 )
@@ -77,9 +76,10 @@ def set_log_level(level):
     logger.setLevel(new_level)
 
 
-def handle_recruitment_error(ex):
+def handle_recruitment_error(ex, log_exception=True):
     # Default behavior for backward compatibility
-    logger.exception(str(ex))
+    if log_exception:
+        logger.exception(str(ex))
     exp_klass = get_exp_klass()
     if exp_klass is not None:
         exp_klass.handle_recruitment_error(ex)
@@ -773,14 +773,15 @@ class ProlificRecruiter(Recruiter):
             return self.prolificservice.approve_participant_submission(
                 submission_id=assignment_id
             )
-        except ProlificSubmissionApprovalStatusError as ex:
-            status_kind = "transient" if ex.status == "ACTIVE" else "terminal"
-            logger.warning(
-                f"approve_participant_submission for assignment_id '{assignment_id}' "
-                f"found a {status_kind} Prolific submission approval status: {str(ex)}. "
-                "Continuing local completion flow; Prolific approval was not completed."
-            )
         except ProlificServiceException as ex:
+            if str(ex).startswith("Prolific session not yet submitted "):
+                logger.warning(
+                    f"approve_participant_submission for assignment_id '{assignment_id}' "
+                    f"failed with expected Prolific status: {str(ex)}. "
+                    "Continuing local completion flow; Prolific approval was not completed."
+                )
+                handle_recruitment_error(ex, log_exception=False)
+                return
             logger.warning(
                 f"approve_participant_submission for assignment_id '{assignment_id}' "
                 f"failed with error '{str(ex)}'. Will try to proceed anyway."

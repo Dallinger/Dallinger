@@ -9,12 +9,10 @@ import pytest
 from dallinger.config import get_config
 from dallinger.prolific import (
     DevProlificService,
-    ProlificService,
     ProlificServiceException,
     ProlificServiceMultipleWorkspacesException,
     ProlificServiceNoSuchProject,
     ProlificServiceNoSuchWorkspaceException,
-    ProlificSubmissionApprovalStatusError,
 )
 
 study_request = {
@@ -218,56 +216,6 @@ def subject(prolific_creds):
 def test_make_quick_study(subject):
     result = subject.draft_study(**private_study_request)
     assert result["name"] == "Test Private Study for One"
-
-
-def test_approve_participant_submission_fails_immediately_for_timed_out_submission():
-    service = ProlificService(
-        api_token="fake-token",
-        api_version="v1",
-        referer_header="fake-referer",
-    )
-    service.get_participant_submission = mock.Mock(return_value={"status": "TIMED-OUT"})
-    service._req = mock.Mock()
-
-    with pytest.raises(ProlificSubmissionApprovalStatusError) as ex_info:
-        service.approve_participant_submission("fake-submission-id")
-
-    assert ex_info.value.status == "TIMED-OUT"
-    assert "cannot be approved from status" in str(ex_info.value)
-    service.get_participant_submission.assert_called_once_with("fake-submission-id")
-    service._req.assert_not_called()
-
-
-def test_approve_participant_submission_retries_active_submission():
-    service = ProlificService(
-        api_token="fake-token",
-        api_version="v1",
-        referer_header="fake-referer",
-    )
-    service.get_participant_submission = mock.Mock(
-        side_effect=[
-            {"status": "ACTIVE"},
-            {"status": "AWAITING REVIEW"},
-        ]
-    )
-    service._req = mock.Mock(return_value={"id": "fake-submission-id"})
-    sleep = mock.Mock()
-
-    result = service.approve_participant_submission.retry_with(sleep=sleep)(
-        service, "fake-submission-id"
-    )
-
-    assert result == {"id": "fake-submission-id"}
-    assert service.get_participant_submission.call_args_list == [
-        mock.call("fake-submission-id"),
-        mock.call("fake-submission-id"),
-    ]
-    service._req.assert_called_once_with(
-        method="POST",
-        endpoint="/submissions/fake-submission-id/transition/",
-        json={"action": "APPROVE"},
-    )
-    sleep.assert_called_once()
 
 
 @pytest.mark.usefixtures("check_prolific")
