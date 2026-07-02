@@ -31,7 +31,7 @@
 
 ### Updated
 
-- Updated dependencies
+- Updated dependencies; pinned rpds-py < 2026.5.1
 
 ## [v12.2.0](https://github.com/dallinger/dallinger/tree/v12.2.0) (2026-04-20)
 
