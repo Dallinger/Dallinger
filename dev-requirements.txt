@@ -98,7 +98,7 @@ coverage==7.14.3
     #   dallinger
 coverage-pth==0.0.2
     # via dallinger
-croniter==6.2.2
+croniter==6.2.3
     # via rq
 cryptography==49.0.0
     # via paramiko
