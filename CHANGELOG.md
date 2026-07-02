@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v12.2.1](https://github.com/dallinger/dallinger/tree/v12.2.1) (2026-07-02)
 
 ### Changed
 
@@ -23,7 +23,7 @@
 - Fixed deprecated `Experiment.session` warnings in dashboard table queries.
 - Fixed Prolific draft study deletion to use the documented study endpoint and
   accept documented successful delete responses.
-- Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock`: `follow-redirects` 1.15.9 → 1.16.0, `lodash` 4.17.23 → 4.18.1, and `picomatch` 2.3.1 → 2.3.2 / 4.0.3 → 4.0.4.
+- Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock` (`follow-redirects`, `lodash`, `picomatch`), updating `webpack` and `webpack-cli`, and adding Yarn resolutions for patched `js-yaml`, `ws`, `engine.io`, `engine.io-client`, and `socket.io-adapter` versions.
 
 ### Removed
 
@@ -32,9 +32,6 @@
 ### Updated
 
 - Updated Python dependencies; pinned rpds-py < 2026.5.1
-- Updated JavaScript build/test tooling and transitive development dependencies:
-  - `webpack` 5.107.2 → 5.108.3 and `webpack-cli` 7.0.3 → 7.1.0.
-  - Added Yarn resolutions for patched transitive `js-yaml`, `ws`, `engine.io`, `engine.io-client`, and `socket.io-adapter` versions.
 
 ## [v12.2.0](https://github.com/dallinger/dallinger/tree/v12.2.0) (2026-04-20)
 
