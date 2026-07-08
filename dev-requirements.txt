@@ -443,7 +443,7 @@ python-dateutil==2.9.0.post0
     #   heroku3
     #   jupyter-client
     #   pandas
-python-discovery==1.4.2
+python-discovery==1.4.4
     # via
     #   tox
     #   virtualenv
