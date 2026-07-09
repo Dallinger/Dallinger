@@ -781,6 +781,48 @@ class TestProlificRecruiter:
             ]
         )
 
+    def test_verify_status_approves_working_awaiting_review(self, a, recruiter, queue):
+        p1 = a.participant(assignment_id="aaa111", recruiter_id="prolific")
+        assert p1.status == "working"
+
+        recruiter.prolificservice.get_assignments_for_study.return_value = {
+            p1.assignment_id: {
+                "participant_id": p1.assignment_id,
+                "hit_id": "some-study-id",
+                "worker_id": "some-prolific-worker-id-1",
+                "started_at": "2021-05-20T11:23:00.457Z",
+                "status": "AWAITING REVIEW",
+            },
+        }
+
+        recruiter.verify_status_of([p1])
+
+        assert p1.status == "submitted"
+        queue.enqueue.assert_called_once_with(
+            mock.ANY, "RecruiterSubmissionComplete", "aaa111", p1.id
+        )
+
+    def test_verify_status_syncs_working_already_approved(self, a, recruiter, queue):
+        p1 = a.participant(assignment_id="aaa111", recruiter_id="prolific")
+        assert p1.status == "working"
+
+        recruiter.prolificservice.get_assignments_for_study.return_value = {
+            p1.assignment_id: {
+                "participant_id": p1.assignment_id,
+                "hit_id": "some-study-id",
+                "worker_id": "some-prolific-worker-id-1",
+                "started_at": "2021-05-20T11:23:00.457Z",
+                "status": "APPROVED",
+            },
+        }
+
+        recruiter.verify_status_of([p1])
+
+        assert p1.status == "submitted"
+        queue.enqueue.assert_called_once_with(
+            mock.ANY, "RecruiterSubmissionComplete", "aaa111", p1.id
+        )
+
     def test_verify_status_copes_with_assignments_not_in_prolific(
         self, a, recruiter, queue
     ):

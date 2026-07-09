@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed Prolific status reconciliation so locally ``working`` participants
+  whose Prolific submission is ``AWAITING REVIEW`` or already ``APPROVED``
+  are marked ``submitted`` and processed via ``RecruiterSubmissionComplete``,
+  instead of leaving the study stuck awaiting review.
+
 ## [v12.2.1](https://github.com/dallinger/dallinger/tree/v12.2.1) (2026-07-02)
 
 ### Changed

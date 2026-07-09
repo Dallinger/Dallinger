@@ -482,6 +482,13 @@ def check_for_prolific_worker_status_discrepancy(local_status, prolific_status):
         # (local status, remote Prolific status): action to take
         ("working", "TIMED-OUT"): "AssignmentAbandoned",
         ("working", "RETURNED"): "AssignmentReturned",
+        # Participant submitted on Prolific (e.g. completion code / NOCODE)
+        # without going through our exit listener — approve via the normal
+        # RecruiterSubmissionComplete path after marking them submitted.
+        ("working", "AWAITING REVIEW"): "RecruiterSubmissionComplete",
+        # Already approved on Prolific; sync local status the same way
+        # (approve_hit is a no-op when Prolific status is already APPROVED).
+        ("working", "APPROVED"): "RecruiterSubmissionComplete",
     }
 
     return actions.get((local_status, prolific_status))
@@ -917,6 +924,11 @@ class ProlificRecruiter(Recruiter):
                 logger.warning(
                     f"Taking corrective action on participant {participant.id}: {corrective_action}"
                 )
+                # RecruiterSubmissionComplete / on_recruiter_submission_complete
+                # only proceeds when status is "submitted" (same precondition as
+                # /prolific-submission-listener).
+                if corrective_action == "RecruiterSubmissionComplete":
+                    participant.status = "submitted"
                 q.enqueue(
                     worker_function,
                     corrective_action,
