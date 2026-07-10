@@ -4,7 +4,7 @@ coverage
 coverage_pth
 codecov
 ruff
-myst_parser
+myst_parser==5.1.0
 pypandoc
 pytest
 sphinxcontrib-spelling
