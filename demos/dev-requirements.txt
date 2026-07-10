@@ -6,7 +6,7 @@ codecov
 ruff
 myst_parser
 pypandoc
-pytest
+pytest==9.1.1
 sphinxcontrib-spelling
 sphinx
 tox
