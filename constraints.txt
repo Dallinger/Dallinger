@@ -614,7 +614,7 @@ typing-extensions==4.15.0
     #   beautifulsoup4
     #   jupyter-client
     #   selenium
-tzdata==2026.2
+tzdata==2026.3
     # via
     #   arrow
     #   pandas
