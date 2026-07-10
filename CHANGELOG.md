@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Updated
+
+- Updated Python dependencies
+
+## [v12.2.1](https://github.com/dallinger/dallinger/tree/v12.2.1) (2026-07-02)
+
 ### Changed
 
 - Updated the Dallinger pull request template, branch review command, and agent instructions to use a standardized pull request description and review workflow.
@@ -17,16 +23,19 @@
 - Fixed `dallinger debug` launch failures that happen before the `/launch` route
   body so they return JSON error messages instead of only a generic HTML 500
   response.
+- Fixed the GitHub Actions `pre-commit` job to avoid the deprecated Node.js 20
+  runtime by replacing `pre-commit/action` with explicit pre-commit installation
+  and execution.
 - Fixed Prolific status polling so it does not make unscoped submissions API requests when no current study ID is recorded.
 - Fixed Prolific submissions lookups so status checks retrieve all paginated
   submissions instead of only the first page.
-- Fixed deprecated `Experiment.session` warnings in dashboard table queries while
-  preserving injected-session compatibility.
+- Fixed deprecated `Experiment.session` warnings in dashboard table queries.
 - Fixed Prolific draft study deletion to use the documented study endpoint and
   accept documented successful delete responses.
 - Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock`: `follow-redirects` 1.15.9 → 1.16.0, `lodash` 4.17.23 → 4.18.1, and `picomatch` 2.3.1 → 2.3.2 / 4.0.3 → 4.0.4.
 - Fixed generated dependency pins so they remain installable on the lowest
   supported Python version.
+- Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock` (`follow-redirects`, `lodash`, `picomatch`), updating `webpack` and `webpack-cli`, and adding Yarn resolutions for patched `js-yaml`, `ws`, `engine.io`, `engine.io-client`, and `socket.io-adapter` versions.
 
 ### Removed
 
@@ -43,7 +52,7 @@
 
 ### Updated
 
-- Updated dependencies
+- Updated Python dependencies; pinned rpds-py < 2026.5.1
 
 ## [v12.2.0](https://github.com/dallinger/dallinger/tree/v12.2.0) (2026-04-20)
 
