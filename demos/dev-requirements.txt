@@ -7,6 +7,6 @@ ruff
 myst_parser
 pypandoc
 pytest
-sphinxcontrib-spelling
+sphinxcontrib-spelling==8.0.2
 sphinx
 tox
