@@ -25,9 +25,7 @@ botocore==1.43.45
     #   boto3
     #   s3transfer
 build==1.5.1
-    # via
-    #   dallinger
-    #   pip-tools
+    # via dallinger
 certifi==2026.6.17
     # via
     #   requests
@@ -148,6 +146,8 @@ requests==2.34.2
     #   heroku3
 rich==15.0.0
     # via dallinger
+rpds-py==0.30.0
+    # via dallinger
 rq==2.10.0
     # via dallinger
 s3transfer==0.19.0
@@ -198,7 +198,7 @@ urllib3==2.7.0
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.11.24
+uv==0.11.28
     # via dallinger
 websocket-client==1.9.0
     # via selenium

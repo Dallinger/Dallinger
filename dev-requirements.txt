@@ -53,9 +53,7 @@ botocore==1.43.45
     #   boto3
     #   s3transfer
 build==1.5.1
-    # via
-    #   dallinger
-    #   pip-tools
+    # via dallinger
 bump2version==1.0.1
     # via dallinger
 cachetools==7.1.4
@@ -180,7 +178,7 @@ ipykernel==7.3.0
     #   jupyter
     #   jupyter-console
     #   jupyterlab
-ipython==9.14.1
+ipython==9.15.0
     # via
     #   dallinger
     #   ipykernel
@@ -490,8 +488,9 @@ rich==15.0.0
     # via dallinger
 roman-numerals==4.1.0
     # via sphinx
-rpds-py==2026.5.1
+rpds-py==0.30.0
     # via
+    #   dallinger
     #   jsonschema
     #   referencing
 rq==2.10.0
