@@ -9,4 +9,4 @@ pypandoc
 pytest
 sphinxcontrib-spelling
 sphinx
-tox
+tox==4.56.4
