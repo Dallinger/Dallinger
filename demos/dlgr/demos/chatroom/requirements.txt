@@ -1,2 +1,2 @@
-dallinger
+dallinger==12.2.1
 nltk
