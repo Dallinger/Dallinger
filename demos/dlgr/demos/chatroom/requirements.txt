@@ -1,2 +1,2 @@
 dallinger
-nltk
+nltk==3.10.0
