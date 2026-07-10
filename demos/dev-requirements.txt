@@ -8,5 +8,5 @@ myst_parser
 pypandoc
 pytest
 sphinxcontrib-spelling
-sphinx
+sphinx==9.1.0
 tox
