@@ -1,6 +1,6 @@
 -r requirements.txt
 alabaster
-coverage
+coverage==7.15.0
 coverage_pth
 codecov
 ruff
