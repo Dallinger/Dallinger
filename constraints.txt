@@ -47,13 +47,13 @@ bleach==6.4.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.43.39
+boto3==1.43.45
     # via dallinger
-botocore==1.43.39
+botocore==1.43.45
     # via
     #   boto3
     #   s3transfer
-build==1.5.0
+build==1.5.1
     # via
     #   dallinger
     #   pip-tools
@@ -69,7 +69,7 @@ certifi==2026.6.17
     #   httpx
     #   requests
     #   selenium
-cffi==2.0.0
+cffi==2.1.0
     # via
     #   argon2-cffi-bindings
     #   cryptography
@@ -78,7 +78,7 @@ cfgv==3.5.0
     # via pre-commit
 chardet==5.2.0
     # via dallinger
-charset-normalizer==3.4.7
+charset-normalizer==3.4.9
     # via requests
 click==8.4.2
     # via
@@ -92,13 +92,13 @@ comm==0.2.3
     # via
     #   ipykernel
     #   ipywidgets
-coverage==7.14.3
+coverage==7.15.0
     # via
     #   coverage-pth
     #   dallinger
 coverage-pth==0.0.2
     # via dallinger
-croniter==6.2.2
+croniter==6.2.4
     # via rq
 cryptography==49.0.0
     # via paramiko
@@ -112,7 +112,7 @@ defusedxml==0.7.1
     #   odfpy
 distlib==0.4.3
     # via virtualenv
-docker==7.1.0
+docker==7.2.0
     # via dallinger
 docutils==0.21.2
     # via
@@ -127,7 +127,7 @@ faker==40.28.1
     # via dallinger
 fastjsonschema==2.21.2
     # via nbformat
-filelock==3.29.4
+filelock==3.29.7
     # via
     #   python-discovery
     #   tox
@@ -299,7 +299,7 @@ mdit-py-plugins==0.6.1
     # via myst-parser
 mdurl==0.1.2
     # via markdown-it-py
-mistune==3.3.2
+mistune==3.3.3
     # via nbconvert
 myst-parser==4.0.1
     # via dallinger
@@ -443,7 +443,7 @@ python-dateutil==2.9.0.post0
     #   heroku3
     #   jupyter-client
     #   pandas
-python-discovery==1.4.2
+python-discovery==1.4.4
     # via
     #   tox
     #   virtualenv
@@ -503,7 +503,7 @@ rpds-py==0.30.0
     #   referencing
 rq==2.10.0
     # via dallinger
-ruff==0.15.20
+ruff==0.15.21
     # via dallinger
 s3transfer==0.19.0
     # via boto3
@@ -585,7 +585,7 @@ tornado==6.5.7
     #   jupyterlab
     #   notebook
     #   terminado
-tox==4.56.1
+tox==4.56.4
     # via dallinger
 traitlets==5.15.1
     # via
@@ -609,12 +609,12 @@ trio==0.33.0
     #   trio-websocket
 trio-websocket==0.12.2
     # via selenium
-typing-extensions==4.15.0
+typing-extensions==4.16.0
     # via
     #   beautifulsoup4
     #   jupyter-client
     #   selenium
-tzdata==2026.2
+tzdata==2026.3
     # via
     #   arrow
     #   pandas
@@ -637,9 +637,9 @@ urllib3==2.7.0
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.11.26
+uv==0.11.28
     # via dallinger
-virtualenv==21.5.1
+virtualenv==21.6.0
     # via
     #   pre-commit
     #   tox
