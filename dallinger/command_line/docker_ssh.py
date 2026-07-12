@@ -1,5 +1,6 @@
 import hashlib
 import io
+import ipaddress
 import json
 import logging
 import os
@@ -370,7 +371,7 @@ option_server = click.option(
 option_update = click.option(
     "--update",
     "-u",
-    flag_value="update",
+    is_flag=True,
     default=False,
     help="Update an existing experiment",
 )
@@ -394,6 +395,96 @@ def should_use_subdomain(app_name, archive_path):
     if archive_path:
         return False
     return False
+
+
+def split_ssh_host_port(host):
+    """Parse SSH host strings into ``(host, port)``.
+
+    Accepts unbracketed hosts in ``host`` or ``host:port`` form, and
+    bracketed IPv6 hosts in ``[host]`` or ``[host]:port`` form.
+    If no port is provided, defaults to 22.
+
+    Examples
+    --------
+    >>> split_ssh_host_port("example.com")
+    ('example.com', 22)
+    >>> split_ssh_host_port("localhost:2222")
+    ('localhost', 2222)
+    >>> split_ssh_host_port("[::1]:2200")
+    ('::1', 2200)
+    """
+    host = host.strip()
+    if not host:
+        raise click.UsageError("Invalid host format ''. Use host or host:port.")
+
+    def _parse_port(port_text):
+        if not port_text.isdigit():
+            raise click.UsageError(
+                f"Invalid host format '{host}'. Use host or host:port."
+            )
+        parsed_port = int(port_text)
+        if parsed_port < 1 or parsed_port > 65535:
+            raise click.UsageError(
+                f"Invalid port '{parsed_port}' in host '{host}'. Port must be between 1 and 65535."
+            )
+        return parsed_port
+
+    if host.startswith("["):
+        bracket_end = host.find("]")
+        if bracket_end == -1:
+            raise click.UsageError(
+                f"Invalid host format '{host}'. Use host or host:port."
+            )
+        parsed_host = host[1:bracket_end]
+        if not parsed_host:
+            raise click.UsageError(
+                f"Invalid host format '{host}'. Use host or host:port."
+            )
+        suffix = host[bracket_end + 1 :]
+        if not suffix:
+            return parsed_host, 22
+        if suffix.startswith(":"):
+            return parsed_host, _parse_port(suffix[1:])
+        raise click.UsageError(f"Invalid host format '{host}'. Use host or host:port.")
+
+    if host.count(":") == 1:
+        parsed_host, port_candidate = host.rsplit(":", 1)
+        if not parsed_host:
+            raise click.UsageError(
+                f"Invalid host format '{host}'. Use host or host:port."
+            )
+        return parsed_host, _parse_port(port_candidate)
+
+    if host.count(":") > 1:
+        try:
+            ipaddress.ip_address(host)
+        except ValueError as exc:
+            raise click.UsageError(
+                f"Invalid host format '{host}'. Use host or host:port."
+            ) from exc
+
+    return host, 22
+
+
+def is_loopback_host(host):
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def known_hosts_target(host, port):
+    return host if port == 22 else f"[{host}]:{port}"
+
+
+def docker_host_uri(host, user=None, port=22):
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    user_part = f"{user}@" if user else ""
+    port_part = f":{port}" if port != 22 else ""
+    return f"ssh://{user_part}{host}{port_part}"
 
 
 def _resolve_server_info(server):
@@ -433,6 +524,10 @@ def _discover_server_apps(executor):
             existing.add(entry)
 
     return sorted(existing)
+
+
+def get_existing_remote_experiments(executor):
+    return _discover_server_apps(executor)
 
 
 def ensure_root_domain_ready(server, update):
@@ -523,11 +618,11 @@ def build_and_push_image(f):
             if not local_build:
                 # Set DOCKER_HOST to point to the remote server via SSH
                 server_info = CONFIGURED_HOSTS[kwargs["server"]]
-                ssh_host = server_info["host"]
+                ssh_host, ssh_port = split_ssh_host_port(server_info["host"])
                 ssh_user = server_info.get("user")
-                ensure_remote_host_in_known_hosts(ssh_host, ssh_user)
-                os.environ["DOCKER_HOST"] = (
-                    f"ssh://{(ssh_user + '@') if ssh_user else ''}{ssh_host}"
+                ensure_remote_host_in_known_hosts(server_info["host"], ssh_user)
+                os.environ["DOCKER_HOST"] = docker_host_uri(
+                    ssh_host, user=ssh_user, port=ssh_port
                 )
                 print(
                     f"Attempting to build image on remote host: {os.environ['DOCKER_HOST']}"
@@ -650,7 +745,21 @@ def set_dozzle_password(executor, sftp, new_password):
         }
     }
     sftp.putfo(BytesIO(json.dumps(dozzle_users).encode()), "dallinger/dozzle-users.yml")
-    executor.restart_dozzle()
+    dozzle_running = executor.run(
+        "docker ps --filter name=^dozzle$ --format '{{.ID}}'",
+        raise_=False,
+    ).strip()
+    if dozzle_running:
+        executor.restart_dozzle()
+
+
+def ensure_postgres_schema_permissions(executor, experiment_id):
+    # PostgreSQL 15+ no longer grants CREATE on schema public to all users.
+    grant_schema_script = f'GRANT USAGE, CREATE ON SCHEMA public TO "{experiment_id}"'
+    executor.run(
+        "docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql "
+        f'psql -U dallinger -d "{experiment_id}" -c {quote(grant_schema_script)}'
+    )
 
 
 @docker_ssh.command("set-dozzle-password")
@@ -717,7 +826,8 @@ def _deploy_in_mode(
     run_pre_launch_checks(**locals())
 
     server_info = CONFIGURED_HOSTS[server]
-    ssh_host = server_info["host"]
+    ssh_address = server_info["host"]
+    ssh_host, ssh_port = split_ssh_host_port(ssh_address)
     ssh_user = server_info.get("user")
     dashboard_user = config.get("dashboard_user", "admin")
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
@@ -725,7 +835,7 @@ def _deploy_in_mode(
     # We deleted this because synchronizing configs between local and remote can cause problems especially when using
     # different credential managers
     # copy_docker_config(ssh_host, ssh_user)
-    HAS_TLS = ssh_host != "localhost"
+    HAS_TLS = not is_loopback_host(ssh_host)
     # We abuse the mturk contact_email_on_error to provide an email for let's encrypt certificate
     email_addr = config.get("contact_email_on_error")
     if HAS_TLS:
@@ -799,7 +909,7 @@ It currently resolves to {ipaddr_experiment}."""
             )
             raise click.Abort
 
-    executor = Executor(ssh_host, user=ssh_user, app=app_identifier)
+    executor = Executor(ssh_address, user=ssh_user, app=app_identifier)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
     if not use_subdomain and not preflight_root_clean:
@@ -845,7 +955,7 @@ It currently resolves to {ipaddr_experiment}."""
             )
             raise click.Abort
 
-    sftp = get_sftp(ssh_host, user=ssh_user)
+    sftp = get_sftp(ssh_address, user=ssh_user)
     dozzle_base = "/logs" if not use_subdomain else ""
     rendered_compose = DOCKER_COMPOSE_SERVER_TPL.render(dozzle_base=dozzle_base)
     sftp.putfo(BytesIO(rendered_compose.encode()), "dallinger/docker-compose.yml")
@@ -969,6 +1079,7 @@ It currently resolves to {ipaddr_experiment}."""
     executor.run(
         f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
     )
+    ensure_postgres_schema_permissions(executor, experiment_id)
 
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
@@ -1003,6 +1114,7 @@ It currently resolves to {ipaddr_experiment}."""
             dns_host=dns_host,
             dozzle_password=dozzle_password,
             context="ssh",
+            verify=HAS_TLS,
         )
         print(launch_data.get("recruitment_msg"))
 
@@ -1010,8 +1122,9 @@ It currently resolves to {ipaddr_experiment}."""
         f"https://{dashboard_user}:{dashboard_password}@{experiment_hostname}/dashboard"
     )
     pem_path = get_server_pem_path()
+    ssh_port_part = f"-p {ssh_port} " if ssh_port != 22 else ""
     log_command = (
-        f"ssh -i {pem_path} {(ssh_user + '@') if ssh_user else ''}{ssh_host} "
+        f"ssh {ssh_port_part}-i {pem_path} {(ssh_user + '@') if ssh_user else ''}{ssh_host} "
         f"docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
     )
 
@@ -1212,10 +1325,12 @@ def remote_postgres(server_info, app):
     """
     from sshtunnel import SSHTunnelForwarder
 
+    tunnel = None
     try:
-        ssh_host = server_info["host"]
+        ssh_address = server_info["host"]
+        ssh_host, ssh_port = split_ssh_host_port(ssh_address)
         ssh_user = server_info.get("user")
-        executor = Executor(ssh_host, user=ssh_user, app=app)
+        executor = Executor(ssh_address, user=ssh_user, app=app)
         # Prepare a tunnel to be able to pass a postgresql URL to the databse
         # on the remote docker container. First we need to find the IP of the
         # container running docker
@@ -1224,7 +1339,7 @@ def remote_postgres(server_info, app):
         ).strip()
         pem_path = get_server_pem_path()
         tunnel = SSHTunnelForwarder(
-            ssh_host,
+            (ssh_host, ssh_port),
             ssh_username=ssh_user,
             ssh_pkey=str(pem_path),
             remote_bind_address=(postgresql_remote_ip, 5432),
@@ -1232,7 +1347,8 @@ def remote_postgres(server_info, app):
         tunnel.start()
         yield f"postgresql://dallinger:dallinger@localhost:{tunnel.local_bind_port}/{app}"
     finally:
-        tunnel.stop()
+        if tunnel is not None:
+            tunnel.stop()
 
 
 @docker_ssh.command()
@@ -1241,9 +1357,10 @@ def remote_postgres(server_info, app):
 def destroy(server, app):
     """Tear down an experiment run on a server you control via ssh."""
     server_info = CONFIGURED_HOSTS[server]
-    ssh_host = server_info["host"]
+    ssh_address = server_info["host"]
+    ssh_host, _ = split_ssh_host_port(ssh_address)
     ssh_user = server_info.get("user")
-    executor = Executor(ssh_host, user=ssh_user, app=app)
+    executor = Executor(ssh_address, user=ssh_user, app=app)
 
     # Check if either the caddy config or the docker compose exist
     # If not, the app is not deployed
@@ -1260,7 +1377,7 @@ def destroy(server, app):
     # Inspect the active Caddyfile only after we know the app exists.
     caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
     uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
-    dns_host = server_info["host"]
+    dns_host = ssh_host
 
     # Remove the caddy configuration file and reload caddy config
     executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
@@ -1270,9 +1387,9 @@ def destroy(server, app):
         # health-check layout so the server behaves like a subdomain setup again.
         config = get_config(load=True)
         email_addr = config.get("contact_email_on_error")
-        HAS_TLS = ssh_host != "localhost"
+        HAS_TLS = not is_loopback_host(ssh_host)
         tls_value = "tls internal" if not HAS_TLS else f"tls {email_addr}"
-        sftp = get_sftp(ssh_host, user=ssh_user)
+        sftp = get_sftp(ssh_address, user=ssh_user)
         sftp.putfo(
             BytesIO(CADDYFILE_SUBDOMAIN.format(host=dns_host, tls=tls_value).encode()),
             "dallinger/Caddyfile",
@@ -1302,6 +1419,7 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         This is a deliberate choice to simplify the connection process, as the server
         is expected to be under our control.
     """
+    ssh_host, ssh_port = split_ssh_host_port(host)
     pem_path = get_server_pem_path()
     client = paramiko.SSHClient()
 
@@ -1309,21 +1427,26 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
     try:
         client.load_host_keys(known_hosts_path)
     except IOError:
-        # The known_hosts file might not exist yet; we'll create it after connecting.
+        # Paramiko may try to save host keys during connect(), which requires
+        # the target file to already exist.
         os.makedirs(os.path.dirname(known_hosts_path), exist_ok=True)
+        Path(known_hosts_path).touch(exist_ok=True)
+        client.load_host_keys(known_hosts_path)
 
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.load_system_host_keys()
 
     connect_kwargs = dict(
-        hostname=host,
+        hostname=ssh_host,
+        port=ssh_port,
         username=user,
         key_filename=str(pem_path),
         allow_agent=False,  # don't use ssh-agent
         look_for_keys=False,  # don't scan ~/.ssh for keys
     )
 
-    print(f"Connecting to {host}")
+    connecting_to = ssh_host if ssh_port == 22 else f"{ssh_host}:{ssh_port}"
+    print(f"Connecting to {connecting_to}")
     with yaspin() as spinner:
         try:
             client.connect(**connect_kwargs)
@@ -1345,8 +1468,9 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
                 raise click.Abort()
             # Remove all stale entries (all key types) from known_hosts.
             # ssh-keygen -R handles plain and hashed hostnames alike.
+            host_target = known_hosts_target(ssh_host, ssh_port)
             subprocess.run(
-                ["ssh-keygen", "-R", exc.hostname],
+                ["ssh-keygen", "-R", host_target],
                 capture_output=True,
             )
             # Recreate the client from the cleaned known_hosts so no
@@ -1380,7 +1504,7 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         client.save_host_keys(known_hosts_path)
     except IOError as exc:
         logging.getLogger(__name__).warning(
-            "Could not persist SSH known host for %s: %s", host, exc
+            "Could not persist SSH known host for %s: %s", connecting_to, exc
         )
 
     return client
@@ -1429,18 +1553,27 @@ class Executor:
         """Run the given command and block until it completes.
         If `raise` is True and the command fails, print the reason and raise an exception.
         """
-        channel = self.client.get_transport().open_session()
-        channel.exec_command(cmd)
-        status = channel.recv_exit_status()
+        status, stdout, stderr = self._run_with_status(cmd)
         if raise_ and status != 0:
             print(f"Error: exit code was not 0 ({status})")
-            print(channel.recv(10**10).decode())
-            print(channel.recv_stderr(10**10).decode())
-            self.print_docker_compose_logs()
+            print(stdout)
+            print(stderr)
+            compose_logs = self.print_docker_compose_logs()
+            if _is_remote_disk_full_error(stdout, stderr, compose_logs):
+                print(get_remote_disk_full_guidance(self.host, self.app))
+                self.offer_safe_disk_cleanup()
             raise ExecuteException(
                 f"An error occurred when running the following command on the remote server: \n{cmd}"
             )
-        return channel.recv(10**10).decode()
+        return stdout
+
+    def _run_with_status(self, cmd):
+        channel = self.client.get_transport().open_session()
+        channel.exec_command(cmd)
+        status = channel.recv_exit_status()
+        stdout = channel.recv(10**10).decode()
+        stderr = channel.recv_stderr(10**10).decode()
+        return status, stdout, stderr
 
     def print_docker_compose_logs(self):
         if self.app:
@@ -1451,10 +1584,14 @@ class Executor:
             status = channel.recv_exit_status()
             if status != 0:
                 print("`docker compose` logs failed to run.")
+                return ""
             else:
+                logs = channel.recv(10**10).decode()
                 print("*** BEGIN docker compose logs ***")
-                print(channel.recv(10**10).decode())
+                print(logs)
                 print("*** END docker compose logs ***\n")
+                return logs
+        return ""
 
     def check_sudo(self):
         """Make sure the current user is authorized to invoke sudo without providing a password.
@@ -1515,6 +1652,32 @@ class Executor:
                 if len(x) == 0 or x in "qQ":
                     break
 
+    def offer_safe_disk_cleanup(self):
+        if not (sys.stdin.isatty() and sys.stdout.isatty()):
+            print("Non-interactive session detected; skipping automatic cleanup.")
+            return
+        if not click.confirm(
+            "Run safe Docker cleanup now on the remote host? "
+            "(unused images + stopped containers)",
+            default=False,
+        ):
+            return
+        print("Running safe cleanup steps on the remote host:")
+        for description, command in (
+            ("Remove unused images", "docker image prune -af"),
+            ("Remove stopped containers", "docker container prune -f"),
+        ):
+            print(f"- {description}: {command}")
+            status, stdout, stderr = self._run_with_status(command)
+            if status != 0:
+                print(f"Cleanup step failed with exit code {status}.")
+                if stdout:
+                    print(stdout)
+                if stderr:
+                    print(stderr)
+                return
+        print("Safe cleanup completed. Re-run your previous command.")
+
 
 def get_docker_compose_yml(
     config: Dict[str, str],
@@ -1573,9 +1736,44 @@ class ExecuteException(Exception):
     pass
 
 
+def _is_remote_disk_full_error(*outputs):
+    output = "\n".join(str(chunk) for chunk in outputs if chunk).lower()
+    return any(
+        marker in output
+        for marker in (
+            "no space left on device",
+            "diskfull",
+            "disk full",
+        )
+    )
+
+
+def get_remote_disk_full_guidance(host, app=None):
+    guidance = [
+        "",
+        f"Remote Docker host '{host}' appears to be out of disk space.",
+        "Safe cleanup steps (low-risk) are:",
+        "  docker image prune -af",
+        "  docker container prune -f",
+        "",
+        "Dallinger can run these safe steps for you automatically.",
+        "We intentionally do not auto-prune volumes here, to avoid data loss.",
+    ]
+    guidance.append("")
+    return "\n".join(guidance)
+
+
 def get_sftp(host, user=None) -> paramiko.SFTPClient:
     client = get_connected_ssh_client(host, user)
-    return client.open_sftp()
+    sftp = client.open_sftp()
+    try:
+        _, stdout, _ = client.exec_command('printf %s "$HOME"')
+        remote_home = stdout.read().decode().strip()
+        if remote_home:
+            sftp.chdir(remote_home)
+    except Exception:
+        pass
+    return sftp
 
 
 logging.getLogger("paramiko.transport").setLevel(logging.ERROR)

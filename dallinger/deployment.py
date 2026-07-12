@@ -36,6 +36,7 @@ def handle_launch_data(
     dns_host=None,
     dozzle_password=None,
     context=None,
+    verify=True,
 ):
     """Sends a POST request to the given `url`, retrying it with exponential backoff.
     The passed `error` function is invoked to give feedback as each error occurs,
@@ -49,12 +50,13 @@ def handle_launch_data(
         dns_host: Hostname for Docker SSH deployments
         dozzle_password: Password for Dozzle logs in Docker SSH deployments
         context: Deployment context ('heroku', 'ssh', 'local', etc.)
+        verify: Whether to validate TLS certificates for the launch request
     """
     launch_data = None
     launch_request = None
     for remaining_attempt in sorted(range(attempts), reverse=True):  # [3, 2, 1, 0]
         try:
-            launch_request = requests.post(url)
+            launch_request = requests.post(url, verify=verify)
             request_happened = True
         except requests.exceptions.RequestException as err:
             request_happened = False
