@@ -93,7 +93,7 @@ jmespath==1.1.0
     # via
     #   boto3
     #   botocore
-markdown-it-py==3.0.0
+markdown-it-py==4.2.0
     # via
     #   dallinger
     #   rich
