@@ -65,6 +65,7 @@
 - Avoided a duplicate experiment-package copy during `dallinger develop debug`
   by validating the working tree before development staging; strict packaged
   validation remains available through `dallinger verify`.
+- Updated Python dependencies
 
 ### Removed
 
