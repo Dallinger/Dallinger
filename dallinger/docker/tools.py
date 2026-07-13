@@ -76,6 +76,9 @@ class DockerComposeWrapper:
         if editable_dallinger_path:
             volumes.append(f"{editable_dallinger_path}/dallinger:/dallinger/dallinger")
             volumes.append(
+                f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.14/dist-packages/dallinger/"
+            )
+            volumes.append(
                 f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.13/dist-packages/dallinger/"
             )
             volumes.append(
@@ -83,9 +86,6 @@ class DockerComposeWrapper:
             )
             volumes.append(
                 f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.11/dist-packages/dallinger/"
-            )
-            volumes.append(
-                f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.10/dist-packages/dallinger/"
             )
         tag = get_experiment_image_tag(self.tmp_dir)
         with open(os.path.join(self.tmp_dir, "docker-compose.yml"), "w") as fh:
@@ -250,7 +250,7 @@ def get_required_dallinger_version(experiment_tmp_path: str) -> str:
     if not dallinger_requirements:
         print("Could not determine Dallinger version. Using latest")
         return ""
-    # pip-compile should have created a single spec in the form "dallinger==7.2.0"
+    # The constraints generator should have created a single spec in the form "dallinger==7.2.0"
     if "==" in dallinger_requirements[0]:
         return dallinger_requirements[0].split("==")[1]
     # Or we might have a requirement like `file:dallinger-7.2.0-py3-none-any.whl`

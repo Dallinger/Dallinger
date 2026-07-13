@@ -611,8 +611,8 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
     - An export of the loaded configuration
     - Heroku-specific files (Procile, runtime.txt) from Dallinger
     - A requirements.txt file with the contents from the constraints.txt file
-      in the experiment (Dallinger should have generated one with pip-compile
-      if needed by the time we reach this code)
+      in the experiment (Dallinger should have generated one if needed by the
+      time we reach this code)
     - A dallinger zip (only if dallinger is installed in editable mode)
     - A prepare_docker_image.sh.sh script (possibly empty)
 

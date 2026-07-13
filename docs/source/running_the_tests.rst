@@ -16,7 +16,7 @@ The tests include:
 * Running `Ruff <https://docs.astral.sh/ruff/>`_ to lint, organize imports,
   and format Python code.
 * Running the tests for the Python code using `pytest <http://doc.pytest.org/>`_
-  and making sure they pass on Python 3.10, 3.11, 3.12, and 3.13.
+  and making sure they pass on Python 3.11, 3.12, 3.13, and 3.14.
 * Making sure that `code coverage <https://coverage.readthedocs.io/>`_
   for the Python code is above the desired threshold.
 * Making sure the docs build without error.

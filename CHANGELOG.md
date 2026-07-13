@@ -11,6 +11,9 @@
 ### Changed
 
 - Updated the Dallinger pull request template, branch review command, and agent instructions to use a standardized pull request description and review workflow.
+### Added
+
+- Added support for Python 3.14.
 
 ### Fixed
 
@@ -29,10 +32,22 @@
 - Fixed deprecated `Experiment.session` warnings in dashboard table queries.
 - Fixed Prolific draft study deletion to use the documented study endpoint and
   accept documented successful delete responses.
+- Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock`: `follow-redirects` 1.15.9 → 1.16.0, `lodash` 4.17.23 → 4.18.1, and `picomatch` 2.3.1 → 2.3.2 / 4.0.3 → 4.0.4.
+- Fixed generated dependency pins so they remain installable on the lowest
+  supported Python version.
 - Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock` (`follow-redirects`, `lodash`, `picomatch`), updating `webpack` and `webpack-cli`, and adding Yarn resolutions for patched `js-yaml`, `ws`, `engine.io`, `engine.io-client`, and `socket.io-adapter` versions.
 
 ### Removed
 
+- Removed support for Python 3.10 and the dependency upper bounds that kept
+  `ipython`, `myst-parser`, `numpy`, `pandas`, `sphinx`, and `markdown-it-py`
+  on Python 3.10-compatible versions.
+- Removed the unused `chardet` dependency.
+- Removed the unused direct `markdown-it-py` dependency.
+- Removed redundant direct `numpy` declarations from the `data` and `ec2`
+  optional extras.
+- Removed the `pip-tools` dependency and legacy `pip-compile` fallback from
+  constraints generation.
 - Removed nanasess/setup-chromedriver action to instead use the GitHub-hosted runner's preinstalled Chrome and ChromeDriver versions.
 
 ### Updated

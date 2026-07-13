@@ -15,10 +15,7 @@ from rich.table import Table
 from rich.text import Text
 
 from dallinger.config import get_config, initialize_experiment_package
-from dallinger.constraints import (
-    _get_requested_python_version,
-    _python_versions_consistent,
-)
+from dallinger.constraints import _get_requested_python_version
 from dallinger.utils import ExperimentFileSource
 from dallinger.version import __version__
 
@@ -251,6 +248,13 @@ def verify_python_version(verbose):
             verbose=verbose,
         )
         return False
+    return True
+
+
+def _python_versions_consistent(v1, v2):
+    for a, b in zip(v1.split("."), v2.split(".")):
+        if int(a) != int(b):
+            return False
     return True
 
 

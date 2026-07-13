@@ -18,6 +18,15 @@ def found_in(name, path):
     return os.path.exists(os.path.join(path, name))
 
 
+def test_python_versions_consistent():
+    from dallinger.command_line.utils import _python_versions_consistent
+
+    assert _python_versions_consistent("3.15.0", "3.15.0")
+    assert _python_versions_consistent("3.15", "3.15.1")
+    assert not _python_versions_consistent("3.15", "3.16")
+    assert not _python_versions_consistent("3.15", "3.14.1")
+
+
 @pytest.fixture
 def sleepless():
     # Use this fixture to ignore sleep() calls, for speed.
