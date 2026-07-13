@@ -17,6 +17,8 @@
 
 ### Fixed
 
+- Reduced traceback-style logging for expected Prolific submission approval
+  status cases.
 - Fixed Docker SSH deployments so app containers use an app-scoped Redis
   hostname and private app network, preventing concurrent deployments from
   resolving another app's Redis service.
