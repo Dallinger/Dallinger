@@ -5,6 +5,7 @@ import shutil
 import sys
 import tempfile
 import textwrap
+import time
 import uuid
 from pathlib import Path
 from unittest import mock
@@ -868,7 +869,11 @@ class TestDebugServer:
         from dallinger.deployment import DebugDeployment
 
         debugger = DebugDeployment(
-            output, verbose=True, bot=False, proxy_port=None, exp_config={}
+            output,
+            verbose=True,
+            bot=False,
+            proxy_port=None,
+            exp_config={},
         )
         yield debugger
         if debugger.status_thread:
@@ -987,17 +992,18 @@ class TestDebugServer:
 
     def test_failure(self, debugger):
         with mock.patch("dallinger.deployment.HerokuLocalDeployment.WRAPPER_CLASS"):
-            with mock.patch("dallinger.deployment.requests.post") as mock_post:
-                mock_post.return_value = mock.Mock(
-                    ok=False,
-                    json=mock.Mock(return_value={"message": "msg!"}),
-                    raise_for_status=mock.Mock(
-                        side_effect=requests.exceptions.HTTPError
-                    ),
-                    status_code=500,
-                    text="Failure",
-                )
-                debugger.run()
+            with mock.patch("dallinger.deployment.wait_for_server"):
+                with mock.patch("dallinger.deployment.requests.post") as mock_post:
+                    mock_post.return_value = mock.Mock(
+                        ok=False,
+                        json=mock.Mock(return_value={"message": "msg!"}),
+                        raise_for_status=mock.Mock(
+                            side_effect=requests.exceptions.HTTPError
+                        ),
+                        status_code=500,
+                        text="Failure",
+                    )
+                    debugger.run()
 
         # Only one launch attempt should be made in debug mode
         debugger.out.error.assert_has_calls(
@@ -1009,6 +1015,134 @@ class TestDebugServer:
                 mock.call("msg!"),
             ]
         )
+
+
+class TestWaitForServer:
+    @pytest.fixture
+    def subject(self):
+        from dallinger.deployment import wait_for_server
+
+        return wait_for_server
+
+    def test_returns_when_server_responds(self, subject):
+        with mock.patch("dallinger.deployment.requests") as mock_requests:
+            mock_requests.ConnectionError = requests.ConnectionError
+            mock_requests.Timeout = requests.Timeout
+            subject("http://127.0.0.1:5000", timeout=2)
+        mock_requests.get.assert_called()
+
+    def test_returns_on_error_status(self, subject):
+        """Any HTTP response (even 500) means the worker is alive."""
+        with mock.patch("dallinger.deployment.requests") as mock_requests:
+            mock_requests.ConnectionError = requests.ConnectionError
+            mock_requests.Timeout = requests.Timeout
+            mock_requests.get.return_value = mock.Mock(status_code=500)
+            subject("http://127.0.0.1:5000", timeout=2)
+
+    def test_raises_when_server_not_responding(self, subject):
+        with mock.patch("dallinger.deployment.requests") as mock_requests:
+            mock_requests.ConnectionError = requests.ConnectionError
+            mock_requests.Timeout = requests.Timeout
+            mock_requests.get.side_effect = requests.ConnectionError()
+            with pytest.raises(RuntimeError, match="did not become ready"):
+                subject("http://127.0.0.1:5000", timeout=0.05, interval=0.01)
+
+    def test_retries_then_succeeds(self, subject):
+        """Retries on ConnectionError, then succeeds."""
+        with mock.patch("dallinger.deployment.requests") as mock_requests:
+            mock_requests.ConnectionError = requests.ConnectionError
+            mock_requests.Timeout = requests.Timeout
+            mock_requests.get.side_effect = [
+                requests.ConnectionError(),
+                mock.Mock(status_code=200),
+            ]
+            subject("http://127.0.0.1:5000", timeout=2, interval=0.01)
+        assert mock_requests.get.call_count == 2
+
+    def test_respects_timeout(self, subject):
+        with mock.patch("dallinger.deployment.requests") as mock_requests:
+            mock_requests.ConnectionError = requests.ConnectionError
+            mock_requests.Timeout = requests.Timeout
+            mock_requests.get.side_effect = requests.ConnectionError()
+            start = time.monotonic()
+            with pytest.raises(RuntimeError):
+                subject("http://127.0.0.1:5000", timeout=0.1, interval=0.02)
+            elapsed = time.monotonic() - start
+            assert elapsed < 0.5
+
+
+class TestHerokuLocalDeploymentNumDynos:
+    @pytest.fixture
+    def output(self):
+        from dallinger.command_line import Output
+
+        return Output(log=mock.Mock(), error=mock.Mock(), blather=mock.Mock())
+
+    def test_configure_forces_single_web_dyno(self, output):
+        from dallinger.deployment import DebugDeployment
+
+        debugger = DebugDeployment(
+            output,
+            verbose=False,
+            bot=False,
+            proxy_port=None,
+            exp_config={"num_dynos_web": 4},
+        )
+        debugger.configure()
+        assert debugger.exp_config["num_dynos_web"] == 1
+
+    def test_configure_warns_when_exp_config_has_multiple_web_dynos(self, output):
+        from dallinger.deployment import DebugDeployment
+
+        debugger = DebugDeployment(
+            output,
+            verbose=False,
+            bot=False,
+            proxy_port=None,
+            exp_config={"num_dynos_web": 3},
+        )
+        debugger.configure()
+        logged = " ".join(str(c) for c in output.log.call_args_list)
+        assert "num_dynos_web" in logged
+        assert "3" in logged
+
+    def test_configure_warns_when_global_config_has_multiple_web_dynos(self, output):
+        from dallinger.deployment import DebugDeployment
+
+        debugger = DebugDeployment(
+            output, verbose=False, bot=False, proxy_port=None, exp_config={}
+        )
+        mock_config = mock.Mock()
+        mock_config.ready = True
+        mock_config.get.return_value = 4
+        with mock.patch("dallinger.deployment.get_config", return_value=mock_config):
+            debugger.configure()
+        logged = " ".join(str(c) for c in output.log.call_args_list)
+        assert "num_dynos_web" in logged
+        assert "4" in logged
+
+    def test_configure_does_not_warn_when_already_1(self, output):
+        from dallinger.deployment import DebugDeployment
+
+        debugger = DebugDeployment(
+            output,
+            verbose=False,
+            bot=False,
+            proxy_port=None,
+            exp_config={"num_dynos_web": 1},
+        )
+        debugger.configure()
+        assert debugger.exp_config["num_dynos_web"] == 1
+        output.log.assert_not_called()
+
+    def test_configure_forces_single_web_dyno_when_not_set(self, output):
+        from dallinger.deployment import DebugDeployment
+
+        debugger = DebugDeployment(
+            output, verbose=False, bot=False, proxy_port=None, exp_config={}
+        )
+        debugger.configure()
+        assert debugger.exp_config["num_dynos_web"] == 1
 
 
 if os.environ.get("CI"):
