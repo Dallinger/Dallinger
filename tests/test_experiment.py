@@ -159,6 +159,53 @@ class TestExperimentBaseClass:
         assert participant.status == "approved"
         assert participant.bonus == 0.01
 
+    @pytest.mark.parametrize(
+        "participant_status, hook_name",
+        [
+            ("abandoned", "assignment_abandoned"),
+            ("returned", "assignment_returned"),
+        ],
+    )
+    def test_on_recruiter_submission_complete__does_not_approve_terminal_submission(
+        self, a, active_config, exp, participant_status, hook_name
+    ):
+        from dallinger.recruiters import RecruiterApprovalResult
+
+        participant = a.participant(recruiter_id="prolific")
+        participant.status = "submitted"
+        end_time = datetime(2000, 1, 1)
+        recruiter = mock.Mock()
+        recruiter.approve_hit.return_value = RecruiterApprovalResult(
+            approved=False,
+            participant_status=participant_status,
+        )
+        exp.data_check = mock.Mock(return_value=True)
+        exp.bonus = mock.Mock(return_value=0.01)
+        exp.attention_check = mock.Mock(return_value=True)
+        exp.submission_successful = mock.Mock()
+        exp.assignment_abandoned = mock.Mock()
+        exp.assignment_returned = mock.Mock()
+
+        with mock.patch("dallinger.recruiters.by_name", return_value=recruiter):
+            exp.on_recruiter_submission_complete(
+                participant=participant,
+                event={
+                    "event_type": "RecruiterSubmissionComplete",
+                    "participant_id": participant.id,
+                    "assignment_id": participant.assignment_id,
+                    "timestamp": end_time,
+                },
+            )
+
+        assert participant.base_pay == active_config.get("base_payment")
+        assert participant.status == participant_status
+        assert participant.bonus is None
+        getattr(exp, hook_name).assert_called_once_with(participant=participant)
+        exp.data_check.assert_not_called()
+        exp.bonus.assert_not_called()
+        exp.attention_check.assert_not_called()
+        exp.submission_successful.assert_not_called()
+
     def test_on_recruiter_submission_complete__pays_no_bonus_if_less_than_one_cent(
         self, a, exp
     ):
