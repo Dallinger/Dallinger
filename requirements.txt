@@ -18,9 +18,9 @@ beautifulsoup4==4.15.0
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.43.45
+boto3==1.43.47
     # via dallinger
-botocore==1.43.45
+botocore==1.43.47
     # via
     #   boto3
     #   s3transfer
@@ -150,9 +150,9 @@ rpds-py==0.30.0
     # via dallinger
 rq==2.10.0
     # via dallinger
-s3transfer==0.19.0
+s3transfer==0.19.1
     # via boto3
-selenium==4.45.0
+selenium==4.46.0
     # via dallinger
 simple-websocket==1.1.0
     # via flask-sock
