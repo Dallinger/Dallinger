@@ -496,7 +496,7 @@ rfc3987-syntax==1.1.0
     # via jsonschema
 rich==15.0.0
     # via dallinger
-rpds-py==0.30.0
+rpds-py==2026.6.3
     # via
     #   dallinger
     #   jsonschema
