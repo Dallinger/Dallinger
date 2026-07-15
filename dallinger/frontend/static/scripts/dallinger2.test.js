@@ -46,6 +46,27 @@ describe('getUrlParameter', function () {
 
 });
 
+describe('AjaxRejection', function () {
+  test('exposes structured server error codes', () => {
+    var dlgr = require('./dallinger2').dallinger;
+    var rejection = dlgr.AjaxRejection({
+      route: '/load-participant',
+      method: 'post',
+      error: {
+        status: 403,
+        response: JSON.stringify({
+          status: 'error',
+          error_code: 'participant_not_found',
+          html: '<p>Not found</p>'
+        })
+      }
+    });
+
+    expect(rejection.errorCode).toBe('participant_not_found');
+    expect(rejection.html).toBe('<p>Not found</p>');
+  });
+});
+
 describe('AD block functions', function () {
 
   var dlgr;

@@ -184,7 +184,7 @@ var dallinger = (function () {
   dlgr.AjaxRejection = (function () {
     // Capture information related to a rejected dallinger.ajax() call.
 
-    var _responseHTML = function (response) {
+    var _responseData = function (response) {
       var parsed;
       try {
         parsed = JSON.parse(response);
@@ -192,10 +192,7 @@ var dallinger = (function () {
         console.log('Error response not parseable.');
         parsed = {};
       }
-      if (parsed.hasOwnProperty('html')) {
-        return parsed.html;
-      }
-      return '';
+      return parsed;
     };
 
     var AjaxRejection = function (options) {
@@ -208,7 +205,9 @@ var dallinger = (function () {
       this.data = options.data || {};
       this.error = options.error;
       this.status = options.error.status;
-      this.html = _responseHTML(this.error.response);
+      this.response = _responseData(this.error.response);
+      this.html = this.response.html || '';
+      this.errorCode = this.response.error_code;
       this.requestJSON = JSON.stringify({
         'route': this.route,
         'data': JSON.stringify(this.data),
