@@ -167,6 +167,21 @@ class TestAdvertisement:
         assert resp.status_code == 500
         assert b"already_did_exp_hit" in resp.data
 
+    def test_previously_completed_same_exp_is_allowed_when_configured(
+        self, a, active_config, webapp
+    ):
+        p = a.participant()
+        active_config.set("allow_repeat_worker_ids", True)
+
+        resp = webapp.get(
+            "/ad?hitId={}&assignmentId={}&workerId={}".format(
+                p.hit_id, "new-assignment", p.worker_id
+            )
+        )
+
+        assert resp.status_code == 200
+        assert b"Thanks for accepting this HIT." in resp.data
+
     def test_generate_tokens_redirects(self, webapp):
         resp = webapp.get("/ad?generate_tokens=1")
         assert resp.status_code == 302
@@ -709,6 +724,7 @@ class TestParticipantByAssignmentRoute:
         resp = webapp.post("/load-participant")
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "error"
+        assert data.get("error_code") == "participant_not_found"
         assert "no participant found" in data.get("html")
 
     def test_assignment_invalid(self, webapp):
@@ -718,6 +734,7 @@ class TestParticipantByAssignmentRoute:
         )
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "error"
+        assert data.get("error_code") == "participant_not_found"
         assert "no participant found" in data.get("html")
 
     def test_load_participant_calls_normalize_entry_information(
@@ -837,13 +854,19 @@ class TestParticipantCreateRoute:
         )
 
         assert resp.status_code == 200
+        third_resp = webapp.post(
+            "/participant/{}/{}/{}/debug".format(
+                p.worker_id, p.hit_id, "third-assignment"
+            )
+        )
+        assert third_resp.status_code == 200
         with db.sessions_scope(commit=True) as session:
             count = (
                 session.query(models.Participant)
                 .filter_by(worker_id=p.worker_id)
                 .count()
             )
-        assert count == 2
+        assert count == 3
 
     def test_sets_status_when_participant_is_overrecruited(self, webapp, overrecruited):
         worker_id = "1"

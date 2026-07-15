@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed repeat-worker recruitment after multiple prior participations and added structured participant lookup errors for clients.
+
 ### Updated
 
 - Updated Python dependencies
