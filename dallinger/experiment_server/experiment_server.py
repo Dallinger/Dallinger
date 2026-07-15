@@ -591,7 +591,7 @@ def prepare_advertisement():
             is not None
         )
 
-        if already_participated:
+        if already_participated and not config.get("allow_repeat_worker_ids", False):
             raise ExperimentError("already_did_exp_hit")
 
     kwargs = {
@@ -933,7 +933,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         # For now we just log a warning.
 
     already_participated = (
-        session.query(models.Participant).filter_by(worker_id=worker_id).one_or_none()
+        session.query(models.Participant).filter_by(worker_id=worker_id).first()
     )
 
     allow_repeat_worker_ids = config.get("allow_repeat_worker_ids", False)
@@ -1063,12 +1063,16 @@ def load_participant():
     assignment_id = participant_info.get("assignment_id")
     if assignment_id is None:
         return error_response(
-            error_type="/load-participant POST: no participant found", status=403
+            error_type="/load-participant POST: no participant found",
+            error_code="participant_not_found",
+            status=403,
         )
     ppt = exp.load_participant(assignment_id)
     if ppt is None:
         return error_response(
-            error_type="/load-participant POST: no participant found", status=403
+            error_type="/load-participant POST: no participant found",
+            error_code="participant_not_found",
+            status=403,
         )
 
     # return the data
