@@ -178,6 +178,7 @@ def error_response(
     participant=None,
     simple=False,
     request_data="",
+    error_code=None,
 ):
     """Return a generic server error response."""
     last_exception = sys.exc_info()
@@ -189,6 +190,8 @@ def error_response(
         )
 
     data = {"status": "error"}
+    if error_code is not None:
+        data["error_code"] = error_code
 
     if simple:
         data["message"] = error_text
