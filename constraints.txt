@@ -375,7 +375,7 @@ pluggy==1.6.0
     # via
     #   pytest
     #   tox
-pre-commit==4.6.0
+pre-commit==4.6.1
     # via dallinger
 prometheus-client==0.25.0
     # via jupyter-server
