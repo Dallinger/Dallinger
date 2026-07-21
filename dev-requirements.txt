@@ -364,7 +364,7 @@ pexpect==4.9.0
     # via
     #   dallinger
     #   ipython
-platformdirs==4.10.0
+platformdirs==4.11.0
     # via
     #   dallinger
     #   jupyter-core
