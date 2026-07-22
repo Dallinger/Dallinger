@@ -294,7 +294,7 @@ mdit-py-plugins==0.6.1
     # via myst-parser
 mdurl==0.1.2
     # via markdown-it-py
-mistune==3.3.3
+mistune==3.3.4
     # via nbconvert
 myst-parser==5.1.0
     # via dallinger
