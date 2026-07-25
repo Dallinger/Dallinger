@@ -101,6 +101,29 @@ def test_development_verification_runs_before_database_reset(output, tempdir):
     ]
 
 
+def test_failed_development_verification_prevents_database_reset(output, tempdir):
+    from dallinger.deployment import DevelopmentDeployment
+
+    def reject_staged_experiment(path):
+        raise RuntimeError(f"Invalid experiment at {path}")
+
+    with (
+        mock.patch(
+            "dallinger.deployment.bootstrap_development_session",
+            return_value=("experiment-id", tempdir),
+        ),
+        mock.patch("dallinger.deployment.db.init_db") as init_db,
+        pytest.raises(RuntimeError, match="Invalid experiment"),
+    ):
+        DevelopmentDeployment(
+            output,
+            {},
+            before_database_reset=reject_staged_experiment,
+        ).run()
+
+    init_db.assert_not_called()
+
+
 @pytest.fixture
 def herokuapp():
     # Patch addon since we're using a free app which doesn't support them:
