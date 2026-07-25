@@ -16,6 +16,7 @@ def main():
         valid = _verify_experiment_module(
             verbose=not args.quiet,
             experiment_directory=args.experiment_directory,
+            experiment_is_staged=True,
         )
     except Exception:
         traceback.print_exc()

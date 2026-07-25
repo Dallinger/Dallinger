@@ -311,7 +311,11 @@ def verify_experiment_module(verbose, experiment_directory=None):
     return True
 
 
-def _verify_experiment_module(verbose, experiment_directory=None):
+def _verify_experiment_module(
+    verbose,
+    experiment_directory=None,
+    experiment_is_staged=False,
+):
     """Perform basic sanity checks on experiment.py."""
     ok = True
     experiment_directory = (
@@ -320,7 +324,7 @@ def _verify_experiment_module(verbose, experiment_directory=None):
     if not os.path.exists(os.path.join(experiment_directory, "experiment.py")):
         return False
 
-    if experiment_directory == os.getcwd():
+    if not experiment_is_staged:
         # Bootstrap a package in a temp directory and make it importable.
         tmp = tempfile.mkdtemp()
         clone_dir = os.path.join(tmp, "TEMP_VERIFICATION_PACKAGE")
