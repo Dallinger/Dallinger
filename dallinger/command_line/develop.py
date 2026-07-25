@@ -6,6 +6,7 @@ from urllib.parse import urlparse, urlunparse
 import click
 from rq import Queue
 
+from dallinger import db
 from dallinger.command_line.utils import (
     Output,
     error,
@@ -56,9 +57,9 @@ def develop():
     help="Skip launching Flask, so that Flask can be managed externally",
 )
 def debug(port, skip_flask):
-    from dallinger.command_line.utils import verify_package
+    from dallinger.command_line.utils import verify_experiment_module, verify_package
 
-    if not verify_package():
+    if not verify_package(verify_experiment=False):
         # We could instead use the @require_exp_directory decorator,
         # but this doesn't print anything useful without the verbose flag.
         # To consider for later: improving this default behavior of @require_exp_directory?
@@ -67,7 +68,16 @@ def debug(port, skip_flask):
         )
         raise click.Abort
 
-    _bootstrap()
+    develop_dir = _bootstrap(reset_database=False)
+    if not verify_experiment_module(
+        verbose=True,
+        experiment_directory=develop_dir,
+    ):
+        print(
+            "Cannot continue, there is a problem with the current experiment (see above)."
+        )
+        raise click.Abort
+    db.init_db(drop_all=True)
 
     q = Queue("default", connection=redis_conn)
     job = q.enqueue_call(launch_app_and_open_browser, kwargs={"port": port})
@@ -88,11 +98,11 @@ def bootstrap(exp_config=None):
     _bootstrap(exp_config)
 
 
-def _bootstrap(exp_config=None):
+def _bootstrap(exp_config=None, reset_database=True):
     """Creates a directory which will be used to host the development version of the experiment."""
     bootstrapper = DevelopmentDeployment(Output(), exp_config)
     log(header, chevrons=False)
-    bootstrapper.run()
+    return bootstrapper.run(reset_database=reset_database)
 
 
 def launch_app_and_open_browser(port):
