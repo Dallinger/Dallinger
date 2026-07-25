@@ -72,6 +72,35 @@ def fake_redis():
         yield mock_connection
 
 
+def test_development_verification_runs_before_database_reset(output, tempdir):
+    from dallinger.deployment import DevelopmentDeployment
+
+    events = []
+
+    def verify_staged_experiment(path):
+        events.append(("verify", path))
+
+    with (
+        mock.patch(
+            "dallinger.deployment.bootstrap_development_session",
+            return_value=("experiment-id", tempdir),
+        ),
+        mock.patch(
+            "dallinger.deployment.db.init_db",
+            side_effect=lambda **kwargs: events.append(("reset", kwargs)),
+        ),
+    ):
+        result = DevelopmentDeployment(output, {}).run(
+            before_database_reset=verify_staged_experiment
+        )
+
+    assert result == tempdir
+    assert events == [
+        ("verify", tempdir),
+        ("reset", {"drop_all": True}),
+    ]
+
+
 @pytest.fixture
 def herokuapp():
     # Patch addon since we're using a free app which doesn't support them:
