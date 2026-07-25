@@ -52,7 +52,7 @@ def test_verify_experiment_module_rejects_path_prefix_matches(tmp_path, monkeypa
     )
 
     with pytest.raises(ImportError, match="Checking the wrong experiment"):
-        utils.verify_experiment_module(
+        utils._verify_experiment_module(
             verbose=False,
             experiment_directory=staged_directory,
         )
@@ -73,6 +73,36 @@ def test_unload_experiment_modules_preserves_unrelated_modules(monkeypatch):
 
     assert sys.modules["contest_module"] is sentinel
     assert "dallinger_experiment" not in sys.modules
+
+
+@pytest.mark.parametrize(
+    ("returncode", "expected"),
+    [
+        (0, True),
+        (3, False),
+    ],
+)
+def test_staged_experiment_verification_uses_subprocess(
+    tmp_path, monkeypatch, returncode, expected
+):
+    from dallinger.command_line import utils
+
+    result = mock.Mock(returncode=returncode)
+    run = mock.Mock(return_value=result)
+    monkeypatch.setattr(utils.subprocess, "run", run)
+
+    assert (
+        utils.verify_experiment_module(
+            verbose=False,
+            experiment_directory=tmp_path,
+        )
+        is expected
+    )
+    assert run.call_args.args[0][-1] == "--quiet"
+    if returncode == 0:
+        result.check_returncode.assert_called_once_with()
+    else:
+        result.check_returncode.assert_not_called()
 
 
 @pytest.fixture
