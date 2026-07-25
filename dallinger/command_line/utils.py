@@ -2,7 +2,6 @@ import inspect
 import os
 import platform
 import re
-import subprocess
 import sys
 import tempfile
 from functools import wraps
@@ -163,7 +162,7 @@ def require_exp_directory(f):
     return wrapper
 
 
-def verify_package(verbose=True, verify_experiment=True):
+def verify_package(verbose=True, verify_deployable_experiment=True):
     """Perform a series of checks on the current directory to verify that
     it's a valid Dallinger experiment.
     """
@@ -171,14 +170,18 @@ def verify_package(verbose=True, verify_experiment=True):
         verify_directory(verbose),
         verify_python_version(verbose),
     ]
-    if verify_experiment:
+    if verify_deployable_experiment:
         results.append(verify_experiment_module(verbose))
-    results.extend(
-        [
-            verify_config(verbose),
-            verify_no_conflicts(verbose),
-        ]
-    )
+    results.append(verify_config(verbose))
+    if not verify_deployable_experiment:
+        # Flask remains the authoritative test of the staged development tree.
+        results.append(
+            verify_experiment_module(
+                verbose,
+                copy_experiment=False,
+            )
+        )
+    results.append(verify_no_conflicts(verbose))
 
     ok = all(results)
 
@@ -264,136 +267,80 @@ def _python_versions_consistent(v1, v2):
     return True
 
 
-def _unload_experiment_modules():
-    """Unload the conventional experiment package aliases."""
-    for name in list(sys.modules):
-        if name == "dallinger_experiment" or name.startswith("dallinger_experiment."):
-            del sys.modules[name]
-
-
-def _module_is_within(module, directory):
-    """Return whether a module was imported through the given directory."""
-    module_file = getattr(module, "__file__", None)
-    if module_file is None:
-        return False
-    module_path = Path(os.path.abspath(module_file))
-    directory_path = Path(os.path.abspath(directory))
-    return module_path == directory_path or directory_path in module_path.parents
-
-
-def verify_experiment_module(verbose, experiment_directory=None):
-    """Verify an experiment module, isolating staged packages in a subprocess."""
-    if experiment_directory is None:
-        return _verify_experiment_module(verbose)
-
-    experiment_directory = Path(experiment_directory).absolute()
-    command = [
-        sys.executable,
-        "-m",
-        "dallinger.command_line._verify_experiment",
-        str(experiment_directory),
-    ]
-    if not verbose:
-        command.append("--quiet")
-    result = subprocess.run(
-        command,
-        cwd=experiment_directory,
-        check=False,
-    )
-    if result.returncode == 3:
-        return False
-    if result.returncode == 4:
-        raise click.ClickException("Experiment module verification failed.")
-    if result.returncode != 0:
-        raise click.ClickException(
-            f"Experiment verification process exited with code {result.returncode}."
-        )
-    return True
-
-
-def _verify_experiment_module(
-    verbose,
-    experiment_directory=None,
-    experiment_is_staged=False,
-):
+def verify_experiment_module(verbose, copy_experiment=True):
     """Perform basic sanity checks on experiment.py."""
     ok = True
-    experiment_directory = (
-        os.getcwd() if experiment_directory is None else experiment_directory
-    )
-    if not os.path.exists(os.path.join(experiment_directory, "experiment.py")):
+    if not os.path.exists("experiment.py"):
         return False
 
-    if not experiment_is_staged:
+    if copy_experiment:
         # Bootstrap a package in a temp directory and make it importable.
+        temp_package_name = "TEMP_VERIFICATION_PACKAGE"
         tmp = tempfile.mkdtemp()
-        clone_dir = os.path.join(tmp, "TEMP_VERIFICATION_PACKAGE")
-        ExperimentFileSource(experiment_directory).apply_to(clone_dir)
+        clone_dir = os.path.join(tmp, temp_package_name)
+        ExperimentFileSource(os.getcwd()).apply_to(clone_dir)
     else:
-        clone_dir = os.fspath(experiment_directory)
+        temp_package_name = None
+        clone_dir = os.getcwd()
 
-    _unload_experiment_modules()
-    modules_before = set(sys.modules)
+    initialize_experiment_package(clone_dir)
+    from dallinger_experiment import experiment
+
+    expected_directory = Path(os.path.abspath(clone_dir))
+    actual_directory = Path(os.path.abspath(experiment.__file__)).parent
+    if actual_directory != expected_directory:
+        raise ImportError("Checking the wrong experiment.py... aborting.")
+    classes = inspect.getmembers(experiment, inspect.isclass)
+    exps = [c for c in classes if (c[1].__bases__[0].__name__ in "Experiment")]
+
+    if temp_package_name is not None:
+        for entry in [k for k in sys.modules if temp_package_name in k]:
+            del sys.modules[entry]
+
+    # Run checks:
+    if len(exps) == 0:
+        log(
+            "✗ experiment.py does not define an experiment class.",
+            chevrons=False,
+            verbose=verbose,
+        )
+        ok = False
+    elif len(exps) == 1:
+        log(
+            "✓ experiment.py defines 1 experiment",
+            chevrons=False,
+            verbose=verbose,
+        )
+    else:
+        log(
+            "✗ experiment.py defines more than one experiment class.",
+            chevrons=False,
+            verbose=verbose,
+        )
+        ok = False
+
+    # Check for overrides of methods with name changes:
+    api_breakages = {
+        # "old name": "new name"
+        "on_assignment_submitted_to_recruiter": "on_recruiter_submission_complete",
+    }
     try:
-        initialize_experiment_package(clone_dir)
-        from dallinger_experiment import experiment
+        exp_class = exps[0][1]
+    except IndexError:
+        pass
+    else:
+        for old, new in api_breakages.items():
+            if hasattr(exp_class, old):
+                log(
+                    "✗ experiment.py overrides a method that has been renamed!\n"
+                    "\tOld name: {}\n\tNew name: {}\n"
+                    "Please rename your method accordingly.".format(old, new),
+                    chevrons=False,
+                    verbose=verbose,
+                )
+                ok = False
 
-        expected_directory = Path(os.path.abspath(clone_dir))
-        actual_directory = Path(os.path.abspath(experiment.__file__)).parent
-        if actual_directory != expected_directory:
-            raise ImportError("Checking the wrong experiment.py... aborting.")
-        classes = inspect.getmembers(experiment, inspect.isclass)
-        exps = [c for c in classes if (c[1].__bases__[0].__name__ in "Experiment")]
-
-        # Run checks:
-        if len(exps) == 0:
-            log(
-                "✗ experiment.py does not define an experiment class.",
-                chevrons=False,
-                verbose=verbose,
-            )
-            ok = False
-        elif len(exps) == 1:
-            log(
-                "✓ experiment.py defines 1 experiment",
-                chevrons=False,
-                verbose=verbose,
-            )
-        else:
-            log(
-                "✗ experiment.py defines more than one experiment class.",
-                chevrons=False,
-                verbose=verbose,
-            )
-            ok = False
-
-        # Check for overrides of methods with name changes:
-        api_breakages = {
-            # "old name": "new name"
-            "on_assignment_submitted_to_recruiter": "on_recruiter_submission_complete",
-        }
-        try:
-            exp_class = exps[0][1]
-        except IndexError:
-            pass
-        else:
-            for old, new in api_breakages.items():
-                if hasattr(exp_class, old):
-                    log(
-                        "✗ experiment.py overrides a method that has been renamed!\n"
-                        "\tOld name: {}\n\tNew name: {}\n"
-                        "Please rename your method accordingly.".format(old, new),
-                        chevrons=False,
-                        verbose=verbose,
-                    )
-                    ok = False
-
-        return ok
-    finally:
-        _unload_experiment_modules()
-        for name, module in list(sys.modules.items()):
-            if name not in modules_before and _module_is_within(module, clone_dir):
-                del sys.modules[name]
+    return ok
 
 
 def verify_config(verbose=True):

@@ -288,21 +288,17 @@ class DevelopmentDeployment:
     manually in that directory.
     """
 
-    def __init__(self, output, exp_config, before_database_reset=None):
+    def __init__(self, output, exp_config):
         self.out = output
         self.exp_config = exp_config or {}
         self.exp_config.update({"mode": "debug"})
-        self.before_database_reset = before_database_reset
 
     def run(self):
         """Bootstrap the environment and reset the database."""
         experiment_uid, dst = bootstrap_development_session(
             self.exp_config, os.getcwd(), self.out.log
         )
-        if self.before_database_reset is not None:
-            self.before_database_reset(dst)
         db.init_db(drop_all=True)
-        return dst
 
 
 class HerokuLocalDeployment:
