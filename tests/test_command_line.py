@@ -55,6 +55,7 @@ def test_verify_experiment_module_rejects_path_prefix_matches(tmp_path, monkeypa
         utils._verify_experiment_module(
             verbose=False,
             experiment_directory=staged_directory,
+            experiment_is_staged=True,
         )
 
 
