@@ -162,16 +162,21 @@ def require_exp_directory(f):
     return wrapper
 
 
-def verify_package(verbose=True):
+def verify_package(verbose=True, verify_experiment=True):
     """Perform a series of checks on the current directory to verify that
     it's a valid Dallinger experiment.
     """
-    results = (
+    results = [
         verify_directory(verbose),
         verify_python_version(verbose),
-        verify_experiment_module(verbose),
-        verify_config(verbose),
-        verify_no_conflicts(verbose),
+    ]
+    if verify_experiment:
+        results.append(verify_experiment_module(verbose))
+    results.extend(
+        [
+            verify_config(verbose),
+            verify_no_conflicts(verbose),
+        ]
     )
 
     ok = all(results)
@@ -258,17 +263,25 @@ def _python_versions_consistent(v1, v2):
     return True
 
 
-def verify_experiment_module(verbose):
+def verify_experiment_module(verbose, experiment_directory=None):
     """Perform basic sanity checks on experiment.py."""
     ok = True
-    if not os.path.exists("experiment.py"):
+    experiment_directory = (
+        os.getcwd() if experiment_directory is None else experiment_directory
+    )
+    if not os.path.exists(os.path.join(experiment_directory, "experiment.py")):
         return False
 
-    # Bootstrap a package in a temp directory and make it importable:
-    temp_package_name = "TEMP_VERIFICATION_PACKAGE"
-    tmp = tempfile.mkdtemp()
-    clone_dir = os.path.join(tmp, temp_package_name)
-    ExperimentFileSource(os.getcwd()).apply_to(clone_dir)
+    if experiment_directory == os.getcwd():
+        # Bootstrap a package in a temp directory and make it importable.
+        temp_package_name = "TEMP_VERIFICATION_PACKAGE"
+        tmp = tempfile.mkdtemp()
+        clone_dir = os.path.join(tmp, temp_package_name)
+        ExperimentFileSource(experiment_directory).apply_to(clone_dir)
+    else:
+        clone_dir = os.fspath(experiment_directory)
+        temp_package_name = os.path.basename(clone_dir)
+
     initialize_experiment_package(clone_dir)
     from dallinger_experiment import experiment
 

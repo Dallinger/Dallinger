@@ -293,12 +293,14 @@ class DevelopmentDeployment:
         self.exp_config = exp_config or {}
         self.exp_config.update({"mode": "debug"})
 
-    def run(self):
+    def run(self, reset_database=True):
         """Bootstrap the environment and reset the database."""
         experiment_uid, dst = bootstrap_development_session(
             self.exp_config, os.getcwd(), self.out.log
         )
-        db.init_db(drop_all=True)
+        if reset_database:
+            db.init_db(drop_all=True)
+        return dst
 
 
 class HerokuLocalDeployment:

@@ -5,6 +5,8 @@
 ### Updated
 
 - Updated Python dependencies
+- Reused the staged development tree for experiment verification, avoiding a
+  duplicate copy of large experiment directories during local debugging.
 
 ## [v12.2.1](https://github.com/dallinger/dallinger/tree/v12.2.1) (2026-07-02)
 
