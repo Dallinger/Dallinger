@@ -99,10 +99,72 @@ def test_staged_experiment_verification_uses_subprocess(
         is expected
     )
     assert run.call_args.args[0][-1] == "--quiet"
-    if returncode == 0:
-        result.check_returncode.assert_called_once_with()
-    else:
-        result.check_returncode.assert_not_called()
+    assert run.call_args.kwargs["cwd"] == tmp_path.absolute()
+
+
+@pytest.mark.parametrize(
+    ("returncode", "message"),
+    [
+        (4, "Experiment module verification failed"),
+        (7, "verification process exited with code 7"),
+    ],
+)
+def test_staged_experiment_verification_reports_child_failures(
+    tmp_path, monkeypatch, returncode, message
+):
+    from dallinger.command_line import utils
+
+    monkeypatch.setattr(
+        utils.subprocess,
+        "run",
+        mock.Mock(return_value=mock.Mock(returncode=returncode)),
+    )
+
+    with pytest.raises(click.ClickException, match=message):
+        utils.verify_experiment_module(
+            verbose=False,
+            experiment_directory=tmp_path,
+        )
+
+
+def test_staged_verification_resolves_relative_files_from_staged_directory(
+    tmp_path, monkeypatch
+):
+    from dallinger.command_line.utils import verify_experiment_module
+
+    source_directory = tmp_path / "source"
+    source_directory.mkdir()
+    (source_directory / "data.json").write_text("{}")
+    staged_directory = tmp_path / "staged"
+    staged_directory.mkdir()
+    (staged_directory / "__init__.py").write_text("")
+    (staged_directory / "experiment.py").write_text(
+        "\n".join(
+            [
+                "from pathlib import Path",
+                "from dallinger.experiment import Experiment",
+                'Path("data.json").read_text()',
+                "class Exp(Experiment):",
+                "    pass",
+            ]
+        )
+    )
+    monkeypatch.chdir(source_directory)
+
+    with pytest.raises(click.ClickException, match="verification failed"):
+        verify_experiment_module(
+            verbose=False,
+            experiment_directory=staged_directory,
+        )
+
+    (staged_directory / "data.json").write_text("{}")
+    assert (
+        verify_experiment_module(
+            verbose=False,
+            experiment_directory=staged_directory,
+        )
+        is True
+    )
 
 
 @pytest.fixture

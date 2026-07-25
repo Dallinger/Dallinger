@@ -1,6 +1,7 @@
 """Isolated entry point for staged experiment verification."""
 
 import argparse
+import traceback
 
 from dallinger.command_line.utils import _verify_experiment_module
 
@@ -11,10 +12,14 @@ def main():
     parser.add_argument("experiment_directory")
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args()
-    valid = _verify_experiment_module(
-        verbose=not args.quiet,
-        experiment_directory=args.experiment_directory,
-    )
+    try:
+        valid = _verify_experiment_module(
+            verbose=not args.quiet,
+            experiment_directory=args.experiment_directory,
+        )
+    except Exception:
+        traceback.print_exc()
+        return 4
     return 0 if valid else 3
 
 
