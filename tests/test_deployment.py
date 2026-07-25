@@ -90,9 +90,11 @@ def test_development_verification_runs_before_database_reset(output, tempdir):
             side_effect=lambda **kwargs: events.append(("reset", kwargs)),
         ),
     ):
-        result = DevelopmentDeployment(output, {}).run(
-            before_database_reset=verify_staged_experiment
-        )
+        result = DevelopmentDeployment(
+            output,
+            {},
+            before_database_reset=verify_staged_experiment,
+        ).run()
 
     assert result == tempdir
     assert events == [
