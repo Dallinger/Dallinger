@@ -224,6 +224,32 @@ class TestDevelopCommand:
         assert found_in("experiment.py", develop_directory)
         # etc...
 
+    def test_debug_reuses_staged_experiment_for_verification(self, develop, tempdir):
+        with (
+            mock.patch(
+                "dallinger.command_line.utils.verify_package", return_value=True
+            ) as verify_package,
+            mock.patch(
+                "dallinger.command_line.utils.verify_experiment_module",
+                return_value=True,
+            ) as verify_experiment_module,
+            mock.patch(
+                "dallinger.command_line.develop._bootstrap", return_value=tempdir
+            ) as bootstrap,
+            mock.patch("dallinger.db.init_db") as init_db,
+            mock.patch("dallinger.command_line.develop.Queue"),
+        ):
+            result = CliRunner().invoke(develop, ["debug", "--skip-flask"])
+
+        assert result.exit_code == 0, result.output
+        verify_package.assert_called_once_with(verify_experiment=False)
+        bootstrap.assert_called_once_with(reset_database=False)
+        verify_experiment_module.assert_called_once_with(
+            verbose=True,
+            experiment_directory=tempdir,
+        )
+        init_db.assert_called_once_with(drop_all=True)
+
 
 @pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")
 class TestDebugCommand:
