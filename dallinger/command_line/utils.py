@@ -2,6 +2,7 @@ import inspect
 import os
 import platform
 import re
+import subprocess
 import sys
 import tempfile
 from functools import wraps
@@ -281,6 +282,26 @@ def _module_is_within(module, directory):
 
 
 def verify_experiment_module(verbose, experiment_directory=None):
+    """Verify an experiment module, isolating staged packages in a subprocess."""
+    if experiment_directory is None:
+        return _verify_experiment_module(verbose)
+
+    command = [
+        sys.executable,
+        "-m",
+        "dallinger.command_line._verify_experiment",
+        os.fspath(experiment_directory),
+    ]
+    if not verbose:
+        command.append("--quiet")
+    result = subprocess.run(command, check=False)
+    if result.returncode == 3:
+        return False
+    result.check_returncode()
+    return True
+
+
+def _verify_experiment_module(verbose, experiment_directory=None):
     """Perform basic sanity checks on experiment.py."""
     ok = True
     experiment_directory = (
