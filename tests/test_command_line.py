@@ -1,6 +1,8 @@
 import os
 import re
 import subprocess
+import sys
+import types
 from time import sleep
 from unittest import mock
 from uuid import UUID
@@ -25,6 +27,52 @@ def test_python_versions_consistent():
     assert _python_versions_consistent("3.15", "3.15.1")
     assert not _python_versions_consistent("3.15", "3.16")
     assert not _python_versions_consistent("3.15", "3.14.1")
+
+
+def test_verify_experiment_module_rejects_path_prefix_matches(tmp_path, monkeypatch):
+    from dallinger.command_line import utils
+
+    staged_directory = tmp_path / "app"
+    staged_directory.mkdir()
+    (staged_directory / "experiment.py").write_text("")
+
+    def initialize_wrong_package(path):
+        package = types.ModuleType("dallinger_experiment")
+        package.__path__ = [str(path)]
+        experiment = types.ModuleType("dallinger_experiment.experiment")
+        experiment.__file__ = str(tmp_path / "app-source" / "experiment.py")
+        package.experiment = experiment
+        sys.modules["dallinger_experiment"] = package
+        sys.modules["dallinger_experiment.experiment"] = experiment
+
+    monkeypatch.setattr(
+        utils,
+        "initialize_experiment_package",
+        initialize_wrong_package,
+    )
+
+    with pytest.raises(ImportError, match="Checking the wrong experiment"):
+        utils.verify_experiment_module(
+            verbose=False,
+            experiment_directory=staged_directory,
+        )
+
+
+def test_unload_experiment_modules_preserves_unrelated_modules(monkeypatch):
+    from dallinger.command_line.utils import _unload_experiment_modules
+
+    sentinel = types.ModuleType("contest_module")
+    monkeypatch.setitem(sys.modules, "contest_module", sentinel)
+    monkeypatch.setitem(
+        sys.modules,
+        "dallinger_experiment",
+        types.ModuleType("dallinger_experiment"),
+    )
+
+    _unload_experiment_modules()
+
+    assert sys.modules["contest_module"] is sentinel
+    assert "dallinger_experiment" not in sys.modules
 
 
 @pytest.fixture
@@ -252,6 +300,12 @@ class TestDevelopCommand:
             verbose=True,
             experiment_directory=tempdir,
         )
+
+    def test_debug_verifies_real_staged_experiment(self, develop):
+        with mock.patch("dallinger.command_line.develop.Queue"):
+            result = CliRunner().invoke(develop, ["debug", "--skip-flask"])
+
+        assert result.exit_code == 0, result.output
 
 
 @pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")

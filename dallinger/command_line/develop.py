@@ -103,9 +103,13 @@ def bootstrap(exp_config=None):
 
 def _bootstrap(exp_config=None, before_database_reset=None):
     """Creates a directory which will be used to host the development version of the experiment."""
-    bootstrapper = DevelopmentDeployment(Output(), exp_config)
+    bootstrapper = DevelopmentDeployment(
+        Output(),
+        exp_config,
+        before_database_reset=before_database_reset,
+    )
     log(header, chevrons=False)
-    return bootstrapper.run(before_database_reset=before_database_reset)
+    return bootstrapper.run()
 
 
 def launch_app_and_open_browser(port):
