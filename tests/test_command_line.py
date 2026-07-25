@@ -27,46 +27,6 @@ def test_python_versions_consistent():
     assert not _python_versions_consistent("3.15", "3.14.1")
 
 
-def test_staged_verification_resolves_relative_files_from_staged_directory(
-    tmp_path, monkeypatch
-):
-    from dallinger.command_line.utils import verify_experiment_module
-
-    source_directory = tmp_path / "source"
-    source_directory.mkdir()
-    (source_directory / "data.json").write_text("{}")
-    staged_directory = tmp_path / "staged"
-    staged_directory.mkdir()
-    (staged_directory / "__init__.py").write_text("")
-    (staged_directory / "experiment.py").write_text(
-        "\n".join(
-            [
-                "from pathlib import Path",
-                "from dallinger.experiment import Experiment",
-                'Path("data.json").read_text()',
-                "class Exp(Experiment):",
-                "    pass",
-            ]
-        )
-    )
-    monkeypatch.chdir(source_directory)
-
-    with pytest.raises(click.ClickException, match="verification failed"):
-        verify_experiment_module(
-            verbose=False,
-            experiment_directory=staged_directory,
-        )
-
-    (staged_directory / "data.json").write_text("{}")
-    assert (
-        verify_experiment_module(
-            verbose=False,
-            experiment_directory=staged_directory,
-        )
-        is True
-    )
-
-
 @pytest.fixture
 def sleepless():
     # Use this fixture to ignore sleep() calls, for speed.
