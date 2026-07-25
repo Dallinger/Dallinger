@@ -286,18 +286,28 @@ def verify_experiment_module(verbose, experiment_directory=None):
     if experiment_directory is None:
         return _verify_experiment_module(verbose)
 
+    experiment_directory = Path(experiment_directory).absolute()
     command = [
         sys.executable,
         "-m",
         "dallinger.command_line._verify_experiment",
-        os.fspath(experiment_directory),
+        str(experiment_directory),
     ]
     if not verbose:
         command.append("--quiet")
-    result = subprocess.run(command, check=False)
+    result = subprocess.run(
+        command,
+        cwd=experiment_directory,
+        check=False,
+    )
     if result.returncode == 3:
         return False
-    result.check_returncode()
+    if result.returncode == 4:
+        raise click.ClickException("Experiment module verification failed.")
+    if result.returncode != 0:
+        raise click.ClickException(
+            f"Experiment verification process exited with code {result.returncode}."
+        )
     return True
 
 
