@@ -56,9 +56,9 @@ def develop():
     help="Skip launching Flask, so that Flask can be managed externally",
 )
 def debug(port, skip_flask):
-    from dallinger.command_line.utils import verify_package
+    from dallinger.command_line.utils import verify_development_directory
 
-    if not verify_package(verify_deployable_experiment=False):
+    if not verify_development_directory():
         # We could instead use the @require_exp_directory decorator,
         # but this doesn't print anything useful without the verbose flag.
         # To consider for later: improving this default behavior of @require_exp_directory?
