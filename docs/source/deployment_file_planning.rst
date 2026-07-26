@@ -10,8 +10,8 @@ Deployment file selection and development staging
    not describe a supported user interface or commit Dallinger to a particular
    release.
 
-Summary
--------
+Proposal summary
+----------------
 
 Dallinger currently uses Git visibility, hard-coded exclusions, and multiple
 file-source passes to decide which experiment files are verified, staged for
@@ -114,6 +114,12 @@ fell from approximately 4.13 seconds to 0.004 seconds. End-to-end launch was
 about 30 percent faster and returned to the baseline range. Baseline
 differences were within process-startup noise.
 
+The 0.004-second figure measures the prototype's literal-rule lookup and
+link materialization only. It deliberately omits the target plan's complete
+metadata, digest, collision, and source-type validation. It demonstrates the
+upper bound available from bulk linking rather than the expected cost of the
+finished planner.
+
 A separate Docker proof of concept compared a copied temporary context with a
 directly streamed tar context:
 
@@ -181,6 +187,10 @@ prefixes:
 
    version = 1
 
+   # Temporary compatibility-phase acknowledgement. The migration command
+   # writes this after the experimenter reviews newly selected paths.
+   legacy_diff_acknowledgement = "sha256:..."
+
    exclude = [
        ".deploy",
        ".env",
@@ -212,8 +222,11 @@ The initial format deliberately rejects:
 * backslashes; and
 * duplicate normalized entries.
 
-Unknown keys and unknown schema versions fail. ``deploy.toml`` is included in
-the deployment artifact and cannot exclude itself.
+Unknown keys and unknown schema versions fail. During the compatibility
+release, ``legacy_diff_acknowledgement`` is the only optional migration key.
+It is removed from the schema when legacy selection is removed.
+``deploy.toml`` is included in the deployment artifact and cannot exclude
+itself.
 
 A missing excluded path is permitted because local-only paths commonly differ
 across machines. Inspection tooling should warn about missing paths so likely
@@ -239,6 +252,8 @@ Some inputs remain outside experiment-controlled exclusions:
 * VCS metadata is never selected.
 * Raw source ``config.txt`` is never copied to a remote context.
 * Dallinger supplies a filtered generated configuration.
+* Docker ignore files and Heroku ``.slugignore`` files are reserved migration
+  inputs and never enter a target context.
 * ``deploy.toml`` cannot contain interpolation, commands, includes, or secret
   values.
 * Build-time credentials use backend secret or SSH mechanisms.
@@ -309,10 +324,12 @@ entries cannot bypass reserved destinations or secret boundaries.
 Plan lifecycle and mutation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Remote materialization uses a frozen plan. Before copying a file, Dallinger
-checks that its identity and metadata still match planning, then verifies the
-opened file with ``fstat``. A change during materialization fails rather than
-silently mixing source states.
+Remote materialization uses a frozen plan. Regular source files are opened
+without following links, their identity is checked with ``fstat``, and their
+bytes are hashed while being copied. The resulting digest must match the
+digest recorded by the plan. This detects rather than silently accepts source
+mutation, at the cost of reading remote-deployment inputs during both planning
+and materialization.
 
 Plan validation completes before app registration, Heroku creation, image push,
 or other remote side effects.
@@ -342,7 +359,11 @@ A development bulk link is intentionally live. Files created inside it after
 planning become visible locally. This is consistent with the all-except policy:
 when no literal exclusion or provider collision exists below that directory,
 new regular descendants are also deployment candidates at the next plan build.
-Remote materializers never use this live behavior.
+This is explicitly not snapshot isolation. A symlink or special file created
+after planning may become visible locally until the next launch revalidates the
+tree. Development links must only be used with a trusted working tree, and
+strict verification remains required before deployment. Remote materializers
+never use this live behavior.
 
 Platforms without safe directory-link support fall back to per-file links or
 copies without changing logical membership.
@@ -360,8 +381,10 @@ Docker materializer
 ^^^^^^^^^^^^^^^^^^^
 
 Docker continues to receive a concrete local BuildKit context. The context
-contains only the frozen plan, so user ``.dockerignore`` and
-Dockerfile-specific ignore files must not reselect its membership.
+contains only the frozen plan. Source ``.dockerignore`` and
+Dockerfile-specific ``*.dockerignore`` files are omitted from that context so
+they cannot reselect its membership. The migration checker reports their
+legacy effect before opt-in.
 
 Custom Dockerfiles may use ``COPY .`` but can see only staged files. A custom
 Dockerfile referencing an excluded input fails during build.
@@ -377,8 +400,10 @@ Classic Heroku receives the copied plan. The temporary Git repository is a
 transport adapter only.
 
 Dallinger force-adds the exact planned manifest and verifies the Git index
-before pushing. ``.gitignore`` and ``.slugignore`` must not change membership
-after verification.
+before pushing. ``.gitignore`` is transport metadata only and cannot remove
+force-added plan entries. Source ``.slugignore`` is omitted from the copied
+tree so it cannot change membership after verification; its legacy effect is
+reported during migration.
 
 Migration
 ---------
@@ -400,9 +425,14 @@ In the first minor release:
 * ``dallinger deployment-files init`` creates a conservative draft requiring
   review.
 
-Live deployment refuses newly selected files until the migration has been
-explicitly acknowledged. Debug and inspection commands may report them without
-remote side effects.
+``deployment-files check`` hashes the normalized destination paths and file
+types that target selection adds relative to legacy selection. Its
+``--acknowledge`` mode writes that digest to
+``legacy_diff_acknowledgement`` in ``deploy.toml``. Live deployment refuses a
+missing or mismatched acknowledgement. Adding, removing, or changing the type
+of a newly selected path invalidates the acknowledgement and requires another
+review. Debug and inspection commands may report differences without remote
+side effects.
 
 The initializer cannot translate arbitrary Git-ignore patterns into literals.
 It reports unsupported patterns and suggests reorganizing files into excluded
@@ -432,6 +462,7 @@ In the following Dallinger major release:
 * ``deploy.toml`` is required for commands that materialize an experiment;
 * an explicit empty policy acknowledges ``exclude = []``;
 * the legacy selection switch is removed;
+* ``legacy_diff_acknowledgement`` is removed from the schema;
 * Git no longer determines deployment membership; and
 * Git remains optional provenance and Heroku transport.
 
@@ -487,6 +518,7 @@ Planner tests cover:
 
 * deterministic ordering;
 * legacy-versus-target membership comparison;
+* acknowledgement creation and invalidation when new membership changes;
 * hard exclusions and missing literal exclusions;
 * ignored, tracked, and untracked files;
 * experiment, explicit, framework, generated, and reserved providers;
@@ -547,9 +579,6 @@ Open questions
 Implementation should not begin until these decisions are resolved:
 
 * Which generated and framework destinations are reserved or overrideable?
-* How does an experiment explicitly acknowledge newly selected migration
-  files?
-* Should portable case-collision checks apply on all platforms?
 * Which plan metadata and digest are persisted with deployment records?
 * What is the exact compatibility-switch interface?
 * Should missing literal exclusions warn only during inspection or every
