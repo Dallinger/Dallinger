@@ -285,12 +285,14 @@ Each plan entry records:
 * normalized destination;
 * source and source category;
 * file type and executable mode;
-* size and source identity;
+* size, source identity, and expected content digest;
 * whether it is generated or reserved; and
 * the reason it was selected.
 
 The plan is deterministically ordered and contains no secret values. The plan's
-destination manifest and digest should be persisted with deployment metadata.
+aggregate manifest digest should be persisted with deployment metadata. That
+digest identifies the ordered entries and their expected content digests; it is
+distinct from each entry's own digest used during materialization.
 
 Inputs are added in named phases:
 
