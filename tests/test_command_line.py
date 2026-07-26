@@ -291,7 +291,10 @@ class TestDevelopCommand:
 
         assert result.exit_code == 0, result.output
 
-    def test_debug_reuses_one_policy_plan(self, develop, tmp_path, monkeypatch):
+    def test_debug_reuses_one_policy_plan(
+        self, active_config, develop, tmp_path, monkeypatch
+    ):
+        import dallinger.config
         from dallinger.deployment_plan import (
             build_deployment_plan,
             compare_legacy_deployment_selection,
@@ -312,6 +315,11 @@ class TestDevelopCommand:
             "exclude = []\n"
         )
         monkeypatch.chdir(experiment_root)
+        develop_directory = active_config.get("dallinger_develop_directory")
+        dallinger.config.config = None
+        dallinger.config.get_config(load=True).extend(
+            {"dallinger_develop_directory": develop_directory}
+        )
 
         with (
             mock.patch(
