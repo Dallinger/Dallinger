@@ -162,30 +162,32 @@ def require_exp_directory(f):
     return wrapper
 
 
-def verify_package(verbose=True, verify_deployable_experiment=True):
+def verify_package(verbose=True):
     """Perform a series of checks on the current directory to verify that
     it's a valid Dallinger experiment.
     """
-    results = [
-        verify_directory(verbose),
-        verify_python_version(verbose),
-    ]
-    if verify_deployable_experiment:
-        results.append(verify_experiment_module(verbose))
-    results.append(verify_config(verbose))
-    if not verify_deployable_experiment:
-        # Flask remains the authoritative test of the staged development tree.
-        results.append(
-            verify_experiment_module(
-                verbose,
-                copy_experiment=False,
-            )
+    return all(
+        (
+            verify_directory(verbose),
+            verify_python_version(verbose),
+            verify_experiment_module(verbose),
+            verify_config(verbose),
+            verify_no_conflicts(verbose),
         )
-    results.append(verify_no_conflicts(verbose))
+    )
 
-    ok = all(results)
 
-    return ok
+def verify_development_directory(verbose=True):
+    """Verify a working tree before staging it for local development."""
+    return all(
+        (
+            verify_directory(verbose),
+            verify_python_version(verbose),
+            verify_config(verbose),
+            verify_experiment_module(verbose, copy_experiment=False),
+            verify_no_conflicts(verbose),
+        )
+    )
 
 
 def verify_directory(verbose=True):
