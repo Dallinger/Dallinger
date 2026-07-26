@@ -11,17 +11,9 @@ import dallinger.deployment_plan as deployment_plan_module
 from dallinger.command_line import dallinger
 from dallinger.command_line.deployment_files import deployment_files
 
-SAFE_DESCRIPTOR_PLATFORM = (
-    os.name == "posix"
-    and hasattr(os, "O_NOFOLLOW")
-    and hasattr(os, "O_DIRECTORY")
-    and os.open in os.supports_dir_fd
-    and os.stat in os.supports_dir_fd
-    and os.stat in os.supports_follow_symlinks
-)
 pytestmark = pytest.mark.skipif(
-    not SAFE_DESCRIPTOR_PLATFORM,
-    reason="deployment planning requires safe POSIX descriptor traversal",
+    os.name != "posix",
+    reason="deployment planning currently requires a POSIX filesystem",
 )
 
 

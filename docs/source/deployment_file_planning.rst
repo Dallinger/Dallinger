@@ -47,10 +47,10 @@ restatting files. Policy auto-selection also runs the strict legacy comparison
 and refuses materialization until all target-versus-legacy membership changes
 are acknowledged and all backend ignore controls have been removed.
 
-Copied policy entries are opened through no-follow, root-relative traversal,
-checked against their planned filesystem identity, hashed while copying, and
-atomically installed without replacing an existing final path and with their
-recorded mode. Per-file development links validate source type and identity
+Copied policy entries are checked with ``lstat`` (no symlink following),
+validated against their planned filesystem identity, hashed while copying, and
+installed without replacing an existing final path and with their recorded
+mode. Per-file development links validate source type and identity
 immediately before linking, but remain trusted live links after that point.
 ``dallinger develop debug`` passes one ``ExperimentFileSource`` from
 verification through staging so this plan and migration comparison are built
@@ -399,12 +399,14 @@ integration is deferred until all provider classes enter one plan.
 Plan lifecycle and mutation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Remote materialization uses a frozen plan. Regular source files are opened
-without following links, their identity is checked with ``fstat``, and their
-bytes are hashed while being copied. The resulting digest must match the
-digest recorded by the plan. This detects rather than silently accepts source
-mutation, at the cost of reading remote-deployment inputs during both planning
-and materialization.
+Remote materialization uses a frozen plan. Regular source files are inspected
+with ``lstat`` (so selected symlinks are rejected), validated against the
+identity recorded at plan time, and hashed while being copied. The resulting
+digest must match the digest recorded by the plan. This detects rather than
+silently accepts source mutation between planning and copy, at the cost of
+reading remote-deployment inputs during both phases. The planner does not use
+descriptor-relative TOCTOU hardening; experiment trees are treated as trusted
+against concurrent local attackers.
 
 Plan validation completes before app registration, Heroku creation, image push,
 or other remote side effects.
@@ -421,7 +423,7 @@ Development materializer
 Local development retains links so source edits remain visible.
 
 The current opt-in integration records immutable directory-link candidates
-during descriptor-safe plan traversal. A candidate identifies its source
+during plan traversal. A candidate identifies its source
 directory, normalized destination, filesystem identity, and contiguous span of
 planned entries. A directory is eligible only when every currently existing
 descendant is selected and no literal exclusion is equal to or beneath it,
@@ -477,13 +479,12 @@ initial plan.
 
 The current opt-in integration uses the existing per-file copied collation
 path, but policy-backed experiment entries use frozen-plan materialization:
-no-follow root-relative source opens, identity checks before and after copying,
-content-digest verification, atomic no-replace installation, and recorded mode
-preservation. The destination staging path is a caller-owned trust boundary:
-after Dallinger creates its parent, the materializer canonicalizes that trusted
-parent once so benign platform aliases such as macOS ``/var`` to
-``/private/var`` work. It then uses descriptor-relative operations inside the
-canonical directory and never follows or replaces an existing final-component
+``lstat`` type checks, identity validation before copying, content-digest
+verification, exclusive temporary creation plus hard-link installation that
+refuses to replace an existing final path, and recorded mode preservation.
+The destination staging path is a caller-owned trust boundary: ordinary path
+resolution may follow trusted parent aliases such as macOS ``/var`` to
+``/private/var``, but never follows or replaces an existing final-component
 symlink. Custom copy functions are rejected for policy-backed experiment files
 so they cannot bypass these checks.
 

@@ -14,7 +14,7 @@
 - Added opt-in `deploy.toml` experiment-file membership to verification,
   development staging, copied Docker/classic staging, and Heroku assembly
   through `ExperimentFileSource`. Policy use requires an acknowledged,
-  backend-filter-free migration comparison; copied entries are atomically
+  backend-filter-free migration comparison; copied entries are
   identity/digest verified with modes preserved, support trusted staging paths
   with platform symlink aliases without replacing final symlinks, development
   staging uses identity-validated bulk directory links with collision-safe
@@ -26,7 +26,9 @@
   force-adds only
   policy-backed assemblies. Verification and assembly expose a shared
   command-scoped file-source seam. Experiments without a policy retain legacy
-  selection and Git staging behavior.
+  selection and Git staging behavior. Plan traversal uses ordinary POSIX
+  `lstat`/`scandir` containment (rejecting symlinks and special files) rather
+  than descriptor-relative TOCTOU hardening.
 
 ### Updated
 

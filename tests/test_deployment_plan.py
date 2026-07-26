@@ -21,17 +21,9 @@ from dallinger.deployment_plan import (
     validate_explicit_provider_destination,
 )
 
-SAFE_DESCRIPTOR_PLATFORM = (
-    os.name == "posix"
-    and hasattr(os, "O_NOFOLLOW")
-    and hasattr(os, "O_DIRECTORY")
-    and os.open in os.supports_dir_fd
-    and os.stat in os.supports_dir_fd
-    and os.stat in os.supports_follow_symlinks
-)
 pytestmark = pytest.mark.skipif(
-    not SAFE_DESCRIPTOR_PLATFORM,
-    reason="deployment planning requires safe POSIX descriptor traversal",
+    os.name != "posix",
+    reason="deployment planning currently requires a POSIX filesystem",
 )
 
 
@@ -298,7 +290,7 @@ def test_plan_applies_literal_prefixes_allows_missing_and_includes_policy(tmp_pa
     assert plan.total_size == sum(entry.size for entry in plan.entries)
 
 
-def test_plan_policy_entry_uses_the_parsed_descriptor_snapshot(tmp_path, monkeypatch):
+def test_plan_policy_entry_uses_the_parsed_snapshot(tmp_path, monkeypatch):
     policy_path = write_policy(tmp_path)
     original_bytes = policy_path.read_bytes()
     original_scandir = os.scandir
@@ -463,56 +455,8 @@ def test_plan_rejects_symlink_in_experiment_root_ancestor(tmp_path):
     alias = tmp_path / "alias"
     alias.symlink_to(real_parent, target_is_directory=True)
 
-    with pytest.raises(DeploymentPlanError, match="safely open"):
+    with pytest.raises(DeploymentPlanError, match="symbolic link"):
         build_deployment_plan(alias / "experiment")
-
-
-def test_plan_contains_directory_replacement_with_symlink(tmp_path, monkeypatch):
-    write_policy(tmp_path)
-    nested = tmp_path / "nested"
-    nested.mkdir()
-    (nested / "inside.txt").write_text("inside")
-    outside = tmp_path.with_name(f"{tmp_path.name}-outside")
-    outside.mkdir()
-    (outside / "outside.txt").write_text("outside")
-    moved = tmp_path / "moved"
-    original_open_child = deployment_plan._open_child_directory
-    replaced = False
-
-    def replace_before_directory_open(parent_descriptor, name, source, expected_stat):
-        nonlocal replaced
-        if name == "nested" and not replaced:
-            replaced = True
-            nested.rename(moved)
-            nested.symlink_to(outside, target_is_directory=True)
-        return original_open_child(parent_descriptor, name, source, expected_stat)
-
-    monkeypatch.setattr(
-        deployment_plan, "_open_child_directory", replace_before_directory_open
-    )
-    with pytest.raises(DeploymentPlanError, match="safely open deployment directory"):
-        build_deployment_plan(tmp_path)
-
-
-def test_plan_detects_file_mutation_while_hashing(tmp_path, monkeypatch):
-    write_policy(tmp_path)
-    source = tmp_path / "large.bin"
-    source.write_bytes(b"a" * (2 * 1024 * 1024))
-    source_inode = source.stat().st_ino
-    original_read = os.read
-    mutated = False
-
-    def mutate_after_first_block(descriptor, size):
-        nonlocal mutated
-        block = original_read(descriptor, size)
-        if not mutated and block and os.fstat(descriptor).st_ino == source_inode:
-            mutated = True
-            source.write_bytes(b"changed")
-        return block
-
-    monkeypatch.setattr(os, "read", mutate_after_first_block)
-    with pytest.raises(DeploymentPlanError, match="changed while being hashed"):
-        build_deployment_plan(tmp_path)
 
 
 @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFO creation is unavailable")
@@ -554,7 +498,7 @@ def test_plan_rejects_portable_destination_collisions(tmp_path, first, second):
         build_deployment_plan(tmp_path)
 
 
-def test_plan_fails_closed_without_supported_posix_primitives(tmp_path, monkeypatch):
+def test_plan_fails_closed_on_non_posix_platforms(tmp_path, monkeypatch):
     monkeypatch.setattr(deployment_plan.os, "name", "nt")
 
     with pytest.raises(DeploymentPlanError, match="Windows/reparse-point"):

@@ -7,6 +7,11 @@ later integration layers. It also provides the temporary legacy-selection
 comparison needed to inspect migration compatibility. Source trees are treated
 as untrusted input, so ambiguous paths, links, repositories, and special files
 fail closed rather than acquiring backend-dependent meanings.
+
+Traversal uses ordinary ``lstat`` / ``scandir`` checks (no symlink following)
+rather than descriptor-relative TOCTOU hardening. Experiment trees are assumed
+to be trusted against concurrent local attackers; containment still rejects
+symlinks, special files, and paths outside the experiment root.
 """
 
 from __future__ import annotations
@@ -22,10 +27,9 @@ import stat
 import subprocess
 import tomllib
 import unicodedata
-from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import AbstractSet, Generator, Iterable, TypeVar
+from typing import AbstractSet, Iterable, TypeVar
 
 POLICY_FILENAME = "deploy.toml"
 SCHEMA_VERSION = 1
@@ -84,7 +88,7 @@ class DeploymentPolicy:
 
 @dataclass(frozen=True)
 class SourceIdentity:
-    """Filesystem identity used to detect source replacement or mutation."""
+    """Filesystem identity captured at plan time for later validation."""
 
     device: int
     inode: int
@@ -237,15 +241,9 @@ class _ExclusionIndex:
 
 def parse_deployment_policy(path: str | os.PathLike[str]) -> DeploymentPolicy:
     """Load and validate a version 1 literal deployment policy."""
-    _require_safe_traversal_support(DeploymentPolicyError)
+    _require_posix_support(DeploymentPolicyError)
     policy_path = Path(os.path.abspath(os.fspath(path)))
-    parent_descriptor = _open_directory_path(policy_path.parent, DeploymentPolicyError)
-    try:
-        return _read_policy_snapshot(
-            parent_descriptor, policy_path.name, policy_path
-        ).policy
-    finally:
-        os.close(parent_descriptor)
+    return _read_policy_snapshot(policy_path).policy
 
 
 def validate_explicit_provider_destination(
@@ -359,10 +357,18 @@ def build_deployment_plan(
     experiment_root: str | os.PathLike[str],
 ) -> DeploymentPlan:
     """Build a deployment plan containing regular experiment-root files."""
-    _require_safe_traversal_support(DeploymentPlanError)
+    _require_posix_support(DeploymentPlanError)
     root = Path(os.path.abspath(os.fspath(experiment_root)))
-    root_descriptor = _open_directory_path(root, DeploymentPlanError)
-    root_identity = SourceIdentity.from_stat(os.fstat(root_descriptor))
+    _assert_no_symlink_components(root, DeploymentPlanError)
+    try:
+        root_stat = root.lstat()
+    except OSError as error:
+        raise DeploymentPlanError(
+            f"Cannot inspect experiment root {root}: {error}"
+        ) from error
+    if not stat.S_ISDIR(root_stat.st_mode):
+        raise DeploymentPlanError(f"Experiment root is not a directory: {root}.")
+
     entries: list[DeploymentPlanEntry] = []
     normalized_sources: dict[str, Path] = {}
     portable_sources: dict[str, tuple[str, Path]] = {}
@@ -389,7 +395,7 @@ def build_deployment_plan(
         portable_sources[portable] = (destination, source)
 
     def walk(
-        directory_descriptor: int,
+        directory: Path,
         source_parts: tuple[str, ...],
         destination_parts: tuple[str, ...],
     ) -> bool:
@@ -398,17 +404,16 @@ def build_deployment_plan(
             destination_parts, exclusion_index
         )
         try:
-            scanner = os.scandir(directory_descriptor)
-        except (OSError, TypeError, NotImplementedError) as error:
+            scanner = os.scandir(directory)
+        except OSError as error:
             raise DeploymentPlanError(
-                f"Cannot safely scan experiment directory {root.joinpath(*source_parts)}: "
-                f"{error}"
+                f"Cannot scan experiment directory {directory}: {error}"
             ) from error
 
         with scanner:
             for child in scanner:
                 raw_name = child.name
-                source = root.joinpath(*source_parts, raw_name)
+                source = directory / raw_name
                 name = _normalize_source_component(raw_name, source)
                 child_destination_parts = (*destination_parts, name)
                 destination = "/".join(child_destination_parts)
@@ -440,11 +445,7 @@ def build_deployment_plan(
 
                 register_destination(destination, source)
                 try:
-                    source_stat = os.stat(
-                        raw_name,
-                        dir_fd=directory_descriptor,
-                        follow_symlinks=False,
-                    )
+                    source_stat = child.stat(follow_symlinks=False)
                 except OSError as error:
                     raise DeploymentPlanError(
                         f"Cannot inspect deployment source {source}: {error}"
@@ -456,40 +457,25 @@ def build_deployment_plan(
                         "Exclude the link or replace it with a regular file or directory."
                     )
                 if stat.S_ISDIR(source_stat.st_mode):
-                    child_descriptor = _open_child_directory(
-                        directory_descriptor, raw_name, source, source_stat
+                    child_identity = SourceIdentity.from_stat(source_stat)
+                    child_entry_start = len(entries)
+                    child_all_selected = walk(
+                        source,
+                        (*source_parts, raw_name),
+                        child_destination_parts,
                     )
-                    child_identity = SourceIdentity.from_stat(
-                        os.fstat(child_descriptor)
-                    )
-                    try:
-                        child_entry_start = len(entries)
-                        child_all_selected = walk(
-                            child_descriptor,
-                            (*source_parts, raw_name),
-                            child_destination_parts,
+                    child_entry_count = len(entries) - child_entry_start
+                    if child_all_selected and child_entry_count:
+                        traversed_directory_candidates.append(
+                            _TraversedDirectoryCandidate(
+                                source=source,
+                                destination=destination,
+                                source_identity=child_identity,
+                                entry_count=child_entry_count,
+                            )
                         )
-                        child_entry_count = len(entries) - child_entry_start
-                        if child_all_selected and child_entry_count:
-                            traversed_directory_candidates.append(
-                                _TraversedDirectoryCandidate(
-                                    source=source,
-                                    destination=destination,
-                                    source_identity=child_identity,
-                                    entry_count=child_entry_count,
-                                )
-                            )
-                        if not child_all_selected:
-                            all_descendants_selected = False
-                        if (
-                            SourceIdentity.from_stat(os.fstat(child_descriptor))
-                            != child_identity
-                        ):
-                            raise DeploymentPlanError(
-                                f"Deployment directory changed while planning: {source}."
-                            )
-                    finally:
-                        os.close(child_descriptor)
+                    if not child_all_selected:
+                        all_descendants_selected = False
                     continue
                 if not stat.S_ISREG(source_stat.st_mode):
                     source_type = _source_type(source_stat.st_mode)
@@ -498,9 +484,7 @@ def build_deployment_plan(
                         "Only regular files and directories are supported."
                     )
 
-                identity, content_digest = _hash_regular_file_at(
-                    directory_descriptor, raw_name, source, source_stat
-                )
+                identity, content_digest = _hash_regular_file(source, source_stat)
                 entries.append(
                     DeploymentPlanEntry(
                         source=source,
@@ -513,32 +497,23 @@ def build_deployment_plan(
                 )
         return all_descendants_selected
 
-    try:
-        policy_snapshot = _read_policy_snapshot(
-            root_descriptor, POLICY_FILENAME, root / POLICY_FILENAME
+    policy_snapshot = _read_policy_snapshot(root / POLICY_FILENAME)
+    policy = policy_snapshot.policy
+    exclusions = frozenset(policy.exclude)
+    exclusion_index = _ExclusionIndex(exclusions)
+    policy_source = root / POLICY_FILENAME
+    register_destination(POLICY_FILENAME, policy_source)
+    entries.append(
+        DeploymentPlanEntry(
+            source=policy_source,
+            destination=POLICY_FILENAME,
+            size=policy_snapshot.source_identity.size,
+            executable=bool(policy_snapshot.source_identity.mode & 0o111),
+            source_identity=policy_snapshot.source_identity,
+            content_digest=policy_snapshot.content_digest,
         )
-        policy = policy_snapshot.policy
-        exclusions = frozenset(policy.exclude)
-        exclusion_index = _ExclusionIndex(exclusions)
-        policy_source = root / POLICY_FILENAME
-        register_destination(POLICY_FILENAME, policy_source)
-        entries.append(
-            DeploymentPlanEntry(
-                source=policy_source,
-                destination=POLICY_FILENAME,
-                size=policy_snapshot.source_identity.size,
-                executable=bool(policy_snapshot.source_identity.mode & 0o111),
-                source_identity=policy_snapshot.source_identity,
-                content_digest=policy_snapshot.content_digest,
-            )
-        )
-        walk(root_descriptor, (), ())
-        if SourceIdentity.from_stat(os.fstat(root_descriptor)) != root_identity:
-            raise DeploymentPlanError(
-                f"Experiment root changed while planning: {root}."
-            )
-    finally:
-        os.close(root_descriptor)
+    )
+    walk(root, (), ())
 
     ordered_entries = tuple(sorted(entries, key=lambda entry: entry.destination))
     ordered_destinations = tuple(entry.destination for entry in ordered_entries)
@@ -619,8 +594,23 @@ def validate_deployment_plan_entry(
     entry: DeploymentPlanEntry,
 ) -> None:
     """Validate a planned source's current type and filesystem identity."""
-    with _open_planned_entry(plan, entry):
-        pass
+    _assert_source_under_root(plan.root, entry.source)
+    try:
+        source_stat = entry.source.lstat()
+    except OSError as error:
+        raise DeploymentPlanError(
+            f"Cannot inspect deployment source {entry.source}: {error}"
+        ) from error
+    if stat.S_ISLNK(source_stat.st_mode):
+        raise DeploymentPlanError(
+            f"Deployment source changed to a symbolic link: {entry.source}."
+        )
+    if not stat.S_ISREG(source_stat.st_mode):
+        raise DeploymentPlanError(f"Deployment source changed type: {entry.source}.")
+    if SourceIdentity.from_stat(source_stat) != entry.source_identity:
+        raise DeploymentPlanError(
+            f"Deployment source changed since planning: {entry.source}."
+        )
 
 
 def validate_deployment_directory_link_candidate(
@@ -628,58 +618,25 @@ def validate_deployment_directory_link_candidate(
     candidate: DeploymentDirectoryLinkCandidate,
 ) -> None:
     """Validate a planned directory's current type and filesystem identity."""
+    _assert_source_under_root(plan.root, candidate.source)
     try:
-        relative_source = candidate.source.relative_to(plan.root)
-    except ValueError as error:
+        source_stat = candidate.source.lstat()
+    except OSError as error:
         raise DeploymentPlanError(
-            f"Deployment directory is outside its plan root: {candidate.source}."
+            f"Cannot inspect deployment directory {candidate.source}: {error}"
         ) from error
-    if not relative_source.parts or ".." in relative_source.parts:
+    if stat.S_ISLNK(source_stat.st_mode):
         raise DeploymentPlanError(
-            f"Deployment directory is not a safe root-relative path: {candidate.source}."
+            f"Deployment directory changed to a symbolic link: {candidate.source}."
         )
-
-    directory_descriptors = [_open_directory_path(plan.root, DeploymentPlanError)]
-    current_source = plan.root
-    try:
-        for component in relative_source.parts:
-            current_source /= component
-            try:
-                expected_stat = os.stat(
-                    component,
-                    dir_fd=directory_descriptors[-1],
-                    follow_symlinks=False,
-                )
-            except OSError as error:
-                raise DeploymentPlanError(
-                    f"Cannot inspect deployment directory {current_source}: {error}"
-                ) from error
-            if stat.S_ISLNK(expected_stat.st_mode):
-                raise DeploymentPlanError(
-                    f"Deployment directory changed to a symbolic link: {current_source}."
-                )
-            if not stat.S_ISDIR(expected_stat.st_mode):
-                raise DeploymentPlanError(
-                    f"Deployment directory changed type: {current_source}."
-                )
-            directory_descriptors.append(
-                _open_child_directory(
-                    directory_descriptors[-1],
-                    component,
-                    current_source,
-                    expected_stat,
-                )
-            )
-        if (
-            SourceIdentity.from_stat(os.fstat(directory_descriptors[-1]))
-            != candidate.source_identity
-        ):
-            raise DeploymentPlanError(
-                f"Deployment directory changed since planning: {candidate.source}."
-            )
-    finally:
-        for descriptor in reversed(directory_descriptors):
-            os.close(descriptor)
+    if not stat.S_ISDIR(source_stat.st_mode):
+        raise DeploymentPlanError(
+            f"Deployment directory changed type: {candidate.source}."
+        )
+    if SourceIdentity.from_stat(source_stat) != candidate.source_identity:
+        raise DeploymentPlanError(
+            f"Deployment directory changed since planning: {candidate.source}."
+        )
 
 
 def materialize_deployment_plan_entry(
@@ -687,70 +644,34 @@ def materialize_deployment_plan_entry(
     entry: DeploymentPlanEntry,
     destination: str | os.PathLike[str],
 ) -> None:
-    """Atomically copy and verify one planned file into a trusted destination."""
+    """Copy and verify one planned file into a trusted destination."""
     target = Path(os.path.abspath(os.fspath(destination)))
     target.parent.mkdir(parents=True, exist_ok=True)
-    # The caller owns and trusts the staging path. Resolve its already-created
-    # parent once so benign platform aliases such as macOS /var -> /private/var
-    # are accepted; all operations within that canonical directory use dir_fd
-    # and no-follow semantics.
+    validate_deployment_plan_entry(plan, entry)
+
+    temporary = target.parent / f".dallinger-deployment-{secrets.token_hex(12)}"
+    digest = hashlib.sha256()
+    copied_size = 0
     try:
-        canonical_parent = target.parent.resolve(strict=True)
-    except OSError as error:
-        raise DeploymentPlanError(
-            f"Cannot resolve trusted deployment destination {target.parent}: {error}"
-        ) from error
-    parent_descriptor = _open_directory_path(canonical_parent, DeploymentPlanError)
-    temporary_name = f".dallinger-deployment-{secrets.token_hex(12)}"
-    temporary_descriptor: int | None = None
-    try:
-        flags = (
-            os.O_WRONLY
-            | os.O_CREAT
-            | os.O_EXCL
-            | os.O_NOFOLLOW
-            | getattr(os, "O_CLOEXEC", 0)
-        )
-        temporary_descriptor = os.open(
-            temporary_name,
-            flags,
-            0o600,
-            dir_fd=parent_descriptor,
-        )
-        digest = hashlib.sha256()
-        copied_size = 0
-        with _open_planned_entry(plan, entry) as source_descriptor:
-            while block := os.read(source_descriptor, 1024 * 1024):
+        with entry.source.open("rb") as source_handle, temporary.open(
+            "xb"
+        ) as temporary_handle:
+            while block := source_handle.read(1024 * 1024):
                 digest.update(block)
                 copied_size += len(block)
-                _write_all(temporary_descriptor, block)
-            if (
-                SourceIdentity.from_stat(os.fstat(source_descriptor))
-                != entry.source_identity
-            ):
-                raise DeploymentPlanError(
-                    f"Deployment source changed while being copied: {entry.source}."
-                )
+                temporary_handle.write(block)
 
         copied_digest = f"sha256:{digest.hexdigest()}"
         if copied_size != entry.size or copied_digest != entry.content_digest:
             raise DeploymentPlanError(
                 f"Deployment source content digest changed: {entry.source}."
             )
-        os.fchmod(temporary_descriptor, entry.source_identity.mode)
-        os.fsync(temporary_descriptor)
-        os.close(temporary_descriptor)
-        temporary_descriptor = None
-        os.link(
-            temporary_name,
-            target.name,
-            src_dir_fd=parent_descriptor,
-            dst_dir_fd=parent_descriptor,
-            follow_symlinks=False,
-        )
-        os.unlink(temporary_name, dir_fd=parent_descriptor)
-        temporary_name = ""
-        os.fsync(parent_descriptor)
+        os.chmod(temporary, entry.source_identity.mode)
+        # Fail if the final component already exists (including as a symlink)
+        # rather than following or replacing it.
+        os.link(temporary, target)
+        temporary.unlink()
+        temporary = None
     except DeploymentPlanError:
         raise
     except OSError as error:
@@ -758,119 +679,8 @@ def materialize_deployment_plan_entry(
             f"Cannot materialize deployment entry {entry.destination!r}: {error}"
         ) from error
     finally:
-        if temporary_descriptor is not None:
-            os.close(temporary_descriptor)
-        if temporary_name:
-            try:
-                os.unlink(temporary_name, dir_fd=parent_descriptor)
-            except FileNotFoundError:
-                pass
-        os.close(parent_descriptor)
-
-
-@contextmanager
-def _open_planned_entry(
-    plan: DeploymentPlan,
-    entry: DeploymentPlanEntry,
-) -> Generator[int, None, None]:
-    """Open a planned source through no-follow root-relative traversal."""
-    try:
-        relative_source = entry.source.relative_to(plan.root)
-    except ValueError as error:
-        raise DeploymentPlanError(
-            f"Deployment source is outside its plan root: {entry.source}."
-        ) from error
-    if not relative_source.parts or ".." in relative_source.parts:
-        raise DeploymentPlanError(
-            f"Deployment source is not a safe root-relative path: {entry.source}."
-        )
-
-    directory_descriptors = [_open_directory_path(plan.root, DeploymentPlanError)]
-    source_descriptor: int | None = None
-    current_source = plan.root
-    try:
-        for component in relative_source.parts[:-1]:
-            current_source /= component
-            try:
-                expected_stat = os.stat(
-                    component,
-                    dir_fd=directory_descriptors[-1],
-                    follow_symlinks=False,
-                )
-            except OSError as error:
-                raise DeploymentPlanError(
-                    f"Cannot inspect deployment directory {current_source}: {error}"
-                ) from error
-            if not stat.S_ISDIR(expected_stat.st_mode):
-                raise DeploymentPlanError(
-                    f"Deployment directory changed type: {current_source}."
-                )
-            directory_descriptors.append(
-                _open_child_directory(
-                    directory_descriptors[-1],
-                    component,
-                    current_source,
-                    expected_stat,
-                )
-            )
-
-        name = relative_source.parts[-1]
-        try:
-            expected_stat = os.stat(
-                name,
-                dir_fd=directory_descriptors[-1],
-                follow_symlinks=False,
-            )
-        except OSError as error:
-            raise DeploymentPlanError(
-                f"Cannot inspect deployment source {entry.source}: {error}"
-            ) from error
-        if stat.S_ISLNK(expected_stat.st_mode):
-            raise DeploymentPlanError(
-                f"Deployment source changed to a symbolic link: {entry.source}."
-            )
-        if not stat.S_ISREG(expected_stat.st_mode):
-            raise DeploymentPlanError(
-                f"Deployment source changed type: {entry.source}."
-            )
-        if SourceIdentity.from_stat(expected_stat) != entry.source_identity:
-            raise DeploymentPlanError(
-                f"Deployment source changed since planning: {entry.source}."
-            )
-
-        try:
-            source_descriptor = os.open(
-                name,
-                _file_open_flags(),
-                dir_fd=directory_descriptors[-1],
-            )
-        except OSError as error:
-            raise DeploymentPlanError(
-                f"Cannot safely open deployment source {entry.source}: {error}"
-            ) from error
-        if (
-            SourceIdentity.from_stat(os.fstat(source_descriptor))
-            != entry.source_identity
-        ):
-            raise DeploymentPlanError(
-                f"Deployment source changed while being opened: {entry.source}."
-            )
-        yield source_descriptor
-    finally:
-        if source_descriptor is not None:
-            os.close(source_descriptor)
-        for descriptor in reversed(directory_descriptors):
-            os.close(descriptor)
-
-
-def _write_all(descriptor: int, content: bytes) -> None:
-    """Write a complete block to an open descriptor."""
-    view = memoryview(content)
-    while view:
-        written = os.write(descriptor, view)
-        if written <= 0:
-            raise OSError("short write while materializing deployment entry")
-        view = view[written:]
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def _finalize_directory_candidate(
@@ -1143,125 +953,78 @@ def _reserved_kind(destination_parts: tuple[str, ...]) -> str | None:
     return None
 
 
-def _require_safe_traversal_support(
-    error_type: type[_ErrorType],
-) -> None:
-    """Fail unless native POSIX descriptor-relative containment is available."""
-    supported = (
-        os.name == "posix"
-        and hasattr(os, "O_NOFOLLOW")
-        and hasattr(os, "O_DIRECTORY")
-        and os.open in os.supports_dir_fd
-        and os.stat in os.supports_dir_fd
-        and os.stat in os.supports_follow_symlinks
-    )
-    if not supported:
+def _require_posix_support(error_type: type[_ErrorType]) -> None:
+    """Fail closed on non-POSIX platforms for this prototype."""
+    if os.name != "posix":
         raise error_type(
-            "Deployment planning currently requires POSIX descriptor-relative "
-            "traversal with O_NOFOLLOW and O_DIRECTORY; Windows/reparse-point "
-            "sources are not supported by this prototype."
+            "Deployment planning currently requires a POSIX filesystem; "
+            "Windows/reparse-point sources are not supported by this prototype."
         )
 
 
-def _directory_open_flags() -> int:
-    return os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
-
-
-def _file_open_flags() -> int:
-    return os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
-
-
-def _open_directory_path(
+def _assert_no_symlink_components(
     path: Path,
     error_type: type[_ErrorType],
-) -> int:
-    """Open an absolute directory one no-follow component at a time."""
+) -> None:
+    """Reject absolute paths that traverse a symbolic-link component."""
     if not path.is_absolute():
-        raise error_type(f"Safe directory traversal requires an absolute path: {path}.")
+        raise error_type(f"Deployment paths must be absolute: {path}.")
 
-    descriptor: int | None = None
+    accumulated = Path(path.anchor)
+    for component in path.parts[1:]:
+        accumulated /= component
+        try:
+            if accumulated.is_symlink():
+                raise error_type(
+                    f"Cannot open deployment path through symbolic link {accumulated}."
+                )
+        except OSError as error:
+            raise error_type(
+                f"Cannot inspect deployment path component {accumulated}: {error}"
+            ) from error
+
+
+def _assert_source_under_root(root: Path, source: Path) -> None:
+    """Require a planned source path to remain inside its plan root."""
     try:
-        descriptor = os.open("/", _directory_open_flags())
-        for component in path.parts[1:]:
-            child_descriptor = os.open(
-                component, _directory_open_flags(), dir_fd=descriptor
-            )
-            os.close(descriptor)
-            descriptor = child_descriptor
-        if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
-            raise error_type(f"Deployment source directory is not a directory: {path}.")
-        return descriptor
-    except OSError as error:
-        if descriptor is not None:
-            os.close(descriptor)
-        raise error_type(
-            f"Cannot safely open deployment source directory {path}: {error}"
-        ) from error
-
-
-def _open_child_directory(
-    parent_descriptor: int,
-    name: str,
-    source: Path,
-    expected_stat: os.stat_result,
-) -> int:
-    """Open a child directory without following a replacement link."""
-    try:
-        descriptor = os.open(name, _directory_open_flags(), dir_fd=parent_descriptor)
-    except OSError as error:
+        relative_source = source.relative_to(root)
+    except ValueError as error:
         raise DeploymentPlanError(
-            f"Cannot safely open deployment directory {source}: {error}"
+            f"Deployment source is outside its plan root: {source}."
         ) from error
-
-    opened_identity = SourceIdentity.from_stat(os.fstat(descriptor))
-    if opened_identity != SourceIdentity.from_stat(expected_stat):
-        os.close(descriptor)
+    if not relative_source.parts or ".." in relative_source.parts:
         raise DeploymentPlanError(
-            f"Deployment directory changed while being opened: {source}."
+            f"Deployment source is not a safe root-relative path: {source}."
         )
-    return descriptor
 
 
-def _read_policy_snapshot(
-    parent_descriptor: int,
-    name: str,
-    source: Path,
-) -> _PolicySnapshot:
-    """Parse and hash a policy from one no-follow descriptor snapshot."""
+def _read_policy_snapshot(source: Path) -> _PolicySnapshot:
+    """Parse and hash a policy file without following a final-component symlink."""
     try:
-        expected_stat = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        source_stat = source.lstat()
     except OSError as error:
         raise DeploymentPolicyError(
             f"Cannot inspect deployment policy {source}: {error}"
         ) from error
 
-    if stat.S_ISLNK(expected_stat.st_mode):
+    if stat.S_ISLNK(source_stat.st_mode):
         raise DeploymentPolicyError(
             f"Deployment policy {source} must not be a symbolic link."
         )
-    if not stat.S_ISREG(expected_stat.st_mode):
+    if not stat.S_ISREG(source_stat.st_mode):
         raise DeploymentPolicyError(
             f"Deployment policy {source} must be a regular file."
         )
 
+    identity = SourceIdentity.from_stat(source_stat)
     try:
-        descriptor = os.open(name, _file_open_flags(), dir_fd=parent_descriptor)
+        content = source.read_bytes()
     except OSError as error:
         raise DeploymentPolicyError(
-            f"Cannot safely open deployment policy {source}: {error}"
+            f"Cannot read deployment policy {source}: {error}"
         ) from error
 
-    try:
-        identity, content_digest, content = _read_open_descriptor(
-            descriptor,
-            source,
-            expected_stat,
-            collect_content=True,
-            error_type=DeploymentPolicyError,
-        )
-    finally:
-        os.close(descriptor)
-
+    content_digest = f"sha256:{hashlib.sha256(content).hexdigest()}"
     try:
         policy_text = content.decode("utf-8")
         raw_policy = tomllib.loads(policy_text)
@@ -1276,70 +1039,26 @@ def _read_policy_snapshot(
     )
 
 
-def _hash_regular_file_at(
-    parent_descriptor: int,
-    name: str,
+def _hash_regular_file(
     source: Path,
-    expected_stat: os.stat_result,
+    source_stat: os.stat_result,
 ) -> tuple[SourceIdentity, str]:
-    """Hash a regular file through its parent descriptor."""
+    """Hash a regular file after an ``lstat`` type check."""
+    if not stat.S_ISREG(source_stat.st_mode):
+        raise DeploymentPlanError(
+            f"Deployment source changed type while planning: {source}."
+        )
+    identity = SourceIdentity.from_stat(source_stat)
+    digest = hashlib.sha256()
     try:
-        descriptor = os.open(name, _file_open_flags(), dir_fd=parent_descriptor)
+        with source.open("rb") as handle:
+            while block := handle.read(1024 * 1024):
+                digest.update(block)
     except OSError as error:
         raise DeploymentPlanError(
-            f"Cannot open deployment source {source}: {error}"
+            f"Cannot hash deployment source {source}: {error}"
         ) from error
-
-    try:
-        identity, content_digest, _ = _read_open_descriptor(
-            descriptor,
-            source,
-            expected_stat,
-            collect_content=False,
-            error_type=DeploymentPlanError,
-        )
-    finally:
-        os.close(descriptor)
-
-    return identity, content_digest
-
-
-def _read_open_descriptor(
-    descriptor: int,
-    source: Path,
-    expected_stat: os.stat_result,
-    *,
-    collect_content: bool,
-    error_type: type[_ErrorType],
-) -> tuple[SourceIdentity, str, bytes]:
-    """Read and hash one already-open descriptor, checking identity twice."""
-    try:
-        opened_stat = os.fstat(descriptor)
-        if not stat.S_ISREG(opened_stat.st_mode):
-            raise error_type(
-                f"Deployment source changed type while planning: {source}."
-            )
-        opened_identity = SourceIdentity.from_stat(opened_stat)
-        if opened_identity != SourceIdentity.from_stat(expected_stat):
-            raise error_type(f"Deployment source changed while planning: {source}.")
-
-        digest = hashlib.sha256()
-        content_blocks: list[bytes] = []
-        while block := os.read(descriptor, 1024 * 1024):
-            digest.update(block)
-            if collect_content:
-                content_blocks.append(block)
-
-        if SourceIdentity.from_stat(os.fstat(descriptor)) != opened_identity:
-            raise error_type(f"Deployment source changed while being hashed: {source}.")
-    except OSError as error:
-        raise error_type(f"Cannot hash deployment source {source}: {error}") from error
-
-    return (
-        opened_identity,
-        f"sha256:{digest.hexdigest()}",
-        b"".join(content_blocks),
-    )
+    return identity, f"sha256:{digest.hexdigest()}"
 
 
 def _manifest_digest(entries: tuple[DeploymentPlanEntry, ...]) -> str:
