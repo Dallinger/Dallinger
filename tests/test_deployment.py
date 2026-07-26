@@ -51,7 +51,7 @@ def write_reviewed_deployment_policy(root, exclude=()):
     write_deployment_policy(
         root,
         exclude,
-        acknowledgement=comparison.newly_included_digest,
+        acknowledgement=comparison.compatibility_digest,
     )
 
 
@@ -461,6 +461,7 @@ class TestExperimentFilesSource:
         (root / "static/other").mkdir()
         (root / "static/other/asset.txt").write_text("other")
         subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        write_reviewed_deployment_policy(root, exclude=["static/private"])
         source = subject(root)
         destination = tmp_path / "destination"
 
@@ -838,6 +839,38 @@ class TestExperimentFilesSource:
         (root / ".gitignore").write_text("ignored.txt\nsecond-ignored.txt\n")
         with pytest.raises(DeploymentCompatibilityError, match="acknowledge"):
             subject(root)
+
+    def test_policy_gate_requires_review_for_tracked_exclusion(self, subject, tmp_path):
+        from dallinger.deployment_plan import (
+            DeploymentCompatibilityError,
+            DeploymentMembership,
+            build_deployment_plan,
+            compare_legacy_deployment_selection,
+        )
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        required_input = root / "required-input.txt"
+        required_input.write_text("ordinary tracked input")
+        subprocess.run(["git", "add", "required-input.txt"], cwd=root, check=True)
+        write_deployment_policy(root, exclude=["required-input.txt"])
+        comparison = compare_legacy_deployment_selection(build_deployment_plan(root))
+
+        assert comparison.newly_excluded == (
+            DeploymentMembership("required-input.txt", "regular-file"),
+        )
+        assert comparison.requires_acknowledgement
+        with pytest.raises(DeploymentCompatibilityError, match="newly excluded"):
+            subject(root)
+
+        write_deployment_policy(
+            root,
+            exclude=["required-input.txt"],
+            acknowledgement=comparison.compatibility_digest,
+        )
+        source = subject(root)
+        assert str(required_input) not in source.files
 
     @pytest.mark.parametrize(
         "backend_control",

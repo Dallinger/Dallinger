@@ -44,8 +44,8 @@ existing collation paths.
 The source caches one ``DeploymentPlan`` instance, maps its entries in
 deterministic destination order, and returns ``plan.total_size`` without
 restatting files. Policy auto-selection also runs the strict legacy comparison
-and refuses materialization until newly included membership is acknowledged
-and all backend ignore controls have been removed.
+and refuses materialization until all target-versus-legacy membership changes
+are acknowledged and all backend ignore controls have been removed.
 
 Copied policy entries are opened through no-follow, root-relative traversal,
 checked against their planned filesystem identity, hashed while copying, and
@@ -230,7 +230,7 @@ prefixes:
    version = 1
 
    # Temporary compatibility-phase acknowledgement. The migration command
-   # writes this after the experimenter reviews newly selected paths.
+   # writes this after the experimenter reviews included and excluded changes.
    legacy_diff_acknowledgement = "sha256:..."
 
    exclude = [
@@ -527,7 +527,7 @@ Click's text error format.
 selection with Git explicitly bound to the experiment root, then displays
 newly included and newly excluded path/type memberships. Git command failure is
 an inspection error rather than an empty selection. The command exits nonzero
-when newly included membership has not been acknowledged. ``--acknowledge``
+when any membership difference has not been acknowledged. ``--acknowledge``
 updates only ``legacy_diff_acknowledgement`` after displaying the comparison,
 and ``--json`` provides structured output. The update requires the exact
 policy identity and content digest used by the comparison, writes and syncs a
@@ -551,18 +551,23 @@ the experimenter to reorganize non-literal rules, edit the policy, and run
 ``deployment-files check``. Any similarly named starter exclusions have only
 root-literal semantics, not the legacy recursive basename semantics.
 
-``deployment-files check`` hashes the normalized destination paths and file
-types that target selection adds relative to legacy selection. Its
+``deployment-files check`` hashes canonical, direction-tagged changes containing
+``included`` or ``excluded`` plus each normalized destination path and file
+type. The digest is domain/version separated. A zero-difference comparison has
+a stable digest but requires no acknowledgement. Its
 ``--acknowledge`` mode writes that digest to
 ``legacy_diff_acknowledgement`` in ``deploy.toml``. Verification and
 materialization refuse a missing or mismatched required acknowledgement.
-Adding, removing, or changing the type of a newly selected path invalidates
-the acknowledgement and requires another migration review. Unresolved backend
-ignore controls likewise prevent policy use, not only acknowledgement.
+Adding, removing, or changing the type of either included or excluded
+membership invalidates the acknowledgement and requires another migration
+review. Excluding a tracked ordinary input is therefore incompatible until
+reviewed; required generated inputs may also receive separate validation in a
+later integration layer. Unresolved backend ignore controls likewise prevent
+policy use, not only acknowledgement.
 
 The initializer cannot translate arbitrary Git-ignore patterns into literals.
-It reports unsupported patterns and suggests reorganizing files into excluded
-directories or listing exact paths.
+It warns that translation was not attempted and suggests reorganizing files
+into excluded directories or listing exact paths.
 
 PsyNet adoption
 ^^^^^^^^^^^^^^^
@@ -644,7 +649,7 @@ Planner tests cover:
 
 * deterministic ordering;
 * legacy-versus-target membership comparison;
-* acknowledgement creation and invalidation when new membership changes;
+* acknowledgement creation and invalidation when directional membership changes;
 * hard exclusions and missing literal exclusions;
 * ignored, tracked, and untracked files;
 * experiment, explicit, framework, generated, and reserved providers;

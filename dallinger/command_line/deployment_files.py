@@ -87,7 +87,7 @@ def list_deployment_files(json_output: bool) -> None:
 @click.option(
     "--acknowledge",
     is_flag=True,
-    help="Record the reviewed newly-included membership digest in deploy.toml.",
+    help="Record the reviewed compatibility-difference digest in deploy.toml.",
 )
 @click.option("--json", "json_output", is_flag=True, help="Emit JSON output.")
 def check_deployment_files(acknowledge: bool, json_output: bool) -> None:
@@ -104,7 +104,7 @@ def check_deployment_files(acknowledge: bool, json_output: bool) -> None:
         payload["acknowledgement_updated"] = acknowledge
         if acknowledge:
             _acknowledge_or_fail(comparison)
-            payload["acknowledgement"]["configured"] = comparison.newly_included_digest
+            payload["acknowledgement"]["configured"] = comparison.compatibility_digest
             payload["acknowledgement"]["matches"] = True
         click.echo(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     else:
@@ -113,7 +113,7 @@ def check_deployment_files(acknowledge: bool, json_output: bool) -> None:
             _acknowledge_or_fail(comparison)
             click.echo(
                 "Updated legacy_diff_acknowledgement in "
-                f"{POLICY_FILENAME} to {comparison.newly_included_digest}."
+                f"{POLICY_FILENAME} to {comparison.compatibility_digest}."
             )
 
     if not acknowledge and not comparison.is_compatible:
@@ -189,11 +189,11 @@ def _display_comparison(comparison: LegacyDeploymentComparison) -> None:
         )
     else:
         click.echo("Backend filter status: resolved")
-    click.echo(f"Newly included digest: {comparison.newly_included_digest}")
+    click.echo(f"Compatibility digest: {comparison.compatibility_digest}")
     if comparison.has_unresolved_backend_filters:
         status = "blocked by unresolved backend filters"
     elif not comparison.requires_acknowledgement:
-        status = "not required (no newly included files)"
+        status = "not required (no membership differences)"
     elif comparison.acknowledgement_matches:
         status = "matches"
     elif comparison.configured_acknowledgement is None:
@@ -203,8 +203,9 @@ def _display_comparison(comparison: LegacyDeploymentComparison) -> None:
     click.echo(f"Acknowledgement: {status}")
     if comparison.requires_acknowledgement:
         click.echo(
-            "WARNING: The target policy includes paths omitted by legacy selection. "
-            "Review these paths; file contents are not shown."
+            "WARNING: The target policy changes membership relative to legacy "
+            "selection. Review included and excluded paths; file contents are "
+            "not shown."
         )
 
 
@@ -240,7 +241,7 @@ def _comparison_payload(comparison: LegacyDeploymentComparison) -> dict:
         "newly_included": [
             _membership_payload(membership) for membership in comparison.newly_included
         ],
-        "newly_included_digest": comparison.newly_included_digest,
+        "compatibility_digest": comparison.compatibility_digest,
         "target_count": len(comparison.target),
     }
 

@@ -137,7 +137,7 @@ class TestVerify:
         )
         Path("deploy.toml").write_text(
             "version = 1\n"
-            f'legacy_diff_acknowledgement = "{comparison.newly_included_digest}"\n'
+            f'legacy_diff_acknowledgement = "{comparison.compatibility_digest}"\n'
             "exclude = []\n"
         )
 
@@ -280,7 +280,7 @@ class TestDevelopCommand:
         )
         (experiment_root / "deploy.toml").write_text(
             "version = 1\n"
-            f'legacy_diff_acknowledgement = "{comparison.newly_included_digest}"\n'
+            f'legacy_diff_acknowledgement = "{comparison.compatibility_digest}"\n'
             "exclude = []\n"
         )
         monkeypatch.chdir(experiment_root)

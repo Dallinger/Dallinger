@@ -43,7 +43,7 @@ _ACKNOWLEDGEMENT_PATTERN = re.compile(r"sha256:[0-9a-fA-F]{64}\Z")
 _MANIFEST_DOMAIN = "dallinger.deployment-plan.manifest"
 _MANIFEST_VERSION = 1
 _LEGACY_DIFF_DOMAIN = "dallinger.deployment-plan.legacy-diff"
-_LEGACY_DIFF_VERSION = 1
+_LEGACY_DIFF_VERSION = 2
 
 _ErrorType = TypeVar("_ErrorType", bound=ValueError)
 
@@ -162,7 +162,7 @@ class LegacyDeploymentComparison:
     legacy: tuple[DeploymentMembership, ...]
     newly_included: tuple[DeploymentMembership, ...]
     newly_excluded: tuple[DeploymentMembership, ...]
-    newly_included_digest: str
+    compatibility_digest: str
     configured_acknowledgement: str | None
     policy_path: Path
     policy_source_identity: SourceIdentity
@@ -171,13 +171,13 @@ class LegacyDeploymentComparison:
 
     @property
     def requires_acknowledgement(self) -> bool:
-        """Return whether target selection adds any legacy-hidden membership."""
-        return bool(self.newly_included)
+        """Return whether target and legacy membership differ."""
+        return bool(self.newly_included or self.newly_excluded)
 
     @property
     def acknowledgement_matches(self) -> bool:
         """Return whether the policy contains the current compatibility digest."""
-        return self.configured_acknowledgement == self.newly_included_digest
+        return self.configured_acknowledgement == self.compatibility_digest
 
     @property
     def has_unresolved_backend_filters(self) -> bool:
@@ -513,7 +513,10 @@ def compare_legacy_deployment_selection(
         legacy=legacy,
         newly_included=newly_included,
         newly_excluded=newly_excluded,
-        newly_included_digest=compute_legacy_compatibility_digest(newly_included),
+        compatibility_digest=compute_legacy_compatibility_digest(
+            newly_included=newly_included,
+            newly_excluded=newly_excluded,
+        ),
         configured_acknowledgement=plan.policy.legacy_diff_acknowledgement,
         policy_path=plan.root / POLICY_FILENAME,
         policy_source_identity=plan.policy_source_identity,
@@ -535,10 +538,10 @@ def require_deployment_compatibility(
         )
     if comparison.requires_acknowledgement and not comparison.acknowledgement_matches:
         raise DeploymentCompatibilityError(
-            "deploy.toml includes files hidden by legacy selection. Review them "
-            "with `dallinger deployment-files check`, then acknowledge the "
-            "current comparison with `dallinger deployment-files check "
-            "--acknowledge`."
+            "deploy.toml changes file membership relative to legacy selection. "
+            "Review newly included and newly excluded paths with `dallinger "
+            "deployment-files check`, then acknowledge the current comparison "
+            "with `dallinger deployment-files check --acknowledge`."
         )
     return comparison
 
@@ -827,19 +830,24 @@ def _finalize_directory_candidate(
 
 
 def compute_legacy_compatibility_digest(
-    memberships: Iterable[DeploymentMembership],
+    *,
+    newly_included: Iterable[DeploymentMembership] = (),
+    newly_excluded: Iterable[DeploymentMembership] = (),
 ) -> str:
-    """Hash path/type membership with an explicit compatibility domain/version."""
-    canonical_memberships = sorted(set(memberships))
+    """Hash directional path/type changes in a canonical domain/version."""
+    changes = {("included", membership) for membership in newly_included}
+    changes.update(("excluded", membership) for membership in newly_excluded)
+    canonical_changes = sorted(changes)
     manifest = {
         "domain": _LEGACY_DIFF_DOMAIN,
         "version": _LEGACY_DIFF_VERSION,
-        "memberships": [
+        "changes": [
             {
+                "direction": direction,
                 "destination": membership.destination,
                 "file_type": membership.file_type,
             }
-            for membership in canonical_memberships
+            for direction, membership in canonical_changes
         ],
     }
     encoded_manifest = json.dumps(
@@ -858,8 +866,11 @@ def acknowledge_legacy_deployment_comparison(
             "Cannot acknowledge while source backend ignore controls remain: "
             f"{paths}. Migrate their filtering into deploy.toml and remove them."
         )
-    digest = compute_legacy_compatibility_digest(comparison.newly_included)
-    if digest != comparison.newly_included_digest:
+    digest = compute_legacy_compatibility_digest(
+        newly_included=comparison.newly_included,
+        newly_excluded=comparison.newly_excluded,
+    )
+    if digest != comparison.compatibility_digest:
         raise DeploymentCompatibilityError(
             "Cannot acknowledge an internally inconsistent migration comparison."
         )

@@ -9,8 +9,8 @@
 - Added prototype `dallinger deployment-files` commands for listing target
   plans, checking and acknowledging legacy-selection differences, and creating
   review-required starter policies. Acknowledgements use stale-snapshot checks
-  and atomic policy replacement, and unresolved backend ignore controls block
-  compatibility.
+  and atomic policy replacement, cover both included and excluded membership,
+  and remain blocked by unresolved backend ignore controls.
 - Added opt-in `deploy.toml` experiment-file membership to verification,
   development staging, copied Docker/classic staging, and Heroku assembly
   through `ExperimentFileSource`. Policy use requires an acknowledged,

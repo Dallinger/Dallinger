@@ -108,7 +108,7 @@ def test_check_reports_included_excluded_and_json_without_contents(tmp_path):
     assert payload["newly_excluded"] == [
         {"path": "excluded.txt", "type": "regular-file"}
     ]
-    assert payload["newly_included_digest"].startswith("sha256:")
+    assert payload["compatibility_digest"].startswith("sha256:")
     assert payload["acknowledgement"] == {
         "configured": None,
         "matches": False,
@@ -140,6 +140,30 @@ def test_acknowledgement_succeeds_preserves_comments_and_invalidates(tmp_path):
     assert "Acknowledgement: matches" in matching.output
     assert invalidated.exit_code == 1
     assert "Acknowledgement: mismatch" in invalidated.output
+
+
+def test_acknowledgement_covers_exclusion_only_difference(tmp_path):
+    _init_git(tmp_path)
+    required_input = tmp_path / "required-input.txt"
+    required_input.write_text("tracked ordinary input")
+    subprocess.run(["git", "add", "required-input.txt"], cwd=tmp_path, check=True)
+    _write_policy(tmp_path, exclude=["required-input.txt"])
+
+    unreviewed = _invoke(tmp_path, ["check", "--json"])
+    payload = json.loads(unreviewed.output)
+    acknowledged = _invoke(tmp_path, ["check", "--acknowledge"])
+    reviewed = _invoke(tmp_path, ["check"])
+
+    assert unreviewed.exit_code == 1
+    assert payload["newly_included"] == []
+    assert payload["newly_excluded"] == [
+        {"path": "required-input.txt", "type": "regular-file"}
+    ]
+    assert payload["acknowledgement"]["required"] is True
+    assert acknowledged.exit_code == 0
+    assert payload["compatibility_digest"] in (tmp_path / "deploy.toml").read_text()
+    assert reviewed.exit_code == 0
+    assert "Acknowledgement: matches" in reviewed.output
 
 
 def test_init_reports_untranslated_rules_and_refuses_overwrite(tmp_path):

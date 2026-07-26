@@ -536,15 +536,43 @@ def test_plan_digest_is_stable_and_changes_with_content_or_mode(tmp_path):
 
 
 def test_legacy_compatibility_digest_is_canonical_and_versioned():
-    memberships = [
+    newly_included = [
         DeploymentMembership("ignored.txt", "regular-file"),
         DeploymentMembership("ignored.txt", "regular-file"),
     ]
+    newly_excluded = [DeploymentMembership("required.txt", "regular-file")]
+
+    digest = compute_legacy_compatibility_digest(
+        newly_included=reversed(newly_included),
+        newly_excluded=reversed(newly_excluded),
+    )
 
     assert (
-        compute_legacy_compatibility_digest(reversed(memberships))
-        == "sha256:10bfc05e7c76e99311bd602f1739ad86df337d1990f17b1cf73f10a091e7b46b"
+        digest
+        == "sha256:1c3f9a4214139a1c1c2f93612eefaf82841009777892b6451684ee25038e44a3"
     )
+    assert digest != compute_legacy_compatibility_digest(
+        newly_included=newly_excluded,
+        newly_excluded=newly_included,
+    )
+
+
+def test_zero_difference_has_stable_digest_without_requiring_acknowledgement(
+    tmp_path,
+):
+    write_policy(tmp_path)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+
+    comparison = compare_legacy_deployment_selection(build_deployment_plan(tmp_path))
+
+    assert comparison.newly_included == ()
+    assert comparison.newly_excluded == ()
+    assert (
+        comparison.compatibility_digest
+        == "sha256:cdc352fa36186033d98d20ddd3984c1d4481e19342ab9ff7c6e6c08353acd66f"
+    )
+    assert comparison.requires_acknowledgement is False
+    assert comparison.is_compatible is True
 
 
 def test_legacy_comparison_binds_git_to_plan_root(tmp_path, monkeypatch):
