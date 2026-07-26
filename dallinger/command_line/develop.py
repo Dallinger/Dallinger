@@ -58,10 +58,10 @@ def develop():
 def debug(port, skip_flask):
     from dallinger.command_line.utils import verify_package
 
-    # Verify the working tree directly so large experiments are not copied
-    # before development staging. Flask subsequently imports the staged tree;
-    # `dallinger verify` retains strict copied-package verification.
-    if not verify_package(copy_experiment=False):
+    # Skip deployable-package module verification so large experiments are not
+    # copied before staging. Config loading still imports the working tree,
+    # Flask imports the staged tree, and `dallinger verify` remains strict.
+    if not verify_package(verify_experiment=False):
         # We could instead use the @require_exp_directory decorator,
         # but this doesn't print anything useful without the verbose flag.
         # To consider for later: improving this default behavior of @require_exp_directory?
