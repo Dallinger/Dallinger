@@ -37,9 +37,10 @@ Implemented opt-in scope
 
 The current proof of concept makes a valid root ``deploy.toml`` opt into
 ``build_deployment_plan(root)`` membership through ``ExperimentFileSource``.
-This gives verification size checks and temporary import packages, per-file
-development links, classic copied staging, Docker contexts, and Heroku assembly
-the same experiment-root membership through their existing collation paths.
+This gives verification size checks and temporary import packages, bulk
+development links with per-file fallbacks, classic copied staging, Docker
+contexts, and Heroku assembly the same experiment-root membership through their
+existing collation paths.
 The source caches one ``DeploymentPlan`` instance, maps its entries in
 deterministic destination order, and returns ``plan.total_size`` without
 restatting files. Policy auto-selection also runs the strict legacy comparison
@@ -63,12 +64,14 @@ root-bound, fail-closed Git client, so the presence of ``deploy.toml`` cannot
 accidentally make the target selection compare with itself.
 
 This proof of concept deliberately keeps existing first-wins collation across
-experiment files, ``extra_files()``, and framework files. Provider collision
-validation, bulk directory links, and dedicated backend materializers remain
-deferred. Source ``config.txt``, ``.dockerignore`` variants, and
-``.slugignore`` remain omitted by the experiment-root plan; generated filtered
-configuration and framework/backend outputs continue to be added by existing
-collation code.
+experiment files, ``extra_files()``, and framework files. Development
+collation precomputes the later provider mappings once and protects their
+destinations and ancestors when choosing bulk directory links; colliding
+branches fall back to validated per-file links. Provider collision validation
+and dedicated backend materializers remain deferred. Source ``config.txt``,
+``.dockerignore`` variants, and ``.slugignore`` remain omitted by the
+experiment-root plan; generated filtered configuration and framework/backend
+outputs continue to be added by existing collation code.
 
 Historical context
 ------------------
@@ -392,12 +395,23 @@ Development materializer
 
 Local development retains links so source edits remain visible.
 
-The current opt-in integration continues to create one link per planned file
-through ``ExperimentFileSource.apply_to``. Each source is opened without
-following links and its current regular-file type and identity are checked
-immediately before link creation. The link remains intentionally live
-afterward, so development requires a trusted working tree. The bulk directory
-link rules below are deferred.
+The current opt-in integration records immutable directory-link candidates
+during descriptor-safe plan traversal. A candidate identifies its source
+directory, normalized destination, filesystem identity, and contiguous span of
+planned entries. A directory is eligible only when every currently existing
+descendant is selected and no literal exclusion is equal to or beneath it,
+including exclusions for paths that do not yet exist. Exclusions and reserved
+descendants disqualify the parent while allowing independently safe child
+subtrees to remain candidates.
+
+Development collation computes explicit and framework mappings once before
+applying them. Their destinations and in-tree ancestors protect overlapping
+candidate branches. It then links the shallowest safe candidate directories,
+validating each directory's type and identity immediately before link creation,
+and skips their plan-entry spans without visiting each covered file. Uncovered
+and colliding branches retain validated per-file links and existing first-wins
+provider behavior. Copied staging continues to materialize every entry as a
+verified regular file.
 
 A source directory may be bulk-linked when:
 
@@ -498,8 +512,9 @@ Prototype integration and inspection commands
 The compatibility prototype now uses target membership for verification,
 debug staging, Docker contexts, and Heroku assembly when ``deploy.toml`` is
 present. Auto-selection requires a compatible strict legacy comparison before
-any of these consumers can use the plan. It still uses per-file links and
-copies rather than bulk links or backend-specific materializers.
+any of these consumers can use the plan. Development uses collision-protected
+bulk directory links with validated per-file fallbacks; copied backends retain
+per-file frozen materialization.
 
 ``deployment-files list`` requires a valid ``deploy.toml`` and prints target
 destinations in deterministic order followed by the file count, total size,
@@ -677,7 +692,6 @@ The following remain separate proposals:
 
 * provider collision integration across experiment, explicit, framework,
   generated, and backend files;
-* bulk directory links for development staging;
 * static-resource bundling;
 * BuildKit-native contexts that avoid copied staging;
 * constrained in-root source symlinks;

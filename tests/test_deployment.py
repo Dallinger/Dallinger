@@ -385,6 +385,9 @@ class TestExperimentFilesSource:
         with (
             mock.patch.object(ExplicitFileSource, "apply_to"),
             mock.patch.object(DallingerFileSource, "apply_to"),
+            mock.patch.object(ExplicitFileSource, "map_locations_to", return_value=[]),
+            mock.patch.object(DallingerFileSource, "map_locations_to", return_value=[]),
+            mock.patch("dallinger.config.initialize_experiment_package"),
         ):
             collate_experiment_files(
                 {},
@@ -397,6 +400,372 @@ class TestExperimentFilesSource:
         assert (destination / "ignored.txt").is_symlink() is output_is_symlink
         assert (destination / "deploy.toml").exists()
         assert not (destination / "local.txt").exists()
+
+    def test_policy_development_bulk_link_uses_constant_materialization_operations(
+        self, subject, tmp_path
+    ):
+        import dallinger.utils as utils
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        static = root / "static"
+        static.mkdir()
+        for number in range(500):
+            (static / f"asset-{number:04}.txt").write_text("x")
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        write_deployment_policy(root)
+        source = subject(root)
+        destination = tmp_path / "destination"
+
+        with (
+            mock.patch(
+                "dallinger.utils.validate_deployment_directory_link_candidate",
+                wraps=utils.validate_deployment_directory_link_candidate,
+            ) as validate_directory,
+            mock.patch(
+                "dallinger.utils.validate_deployment_plan_entry",
+                wraps=utils.validate_deployment_plan_entry,
+            ) as validate_file,
+            mock.patch(
+                "dallinger.utils.symlink_file", wraps=utils.symlink_file
+            ) as link,
+        ):
+            source.apply_development_to(destination)
+
+        assert (destination / "static").is_symlink()
+        assert validate_directory.call_count == 1
+        assert validate_file.call_count == 1  # deploy.toml only
+        assert link.call_count == 2  # one directory and deploy.toml
+        assert not any(
+            Path(call.args[1]).parent == destination / "static"
+            for call in link.call_args_list
+        )
+        visible = set()
+        for directory, _, filenames in os.walk(destination, followlinks=True):
+            for filename in filenames:
+                visible.add(
+                    (Path(directory) / filename).relative_to(destination).as_posix()
+                )
+        assert visible == source.deployment_plan.destinations
+
+    def test_excluded_descendant_prevents_parent_link_but_allows_safe_siblings(
+        self, subject, tmp_path
+    ):
+        root = tmp_path / "experiment"
+        root.mkdir()
+        write_deployment_policy(root, exclude=["static/private"])
+        (root / "static/private").mkdir(parents=True)
+        (root / "static/private/secret.txt").write_text("secret")
+        (root / "static/public").mkdir()
+        (root / "static/public/asset.txt").write_text("public")
+        (root / "static/other").mkdir()
+        (root / "static/other/asset.txt").write_text("other")
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        source = subject(root)
+        destination = tmp_path / "destination"
+
+        source.apply_development_to(destination)
+
+        assert not (destination / "static").is_symlink()
+        assert (destination / "static/public").is_symlink()
+        assert (destination / "static/other").is_symlink()
+        assert not (destination / "static/private").exists()
+
+    def test_absent_exclusion_prevents_future_descendant_from_leaking_through_link(
+        self, subject, tmp_path
+    ):
+        root = tmp_path / "experiment"
+        root.mkdir()
+        write_deployment_policy(root, exclude=["static/nested/private"])
+        (root / "static/nested/public").mkdir(parents=True)
+        (root / "static/nested/public/asset.txt").write_text("public")
+        (root / "static/safe").mkdir()
+        (root / "static/safe/asset.txt").write_text("safe")
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        source = subject(root)
+        destination = tmp_path / "destination"
+
+        source.apply_development_to(destination)
+
+        assert not (destination / "static").is_symlink()
+        assert not (destination / "static/nested").is_symlink()
+        assert (destination / "static/nested/public").is_symlink()
+        assert (destination / "static/safe").is_symlink()
+
+        private = root / "static/nested/private"
+        private.mkdir()
+        (private / "secret.txt").write_text("secret")
+
+        assert not (destination / "static/nested/private").exists()
+
+    @pytest.mark.parametrize("provider", ["explicit", "framework"])
+    def test_later_provider_collision_forces_fallback_without_source_writes(
+        self, tmp_path, provider
+    ):
+        from dallinger.utils import (
+            DallingerFileSource,
+            ExplicitFileSource,
+            collate_experiment_files,
+            symlink_file,
+        )
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        (root / "assets").mkdir()
+        experiment_collision = root / "assets/collision.txt"
+        experiment_collision.write_text("experiment")
+        (root / "assets/experiment-only.txt").write_text("experiment-only")
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        write_deployment_policy(root)
+        provider_collision = tmp_path / f"{provider}-collision.txt"
+        provider_collision.write_text("provider")
+        provider_addition = tmp_path / f"{provider}-addition.txt"
+        provider_addition.write_text("addition")
+        destination = tmp_path / "destination"
+        mappings = [
+            (str(provider_collision), str(destination / "assets/collision.txt")),
+            (str(provider_addition), str(destination / "assets/provider.txt")),
+        ]
+        explicit_mappings = mappings if provider == "explicit" else []
+        framework_mappings = mappings if provider == "framework" else []
+
+        with (
+            mock.patch("dallinger.config.initialize_experiment_package"),
+            mock.patch.object(
+                ExplicitFileSource,
+                "map_locations_to",
+                return_value=explicit_mappings,
+            ) as explicit_map,
+            mock.patch.object(
+                DallingerFileSource,
+                "map_locations_to",
+                return_value=framework_mappings,
+            ) as framework_map,
+        ):
+            collate_experiment_files(
+                {},
+                experiment_path=root,
+                destination=destination,
+                copy_func=symlink_file,
+            )
+
+        assert explicit_map.call_count == 1
+        assert framework_map.call_count == 1
+        assert not (destination / "assets").is_symlink()
+        assert (destination / "assets/collision.txt").read_text() == "experiment"
+        assert (destination / "assets/collision.txt").is_symlink()
+        assert (destination / "assets/provider.txt").read_text() == "addition"
+        assert (destination / "assets/provider.txt").is_symlink()
+        assert not (root / "assets/provider.txt").exists()
+        assert experiment_collision.read_text() == "experiment"
+        assert provider_collision.read_text() == "provider"
+
+    def test_framework_collision_does_not_block_unrelated_bulk_link_sibling(
+        self, tmp_path
+    ):
+        import dallinger.utils as utils
+        from dallinger.utils import (
+            DallingerFileSource,
+            ExplicitFileSource,
+            collate_experiment_files,
+            symlink_file,
+        )
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        stimuli = root / "static/stimuli"
+        stimuli.mkdir(parents=True)
+        for number in range(250):
+            (stimuli / f"stimulus-{number:04}.txt").write_text("stimulus")
+        css = root / "static/css"
+        css.mkdir()
+        experiment_collision = css / "file.css"
+        experiment_collision.write_text("experiment")
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        write_deployment_policy(root)
+        framework_source = tmp_path / "framework.css"
+        framework_source.write_text("framework")
+        destination = tmp_path / "destination"
+
+        with (
+            mock.patch("dallinger.config.initialize_experiment_package"),
+            mock.patch.object(ExplicitFileSource, "map_locations_to", return_value=[]),
+            mock.patch.object(
+                DallingerFileSource,
+                "map_locations_to",
+                return_value=[
+                    (
+                        str(framework_source),
+                        str(destination / "static/css/file.css"),
+                    )
+                ],
+            ) as framework_map,
+            mock.patch(
+                "dallinger.utils.validate_deployment_directory_link_candidate",
+                wraps=utils.validate_deployment_directory_link_candidate,
+            ) as validate_directory,
+        ):
+            collate_experiment_files(
+                {},
+                experiment_path=root,
+                destination=destination,
+                copy_func=symlink_file,
+            )
+
+        assert framework_map.call_count == 1
+        assert [
+            call.args[1].destination for call in validate_directory.call_args_list
+        ] == ["static/stimuli"]
+        assert (destination / "static/stimuli").is_symlink()
+        assert not (destination / "static/css").is_symlink()
+        assert (destination / "static/css/file.css").is_symlink()
+        assert (destination / "static/css/file.css").read_text() == "experiment"
+        assert experiment_collision.read_text() == "experiment"
+        assert framework_source.read_text() == "framework"
+
+    def test_later_provider_destination_ancestor_protects_nested_plan_entries(
+        self, tmp_path
+    ):
+        from dallinger.utils import (
+            DallingerFileSource,
+            ExplicitFileSource,
+            collate_experiment_files,
+            symlink_file,
+        )
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        (root / "assets/nested").mkdir(parents=True)
+        (root / "assets/nested/asset.txt").write_text("experiment")
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        write_deployment_policy(root)
+        provider_source = tmp_path / "provider-assets"
+        provider_source.write_text("provider")
+        destination = tmp_path / "destination"
+
+        with (
+            mock.patch("dallinger.config.initialize_experiment_package"),
+            mock.patch.object(
+                ExplicitFileSource,
+                "map_locations_to",
+                return_value=[(str(provider_source), str(destination / "assets"))],
+            ),
+            mock.patch.object(DallingerFileSource, "map_locations_to", return_value=[]),
+        ):
+            collate_experiment_files(
+                {},
+                experiment_path=root,
+                destination=destination,
+                copy_func=symlink_file,
+            )
+
+        assert not (destination / "assets").is_symlink()
+        assert not (destination / "assets/nested").is_symlink()
+        assert (destination / "assets/nested/asset.txt").is_symlink()
+        assert (destination / "assets/nested/asset.txt").read_text() == "experiment"
+
+    @pytest.mark.parametrize("replacement", ["directory", "symlink"])
+    def test_policy_bulk_link_rejects_replaced_source_directory(
+        self, subject, tmp_path, replacement
+    ):
+        from dallinger.deployment_plan import DeploymentPlanError
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        assets = root / "assets"
+        assets.mkdir()
+        (assets / "asset.txt").write_text("planned")
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        write_deployment_policy(root)
+        source = subject(root)
+        original = root / "original-assets"
+        assets.rename(original)
+        if replacement == "directory":
+            assets.mkdir()
+            (assets / "asset.txt").write_text("replacement")
+        else:
+            outside = tmp_path / "outside"
+            outside.mkdir()
+            (outside / "asset.txt").write_text("outside")
+            assets.symlink_to(outside, target_is_directory=True)
+
+        with pytest.raises(DeploymentPlanError, match="changed|symbolic"):
+            source.apply_development_to(tmp_path / "destination")
+
+    def test_expunge_unlinks_bulk_directory_link_without_touching_source(
+        self, subject, tmp_path
+    ):
+        from dallinger.utils import expunge_directory
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        (root / "assets").mkdir()
+        (root / "assets/asset.txt").write_text("source")
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        write_deployment_policy(root)
+        destination = tmp_path / "destination"
+        source = subject(root)
+        source.apply_development_to(destination)
+        assert (destination / "assets").is_symlink()
+
+        expunge_directory(destination)
+
+        assert list(destination.iterdir()) == []
+        assert (root / "assets/asset.txt").read_text() == "source"
+
+    def test_plan_copy_keeps_candidate_directory_as_regular_files(
+        self, subject, tmp_path
+    ):
+        root = tmp_path / "experiment"
+        root.mkdir()
+        (root / "assets/nested").mkdir(parents=True)
+        (root / "assets/nested/asset.txt").write_text("frozen")
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        write_deployment_policy(root)
+        destination = tmp_path / "destination"
+
+        subject(root).apply_to(destination)
+
+        assert not (destination / "assets").is_symlink()
+        assert not (destination / "assets/nested").is_symlink()
+        assert not (destination / "assets/nested/asset.txt").is_symlink()
+        assert (destination / "assets/nested/asset.txt").read_text() == "frozen"
+
+    def test_no_policy_symlink_collation_uses_legacy_provider_application(
+        self, subject, tmp_path
+    ):
+        from dallinger.utils import (
+            DallingerFileSource,
+            ExplicitFileSource,
+            collate_experiment_files,
+            symlink_file,
+        )
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        (root / "asset.txt").write_text("legacy")
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        source = subject(root)
+
+        with (
+            mock.patch.object(ExplicitFileSource, "apply_to") as explicit_apply,
+            mock.patch.object(DallingerFileSource, "apply_to") as framework_apply,
+            mock.patch.object(
+                ExplicitFileSource,
+                "map_locations_to",
+                side_effect=AssertionError("legacy collation must not precollect"),
+            ),
+        ):
+            collate_experiment_files(
+                {},
+                experiment_path=root,
+                destination=tmp_path / "destination",
+                copy_func=symlink_file,
+                experiment_file_source=source,
+            )
+
+        explicit_apply.assert_called_once()
+        framework_apply.assert_called_once()
 
     def test_no_policy_auto_selection_matches_explicit_legacy_without_warnings(
         self, subject, tmp_path, monkeypatch

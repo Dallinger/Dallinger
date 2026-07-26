@@ -36,6 +36,7 @@ from dallinger.deployment_plan import (
     build_deployment_plan,
     materialize_deployment_plan_entry,
     require_deployment_compatibility,
+    validate_deployment_directory_link_candidate,
     validate_deployment_plan_entry,
 )
 from dallinger.models import Participant
@@ -704,6 +705,26 @@ def collate_experiment_files(
     # Order matters here, since the first files copied "win" if there's a
     # collision:
     source = experiment_file_source or ExperimentFileSource(experiment_path)
+    if copy_func is symlink_file and source.deployment_plan is not None:
+        from dallinger.config import initialize_experiment_package
+
+        # Development has already loaded the working experiment in normal use.
+        # Initializing it here also lets direct callers discover extra_files()
+        # before the staged package exists.
+        initialize_experiment_package(os.path.abspath(experiment_path))
+        explicit_source = ExplicitFileSource(experiment_path)
+        framework_source = DallingerFileSource(config, dallinger_package_path())
+        explicit_locations = list(explicit_source.map_locations_to(destination))
+        framework_locations = list(framework_source.map_locations_to(destination))
+        later_locations = (*explicit_locations, *framework_locations)
+        source.apply_development_to(
+            destination,
+            protected_destinations=(target for _, target in later_locations),
+        )
+        _apply_file_mappings(explicit_locations, copy_func)
+        _apply_file_mappings(framework_locations, copy_func)
+        return
+
     source.apply_to(destination, copy_func=copy_func)
     ExplicitFileSource(experiment_path).apply_to(destination, copy_func=copy_func)
     DallingerFileSource(config, dallinger_package_path()).apply_to(
@@ -732,18 +753,7 @@ class FileSource:
         """Copy files based iterable of source and destination tuples.
         Files are not overwritten if they already exist.
         """
-        for from_path, to_path in self.map_locations_to(destination):
-            target_folder = os.path.dirname(to_path)
-            ensure_directory(target_folder)
-            if os.path.exists(to_path):
-                continue
-            if is_broken_symlink(from_path):
-                raise OSError(
-                    f"Cannot copy broken symlink: {from_path}. "
-                    "If this file comes from a virtual environment directory (e.g. .venv), we recommend adding that "
-                    "virtual environment directory to your .gitignore file."
-                )
-            copy_func(from_path, to_path)
+        _apply_file_mappings(self.map_locations_to(destination), copy_func)
 
     def map_locations_to(self, destination):
         """Return a generator of two-tuples, where the first element is
@@ -866,6 +876,46 @@ class ExperimentFileSource(FileSource):
                 validate_deployment_plan_entry(self.deployment_plan, entry)
                 symlink_file(entry.source, target)
 
+    def apply_development_to(self, destination, protected_destinations=()):
+        """Materialize a policy plan with collision-safe bulk directory links."""
+        if self.deployment_plan is None:
+            return super().apply_to(destination, copy_func=symlink_file)
+
+        protected = _development_protected_paths(destination, protected_destinations)
+        candidates = _select_development_directory_candidates(
+            self.deployment_plan, protected
+        )
+        covered_ranges = []
+        for candidate in candidates:
+            target = os.path.join(destination, *candidate.destination.split("/"))
+            ensure_directory(os.path.dirname(target))
+            if os.path.lexists(target):
+                continue
+            validate_deployment_directory_link_candidate(
+                self.deployment_plan, candidate
+            )
+            symlink_file(candidate.source, target)
+            covered_ranges.append((candidate.entry_start, candidate.entry_stop))
+
+        range_index = 0
+        entry_index = 0
+        entries = self.deployment_plan.entries
+        while entry_index < len(entries):
+            if (
+                range_index < len(covered_ranges)
+                and entry_index == covered_ranges[range_index][0]
+            ):
+                entry_index = covered_ranges[range_index][1]
+                range_index += 1
+                continue
+            entry = entries[entry_index]
+            target = os.path.join(destination, *entry.destination.split("/"))
+            ensure_directory(os.path.dirname(target))
+            if not os.path.lexists(target):
+                validate_deployment_plan_entry(self.deployment_plan, entry)
+                symlink_file(entry.source, target)
+            entry_index += 1
+
     def _map_legacy_locations_to(self, dst):
         """Return the unchanged legacy Git/walk selection mapping."""
         # The GitClient and os.walk may return different representations of the
@@ -902,6 +952,79 @@ class ExperimentFileSource(FileSource):
                     os.path.join(dirpath, fn),
                     dst_filepath,
                 )
+
+
+def _apply_file_mappings(mappings, copy_func):
+    """Apply already-computed source/destination mappings with first-wins behavior."""
+    for from_path, to_path in mappings:
+        target_folder = os.path.dirname(to_path)
+        ensure_directory(target_folder)
+        if os.path.exists(to_path):
+            continue
+        if is_broken_symlink(from_path):
+            raise OSError(
+                f"Cannot copy broken symlink: {from_path}. "
+                "If this file comes from a virtual environment directory (e.g. .venv), we recommend adding that "
+                "virtual environment directory to your .gitignore file."
+            )
+        copy_func(from_path, to_path)
+
+
+def _development_protected_paths(destination, protected_destinations):
+    """Return normalized exact later-provider destinations within the tree."""
+    destination_root = os.path.abspath(destination)
+    protected = set()
+    for target in protected_destinations:
+        target = os.path.abspath(target)
+        try:
+            inside_destination = (
+                os.path.commonpath((destination_root, target)) == destination_root
+            )
+        except ValueError:
+            inside_destination = False
+        if not inside_destination:
+            return frozenset({""})
+        relative = os.path.relpath(target, destination_root)
+        if relative == os.curdir:
+            return frozenset({""})
+        parts = tuple(normalize("NFC", part) for part in Path(relative).parts)
+        protected.add("/".join(parts))
+    return frozenset(protected)
+
+
+def _development_paths_overlap(first, second):
+    """Return whether two destinations are equal or one is an ancestor."""
+    if not first or not second:
+        return True
+    return (
+        first == second
+        or first.startswith(second + "/")
+        or second.startswith(first + "/")
+    )
+
+
+def _select_development_directory_candidates(plan, protected):
+    """Select shallowest disjoint candidates that do not overlap protected paths."""
+    selected = []
+    selected_destinations = set()
+    for candidate in sorted(
+        plan.directory_link_candidates,
+        key=lambda item: (item.destination.count("/"), item.destination),
+    ):
+        ancestors = {
+            "/".join(candidate.destination.split("/")[:depth])
+            for depth in range(1, candidate.destination.count("/") + 2)
+        }
+        if selected_destinations.intersection(ancestors):
+            continue
+        if any(
+            _development_paths_overlap(candidate.destination, path)
+            for path in protected
+        ):
+            continue
+        selected.append(candidate)
+        selected_destinations.add(candidate.destination)
+    return tuple(sorted(selected, key=lambda item: item.entry_start))
 
 
 class ExplicitFileSource(FileSource):

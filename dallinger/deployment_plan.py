@@ -11,6 +11,7 @@ fail closed rather than acquiring backend-dependent meanings.
 
 from __future__ import annotations
 
+import bisect
 import hashlib
 import json
 import ntpath
@@ -110,6 +111,22 @@ class DeploymentPlanEntry:
 
 
 @dataclass(frozen=True)
+class DeploymentDirectoryLinkCandidate:
+    """One fully selected source directory eligible for a development link."""
+
+    source: Path
+    destination: str
+    source_identity: SourceIdentity
+    entry_start: int
+    entry_stop: int
+
+    @property
+    def entry_count(self) -> int:
+        """Return the number of planned files covered by this directory."""
+        return self.entry_stop - self.entry_start
+
+
+@dataclass(frozen=True)
 class DeploymentPlan:
     """An immutable, deterministically ordered experiment-root manifest."""
 
@@ -122,6 +139,7 @@ class DeploymentPlan:
     policy_source_identity: SourceIdentity
     policy_content_digest: str
     backend_ignore_controls: tuple[str, ...]
+    directory_link_candidates: tuple[DeploymentDirectoryLinkCandidate, ...]
 
     def __contains__(self, destination: object) -> bool:
         """Return whether a normalized destination is present in the plan."""
@@ -180,6 +198,14 @@ class _PolicySnapshot:
     source_identity: SourceIdentity
     content_digest: str
     content: bytes
+
+
+@dataclass(frozen=True)
+class _TraversedDirectoryCandidate:
+    source: Path
+    destination: str
+    source_identity: SourceIdentity
+    entry_count: int
 
 
 def parse_deployment_policy(path: str | os.PathLike[str]) -> DeploymentPolicy:
@@ -269,6 +295,7 @@ def build_deployment_plan(
     normalized_sources: dict[str, Path] = {}
     portable_sources: dict[str, tuple[str, Path]] = {}
     backend_ignore_controls: list[str] = []
+    traversed_directory_candidates: list[_TraversedDirectoryCandidate] = []
 
     def register_destination(destination: str, source: Path) -> None:
         existing = normalized_sources.get(destination)
@@ -293,7 +320,11 @@ def build_deployment_plan(
         directory_descriptor: int,
         source_parts: tuple[str, ...],
         destination_parts: tuple[str, ...],
-    ) -> None:
+    ) -> bool:
+        """Traverse one directory and report whether all descendants are selected."""
+        all_descendants_selected = not _has_exclusion_at_or_below(
+            destination_parts, exclusions
+        )
         try:
             scanner = os.scandir(directory_descriptor)
         except (OSError, TypeError, NotImplementedError) as error:
@@ -311,13 +342,16 @@ def build_deployment_plan(
                 destination = "/".join(child_destination_parts)
 
                 if _is_excluded(child_destination_parts, exclusions):
+                    all_descendants_selected = False
                     continue
 
                 reserved_kind = _reserved_kind(child_destination_parts)
                 if reserved_kind == "backend-ignore":
                     backend_ignore_controls.append(destination)
+                    all_descendants_selected = False
                     continue
                 if reserved_kind == "policy":
+                    all_descendants_selected = False
                     continue
                 if reserved_kind == "vcs":
                     if destination_parts:
@@ -326,8 +360,10 @@ def build_deployment_plan(
                             f"{source}. Exclude the complete nested repository or move "
                             "it outside the experiment root."
                         )
+                    all_descendants_selected = False
                     continue
                 if reserved_kind is not None:
+                    all_descendants_selected = False
                     continue
 
                 register_destination(destination, source)
@@ -355,11 +391,24 @@ def build_deployment_plan(
                         os.fstat(child_descriptor)
                     )
                     try:
-                        walk(
+                        child_entry_start = len(entries)
+                        child_all_selected = walk(
                             child_descriptor,
                             (*source_parts, raw_name),
                             child_destination_parts,
                         )
+                        child_entry_count = len(entries) - child_entry_start
+                        if child_all_selected and child_entry_count:
+                            traversed_directory_candidates.append(
+                                _TraversedDirectoryCandidate(
+                                    source=source,
+                                    destination=destination,
+                                    source_identity=child_identity,
+                                    entry_count=child_entry_count,
+                                )
+                            )
+                        if not child_all_selected:
+                            all_descendants_selected = False
                         if (
                             SourceIdentity.from_stat(os.fstat(child_descriptor))
                             != child_identity
@@ -390,6 +439,7 @@ def build_deployment_plan(
                         content_digest=content_digest,
                     )
                 )
+        return all_descendants_selected
 
     try:
         policy_snapshot = _read_policy_snapshot(
@@ -418,7 +468,17 @@ def build_deployment_plan(
         os.close(root_descriptor)
 
     ordered_entries = tuple(sorted(entries, key=lambda entry: entry.destination))
+    ordered_destinations = tuple(entry.destination for entry in ordered_entries)
     destinations = frozenset(entry.destination for entry in ordered_entries)
+    directory_link_candidates = tuple(
+        sorted(
+            (
+                _finalize_directory_candidate(candidate, ordered_destinations)
+                for candidate in traversed_directory_candidates
+            ),
+            key=lambda candidate: candidate.destination,
+        )
+    )
     total_size = sum(entry.size for entry in ordered_entries)
     manifest_digest = _manifest_digest(ordered_entries)
     return DeploymentPlan(
@@ -431,6 +491,7 @@ def build_deployment_plan(
         policy_source_identity=policy_snapshot.source_identity,
         policy_content_digest=policy_snapshot.content_digest,
         backend_ignore_controls=tuple(sorted(set(backend_ignore_controls))),
+        directory_link_candidates=directory_link_candidates,
     )
 
 
@@ -489,6 +550,65 @@ def validate_deployment_plan_entry(
     """Validate a planned source's current type and filesystem identity."""
     with _open_planned_entry(plan, entry):
         pass
+
+
+def validate_deployment_directory_link_candidate(
+    plan: DeploymentPlan,
+    candidate: DeploymentDirectoryLinkCandidate,
+) -> None:
+    """Validate a planned directory's current type and filesystem identity."""
+    try:
+        relative_source = candidate.source.relative_to(plan.root)
+    except ValueError as error:
+        raise DeploymentPlanError(
+            f"Deployment directory is outside its plan root: {candidate.source}."
+        ) from error
+    if not relative_source.parts or ".." in relative_source.parts:
+        raise DeploymentPlanError(
+            f"Deployment directory is not a safe root-relative path: {candidate.source}."
+        )
+
+    directory_descriptors = [_open_directory_path(plan.root, DeploymentPlanError)]
+    current_source = plan.root
+    try:
+        for component in relative_source.parts:
+            current_source /= component
+            try:
+                expected_stat = os.stat(
+                    component,
+                    dir_fd=directory_descriptors[-1],
+                    follow_symlinks=False,
+                )
+            except OSError as error:
+                raise DeploymentPlanError(
+                    f"Cannot inspect deployment directory {current_source}: {error}"
+                ) from error
+            if stat.S_ISLNK(expected_stat.st_mode):
+                raise DeploymentPlanError(
+                    f"Deployment directory changed to a symbolic link: {current_source}."
+                )
+            if not stat.S_ISDIR(expected_stat.st_mode):
+                raise DeploymentPlanError(
+                    f"Deployment directory changed type: {current_source}."
+                )
+            directory_descriptors.append(
+                _open_child_directory(
+                    directory_descriptors[-1],
+                    component,
+                    current_source,
+                    expected_stat,
+                )
+            )
+        if (
+            SourceIdentity.from_stat(os.fstat(directory_descriptors[-1]))
+            != candidate.source_identity
+        ):
+            raise DeploymentPlanError(
+                f"Deployment directory changed since planning: {candidate.source}."
+            )
+    finally:
+        for descriptor in reversed(directory_descriptors):
+            os.close(descriptor)
 
 
 def materialize_deployment_plan_entry(
@@ -680,6 +800,30 @@ def _write_all(descriptor: int, content: bytes) -> None:
         if written <= 0:
             raise OSError("short write while materializing deployment entry")
         view = view[written:]
+
+
+def _finalize_directory_candidate(
+    candidate: _TraversedDirectoryCandidate,
+    ordered_destinations: tuple[str, ...],
+) -> DeploymentDirectoryLinkCandidate:
+    """Map one traversal candidate to its contiguous ordered plan-entry span."""
+    prefix = candidate.destination + "/"
+    entry_start = bisect.bisect_left(ordered_destinations, prefix)
+    entry_stop = bisect.bisect_left(
+        ordered_destinations, candidate.destination + "0", lo=entry_start
+    )
+    if entry_stop - entry_start != candidate.entry_count:
+        raise DeploymentPlanError(
+            "Deployment directory candidate does not cover exactly its planned "
+            f"descendants: {candidate.source}."
+        )
+    return DeploymentDirectoryLinkCandidate(
+        source=candidate.source,
+        destination=candidate.destination,
+        source_identity=candidate.source_identity,
+        entry_start=entry_start,
+        entry_stop=entry_stop,
+    )
 
 
 def compute_legacy_compatibility_digest(
@@ -1093,6 +1237,19 @@ def _is_excluded(
     return any(
         "/".join(destination_parts[:depth]) in exclusions
         for depth in range(1, len(destination_parts) + 1)
+    )
+
+
+def _has_exclusion_at_or_below(
+    destination_parts: tuple[str, ...], exclusions: AbstractSet[str]
+) -> bool:
+    """Return whether a literal exclusion is this directory or a descendant."""
+    if not destination_parts:
+        return bool(exclusions)
+    destination = "/".join(destination_parts)
+    prefix = destination + "/"
+    return destination in exclusions or any(
+        exclusion.startswith(prefix) for exclusion in exclusions
     )
 
 

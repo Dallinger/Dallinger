@@ -341,6 +341,38 @@ def test_plan_records_entry_metadata_and_membership(tmp_path):
     assert Path("run.sh") not in plan
 
 
+def test_plan_records_only_fully_selected_directory_link_candidates(tmp_path):
+    write_policy(tmp_path, ["mixed/private"])
+    write_files(
+        tmp_path,
+        {
+            "complete/first.txt": "first",
+            "complete/nested/second.txt": "second",
+            "mixed/private/secret.txt": "secret",
+            "mixed/public/visible.txt": "visible",
+        },
+    )
+
+    plan = build_deployment_plan(tmp_path)
+    candidates = {
+        candidate.destination: candidate for candidate in plan.directory_link_candidates
+    }
+
+    assert "complete" in candidates
+    assert "complete/nested" in candidates
+    assert "mixed" not in candidates
+    assert "mixed/private" not in candidates
+    assert "mixed/public" in candidates
+    complete = candidates["complete"]
+    assert complete.source == tmp_path / "complete"
+    assert complete.source_identity.inode == (tmp_path / "complete").stat().st_ino
+    assert tuple(
+        entry.destination
+        for entry in plan.entries[complete.entry_start : complete.entry_stop]
+    ) == ("complete/first.txt", "complete/nested/second.txt")
+    assert complete.entry_count == 2
+
+
 def test_plan_rejects_selected_symlink_but_prunes_excluded_symlink(tmp_path):
     write_policy(tmp_path, ["excluded-link"])
     target = tmp_path / "target.txt"

@@ -17,8 +17,9 @@
   backend-filter-free migration comparison; copied entries are atomically
   identity/digest verified with modes preserved, support trusted staging paths
   with platform symlink aliases without replacing final symlinks, development
-  links validate immediately before linking, and Heroku force-adds the complete
-  assembly. Experiments without a policy retain legacy selection behavior.
+  staging uses identity-validated bulk directory links with collision-safe
+  per-file fallbacks, and Heroku force-adds the complete assembly. Experiments
+  without a policy retain legacy selection behavior.
 
 ### Updated
 
