@@ -11,6 +11,14 @@
   review-required starter policies. Acknowledgements use stale-snapshot checks
   and atomic policy replacement, and unresolved backend ignore controls block
   compatibility.
+- Added opt-in `deploy.toml` experiment-file membership to verification,
+  development staging, copied Docker/classic staging, and Heroku assembly
+  through `ExperimentFileSource`. Policy use requires an acknowledged,
+  backend-filter-free migration comparison; copied entries are atomically
+  identity/digest verified with modes preserved, support trusted staging paths
+  with platform symlink aliases without replacing final symlinks, development
+  links validate immediately before linking, and Heroku force-adds the complete
+  assembly. Experiments without a policy retain legacy selection behavior.
 
 ### Updated
 

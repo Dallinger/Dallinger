@@ -16,7 +16,12 @@ from dallinger.command_line.utils import (
 from dallinger.config import get_config
 from dallinger.db import redis_conn
 from dallinger.deployment import DevelopmentDeployment, handle_launch_data
-from dallinger.utils import develop_target_path, open_browser, setup_warning_hooks
+from dallinger.utils import (
+    ExperimentFileSource,
+    develop_target_path,
+    open_browser,
+    setup_warning_hooks,
+)
 
 setup_warning_hooks()
 
@@ -58,10 +63,14 @@ def develop():
 def debug(port, skip_flask):
     from dallinger.command_line.utils import verify_package
 
+    experiment_file_source = ExperimentFileSource()
     # Skip deployable-package module verification so large experiments are not
     # copied before staging. Config loading still imports the working tree,
     # Flask imports the staged tree, and `dallinger verify` remains strict.
-    if not verify_package(verify_experiment=False):
+    if not verify_package(
+        verify_experiment=False,
+        experiment_file_source=experiment_file_source,
+    ):
         # We could instead use the @require_exp_directory decorator,
         # but this doesn't print anything useful without the verbose flag.
         # To consider for later: improving this default behavior of @require_exp_directory?
@@ -70,7 +79,7 @@ def debug(port, skip_flask):
         )
         raise click.Abort
 
-    _bootstrap()
+    _bootstrap(experiment_file_source=experiment_file_source)
 
     q = Queue("default", connection=redis_conn)
     job = q.enqueue_call(launch_app_and_open_browser, kwargs={"port": port})
@@ -91,9 +100,13 @@ def bootstrap(exp_config=None):
     _bootstrap(exp_config)
 
 
-def _bootstrap(exp_config=None):
+def _bootstrap(exp_config=None, experiment_file_source=None):
     """Creates a directory which will be used to host the development version of the experiment."""
-    bootstrapper = DevelopmentDeployment(Output(), exp_config)
+    bootstrapper = DevelopmentDeployment(
+        Output(),
+        exp_config,
+        experiment_file_source=experiment_file_source,
+    )
     log(header, chevrons=False)
     bootstrapper.run()
 

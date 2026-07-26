@@ -21,9 +21,10 @@ import stat
 import subprocess
 import tomllib
 import unicodedata
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import AbstractSet, Iterable, TypeVar
+from typing import AbstractSet, Generator, Iterable, TypeVar
 
 POLICY_FILENAME = "deploy.toml"
 SCHEMA_VERSION = 1
@@ -460,6 +461,227 @@ def compare_legacy_deployment_selection(
     )
 
 
+def require_deployment_compatibility(
+    plan: DeploymentPlan,
+) -> LegacyDeploymentComparison:
+    """Require a plan's strict legacy migration comparison to be accepted."""
+    comparison = compare_legacy_deployment_selection(plan)
+    if comparison.has_unresolved_backend_filters:
+        paths = ", ".join(comparison.unresolved_backend_ignore_controls)
+        raise DeploymentCompatibilityError(
+            "deploy.toml cannot be used while backend ignore controls remain: "
+            f"{paths}. Migrate their rules into deploy.toml and remove them."
+        )
+    if comparison.requires_acknowledgement and not comparison.acknowledgement_matches:
+        raise DeploymentCompatibilityError(
+            "deploy.toml includes files hidden by legacy selection. Review them "
+            "with `dallinger deployment-files check`, then acknowledge the "
+            "current comparison with `dallinger deployment-files check "
+            "--acknowledge`."
+        )
+    return comparison
+
+
+def validate_deployment_plan_entry(
+    plan: DeploymentPlan,
+    entry: DeploymentPlanEntry,
+) -> None:
+    """Validate a planned source's current type and filesystem identity."""
+    with _open_planned_entry(plan, entry):
+        pass
+
+
+def materialize_deployment_plan_entry(
+    plan: DeploymentPlan,
+    entry: DeploymentPlanEntry,
+    destination: str | os.PathLike[str],
+) -> None:
+    """Atomically copy and verify one planned file into a trusted destination."""
+    target = Path(os.path.abspath(os.fspath(destination)))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    # The caller owns and trusts the staging path. Resolve its already-created
+    # parent once so benign platform aliases such as macOS /var -> /private/var
+    # are accepted; all operations within that canonical directory use dir_fd
+    # and no-follow semantics.
+    try:
+        canonical_parent = target.parent.resolve(strict=True)
+    except OSError as error:
+        raise DeploymentPlanError(
+            f"Cannot resolve trusted deployment destination {target.parent}: {error}"
+        ) from error
+    parent_descriptor = _open_directory_path(canonical_parent, DeploymentPlanError)
+    temporary_name = f".dallinger-deployment-{secrets.token_hex(12)}"
+    temporary_descriptor: int | None = None
+    try:
+        flags = (
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | os.O_NOFOLLOW
+            | getattr(os, "O_CLOEXEC", 0)
+        )
+        temporary_descriptor = os.open(
+            temporary_name,
+            flags,
+            0o600,
+            dir_fd=parent_descriptor,
+        )
+        digest = hashlib.sha256()
+        copied_size = 0
+        with _open_planned_entry(plan, entry) as source_descriptor:
+            while block := os.read(source_descriptor, 1024 * 1024):
+                digest.update(block)
+                copied_size += len(block)
+                _write_all(temporary_descriptor, block)
+            if (
+                SourceIdentity.from_stat(os.fstat(source_descriptor))
+                != entry.source_identity
+            ):
+                raise DeploymentPlanError(
+                    f"Deployment source changed while being copied: {entry.source}."
+                )
+
+        copied_digest = f"sha256:{digest.hexdigest()}"
+        if copied_size != entry.size or copied_digest != entry.content_digest:
+            raise DeploymentPlanError(
+                f"Deployment source content digest changed: {entry.source}."
+            )
+        os.fchmod(temporary_descriptor, entry.source_identity.mode)
+        os.fsync(temporary_descriptor)
+        os.close(temporary_descriptor)
+        temporary_descriptor = None
+        os.link(
+            temporary_name,
+            target.name,
+            src_dir_fd=parent_descriptor,
+            dst_dir_fd=parent_descriptor,
+            follow_symlinks=False,
+        )
+        os.unlink(temporary_name, dir_fd=parent_descriptor)
+        temporary_name = ""
+        os.fsync(parent_descriptor)
+    except DeploymentPlanError:
+        raise
+    except OSError as error:
+        raise DeploymentPlanError(
+            f"Cannot materialize deployment entry {entry.destination!r}: {error}"
+        ) from error
+    finally:
+        if temporary_descriptor is not None:
+            os.close(temporary_descriptor)
+        if temporary_name:
+            try:
+                os.unlink(temporary_name, dir_fd=parent_descriptor)
+            except FileNotFoundError:
+                pass
+        os.close(parent_descriptor)
+
+
+@contextmanager
+def _open_planned_entry(
+    plan: DeploymentPlan,
+    entry: DeploymentPlanEntry,
+) -> Generator[int, None, None]:
+    """Open a planned source through no-follow root-relative traversal."""
+    try:
+        relative_source = entry.source.relative_to(plan.root)
+    except ValueError as error:
+        raise DeploymentPlanError(
+            f"Deployment source is outside its plan root: {entry.source}."
+        ) from error
+    if not relative_source.parts or ".." in relative_source.parts:
+        raise DeploymentPlanError(
+            f"Deployment source is not a safe root-relative path: {entry.source}."
+        )
+
+    directory_descriptors = [_open_directory_path(plan.root, DeploymentPlanError)]
+    source_descriptor: int | None = None
+    current_source = plan.root
+    try:
+        for component in relative_source.parts[:-1]:
+            current_source /= component
+            try:
+                expected_stat = os.stat(
+                    component,
+                    dir_fd=directory_descriptors[-1],
+                    follow_symlinks=False,
+                )
+            except OSError as error:
+                raise DeploymentPlanError(
+                    f"Cannot inspect deployment directory {current_source}: {error}"
+                ) from error
+            if not stat.S_ISDIR(expected_stat.st_mode):
+                raise DeploymentPlanError(
+                    f"Deployment directory changed type: {current_source}."
+                )
+            directory_descriptors.append(
+                _open_child_directory(
+                    directory_descriptors[-1],
+                    component,
+                    current_source,
+                    expected_stat,
+                )
+            )
+
+        name = relative_source.parts[-1]
+        try:
+            expected_stat = os.stat(
+                name,
+                dir_fd=directory_descriptors[-1],
+                follow_symlinks=False,
+            )
+        except OSError as error:
+            raise DeploymentPlanError(
+                f"Cannot inspect deployment source {entry.source}: {error}"
+            ) from error
+        if stat.S_ISLNK(expected_stat.st_mode):
+            raise DeploymentPlanError(
+                f"Deployment source changed to a symbolic link: {entry.source}."
+            )
+        if not stat.S_ISREG(expected_stat.st_mode):
+            raise DeploymentPlanError(
+                f"Deployment source changed type: {entry.source}."
+            )
+        if SourceIdentity.from_stat(expected_stat) != entry.source_identity:
+            raise DeploymentPlanError(
+                f"Deployment source changed since planning: {entry.source}."
+            )
+
+        try:
+            source_descriptor = os.open(
+                name,
+                _file_open_flags(),
+                dir_fd=directory_descriptors[-1],
+            )
+        except OSError as error:
+            raise DeploymentPlanError(
+                f"Cannot safely open deployment source {entry.source}: {error}"
+            ) from error
+        if (
+            SourceIdentity.from_stat(os.fstat(source_descriptor))
+            != entry.source_identity
+        ):
+            raise DeploymentPlanError(
+                f"Deployment source changed while being opened: {entry.source}."
+            )
+        yield source_descriptor
+    finally:
+        if source_descriptor is not None:
+            os.close(source_descriptor)
+        for descriptor in reversed(directory_descriptors):
+            os.close(descriptor)
+
+
+def _write_all(descriptor: int, content: bytes) -> None:
+    """Write a complete block to an open descriptor."""
+    view = memoryview(content)
+    while view:
+        written = os.write(descriptor, view)
+        if written <= 0:
+            raise OSError("short write while materializing deployment entry")
+        view = view[written:]
+
+
 def compute_legacy_compatibility_digest(
     memberships: Iterable[DeploymentMembership],
 ) -> str:
@@ -733,8 +955,11 @@ def _legacy_deployment_membership(
     from dallinger.utils import ExperimentFileSource
 
     root = Path(os.path.abspath(experiment_root))
-    file_source = ExperimentFileSource(root)
-    file_source.git = _StrictLegacyGitFiles(root)
+    file_source = ExperimentFileSource(
+        root,
+        selection="legacy",
+        git_client=_StrictLegacyGitFiles(root),
+    )
     destination_root = root.parent / f".{root.name}-legacy-destination"
     memberships: list[DeploymentMembership] = []
     try:

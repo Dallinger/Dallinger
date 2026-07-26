@@ -13,9 +13,10 @@ Deployment file selection and development staging
 Proposal summary
 ----------------
 
-Dallinger currently uses Git visibility, hard-coded exclusions, and multiple
-file-source passes to decide which experiment files are verified, staged for
-development, copied into Docker contexts, and pushed to Heroku.
+Dallinger experiments without a deployment policy use Git visibility,
+hard-coded exclusions, and multiple file-source passes to decide which
+experiment files are verified, staged for development, copied into Docker
+contexts, and pushed to Heroku.
 
 This design proposes:
 
@@ -30,6 +31,44 @@ This design proposes:
 The immediate motivation is faster debug startup for experiments with many
 static files. The larger goal is to make deployment selection explicit,
 deterministic, inspectable, and independent of the transport backend.
+
+Implemented opt-in scope
+------------------------
+
+The current proof of concept makes a valid root ``deploy.toml`` opt into
+``build_deployment_plan(root)`` membership through ``ExperimentFileSource``.
+This gives verification size checks and temporary import packages, per-file
+development links, classic copied staging, Docker contexts, and Heroku assembly
+the same experiment-root membership through their existing collation paths.
+The source caches one ``DeploymentPlan`` instance, maps its entries in
+deterministic destination order, and returns ``plan.total_size`` without
+restatting files. Policy auto-selection also runs the strict legacy comparison
+and refuses materialization until newly included membership is acknowledged
+and all backend ignore controls have been removed.
+
+Copied policy entries are opened through no-follow, root-relative traversal,
+checked against their planned filesystem identity, hashed while copying, and
+atomically installed without replacing an existing final path and with their
+recorded mode. Per-file development links validate source type and identity
+immediately before linking, but remain trusted live links after that point.
+``dallinger develop debug`` passes one ``ExperimentFileSource`` from
+verification through staging so this plan and migration comparison are built
+once.
+
+When ``deploy.toml`` is absent, ``ExperimentFileSource`` retains the legacy
+Git/walk implementation without warnings or changed Git-failure behavior.
+``ExperimentFileSource(root, selection="legacy", git_client=...)`` explicitly
+forces that implementation. Migration comparison uses this API with a
+root-bound, fail-closed Git client, so the presence of ``deploy.toml`` cannot
+accidentally make the target selection compare with itself.
+
+This proof of concept deliberately keeps existing first-wins collation across
+experiment files, ``extra_files()``, and framework files. Provider collision
+validation, bulk directory links, and dedicated backend materializers remain
+deferred. Source ``config.txt``, ``.dockerignore`` variants, and
+``.slugignore`` remain omitted by the experiment-root plan; generated filtered
+configuration and framework/backend outputs continue to be added by existing
+collation code.
 
 Historical context
 ------------------
@@ -52,7 +91,7 @@ mistaken for an empty file list and broaden selection to a filesystem fallback.
 Current behavior
 ----------------
 
-``ExperimentFileSource`` currently combines:
+In legacy mode, ``ExperimentFileSource`` combines:
 
 #. ``git ls-files --cached --others --exclude-standard``;
 #. a recursive filesystem walk;
@@ -323,6 +362,12 @@ Current first-wins behavior is replaced with explicit collision classes:
 do not silently suppress explicit framework-provider entries, but explicit
 entries cannot bypass reserved destinations or secret boundaries.
 
+This collision policy is a target design, not part of the current opt-in proof
+of concept. The current integration plans only experiment-root membership and
+then preserves the existing first-wins experiment/extra/framework collation
+order. Provider collision integration is deferred until all provider classes
+enter one plan.
+
 Plan lifecycle and mutation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -346,6 +391,13 @@ Development materializer
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 Local development retains links so source edits remain visible.
+
+The current opt-in integration continues to create one link per planned file
+through ``ExperimentFileSource.apply_to``. Each source is opened without
+following links and its current regular-file type and identity are checked
+immediately before link creation. The link remains intentionally live
+afterward, so development requires a trusted working tree. The bulk directory
+link rules below are deferred.
 
 A source directory may be bulk-linked when:
 
@@ -379,14 +431,26 @@ materialization cannot leave a directory that appears complete.
 Executable modes are preserved. Empty directories are not represented in the
 initial plan.
 
+The current opt-in integration uses the existing per-file copied collation
+path, but policy-backed experiment entries use frozen-plan materialization:
+no-follow root-relative source opens, identity checks before and after copying,
+content-digest verification, atomic no-replace installation, and recorded mode
+preservation. The destination staging path is a caller-owned trust boundary:
+after Dallinger creates its parent, the materializer canonicalizes that trusted
+parent once so benign platform aliases such as macOS ``/var`` to
+``/private/var`` work. It then uses descriptor-relative operations inside the
+canonical directory and never follows or replaces an existing final-component
+symlink. Custom copy functions are rejected for policy-backed experiment files
+so they cannot bypass these checks.
+
 Docker materializer
 ^^^^^^^^^^^^^^^^^^^
 
-Docker continues to receive a concrete local BuildKit context. The context
-contains only the frozen plan. Source ``.dockerignore`` and
-Dockerfile-specific ``*.dockerignore`` files are omitted from that context so
-they cannot reselect its membership. The migration checker reports their
-legacy effect before opt-in.
+Docker continues to receive a concrete local BuildKit context. Its
+experiment-root portion contains the frozen plan plus the existing explicit
+and framework-provider outputs. Source ``.dockerignore`` and
+Dockerfile-specific ``*.dockerignore`` files block policy opt-in until removed,
+then are omitted from the context so they cannot reselect its membership.
 
 Custom Dockerfiles may use ``COPY .`` but can see only staged files. A custom
 Dockerfile referencing an excluded input fails during build.
@@ -401,11 +465,12 @@ Heroku materializer
 Classic Heroku receives the copied plan. The temporary Git repository is a
 transport adapter only.
 
-Dallinger force-adds the exact planned manifest and verifies the Git index
+Dallinger runs ``git add --force --all`` over the fully materialized assembly
 before pushing. ``.gitignore`` is transport metadata only and cannot remove
-force-added plan entries. Source ``.slugignore`` is omitted from the copied
-tree so it cannot change membership after verification; its legacy effect is
-reported during migration.
+planned entries. Exact all-provider Git-index verification remains deferred
+until experiment, explicit, framework, generated, and backend outputs share
+one collision-checked plan. Source ``.slugignore`` blocks policy opt-in until
+removed and cannot change membership after verification.
 
 Migration
 ---------
@@ -418,21 +483,23 @@ Compatibility release
 In the first minor release:
 
 * experiments without ``deploy.toml`` retain legacy Git selection;
-* legacy use emits a deprecation warning;
+* legacy use emits no new warning in the current proof of concept;
 * experiments with ``deploy.toml`` opt into the new policy;
-* Git-query failures in legacy mode become fatal rather than broadening
-  selection;
+* Git-query failures retain legacy fallback behavior outside migration
+  inspection;
 * ``dallinger deployment-files list`` displays the target plan;
 * ``dallinger deployment-files check`` compares legacy and target plans; and
 * ``dallinger deployment-files init`` creates a review-required draft requiring
   review.
 
-Prototype inspection commands
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Prototype integration and inspection commands
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The compatibility prototype implements these commands for inspection only; it
-does not yet change verification, debug staging, Docker contexts, or Heroku
-assembly.
+The compatibility prototype now uses target membership for verification,
+debug staging, Docker contexts, and Heroku assembly when ``deploy.toml`` is
+present. Auto-selection requires a compatible strict legacy comparison before
+any of these consumers can use the plan. It still uses per-file links and
+copies rather than bulk links or backend-specific materializers.
 
 ``deployment-files list`` requires a valid ``deploy.toml`` and prints target
 destinations in deterministic order followed by the file count, total size,
@@ -472,11 +539,11 @@ root-literal semantics, not the legacy recursive basename semantics.
 ``deployment-files check`` hashes the normalized destination paths and file
 types that target selection adds relative to legacy selection. Its
 ``--acknowledge`` mode writes that digest to
-``legacy_diff_acknowledgement`` in ``deploy.toml``. Live deployment refuses a
-missing or mismatched acknowledgement. Adding, removing, or changing the type
-of a newly selected path invalidates the acknowledgement and requires another
-review. Debug and inspection commands may report differences without remote
-side effects.
+``legacy_diff_acknowledgement`` in ``deploy.toml``. Verification and
+materialization refuse a missing or mismatched required acknowledgement.
+Adding, removing, or changing the type of a newly selected path invalidates
+the acknowledgement and requires another migration review. Unresolved backend
+ignore controls likewise prevent policy use, not only acknowledgement.
 
 The initializer cannot translate arbitrary Git-ignore patterns into literals.
 It reports unsupported patterns and suggests reorganizing files into excluded
@@ -608,6 +675,9 @@ Deferred work
 
 The following remain separate proposals:
 
+* provider collision integration across experiment, explicit, framework,
+  generated, and backend files;
+* bulk directory links for development staging;
 * static-resource bundling;
 * BuildKit-native contexts that avoid copied staging;
 * constrained in-root source symlinks;

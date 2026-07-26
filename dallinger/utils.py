@@ -30,6 +30,14 @@ from sqlalchemy import exc as sa_exc
 from dallinger import db
 from dallinger.config import get_config
 from dallinger.constraints import ensure_constraints_file_presence
+from dallinger.deployment_plan import (
+    POLICY_FILENAME,
+    DeploymentPlan,
+    build_deployment_plan,
+    materialize_deployment_plan_entry,
+    require_deployment_compatibility,
+    validate_deployment_plan_entry,
+)
 from dallinger.models import Participant
 
 local_warning_cache = {}
@@ -209,8 +217,8 @@ class GitClient:
             for k, v in config.items():
                 self._run(["git", "config", k, v])
 
-    def add(self, what):
-        self._run(["git", "add", what])
+    def add(self, *what):
+        self._run(["git", "add", *what])
 
     def commit(self, msg):
         self._run(["git", "commit", "-m", '"{}"'.format(msg)])
@@ -498,7 +506,12 @@ def develop_target_path(config):
     return develop_path
 
 
-def bootstrap_development_session(exp_config, experiment_path, log):
+def bootstrap_development_session(
+    exp_config,
+    experiment_path,
+    log,
+    experiment_file_source=None,
+):
     check_local_db_connection(log)
     check_experiment_dependencies(Path(experiment_path) / "requirements.txt")
 
@@ -530,6 +543,7 @@ def bootstrap_development_session(exp_config, experiment_path, log):
         experiment_path=experiment_path,
         destination=destination_path,
         copy_func=symlink_file,
+        experiment_file_source=experiment_file_source,
     )
 
     copy_file(source_path / "app.py", destination_path / "app.py")
@@ -677,13 +691,20 @@ def symlink_file(from_path, to_path):
     os.symlink(from_path, to_path)
 
 
-def collate_experiment_files(config, experiment_path, destination, copy_func):
+def collate_experiment_files(
+    config,
+    experiment_path,
+    destination,
+    copy_func,
+    experiment_file_source=None,
+):
     """Coordinates getting required files from various sources into a
     target directory.
     """
     # Order matters here, since the first files copied "win" if there's a
     # collision:
-    ExperimentFileSource(experiment_path).apply_to(destination, copy_func=copy_func)
+    source = experiment_file_source or ExperimentFileSource(experiment_path)
+    source.apply_to(destination, copy_func=copy_func)
     ExplicitFileSource(experiment_path).apply_to(destination, copy_func=copy_func)
     DallingerFileSource(config, dallinger_package_path()).apply_to(
         destination, copy_func=copy_func
@@ -781,13 +802,72 @@ class DallingerFileSource(FileSource):
 class ExperimentFileSource(FileSource):
     """Treat an experiment directory as a potential source of files for
     copying to a temp directory as part of a deployment (debug or otherwise).
+
+    ``selection="auto"`` opts into a deployment plan when ``deploy.toml`` is
+    present and otherwise retains legacy Git-based selection. The explicit
+    ``selection="legacy"`` mode is reserved for compatibility inspection and
+    rollback.
     """
 
-    def __init__(self, root_dir="."):
+    def __init__(self, root_dir=".", *, selection="auto", git_client=None):
+        if selection not in {"auto", "legacy"}:
+            raise ValueError(
+                "Experiment file selection must be either 'auto' or 'legacy'."
+            )
         self.root = os.path.abspath(root_dir)
-        self.git = GitClient()
+        self.git = GitClient() if git_client is None else git_client
+        self.deployment_plan: DeploymentPlan | None = None
+        policy_path = os.path.join(self.root, POLICY_FILENAME)
+        if selection == "auto" and os.path.lexists(policy_path):
+            self.deployment_plan = build_deployment_plan(self.root)
+            require_deployment_compatibility(self.deployment_plan)
 
     def map_locations_to(self, dst):
+        if self.deployment_plan is not None:
+            for entry in self.deployment_plan.entries:
+                yield (
+                    os.fspath(entry.source),
+                    os.path.join(dst, *entry.destination.split("/")),
+                )
+            return
+
+        yield from self._map_legacy_locations_to(dst)
+
+    @property
+    def size(self):
+        """Return planned size without restatting policy-selected files."""
+        if self.deployment_plan is not None:
+            return self.deployment_plan.total_size
+        return super().size
+
+    def apply_to(self, destination, copy_func=copy_file):
+        """Materialize a plan safely, or retain legacy source behavior."""
+        if self.deployment_plan is None:
+            return super().apply_to(destination, copy_func=copy_func)
+        if copy_func not in {copy_file, symlink_file}:
+            raise ValueError(
+                "Plan-backed experiment files require copy_file or symlink_file."
+            )
+
+        for entry in self.deployment_plan.entries:
+            target = os.path.join(destination, *entry.destination.split("/"))
+            ensure_directory(os.path.dirname(target))
+            if os.path.lexists(target):
+                continue
+            if copy_func is copy_file:
+                materialize_deployment_plan_entry(
+                    self.deployment_plan,
+                    entry,
+                    target,
+                )
+            else:
+                # Development links remain intentionally trusted/live after
+                # this immediate no-follow identity and type validation.
+                validate_deployment_plan_entry(self.deployment_plan, entry)
+                symlink_file(entry.source, target)
+
+    def _map_legacy_locations_to(self, dst):
+        """Return the unchanged legacy Git/walk selection mapping."""
         # The GitClient and os.walk may return different representations of the
         # same unicode characters, so we use unicodedata.normalize() for
         # comparisons:

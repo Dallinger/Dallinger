@@ -154,7 +154,7 @@ def deploy_sandbox_shared_setup(
     # Commit Heroku-specific files to tmp folder's git repo.
     git = GitClient(output=out)
     git.init()
-    git.add("--all")
+    git.add("--force", "--all")
     git.commit('"Experiment {}"'.format(heroku_app_id))
 
     # Initialize the app on Heroku.
@@ -288,15 +288,24 @@ class DevelopmentDeployment:
     manually in that directory.
     """
 
-    def __init__(self, output, exp_config):
+    def __init__(
+        self,
+        output,
+        exp_config,
+        experiment_file_source=None,
+    ):
         self.out = output
         self.exp_config = exp_config or {}
         self.exp_config.update({"mode": "debug"})
+        self.experiment_file_source = experiment_file_source
 
     def run(self):
         """Bootstrap the environment and reset the database."""
         experiment_uid, dst = bootstrap_development_session(
-            self.exp_config, os.getcwd(), self.out.log
+            self.exp_config,
+            os.getcwd(),
+            self.out.log,
+            experiment_file_source=self.experiment_file_source,
         )
         db.init_db(drop_all=True)
 

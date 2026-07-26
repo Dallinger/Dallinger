@@ -162,22 +162,30 @@ def require_exp_directory(f):
     return wrapper
 
 
-def verify_package(verbose=True, verify_experiment=True):
+def verify_package(
+    verbose=True,
+    verify_experiment=True,
+    experiment_file_source=None,
+):
     """Perform a series of checks on the current directory to verify that
     it's a valid Dallinger experiment.
     """
     return all(
         (
-            verify_directory(verbose),
+            verify_directory(verbose, experiment_file_source),
             verify_python_version(verbose),
-            verify_experiment_module(verbose) if verify_experiment else True,
+            (
+                verify_experiment_module(verbose, experiment_file_source)
+                if verify_experiment
+                else True
+            ),
             verify_config(verbose),
             verify_no_conflicts(verbose),
         )
     )
 
 
-def verify_directory(verbose=True):
+def verify_directory(verbose=True, experiment_file_source=None):
     """Ensure that the current directory looks like a Dallinger experiment, and
     does not appear to have unintended contents that will be copied on
     deployment.
@@ -199,7 +207,7 @@ def verify_directory(verbose=True):
 
     # Check size
     max_size = exp_max_size_mb * mb_to_bytes
-    file_source = ExperimentFileSource(os.getcwd())
+    file_source = experiment_file_source or ExperimentFileSource(os.getcwd())
     size = file_source.size
     size_in_mb = round(size / mb_to_bytes)
     if size <= max_size:
@@ -256,7 +264,7 @@ def _python_versions_consistent(v1, v2):
     return True
 
 
-def verify_experiment_module(verbose):
+def verify_experiment_module(verbose, experiment_file_source=None):
     """Perform basic sanity checks on experiment.py."""
     ok = True
     if not os.path.exists("experiment.py"):
@@ -266,7 +274,8 @@ def verify_experiment_module(verbose):
     temp_package_name = "TEMP_VERIFICATION_PACKAGE"
     tmp = tempfile.mkdtemp()
     clone_dir = os.path.join(tmp, temp_package_name)
-    ExperimentFileSource(os.getcwd()).apply_to(clone_dir)
+    file_source = experiment_file_source or ExperimentFileSource(os.getcwd())
+    file_source.apply_to(clone_dir)
 
     initialize_experiment_package(clone_dir)
     from dallinger_experiment import experiment

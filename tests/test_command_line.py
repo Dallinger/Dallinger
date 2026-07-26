@@ -1,6 +1,8 @@
 import os
 import re
+import shutil
 import subprocess
+from pathlib import Path
 from time import sleep
 from unittest import mock
 from uuid import UUID
@@ -114,6 +116,37 @@ class TestVerify:
             size.return_value = 200000000  # 200 MB, so under the limit
             with mock.patch.dict(os.environ, {"EXP_MAX_SIZE_MB": "256"}):
                 assert v_directory() is True
+
+    def test_policy_membership_controls_verified_size(
+        self, v_directory, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        Path("config.txt").write_text("[Parameters]\n")
+        Path("experiment.py").write_text("")
+        Path(".gitignore").write_text("ignored.bin\n")
+        Path("ignored.bin").write_bytes(b"x" * 1_000_001)
+        Path("deploy.toml").write_text("version = 1\nexclude = []\n")
+        subprocess.run(["git", "init", "-q"], check=True)
+        from dallinger.deployment_plan import (
+            build_deployment_plan,
+            compare_legacy_deployment_selection,
+        )
+
+        comparison = compare_legacy_deployment_selection(
+            build_deployment_plan(tmp_path)
+        )
+        Path("deploy.toml").write_text(
+            "version = 1\n"
+            f'legacy_diff_acknowledgement = "{comparison.newly_included_digest}"\n'
+            "exclude = []\n"
+        )
+
+        with mock.patch.dict(os.environ, {"EXP_MAX_SIZE_MB": "1"}):
+            assert v_directory(verbose=False) is False
+
+        Path("deploy.toml").write_text('version = 1\nexclude = ["ignored.bin"]\n')
+        with mock.patch.dict(os.environ, {"EXP_MAX_SIZE_MB": "1"}):
+            assert v_directory(verbose=False) is True
 
 
 @pytest.mark.slow
@@ -229,6 +262,40 @@ class TestDevelopCommand:
             result = CliRunner().invoke(develop, ["debug", "--skip-flask"])
 
         assert result.exit_code == 0, result.output
+
+    def test_debug_reuses_one_policy_plan(self, develop, tmp_path, monkeypatch):
+        from dallinger.deployment_plan import (
+            build_deployment_plan,
+            compare_legacy_deployment_selection,
+        )
+
+        experiment_root = tmp_path / "experiment"
+        shutil.copytree(Path.cwd(), experiment_root)
+        (experiment_root / ".gitignore").write_text("ignored.txt\n")
+        (experiment_root / "ignored.txt").write_text("included")
+        (experiment_root / "deploy.toml").write_text("version = 1\nexclude = []\n")
+        subprocess.run(["git", "init", "-q"], cwd=experiment_root, check=True)
+        comparison = compare_legacy_deployment_selection(
+            build_deployment_plan(experiment_root)
+        )
+        (experiment_root / "deploy.toml").write_text(
+            "version = 1\n"
+            f'legacy_diff_acknowledgement = "{comparison.newly_included_digest}"\n'
+            "exclude = []\n"
+        )
+        monkeypatch.chdir(experiment_root)
+
+        with (
+            mock.patch(
+                "dallinger.utils.build_deployment_plan",
+                wraps=build_deployment_plan,
+            ) as builder,
+            mock.patch("dallinger.command_line.develop.Queue"),
+        ):
+            result = CliRunner().invoke(develop, ["debug", "--skip-flask"])
+
+        assert result.exit_code == 0, result.output
+        assert builder.call_count == 1
 
 
 @pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")

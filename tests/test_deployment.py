@@ -2,10 +2,12 @@ import configparser
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import textwrap
 import uuid
+import warnings
 from pathlib import Path
 from unittest import mock
 
@@ -20,6 +22,37 @@ from dallinger.config import get_config
 
 def found_in(name, path):
     return os.path.exists(os.path.join(path, name))
+
+
+def write_deployment_policy(root, exclude=(), acknowledgement=None):
+    """Write a minimal version 1 deployment policy."""
+    acknowledgement_line = (
+        ""
+        if acknowledgement is None
+        else f'legacy_diff_acknowledgement = "{acknowledgement}"\n'
+    )
+    exclusions = ", ".join(f'"{path}"' for path in exclude)
+    (Path(root) / "deploy.toml").write_text(
+        f"version = 1\n{acknowledgement_line}exclude = [{exclusions}]\n"
+    )
+
+
+def write_reviewed_deployment_policy(root, exclude=()):
+    """Write a policy acknowledged against strict legacy Git selection."""
+    from dallinger.deployment_plan import (
+        build_deployment_plan,
+        compare_legacy_deployment_selection,
+    )
+
+    root = Path(root)
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    write_deployment_policy(root, exclude)
+    comparison = compare_legacy_deployment_selection(build_deployment_plan(root))
+    write_deployment_policy(
+        root,
+        exclude,
+        acknowledgement=comparison.newly_included_digest,
+    )
 
 
 @pytest.fixture
@@ -264,6 +297,350 @@ class TestExperimentFilesSource:
 
         assert (Path(destination) / legit_file).is_file()
 
+    def test_policy_selects_plan_files_for_an_arbitrary_root(
+        self, subject, tmp_path, monkeypatch
+    ):
+        root = tmp_path / "experiment"
+        root.mkdir()
+        (root / ".gitignore").write_text("ignored.txt\n")
+        (root / "ignored.txt").write_text("included by policy")
+        (root / "excluded.txt").write_text("excluded by policy")
+        (root / "config.txt").write_text("raw configuration")
+        write_reviewed_deployment_policy(root, exclude=["excluded.txt"])
+        monkeypatch.chdir(tmp_path)
+
+        source = subject(root)
+        destination = tmp_path / "destination"
+        locations = list(source.map_locations_to(destination))
+
+        assert locations == [
+            (
+                str(root / ".gitignore"),
+                str(destination / ".gitignore"),
+            ),
+            (
+                str(root / "deploy.toml"),
+                str(destination / "deploy.toml"),
+            ),
+            (
+                str(root / "ignored.txt"),
+                str(destination / "ignored.txt"),
+            ),
+        ]
+        assert source.deployment_plan is not None
+
+    def test_policy_plan_is_built_once_and_supplies_size_without_restatting(
+        self, subject, tmp_path, monkeypatch
+    ):
+        from dallinger.deployment_plan import build_deployment_plan
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        (root / "asset.txt").write_text("asset")
+        write_reviewed_deployment_policy(root)
+        expected_size = build_deployment_plan(root).total_size
+
+        with mock.patch(
+            "dallinger.utils.build_deployment_plan", wraps=build_deployment_plan
+        ) as builder:
+            source = subject(root)
+            list(source.map_locations_to(tmp_path / "first"))
+            list(source.map_locations_to(tmp_path / "second"))
+            source.files
+            with mock.patch(
+                "dallinger.utils.os.path.getsize",
+                side_effect=AssertionError("policy size must not restat files"),
+            ):
+                assert source.size == expected_size
+
+        assert builder.call_count == 1
+
+    @pytest.mark.parametrize(
+        "copy_mode, output_is_symlink",
+        [
+            ("copy", False),
+            ("symlink", True),
+        ],
+    )
+    def test_policy_drives_copied_and_symlink_collation(
+        self, tmp_path, copy_mode, output_is_symlink
+    ):
+        from dallinger.utils import (
+            DallingerFileSource,
+            ExplicitFileSource,
+            collate_experiment_files,
+            copy_file,
+            symlink_file,
+        )
+
+        copy_func = copy_file if copy_mode == "copy" else symlink_file
+        root = tmp_path / "experiment"
+        root.mkdir()
+        (root / ".gitignore").write_text("ignored.txt\n")
+        (root / "ignored.txt").write_text("selected")
+        (root / "local.txt").write_text("not selected")
+        write_reviewed_deployment_policy(root, exclude=["local.txt"])
+        destination = tmp_path / "destination"
+
+        with (
+            mock.patch.object(ExplicitFileSource, "apply_to"),
+            mock.patch.object(DallingerFileSource, "apply_to"),
+        ):
+            collate_experiment_files(
+                {},
+                experiment_path=root,
+                destination=destination,
+                copy_func=copy_func,
+            )
+
+        assert (destination / "ignored.txt").read_text() == "selected"
+        assert (destination / "ignored.txt").is_symlink() is output_is_symlink
+        assert (destination / "deploy.toml").exists()
+        assert not (destination / "local.txt").exists()
+
+    def test_no_policy_auto_selection_matches_explicit_legacy_without_warnings(
+        self, subject, tmp_path, monkeypatch
+    ):
+        root = tmp_path / "experiment"
+        root.mkdir()
+        (root / ".gitignore").write_text("ignored.txt\n")
+        (root / "included.txt").write_text("included")
+        (root / "ignored.txt").write_text("ignored")
+        monkeypatch.chdir(root)
+        subprocess.run(["git", "init", "-q"], check=True)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            automatic = list(
+                subject(root).map_locations_to(tmp_path / "automatic-destination")
+            )
+            legacy = list(
+                subject(root, selection="legacy").map_locations_to(
+                    tmp_path / "legacy-destination"
+                )
+            )
+
+        automatic_membership = [
+            (source, os.path.relpath(destination, tmp_path / "automatic-destination"))
+            for source, destination in automatic
+        ]
+        legacy_membership = [
+            (source, os.path.relpath(destination, tmp_path / "legacy-destination"))
+            for source, destination in legacy
+        ]
+        assert automatic_membership == legacy_membership
+        assert str(root / "ignored.txt") not in {source for source, _ in automatic}
+
+    def test_no_policy_retains_legacy_git_failure_fallback(
+        self, subject, tmp_path, monkeypatch
+    ):
+        root = tmp_path / "experiment"
+        root.mkdir()
+        (root / ".gitignore").write_text("ignored.txt\n")
+        (root / "ignored.txt").write_text("legacy fallback")
+        monkeypatch.chdir(root)
+        monkeypatch.setattr(
+            "dallinger.utils.check_output",
+            mock.Mock(side_effect=OSError("git unavailable")),
+        )
+
+        source = subject(root)
+
+        assert str(root / "ignored.txt") in source.files
+
+    def test_policy_gate_requires_current_acknowledgement(self, subject, tmp_path):
+        from dallinger.deployment_plan import DeploymentCompatibilityError
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        (root / ".gitignore").write_text("ignored.txt\n")
+        (root / "ignored.txt").write_text("newly included")
+        write_deployment_policy(root)
+
+        with pytest.raises(DeploymentCompatibilityError, match="acknowledge"):
+            subject(root)
+
+        write_reviewed_deployment_policy(root)
+        source = subject(root)
+        assert str(root / "ignored.txt") in source.files
+
+        (root / "second-ignored.txt").write_text("new")
+        (root / ".gitignore").write_text("ignored.txt\nsecond-ignored.txt\n")
+        with pytest.raises(DeploymentCompatibilityError, match="acknowledge"):
+            subject(root)
+
+    @pytest.mark.parametrize(
+        "backend_control",
+        [".dockerignore", "Dockerfile.production.dockerignore", ".slugignore"],
+    )
+    def test_policy_gate_rejects_unresolved_backend_controls(
+        self, subject, tmp_path, backend_control
+    ):
+        from dallinger.deployment_plan import DeploymentCompatibilityError
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        write_deployment_policy(root)
+        (root / backend_control).write_text("*")
+
+        with pytest.raises(
+            DeploymentCompatibilityError,
+            match="backend ignore controls",
+        ):
+            subject(root)
+
+    def test_plan_copy_rejects_external_symlink_replacement(self, subject, tmp_path):
+        from dallinger.deployment_plan import DeploymentPlanError
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        source_path = root / "asset.txt"
+        source_path.write_text("planned")
+        write_reviewed_deployment_policy(root)
+        source = subject(root)
+        outside = tmp_path / "outside.txt"
+        outside.write_text("external")
+        source_path.unlink()
+        source_path.symlink_to(outside)
+        destination = tmp_path / "destination"
+
+        with pytest.raises(DeploymentPlanError, match="changed|symbolic"):
+            source.apply_to(destination)
+
+        assert not (destination / "asset.txt").exists()
+        assert not list(destination.rglob(".dallinger-deployment-*"))
+
+    def test_plan_copy_rejects_content_mutation_and_cleans_partial_output(
+        self, subject, tmp_path
+    ):
+        from dallinger.deployment_plan import DeploymentPlanError
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        source_path = root / "asset.txt"
+        source_path.write_text("planned")
+        write_reviewed_deployment_policy(root)
+        source = subject(root)
+        source_path.write_text("mutated")
+        destination = tmp_path / "destination"
+
+        with pytest.raises(DeploymentPlanError, match="changed|digest"):
+            source.apply_to(destination)
+
+        assert not (destination / "asset.txt").exists()
+        assert not list(destination.rglob(".dallinger-deployment-*"))
+
+    def test_plan_copy_failure_is_atomic(self, subject, tmp_path, monkeypatch):
+        from dallinger.deployment_plan import DeploymentPlanError
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        (root / "asset.txt").write_text("planned")
+        write_reviewed_deployment_policy(root)
+        source = subject(root)
+        destination = tmp_path / "destination"
+
+        monkeypatch.setattr(
+            "dallinger.deployment_plan.os.link",
+            mock.Mock(side_effect=OSError("injected link failure")),
+        )
+        with pytest.raises(DeploymentPlanError, match="materialize"):
+            source.apply_to(destination)
+
+        assert not (destination / "asset.txt").exists()
+        assert not list(destination.rglob(".dallinger-deployment-*"))
+
+    def test_plan_copy_preserves_mode(self, subject, tmp_path):
+        root = tmp_path / "experiment"
+        root.mkdir()
+        source_path = root / "run.sh"
+        source_path.write_text("#!/bin/sh\n")
+        source_path.chmod(0o751)
+        write_reviewed_deployment_policy(root)
+        source = subject(root)
+        destination = tmp_path / "destination"
+
+        source.apply_to(destination)
+
+        assert (destination / "run.sh").stat().st_mode & 0o777 == 0o751
+
+    def test_plan_copy_allows_trusted_destination_symlink_ancestors(
+        self, subject, tmp_path
+    ):
+        root = tmp_path / "experiment"
+        root.mkdir()
+        (root / "asset.txt").write_text("planned")
+        write_reviewed_deployment_policy(root)
+        source = subject(root)
+        canonical_parent = tmp_path / "private-var"
+        canonical_parent.mkdir()
+        alias = tmp_path / "var"
+        alias.symlink_to(canonical_parent, target_is_directory=True)
+
+        source.apply_to(alias / "staging")
+
+        assert (canonical_parent / "staging" / "asset.txt").read_text() == "planned"
+
+    def test_plan_copy_does_not_follow_or_replace_final_destination_symlink(
+        self, subject, tmp_path
+    ):
+        from dallinger.deployment_plan import (
+            DeploymentPlanError,
+            materialize_deployment_plan_entry,
+        )
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        (root / "asset.txt").write_text("planned")
+        write_reviewed_deployment_policy(root)
+        source = subject(root)
+        plan = source.deployment_plan
+        entry = next(item for item in plan.entries if item.destination == "asset.txt")
+        destination = tmp_path / "destination"
+        destination.mkdir()
+        external = tmp_path / "external.txt"
+        external.write_text("external")
+        target = destination / "asset.txt"
+        target.symlink_to(external)
+
+        with pytest.raises(DeploymentPlanError, match="materialize"):
+            materialize_deployment_plan_entry(plan, entry, target)
+
+        assert target.is_symlink()
+        assert target.read_text() == "external"
+        assert external.read_text() == "external"
+        assert not list(destination.glob(".dallinger-deployment-*"))
+
+    def test_plan_symlink_validates_identity_before_linking(self, subject, tmp_path):
+        from dallinger.deployment_plan import DeploymentPlanError
+        from dallinger.utils import symlink_file
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        source_path = root / "asset.txt"
+        source_path.write_text("planned")
+        write_reviewed_deployment_policy(root)
+        source = subject(root)
+        source_path.write_text("mutated")
+        destination = tmp_path / "destination"
+
+        with pytest.raises(DeploymentPlanError, match="changed"):
+            source.apply_to(destination, copy_func=symlink_file)
+
+        assert not (destination / "asset.txt").exists()
+
+    def test_plan_rejects_custom_copy_functions(self, subject, tmp_path):
+        root = tmp_path / "experiment"
+        root.mkdir()
+        (root / "asset.txt").write_text("planned")
+        write_reviewed_deployment_policy(root)
+        source = subject(root)
+
+        with pytest.raises(ValueError, match="copy_file or symlink_file"):
+            source.apply_to(tmp_path / "destination", copy_func=shutil.copyfile)
+
 
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
 class TestSetupExperiment:
@@ -379,6 +756,49 @@ class TestSetupExperiment:
         exp_id, dst = setup_experiment(log=mock.Mock())
 
         assert found_in(os.path.join("prepare_docker_image.sh"), dst)
+
+    def test_setup_assembles_policy_membership_and_existing_outputs(
+        self, setup_experiment, tmp_path, monkeypatch
+    ):
+        source_root = Path.cwd()
+        experiment_root = tmp_path / "experiment"
+        shutil.copytree(source_root, experiment_root)
+        (experiment_root / ".gitignore").write_text("ignored.txt\n")
+        (experiment_root / "ignored.txt").write_text("included")
+        (experiment_root / "excluded.txt").write_text("excluded")
+        raw_config_marker = "# raw source configuration marker\n"
+        config_path = experiment_root / "config.txt"
+        config_path.write_text(raw_config_marker + config_path.read_text())
+        write_reviewed_deployment_policy(
+            experiment_root,
+            exclude=["excluded.txt"],
+        )
+        monkeypatch.chdir(experiment_root)
+
+        _, destination = setup_experiment(log=mock.Mock())
+        assembled = Path(destination)
+
+        assert (assembled / "ignored.txt").read_text() == "included"
+        assert (assembled / "deploy.toml").is_file()
+        assert not (assembled / "excluded.txt").exists()
+        assert raw_config_marker.strip() not in (assembled / "config.txt").read_text()
+        assert (assembled / "experiment.py").is_file()
+        assert (assembled / "Procfile").is_file()
+        assert (assembled / "prepare_docker_image.sh").is_file()
+        assert (assembled / "static" / "css" / "dallinger.css").is_file()
+
+        subprocess.run(["git", "init", "-q"], cwd=assembled, check=True)
+        subprocess.run(
+            ["git", "add", "--force", "--all"],
+            cwd=assembled,
+            check=True,
+        )
+        indexed = subprocess.check_output(
+            ["git", "ls-files"],
+            cwd=assembled,
+            text=True,
+        ).splitlines()
+        assert "ignored.txt" in indexed
 
     def test_setup_procfile_no_clock(self, setup_experiment):
         config = get_config()
@@ -628,6 +1048,14 @@ class TestDeploySandboxSharedSetupNoExternalCalls:
     def test_bootstraps_heroku(self, dsss, heroku_mock):
         dsss(log=mock.Mock())
         heroku_mock.bootstrap.assert_called_once()
+
+    def test_force_adds_materialized_assembly(self, dsss, heroku_mock, fake_git):
+        dsss(log=mock.Mock())
+
+        assert fake_git.return_value.add.call_args_list[0] == mock.call(
+            "--force",
+            "--all",
+        )
 
     def test_installs_phantomjs(self, dsss, heroku_mock):
         dsss(log=mock.Mock())
