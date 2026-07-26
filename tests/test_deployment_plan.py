@@ -13,6 +13,7 @@ from dallinger.deployment_plan import (
     DeploymentMembership,
     DeploymentPlanError,
     DeploymentPolicyError,
+    _ExclusionIndex,
     _is_excluded,
     acknowledge_legacy_deployment_comparison,
     build_deployment_plan,
@@ -55,7 +56,7 @@ def write_files(root: Path, files: dict[str, str]) -> None:
 
 def test_parse_valid_policy_normalizes_and_sorts_exclusions(tmp_path):
     decomposed = unicodedata.normalize("NFD", "café")
-    acknowledgement = "sha256:" + "a1" * 32
+    acknowledgement = "sha256:" + "A1" * 32
     policy = parse_deployment_policy(
         write_policy(
             tmp_path,
@@ -66,7 +67,7 @@ def test_parse_valid_policy_normalizes_and_sorts_exclusions(tmp_path):
 
     assert policy.version == 1
     assert policy.exclude == ("café", "z/data")
-    assert policy.legacy_diff_acknowledgement == acknowledgement
+    assert policy.legacy_diff_acknowledgement == acknowledgement.lower()
 
 
 @pytest.mark.parametrize(
@@ -94,6 +95,10 @@ def test_parse_valid_policy_normalizes_and_sorts_exclusions(tmp_path):
         (
             f'version = 1\nexclude = []\nlegacy_diff_acknowledgement = "md5:{"a" * 64}"\n',
             "64 hexadecimal",
+        ),
+        (
+            f'version = 1\nexclude = []\nlegacy_diff_acknowledgement = """sha256:{"a" * 64}"""\n',
+            "Multiline TOML strings",
         ),
     ],
 )
@@ -128,6 +133,7 @@ def test_parse_rejects_unknown_missing_version_and_invalid_types(
         "!included",
         "nul\x00name",
         "control\x1fname",
+        "format\u202ename",
         "name:stream",
         'bad"name',
         "trailing.",
@@ -312,7 +318,15 @@ def test_plan_omits_reserved_source_paths(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "name", ["name:stream", "CON.txt", "trailing.", "trailing ", "control\x1fname"]
+    "name",
+    [
+        "name:stream",
+        "CON.txt",
+        "trailing.",
+        "trailing ",
+        "control\x1fname",
+        "format\u202ename",
+    ],
 )
 def test_plan_rejects_nonportable_source_components(tmp_path, name):
     write_policy(tmp_path)
@@ -320,6 +334,22 @@ def test_plan_rejects_nonportable_source_components(tmp_path, name):
 
     with pytest.raises(DeploymentPlanError, match="unsupported|must not end"):
         build_deployment_plan(tmp_path)
+
+
+def test_format_control_diagnostic_escapes_spoofing_character(tmp_path):
+    write_policy(tmp_path)
+    name = "report\u202egnp.exe"
+    (tmp_path / name).write_text("content")
+
+    with pytest.raises(DeploymentPlanError) as captured:
+        build_deployment_plan(tmp_path)
+
+    message = str(captured.value)
+    assert "\u202e" not in message
+    assert "\\u202e" in message
+    json_diagnostic = json.dumps({"error": message}, ensure_ascii=False)
+    assert "\u202e" not in json_diagnostic
+    assert "\\\\u202e" in json_diagnostic
 
 
 def test_plan_records_entry_metadata_and_membership(tmp_path):
@@ -509,6 +539,26 @@ def test_exclusion_lookup_scales_with_path_depth():
     assert exclusions.checks == 2
 
 
+def test_descendant_exclusion_lookup_scales_logarithmically():
+    class CountingPath(str):
+        comparisons = 0
+
+        def __lt__(self, other):
+            type(self).comparisons += 1
+            return super().__lt__(other)
+
+    exclusions = [
+        CountingPath(f"excluded-{number:05}/private") for number in range(4_096)
+    ]
+    index = _ExclusionIndex(exclusions)
+    CountingPath.comparisons = 0
+
+    for number in range(2_000):
+        assert not index.has_at_or_below((f"included-{number:05}",))
+
+    assert CountingPath.comparisons < 60_000
+
+
 def test_plan_digest_is_stable_and_changes_with_content_or_mode(tmp_path):
     write_policy(tmp_path)
     source = tmp_path / "source.txt"
@@ -621,6 +671,35 @@ def _comparison_for_acknowledgement(root: Path):
     write_policy(root)
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     return compare_legacy_deployment_selection(build_deployment_plan(root))
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "'legacy_diff_acknowledgement'",
+        r'"legacy_diff_acknowledge\u006dent"',
+    ],
+)
+def test_acknowledgement_updates_all_supported_quoted_key_syntaxes(tmp_path, key):
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    initial = _comparison_for_acknowledgement(tmp_path)
+    uppercase_digest = (
+        "sha256:" + initial.compatibility_digest.removeprefix("sha256:").upper()
+    )
+    policy_path = tmp_path / "deploy.toml"
+    policy_path.write_text(f"version = 1\n{key} = '{uppercase_digest}'\nexclude = []\n")
+    comparison = compare_legacy_deployment_selection(build_deployment_plan(tmp_path))
+
+    assert comparison.configured_acknowledgement == initial.compatibility_digest
+    assert comparison.acknowledgement_matches
+
+    acknowledge_legacy_deployment_comparison(comparison)
+
+    updated = policy_path.read_text()
+    assert f'{key} = "{initial.compatibility_digest}"' in updated
+    assert parse_deployment_policy(policy_path).legacy_diff_acknowledgement == (
+        initial.compatibility_digest
+    )
 
 
 def test_acknowledgement_rejects_stale_policy(tmp_path):

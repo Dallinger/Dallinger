@@ -67,11 +67,13 @@ This proof of concept deliberately keeps existing first-wins collation across
 experiment files, ``extra_files()``, and framework files. Development
 collation precomputes the later provider mappings once and protects their
 destinations and ancestors when choosing bulk directory links; colliding
-branches fall back to validated per-file links. Provider collision validation
-and dedicated backend materializers remain deferred. Source ``config.txt``,
-``.dockerignore`` variants, and ``.slugignore`` remain omitted by the
-experiment-root plan; generated filtered configuration and framework/backend
-outputs continue to be added by existing collation code.
+branches fall back to validated per-file links. Explicit providers are
+validated before staging and cannot target backend ignore controls, raw root
+configuration, policy/VCS paths, or generated root outputs. Full provider
+collision validation and dedicated backend materializers remain deferred.
+Source ``config.txt``, ``.dockerignore`` variants, and ``.slugignore`` remain
+omitted by the experiment-root plan; generated filtered configuration and
+framework/backend outputs continue to be added by existing collation code.
 
 Historical context
 ------------------
@@ -261,12 +263,17 @@ The initial format deliberately rejects:
 * negation or re-inclusion with ``!``;
 * absolute, drive-qualified, and UNC paths;
 * ``.``, ``..``, empty path components, and NUL characters;
+* Unicode control and format characters, including bidirectional overrides;
 * backslashes; and
 * duplicate normalized entries.
 
 Unknown keys and unknown schema versions fail. During the compatibility
 release, ``legacy_diff_acknowledgement`` is the only optional migration key.
-It is removed from the schema when legacy selection is removed.
+Accepted acknowledgement hex is normalized to lowercase. TOML bare, basic
+quoted, and literal quoted key names are supported; multiline TOML strings are
+rejected so the atomic acknowledgement updater can locate assignments without
+ambiguous lexical context. The acknowledgement key is removed from the schema
+when legacy selection is removed.
 ``deploy.toml`` is included in the deployment artifact and cannot exclude
 itself.
 
@@ -322,6 +329,24 @@ Deployment plan
 Each command builds one immutable ``DeploymentPlan`` after pre-deployment
 generation and before remote side effects.
 
+The current public injection seam is command-scoped: construct one
+``ExperimentFileSource`` and pass it as ``experiment_file_source`` to both
+``verify_package()`` and ``setup_experiment()``. ``verify_package()`` itself
+reuses one source for its size and experiment-module checks. This lets command
+callers adopt verify-and-assembly reuse without changing either broad command
+or deployment-class signatures.
+
+Current prototype adoption is intentionally incomplete. ``develop debug`` and
+Docker SSH build one policy source for their relevant verification/assembly
+flow. Classic ``debug``, Docker ``debug``, ``develop bootstrap``, Docker
+``build``, and classic ``sandbox``/``deploy`` still build twice: once in the
+directory-verification decorator and once in staging. Docker
+``sandbox``/``deploy`` still build three times: decorator verification, initial
+assembly, and the assembly repeated by ``push.callback``. Standalone
+``verify``, Docker ``push``, ``bot``, and ``rq-worker`` each build once. These
+are the remaining command-level duplicate builds; eliminating them is deferred
+to command orchestration cleanup.
+
 Each plan entry records:
 
 * normalized destination;
@@ -365,11 +390,12 @@ Current first-wins behavior is replaced with explicit collision classes:
 do not silently suppress explicit framework-provider entries, but explicit
 entries cannot bypass reserved destinations or secret boundaries.
 
-This collision policy is a target design, not part of the current opt-in proof
-of concept. The current integration plans only experiment-root membership and
-then preserves the existing first-wins experiment/extra/framework collation
-order. Provider collision integration is deferred until all provider classes
-enter one plan.
+Most of this collision policy remains a target design. The current opt-in
+proof of concept rejects reserved explicit-provider destinations before any
+experiment files are staged, but otherwise plans only experiment-root
+membership and preserves the existing first-wins
+experiment/extra/framework collation order. Full provider collision
+integration is deferred until all provider classes enter one plan.
 
 Plan lifecycle and mutation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -406,7 +432,8 @@ subtrees to remain candidates.
 
 Development collation computes explicit and framework mappings once before
 applying them. Their destinations and in-tree ancestors protect overlapping
-candidate branches. It then links the shallowest safe candidate directories,
+candidate branches using NFC-normalized, case-folded portable path keys. It
+then links the shallowest safe candidate directories,
 validating each directory's type and identity immediately before link creation,
 and skips their plan-entry spans without visiting each covered file. Uncovered
 and colliding branches retain validated per-file links and existing first-wins
@@ -439,8 +466,12 @@ copies without changing logical membership.
 Copied-tree materializer
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Remote and self-contained outputs use a private copied staging tree. Failed
-materialization cannot leave a directory that appears complete.
+Remote and self-contained outputs use a private copied staging tree. Any
+provider, materialization, or generated-output failure removes that whole
+private tree; successful output remains at the returned path. The proof of
+concept does not build in a sibling directory and rename at completion because
+these temporary paths are private and unpublished until the assembly call
+returns.
 
 Executable modes are preserved. Empty directories are not represented in the
 initial plan.
@@ -465,6 +496,12 @@ experiment-root portion contains the frozen plan plus the existing explicit
 and framework-provider outputs. Source ``.dockerignore`` and
 Dockerfile-specific ``*.dockerignore`` files block policy opt-in until removed,
 then are omitted from the context so they cannot reselect its membership.
+Docker SSH constructs and validates its ``ExperimentFileSource`` before remote
+app discovery, root-domain cleanup, registry access, image building, or remote
+deployment, then passes that same source through copied assembly. Setup does
+not regenerate constraints after a policy-backed source has been frozen;
+constraints must therefore be prepared before reviewing and acknowledging the
+policy plan.
 
 Custom Dockerfiles may use ``COPY .`` but can see only staged files. A custom
 Dockerfile referencing an excluded input fails during build.
@@ -479,12 +516,14 @@ Heroku materializer
 Classic Heroku receives the copied plan. The temporary Git repository is a
 transport adapter only.
 
-Dallinger runs ``git add --force --all`` over the fully materialized assembly
-before pushing. ``.gitignore`` is transport metadata only and cannot remove
-planned entries. Exact all-provider Git-index verification remains deferred
-until experiment, explicit, framework, generated, and backend outputs share
-one collision-checked plan. Source ``.slugignore`` blocks policy opt-in until
-removed and cannot change membership after verification.
+For policy-backed assemblies Dallinger runs ``git add --force --all`` over the
+fully materialized assembly before pushing. ``.gitignore`` is transport
+metadata only and cannot remove planned entries. Policy-free assemblies retain
+the exact legacy ``git add --all`` behavior. Exact all-provider Git-index
+verification remains deferred until experiment, explicit, framework,
+generated, and backend outputs share one collision-checked plan. Source
+``.slugignore`` blocks policy opt-in until removed and cannot change membership
+after verification.
 
 Migration
 ---------

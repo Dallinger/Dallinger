@@ -18,8 +18,15 @@
   identity/digest verified with modes preserved, support trusted staging paths
   with platform symlink aliases without replacing final symlinks, development
   staging uses identity-validated bulk directory links with collision-safe
-  per-file fallbacks, and Heroku force-adds the complete assembly. Experiments
-  without a policy retain legacy selection behavior.
+  per-file fallbacks, Docker SSH validates plans before external side effects,
+  failed copied assemblies are removed, explicit providers cannot target
+  reserved outputs, portable provider collisions cannot bypass bulk-link
+  protection, descendant-exclusion lookup is indexed, Unicode format controls
+  are rejected, migration acknowledgements are canonicalized and safely
+  updated across quoted TOML key syntaxes, and Heroku force-adds only
+  policy-backed assemblies. Verification and assembly expose a shared
+  command-scoped file-source seam. Experiments without a policy retain legacy
+  selection and Git staging behavior.
 
 ### Updated
 

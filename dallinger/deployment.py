@@ -15,6 +15,7 @@ from dallinger.config import get_config
 from dallinger.heroku.tools import HerokuApp, HerokuLocalWrapper
 from dallinger.redis_utils import connect_to_redis
 from dallinger.utils import (
+    ExperimentFileSource,
     GitClient,
     bootstrap_development_session,
     get_base_url,
@@ -130,10 +131,16 @@ def deploy_sandbox_shared_setup(
     else:
         out = open(os.devnull, "w")
 
+    experiment_file_source = ExperimentFileSource(os.getcwd())
     config = get_config(load=True)
     heroku.sanity_check(config)
     heroku_app_id, tmp = setup_experiment(
-        log, debug=False, app=app, exp_config=exp_config, local_checks=False
+        log,
+        debug=False,
+        app=app,
+        exp_config=exp_config,
+        local_checks=False,
+        experiment_file_source=experiment_file_source,
     )
 
     # Register the experiment using all configured registration services.
@@ -154,7 +161,7 @@ def deploy_sandbox_shared_setup(
     # Commit Heroku-specific files to tmp folder's git repo.
     git = GitClient(output=out)
     git.init()
-    git.add("--force", "--all")
+    _stage_heroku_assembly(git, experiment_file_source)
     git.commit('"Experiment {}"'.format(heroku_app_id))
 
     # Initialize the app on Heroku.
@@ -280,6 +287,14 @@ def deploy_sandbox_shared_setup(
         )
     )
     return result
+
+
+def _stage_heroku_assembly(git, experiment_file_source):
+    """Stage a Heroku assembly without changing legacy ignore behavior."""
+    if experiment_file_source.deployment_plan is None:
+        git.add("--all")
+    else:
+        git.add("--force", "--all")
 
 
 class DevelopmentDeployment:

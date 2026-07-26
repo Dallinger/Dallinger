@@ -117,6 +117,34 @@ class TestVerify:
             with mock.patch.dict(os.environ, {"EXP_MAX_SIZE_MB": "256"}):
                 assert v_directory() is True
 
+    def test_verify_package_builds_one_reusable_file_source(self, v_package):
+        source = mock.Mock()
+        with (
+            mock.patch(
+                "dallinger.command_line.utils.ExperimentFileSource",
+                return_value=source,
+            ) as source_factory,
+            mock.patch(
+                "dallinger.command_line.utils.verify_directory", return_value=True
+            ) as verify_directory,
+            mock.patch(
+                "dallinger.command_line.utils.verify_experiment_module",
+                return_value=True,
+            ) as verify_experiment,
+            mock.patch(
+                "dallinger.command_line.utils.verify_python_version", return_value=True
+            ),
+            mock.patch("dallinger.command_line.utils.verify_config", return_value=True),
+            mock.patch(
+                "dallinger.command_line.utils.verify_no_conflicts", return_value=True
+            ),
+        ):
+            assert v_package() is True
+
+        source_factory.assert_called_once_with(os.getcwd())
+        verify_directory.assert_called_once_with(True, source)
+        verify_experiment.assert_called_once_with(True, source)
+
     def test_policy_membership_controls_verified_size(
         self, v_directory, tmp_path, monkeypatch
     ):

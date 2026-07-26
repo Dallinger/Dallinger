@@ -38,6 +38,7 @@ from dallinger.deployment_plan import (
     require_deployment_compatibility,
     validate_deployment_directory_link_candidate,
     validate_deployment_plan_entry,
+    validate_explicit_provider_destination,
 )
 from dallinger.models import Participant
 
@@ -557,19 +558,30 @@ def bootstrap_development_session(
 
 
 def setup_experiment(
-    log, debug=True, verbose=False, app=None, exp_config=None, local_checks=True
+    log,
+    debug=True,
+    verbose=False,
+    app=None,
+    exp_config=None,
+    local_checks=True,
+    experiment_file_source=None,
 ):
     """Checks the experiment's python dependencies, then prepares a temp directory
     with files merged from the custom experiment and Dallinger.
 
     The resulting directory includes all the files necessary to deploy to
     Heroku.
+
+    Commands that verify before assembly may pass the same
+    ``ExperimentFileSource`` to ``verify_package`` and this function to retain
+    one command-scoped deployment plan.
     """
     if local_checks:
         check_local_db_connection(log)
         check_experiment_dependencies(Path(os.getcwd()) / "requirements.txt")
 
-    ensure_constraints_file_presence(os.getcwd())
+    if experiment_file_source is None or experiment_file_source.deployment_plan is None:
+        ensure_constraints_file_presence(os.getcwd())
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
 
@@ -598,7 +610,12 @@ def setup_experiment(
     if not config.get("dashboard_password", None):
         config.set("dashboard_password", fake.password(length=20, special_chars=False))
 
-    temp_dir = assemble_experiment_temp_dir(log, config, for_remote=not local_checks)
+    temp_dir = assemble_experiment_temp_dir(
+        log,
+        config,
+        for_remote=not local_checks,
+        experiment_file_source=experiment_file_source,
+    )
     log("Deployment temp directory: {}".format(temp_dir), chevrons=False)
 
     # Zip up the temporary directory and place it in the cwd.
@@ -613,7 +630,9 @@ def setup_experiment(
     return (heroku_app_id, temp_dir)
 
 
-def assemble_experiment_temp_dir(log, config, for_remote=False):
+def assemble_experiment_temp_dir(
+    log, config, for_remote=False, experiment_file_source=None
+):
     """Create a temp directory from which to run an experiment.
     If for_remote is set to True the preparation includes bundling
     the local dallinger version if it was installed in editable mode.
@@ -636,49 +655,58 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
     Returns the absolute path of the new directory.
     """
     exp_id = config.get("id")
-    dst = os.path.join(tempfile.mkdtemp(), exp_id)
-    collate_experiment_files(
-        config, experiment_path=os.getcwd(), destination=dst, copy_func=copy_file
-    )
+    private_tree = tempfile.mkdtemp()
+    dst = os.path.join(private_tree, exp_id)
+    try:
+        collate_experiment_files(
+            config,
+            experiment_path=os.getcwd(),
+            destination=dst,
+            copy_func=copy_file,
+            experiment_file_source=experiment_file_source,
+        )
 
-    # Write out the loaded configuration
-    config.write(filter_sensitive=True, directory=dst)
+        # Write out the loaded configuration
+        config.write(filter_sensitive=True, directory=dst)
 
-    # Write out the experiment id
-    with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
-        file.write(exp_id)
+        # Write out the experiment id
+        with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
+            file.write(exp_id)
 
-    # Write out a runtime.txt file based on configuration
-    pyversion = config.get("heroku_python_version", None)
-    if pyversion:
-        with open(os.path.join(dst, "runtime.txt"), "w") as file:
-            file.write("python-{}".format(pyversion))
+        # Write out a runtime.txt file based on configuration
+        pyversion = config.get("heroku_python_version", None)
+        if pyversion:
+            with open(os.path.join(dst, "runtime.txt"), "w") as file:
+                file.write("python-{}".format(pyversion))
 
-    requirements_path = Path(dst) / "requirements.txt"
-    # Overwrite the requirements.txt file with the contents of the constraints.txt file
-    if not os.environ.get("SKIP_DEPENDENCY_CHECK"):
-        (Path(dst) / "constraints.txt").replace(requirements_path)
-    if for_remote:
-        dallinger_path = get_editable_dallinger_path()
-        if dallinger_path and not os.environ.get("DALLINGER_NO_EGG_BUILD"):
-            log(
-                "Dallinger is installed as an editable package, "
-                "and so will be copied and deployed in its current state, "
-                "ignoring the dallinger version specified in your experiment's "
-                "requirements.txt file!\n"
-                "If you don't need this you can speed up startup time by setting "
-                "the environment variable DALLINGER_NO_EGG_BUILD:\n"
-                "    export DALLINGER_NO_EGG_BUILD=1\n"
-                "or you can install dallinger without the editable (-e) flag."
-            )
-            egg_name = build_and_place(dallinger_path, dst)
-            # Replace the line about dallinger in requirements.txt so that
-            # it refers to the just generated package
-            constraints_text = requirements_path.read_text()
-            new_constraints_text = re.sub(
-                "dallinger==.*", f"file:{egg_name}", constraints_text
-            )
-            requirements_path.write_text(new_constraints_text)
+        requirements_path = Path(dst) / "requirements.txt"
+        # Overwrite requirements.txt with the contents of constraints.txt.
+        if not os.environ.get("SKIP_DEPENDENCY_CHECK"):
+            (Path(dst) / "constraints.txt").replace(requirements_path)
+        if for_remote:
+            dallinger_path = get_editable_dallinger_path()
+            if dallinger_path and not os.environ.get("DALLINGER_NO_EGG_BUILD"):
+                log(
+                    "Dallinger is installed as an editable package, "
+                    "and so will be copied and deployed in its current state, "
+                    "ignoring the dallinger version specified in your experiment's "
+                    "requirements.txt file!\n"
+                    "If you don't need this you can speed up startup time by setting "
+                    "the environment variable DALLINGER_NO_EGG_BUILD:\n"
+                    "    export DALLINGER_NO_EGG_BUILD=1\n"
+                    "or you can install dallinger without the editable (-e) flag."
+                )
+                egg_name = build_and_place(dallinger_path, dst)
+                # Replace the line about dallinger in requirements.txt so that
+                # it refers to the just generated package
+                constraints_text = requirements_path.read_text()
+                new_constraints_text = re.sub(
+                    "dallinger==.*", f"file:{egg_name}", constraints_text
+                )
+                requirements_path.write_text(new_constraints_text)
+    except BaseException:
+        shutil.rmtree(private_tree, ignore_errors=True)
+        raise
     return dst
 
 
@@ -705,17 +733,13 @@ def collate_experiment_files(
     # Order matters here, since the first files copied "win" if there's a
     # collision:
     source = experiment_file_source or ExperimentFileSource(experiment_path)
-    if copy_func is symlink_file and source.deployment_plan is not None:
-        from dallinger.config import initialize_experiment_package
+    explicit_source = ExplicitFileSource(experiment_path)
+    framework_source = DallingerFileSource(config, dallinger_package_path())
+    explicit_locations = list(explicit_source.map_locations_to(destination))
+    _validate_explicit_file_mappings(explicit_locations, destination)
+    framework_locations = list(framework_source.map_locations_to(destination))
 
-        # Development has already loaded the working experiment in normal use.
-        # Initializing it here also lets direct callers discover extra_files()
-        # before the staged package exists.
-        initialize_experiment_package(os.path.abspath(experiment_path))
-        explicit_source = ExplicitFileSource(experiment_path)
-        framework_source = DallingerFileSource(config, dallinger_package_path())
-        explicit_locations = list(explicit_source.map_locations_to(destination))
-        framework_locations = list(framework_source.map_locations_to(destination))
+    if copy_func is symlink_file and source.deployment_plan is not None:
         later_locations = (*explicit_locations, *framework_locations)
         source.apply_development_to(
             destination,
@@ -726,10 +750,8 @@ def collate_experiment_files(
         return
 
     source.apply_to(destination, copy_func=copy_func)
-    ExplicitFileSource(experiment_path).apply_to(destination, copy_func=copy_func)
-    DallingerFileSource(config, dallinger_package_path()).apply_to(
-        destination, copy_func=copy_func
-    )
+    _apply_file_mappings(explicit_locations, copy_func)
+    _apply_file_mappings(framework_locations, copy_func)
 
 
 class FileSource:
@@ -970,8 +992,16 @@ def _apply_file_mappings(mappings, copy_func):
         copy_func(from_path, to_path)
 
 
+def _validate_explicit_file_mappings(mappings, destination):
+    """Reject unsafe explicit-provider targets before staging begins."""
+    destination_root = os.path.abspath(destination)
+    for _, target in mappings:
+        relative = os.path.relpath(os.path.abspath(target), destination_root)
+        validate_explicit_provider_destination(Path(relative).as_posix())
+
+
 def _development_protected_paths(destination, protected_destinations):
-    """Return normalized exact later-provider destinations within the tree."""
+    """Return portable later-provider destination keys within the tree."""
     destination_root = os.path.abspath(destination)
     protected = set()
     for target in protected_destinations:
@@ -987,9 +1017,15 @@ def _development_protected_paths(destination, protected_destinations):
         relative = os.path.relpath(target, destination_root)
         if relative == os.curdir:
             return frozenset({""})
-        parts = tuple(normalize("NFC", part) for part in Path(relative).parts)
-        protected.add("/".join(parts))
+        protected.add(_development_portable_path_key(Path(relative).parts))
     return frozenset(protected)
+
+
+def _development_portable_path_key(parts):
+    """Return an NFC, case-folded POSIX key for destination components."""
+    return "/".join(
+        normalize("NFC", normalize("NFC", part).casefold()) for part in parts
+    )
 
 
 def _development_paths_overlap(first, second):
@@ -1011,19 +1047,17 @@ def _select_development_directory_candidates(plan, protected):
         plan.directory_link_candidates,
         key=lambda item: (item.destination.count("/"), item.destination),
     ):
+        candidate_key = _development_portable_path_key(candidate.destination.split("/"))
         ancestors = {
-            "/".join(candidate.destination.split("/")[:depth])
-            for depth in range(1, candidate.destination.count("/") + 2)
+            "/".join(candidate_key.split("/")[:depth])
+            for depth in range(1, candidate_key.count("/") + 2)
         }
         if selected_destinations.intersection(ancestors):
             continue
-        if any(
-            _development_paths_overlap(candidate.destination, path)
-            for path in protected
-        ):
+        if any(_development_paths_overlap(candidate_key, path) for path in protected):
             continue
         selected.append(candidate)
-        selected_destinations.add(candidate.destination)
+        selected_destinations.add(candidate_key)
     return tuple(sorted(selected, key=lambda item: item.entry_start))
 
 
@@ -1036,7 +1070,15 @@ class ExplicitFileSource(FileSource):
     def map_locations_to(self, dst):
         from dallinger.config import initialize_experiment_package
 
-        initialize_experiment_package(dst)
+        experiment_root = os.path.abspath(self.root)
+        package_name = os.path.basename(experiment_root)
+        initialize_experiment_package(experiment_root)
+        package = sys.modules.get("dallinger_experiment")
+        if sys.modules.get(package_name) is package:
+            # ``initialize_experiment_package`` installs the stable alias used
+            # below; do not retain a root-basename alias that can point later
+            # assemblies at an unrelated experiment with the same directory name.
+            del sys.modules[package_name]
         from dallinger.experiment import load
 
         exp_class = load()

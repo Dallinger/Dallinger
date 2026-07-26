@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import unicodedata
 import uuid
 import warnings
 from pathlib import Path
@@ -561,6 +562,53 @@ class TestExperimentFilesSource:
         assert experiment_collision.read_text() == "experiment"
         assert provider_collision.read_text() == "provider"
 
+    def test_portable_provider_collision_blocks_bulk_link(self, tmp_path):
+        from dallinger.utils import (
+            DallingerFileSource,
+            ExplicitFileSource,
+            collate_experiment_files,
+            symlink_file,
+        )
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        source_directory = root / "Café"
+        source_directory.mkdir()
+        source_asset = source_directory / "asset.txt"
+        source_asset.write_text("experiment")
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        write_deployment_policy(root)
+        provider_source = tmp_path / "provider.txt"
+        provider_source.write_text("provider")
+        destination = tmp_path / "destination"
+        portable_collision = unicodedata.normalize("NFD", "CAFÉ")
+
+        with (
+            mock.patch("dallinger.config.initialize_experiment_package"),
+            mock.patch.object(
+                ExplicitFileSource,
+                "map_locations_to",
+                return_value=[
+                    (
+                        str(provider_source),
+                        str(destination / portable_collision / "provider.txt"),
+                    )
+                ],
+            ),
+            mock.patch.object(DallingerFileSource, "map_locations_to", return_value=[]),
+        ):
+            collate_experiment_files(
+                {},
+                experiment_path=root,
+                destination=destination,
+                copy_func=symlink_file,
+            )
+
+        assert not (destination / "Café").is_symlink()
+        assert (destination / "Café/asset.txt").is_symlink()
+        assert source_asset.read_text() == "experiment"
+        assert not (source_directory / "provider.txt").exists()
+
     def test_framework_collision_does_not_block_unrelated_bulk_link_sibling(
         self, tmp_path
     ):
@@ -732,7 +780,7 @@ class TestExperimentFilesSource:
         assert not (destination / "assets/nested/asset.txt").is_symlink()
         assert (destination / "assets/nested/asset.txt").read_text() == "frozen"
 
-    def test_no_policy_symlink_collation_uses_legacy_provider_application(
+    def test_no_policy_symlink_collation_prevalidates_provider_mappings(
         self, subject, tmp_path
     ):
         from dallinger.utils import (
@@ -747,6 +795,7 @@ class TestExperimentFilesSource:
         (root / "asset.txt").write_text("legacy")
         subprocess.run(["git", "init", "-q"], cwd=root, check=True)
         source = subject(root)
+        destination = tmp_path / "destination"
 
         with (
             mock.patch.object(ExplicitFileSource, "apply_to") as explicit_apply,
@@ -754,19 +803,26 @@ class TestExperimentFilesSource:
             mock.patch.object(
                 ExplicitFileSource,
                 "map_locations_to",
-                side_effect=AssertionError("legacy collation must not precollect"),
+                return_value=iter(()),
+            ) as explicit_mappings,
+            mock.patch.object(
+                DallingerFileSource,
+                "map_locations_to",
+                return_value=iter(()),
             ),
         ):
             collate_experiment_files(
                 {},
                 experiment_path=root,
-                destination=tmp_path / "destination",
+                destination=destination,
                 copy_func=symlink_file,
                 experiment_file_source=source,
             )
 
-        explicit_apply.assert_called_once()
-        framework_apply.assert_called_once()
+        explicit_mappings.assert_called_once_with(destination)
+        explicit_apply.assert_not_called()
+        framework_apply.assert_not_called()
+        assert (destination / "asset.txt").is_symlink()
 
     def test_no_policy_auto_selection_matches_explicit_legacy_without_warnings(
         self, subject, tmp_path, monkeypatch
@@ -1044,6 +1100,60 @@ class TestExperimentFilesSource:
             source.apply_to(tmp_path / "destination", copy_func=shutil.copyfile)
 
 
+@pytest.mark.parametrize(
+    "reserved_destination",
+    [
+        ".dockerignore",
+        "Dockerfile.production.dockerignore",
+        "nested/.slugignore",
+        "config.txt",
+        "deploy.toml",
+        "experiment_id.txt",
+        "requirements.txt",
+        "constraints.txt",
+        "runtime.txt",
+    ],
+)
+def test_explicit_provider_rejects_reserved_destinations_before_materialization(
+    tmp_path, monkeypatch, reserved_destination
+):
+    from dallinger.deployment_plan import DeploymentPlanError
+    from dallinger.utils import (
+        DallingerFileSource,
+        ExplicitFileSource,
+        collate_experiment_files,
+        copy_file,
+    )
+
+    destination = tmp_path / "assembly"
+    provider_source = tmp_path / "provider.txt"
+    provider_source.write_text("provider")
+    experiment_source = mock.Mock()
+    experiment_source.deployment_plan = object()
+    monkeypatch.setattr(
+        ExplicitFileSource,
+        "map_locations_to",
+        lambda self, root: iter([(provider_source, Path(root) / reserved_destination)]),
+    )
+    monkeypatch.setattr(
+        DallingerFileSource,
+        "map_locations_to",
+        lambda self, root: iter(()),
+    )
+
+    with pytest.raises(DeploymentPlanError, match="reserved"):
+        collate_experiment_files(
+            config=mock.Mock(),
+            experiment_path=tmp_path,
+            destination=destination,
+            copy_func=copy_file,
+            experiment_file_source=experiment_source,
+        )
+
+    experiment_source.apply_to.assert_not_called()
+    assert not destination.exists()
+
+
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
 class TestSetupExperiment:
     @pytest.fixture
@@ -1086,6 +1196,28 @@ class TestSetupExperiment:
 
         assert active_config.get("dashboard_user") == "admin"
         assert active_config.get("dashboard_password") == mock.ANY
+
+    def test_setup_reuses_policy_source_without_mutating_constraints(
+        self, setup_experiment, tmp_path
+    ):
+        source = mock.Mock(deployment_plan=object())
+        with (
+            mock.patch(
+                "dallinger.utils.ensure_constraints_file_presence"
+            ) as ensure_constraints,
+            mock.patch(
+                "dallinger.utils.assemble_experiment_temp_dir",
+                return_value=tmp_path,
+            ) as assemble,
+        ):
+            setup_experiment(
+                log=mock.Mock(),
+                local_checks=False,
+                experiment_file_source=source,
+            )
+
+        ensure_constraints.assert_not_called()
+        assert assemble.call_args.kwargs["experiment_file_source"] is source
 
     def test_setup_merges_frontend_files_from_core_and_experiment(
         self, setup_experiment
@@ -1189,11 +1321,14 @@ class TestSetupExperiment:
         assert (assembled / "prepare_docker_image.sh").is_file()
         assert (assembled / "static" / "css" / "dallinger.css").is_file()
 
+        from dallinger.deployment import _stage_heroku_assembly
+        from dallinger.utils import ExperimentFileSource, GitClient
+
         subprocess.run(["git", "init", "-q"], cwd=assembled, check=True)
-        subprocess.run(
-            ["git", "add", "--force", "--all"],
-            cwd=assembled,
-            check=True,
+        monkeypatch.chdir(assembled)
+        _stage_heroku_assembly(
+            GitClient(),
+            ExperimentFileSource(experiment_root),
         )
         indexed = subprocess.check_output(
             ["git", "ls-files"],
@@ -1307,6 +1442,29 @@ class TestSetupExperiment:
             tmp_dir = assemble_experiment_temp_dir(log, active_config)
 
         assert "dallinger" in (Path(tmp_dir) / "requirements.txt").read_text()
+
+    def test_assembly_failure_removes_private_temporary_tree(
+        self, active_config, tmp_path, monkeypatch
+    ):
+        from dallinger.utils import assemble_experiment_temp_dir
+
+        private_tree = tmp_path / "private-assembly"
+        private_tree.mkdir()
+
+        def fail_during_collation(*args, destination, **kwargs):
+            Path(destination).mkdir(parents=True)
+            (Path(destination) / "partial.txt").write_text("partial")
+            raise RuntimeError("provider failed")
+
+        monkeypatch.setattr("dallinger.utils.tempfile.mkdtemp", lambda: private_tree)
+        monkeypatch.setattr(
+            "dallinger.utils.collate_experiment_files", fail_during_collation
+        )
+
+        with pytest.raises(RuntimeError, match="provider failed"):
+            assemble_experiment_temp_dir(mock.Mock(), active_config)
+
+        assert not private_tree.exists()
 
     @pytest.mark.slow
     def test_build_egg_if_in_development(self, active_config):
@@ -1451,12 +1609,22 @@ class TestDeploySandboxSharedSetupNoExternalCalls:
         dsss(log=mock.Mock())
         heroku_mock.bootstrap.assert_called_once()
 
-    def test_force_adds_materialized_assembly(self, dsss, heroku_mock, fake_git):
+    def test_legacy_assembly_uses_exact_legacy_git_add(
+        self, dsss, heroku_mock, fake_git
+    ):
         dsss(log=mock.Mock())
 
+        assert fake_git.return_value.add.call_args_list[0] == mock.call("--all")
+
+    def test_policy_assembly_force_adds_all_files(self, dsss, heroku_mock, fake_git):
+        source = mock.Mock(deployment_plan=object())
+        with mock.patch(
+            "dallinger.deployment.ExperimentFileSource", return_value=source
+        ):
+            dsss(log=mock.Mock())
+
         assert fake_git.return_value.add.call_args_list[0] == mock.call(
-            "--force",
-            "--all",
+            "--force", "--all"
         )
 
     def test_installs_phantomjs(self, dsss, heroku_mock):

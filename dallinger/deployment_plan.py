@@ -32,6 +32,15 @@ SCHEMA_VERSION = 1
 
 _POLICY_KEYS = {"version", "exclude", "legacy_diff_acknowledgement"}
 _VCS_METADATA_NAMES = frozenset({".git", ".hg", ".svn", ".bzr"})
+_GENERATED_ROOT_DESTINATION_NAMES = frozenset(
+    {
+        "config.txt",
+        "constraints.txt",
+        "experiment_id.txt",
+        "requirements.txt",
+        "runtime.txt",
+    }
+)
 _GLOB_CHARACTERS = frozenset("*?[]{}")
 _WINDOWS_FORBIDDEN_CHARACTERS = frozenset('<>:"/\\|?*')
 _WINDOWS_DEVICE_NAMES = frozenset(
@@ -208,6 +217,30 @@ class _TraversedDirectoryCandidate:
     entry_count: int
 
 
+class _ExclusionIndex:
+    """Index literal exclusions for logarithmic descendant queries."""
+
+    def __init__(self, exclusions: Iterable[str]):
+        self._ordered = tuple(sorted(exclusions))
+
+    def has_at_or_below(self, destination_parts: tuple[str, ...]) -> bool:
+        """Return whether an exclusion equals or descends from a destination."""
+        if not destination_parts:
+            return bool(self._ordered)
+        destination = "/".join(destination_parts)
+        exact_index = bisect.bisect_left(self._ordered, destination)
+        if (
+            exact_index < len(self._ordered)
+            and self._ordered[exact_index] == destination
+        ):
+            return True
+        prefix = destination + "/"
+        descendant_index = bisect.bisect_left(self._ordered, prefix, lo=exact_index)
+        return descendant_index < len(self._ordered) and self._ordered[
+            descendant_index
+        ].startswith(prefix)
+
+
 def parse_deployment_policy(path: str | os.PathLike[str]) -> DeploymentPolicy:
     """Load and validate a version 1 literal deployment policy."""
     _require_safe_traversal_support(DeploymentPolicyError)
@@ -219,6 +252,50 @@ def parse_deployment_policy(path: str | os.PathLike[str]) -> DeploymentPolicy:
         ).policy
     finally:
         os.close(parent_descriptor)
+
+
+def validate_explicit_provider_destination(
+    destination: str | os.PathLike[str],
+) -> str:
+    """Validate one root-relative destination supplied by ``extra_files()``."""
+    value = os.fspath(destination)
+    if not value or value.startswith("/") or ntpath.splitdrive(value)[0]:
+        raise DeploymentPlanError(
+            f"Explicit file provider destination must be root-relative: {value!r}."
+        )
+    if "\\" in value:
+        raise DeploymentPlanError(
+            f"Explicit file provider destinations must use POSIX separators: {value!r}."
+        )
+
+    components = value.split("/")
+    if any(component in {"", ".", ".."} for component in components):
+        raise DeploymentPlanError(
+            "Explicit file provider destination contains an unsafe path component: "
+            f"{value!r}."
+        )
+    normalized_parts = tuple(
+        _normalize_portable_component(
+            component,
+            context=f"explicit file provider destination {value!r}",
+            error_type=DeploymentPlanError,
+        )
+        for component in components
+    )
+    normalized = "/".join(normalized_parts)
+    reserved_kind = _reserved_kind(normalized_parts)
+    if (
+        reserved_kind is None
+        and len(normalized_parts) == 1
+        and normalized_parts[0].casefold() in _GENERATED_ROOT_DESTINATION_NAMES
+    ):
+        reserved_kind = "generated"
+    if reserved_kind is not None:
+        raise DeploymentPlanError(
+            "Explicit file provider cannot target reserved deployment destination "
+            f"{normalized!r} ({reserved_kind})."
+        )
+    return normalized
 
 
 def _parse_policy(raw_policy: dict) -> DeploymentPolicy:
@@ -255,6 +332,8 @@ def _parse_policy(raw_policy: dict) -> DeploymentPolicy:
             "legacy_diff_acknowledgement must be 'sha256:' followed by "
             "64 hexadecimal digits."
         )
+    if acknowledgement is not None:
+        acknowledgement = acknowledgement.lower()
 
     exclusions: list[str] = []
     exact_entries: set[str] = set()
@@ -323,7 +402,7 @@ def build_deployment_plan(
     ) -> bool:
         """Traverse one directory and report whether all descendants are selected."""
         all_descendants_selected = not _has_exclusion_at_or_below(
-            destination_parts, exclusions
+            destination_parts, exclusion_index
         )
         try:
             scanner = os.scandir(directory_descriptor)
@@ -447,6 +526,7 @@ def build_deployment_plan(
         )
         policy = policy_snapshot.policy
         exclusions = frozenset(policy.exclude)
+        exclusion_index = _ExclusionIndex(exclusions)
         policy_source = root / POLICY_FILENAME
         register_destination(POLICY_FILENAME, policy_source)
         entries.append(
@@ -936,39 +1016,39 @@ def _updated_policy_content(snapshot: _PolicySnapshot, digest: str) -> bytes:
         text = snapshot.content.decode("utf-8")
     except UnicodeDecodeError as error:
         raise DeploymentPolicyError("Deployment policy is not valid UTF-8.") from error
-    assignment = re.compile(
-        r"""(?mx)
-        ^
-        (?P<prefix>
-            [ \t]*
-            (?:"legacy_diff_acknowledgement"|legacy_diff_acknowledgement)
-            [ \t]*=[ \t]*
+    assignment = _find_policy_assignment(text, "legacy_diff_acknowledgement")
+    if assignment is not None:
+        value = re.match(
+            r""""(?:\\.|[^"\\\r\n])*"|'[^'\r\n]*'""",
+            text[assignment.end() :],
         )
-        (?P<value>"(?:\\.|[^"\r\n])*"|'[^'\r\n]*')
-        """
-    )
-    replacement = rf'\g<prefix>"{digest}"'
-    updated, replacements = assignment.subn(replacement, text, count=1)
-    if not replacements:
-        if snapshot.policy.legacy_diff_acknowledgement is not None:
+        if value is None:
             raise DeploymentPolicyError(
                 "Cannot safely update the existing multiline "
                 "legacy_diff_acknowledgement assignment."
             )
+        value_start = assignment.end()
+        value_stop = value_start + value.end()
+        updated = text[:value_start] + f'"{digest}"' + text[value_stop:]
+    else:
+        if snapshot.policy.legacy_diff_acknowledgement is not None:
+            raise DeploymentPolicyError(
+                "Cannot safely locate the existing "
+                "legacy_diff_acknowledgement assignment."
+            )
         newline = "\r\n" if "\r\n" in text else "\n"
-        version_assignment = re.compile(
-            r'(?m)^[ \t]*(?:"version"|version)[ \t]*=[^\r\n]*(?:\r?\n|$)'
-        )
-        match = version_assignment.search(text)
+        match = _find_policy_assignment(text, "version")
         if match is None:
             raise DeploymentPolicyError(
                 "Cannot safely locate the deployment policy version assignment."
             )
-        version_line = match.group(0)
+        line_stop = text.find("\n", match.end())
+        line_stop = len(text) if line_stop < 0 else line_stop + 1
+        version_line = text[match.start() : line_stop]
         if not version_line.endswith(("\n", "\r")):
             version_line += newline
         insertion = version_line + f'legacy_diff_acknowledgement = "{digest}"' + newline
-        updated = text[: match.start()] + insertion + text[match.end() :]
+        updated = text[: match.start()] + insertion + text[line_stop:]
 
     try:
         _parse_policy(tomllib.loads(updated))
@@ -977,6 +1057,22 @@ def _updated_policy_content(snapshot: _PolicySnapshot, digest: str) -> bytes:
             f"Cannot safely update deployment policy TOML: {error}"
         ) from error
     return updated.encode("utf-8")
+
+
+def _find_policy_assignment(text: str, expected_key: str) -> re.Match | None:
+    """Locate a top-level assignment by decoding its TOML key token."""
+    key_token = r"""[A-Za-z0-9_-]+|'[^'\r\n]*'|"(?:\\.|[^"\\\r\n])*" """
+    assignment = re.compile(
+        rf"(?mx)^(?P<prefix>[ \t]*(?P<key>{key_token})[ \t]*=[ \t]*)"
+    )
+    for match in assignment.finditer(text):
+        try:
+            parsed = tomllib.loads(f"{match.group('key')} = 0")
+        except tomllib.TOMLDecodeError:
+            continue
+        if list(parsed) == [expected_key]:
+            return match
+    return None
 
 
 def _require_expected_policy_snapshot(
@@ -1201,7 +1297,9 @@ def _validate_policy_path(value: str) -> str:
 def _normalize_source_component(name: str, source: Path) -> str:
     """Normalize one filesystem name for use as a POSIX destination component."""
     return _normalize_portable_component(
-        name, context=f"deployment source {source}", error_type=DeploymentPlanError
+        name,
+        context=f"deployment source {os.fspath(source)!r}",
+        error_type=DeploymentPlanError,
     )
 
 
@@ -1221,8 +1319,11 @@ def _normalize_portable_component(
         raise error_type(
             f"Path component is not valid Unicode in {context}."
         ) from error
-    if any(unicodedata.category(character) in {"Cc", "Cs"} for character in normalized):
-        raise error_type(f"Control characters are unsupported in {context}.")
+    if any(
+        unicodedata.category(character) in {"Cc", "Cf", "Cs"}
+        for character in normalized
+    ):
+        raise error_type(f"Control and format characters are unsupported in {context}.")
     forbidden = _WINDOWS_FORBIDDEN_CHARACTERS.intersection(normalized)
     if forbidden:
         characters = "".join(sorted(forbidden))
@@ -1252,16 +1353,10 @@ def _is_excluded(
 
 
 def _has_exclusion_at_or_below(
-    destination_parts: tuple[str, ...], exclusions: AbstractSet[str]
+    destination_parts: tuple[str, ...], exclusions: _ExclusionIndex
 ) -> bool:
     """Return whether a literal exclusion is this directory or a descendant."""
-    if not destination_parts:
-        return bool(exclusions)
-    destination = "/".join(destination_parts)
-    prefix = destination + "/"
-    return destination in exclusions or any(
-        exclusion.startswith(prefix) for exclusion in exclusions
-    )
+    return exclusions.has_at_or_below(destination_parts)
 
 
 def _reserved_kind(destination_parts: tuple[str, ...]) -> str | None:
@@ -1398,7 +1493,12 @@ def _read_policy_snapshot(
         os.close(descriptor)
 
     try:
-        raw_policy = tomllib.loads(content.decode("utf-8"))
+        policy_text = content.decode("utf-8")
+        if '"""' in policy_text or "'''" in policy_text:
+            raise DeploymentPolicyError(
+                "Multiline TOML strings are unsupported in deployment policies."
+            )
+        raw_policy = tomllib.loads(policy_text)
     except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
         raise DeploymentPolicyError(
             f"Invalid TOML in deployment policy {source}: {error}"

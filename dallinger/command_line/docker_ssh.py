@@ -48,6 +48,7 @@ from dallinger.utils import (
     GREEN,
     JSON_LOGFILE,
     RED,
+    ExperimentFileSource,
     abspath_from_egg,
     print_bold,
 )
@@ -492,6 +493,8 @@ def build_and_push_image(f):
 
     @wraps(f)
     def wrapper(*args, **kwargs):  # pragma: no cover
+        experiment_file_source = ExperimentFileSource(os.getcwd())
+
         import docker
 
         from dallinger.command_line.docker import push
@@ -571,6 +574,7 @@ def build_and_push_image(f):
                 exp_config=config.as_dict(),
                 local_checks=False,
                 app=app_name,
+                experiment_file_source=experiment_file_source,
             )
             image_name = build_image(
                 tmp_dir, config.get("docker_image_base_name"), out=Output()

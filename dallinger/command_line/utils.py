@@ -169,13 +169,17 @@ def verify_package(
 ):
     """Perform a series of checks on the current directory to verify that
     it's a valid Dallinger experiment.
+
+    A command can pass one ``ExperimentFileSource`` here and to
+    ``setup_experiment`` so verification and assembly share one frozen plan.
     """
+    file_source = experiment_file_source or ExperimentFileSource(os.getcwd())
     return all(
         (
-            verify_directory(verbose, experiment_file_source),
+            verify_directory(verbose, file_source),
             verify_python_version(verbose),
             (
-                verify_experiment_module(verbose, experiment_file_source)
+                verify_experiment_module(verbose, file_source)
                 if verify_experiment
                 else True
             ),

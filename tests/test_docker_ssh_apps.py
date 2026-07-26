@@ -1,4 +1,5 @@
 import importlib
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -127,3 +128,131 @@ def test_apps_outputs_table_when_all_inactive(monkeypatch, capsys):
     assert any("alpha" in line and "inactive" in line for line in output_lines)
     assert any("beta" in line and "inactive" in line for line in output_lines)
     assert "\x1b[" not in "\n".join(output_lines)
+
+
+def test_invalid_policy_stops_before_docker_ssh_external_side_effects(
+    tmp_path, monkeypatch
+):
+    from dallinger.deployment_plan import DeploymentPolicyError
+
+    (tmp_path / "deploy.toml").write_text("version = 999\nexclude = []\n")
+    monkeypatch.chdir(tmp_path)
+    wrapped_command = mock.Mock()
+    wrapper = docker_ssh_module.build_and_push_image(wrapped_command)
+
+    with (
+        mock.patch.object(docker_ssh_module, "ensure_root_domain_ready") as root_ready,
+        mock.patch.object(docker_ssh_module, "_discover_server_apps") as discover,
+        mock.patch.object(docker_ssh_module.destroy, "callback") as destroy,
+        mock.patch.object(docker_ssh_module, "setup_experiment") as setup,
+        mock.patch.object(docker_ssh_module, "get_config") as get_config,
+        mock.patch.object(
+            docker_ssh_module, "ensure_remote_host_in_known_hosts"
+        ) as known_hosts,
+        mock.patch("docker.from_env") as docker_from_env,
+        mock.patch("dallinger.docker.tools.build_image") as build_image,
+        mock.patch("dallinger.command_line.docker.push.callback") as registry_push,
+        pytest.raises(DeploymentPolicyError, match="version"),
+    ):
+        wrapper(
+            server="test-server",
+            app_name=None,
+            archive_path=None,
+            update=False,
+            local_build=False,
+            push_build=False,
+        )
+
+    root_ready.assert_not_called()
+    discover.assert_not_called()
+    destroy.assert_not_called()
+    setup.assert_not_called()
+    get_config.assert_not_called()
+    known_hosts.assert_not_called()
+    docker_from_env.assert_not_called()
+    build_image.assert_not_called()
+    registry_push.assert_not_called()
+    wrapped_command.assert_not_called()
+
+
+def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
+    tmp_path, monkeypatch
+):
+    events = []
+    source = mock.Mock(deployment_plan=object())
+    executor = mock.Mock()
+    config = mock.Mock()
+    config.get.side_effect = lambda key, default=None: {
+        "docker_image_name": None,
+        "docker_image_base_name": "base-image",
+    }.get(key, default)
+    config.as_dict.return_value = {"example": "value"}
+    docker_client = mock.Mock()
+    wrapped_command = mock.Mock(return_value="deployed")
+    wrapper = docker_ssh_module.build_and_push_image(wrapped_command)
+
+    def make_source(root):
+        events.append("validate-policy")
+        assert Path(root) == tmp_path
+        return source
+
+    def discover_apps(remote_executor):
+        events.append("remote-discovery")
+        return ["old-app"] if events.count("remote-discovery") == 1 else []
+
+    def destroy_app(**kwargs):
+        events.append("destroy-app")
+
+    def setup(*args, **kwargs):
+        events.append("assemble")
+        assert kwargs["experiment_file_source"] is source
+        return "experiment-id", tmp_path / "assembly"
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"test-server": {"host": "host"}}
+    )
+    with (
+        mock.patch.object(
+            docker_ssh_module,
+            "ExperimentFileSource",
+            side_effect=make_source,
+        ),
+        mock.patch.object(docker_ssh_module, "get_config", return_value=config),
+        mock.patch.object(
+            docker_ssh_module, "_executor_for_server", return_value=executor
+        ),
+        mock.patch.object(
+            docker_ssh_module,
+            "_discover_server_apps",
+            side_effect=discover_apps,
+        ),
+        mock.patch.object(docker_ssh_module.click, "confirm", return_value=True),
+        mock.patch.object(
+            docker_ssh_module.destroy,
+            "callback",
+            side_effect=destroy_app,
+        ),
+        mock.patch.object(docker_ssh_module, "setup_experiment", side_effect=setup),
+        mock.patch.object(docker_ssh_module, "ensure_remote_host_in_known_hosts"),
+        mock.patch.object(docker_ssh_module, "add_server_pem_to_ssh_agent"),
+        mock.patch("docker.from_env", return_value=docker_client),
+        mock.patch("dallinger.docker.tools.build_image", return_value="built:image"),
+    ):
+        result = wrapper(
+            server="test-server",
+            app_name=None,
+            archive_path=None,
+            update=False,
+            local_build=False,
+            push_build=False,
+        )
+
+    assert result == "deployed"
+    assert events == [
+        "validate-policy",
+        "remote-discovery",
+        "destroy-app",
+        "remote-discovery",
+        "assemble",
+    ]

@@ -86,6 +86,19 @@ def test_list_is_deterministic_and_supports_json(tmp_path):
     assert "root" not in payload
 
 
+@pytest.mark.parametrize("args", [["list"], ["list", "--json"]])
+def test_list_rejects_format_controls_with_unspoofable_diagnostics(tmp_path, args):
+    _write_policy(tmp_path)
+    unsafe_name = "report\u202egnp.exe"
+    (tmp_path / unsafe_name).write_text("content")
+
+    result = _invoke(tmp_path, args)
+
+    assert result.exit_code != 0
+    assert "\u202e" not in result.output
+    assert "\\u202e" in result.output
+
+
 def test_check_reports_included_excluded_and_json_without_contents(tmp_path):
     _init_git(tmp_path)
     _write_policy(tmp_path, exclude=["excluded.txt"])
