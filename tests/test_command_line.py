@@ -2,6 +2,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from time import sleep
 from unittest import mock
@@ -300,7 +301,7 @@ class TestDevelopCommand:
             compare_legacy_deployment_selection,
         )
 
-        experiment_root = tmp_path / "experiment"
+        experiment_root = tmp_path / "policy_experiment"
         shutil.copytree(Path.cwd(), experiment_root)
         (experiment_root / ".gitignore").write_text("ignored.txt\n")
         (experiment_root / "ignored.txt").write_text("included")
@@ -317,6 +318,11 @@ class TestDevelopCommand:
         monkeypatch.chdir(experiment_root)
         develop_directory = active_config.get("dallinger_develop_directory")
         dallinger.config.config = None
+        for name in list(sys.modules):
+            if name == "dallinger_experiment" or name.startswith(
+                "dallinger_experiment."
+            ):
+                del sys.modules[name]
         dallinger.config.get_config(load=True).extend(
             {"dallinger_develop_directory": develop_directory}
         )
