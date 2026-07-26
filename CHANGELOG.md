@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added the version 1 literal `deploy.toml` parser and deterministic
+  experiment-root deployment plan model.
+
 ### Updated
 
 - Updated Python dependencies
