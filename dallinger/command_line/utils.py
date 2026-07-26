@@ -162,7 +162,7 @@ def require_exp_directory(f):
     return wrapper
 
 
-def verify_package(verbose=True):
+def verify_package(verbose=True, copy_experiment=True):
     """Perform a series of checks on the current directory to verify that
     it's a valid Dallinger experiment.
     """
@@ -170,21 +170,11 @@ def verify_package(verbose=True):
         (
             verify_directory(verbose),
             verify_python_version(verbose),
-            verify_experiment_module(verbose),
+            verify_experiment_module(
+                verbose,
+                copy_experiment=copy_experiment,
+            ),
             verify_config(verbose),
-            verify_no_conflicts(verbose),
-        )
-    )
-
-
-def verify_development_directory(verbose=True):
-    """Verify a working tree before staging it for local development."""
-    return all(
-        (
-            verify_directory(verbose),
-            verify_python_version(verbose),
-            verify_config(verbose),
-            verify_experiment_module(verbose, copy_experiment=False),
             verify_no_conflicts(verbose),
         )
     )

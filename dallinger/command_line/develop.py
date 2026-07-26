@@ -56,9 +56,12 @@ def develop():
     help="Skip launching Flask, so that Flask can be managed externally",
 )
 def debug(port, skip_flask):
-    from dallinger.command_line.utils import verify_development_directory
+    from dallinger.command_line.utils import verify_package
 
-    if not verify_development_directory():
+    # Verify the working tree directly so large experiments are not copied
+    # before development staging. Flask subsequently imports the staged tree;
+    # `dallinger verify` retains strict copied-package verification.
+    if not verify_package(copy_experiment=False):
         # We could instead use the @require_exp_directory decorator,
         # but this doesn't print anything useful without the verbose flag.
         # To consider for later: improving this default behavior of @require_exp_directory?
