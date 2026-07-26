@@ -9,17 +9,16 @@ import pytest
 
 import dallinger.deployment_plan as deployment_plan
 from dallinger.deployment_plan import (
-    DeploymentCompatibilityError,
     DeploymentMembership,
     DeploymentPlanError,
     DeploymentPolicyError,
     _ExclusionIndex,
     _is_excluded,
-    acknowledge_legacy_deployment_comparison,
     build_deployment_plan,
     compare_legacy_deployment_selection,
     compute_legacy_compatibility_digest,
     parse_deployment_policy,
+    validate_explicit_provider_destination,
 )
 
 SAFE_DESCRIPTOR_PLATFORM = (
@@ -70,6 +69,16 @@ def test_parse_valid_policy_normalizes_and_sorts_exclusions(tmp_path):
     assert policy.legacy_diff_acknowledgement == acknowledgement.lower()
 
 
+def test_parse_validates_multiline_acknowledgement_value(tmp_path):
+    digest = "sha256:" + "a1" * 32
+    path = tmp_path / "deploy.toml"
+    path.write_text(
+        f'version = 1\nlegacy_diff_acknowledgement = """{digest}"""\nexclude = []\n'
+    )
+
+    assert parse_deployment_policy(path).legacy_diff_acknowledgement == digest
+
+
 @pytest.mark.parametrize(
     "contents, message",
     [
@@ -95,10 +104,6 @@ def test_parse_valid_policy_normalizes_and_sorts_exclusions(tmp_path):
         (
             f'version = 1\nexclude = []\nlegacy_diff_acknowledgement = "md5:{"a" * 64}"\n',
             "64 hexadecimal",
-        ),
-        (
-            f'version = 1\nexclude = []\nlegacy_diff_acknowledgement = """sha256:{"a" * 64}"""\n',
-            "Multiline TOML strings",
         ),
     ],
 )
@@ -181,6 +186,38 @@ def test_parse_rejects_normalized_and_portable_duplicates(tmp_path, exclusions):
 def test_parse_rejects_excluding_required_or_reserved_paths(tmp_path, reserved):
     with pytest.raises(DeploymentPolicyError, match="required or reserved"):
         parse_deployment_policy(write_policy(tmp_path, [reserved]))
+
+
+@pytest.mark.parametrize(
+    "destination",
+    [
+        ".git/config",
+        "vendor/.GIT/config",
+        ".dockerignore/child",
+        "nested/.DOCKERIGNORE/child",
+        "Dockerfile.dockerignore/child",
+        "nested/Dockerfile.DOCKERIGNORE/child",
+        ".slugignore/child",
+        "nested/.SLUGIGNORE/child",
+        "deploy.toml/child",
+        "DEPLOY.TOML/child",
+        "config.txt/child",
+        "CONFIG.TXT/child",
+        "runtime.txt/child",
+        "RUNTIME.TXT/child",
+    ],
+)
+def test_explicit_provider_rejects_reserved_destination_prefixes(destination):
+    with pytest.raises(DeploymentPlanError, match="reserved"):
+        validate_explicit_provider_destination(destination)
+
+
+def test_explicit_provider_allows_nested_config_and_normalizes_nfc():
+    destination = "nested/CONFIG.TXT/cafe\u0301.txt"
+
+    assert validate_explicit_provider_destination(destination) == (
+        "nested/CONFIG.TXT/café.txt"
+    )
 
 
 def test_parse_rejects_symlinked_policy(tmp_path):
@@ -667,12 +704,6 @@ def test_reserved_backend_controls_do_not_create_portable_collision(tmp_path):
     assert plan.destinations == {"deploy.toml"}
 
 
-def _comparison_for_acknowledgement(root: Path):
-    write_policy(root)
-    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-    return compare_legacy_deployment_selection(build_deployment_plan(root))
-
-
 @pytest.mark.parametrize(
     "key",
     [
@@ -680,94 +711,12 @@ def _comparison_for_acknowledgement(root: Path):
         r'"legacy_diff_acknowledge\u006dent"',
     ],
 )
-def test_acknowledgement_updates_all_supported_quoted_key_syntaxes(tmp_path, key):
-    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-    initial = _comparison_for_acknowledgement(tmp_path)
-    uppercase_digest = (
-        "sha256:" + initial.compatibility_digest.removeprefix("sha256:").upper()
-    )
+def test_parse_acknowledgement_supports_quoted_key_syntaxes(tmp_path, key):
+    uppercase_digest = "sha256:" + "AB" * 32
     policy_path = tmp_path / "deploy.toml"
     policy_path.write_text(f"version = 1\n{key} = '{uppercase_digest}'\nexclude = []\n")
-    comparison = compare_legacy_deployment_selection(build_deployment_plan(tmp_path))
 
-    assert comparison.configured_acknowledgement == initial.compatibility_digest
-    assert comparison.acknowledgement_matches
-
-    acknowledge_legacy_deployment_comparison(comparison)
-
-    updated = policy_path.read_text()
-    assert f'{key} = "{initial.compatibility_digest}"' in updated
-    assert parse_deployment_policy(policy_path).legacy_diff_acknowledgement == (
-        initial.compatibility_digest
+    assert (
+        parse_deployment_policy(policy_path).legacy_diff_acknowledgement
+        == uppercase_digest.lower()
     )
-
-
-def test_acknowledgement_rejects_stale_policy(tmp_path):
-    comparison = _comparison_for_acknowledgement(tmp_path)
-    policy_path = tmp_path / "deploy.toml"
-    policy_path.write_text(policy_path.read_text() + "# changed\n")
-    changed = policy_path.read_bytes()
-
-    with pytest.raises(DeploymentCompatibilityError, match="changed since"):
-        acknowledge_legacy_deployment_comparison(comparison)
-
-    assert policy_path.read_bytes() == changed
-    assert not list(tmp_path.glob(".deploy.toml.tmp-*"))
-
-
-def test_acknowledgement_detects_race_before_atomic_replace(tmp_path, monkeypatch):
-    comparison = _comparison_for_acknowledgement(tmp_path)
-    policy_path = tmp_path / "deploy.toml"
-    original_writer = deployment_plan._write_policy_temporary_file
-
-    def write_temporary_then_race(*args, **kwargs):
-        temporary_name = original_writer(*args, **kwargs)
-        policy_path.write_text(policy_path.read_text() + "# raced\n")
-        return temporary_name
-
-    monkeypatch.setattr(
-        deployment_plan,
-        "_write_policy_temporary_file",
-        write_temporary_then_race,
-    )
-
-    with pytest.raises(DeploymentCompatibilityError, match="changed since"):
-        acknowledge_legacy_deployment_comparison(comparison)
-
-    assert "# raced" in policy_path.read_text()
-    assert "legacy_diff_acknowledgement" not in policy_path.read_text()
-    assert not list(tmp_path.glob(".deploy.toml.tmp-*"))
-
-
-def test_acknowledgement_rejects_replacement_policy_symlink(tmp_path):
-    comparison = _comparison_for_acknowledgement(tmp_path)
-    policy_path = tmp_path / "deploy.toml"
-    target = tmp_path / "target.toml"
-    target.write_text(policy_path.read_text())
-    target_before = target.read_bytes()
-    policy_path.unlink()
-    policy_path.symlink_to(target)
-
-    with pytest.raises(DeploymentPolicyError, match="symbolic link"):
-        acknowledge_legacy_deployment_comparison(comparison)
-
-    assert policy_path.is_symlink()
-    assert target.read_bytes() == target_before
-    assert not list(tmp_path.glob(".deploy.toml.tmp-*"))
-
-
-def test_acknowledgement_replace_failure_is_atomic(tmp_path, monkeypatch):
-    comparison = _comparison_for_acknowledgement(tmp_path)
-    policy_path = tmp_path / "deploy.toml"
-    original = policy_path.read_bytes()
-
-    def fail_replace(*args, **kwargs):
-        raise OSError("injected replace failure")
-
-    monkeypatch.setattr(deployment_plan.os, "replace", fail_replace)
-
-    with pytest.raises(DeploymentPolicyError, match="atomically update"):
-        acknowledge_legacy_deployment_comparison(comparison)
-
-    assert policy_path.read_bytes() == original
-    assert not list(tmp_path.glob(".deploy.toml.tmp-*"))

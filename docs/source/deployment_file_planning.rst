@@ -69,8 +69,9 @@ collation precomputes the later provider mappings once and protects their
 destinations and ancestors when choosing bulk directory links; colliding
 branches fall back to validated per-file links. Explicit providers are
 validated before staging and cannot target backend ignore controls, raw root
-configuration, policy/VCS paths, or generated root outputs. Full provider
-collision validation and dedicated backend materializers remain deferred.
+configuration, policy/VCS paths, generated root outputs, or any descendants of
+those reserved prefixes. Full provider collision validation and dedicated
+backend materializers remain deferred.
 Source ``config.txt``, ``.dockerignore`` variants, and ``.slugignore`` remain
 omitted by the experiment-root plan; generated filtered configuration and
 framework/backend outputs continue to be added by existing collation code.
@@ -269,11 +270,9 @@ The initial format deliberately rejects:
 
 Unknown keys and unknown schema versions fail. During the compatibility
 release, ``legacy_diff_acknowledgement`` is the only optional migration key.
-Accepted acknowledgement hex is normalized to lowercase. TOML bare, basic
-quoted, and literal quoted key names are supported; multiline TOML strings are
-rejected so the atomic acknowledgement updater can locate assignments without
-ambiguous lexical context. The acknowledgement key is removed from the schema
-when legacy selection is removed.
+The parser validates its SHA-256 form and normalizes accepted hex to lowercase.
+The acknowledgement key is removed from the schema when legacy selection is
+removed.
 ``deploy.toml`` is included in the deployment artifact and cannot exclude
 itself.
 
@@ -566,12 +565,10 @@ Click's text error format.
 selection with Git explicitly bound to the experiment root, then displays
 newly included and newly excluded path/type memberships. Git command failure is
 an inspection error rather than an empty selection. The command exits nonzero
-when any membership difference has not been acknowledged. ``--acknowledge``
-updates only ``legacy_diff_acknowledgement`` after displaying the comparison,
-and ``--json`` provides structured output. The update requires the exact
-policy identity and content digest used by the comparison, writes and syncs a
-same-directory regular temporary file, rechecks the source snapshot, and uses
-an atomic replacement. Stale comparisons and replacement policy symlinks fail.
+when any membership difference has not been acknowledged. It never modifies
+``deploy.toml``. Human output prints the exact
+``legacy_diff_acknowledgement = "sha256:..."`` line to add or update manually;
+``--json`` reports the required digest, configured value, and match state.
 Diagnostics list paths and types, never file contents.
 
 Source ``.dockerignore``, Dockerfile-specific ``*.dockerignore``, and
@@ -594,9 +591,9 @@ root-literal semantics, not the legacy recursive basename semantics.
 ``included`` or ``excluded`` plus each normalized destination path and file
 type. The digest is domain/version separated. A zero-difference comparison has
 a stable digest but requires no acknowledgement. Its
-``--acknowledge`` mode writes that digest to
-``legacy_diff_acknowledgement`` in ``deploy.toml``. Verification and
-materialization refuse a missing or mismatched required acknowledgement.
+reviewed value is manually written to ``legacy_diff_acknowledgement`` in
+``deploy.toml``. Verification and materialization refuse a missing or
+mismatched required acknowledgement.
 Adding, removing, or changing the type of either included or excluded
 membership invalidates the acknowledgement and requires another migration
 review. Excluding a tracked ordinary input is therefore incompatible until
@@ -606,7 +603,9 @@ policy use, not only acknowledgement.
 
 The initializer cannot translate arbitrary Git-ignore patterns into literals.
 It warns that translation was not attempted and suggests reorganizing files
-into excluded directories or listing exact paths.
+into excluded directories or listing exact paths. The experimenter then runs
+``deployment-files check``, manually adds or updates the printed digest, and
+commits the reviewed ``deploy.toml``.
 
 PsyNet adoption
 ^^^^^^^^^^^^^^^

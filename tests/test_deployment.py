@@ -1154,6 +1154,59 @@ def test_explicit_provider_rejects_reserved_destinations_before_materialization(
     assert not destination.exists()
 
 
+def test_explicit_directory_provider_rejects_reserved_case_alias_prefix(
+    tmp_path, monkeypatch
+):
+    from dallinger.deployment_plan import DeploymentPlanError
+    from dallinger.utils import (
+        DallingerFileSource,
+        collate_experiment_files,
+        copy_file,
+    )
+
+    provider_directory = tmp_path / "provider"
+    provider_directory.mkdir()
+    (provider_directory / "child.txt").write_text("provider")
+
+    class ExperimentWithDirectoryProvider:
+        @classmethod
+        def extra_files(cls):
+            return [(provider_directory, ".DoCkErIgNoRe")]
+
+    def initialize_provider_package(path):
+        package = mock.Mock()
+        monkeypatch.setitem(sys.modules, "dallinger_experiment", package)
+        monkeypatch.setitem(sys.modules, os.path.basename(path), package)
+
+    destination = tmp_path / "assembly"
+    experiment_source = mock.Mock(deployment_plan=object())
+    monkeypatch.setattr(
+        "dallinger.config.initialize_experiment_package",
+        initialize_provider_package,
+    )
+    monkeypatch.setattr(
+        "dallinger.experiment.load",
+        lambda: ExperimentWithDirectoryProvider,
+    )
+    monkeypatch.setattr(
+        DallingerFileSource,
+        "map_locations_to",
+        lambda self, root: iter(()),
+    )
+
+    with pytest.raises(DeploymentPlanError, match="reserved"):
+        collate_experiment_files(
+            config=mock.Mock(),
+            experiment_path=tmp_path,
+            destination=destination,
+            copy_func=copy_file,
+            experiment_file_source=experiment_source,
+        )
+
+    experiment_source.apply_to.assert_not_called()
+    assert not destination.exists()
+
+
 @pytest.mark.usefixtures("bartlett_dir", "active_config", "reset_sys_modules")
 class TestSetupExperiment:
     @pytest.fixture

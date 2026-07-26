@@ -10,14 +10,12 @@ import click
 
 from dallinger.deployment_plan import (
     POLICY_FILENAME,
-    DeploymentCompatibilityError,
     DeploymentMembership,
     DeploymentPlan,
     DeploymentPlanError,
     DeploymentPolicyError,
     LegacyDeploymentComparison,
     LegacySelectionError,
-    acknowledge_legacy_deployment_comparison,
     build_deployment_plan,
     compare_legacy_deployment_selection,
 )
@@ -41,7 +39,7 @@ _STARTER_POLICY = """\
 # prefixes; Git globs and negation rules are not supported.
 version = 1
 
-# The migration checker adds legacy_diff_acknowledgement after path review.
+# Add legacy_diff_acknowledgement manually after reviewing `check` output.
 exclude = [
 {exclusions}
 ]
@@ -84,13 +82,8 @@ def list_deployment_files(json_output: bool) -> None:
 
 
 @deployment_files.command("check")
-@click.option(
-    "--acknowledge",
-    is_flag=True,
-    help="Record the reviewed compatibility-difference digest in deploy.toml.",
-)
 @click.option("--json", "json_output", is_flag=True, help="Emit JSON output.")
-def check_deployment_files(acknowledge: bool, json_output: bool) -> None:
+def check_deployment_files(json_output: bool) -> None:
     """Compare target deployment files with legacy Git-based selection."""
     root = Path.cwd()
     plan = _build_plan_or_fail(root)
@@ -101,22 +94,11 @@ def check_deployment_files(acknowledge: bool, json_output: bool) -> None:
 
     if json_output:
         payload = _comparison_payload(comparison)
-        payload["acknowledgement_updated"] = acknowledge
-        if acknowledge:
-            _acknowledge_or_fail(comparison)
-            payload["acknowledgement"]["configured"] = comparison.compatibility_digest
-            payload["acknowledgement"]["matches"] = True
         click.echo(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     else:
         _display_comparison(comparison)
-        if acknowledge:
-            _acknowledge_or_fail(comparison)
-            click.echo(
-                "Updated legacy_diff_acknowledgement in "
-                f"{POLICY_FILENAME} to {comparison.compatibility_digest}."
-            )
 
-    if not acknowledge and not comparison.is_compatible:
+    if not comparison.is_compatible:
         raise click.exceptions.Exit(1)
 
 
@@ -154,6 +136,10 @@ def init_deployment_files() -> None:
         "excluded directories where needed, edit deploy.toml, then run "
         "`dallinger deployment-files check`."
     )
+    click.echo(
+        "After reviewing the reported differences, manually add or update the "
+        "printed legacy_diff_acknowledgement line and commit deploy.toml."
+    )
 
 
 def _build_plan_or_fail(root: Path) -> DeploymentPlan:
@@ -161,14 +147,6 @@ def _build_plan_or_fail(root: Path) -> DeploymentPlan:
     try:
         return build_deployment_plan(root)
     except (DeploymentPolicyError, DeploymentPlanError) as error:
-        raise click.ClickException(str(error)) from error
-
-
-def _acknowledge_or_fail(comparison: LegacyDeploymentComparison) -> None:
-    """Write the comparison digest and convert policy errors to Click errors."""
-    try:
-        acknowledge_legacy_deployment_comparison(comparison)
-    except (DeploymentPolicyError, DeploymentCompatibilityError) as error:
         raise click.ClickException(str(error)) from error
 
 
@@ -207,6 +185,12 @@ def _display_comparison(comparison: LegacyDeploymentComparison) -> None:
             "selection. Review included and excluded paths; file contents are "
             "not shown."
         )
+    if comparison.requires_acknowledgement and not comparison.acknowledgement_matches:
+        click.echo(
+            "After resolving blockers and reviewing the differences, add or "
+            "update this exact line in deploy.toml:"
+        )
+        click.echo(f'legacy_diff_acknowledgement = "{comparison.compatibility_digest}"')
 
 
 def _display_memberships(
@@ -223,6 +207,7 @@ def _comparison_payload(comparison: LegacyDeploymentComparison) -> dict:
     return {
         "acknowledgement": {
             "configured": comparison.configured_acknowledgement,
+            "digest": comparison.compatibility_digest,
             "matches": comparison.acknowledgement_matches,
             "required": comparison.requires_acknowledgement,
         },
@@ -241,7 +226,6 @@ def _comparison_payload(comparison: LegacyDeploymentComparison) -> dict:
         "newly_included": [
             _membership_payload(membership) for membership in comparison.newly_included
         ],
-        "compatibility_digest": comparison.compatibility_digest,
         "target_count": len(comparison.target),
     }
 

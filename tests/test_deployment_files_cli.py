@@ -121,34 +121,39 @@ def test_check_reports_included_excluded_and_json_without_contents(tmp_path):
     assert payload["newly_excluded"] == [
         {"path": "excluded.txt", "type": "regular-file"}
     ]
-    assert payload["compatibility_digest"].startswith("sha256:")
+    digest = payload["acknowledgement"]["digest"]
+    assert digest.startswith("sha256:")
     assert payload["acknowledgement"] == {
         "configured": None,
+        "digest": digest,
         "matches": False,
         "required": True,
     }
+    assert "compatibility_digest" not in payload
     assert "DO NOT PRINT THIS SECRET" not in result.output
 
 
-def test_acknowledgement_succeeds_preserves_comments_and_invalidates(tmp_path):
+def test_check_prints_manual_acknowledgement_and_detects_invalidation(tmp_path):
     _init_git(tmp_path)
     _write_policy(tmp_path, comments=True)
     _write_files(tmp_path, {".gitignore": "*.secret\n", "first.secret": "first"})
+    policy_path = tmp_path / "deploy.toml"
+    original_policy = policy_path.read_bytes()
 
     missing = _invoke(tmp_path, ["check"])
-    acknowledged = _invoke(tmp_path, ["check", "--acknowledge"])
-    policy_after_acknowledgement = (tmp_path / "deploy.toml").read_text()
+    payload = json.loads(_invoke(tmp_path, ["check", "--json"]).output)
+    digest = payload["acknowledgement"]["digest"]
+
+    assert missing.exit_code == 1
+    assert "Acknowledgement: missing" in missing.output
+    assert f'legacy_diff_acknowledgement = "{digest}"' in missing.output
+    assert policy_path.read_bytes() == original_policy
+
+    _write_policy(tmp_path, acknowledgement=digest, comments=True)
     matching = _invoke(tmp_path, ["check"])
     (tmp_path / "second.secret").write_text("second")
     invalidated = _invoke(tmp_path, ["check"])
 
-    assert missing.exit_code == 1
-    assert "Acknowledgement: missing" in missing.output
-    assert acknowledged.exit_code == 0
-    assert "Updated legacy_diff_acknowledgement" in acknowledged.output
-    assert "# policy heading" in policy_after_acknowledgement
-    assert "version = 1 # schema" in policy_after_acknowledgement
-    assert "exclude = [] # exclusions" in policy_after_acknowledgement
     assert matching.exit_code == 0
     assert "Acknowledgement: matches" in matching.output
     assert invalidated.exit_code == 1
@@ -161,11 +166,11 @@ def test_acknowledgement_covers_exclusion_only_difference(tmp_path):
     required_input.write_text("tracked ordinary input")
     subprocess.run(["git", "add", "required-input.txt"], cwd=tmp_path, check=True)
     _write_policy(tmp_path, exclude=["required-input.txt"])
+    policy_path = tmp_path / "deploy.toml"
+    original_policy = policy_path.read_bytes()
 
     unreviewed = _invoke(tmp_path, ["check", "--json"])
     payload = json.loads(unreviewed.output)
-    acknowledged = _invoke(tmp_path, ["check", "--acknowledge"])
-    reviewed = _invoke(tmp_path, ["check"])
 
     assert unreviewed.exit_code == 1
     assert payload["newly_included"] == []
@@ -173,8 +178,14 @@ def test_acknowledgement_covers_exclusion_only_difference(tmp_path):
         {"path": "required-input.txt", "type": "regular-file"}
     ]
     assert payload["acknowledgement"]["required"] is True
-    assert acknowledged.exit_code == 0
-    assert payload["compatibility_digest"] in (tmp_path / "deploy.toml").read_text()
+    assert policy_path.read_bytes() == original_policy
+
+    _write_policy(
+        tmp_path,
+        exclude=["required-input.txt"],
+        acknowledgement=payload["acknowledgement"]["digest"],
+    )
+    reviewed = _invoke(tmp_path, ["check"])
     assert reviewed.exit_code == 0
     assert "Acknowledgement: matches" in reviewed.output
 
@@ -192,6 +203,8 @@ def test_init_reports_untranslated_rules_and_refuses_overwrite(tmp_path):
     assert "Legacy recursive basename rules were not translated" in created.output
     assert "*.db, *.dmg, data, node_modules" in created.output
     assert "reorganize" in created.output
+    assert "manually add or update" in created.output
+    assert "commit deploy.toml" in created.output
     assert "version = 1" in original.decode()
     assert '"node_modules"' in original.decode()
     assert repeated.exit_code != 0
@@ -206,7 +219,7 @@ def test_init_reports_untranslated_rules_and_refuses_overwrite(tmp_path):
         ("version = 1\nexclude = [\n", "Invalid TOML"),
     ],
 )
-def test_list_and_acknowledge_refuse_missing_or_invalid_policy(
+def test_list_and_check_refuse_missing_or_invalid_policy(
     tmp_path, policy_contents, expected
 ):
     _init_git(tmp_path)
@@ -214,12 +227,12 @@ def test_list_and_acknowledge_refuse_missing_or_invalid_policy(
         (tmp_path / "deploy.toml").write_text(policy_contents)
 
     listed = _invoke(tmp_path, ["list"])
-    acknowledged = _invoke(tmp_path, ["check", "--acknowledge"])
+    checked = _invoke(tmp_path, ["check"])
 
     assert listed.exit_code != 0
     assert expected in listed.output
-    assert acknowledged.exit_code != 0
-    assert expected in acknowledged.output
+    assert checked.exit_code != 0
+    assert expected in checked.output
 
 
 def test_check_distinguishes_git_failure(tmp_path, monkeypatch):
@@ -255,7 +268,7 @@ def test_check_blocks_unresolved_backend_ignore_controls(tmp_path):
     original_policy = (tmp_path / "deploy.toml").read_bytes()
 
     checked = _invoke(tmp_path, ["check", "--json"])
-    acknowledged = _invoke(tmp_path, ["check", "--acknowledge"])
+    human = _invoke(tmp_path, ["check"])
 
     assert checked.exit_code == 1
     payload = json.loads(checked.output)
@@ -268,10 +281,18 @@ def test_check_blocks_unresolved_backend_ignore_controls(tmp_path):
         "status": "unsafe/unresolved",
     }
     assert "DO NOT PRINT" not in checked.output
-    assert acknowledged.exit_code != 0
-    assert "Cannot acknowledge" in acknowledged.output
-    assert "Migrate their filtering into deploy.toml" in acknowledged.output
+    assert human.exit_code != 0
+    assert "Migrate their filtering into deploy.toml" in human.output
     assert (tmp_path / "deploy.toml").read_bytes() == original_policy
+
+
+def test_check_has_no_acknowledge_option(tmp_path):
+    _write_policy(tmp_path)
+
+    result = _invoke(tmp_path, ["check", "--acknowledge"])
+
+    assert result.exit_code == 2
+    assert "No such option '--acknowledge'" in result.output
 
 
 def test_group_is_registered_and_runs_list_on_main_cli(tmp_path):

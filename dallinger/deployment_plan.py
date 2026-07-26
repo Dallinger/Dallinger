@@ -145,8 +145,6 @@ class DeploymentPlan:
     destinations: frozenset[str]
     total_size: int
     manifest_digest: str
-    policy_source_identity: SourceIdentity
-    policy_content_digest: str
     backend_ignore_controls: tuple[str, ...]
     directory_link_candidates: tuple[DeploymentDirectoryLinkCandidate, ...]
 
@@ -173,9 +171,6 @@ class LegacyDeploymentComparison:
     newly_excluded: tuple[DeploymentMembership, ...]
     compatibility_digest: str
     configured_acknowledgement: str | None
-    policy_path: Path
-    policy_source_identity: SourceIdentity
-    policy_content_digest: str
     unresolved_backend_ignore_controls: tuple[str, ...]
 
     @property
@@ -206,7 +201,6 @@ class _PolicySnapshot:
     policy: DeploymentPolicy
     source_identity: SourceIdentity
     content_digest: str
-    content: bytes
 
 
 @dataclass(frozen=True)
@@ -286,7 +280,6 @@ def validate_explicit_provider_destination(
     reserved_kind = _reserved_kind(normalized_parts)
     if (
         reserved_kind is None
-        and len(normalized_parts) == 1
         and normalized_parts[0].casefold() in _GENERATED_ROOT_DESTINATION_NAMES
     ):
         reserved_kind = "generated"
@@ -568,8 +561,6 @@ def build_deployment_plan(
         destinations=destinations,
         total_size=total_size,
         manifest_digest=manifest_digest,
-        policy_source_identity=policy_snapshot.source_identity,
-        policy_content_digest=policy_snapshot.content_digest,
         backend_ignore_controls=tuple(sorted(set(backend_ignore_controls))),
         directory_link_candidates=directory_link_candidates,
     )
@@ -598,9 +589,6 @@ def compare_legacy_deployment_selection(
             newly_excluded=newly_excluded,
         ),
         configured_acknowledgement=plan.policy.legacy_diff_acknowledgement,
-        policy_path=plan.root / POLICY_FILENAME,
-        policy_source_identity=plan.policy_source_identity,
-        policy_content_digest=plan.policy_content_digest,
         unresolved_backend_ignore_controls=plan.backend_ignore_controls,
     )
 
@@ -620,8 +608,8 @@ def require_deployment_compatibility(
         raise DeploymentCompatibilityError(
             "deploy.toml changes file membership relative to legacy selection. "
             "Review newly included and newly excluded paths with `dallinger "
-            "deployment-files check`, then acknowledge the current comparison "
-            "with `dallinger deployment-files check --acknowledge`."
+            "deployment-files check`, then manually set "
+            "legacy_diff_acknowledgement to the compatibility digest it prints."
         )
     return comparison
 
@@ -936,228 +924,6 @@ def compute_legacy_compatibility_digest(
     return f"sha256:{hashlib.sha256(encoded_manifest).hexdigest()}"
 
 
-def acknowledge_legacy_deployment_comparison(
-    comparison: LegacyDeploymentComparison,
-) -> None:
-    """Atomically acknowledge one current, fully resolved migration comparison."""
-    if comparison.has_unresolved_backend_filters:
-        paths = ", ".join(comparison.unresolved_backend_ignore_controls)
-        raise DeploymentCompatibilityError(
-            "Cannot acknowledge while source backend ignore controls remain: "
-            f"{paths}. Migrate their filtering into deploy.toml and remove them."
-        )
-    digest = compute_legacy_compatibility_digest(
-        newly_included=comparison.newly_included,
-        newly_excluded=comparison.newly_excluded,
-    )
-    if digest != comparison.compatibility_digest:
-        raise DeploymentCompatibilityError(
-            "Cannot acknowledge an internally inconsistent migration comparison."
-        )
-    _update_legacy_diff_acknowledgement(
-        comparison.policy_path,
-        digest,
-        comparison.policy_source_identity,
-        comparison.policy_content_digest,
-    )
-
-
-def _update_legacy_diff_acknowledgement(
-    path: Path,
-    digest: str,
-    expected_identity: SourceIdentity,
-    expected_content_digest: str,
-) -> None:
-    """Safely replace a policy only while its compared snapshot is current."""
-    parent_descriptor = _open_directory_path(path.parent, DeploymentPolicyError)
-    temporary_name: str | None = None
-    try:
-        snapshot = _read_policy_snapshot(parent_descriptor, path.name, path)
-        _require_expected_policy_snapshot(
-            snapshot, expected_identity, expected_content_digest
-        )
-        updated = _updated_policy_content(snapshot, digest)
-        temporary_name = _write_policy_temporary_file(
-            parent_descriptor,
-            path.name,
-            updated,
-            snapshot.source_identity.mode,
-        )
-
-        current_snapshot = _read_policy_snapshot(parent_descriptor, path.name, path)
-        _require_expected_policy_snapshot(
-            current_snapshot, expected_identity, expected_content_digest
-        )
-        try:
-            os.replace(
-                temporary_name,
-                path.name,
-                src_dir_fd=parent_descriptor,
-                dst_dir_fd=parent_descriptor,
-            )
-            temporary_name = None
-            os.fsync(parent_descriptor)
-        except OSError as error:
-            raise DeploymentPolicyError(
-                f"Cannot atomically update deployment policy {path}: {error}"
-            ) from error
-    finally:
-        if temporary_name is not None:
-            try:
-                os.unlink(temporary_name, dir_fd=parent_descriptor)
-            except FileNotFoundError:
-                pass
-        os.close(parent_descriptor)
-
-
-def _updated_policy_content(snapshot: _PolicySnapshot, digest: str) -> bytes:
-    """Return policy bytes with only the acknowledgement value changed."""
-    try:
-        text = snapshot.content.decode("utf-8")
-    except UnicodeDecodeError as error:
-        raise DeploymentPolicyError("Deployment policy is not valid UTF-8.") from error
-    assignment = _find_policy_assignment(text, "legacy_diff_acknowledgement")
-    if assignment is not None:
-        value = re.match(
-            r""""(?:\\.|[^"\\\r\n])*"|'[^'\r\n]*'""",
-            text[assignment.end() :],
-        )
-        if value is None:
-            raise DeploymentPolicyError(
-                "Cannot safely update the existing multiline "
-                "legacy_diff_acknowledgement assignment."
-            )
-        value_start = assignment.end()
-        value_stop = value_start + value.end()
-        updated = text[:value_start] + f'"{digest}"' + text[value_stop:]
-    else:
-        if snapshot.policy.legacy_diff_acknowledgement is not None:
-            raise DeploymentPolicyError(
-                "Cannot safely locate the existing "
-                "legacy_diff_acknowledgement assignment."
-            )
-        newline = "\r\n" if "\r\n" in text else "\n"
-        match = _find_policy_assignment(text, "version")
-        if match is None:
-            raise DeploymentPolicyError(
-                "Cannot safely locate the deployment policy version assignment."
-            )
-        line_stop = text.find("\n", match.end())
-        line_stop = len(text) if line_stop < 0 else line_stop + 1
-        version_line = text[match.start() : line_stop]
-        if not version_line.endswith(("\n", "\r")):
-            version_line += newline
-        insertion = version_line + f'legacy_diff_acknowledgement = "{digest}"' + newline
-        updated = text[: match.start()] + insertion + text[line_stop:]
-
-    try:
-        _parse_policy(tomllib.loads(updated))
-    except tomllib.TOMLDecodeError as error:
-        raise DeploymentPolicyError(
-            f"Cannot safely update deployment policy TOML: {error}"
-        ) from error
-    return updated.encode("utf-8")
-
-
-def _find_policy_assignment(text: str, expected_key: str) -> re.Match | None:
-    """Locate a top-level assignment by decoding its TOML key token."""
-    key_token = r"""[A-Za-z0-9_-]+|'[^'\r\n]*'|"(?:\\.|[^"\\\r\n])*" """
-    assignment = re.compile(
-        rf"(?mx)^(?P<prefix>[ \t]*(?P<key>{key_token})[ \t]*=[ \t]*)"
-    )
-    for match in assignment.finditer(text):
-        try:
-            parsed = tomllib.loads(f"{match.group('key')} = 0")
-        except tomllib.TOMLDecodeError:
-            continue
-        if list(parsed) == [expected_key]:
-            return match
-    return None
-
-
-def _require_expected_policy_snapshot(
-    snapshot: _PolicySnapshot,
-    expected_identity: SourceIdentity,
-    expected_content_digest: str,
-) -> None:
-    """Reject a policy snapshot that differs from the compared plan."""
-    if (
-        snapshot.source_identity != expected_identity
-        or snapshot.content_digest != expected_content_digest
-    ):
-        raise DeploymentCompatibilityError(
-            "deploy.toml changed since the migration comparison; rerun "
-            "`dallinger deployment-files check` before acknowledging."
-        )
-
-
-def _write_policy_temporary_file(
-    parent_descriptor: int,
-    policy_name: str,
-    content: bytes,
-    mode: int,
-) -> str:
-    """Create, sync, and close a same-directory regular temporary file."""
-    flags = (
-        os.O_WRONLY
-        | os.O_CREAT
-        | os.O_EXCL
-        | os.O_NOFOLLOW
-        | getattr(os, "O_CLOEXEC", 0)
-    )
-    temporary_name = ""
-    descriptor: int | None = None
-    for _ in range(100):
-        temporary_name = f".{policy_name}.tmp-{secrets.token_hex(12)}"
-        try:
-            descriptor = os.open(
-                temporary_name,
-                flags,
-                0o600,
-                dir_fd=parent_descriptor,
-            )
-            break
-        except FileExistsError:
-            continue
-        except OSError as error:
-            raise DeploymentPolicyError(
-                f"Cannot create temporary deployment policy: {error}"
-            ) from error
-    if descriptor is None:
-        raise DeploymentPolicyError(
-            "Cannot allocate a unique temporary deployment policy."
-        )
-
-    try:
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise DeploymentPolicyError(
-                "Temporary deployment policy is not a regular file."
-            )
-        os.fchmod(descriptor, mode)
-        view = memoryview(content)
-        while view:
-            written = os.write(descriptor, view)
-            if written <= 0:
-                raise OSError("short write while updating deployment policy")
-            view = view[written:]
-        os.fsync(descriptor)
-    except (OSError, DeploymentPolicyError) as error:
-        try:
-            os.close(descriptor)
-        finally:
-            try:
-                os.unlink(temporary_name, dir_fd=parent_descriptor)
-            except FileNotFoundError:
-                pass
-        if isinstance(error, DeploymentPolicyError):
-            raise
-        raise DeploymentPolicyError(
-            f"Cannot write temporary deployment policy: {error}"
-        ) from error
-    os.close(descriptor)
-    return temporary_name
-
-
 class _StrictLegacyGitFiles:
     """Supply ``ExperimentFileSource`` with cwd-independent, fail-closed Git files."""
 
@@ -1360,15 +1126,19 @@ def _has_exclusion_at_or_below(
 
 
 def _reserved_kind(destination_parts: tuple[str, ...]) -> str | None:
-    """Classify non-overridable paths using portable case-insensitive names."""
-    basename = destination_parts[-1].casefold()
-    if len(destination_parts) == 1 and basename == POLICY_FILENAME:
+    """Classify paths at or beneath non-overridable portable prefixes."""
+    portable_parts = tuple(part.casefold() for part in destination_parts)
+    root_name = portable_parts[0]
+    if root_name == POLICY_FILENAME:
         return "policy"
-    if basename in _VCS_METADATA_NAMES:
+    if any(part in _VCS_METADATA_NAMES for part in portable_parts):
         return "vcs"
-    if len(destination_parts) == 1 and basename == "config.txt":
+    if root_name == "config.txt":
         return "configuration"
-    if basename == ".slugignore" or basename.endswith(".dockerignore"):
+    if any(
+        part == ".slugignore" or part.endswith(".dockerignore")
+        for part in portable_parts
+    ):
         return "backend-ignore"
     return None
 
@@ -1494,10 +1264,6 @@ def _read_policy_snapshot(
 
     try:
         policy_text = content.decode("utf-8")
-        if '"""' in policy_text or "'''" in policy_text:
-            raise DeploymentPolicyError(
-                "Multiline TOML strings are unsupported in deployment policies."
-            )
         raw_policy = tomllib.loads(policy_text)
     except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
         raise DeploymentPolicyError(
@@ -1507,7 +1273,6 @@ def _read_policy_snapshot(
         policy=_parse_policy(raw_policy),
         source_identity=identity,
         content_digest=content_digest,
-        content=content,
     )
 
 

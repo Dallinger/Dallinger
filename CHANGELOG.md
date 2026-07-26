@@ -7,10 +7,10 @@
 - Added the version 1 literal `deploy.toml` parser and deterministic
   experiment-root deployment plan model.
 - Added prototype `dallinger deployment-files` commands for listing target
-  plans, checking and acknowledging legacy-selection differences, and creating
-  review-required starter policies. Acknowledgements use stale-snapshot checks
-  and atomic policy replacement, cover both included and excluded membership,
-  and remain blocked by unresolved backend ignore controls.
+  plans, checking legacy-selection differences for manual acknowledgement, and
+  creating review-required starter policies. The read-only checker prints the
+  canonical included/excluded compatibility digest; compatibility remains
+  blocked by unresolved backend ignore controls.
 - Added opt-in `deploy.toml` experiment-file membership to verification,
   development staging, copied Docker/classic staging, and Heroku assembly
   through `ExperimentFileSource`. Policy use requires an acknowledged,
@@ -22,8 +22,8 @@
   failed copied assemblies are removed, explicit providers cannot target
   reserved outputs, portable provider collisions cannot bypass bulk-link
   protection, descendant-exclusion lookup is indexed, Unicode format controls
-  are rejected, migration acknowledgements are canonicalized and safely
-  updated across quoted TOML key syntaxes, and Heroku force-adds only
+  are rejected, migration acknowledgements are canonicalized, and Heroku
+  force-adds only
   policy-backed assemblies. Verification and assembly expose a shared
   command-scoped file-source seam. Experiments without a policy retain legacy
   selection and Git staging behavior.
