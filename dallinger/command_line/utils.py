@@ -162,7 +162,7 @@ def require_exp_directory(f):
     return wrapper
 
 
-def verify_package(verbose=True, copy_experiment=True):
+def verify_package(verbose=True, verify_experiment=True):
     """Perform a series of checks on the current directory to verify that
     it's a valid Dallinger experiment.
     """
@@ -170,10 +170,7 @@ def verify_package(verbose=True, copy_experiment=True):
         (
             verify_directory(verbose),
             verify_python_version(verbose),
-            verify_experiment_module(
-                verbose,
-                copy_experiment=copy_experiment,
-            ),
+            verify_experiment_module(verbose) if verify_experiment else True,
             verify_config(verbose),
             verify_no_conflicts(verbose),
         )
@@ -259,21 +256,17 @@ def _python_versions_consistent(v1, v2):
     return True
 
 
-def verify_experiment_module(verbose, copy_experiment=True):
+def verify_experiment_module(verbose):
     """Perform basic sanity checks on experiment.py."""
     ok = True
     if not os.path.exists("experiment.py"):
         return False
 
-    if copy_experiment:
-        # Bootstrap a package in a temp directory and make it importable.
-        temp_package_name = "TEMP_VERIFICATION_PACKAGE"
-        tmp = tempfile.mkdtemp()
-        clone_dir = os.path.join(tmp, temp_package_name)
-        ExperimentFileSource(os.getcwd()).apply_to(clone_dir)
-    else:
-        temp_package_name = None
-        clone_dir = os.getcwd()
+    # Bootstrap a package in a temp directory and make it importable.
+    temp_package_name = "TEMP_VERIFICATION_PACKAGE"
+    tmp = tempfile.mkdtemp()
+    clone_dir = os.path.join(tmp, temp_package_name)
+    ExperimentFileSource(os.getcwd()).apply_to(clone_dir)
 
     initialize_experiment_package(clone_dir)
     from dallinger_experiment import experiment
@@ -285,9 +278,8 @@ def verify_experiment_module(verbose, copy_experiment=True):
     classes = inspect.getmembers(experiment, inspect.isclass)
     exps = [c for c in classes if (c[1].__bases__[0].__name__ in "Experiment")]
 
-    if temp_package_name is not None:
-        for entry in [k for k in sys.modules if temp_package_name in k]:
-            del sys.modules[entry]
+    for entry in [k for k in sys.modules if temp_package_name in k]:
+        del sys.modules[entry]
 
     # Run checks:
     if len(exps) == 0:
