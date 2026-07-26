@@ -424,8 +424,50 @@ In the first minor release:
   selection;
 * ``dallinger deployment-files list`` displays the target plan;
 * ``dallinger deployment-files check`` compares legacy and target plans; and
-* ``dallinger deployment-files init`` creates a conservative draft requiring
+* ``dallinger deployment-files init`` creates a review-required draft requiring
   review.
+
+Prototype inspection commands
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The compatibility prototype implements these commands for inspection only; it
+does not yet change verification, debug staging, Docker contexts, or Heroku
+assembly.
+
+``deployment-files list`` requires a valid ``deploy.toml`` and prints target
+destinations in deterministic order followed by the file count, total size,
+and target manifest digest. ``--json`` emits the same information as a
+machine-readable object without the absolute experiment root. For this
+prototype, successful JSON output is structured but command errors retain
+Click's text error format.
+
+``deployment-files check`` evaluates the current ``ExperimentFileSource``
+selection with Git explicitly bound to the experiment root, then displays
+newly included and newly excluded path/type memberships. Git command failure is
+an inspection error rather than an empty selection. The command exits nonzero
+when newly included membership has not been acknowledged. ``--acknowledge``
+updates only ``legacy_diff_acknowledgement`` after displaying the comparison,
+and ``--json`` provides structured output. The update requires the exact
+policy identity and content digest used by the comparison, writes and syncs a
+same-directory regular temporary file, rechecks the source snapshot, and uses
+an atomic replacement. Stale comparisons and replacement policy symlinks fail.
+Diagnostics list paths and types, never file contents.
+
+Source ``.dockerignore``, Dockerfile-specific ``*.dockerignore``, and
+``.slugignore`` files make backend filtering unresolved because their effects
+are not part of the legacy-versus-target membership comparison. The checker
+lists their exact paths and exits nonzero. Acknowledgement is refused until
+their rules are migrated into ``deploy.toml`` and the backend ignore controls
+are removed.
+
+``deployment-files init`` refuses to overwrite an existing policy and creates
+a review-required starter containing literal root-relative exclusions. It
+does not read or translate Git ignore syntax. It always warns that repository
+and user-global Git rules and legacy basename rules such as ``*.db``,
+``*.dmg``, ``data``, and ``node_modules`` were not translated, then directs
+the experimenter to reorganize non-literal rules, edit the policy, and run
+``deployment-files check``. Any similarly named starter exclusions have only
+root-literal semantics, not the legacy recursive basename semantics.
 
 ``deployment-files check`` hashes the normalized destination paths and file
 types that target selection adds relative to legacy selection. Its

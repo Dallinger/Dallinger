@@ -2,9 +2,10 @@
 
 This module is the filesystem-policy core of the proposed deployment planner.
 It intentionally understands only literal exclusions and experiment-root files:
-generated files, framework providers, backend materialization, and legacy Git
-selection belong to later integration layers. Source trees are treated as
-untrusted input, so ambiguous paths, links, repositories, and special files
+generated files, framework providers, and backend materialization belong to
+later integration layers. It also provides the temporary legacy-selection
+comparison needed to inspect migration compatibility. Source trees are treated
+as untrusted input, so ambiguous paths, links, repositories, and special files
 fail closed rather than acquiring backend-dependent meanings.
 """
 
@@ -15,12 +16,14 @@ import json
 import ntpath
 import os
 import re
+import secrets
 import stat
+import subprocess
 import tomllib
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
-from typing import AbstractSet, TypeVar
+from typing import AbstractSet, Iterable, TypeVar
 
 POLICY_FILENAME = "deploy.toml"
 SCHEMA_VERSION = 1
@@ -37,6 +40,8 @@ _WINDOWS_DEVICE_NAMES = frozenset(
 _ACKNOWLEDGEMENT_PATTERN = re.compile(r"sha256:[0-9a-fA-F]{64}\Z")
 _MANIFEST_DOMAIN = "dallinger.deployment-plan.manifest"
 _MANIFEST_VERSION = 1
+_LEGACY_DIFF_DOMAIN = "dallinger.deployment-plan.legacy-diff"
+_LEGACY_DIFF_VERSION = 1
 
 _ErrorType = TypeVar("_ErrorType", bound=ValueError)
 
@@ -47,6 +52,14 @@ class DeploymentPolicyError(ValueError):
 
 class DeploymentPlanError(ValueError):
     """Raised when an experiment tree cannot produce a safe deployment plan."""
+
+
+class LegacySelectionError(ValueError):
+    """Raised when legacy Git-based deployment selection cannot be inspected."""
+
+
+class DeploymentCompatibilityError(ValueError):
+    """Raised when a migration comparison is unsafe or stale."""
 
 
 @dataclass(frozen=True)
@@ -105,10 +118,59 @@ class DeploymentPlan:
     destinations: frozenset[str]
     total_size: int
     manifest_digest: str
+    policy_source_identity: SourceIdentity
+    policy_content_digest: str
+    backend_ignore_controls: tuple[str, ...]
 
     def __contains__(self, destination: object) -> bool:
         """Return whether a normalized destination is present in the plan."""
         return isinstance(destination, str) and destination in self.destinations
+
+
+@dataclass(frozen=True, order=True)
+class DeploymentMembership:
+    """A normalized destination and its filesystem type."""
+
+    destination: str
+    file_type: str
+
+
+@dataclass(frozen=True)
+class LegacyDeploymentComparison:
+    """Structured target-versus-legacy deployment membership differences."""
+
+    target: tuple[DeploymentMembership, ...]
+    legacy: tuple[DeploymentMembership, ...]
+    newly_included: tuple[DeploymentMembership, ...]
+    newly_excluded: tuple[DeploymentMembership, ...]
+    newly_included_digest: str
+    configured_acknowledgement: str | None
+    policy_path: Path
+    policy_source_identity: SourceIdentity
+    policy_content_digest: str
+    unresolved_backend_ignore_controls: tuple[str, ...]
+
+    @property
+    def requires_acknowledgement(self) -> bool:
+        """Return whether target selection adds any legacy-hidden membership."""
+        return bool(self.newly_included)
+
+    @property
+    def acknowledgement_matches(self) -> bool:
+        """Return whether the policy contains the current compatibility digest."""
+        return self.configured_acknowledgement == self.newly_included_digest
+
+    @property
+    def has_unresolved_backend_filters(self) -> bool:
+        """Return whether backend ignore controls prevent safe comparison."""
+        return bool(self.unresolved_backend_ignore_controls)
+
+    @property
+    def is_compatible(self) -> bool:
+        """Return whether migration can proceed under compatibility rules."""
+        return not self.has_unresolved_backend_filters and (
+            not self.requires_acknowledgement or self.acknowledgement_matches
+        )
 
 
 @dataclass(frozen=True)
@@ -116,6 +178,7 @@ class _PolicySnapshot:
     policy: DeploymentPolicy
     source_identity: SourceIdentity
     content_digest: str
+    content: bytes
 
 
 def parse_deployment_policy(path: str | os.PathLike[str]) -> DeploymentPolicy:
@@ -204,6 +267,7 @@ def build_deployment_plan(
     entries: list[DeploymentPlanEntry] = []
     normalized_sources: dict[str, Path] = {}
     portable_sources: dict[str, tuple[str, Path]] = {}
+    backend_ignore_controls: list[str] = []
 
     def register_destination(destination: str, source: Path) -> None:
         existing = normalized_sources.get(destination)
@@ -244,12 +308,14 @@ def build_deployment_plan(
                 name = _normalize_source_component(raw_name, source)
                 child_destination_parts = (*destination_parts, name)
                 destination = "/".join(child_destination_parts)
-                register_destination(destination, source)
 
                 if _is_excluded(child_destination_parts, exclusions):
                     continue
 
                 reserved_kind = _reserved_kind(child_destination_parts)
+                if reserved_kind == "backend-ignore":
+                    backend_ignore_controls.append(destination)
+                    continue
                 if reserved_kind == "policy":
                     continue
                 if reserved_kind == "vcs":
@@ -263,6 +329,7 @@ def build_deployment_plan(
                 if reserved_kind is not None:
                     continue
 
+                register_destination(destination, source)
                 try:
                     source_stat = os.stat(
                         raw_name,
@@ -360,7 +427,352 @@ def build_deployment_plan(
         destinations=destinations,
         total_size=total_size,
         manifest_digest=manifest_digest,
+        policy_source_identity=policy_snapshot.source_identity,
+        policy_content_digest=policy_snapshot.content_digest,
+        backend_ignore_controls=tuple(sorted(set(backend_ignore_controls))),
     )
+
+
+def compare_legacy_deployment_selection(
+    plan: DeploymentPlan,
+) -> LegacyDeploymentComparison:
+    """Compare a target plan with strict legacy ``ExperimentFileSource`` output."""
+    target = tuple(
+        DeploymentMembership(entry.destination, "regular-file")
+        for entry in plan.entries
+    )
+    legacy = _legacy_deployment_membership(plan.root)
+    target_set = frozenset(target)
+    legacy_set = frozenset(legacy)
+    newly_included = tuple(sorted(target_set - legacy_set))
+    newly_excluded = tuple(sorted(legacy_set - target_set))
+    return LegacyDeploymentComparison(
+        target=target,
+        legacy=legacy,
+        newly_included=newly_included,
+        newly_excluded=newly_excluded,
+        newly_included_digest=compute_legacy_compatibility_digest(newly_included),
+        configured_acknowledgement=plan.policy.legacy_diff_acknowledgement,
+        policy_path=plan.root / POLICY_FILENAME,
+        policy_source_identity=plan.policy_source_identity,
+        policy_content_digest=plan.policy_content_digest,
+        unresolved_backend_ignore_controls=plan.backend_ignore_controls,
+    )
+
+
+def compute_legacy_compatibility_digest(
+    memberships: Iterable[DeploymentMembership],
+) -> str:
+    """Hash path/type membership with an explicit compatibility domain/version."""
+    canonical_memberships = sorted(set(memberships))
+    manifest = {
+        "domain": _LEGACY_DIFF_DOMAIN,
+        "version": _LEGACY_DIFF_VERSION,
+        "memberships": [
+            {
+                "destination": membership.destination,
+                "file_type": membership.file_type,
+            }
+            for membership in canonical_memberships
+        ],
+    }
+    encoded_manifest = json.dumps(
+        manifest, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
+    return f"sha256:{hashlib.sha256(encoded_manifest).hexdigest()}"
+
+
+def acknowledge_legacy_deployment_comparison(
+    comparison: LegacyDeploymentComparison,
+) -> None:
+    """Atomically acknowledge one current, fully resolved migration comparison."""
+    if comparison.has_unresolved_backend_filters:
+        paths = ", ".join(comparison.unresolved_backend_ignore_controls)
+        raise DeploymentCompatibilityError(
+            "Cannot acknowledge while source backend ignore controls remain: "
+            f"{paths}. Migrate their filtering into deploy.toml and remove them."
+        )
+    digest = compute_legacy_compatibility_digest(comparison.newly_included)
+    if digest != comparison.newly_included_digest:
+        raise DeploymentCompatibilityError(
+            "Cannot acknowledge an internally inconsistent migration comparison."
+        )
+    _update_legacy_diff_acknowledgement(
+        comparison.policy_path,
+        digest,
+        comparison.policy_source_identity,
+        comparison.policy_content_digest,
+    )
+
+
+def _update_legacy_diff_acknowledgement(
+    path: Path,
+    digest: str,
+    expected_identity: SourceIdentity,
+    expected_content_digest: str,
+) -> None:
+    """Safely replace a policy only while its compared snapshot is current."""
+    parent_descriptor = _open_directory_path(path.parent, DeploymentPolicyError)
+    temporary_name: str | None = None
+    try:
+        snapshot = _read_policy_snapshot(parent_descriptor, path.name, path)
+        _require_expected_policy_snapshot(
+            snapshot, expected_identity, expected_content_digest
+        )
+        updated = _updated_policy_content(snapshot, digest)
+        temporary_name = _write_policy_temporary_file(
+            parent_descriptor,
+            path.name,
+            updated,
+            snapshot.source_identity.mode,
+        )
+
+        current_snapshot = _read_policy_snapshot(parent_descriptor, path.name, path)
+        _require_expected_policy_snapshot(
+            current_snapshot, expected_identity, expected_content_digest
+        )
+        try:
+            os.replace(
+                temporary_name,
+                path.name,
+                src_dir_fd=parent_descriptor,
+                dst_dir_fd=parent_descriptor,
+            )
+            temporary_name = None
+            os.fsync(parent_descriptor)
+        except OSError as error:
+            raise DeploymentPolicyError(
+                f"Cannot atomically update deployment policy {path}: {error}"
+            ) from error
+    finally:
+        if temporary_name is not None:
+            try:
+                os.unlink(temporary_name, dir_fd=parent_descriptor)
+            except FileNotFoundError:
+                pass
+        os.close(parent_descriptor)
+
+
+def _updated_policy_content(snapshot: _PolicySnapshot, digest: str) -> bytes:
+    """Return policy bytes with only the acknowledgement value changed."""
+    try:
+        text = snapshot.content.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise DeploymentPolicyError("Deployment policy is not valid UTF-8.") from error
+    assignment = re.compile(
+        r"""(?mx)
+        ^
+        (?P<prefix>
+            [ \t]*
+            (?:"legacy_diff_acknowledgement"|legacy_diff_acknowledgement)
+            [ \t]*=[ \t]*
+        )
+        (?P<value>"(?:\\.|[^"\r\n])*"|'[^'\r\n]*')
+        """
+    )
+    replacement = rf'\g<prefix>"{digest}"'
+    updated, replacements = assignment.subn(replacement, text, count=1)
+    if not replacements:
+        if snapshot.policy.legacy_diff_acknowledgement is not None:
+            raise DeploymentPolicyError(
+                "Cannot safely update the existing multiline "
+                "legacy_diff_acknowledgement assignment."
+            )
+        newline = "\r\n" if "\r\n" in text else "\n"
+        version_assignment = re.compile(
+            r'(?m)^[ \t]*(?:"version"|version)[ \t]*=[^\r\n]*(?:\r?\n|$)'
+        )
+        match = version_assignment.search(text)
+        if match is None:
+            raise DeploymentPolicyError(
+                "Cannot safely locate the deployment policy version assignment."
+            )
+        version_line = match.group(0)
+        if not version_line.endswith(("\n", "\r")):
+            version_line += newline
+        insertion = version_line + f'legacy_diff_acknowledgement = "{digest}"' + newline
+        updated = text[: match.start()] + insertion + text[match.end() :]
+
+    try:
+        _parse_policy(tomllib.loads(updated))
+    except tomllib.TOMLDecodeError as error:
+        raise DeploymentPolicyError(
+            f"Cannot safely update deployment policy TOML: {error}"
+        ) from error
+    return updated.encode("utf-8")
+
+
+def _require_expected_policy_snapshot(
+    snapshot: _PolicySnapshot,
+    expected_identity: SourceIdentity,
+    expected_content_digest: str,
+) -> None:
+    """Reject a policy snapshot that differs from the compared plan."""
+    if (
+        snapshot.source_identity != expected_identity
+        or snapshot.content_digest != expected_content_digest
+    ):
+        raise DeploymentCompatibilityError(
+            "deploy.toml changed since the migration comparison; rerun "
+            "`dallinger deployment-files check` before acknowledging."
+        )
+
+
+def _write_policy_temporary_file(
+    parent_descriptor: int,
+    policy_name: str,
+    content: bytes,
+    mode: int,
+) -> str:
+    """Create, sync, and close a same-directory regular temporary file."""
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | os.O_NOFOLLOW
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    temporary_name = ""
+    descriptor: int | None = None
+    for _ in range(100):
+        temporary_name = f".{policy_name}.tmp-{secrets.token_hex(12)}"
+        try:
+            descriptor = os.open(
+                temporary_name,
+                flags,
+                0o600,
+                dir_fd=parent_descriptor,
+            )
+            break
+        except FileExistsError:
+            continue
+        except OSError as error:
+            raise DeploymentPolicyError(
+                f"Cannot create temporary deployment policy: {error}"
+            ) from error
+    if descriptor is None:
+        raise DeploymentPolicyError(
+            "Cannot allocate a unique temporary deployment policy."
+        )
+
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise DeploymentPolicyError(
+                "Temporary deployment policy is not a regular file."
+            )
+        os.fchmod(descriptor, mode)
+        view = memoryview(content)
+        while view:
+            written = os.write(descriptor, view)
+            if written <= 0:
+                raise OSError("short write while updating deployment policy")
+            view = view[written:]
+        os.fsync(descriptor)
+    except (OSError, DeploymentPolicyError) as error:
+        try:
+            os.close(descriptor)
+        finally:
+            try:
+                os.unlink(temporary_name, dir_fd=parent_descriptor)
+            except FileNotFoundError:
+                pass
+        if isinstance(error, DeploymentPolicyError):
+            raise
+        raise DeploymentPolicyError(
+            f"Cannot write temporary deployment policy: {error}"
+        ) from error
+    os.close(descriptor)
+    return temporary_name
+
+
+class _StrictLegacyGitFiles:
+    """Supply ``ExperimentFileSource`` with cwd-independent, fail-closed Git files."""
+
+    def __init__(self, root: Path):
+        self.root = root
+
+    def files(self) -> set[str]:
+        command = [
+            "git",
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ]
+        try:
+            result = subprocess.run(
+                command,
+                cwd=self.root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+        except OSError as error:
+            raise LegacySelectionError(
+                f"Legacy Git file selection failed for {self.root}: {error}."
+            ) from error
+        if result.returncode:
+            raise LegacySelectionError(
+                "Legacy Git file selection failed for "
+                f"{self.root} with exit status {result.returncode}."
+            )
+        try:
+            output = result.stdout.decode()
+        except UnicodeDecodeError as error:
+            raise LegacySelectionError(
+                f"Legacy Git file selection returned undecodable paths for {self.root}."
+            ) from error
+        return {item for item in output.split("\0") if item}
+
+
+def _legacy_deployment_membership(
+    experiment_root: Path,
+) -> tuple[DeploymentMembership, ...]:
+    """Evaluate current legacy filtering while binding Git to the same root."""
+    from dallinger.utils import ExperimentFileSource
+
+    root = Path(os.path.abspath(experiment_root))
+    file_source = ExperimentFileSource(root)
+    file_source.git = _StrictLegacyGitFiles(root)
+    destination_root = root.parent / f".{root.name}-legacy-destination"
+    memberships: list[DeploymentMembership] = []
+    try:
+        locations = file_source.map_locations_to(destination_root)
+        for source, destination in locations:
+            relative = os.path.relpath(destination, destination_root)
+            if relative == os.pardir or relative.startswith(os.pardir + os.sep):
+                raise LegacySelectionError(
+                    f"Legacy selection produced an unsafe destination: {destination}."
+                )
+            memberships.append(
+                DeploymentMembership(
+                    unicodedata.normalize("NFC", Path(relative).as_posix()),
+                    _legacy_source_type(Path(source)),
+                )
+            )
+    except LegacySelectionError:
+        raise
+    except OSError as error:
+        raise LegacySelectionError(
+            f"Legacy deployment selection failed for {root}: {error}."
+        ) from error
+    return tuple(sorted(set(memberships)))
+
+
+def _legacy_source_type(source: Path) -> str:
+    """Describe legacy membership without reading source contents."""
+    try:
+        mode = source.lstat().st_mode
+    except OSError as error:
+        raise LegacySelectionError(
+            f"Cannot inspect legacy deployment source {source}: {error}."
+        ) from error
+    if stat.S_ISREG(mode):
+        return "regular-file"
+    if stat.S_ISLNK(mode):
+        return "symlink"
+    return _source_type(mode)
 
 
 def _validate_policy_path(value: str) -> str:
@@ -602,6 +1014,7 @@ def _read_policy_snapshot(
         policy=_parse_policy(raw_policy),
         source_identity=identity,
         content_digest=content_digest,
+        content=content,
     )
 
 

@@ -9,10 +9,15 @@ import pytest
 
 import dallinger.deployment_plan as deployment_plan
 from dallinger.deployment_plan import (
+    DeploymentCompatibilityError,
+    DeploymentMembership,
     DeploymentPlanError,
     DeploymentPolicyError,
     _is_excluded,
+    acknowledge_legacy_deployment_comparison,
     build_deployment_plan,
+    compare_legacy_deployment_selection,
+    compute_legacy_compatibility_digest,
     parse_deployment_policy,
 )
 
@@ -496,3 +501,134 @@ def test_plan_digest_is_stable_and_changes_with_content_or_mode(tmp_path):
     source.chmod(0o755)
     changed_mode = build_deployment_plan(tmp_path)
     assert changed_mode.manifest_digest != changed_content.manifest_digest
+
+
+def test_legacy_compatibility_digest_is_canonical_and_versioned():
+    memberships = [
+        DeploymentMembership("ignored.txt", "regular-file"),
+        DeploymentMembership("ignored.txt", "regular-file"),
+    ]
+
+    assert (
+        compute_legacy_compatibility_digest(reversed(memberships))
+        == "sha256:10bfc05e7c76e99311bd602f1739ad86df337d1990f17b1cf73f10a091e7b46b"
+    )
+
+
+def test_legacy_comparison_binds_git_to_plan_root(tmp_path, monkeypatch):
+    root = tmp_path / "experiment"
+    root.mkdir()
+    write_policy(root)
+    write_files(root, {".gitignore": "ignored.txt\n", "ignored.txt": "ignored"})
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    plan = build_deployment_plan(root)
+    monkeypatch.chdir(tmp_path)
+
+    comparison = compare_legacy_deployment_selection(plan)
+
+    assert comparison.newly_included == (
+        DeploymentMembership("ignored.txt", "regular-file"),
+    )
+
+
+def test_excluded_path_does_not_create_portable_collision(tmp_path):
+    write_policy(tmp_path, ["cache"])
+    write_files(tmp_path, {"cache": "local", "CACHE": "deployed"})
+
+    plan = build_deployment_plan(tmp_path)
+
+    assert "cache" not in plan
+    assert "CACHE" in plan
+
+
+def test_reserved_backend_controls_do_not_create_portable_collision(tmp_path):
+    write_policy(tmp_path)
+    write_files(
+        tmp_path,
+        {
+            ".dockerignore": "first",
+            ".DOCKERIGNORE": "second",
+        },
+    )
+
+    plan = build_deployment_plan(tmp_path)
+
+    assert plan.backend_ignore_controls == (".DOCKERIGNORE", ".dockerignore")
+    assert plan.destinations == {"deploy.toml"}
+
+
+def _comparison_for_acknowledgement(root: Path):
+    write_policy(root)
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    return compare_legacy_deployment_selection(build_deployment_plan(root))
+
+
+def test_acknowledgement_rejects_stale_policy(tmp_path):
+    comparison = _comparison_for_acknowledgement(tmp_path)
+    policy_path = tmp_path / "deploy.toml"
+    policy_path.write_text(policy_path.read_text() + "# changed\n")
+    changed = policy_path.read_bytes()
+
+    with pytest.raises(DeploymentCompatibilityError, match="changed since"):
+        acknowledge_legacy_deployment_comparison(comparison)
+
+    assert policy_path.read_bytes() == changed
+    assert not list(tmp_path.glob(".deploy.toml.tmp-*"))
+
+
+def test_acknowledgement_detects_race_before_atomic_replace(tmp_path, monkeypatch):
+    comparison = _comparison_for_acknowledgement(tmp_path)
+    policy_path = tmp_path / "deploy.toml"
+    original_writer = deployment_plan._write_policy_temporary_file
+
+    def write_temporary_then_race(*args, **kwargs):
+        temporary_name = original_writer(*args, **kwargs)
+        policy_path.write_text(policy_path.read_text() + "# raced\n")
+        return temporary_name
+
+    monkeypatch.setattr(
+        deployment_plan,
+        "_write_policy_temporary_file",
+        write_temporary_then_race,
+    )
+
+    with pytest.raises(DeploymentCompatibilityError, match="changed since"):
+        acknowledge_legacy_deployment_comparison(comparison)
+
+    assert "# raced" in policy_path.read_text()
+    assert "legacy_diff_acknowledgement" not in policy_path.read_text()
+    assert not list(tmp_path.glob(".deploy.toml.tmp-*"))
+
+
+def test_acknowledgement_rejects_replacement_policy_symlink(tmp_path):
+    comparison = _comparison_for_acknowledgement(tmp_path)
+    policy_path = tmp_path / "deploy.toml"
+    target = tmp_path / "target.toml"
+    target.write_text(policy_path.read_text())
+    target_before = target.read_bytes()
+    policy_path.unlink()
+    policy_path.symlink_to(target)
+
+    with pytest.raises(DeploymentPolicyError, match="symbolic link"):
+        acknowledge_legacy_deployment_comparison(comparison)
+
+    assert policy_path.is_symlink()
+    assert target.read_bytes() == target_before
+    assert not list(tmp_path.glob(".deploy.toml.tmp-*"))
+
+
+def test_acknowledgement_replace_failure_is_atomic(tmp_path, monkeypatch):
+    comparison = _comparison_for_acknowledgement(tmp_path)
+    policy_path = tmp_path / "deploy.toml"
+    original = policy_path.read_bytes()
+
+    def fail_replace(*args, **kwargs):
+        raise OSError("injected replace failure")
+
+    monkeypatch.setattr(deployment_plan.os, "replace", fail_replace)
+
+    with pytest.raises(DeploymentPolicyError, match="atomically update"):
+        acknowledge_legacy_deployment_comparison(comparison)
+
+    assert policy_path.read_bytes() == original
+    assert not list(tmp_path.glob(".deploy.toml.tmp-*"))

@@ -19,6 +19,7 @@ from rq import Worker
 from sqlalchemy import exc as sa_exc
 
 from dallinger import data, db
+from dallinger.command_line.deployment_files import deployment_files
 from dallinger.command_line.develop import develop
 from dallinger.command_line.docker import docker
 from dallinger.command_line.docker_ssh import docker_ssh
@@ -120,6 +121,7 @@ def dallinger():
 
 
 dallinger.add_command(develop)
+dallinger.add_command(deployment_files)
 dallinger.add_command(docker)
 dallinger.add_command(docker_ssh)
 

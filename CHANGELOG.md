@@ -6,6 +6,11 @@
 
 - Added the version 1 literal `deploy.toml` parser and deterministic
   experiment-root deployment plan model.
+- Added prototype `dallinger deployment-files` commands for listing target
+  plans, checking and acknowledging legacy-selection differences, and creating
+  review-required starter policies. Acknowledgements use stale-snapshot checks
+  and atomic policy replacement, and unresolved backend ignore controls block
+  compatibility.
 
 ### Updated
 
