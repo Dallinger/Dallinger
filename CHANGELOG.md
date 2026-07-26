@@ -8,6 +8,8 @@
 - Avoided a duplicate experiment-package copy during `dallinger develop debug`
   by validating the working tree before development staging; strict packaged
   validation remains available through `dallinger verify`.
+- Documented the proposed deployment-file planning and development-staging
+  architecture.
 
 ## [v12.2.1](https://github.com/dallinger/dallinger/tree/v12.2.1) (2026-07-02)
 
