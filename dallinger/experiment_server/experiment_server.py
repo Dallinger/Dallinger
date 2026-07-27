@@ -23,7 +23,7 @@ from jinja2 import TemplateNotFound
 from psycopg2.extensions import TransactionRollbackError
 from rq import Queue
 from sqlalchemy import exc, func
-from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
+from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.sql.expression import true
 
 from dallinger import db, experiment, models, recruiters
@@ -909,14 +909,12 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
 
     fingerprint_found = False
     if fingerprint_hash:
-        try:
-            fingerprint_found = (
-                session.query(models.Participant)
-                .filter_by(fingerprint_hash=fingerprint_hash)
-                .one_or_none()
-            )
-        except MultipleResultsFound:
-            fingerprint_found = True
+        fingerprint_found = (
+            session.query(models.Participant)
+            .filter_by(fingerprint_hash=fingerprint_hash)
+            .first()
+            is not None
+        )
 
     if fingerprint_hash and fingerprint_found:
         db.logger.warning("Same browser fingerprint detected.")
@@ -1064,7 +1062,7 @@ def load_participant():
     if assignment_id is None:
         return error_response(
             error_type="/load-participant POST: no participant found",
-            error_code="participant_not_found",
+            error_code="assignment_id_missing",
             status=403,
         )
     ppt = exp.load_participant(assignment_id)

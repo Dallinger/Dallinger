@@ -181,9 +181,34 @@ var dallinger = (function () {
     return BusyForm;
   }());
 
+  /**
+   * Information about a rejected ``dallinger.get`` / ``dallinger.post`` call.
+   *
+   * Properties:
+   *
+   * ``route``      - Requested experiment route
+   *
+   * ``method``     - HTTP method used for the request
+   *
+   * ``data``       - Data that was sent with the request
+   *
+   * ``error``      - Underlying transport error object
+   *
+   * ``status``     - HTTP status code from the failed request
+   *
+   * ``response``   - Parsed JSON body from the server, when available
+   *
+   * ``html``       - Rendered error HTML from the server response, if present
+   *
+   * ``errorCode``  - Optional machine-readable ``error_code`` from the server
+   *                  JSON body (for example ``participant_not_found``)
+   *
+   * ``requestJSON`` - Serialized request details for error reporting
+   *
+   * @constructor
+   * @param {Object} options - Rejection details from the AJAX helper
+   */
   dlgr.AjaxRejection = (function () {
-    // Capture information related to a rejected dallinger.ajax() call.
-
     var _responseData = function (response) {
       var parsed;
       try {

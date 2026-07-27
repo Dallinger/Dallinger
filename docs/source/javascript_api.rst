@@ -66,6 +66,16 @@ The fail_callback function will be passed a `dallinger.AjaxRejection` object whi
 includes detailed information about the error. Unexpected errors should be handled
 by calling the :func:`dallinger.error` method with the `AjaxRejection` object.
 
+``AjaxRejection`` exposes:
+
+* ``html`` - rendered error HTML from the server, when present
+* ``errorCode`` - optional machine-readable ``error_code`` from the JSON body
+  (for example ``participant_not_found`` or ``assignment_id_missing``)
+* ``response`` - the parsed JSON error body
+* ``status``, ``route``, ``method``, ``data``, and ``requestJSON``
+
+.. js:autoclass:: dallinger.AjaxRejection
+
 
 Experiment Initialization and Completion
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

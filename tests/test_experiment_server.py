@@ -724,7 +724,7 @@ class TestParticipantByAssignmentRoute:
         resp = webapp.post("/load-participant")
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "error"
-        assert data.get("error_code") == "participant_not_found"
+        assert data.get("error_code") == "assignment_id_missing"
         assert "no participant found" in data.get("html")
 
     def test_assignment_invalid(self, webapp):

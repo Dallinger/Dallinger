@@ -64,6 +64,23 @@ describe('AjaxRejection', function () {
 
     expect(rejection.errorCode).toBe('participant_not_found');
     expect(rejection.html).toBe('<p>Not found</p>');
+    expect(rejection.response.error_code).toBe('participant_not_found');
+  });
+
+  test('handles unparseable responses without an error code', () => {
+    var dlgr = require('./dallinger2').dallinger;
+    var rejection = dlgr.AjaxRejection({
+      route: '/load-participant',
+      method: 'post',
+      error: {
+        status: 500,
+        response: '<html>not json</html>'
+      }
+    });
+
+    expect(rejection.errorCode).toBeUndefined();
+    expect(rejection.html).toBe('');
+    expect(rejection.response).toEqual({});
   });
 });
 

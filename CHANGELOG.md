@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Fixed repeat-worker recruitment after multiple prior participations and added structured participant lookup errors for clients.
+- Fixed repeat-worker recruitment after multiple prior participations and added structured participant lookup errors for clients (``assignment_id_missing`` / ``participant_not_found`` via ``error_code`` / ``AjaxRejection.errorCode``).
 
 ### Updated
 
