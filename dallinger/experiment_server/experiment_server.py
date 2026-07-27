@@ -584,12 +584,11 @@ def prepare_advertisement():
 
     if worker_id is not None:
         # Check if this workerId has completed the task before
-        already_participated = (
+        already_participated = session.query(
             session.query(models.Participant)
             .filter(models.Participant.worker_id == worker_id)
-            .first()
-            is not None
-        )
+            .exists()
+        ).scalar()
 
         if already_participated and not config.get("allow_repeat_worker_ids", False):
             raise ExperimentError("already_did_exp_hit")
@@ -907,10 +906,13 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
 
     exp = Experiment()
 
-    if fingerprint_hash and (
-        session.query(models.Participant)
-        .filter_by(fingerprint_hash=fingerprint_hash)
-        .first()
+    if (
+        fingerprint_hash
+        and session.query(
+            session.query(models.Participant)
+            .filter_by(fingerprint_hash=fingerprint_hash)
+            .exists()
+        ).scalar()
     ):
         db.logger.warning("Same browser fingerprint detected.")
 
@@ -925,9 +927,9 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         # If this proves to be a problem, we can make this configurable via a config parameter in the future.
         # For now we just log a warning.
 
-    already_participated = (
-        session.query(models.Participant).filter_by(worker_id=worker_id).first()
-    )
+    already_participated = session.query(
+        session.query(models.Participant).filter_by(worker_id=worker_id).exists()
+    ).scalar()
 
     allow_repeat_worker_ids = config.get("allow_repeat_worker_ids", False)
     if already_participated:
