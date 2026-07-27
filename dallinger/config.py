@@ -436,7 +436,20 @@ def initialize_experiment_package(path):
 
 
 def experiment_available():
-    return Path("experiment.py").exists()
+    """Return True if an experiment is available in the current process.
+
+    An experiment counts as available if the current working directory
+    contains an ``experiment.py`` file, or if the experiment package has
+    already been initialized (via ``initialize_experiment_package``) in this
+    process. The latter check keeps config loading consistent for processes
+    that change their working directory after importing the experiment;
+    without it, such processes would silently skip the experiment's config
+    defaults and resolve different config values than other processes.
+    """
+    return (
+        sys.modules.get("dallinger_experiment") is not None
+        or Path("experiment.py").exists()
+    )
 
 
 def raise_invalid_key_error(key):

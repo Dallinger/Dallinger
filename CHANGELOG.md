@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed config loading so experiment-defined config defaults are still applied
+  when a process loads its configuration after changing away from the
+  experiment directory. Previously such processes silently skipped the
+  experiment's config defaults and could resolve different config values
+  (e.g. `dashboard_user`) than other processes of the same experiment.
+
 ### Updated
 
 - Updated Python dependencies

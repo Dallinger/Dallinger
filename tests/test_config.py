@@ -265,3 +265,28 @@ class TestConfigurationIntegrationTests:
         config.load_experiment_config_defaults()
 
         assert config.get("duration") == 12345.0
+
+    def test_load_applies_experiment_defaults_after_cwd_change(
+        self, tmpdir, monkeypatch
+    ):
+        # Long-running processes (workers, CLI tools) may load config after
+        # the current working directory has changed away from the experiment
+        # directory. Once the experiment package has been initialized, the
+        # experiment's config defaults should still be applied; otherwise
+        # different processes can silently resolve different config values
+        # (see https://gitlab.com/PsyNetDev/PsyNet/-/issues/1040).
+        import dallinger.config
+        from dallinger.config import initialize_experiment_package
+
+        initialize_experiment_package(os.getcwd())
+        original_cwd = os.getcwd()
+        # Isolate the test from any real ~/.dallingerconfig.
+        monkeypatch.setenv("HOME", str(tmpdir))
+        os.chdir(str(tmpdir))
+        try:
+            # Simulate a fresh process by discarding the cached config.
+            dallinger.config.config = None
+            config = get_config(load=True)
+            assert config.get("duration") == 12345.0
+        finally:
+            os.chdir(original_cwd)
