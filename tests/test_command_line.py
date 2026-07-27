@@ -156,19 +156,6 @@ class TestVerify:
         Path("ignored.bin").write_bytes(b"x" * 1_000_001)
         Path("deploy.toml").write_text("version = 1\nexclude = []\n")
         subprocess.run(["git", "init", "-q"], check=True)
-        from dallinger.deployment_plan import (
-            build_deployment_plan,
-            compare_legacy_deployment_selection,
-        )
-
-        comparison = compare_legacy_deployment_selection(
-            build_deployment_plan(tmp_path)
-        )
-        Path("deploy.toml").write_text(
-            "version = 1\n"
-            f'legacy_diff_acknowledgement = "{comparison.compatibility_digest}"\n'
-            "exclude = []\n"
-        )
 
         with mock.patch.dict(os.environ, {"EXP_MAX_SIZE_MB": "1"}):
             assert v_directory(verbose=False) is False
@@ -296,10 +283,7 @@ class TestDevelopCommand:
         self, active_config, develop, tmp_path, monkeypatch
     ):
         import dallinger.config
-        from dallinger.deployment_plan import (
-            build_deployment_plan,
-            compare_legacy_deployment_selection,
-        )
+        from dallinger.deployment_plan import build_deployment_plan
 
         experiment_root = tmp_path / "policy_experiment"
         shutil.copytree(Path.cwd(), experiment_root)
@@ -307,14 +291,6 @@ class TestDevelopCommand:
         (experiment_root / "ignored.txt").write_text("included")
         (experiment_root / "deploy.toml").write_text("version = 1\nexclude = []\n")
         subprocess.run(["git", "init", "-q"], cwd=experiment_root, check=True)
-        comparison = compare_legacy_deployment_selection(
-            build_deployment_plan(experiment_root)
-        )
-        (experiment_root / "deploy.toml").write_text(
-            "version = 1\n"
-            f'legacy_diff_acknowledgement = "{comparison.compatibility_digest}"\n'
-            "exclude = []\n"
-        )
         monkeypatch.chdir(experiment_root)
         develop_directory = active_config.get("dallinger_develop_directory")
         dallinger.config.config = None

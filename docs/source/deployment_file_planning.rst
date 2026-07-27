@@ -8,7 +8,9 @@ Deployment file selection and development staging
 
    This document records a proposed direction for future development. It does
    not describe a supported user interface or commit Dallinger to a particular
-   release.
+   release. The current prototype simplifies migration for PsyNet by treating
+   ``deploy.toml`` as a breaking cutover rather than a dual-path
+   acknowledgement workflow, and it targets POSIX experiment trees only.
 
 Proposal summary
 ----------------

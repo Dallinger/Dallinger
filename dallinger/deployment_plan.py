@@ -1,40 +1,30 @@
 """Build deterministic deployment manifests from an experiment directory.
 
-This module is the filesystem-policy core of the proposed deployment planner.
-It intentionally understands only literal exclusions and experiment-root files:
-generated files, framework providers, and backend materialization belong to
-later integration layers. It also provides the temporary legacy-selection
-comparison needed to inspect migration compatibility. Source trees are treated
-as untrusted input, so ambiguous paths, links, repositories, and special files
-fail closed rather than acquiring backend-dependent meanings.
+This module turns a literal ``deploy.toml`` exclude list into an ordered plan of
+regular experiment-root files. Generated outputs, framework providers, and
+backend materialization live outside this module.
 
 Traversal uses ordinary ``lstat`` / ``scandir`` checks (no symlink following).
-Containment rejects symlinks, special files, and paths outside the experiment
-root. The planner does not re-validate filesystem identity between planning and
-materialization; that window is short and the working tree is trusted.
+Selected symlinks and special files are rejected. The working tree is trusted
+between planning and materialization.
 """
 
 from __future__ import annotations
 
 import bisect
-import hashlib
-import json
-import ntpath
 import os
-import re
-import secrets
+import shutil
 import stat
-import subprocess
 import tomllib
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
-from typing import AbstractSet, Iterable, TypeVar
+from typing import AbstractSet, TypeVar
 
 POLICY_FILENAME = "deploy.toml"
 SCHEMA_VERSION = 1
 
-_POLICY_KEYS = {"version", "exclude", "legacy_diff_acknowledgement"}
+_POLICY_KEYS = frozenset({"version", "exclude"})
 _VCS_METADATA_NAMES = frozenset({".git", ".hg", ".svn", ".bzr"})
 _GENERATED_ROOT_DESTINATION_NAMES = frozenset(
     {
@@ -46,17 +36,6 @@ _GENERATED_ROOT_DESTINATION_NAMES = frozenset(
     }
 )
 _GLOB_CHARACTERS = frozenset("*?[]{}")
-_WINDOWS_FORBIDDEN_CHARACTERS = frozenset('<>:"/\\|?*')
-_WINDOWS_DEVICE_NAMES = frozenset(
-    {"con", "prn", "aux", "nul"}
-    | {f"com{number}" for number in range(1, 10)}
-    | {f"lpt{number}" for number in range(1, 10)}
-)
-_ACKNOWLEDGEMENT_PATTERN = re.compile(r"sha256:[0-9a-fA-F]{64}\Z")
-_MANIFEST_DOMAIN = "dallinger.deployment-plan.manifest"
-_MANIFEST_VERSION = 1
-_LEGACY_DIFF_DOMAIN = "dallinger.deployment-plan.legacy-diff"
-_LEGACY_DIFF_VERSION = 2
 
 _ErrorType = TypeVar("_ErrorType", bound=ValueError)
 
@@ -69,22 +48,12 @@ class DeploymentPlanError(ValueError):
     """Raised when an experiment tree cannot produce a safe deployment plan."""
 
 
-class LegacySelectionError(ValueError):
-    """Raised when legacy Git-based deployment selection cannot be inspected."""
-
-
-class DeploymentCompatibilityError(ValueError):
-    """Raised when a migration comparison is unsafe or stale."""
-
-
 @dataclass(frozen=True)
 class DeploymentPolicy:
     """The validated, normalized contents of a version 1 ``deploy.toml``."""
 
     version: int
     exclude: tuple[str, ...]
-    legacy_diff_acknowledgement: str | None = None
-
 
 
 @dataclass(frozen=True)
@@ -96,7 +65,6 @@ class DeploymentPlanEntry:
     size: int
     mode: int
     executable: bool
-    content_digest: str
     source_category: str = "experiment"
 
 
@@ -117,15 +85,13 @@ class DeploymentDirectoryLinkCandidate:
 
 @dataclass(frozen=True)
 class DeploymentPlan:
-    """An immutable, deterministically ordered experiment-root manifest."""
+    """An immutable, deterministically ordered experiment-root plan."""
 
     root: Path
     policy: DeploymentPolicy
     entries: tuple[DeploymentPlanEntry, ...]
     destinations: frozenset[str]
     total_size: int
-    manifest_digest: str
-    backend_ignore_controls: tuple[str, ...]
     directory_link_candidates: tuple[DeploymentDirectoryLinkCandidate, ...]
 
     def __contains__(self, destination: object) -> bool:
@@ -133,55 +99,11 @@ class DeploymentPlan:
         return isinstance(destination, str) and destination in self.destinations
 
 
-@dataclass(frozen=True, order=True)
-class DeploymentMembership:
-    """A normalized destination and its filesystem type."""
-
-    destination: str
-    file_type: str
-
-
-@dataclass(frozen=True)
-class LegacyDeploymentComparison:
-    """Structured target-versus-legacy deployment membership differences."""
-
-    target: tuple[DeploymentMembership, ...]
-    legacy: tuple[DeploymentMembership, ...]
-    newly_included: tuple[DeploymentMembership, ...]
-    newly_excluded: tuple[DeploymentMembership, ...]
-    compatibility_digest: str
-    configured_acknowledgement: str | None
-    unresolved_backend_ignore_controls: tuple[str, ...]
-
-    @property
-    def requires_acknowledgement(self) -> bool:
-        """Return whether target and legacy membership differ."""
-        return bool(self.newly_included or self.newly_excluded)
-
-    @property
-    def acknowledgement_matches(self) -> bool:
-        """Return whether the policy contains the current compatibility digest."""
-        return self.configured_acknowledgement == self.compatibility_digest
-
-    @property
-    def has_unresolved_backend_filters(self) -> bool:
-        """Return whether backend ignore controls prevent safe comparison."""
-        return bool(self.unresolved_backend_ignore_controls)
-
-    @property
-    def is_compatible(self) -> bool:
-        """Return whether migration can proceed under compatibility rules."""
-        return not self.has_unresolved_backend_filters and (
-            not self.requires_acknowledgement or self.acknowledgement_matches
-        )
-
-
 @dataclass(frozen=True)
 class _PolicySnapshot:
     policy: DeploymentPolicy
     size: int
     mode: int
-    content_digest: str
 
 
 @dataclass(frozen=True)
@@ -189,30 +111,6 @@ class _TraversedDirectoryCandidate:
     source: Path
     destination: str
     entry_count: int
-
-
-class _ExclusionIndex:
-    """Index literal exclusions for logarithmic descendant queries."""
-
-    def __init__(self, exclusions: Iterable[str]):
-        self._ordered = tuple(sorted(exclusions))
-
-    def has_at_or_below(self, destination_parts: tuple[str, ...]) -> bool:
-        """Return whether an exclusion equals or descends from a destination."""
-        if not destination_parts:
-            return bool(self._ordered)
-        destination = "/".join(destination_parts)
-        exact_index = bisect.bisect_left(self._ordered, destination)
-        if (
-            exact_index < len(self._ordered)
-            and self._ordered[exact_index] == destination
-        ):
-            return True
-        prefix = destination + "/"
-        descendant_index = bisect.bisect_left(self._ordered, prefix, lo=exact_index)
-        return descendant_index < len(self._ordered) and self._ordered[
-            descendant_index
-        ].startswith(prefix)
 
 
 def parse_deployment_policy(path: str | os.PathLike[str]) -> DeploymentPolicy:
@@ -227,7 +125,7 @@ def validate_explicit_provider_destination(
 ) -> str:
     """Validate one root-relative destination supplied by ``extra_files()``."""
     value = os.fspath(destination)
-    if not value or value.startswith("/") or ntpath.splitdrive(value)[0]:
+    if not value or value.startswith("/"):
         raise DeploymentPlanError(
             f"Explicit file provider destination must be root-relative: {value!r}."
         )
@@ -243,7 +141,7 @@ def validate_explicit_provider_destination(
             f"{value!r}."
         )
     normalized_parts = tuple(
-        _normalize_portable_component(
+        _normalize_path_component(
             component,
             context=f"explicit file provider destination {value!r}",
             error_type=DeploymentPlanError,
@@ -254,7 +152,7 @@ def validate_explicit_provider_destination(
     reserved_kind = _reserved_kind(normalized_parts)
     if (
         reserved_kind is None
-        and normalized_parts[0].casefold() in _GENERATED_ROOT_DESTINATION_NAMES
+        and normalized_parts[0] in _GENERATED_ROOT_DESTINATION_NAMES
     ):
         reserved_kind = "generated"
     if reserved_kind is not None:
@@ -290,42 +188,20 @@ def _parse_policy(raw_policy: dict) -> DeploymentPolicy:
             "Deployment policy exclude must be an array of strings."
         )
 
-    acknowledgement = raw_policy.get("legacy_diff_acknowledgement")
-    if acknowledgement is not None and (
-        not isinstance(acknowledgement, str)
-        or _ACKNOWLEDGEMENT_PATTERN.fullmatch(acknowledgement) is None
-    ):
-        raise DeploymentPolicyError(
-            "legacy_diff_acknowledgement must be 'sha256:' followed by "
-            "64 hexadecimal digits."
-        )
-    if acknowledgement is not None:
-        acknowledgement = acknowledgement.lower()
-
     exclusions: list[str] = []
     exact_entries: set[str] = set()
-    portable_entries: dict[str, str] = {}
     for raw_path in raw_exclusions:
         normalized_path = _validate_policy_path(raw_path)
         if normalized_path in exact_entries:
             raise DeploymentPolicyError(
                 f"Duplicate normalized exclusion path: {normalized_path!r}."
             )
-        portable_path = normalized_path.casefold()
-        if portable_path in portable_entries:
-            other = portable_entries[portable_path]
-            raise DeploymentPolicyError(
-                "Exclusion paths collide on case-insensitive filesystems: "
-                f"{other!r} and {normalized_path!r}."
-            )
         exact_entries.add(normalized_path)
-        portable_entries[portable_path] = normalized_path
         exclusions.append(normalized_path)
 
     return DeploymentPolicy(
         version=version,
         exclude=tuple(sorted(exclusions)),
-        legacy_diff_acknowledgement=acknowledgement,
     )
 
 
@@ -335,7 +211,6 @@ def build_deployment_plan(
     """Build a deployment plan containing regular experiment-root files."""
     _require_posix_support(DeploymentPlanError)
     root = Path(os.path.abspath(os.fspath(experiment_root)))
-    _assert_no_symlink_components(root, DeploymentPlanError)
     try:
         root_stat = root.lstat()
     except OSError as error:
@@ -347,8 +222,6 @@ def build_deployment_plan(
 
     entries: list[DeploymentPlanEntry] = []
     normalized_sources: dict[str, Path] = {}
-    portable_sources: dict[str, tuple[str, Path]] = {}
-    backend_ignore_controls: list[str] = []
     traversed_directory_candidates: list[_TraversedDirectoryCandidate] = []
 
     def register_destination(destination: str, source: Path) -> None:
@@ -358,26 +231,15 @@ def build_deployment_plan(
                 "Source paths normalize to the same deployment destination "
                 f"{destination!r}: {existing} and {source}."
             )
-        portable = destination.casefold()
-        portable_existing = portable_sources.get(portable)
-        if portable_existing is not None and portable_existing[0] != destination:
-            other_destination, other_source = portable_existing
-            raise DeploymentPlanError(
-                "Source paths collide on case-insensitive filesystems: "
-                f"{other_destination!r} ({other_source}) and "
-                f"{destination!r} ({source})."
-            )
         normalized_sources[destination] = source
-        portable_sources[portable] = (destination, source)
 
     def walk(
         directory: Path,
-        source_parts: tuple[str, ...],
         destination_parts: tuple[str, ...],
     ) -> bool:
         """Traverse one directory and report whether all descendants are selected."""
         all_descendants_selected = not _has_exclusion_at_or_below(
-            destination_parts, exclusion_index
+            destination_parts, exclusions
         )
         try:
             scanner = os.scandir(directory)
@@ -399,11 +261,7 @@ def build_deployment_plan(
                     continue
 
                 reserved_kind = _reserved_kind(child_destination_parts)
-                if reserved_kind == "backend-ignore":
-                    backend_ignore_controls.append(destination)
-                    all_descendants_selected = False
-                    continue
-                if reserved_kind == "policy":
+                if reserved_kind in {"backend-ignore", "policy", "configuration"}:
                     all_descendants_selected = False
                     continue
                 if reserved_kind == "vcs":
@@ -434,11 +292,7 @@ def build_deployment_plan(
                     )
                 if stat.S_ISDIR(source_stat.st_mode):
                     child_entry_start = len(entries)
-                    child_all_selected = walk(
-                        source,
-                        (*source_parts, raw_name),
-                        child_destination_parts,
-                    )
+                    child_all_selected = walk(source, child_destination_parts)
                     child_entry_count = len(entries) - child_entry_start
                     if child_all_selected and child_entry_count:
                         traversed_directory_candidates.append(
@@ -459,7 +313,6 @@ def build_deployment_plan(
                     )
 
                 mode = stat.S_IMODE(source_stat.st_mode)
-                content_digest = _hash_regular_file(source)
                 entries.append(
                     DeploymentPlanEntry(
                         source=source,
@@ -467,7 +320,6 @@ def build_deployment_plan(
                         size=source_stat.st_size,
                         mode=mode,
                         executable=bool(mode & 0o111),
-                        content_digest=content_digest,
                     )
                 )
         return all_descendants_selected
@@ -475,7 +327,6 @@ def build_deployment_plan(
     policy_snapshot = _read_policy_snapshot(root / POLICY_FILENAME)
     policy = policy_snapshot.policy
     exclusions = frozenset(policy.exclude)
-    exclusion_index = _ExclusionIndex(exclusions)
     policy_source = root / POLICY_FILENAME
     register_destination(POLICY_FILENAME, policy_source)
     entries.append(
@@ -485,14 +336,13 @@ def build_deployment_plan(
             size=policy_snapshot.size,
             mode=policy_snapshot.mode,
             executable=bool(policy_snapshot.mode & 0o111),
-            content_digest=policy_snapshot.content_digest,
         )
     )
-    walk(root, (), ())
+    walk(root, ())
 
     ordered_entries = tuple(sorted(entries, key=lambda entry: entry.destination))
     ordered_destinations = tuple(entry.destination for entry in ordered_entries)
-    destinations = frozenset(entry.destination for entry in ordered_entries)
+    destinations = frozenset(ordered_destinations)
     directory_link_candidates = tuple(
         sorted(
             (
@@ -503,65 +353,14 @@ def build_deployment_plan(
         )
     )
     total_size = sum(entry.size for entry in ordered_entries)
-    manifest_digest = _manifest_digest(ordered_entries)
     return DeploymentPlan(
         root=root,
         policy=policy,
         entries=ordered_entries,
         destinations=destinations,
         total_size=total_size,
-        manifest_digest=manifest_digest,
-        backend_ignore_controls=tuple(sorted(set(backend_ignore_controls))),
         directory_link_candidates=directory_link_candidates,
     )
-
-
-def compare_legacy_deployment_selection(
-    plan: DeploymentPlan,
-) -> LegacyDeploymentComparison:
-    """Compare a target plan with strict legacy ``ExperimentFileSource`` output."""
-    target = tuple(
-        DeploymentMembership(entry.destination, "regular-file")
-        for entry in plan.entries
-    )
-    legacy = _legacy_deployment_membership(plan.root)
-    target_set = frozenset(target)
-    legacy_set = frozenset(legacy)
-    newly_included = tuple(sorted(target_set - legacy_set))
-    newly_excluded = tuple(sorted(legacy_set - target_set))
-    return LegacyDeploymentComparison(
-        target=target,
-        legacy=legacy,
-        newly_included=newly_included,
-        newly_excluded=newly_excluded,
-        compatibility_digest=compute_legacy_compatibility_digest(
-            newly_included=newly_included,
-            newly_excluded=newly_excluded,
-        ),
-        configured_acknowledgement=plan.policy.legacy_diff_acknowledgement,
-        unresolved_backend_ignore_controls=plan.backend_ignore_controls,
-    )
-
-
-def require_deployment_compatibility(
-    plan: DeploymentPlan,
-) -> LegacyDeploymentComparison:
-    """Require a plan's strict legacy migration comparison to be accepted."""
-    comparison = compare_legacy_deployment_selection(plan)
-    if comparison.has_unresolved_backend_filters:
-        paths = ", ".join(comparison.unresolved_backend_ignore_controls)
-        raise DeploymentCompatibilityError(
-            "deploy.toml cannot be used while backend ignore controls remain: "
-            f"{paths}. Migrate their rules into deploy.toml and remove them."
-        )
-    if comparison.requires_acknowledgement and not comparison.acknowledgement_matches:
-        raise DeploymentCompatibilityError(
-            "deploy.toml changes file membership relative to legacy selection. "
-            "Review newly included and newly excluded paths with `dallinger "
-            "deployment-files check`, then manually set "
-            "legacy_diff_acknowledgement to the compatibility digest it prints."
-        )
-    return comparison
 
 
 def materialize_deployment_plan_entry(
@@ -569,10 +368,15 @@ def materialize_deployment_plan_entry(
     entry: DeploymentPlanEntry,
     destination: str | os.PathLike[str],
 ) -> None:
-    """Copy and verify one planned file into a trusted destination."""
+    """Copy one planned file into a trusted destination without overwriting."""
     target = Path(os.path.abspath(os.fspath(destination)))
     target.parent.mkdir(parents=True, exist_ok=True)
     _assert_source_under_root(plan.root, entry.source)
+    if target.exists() or target.is_symlink():
+        raise DeploymentPlanError(
+            f"Cannot materialize deployment entry {entry.destination!r}: "
+            f"destination already exists: {target}."
+        )
     try:
         source_stat = entry.source.lstat()
     except OSError as error:
@@ -584,38 +388,14 @@ def materialize_deployment_plan_entry(
             f"Deployment source is not a regular file: {entry.source}."
         )
 
-    temporary = target.parent / f".dallinger-deployment-{secrets.token_hex(12)}"
-    digest = hashlib.sha256()
-    copied_size = 0
     try:
-        with entry.source.open("rb") as source_handle, temporary.open(
-            "xb"
-        ) as temporary_handle:
-            while block := source_handle.read(1024 * 1024):
-                digest.update(block)
-                copied_size += len(block)
-                temporary_handle.write(block)
-
-        copied_digest = f"sha256:{digest.hexdigest()}"
-        if copied_size != entry.size or copied_digest != entry.content_digest:
-            raise DeploymentPlanError(
-                f"Deployment source content digest changed: {entry.source}."
-            )
-        os.chmod(temporary, entry.mode)
-        # Fail if the final component already exists (including as a symlink)
-        # rather than following or replacing it.
-        os.link(temporary, target)
-        temporary.unlink()
-        temporary = None
-    except DeploymentPlanError:
-        raise
+        shutil.copyfile(entry.source, target, follow_symlinks=False)
+        os.chmod(target, entry.mode)
     except OSError as error:
+        target.unlink(missing_ok=True)
         raise DeploymentPlanError(
             f"Cannot materialize deployment entry {entry.destination!r}: {error}"
         ) from error
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
 
 
 def _finalize_directory_candidate(
@@ -641,126 +421,6 @@ def _finalize_directory_candidate(
     )
 
 
-def compute_legacy_compatibility_digest(
-    *,
-    newly_included: Iterable[DeploymentMembership] = (),
-    newly_excluded: Iterable[DeploymentMembership] = (),
-) -> str:
-    """Hash directional path/type changes in a canonical domain/version."""
-    changes = {("included", membership) for membership in newly_included}
-    changes.update(("excluded", membership) for membership in newly_excluded)
-    canonical_changes = sorted(changes)
-    manifest = {
-        "domain": _LEGACY_DIFF_DOMAIN,
-        "version": _LEGACY_DIFF_VERSION,
-        "changes": [
-            {
-                "direction": direction,
-                "destination": membership.destination,
-                "file_type": membership.file_type,
-            }
-            for direction, membership in canonical_changes
-        ],
-    }
-    encoded_manifest = json.dumps(
-        manifest, ensure_ascii=False, separators=(",", ":"), sort_keys=True
-    ).encode("utf-8")
-    return f"sha256:{hashlib.sha256(encoded_manifest).hexdigest()}"
-
-
-class _StrictLegacyGitFiles:
-    """Supply ``ExperimentFileSource`` with cwd-independent, fail-closed Git files."""
-
-    def __init__(self, root: Path):
-        self.root = root
-
-    def files(self) -> set[str]:
-        command = [
-            "git",
-            "ls-files",
-            "-z",
-            "--cached",
-            "--others",
-            "--exclude-standard",
-        ]
-        try:
-            result = subprocess.run(
-                command,
-                cwd=self.root,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=False,
-            )
-        except OSError as error:
-            raise LegacySelectionError(
-                f"Legacy Git file selection failed for {self.root}: {error}."
-            ) from error
-        if result.returncode:
-            raise LegacySelectionError(
-                "Legacy Git file selection failed for "
-                f"{self.root} with exit status {result.returncode}."
-            )
-        try:
-            output = result.stdout.decode()
-        except UnicodeDecodeError as error:
-            raise LegacySelectionError(
-                f"Legacy Git file selection returned undecodable paths for {self.root}."
-            ) from error
-        return {item for item in output.split("\0") if item}
-
-
-def _legacy_deployment_membership(
-    experiment_root: Path,
-) -> tuple[DeploymentMembership, ...]:
-    """Evaluate current legacy filtering while binding Git to the same root."""
-    from dallinger.utils import ExperimentFileSource
-
-    root = Path(os.path.abspath(experiment_root))
-    file_source = ExperimentFileSource(
-        root,
-        selection="legacy",
-        git_client=_StrictLegacyGitFiles(root),
-    )
-    destination_root = root.parent / f".{root.name}-legacy-destination"
-    memberships: list[DeploymentMembership] = []
-    try:
-        locations = file_source.map_locations_to(destination_root)
-        for source, destination in locations:
-            relative = os.path.relpath(destination, destination_root)
-            if relative == os.pardir or relative.startswith(os.pardir + os.sep):
-                raise LegacySelectionError(
-                    f"Legacy selection produced an unsafe destination: {destination}."
-                )
-            memberships.append(
-                DeploymentMembership(
-                    unicodedata.normalize("NFC", Path(relative).as_posix()),
-                    _legacy_source_type(Path(source)),
-                )
-            )
-    except LegacySelectionError:
-        raise
-    except OSError as error:
-        raise LegacySelectionError(
-            f"Legacy deployment selection failed for {root}: {error}."
-        ) from error
-    return tuple(sorted(set(memberships)))
-
-
-def _legacy_source_type(source: Path) -> str:
-    """Describe legacy membership without reading source contents."""
-    try:
-        mode = source.lstat().st_mode
-    except OSError as error:
-        raise LegacySelectionError(
-            f"Cannot inspect legacy deployment source {source}: {error}."
-        ) from error
-    if stat.S_ISREG(mode):
-        return "regular-file"
-    if stat.S_ISLNK(mode):
-        return "symlink"
-    return _source_type(mode)
-
-
 def _validate_policy_path(value: str) -> str:
     """Validate and NFC-normalize one literal root-relative exclusion."""
     if not value:
@@ -769,7 +429,7 @@ def _validate_policy_path(value: str) -> str:
         raise DeploymentPolicyError(
             f"Exclusion paths must use POSIX separators: {value!r}."
         )
-    if value.startswith("/") or ntpath.splitdrive(value)[0]:
+    if value.startswith("/"):
         raise DeploymentPolicyError(
             f"Exclusion paths must be relative to the experiment root: {value!r}."
         )
@@ -789,7 +449,7 @@ def _validate_policy_path(value: str) -> str:
         )
 
     normalized_parts = tuple(
-        _normalize_portable_component(
+        _normalize_path_component(
             component,
             context=f"exclusion path {value!r}",
             error_type=DeploymentPolicyError,
@@ -806,56 +466,30 @@ def _validate_policy_path(value: str) -> str:
 
 def _normalize_source_component(name: str, source: Path) -> str:
     """Normalize one filesystem name for use as a POSIX destination component."""
-    return _normalize_portable_component(
+    return _normalize_path_component(
         name,
         context=f"deployment source {os.fspath(source)!r}",
         error_type=DeploymentPlanError,
     )
 
 
-def _normalize_portable_component(
+def _normalize_path_component(
     component: str,
     *,
     context: str,
     error_type: type[_ErrorType],
 ) -> str:
-    """Validate and NFC-normalize one portable destination component."""
+    """Validate and NFC-normalize one destination component."""
     normalized = unicodedata.normalize("NFC", component)
     if not normalized or normalized in {".", ".."}:
         raise error_type(f"Invalid path component in {context}: {component!r}.")
-    try:
-        normalized.encode("utf-8")
-    except UnicodeEncodeError as error:
-        raise error_type(
-            f"Path component is not valid Unicode in {context}."
-        ) from error
-    if any(
-        unicodedata.category(character) in {"Cc", "Cf", "Cs"}
-        for character in normalized
-    ):
-        raise error_type(f"Control and format characters are unsupported in {context}.")
-    forbidden = _WINDOWS_FORBIDDEN_CHARACTERS.intersection(normalized)
-    if forbidden:
-        characters = "".join(sorted(forbidden))
-        raise error_type(
-            f"Windows-forbidden character(s) {characters!r} are unsupported in {context}."
-        )
-    if normalized.endswith((" ", ".")):
-        raise error_type(
-            f"Path components must not end with a space or dot in {context}."
-        )
-    device_stem = normalized.split(".", 1)[0].casefold()
-    if device_stem in _WINDOWS_DEVICE_NAMES:
-        raise error_type(
-            f"Windows device name {normalized!r} is unsupported in {context}."
-        )
     return normalized
 
 
 def _is_excluded(
     destination_parts: tuple[str, ...], exclusions: AbstractSet[str]
 ) -> bool:
-    """Check exact ancestors against an exclusion set by path depth."""
+    """Return whether any ancestor destination is excluded."""
     return any(
         "/".join(destination_parts[:depth]) in exclusions
         for depth in range(1, len(destination_parts) + 1)
@@ -863,25 +497,32 @@ def _is_excluded(
 
 
 def _has_exclusion_at_or_below(
-    destination_parts: tuple[str, ...], exclusions: _ExclusionIndex
+    destination_parts: tuple[str, ...], exclusions: AbstractSet[str]
 ) -> bool:
     """Return whether a literal exclusion is this directory or a descendant."""
-    return exclusions.has_at_or_below(destination_parts)
+    if not exclusions:
+        return False
+    if not destination_parts:
+        return True
+    destination = "/".join(destination_parts)
+    if destination in exclusions:
+        return True
+    prefix = destination + "/"
+    return any(item.startswith(prefix) for item in exclusions)
 
 
 def _reserved_kind(destination_parts: tuple[str, ...]) -> str | None:
-    """Classify paths at or beneath non-overridable portable prefixes."""
-    portable_parts = tuple(part.casefold() for part in destination_parts)
-    root_name = portable_parts[0]
+    """Classify paths at or beneath non-overridable prefixes."""
+    root_name = destination_parts[0]
     if root_name == POLICY_FILENAME:
         return "policy"
-    if any(part in _VCS_METADATA_NAMES for part in portable_parts):
+    if any(part in _VCS_METADATA_NAMES for part in destination_parts):
         return "vcs"
     if root_name == "config.txt":
         return "configuration"
     if any(
         part == ".slugignore" or part.endswith(".dockerignore")
-        for part in portable_parts
+        for part in destination_parts
     ):
         return "backend-ignore"
     return None
@@ -891,31 +532,8 @@ def _require_posix_support(error_type: type[_ErrorType]) -> None:
     """Fail closed on non-POSIX platforms for this prototype."""
     if os.name != "posix":
         raise error_type(
-            "Deployment planning currently requires a POSIX filesystem; "
-            "Windows/reparse-point sources are not supported by this prototype."
+            "Deployment planning currently requires a POSIX filesystem."
         )
-
-
-def _assert_no_symlink_components(
-    path: Path,
-    error_type: type[_ErrorType],
-) -> None:
-    """Reject absolute paths that traverse a symbolic-link component."""
-    if not path.is_absolute():
-        raise error_type(f"Deployment paths must be absolute: {path}.")
-
-    accumulated = Path(path.anchor)
-    for component in path.parts[1:]:
-        accumulated /= component
-        try:
-            if accumulated.is_symlink():
-                raise error_type(
-                    f"Cannot open deployment path through symbolic link {accumulated}."
-                )
-        except OSError as error:
-            raise error_type(
-                f"Cannot inspect deployment path component {accumulated}: {error}"
-            ) from error
 
 
 def _assert_source_under_root(root: Path, source: Path) -> None:
@@ -933,7 +551,7 @@ def _assert_source_under_root(root: Path, source: Path) -> None:
 
 
 def _read_policy_snapshot(source: Path) -> _PolicySnapshot:
-    """Parse and hash a policy file without following a final-component symlink."""
+    """Parse a policy file without following a final-component symlink."""
     try:
         source_stat = source.lstat()
     except OSError as error:
@@ -957,7 +575,6 @@ def _read_policy_snapshot(source: Path) -> _PolicySnapshot:
             f"Cannot read deployment policy {source}: {error}"
         ) from error
 
-    content_digest = f"sha256:{hashlib.sha256(content).hexdigest()}"
     try:
         policy_text = content.decode("utf-8")
         raw_policy = tomllib.loads(policy_text)
@@ -969,43 +586,7 @@ def _read_policy_snapshot(source: Path) -> _PolicySnapshot:
         policy=_parse_policy(raw_policy),
         size=source_stat.st_size,
         mode=stat.S_IMODE(source_stat.st_mode),
-        content_digest=content_digest,
     )
-
-
-def _hash_regular_file(source: Path) -> str:
-    """Hash a regular file's contents."""
-    digest = hashlib.sha256()
-    try:
-        with source.open("rb") as handle:
-            while block := handle.read(1024 * 1024):
-                digest.update(block)
-    except OSError as error:
-        raise DeploymentPlanError(
-            f"Cannot hash deployment source {source}: {error}"
-        ) from error
-    return f"sha256:{digest.hexdigest()}"
-
-
-def _manifest_digest(entries: tuple[DeploymentPlanEntry, ...]) -> str:
-    manifest = {
-        "domain": _MANIFEST_DOMAIN,
-        "version": _MANIFEST_VERSION,
-        "entries": [
-            {
-                "content_digest": entry.content_digest,
-                "destination": entry.destination,
-                "executable": entry.executable,
-                "size": entry.size,
-                "source_category": entry.source_category,
-            }
-            for entry in entries
-        ],
-    }
-    encoded_manifest = json.dumps(
-        manifest, ensure_ascii=False, separators=(",", ":"), sort_keys=True
-    ).encode("utf-8")
-    return f"sha256:{hashlib.sha256(encoded_manifest).hexdigest()}"
 
 
 def _source_type(mode: int) -> str:

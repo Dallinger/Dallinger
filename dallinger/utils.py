@@ -35,7 +35,6 @@ from dallinger.deployment_plan import (
     DeploymentPlan,
     build_deployment_plan,
     materialize_deployment_plan_entry,
-    require_deployment_compatibility,
     validate_explicit_provider_destination,
 )
 from dallinger.models import Participant
@@ -850,7 +849,6 @@ class ExperimentFileSource(FileSource):
         policy_path = os.path.join(self.root, POLICY_FILENAME)
         if selection == "auto" and os.path.lexists(policy_path):
             self.deployment_plan = build_deployment_plan(self.root)
-            require_deployment_compatibility(self.deployment_plan)
 
     def map_locations_to(self, dst):
         if self.deployment_plan is not None:
@@ -993,7 +991,7 @@ def _validate_explicit_file_mappings(mappings, destination):
 
 
 def _development_protected_paths(destination, protected_destinations):
-    """Return portable later-provider destination keys within the tree."""
+    """Return later-provider destination keys within the tree."""
     destination_root = os.path.abspath(destination)
     protected = set()
     for target in protected_destinations:
@@ -1009,15 +1007,13 @@ def _development_protected_paths(destination, protected_destinations):
         relative = os.path.relpath(target, destination_root)
         if relative == os.curdir:
             return frozenset({""})
-        protected.add(_development_portable_path_key(Path(relative).parts))
+        protected.add(_development_path_key(Path(relative).parts))
     return frozenset(protected)
 
 
-def _development_portable_path_key(parts):
-    """Return an NFC, case-folded POSIX key for destination components."""
-    return "/".join(
-        normalize("NFC", normalize("NFC", part).casefold()) for part in parts
-    )
+def _development_path_key(parts):
+    """Return an NFC-normalized POSIX key for destination components."""
+    return "/".join(normalize("NFC", part) for part in parts)
 
 
 def _development_paths_overlap(first, second):
@@ -1039,7 +1035,7 @@ def _select_development_directory_candidates(plan, protected):
         plan.directory_link_candidates,
         key=lambda item: (item.destination.count("/"), item.destination),
     ):
-        candidate_key = _development_portable_path_key(candidate.destination.split("/"))
+        candidate_key = _development_path_key(candidate.destination.split("/"))
         ancestors = {
             "/".join(candidate_key.split("/")[:depth])
             for depth in range(1, candidate_key.count("/") + 2)

@@ -6,7 +6,6 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-import unicodedata
 import uuid
 import warnings
 from pathlib import Path
@@ -25,35 +24,20 @@ def found_in(name, path):
     return os.path.exists(os.path.join(path, name))
 
 
-def write_deployment_policy(root, exclude=(), acknowledgement=None):
+def write_deployment_policy(root, exclude=()):
     """Write a minimal version 1 deployment policy."""
-    acknowledgement_line = (
-        ""
-        if acknowledgement is None
-        else f'legacy_diff_acknowledgement = "{acknowledgement}"\n'
-    )
     exclusions = ", ".join(f'"{path}"' for path in exclude)
     (Path(root) / "deploy.toml").write_text(
-        f"version = 1\n{acknowledgement_line}exclude = [{exclusions}]\n"
+        f"version = 1\nexclude = [{exclusions}]\n"
     )
 
 
 def write_reviewed_deployment_policy(root, exclude=()):
-    """Write a policy acknowledged against strict legacy Git selection."""
-    from dallinger.deployment_plan import (
-        build_deployment_plan,
-        compare_legacy_deployment_selection,
-    )
-
+    """Write a deploy.toml and ensure the directory is a git repo."""
     root = Path(root)
-    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    if not (root / ".git").exists():
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     write_deployment_policy(root, exclude)
-    comparison = compare_legacy_deployment_selection(build_deployment_plan(root))
-    write_deployment_policy(
-        root,
-        exclude,
-        acknowledgement=comparison.compatibility_digest,
-    )
 
 
 @pytest.fixture
@@ -550,53 +534,6 @@ class TestExperimentFilesSource:
         assert experiment_collision.read_text() == "experiment"
         assert provider_collision.read_text() == "provider"
 
-    def test_portable_provider_collision_blocks_bulk_link(self, tmp_path):
-        from dallinger.utils import (
-            DallingerFileSource,
-            ExplicitFileSource,
-            collate_experiment_files,
-            symlink_file,
-        )
-
-        root = tmp_path / "experiment"
-        root.mkdir()
-        source_directory = root / "Café"
-        source_directory.mkdir()
-        source_asset = source_directory / "asset.txt"
-        source_asset.write_text("experiment")
-        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-        write_deployment_policy(root)
-        provider_source = tmp_path / "provider.txt"
-        provider_source.write_text("provider")
-        destination = tmp_path / "destination"
-        portable_collision = unicodedata.normalize("NFD", "CAFÉ")
-
-        with (
-            mock.patch("dallinger.config.initialize_experiment_package"),
-            mock.patch.object(
-                ExplicitFileSource,
-                "map_locations_to",
-                return_value=[
-                    (
-                        str(provider_source),
-                        str(destination / portable_collision / "provider.txt"),
-                    )
-                ],
-            ),
-            mock.patch.object(DallingerFileSource, "map_locations_to", return_value=[]),
-        ):
-            collate_experiment_files(
-                {},
-                experiment_path=root,
-                destination=destination,
-                copy_func=symlink_file,
-            )
-
-        assert not (destination / "Café").is_symlink()
-        assert (destination / "Café/asset.txt").is_symlink()
-        assert source_asset.read_text() == "experiment"
-        assert not (source_directory / "provider.txt").exists()
-
     def test_framework_collision_does_not_block_unrelated_bulk_link_sibling(
         self, tmp_path
     ):
@@ -859,80 +796,20 @@ class TestExperimentFilesSource:
 
         assert str(root / "ignored.txt") in source.files
 
-    def test_policy_gate_requires_current_acknowledgement(self, subject, tmp_path):
-        from dallinger.deployment_plan import DeploymentCompatibilityError
-
-        root = tmp_path / "experiment"
-        root.mkdir()
-        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-        (root / ".gitignore").write_text("ignored.txt\n")
-        (root / "ignored.txt").write_text("newly included")
-        write_deployment_policy(root)
-
-        with pytest.raises(DeploymentCompatibilityError, match="acknowledge"):
-            subject(root)
-
-        write_reviewed_deployment_policy(root)
-        source = subject(root)
-        assert str(root / "ignored.txt") in source.files
-
-        (root / "second-ignored.txt").write_text("new")
-        (root / ".gitignore").write_text("ignored.txt\nsecond-ignored.txt\n")
-        with pytest.raises(DeploymentCompatibilityError, match="acknowledge"):
-            subject(root)
-
-    def test_policy_gate_requires_review_for_tracked_exclusion(self, subject, tmp_path):
-        from dallinger.deployment_plan import (
-            DeploymentCompatibilityError,
-            DeploymentMembership,
-            build_deployment_plan,
-            compare_legacy_deployment_selection,
-        )
-
-        root = tmp_path / "experiment"
-        root.mkdir()
-        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-        required_input = root / "required-input.txt"
-        required_input.write_text("ordinary tracked input")
-        subprocess.run(["git", "add", "required-input.txt"], cwd=root, check=True)
-        write_deployment_policy(root, exclude=["required-input.txt"])
-        comparison = compare_legacy_deployment_selection(build_deployment_plan(root))
-
-        assert comparison.newly_excluded == (
-            DeploymentMembership("required-input.txt", "regular-file"),
-        )
-        assert comparison.requires_acknowledgement
-        with pytest.raises(DeploymentCompatibilityError, match="newly excluded"):
-            subject(root)
-
-        write_deployment_policy(
-            root,
-            exclude=["required-input.txt"],
-            acknowledgement=comparison.compatibility_digest,
-        )
-        source = subject(root)
-        assert str(required_input) not in source.files
-
-    @pytest.mark.parametrize(
-        "backend_control",
-        [".dockerignore", "Dockerfile.production.dockerignore", ".slugignore"],
-    )
-    def test_policy_gate_rejects_unresolved_backend_controls(
-        self, subject, tmp_path, backend_control
+    def test_policy_omits_backend_ignore_controls_without_gating(
+        self, subject, tmp_path
     ):
-        from dallinger.deployment_plan import DeploymentCompatibilityError
-
         root = tmp_path / "experiment"
         root.mkdir()
         subprocess.run(["git", "init", "-q"], cwd=root, check=True)
         write_deployment_policy(root)
-        (root / backend_control).write_text("*")
+        (root / ".dockerignore").write_text("*")
+        (root / "asset.txt").write_text("kept")
 
-        with pytest.raises(
-            DeploymentCompatibilityError,
-            match="backend ignore controls",
-        ):
-            subject(root)
+        source = subject(root)
+
+        assert str(root / "asset.txt") in source.files
+        assert str(root / ".dockerignore") not in source.files
 
     def test_plan_copy_rejects_external_symlink_replacement(self, subject, tmp_path):
         from dallinger.deployment_plan import DeploymentPlanError
@@ -953,47 +830,6 @@ class TestExperimentFilesSource:
             source.apply_to(destination)
 
         assert not (destination / "asset.txt").exists()
-        assert not list(destination.rglob(".dallinger-deployment-*"))
-
-    def test_plan_copy_rejects_content_mutation_and_cleans_partial_output(
-        self, subject, tmp_path
-    ):
-        from dallinger.deployment_plan import DeploymentPlanError
-
-        root = tmp_path / "experiment"
-        root.mkdir()
-        source_path = root / "asset.txt"
-        source_path.write_text("planned")
-        write_reviewed_deployment_policy(root)
-        source = subject(root)
-        source_path.write_text("mutated")
-        destination = tmp_path / "destination"
-
-        with pytest.raises(DeploymentPlanError, match="changed|digest"):
-            source.apply_to(destination)
-
-        assert not (destination / "asset.txt").exists()
-        assert not list(destination.rglob(".dallinger-deployment-*"))
-
-    def test_plan_copy_failure_is_atomic(self, subject, tmp_path, monkeypatch):
-        from dallinger.deployment_plan import DeploymentPlanError
-
-        root = tmp_path / "experiment"
-        root.mkdir()
-        (root / "asset.txt").write_text("planned")
-        write_reviewed_deployment_policy(root)
-        source = subject(root)
-        destination = tmp_path / "destination"
-
-        monkeypatch.setattr(
-            "dallinger.deployment_plan.os.link",
-            mock.Mock(side_effect=OSError("injected link failure")),
-        )
-        with pytest.raises(DeploymentPlanError, match="materialize"):
-            source.apply_to(destination)
-
-        assert not (destination / "asset.txt").exists()
-        assert not list(destination.rglob(".dallinger-deployment-*"))
 
     def test_plan_copy_preserves_mode(self, subject, tmp_path):
         root = tmp_path / "experiment"
@@ -1048,13 +884,12 @@ class TestExperimentFilesSource:
         target = destination / "asset.txt"
         target.symlink_to(external)
 
-        with pytest.raises(DeploymentPlanError, match="materialize"):
+        with pytest.raises(DeploymentPlanError, match="already exists"):
             materialize_deployment_plan_entry(plan, entry, target)
 
         assert target.is_symlink()
         assert target.read_text() == "external"
         assert external.read_text() == "external"
-        assert not list(destination.glob(".dallinger-deployment-*"))
 
     def test_plan_rejects_custom_copy_functions(self, subject, tmp_path):
         root = tmp_path / "experiment"
@@ -1101,59 +936,6 @@ def test_explicit_provider_rejects_reserved_destinations_before_materialization(
         ExplicitFileSource,
         "map_locations_to",
         lambda self, root: iter([(provider_source, Path(root) / reserved_destination)]),
-    )
-    monkeypatch.setattr(
-        DallingerFileSource,
-        "map_locations_to",
-        lambda self, root: iter(()),
-    )
-
-    with pytest.raises(DeploymentPlanError, match="reserved"):
-        collate_experiment_files(
-            config=mock.Mock(),
-            experiment_path=tmp_path,
-            destination=destination,
-            copy_func=copy_file,
-            experiment_file_source=experiment_source,
-        )
-
-    experiment_source.apply_to.assert_not_called()
-    assert not destination.exists()
-
-
-def test_explicit_directory_provider_rejects_reserved_case_alias_prefix(
-    tmp_path, monkeypatch
-):
-    from dallinger.deployment_plan import DeploymentPlanError
-    from dallinger.utils import (
-        DallingerFileSource,
-        collate_experiment_files,
-        copy_file,
-    )
-
-    provider_directory = tmp_path / "provider"
-    provider_directory.mkdir()
-    (provider_directory / "child.txt").write_text("provider")
-
-    class ExperimentWithDirectoryProvider:
-        @classmethod
-        def extra_files(cls):
-            return [(provider_directory, ".DoCkErIgNoRe")]
-
-    def initialize_provider_package(path):
-        package = mock.Mock()
-        monkeypatch.setitem(sys.modules, "dallinger_experiment", package)
-        monkeypatch.setitem(sys.modules, os.path.basename(path), package)
-
-    destination = tmp_path / "assembly"
-    experiment_source = mock.Mock(deployment_plan=object())
-    monkeypatch.setattr(
-        "dallinger.config.initialize_experiment_package",
-        initialize_provider_package,
-    )
-    monkeypatch.setattr(
-        "dallinger.experiment.load",
-        lambda: ExperimentWithDirectoryProvider,
     )
     monkeypatch.setattr(
         DallingerFileSource,
