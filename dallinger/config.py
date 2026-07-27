@@ -317,7 +317,9 @@ class Configuration:
         """Load default configuration values"""
         # Apply extra parameters before loading the configs
         if experiment_available():
-            # In practice, experiment_available should only return False in tests
+            # In practice this is False only in non-experiment contexts such
+            # as tests: no experiment.py in the current directory and no
+            # experiment package initialized in this process.
             self.register_extra_parameters()
 
         global_config_name = ".dallingerconfig"
@@ -396,9 +398,11 @@ def get_config(load=False):
 
     if config is None:
         if experiment_available():
-            from dallinger.experiment import load
+            # Import under a different name to avoid shadowing the `load`
+            # parameter, which would otherwise force config loading below.
+            from dallinger.experiment import load as load_experiment
 
-            exp_klass = load()
+            exp_klass = load_experiment()
             config_class = exp_klass.config_class()
         else:
             config_class = Configuration
@@ -436,7 +440,31 @@ def initialize_experiment_package(path):
 
 
 def experiment_available():
-    return Path("experiment.py").exists()
+    """Return True if an experiment is available in the current process.
+
+    An experiment counts as available if the current working directory
+    contains an ``experiment.py`` file, or if an experiment package has
+    already been initialized (via ``initialize_experiment_package``) in this
+    process. The latter check keeps config loading consistent for processes
+    that change their working directory after importing the experiment;
+    without it, such processes would silently skip the experiment's config
+    defaults and resolve different config values than other processes.
+    """
+    if Path("experiment.py").exists():
+        return True
+    module = sys.modules.get("dallinger_experiment")
+    if module is None:
+        return False
+    # Only count initialized packages that actually contain an experiment
+    # module that ``dallinger.experiment.load`` could import; this guards
+    # against stale or accidental `dallinger_experiment` entries (e.g.
+    # namespace packages without any real location).
+    module_paths = getattr(module, "__path__", None) or []
+    return any(
+        Path(path, filename).exists()
+        for path in module_paths
+        for filename in ("experiment.py", "dallinger_experiment.py")
+    )
 
 
 def raise_invalid_key_error(key):

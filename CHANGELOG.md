@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed config loading so experiment-defined config defaults are still applied
+  when a process loads its configuration after changing away from the
+  experiment directory.
+- Fixed `get_config()` so calling it without `load=True` no longer eagerly
+  loads the configuration when an experiment is available.
+
 ### Updated
 
 - Updated Python dependencies

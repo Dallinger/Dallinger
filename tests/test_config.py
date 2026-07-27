@@ -265,3 +265,72 @@ class TestConfigurationIntegrationTests:
         config.load_experiment_config_defaults()
 
         assert config.get("duration") == 12345.0
+
+    def test_load_applies_experiment_defaults_after_cwd_change(
+        self, tmpdir, monkeypatch
+    ):
+        # Long-running processes (workers, CLI tools) may load config after
+        # the current working directory has changed away from the experiment
+        # directory. Once the experiment package has been initialized, the
+        # experiment's config defaults should still be applied; otherwise
+        # different processes can silently resolve different config values
+        # (see https://gitlab.com/PsyNetDev/PsyNet/-/issues/1040).
+        import sys
+
+        import dallinger.config
+        from dallinger.config import initialize_experiment_package
+
+        saved_experiment_module = sys.modules.get("dallinger_experiment")
+        saved_config = dallinger.config.config
+        initialize_experiment_package(os.getcwd())
+        original_cwd = os.getcwd()
+        # Isolate the test from any real ~/.dallingerconfig.
+        monkeypatch.setenv("HOME", str(tmpdir))
+        os.chdir(str(tmpdir))
+        try:
+            # Simulate a fresh process by discarding the cached config.
+            dallinger.config.config = None
+            config = get_config(load=True)
+            assert config.get("duration") == 12345.0
+        finally:
+            os.chdir(original_cwd)
+            dallinger.config.config = saved_config
+            if saved_experiment_module is None:
+                sys.modules.pop("dallinger_experiment", None)
+            else:
+                sys.modules["dallinger_experiment"] = saved_experiment_module
+
+    def test_get_config_without_load_does_not_load(self, monkeypatch):
+        # The experiment loader import inside get_config() used to shadow the
+        # `load` parameter, forcing an eager config load whenever an
+        # experiment was available.
+        import dallinger.config
+
+        saved_config = dallinger.config.config
+        try:
+            dallinger.config.config = None
+            config = get_config()
+            assert not config.ready
+        finally:
+            dallinger.config.config = saved_config
+
+    def test_experiment_available_ignores_stale_experiment_module(
+        self, tmpdir, monkeypatch
+    ):
+        # A `dallinger_experiment` entry in sys.modules that does not point at
+        # a real experiment (e.g. a leftover namespace package) should not make
+        # experiment_available() return True.
+        import sys
+        import types
+
+        from dallinger.config import experiment_available
+
+        stale = types.ModuleType("dallinger_experiment")
+        stale.__path__ = [str(tmpdir)]  # No experiment module in there.
+        monkeypatch.setitem(sys.modules, "dallinger_experiment", stale)
+        original_cwd = os.getcwd()
+        os.chdir(str(tmpdir))
+        try:
+            assert not experiment_available()
+        finally:
+            os.chdir(original_cwd)
