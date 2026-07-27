@@ -290,3 +290,24 @@ class TestConfigurationIntegrationTests:
             assert config.get("duration") == 12345.0
         finally:
             os.chdir(original_cwd)
+
+    def test_experiment_available_ignores_stale_experiment_module(
+        self, tmpdir, monkeypatch
+    ):
+        # A `dallinger_experiment` entry in sys.modules that does not point at
+        # a real experiment (e.g. a leftover namespace package) should not make
+        # experiment_available() return True.
+        import sys
+        import types
+
+        from dallinger.config import experiment_available
+
+        stale = types.ModuleType("dallinger_experiment")
+        stale.__path__ = [str(tmpdir)]  # No experiment module in there.
+        monkeypatch.setitem(sys.modules, "dallinger_experiment", stale)
+        original_cwd = os.getcwd()
+        os.chdir(str(tmpdir))
+        try:
+            assert not experiment_available()
+        finally:
+            os.chdir(original_cwd)

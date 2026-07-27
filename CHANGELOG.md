@@ -9,6 +9,9 @@
   experiment directory. Previously such processes silently skipped the
   experiment's config defaults and could resolve different config values
   (e.g. `dashboard_user`) than other processes of the same experiment.
+- Fixed `get_config()` so calling it without `load=True` no longer eagerly
+  loads the full configuration when an experiment is available (the imported
+  experiment loader used to shadow the `load` parameter).
 
 ### Updated
 
