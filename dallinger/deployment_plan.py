@@ -8,10 +8,10 @@ comparison needed to inspect migration compatibility. Source trees are treated
 as untrusted input, so ambiguous paths, links, repositories, and special files
 fail closed rather than acquiring backend-dependent meanings.
 
-Traversal uses ordinary ``lstat`` / ``scandir`` checks (no symlink following)
-rather than descriptor-relative TOCTOU hardening. Experiment trees are assumed
-to be trusted against concurrent local attackers; containment still rejects
-symlinks, special files, and paths outside the experiment root.
+Traversal uses ordinary ``lstat`` / ``scandir`` checks (no symlink following).
+Containment rejects symlinks, special files, and paths outside the experiment
+root. The planner does not re-validate filesystem identity between planning and
+materialization; that window is short and the working tree is trusted.
 """
 
 from __future__ import annotations
@@ -86,29 +86,6 @@ class DeploymentPolicy:
     legacy_diff_acknowledgement: str | None = None
 
 
-@dataclass(frozen=True)
-class SourceIdentity:
-    """Filesystem identity captured at plan time for later validation."""
-
-    device: int
-    inode: int
-    mode: int
-    size: int
-    modified_ns: int
-    changed_ns: int
-
-    @classmethod
-    def from_stat(cls, value: os.stat_result) -> SourceIdentity:
-        """Capture the identity-relevant fields from a stat result."""
-        return cls(
-            device=value.st_dev,
-            inode=value.st_ino,
-            mode=stat.S_IMODE(value.st_mode),
-            size=value.st_size,
-            modified_ns=value.st_mtime_ns,
-            changed_ns=value.st_ctime_ns,
-        )
-
 
 @dataclass(frozen=True)
 class DeploymentPlanEntry:
@@ -117,8 +94,8 @@ class DeploymentPlanEntry:
     source: Path
     destination: str
     size: int
+    mode: int
     executable: bool
-    source_identity: SourceIdentity
     content_digest: str
     source_category: str = "experiment"
 
@@ -129,7 +106,6 @@ class DeploymentDirectoryLinkCandidate:
 
     source: Path
     destination: str
-    source_identity: SourceIdentity
     entry_start: int
     entry_stop: int
 
@@ -203,7 +179,8 @@ class LegacyDeploymentComparison:
 @dataclass(frozen=True)
 class _PolicySnapshot:
     policy: DeploymentPolicy
-    source_identity: SourceIdentity
+    size: int
+    mode: int
     content_digest: str
 
 
@@ -211,7 +188,6 @@ class _PolicySnapshot:
 class _TraversedDirectoryCandidate:
     source: Path
     destination: str
-    source_identity: SourceIdentity
     entry_count: int
 
 
@@ -457,7 +433,6 @@ def build_deployment_plan(
                         "Exclude the link or replace it with a regular file or directory."
                     )
                 if stat.S_ISDIR(source_stat.st_mode):
-                    child_identity = SourceIdentity.from_stat(source_stat)
                     child_entry_start = len(entries)
                     child_all_selected = walk(
                         source,
@@ -470,7 +445,6 @@ def build_deployment_plan(
                             _TraversedDirectoryCandidate(
                                 source=source,
                                 destination=destination,
-                                source_identity=child_identity,
                                 entry_count=child_entry_count,
                             )
                         )
@@ -484,14 +458,15 @@ def build_deployment_plan(
                         "Only regular files and directories are supported."
                     )
 
-                identity, content_digest = _hash_regular_file(source, source_stat)
+                mode = stat.S_IMODE(source_stat.st_mode)
+                content_digest = _hash_regular_file(source)
                 entries.append(
                     DeploymentPlanEntry(
                         source=source,
                         destination=destination,
-                        size=identity.size,
-                        executable=bool(identity.mode & 0o111),
-                        source_identity=identity,
+                        size=source_stat.st_size,
+                        mode=mode,
+                        executable=bool(mode & 0o111),
                         content_digest=content_digest,
                     )
                 )
@@ -507,9 +482,9 @@ def build_deployment_plan(
         DeploymentPlanEntry(
             source=policy_source,
             destination=POLICY_FILENAME,
-            size=policy_snapshot.source_identity.size,
-            executable=bool(policy_snapshot.source_identity.mode & 0o111),
-            source_identity=policy_snapshot.source_identity,
+            size=policy_snapshot.size,
+            mode=policy_snapshot.mode,
+            executable=bool(policy_snapshot.mode & 0o111),
             content_digest=policy_snapshot.content_digest,
         )
     )
@@ -589,56 +564,6 @@ def require_deployment_compatibility(
     return comparison
 
 
-def validate_deployment_plan_entry(
-    plan: DeploymentPlan,
-    entry: DeploymentPlanEntry,
-) -> None:
-    """Validate a planned source's current type and filesystem identity."""
-    _assert_source_under_root(plan.root, entry.source)
-    try:
-        source_stat = entry.source.lstat()
-    except OSError as error:
-        raise DeploymentPlanError(
-            f"Cannot inspect deployment source {entry.source}: {error}"
-        ) from error
-    if stat.S_ISLNK(source_stat.st_mode):
-        raise DeploymentPlanError(
-            f"Deployment source changed to a symbolic link: {entry.source}."
-        )
-    if not stat.S_ISREG(source_stat.st_mode):
-        raise DeploymentPlanError(f"Deployment source changed type: {entry.source}.")
-    if SourceIdentity.from_stat(source_stat) != entry.source_identity:
-        raise DeploymentPlanError(
-            f"Deployment source changed since planning: {entry.source}."
-        )
-
-
-def validate_deployment_directory_link_candidate(
-    plan: DeploymentPlan,
-    candidate: DeploymentDirectoryLinkCandidate,
-) -> None:
-    """Validate a planned directory's current type and filesystem identity."""
-    _assert_source_under_root(plan.root, candidate.source)
-    try:
-        source_stat = candidate.source.lstat()
-    except OSError as error:
-        raise DeploymentPlanError(
-            f"Cannot inspect deployment directory {candidate.source}: {error}"
-        ) from error
-    if stat.S_ISLNK(source_stat.st_mode):
-        raise DeploymentPlanError(
-            f"Deployment directory changed to a symbolic link: {candidate.source}."
-        )
-    if not stat.S_ISDIR(source_stat.st_mode):
-        raise DeploymentPlanError(
-            f"Deployment directory changed type: {candidate.source}."
-        )
-    if SourceIdentity.from_stat(source_stat) != candidate.source_identity:
-        raise DeploymentPlanError(
-            f"Deployment directory changed since planning: {candidate.source}."
-        )
-
-
 def materialize_deployment_plan_entry(
     plan: DeploymentPlan,
     entry: DeploymentPlanEntry,
@@ -647,7 +572,17 @@ def materialize_deployment_plan_entry(
     """Copy and verify one planned file into a trusted destination."""
     target = Path(os.path.abspath(os.fspath(destination)))
     target.parent.mkdir(parents=True, exist_ok=True)
-    validate_deployment_plan_entry(plan, entry)
+    _assert_source_under_root(plan.root, entry.source)
+    try:
+        source_stat = entry.source.lstat()
+    except OSError as error:
+        raise DeploymentPlanError(
+            f"Cannot inspect deployment source {entry.source}: {error}"
+        ) from error
+    if stat.S_ISLNK(source_stat.st_mode) or not stat.S_ISREG(source_stat.st_mode):
+        raise DeploymentPlanError(
+            f"Deployment source is not a regular file: {entry.source}."
+        )
 
     temporary = target.parent / f".dallinger-deployment-{secrets.token_hex(12)}"
     digest = hashlib.sha256()
@@ -666,7 +601,7 @@ def materialize_deployment_plan_entry(
             raise DeploymentPlanError(
                 f"Deployment source content digest changed: {entry.source}."
             )
-        os.chmod(temporary, entry.source_identity.mode)
+        os.chmod(temporary, entry.mode)
         # Fail if the final component already exists (including as a symlink)
         # rather than following or replacing it.
         os.link(temporary, target)
@@ -701,7 +636,6 @@ def _finalize_directory_candidate(
     return DeploymentDirectoryLinkCandidate(
         source=candidate.source,
         destination=candidate.destination,
-        source_identity=candidate.source_identity,
         entry_start=entry_start,
         entry_stop=entry_stop,
     )
@@ -1016,7 +950,6 @@ def _read_policy_snapshot(source: Path) -> _PolicySnapshot:
             f"Deployment policy {source} must be a regular file."
         )
 
-    identity = SourceIdentity.from_stat(source_stat)
     try:
         content = source.read_bytes()
     except OSError as error:
@@ -1034,21 +967,14 @@ def _read_policy_snapshot(source: Path) -> _PolicySnapshot:
         ) from error
     return _PolicySnapshot(
         policy=_parse_policy(raw_policy),
-        source_identity=identity,
+        size=source_stat.st_size,
+        mode=stat.S_IMODE(source_stat.st_mode),
         content_digest=content_digest,
     )
 
 
-def _hash_regular_file(
-    source: Path,
-    source_stat: os.stat_result,
-) -> tuple[SourceIdentity, str]:
-    """Hash a regular file after an ``lstat`` type check."""
-    if not stat.S_ISREG(source_stat.st_mode):
-        raise DeploymentPlanError(
-            f"Deployment source changed type while planning: {source}."
-        )
-    identity = SourceIdentity.from_stat(source_stat)
+def _hash_regular_file(source: Path) -> str:
+    """Hash a regular file's contents."""
     digest = hashlib.sha256()
     try:
         with source.open("rb") as handle:
@@ -1058,7 +984,7 @@ def _hash_regular_file(
         raise DeploymentPlanError(
             f"Cannot hash deployment source {source}: {error}"
         ) from error
-    return identity, f"sha256:{digest.hexdigest()}"
+    return f"sha256:{digest.hexdigest()}"
 
 
 def _manifest_digest(entries: tuple[DeploymentPlanEntry, ...]) -> str:

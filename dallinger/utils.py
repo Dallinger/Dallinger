@@ -36,8 +36,6 @@ from dallinger.deployment_plan import (
     build_deployment_plan,
     materialize_deployment_plan_entry,
     require_deployment_compatibility,
-    validate_deployment_directory_link_candidate,
-    validate_deployment_plan_entry,
     validate_explicit_provider_destination,
 )
 from dallinger.models import Participant
@@ -893,9 +891,7 @@ class ExperimentFileSource(FileSource):
                     target,
                 )
             else:
-                # Development links remain intentionally trusted/live after
-                # this immediate no-follow identity and type validation.
-                validate_deployment_plan_entry(self.deployment_plan, entry)
+                # Development links remain intentionally trusted/live.
                 symlink_file(entry.source, target)
 
     def apply_development_to(self, destination, protected_destinations=()):
@@ -913,9 +909,6 @@ class ExperimentFileSource(FileSource):
             ensure_directory(os.path.dirname(target))
             if os.path.lexists(target):
                 continue
-            validate_deployment_directory_link_candidate(
-                self.deployment_plan, candidate
-            )
             symlink_file(candidate.source, target)
             covered_ranges.append((candidate.entry_start, candidate.entry_stop))
 
@@ -934,7 +927,6 @@ class ExperimentFileSource(FileSource):
             target = os.path.join(destination, *entry.destination.split("/"))
             ensure_directory(os.path.dirname(target))
             if not os.path.lexists(target):
-                validate_deployment_plan_entry(self.deployment_plan, entry)
                 symlink_file(entry.source, target)
             entry_index += 1
 

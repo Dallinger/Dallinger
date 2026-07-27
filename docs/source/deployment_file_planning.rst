@@ -48,10 +48,9 @@ and refuses materialization until all target-versus-legacy membership changes
 are acknowledged and all backend ignore controls have been removed.
 
 Copied policy entries are checked with ``lstat`` (no symlink following),
-validated against their planned filesystem identity, hashed while copying, and
-installed without replacing an existing final path and with their recorded
-mode. Per-file development links validate source type and identity
-immediately before linking, but remain trusted live links after that point.
+hashed while copying against the planned content digest, and installed
+without replacing an existing final path and with their recorded mode.
+Per-file development links remain trusted live links after staging.
 ``dallinger develop debug`` passes one ``ExperimentFileSource`` from
 verification through staging so this plan and migration comparison are built
 once.
@@ -400,13 +399,11 @@ Plan lifecycle and mutation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Remote materialization uses a frozen plan. Regular source files are inspected
-with ``lstat`` (so selected symlinks are rejected), validated against the
-identity recorded at plan time, and hashed while being copied. The resulting
-digest must match the digest recorded by the plan. This detects rather than
-silently accepts source mutation between planning and copy, at the cost of
-reading remote-deployment inputs during both phases. The planner does not use
-descriptor-relative TOCTOU hardening; experiment trees are treated as trusted
-against concurrent local attackers.
+with ``lstat`` (so selected symlinks are rejected) and hashed while being
+copied. The resulting digest must match the digest recorded by the plan.
+This catches a bad or partial copy. The planner does not re-check filesystem
+identity between planning and materialization; that window is short and the
+working tree is trusted.
 
 Plan validation completes before app registration, Heroku creation, image push,
 or other remote side effects.
@@ -424,7 +421,7 @@ Local development retains links so source edits remain visible.
 
 The current opt-in integration records immutable directory-link candidates
 during plan traversal. A candidate identifies its source
-directory, normalized destination, filesystem identity, and contiguous span of
+directory, normalized destination, and contiguous span of
 planned entries. A directory is eligible only when every currently existing
 descendant is selected and no literal exclusion is equal to or beneath it,
 including exclusions for paths that do not yet exist. Exclusions and reserved
@@ -434,10 +431,9 @@ subtrees to remain candidates.
 Development collation computes explicit and framework mappings once before
 applying them. Their destinations and in-tree ancestors protect overlapping
 candidate branches using NFC-normalized, case-folded portable path keys. It
-then links the shallowest safe candidate directories,
-validating each directory's type and identity immediately before link creation,
+then links the shallowest safe candidate directories
 and skips their plan-entry spans without visiting each covered file. Uncovered
-and colliding branches retain validated per-file links and existing first-wins
+and colliding branches retain per-file links and existing first-wins
 provider behavior. Copied staging continues to materialize every entry as a
 verified regular file.
 
@@ -479,9 +475,9 @@ initial plan.
 
 The current opt-in integration uses the existing per-file copied collation
 path, but policy-backed experiment entries use frozen-plan materialization:
-``lstat`` type checks, identity validation before copying, content-digest
-verification, exclusive temporary creation plus hard-link installation that
-refuses to replace an existing final path, and recorded mode preservation.
+``lstat`` type checks, content-digest verification while copying, exclusive
+temporary creation plus hard-link installation that refuses to replace an
+existing final path, and recorded mode preservation.
 The destination staging path is a caller-owned trust boundary: ordinary path
 resolution may follow trusted parent aliases such as macOS ``/var`` to
 ``/private/var``, but never follows or replaces an existing final-component

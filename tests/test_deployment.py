@@ -418,24 +418,12 @@ class TestExperimentFilesSource:
         source = subject(root)
         destination = tmp_path / "destination"
 
-        with (
-            mock.patch(
-                "dallinger.utils.validate_deployment_directory_link_candidate",
-                wraps=utils.validate_deployment_directory_link_candidate,
-            ) as validate_directory,
-            mock.patch(
-                "dallinger.utils.validate_deployment_plan_entry",
-                wraps=utils.validate_deployment_plan_entry,
-            ) as validate_file,
-            mock.patch(
-                "dallinger.utils.symlink_file", wraps=utils.symlink_file
-            ) as link,
-        ):
+        with mock.patch(
+            "dallinger.utils.symlink_file", wraps=utils.symlink_file
+        ) as link:
             source.apply_development_to(destination)
 
         assert (destination / "static").is_symlink()
-        assert validate_directory.call_count == 1
-        assert validate_file.call_count == 1  # deploy.toml only
         assert link.call_count == 2  # one directory and deploy.toml
         assert not any(
             Path(call.args[1]).parent == destination / "static"
@@ -612,7 +600,6 @@ class TestExperimentFilesSource:
     def test_framework_collision_does_not_block_unrelated_bulk_link_sibling(
         self, tmp_path
     ):
-        import dallinger.utils as utils
         from dallinger.utils import (
             DallingerFileSource,
             ExplicitFileSource,
@@ -649,10 +636,6 @@ class TestExperimentFilesSource:
                     )
                 ],
             ) as framework_map,
-            mock.patch(
-                "dallinger.utils.validate_deployment_directory_link_candidate",
-                wraps=utils.validate_deployment_directory_link_candidate,
-            ) as validate_directory,
         ):
             collate_experiment_files(
                 {},
@@ -662,9 +645,6 @@ class TestExperimentFilesSource:
             )
 
         assert framework_map.call_count == 1
-        assert [
-            call.args[1].destination for call in validate_directory.call_args_list
-        ] == ["static/stimuli"]
         assert (destination / "static/stimuli").is_symlink()
         assert not (destination / "static/css").is_symlink()
         assert (destination / "static/css/file.css").is_symlink()
@@ -714,11 +694,10 @@ class TestExperimentFilesSource:
         assert (destination / "assets/nested/asset.txt").read_text() == "experiment"
 
     @pytest.mark.parametrize("replacement", ["directory", "symlink"])
-    def test_policy_bulk_link_rejects_replaced_source_directory(
+    def test_policy_bulk_link_follows_current_source_path(
         self, subject, tmp_path, replacement
     ):
-        from dallinger.deployment_plan import DeploymentPlanError
-
+        """Development links the planned path as-is; mid-flight replacement is trusted."""
         root = tmp_path / "experiment"
         root.mkdir()
         assets = root / "assets"
@@ -738,8 +717,14 @@ class TestExperimentFilesSource:
             (outside / "asset.txt").write_text("outside")
             assets.symlink_to(outside, target_is_directory=True)
 
-        with pytest.raises(DeploymentPlanError, match="changed|symbolic"):
-            source.apply_development_to(tmp_path / "destination")
+        destination = tmp_path / "destination"
+        source.apply_development_to(destination)
+
+        assert (destination / "assets").is_symlink()
+        assert (destination / "assets").resolve() == assets.resolve()
+        assert (destination / "assets/asset.txt").read_text() == (
+            "replacement" if replacement == "directory" else "outside"
+        )
 
     def test_expunge_unlinks_bulk_directory_link_without_touching_source(
         self, subject, tmp_path
@@ -964,7 +949,7 @@ class TestExperimentFilesSource:
         source_path.symlink_to(outside)
         destination = tmp_path / "destination"
 
-        with pytest.raises(DeploymentPlanError, match="changed|symbolic"):
+        with pytest.raises(DeploymentPlanError, match="not a regular file"):
             source.apply_to(destination)
 
         assert not (destination / "asset.txt").exists()
@@ -1070,24 +1055,6 @@ class TestExperimentFilesSource:
         assert target.read_text() == "external"
         assert external.read_text() == "external"
         assert not list(destination.glob(".dallinger-deployment-*"))
-
-    def test_plan_symlink_validates_identity_before_linking(self, subject, tmp_path):
-        from dallinger.deployment_plan import DeploymentPlanError
-        from dallinger.utils import symlink_file
-
-        root = tmp_path / "experiment"
-        root.mkdir()
-        source_path = root / "asset.txt"
-        source_path.write_text("planned")
-        write_reviewed_deployment_policy(root)
-        source = subject(root)
-        source_path.write_text("mutated")
-        destination = tmp_path / "destination"
-
-        with pytest.raises(DeploymentPlanError, match="changed"):
-            source.apply_to(destination, copy_func=symlink_file)
-
-        assert not (destination / "asset.txt").exists()
 
     def test_plan_rejects_custom_copy_functions(self, subject, tmp_path):
         root = tmp_path / "experiment"

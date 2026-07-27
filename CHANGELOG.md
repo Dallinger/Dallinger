@@ -15,9 +15,9 @@
   development staging, copied Docker/classic staging, and Heroku assembly
   through `ExperimentFileSource`. Policy use requires an acknowledged,
   backend-filter-free migration comparison; copied entries are
-  identity/digest verified with modes preserved, support trusted staging paths
+  digest verified with modes preserved, support trusted staging paths
   with platform symlink aliases without replacing final symlinks, development
-  staging uses identity-validated bulk directory links with collision-safe
+  staging uses bulk directory links with collision-safe
   per-file fallbacks, Docker SSH validates plans before external side effects,
   failed copied assemblies are removed, explicit providers cannot target
   reserved outputs, portable provider collisions cannot bypass bulk-link
@@ -27,8 +27,8 @@
   policy-backed assemblies. Verification and assembly expose a shared
   command-scoped file-source seam. Experiments without a policy retain legacy
   selection and Git staging behavior. Plan traversal uses ordinary POSIX
-  `lstat`/`scandir` containment (rejecting symlinks and special files) rather
-  than descriptor-relative TOCTOU hardening.
+  `lstat`/`scandir` containment (rejecting symlinks and special files) and does
+  not re-validate filesystem identity between planning and materialization.
 
 ### Updated
 

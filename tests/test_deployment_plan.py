@@ -313,9 +313,7 @@ def test_plan_policy_entry_uses_the_parsed_snapshot(tmp_path, monkeypatch):
     assert policy_entry.content_digest == (
         "sha256:" + hashlib.sha256(original_bytes).hexdigest()
     )
-    assert policy_entry.source_identity != deployment_plan.SourceIdentity.from_stat(
-        policy_path.stat()
-    )
+    assert policy_entry.size == len(original_bytes)
 
 
 def test_plan_omits_reserved_source_paths(tmp_path):
@@ -393,7 +391,7 @@ def test_plan_records_entry_metadata_and_membership(tmp_path):
     assert entry.source == script
     assert entry.size == script.stat().st_size
     assert entry.executable is True
-    assert entry.source_identity.inode == script.stat().st_ino
+    assert entry.mode & 0o111
     assert entry.content_digest.startswith("sha256:")
     assert entry.source_category == "experiment"
     assert "run.sh" in plan
@@ -424,7 +422,6 @@ def test_plan_records_only_fully_selected_directory_link_candidates(tmp_path):
     assert "mixed/public" in candidates
     complete = candidates["complete"]
     assert complete.source == tmp_path / "complete"
-    assert complete.source_identity.inode == (tmp_path / "complete").stat().st_ino
     assert tuple(
         entry.destination
         for entry in plan.entries[complete.entry_start : complete.entry_stop]
