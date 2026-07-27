@@ -19,6 +19,13 @@ install those extras as needed:
 python -m pip install -e ".[dev,ec2,docker]"
 ```
 
+## Branches and pull requests
+
+Unless otherwise instructed, always create a feature branch in the upstream
+`Dallinger/Dallinger` repository and open the pull request from that branch.
+Only use a fork branch when you lack push access to upstream (e.g. Cloud
+Agents) or when the user explicitly asks for a fork.
+
 ## Pre-commit
 
 Run the full pre-commit suite before submitting changes:
