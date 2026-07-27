@@ -907,16 +907,11 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
 
     exp = Experiment()
 
-    fingerprint_found = False
-    if fingerprint_hash:
-        fingerprint_found = (
-            session.query(models.Participant)
-            .filter_by(fingerprint_hash=fingerprint_hash)
-            .first()
-            is not None
-        )
-
-    if fingerprint_hash and fingerprint_found:
+    if fingerprint_hash and (
+        session.query(models.Participant)
+        .filter_by(fingerprint_hash=fingerprint_hash)
+        .first()
+    ):
         db.logger.warning("Same browser fingerprint detected.")
 
         # if mode == "live":
