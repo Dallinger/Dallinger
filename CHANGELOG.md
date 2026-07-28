@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `Experiment.config_settings()` for authoritative experiment config
+  values set in code. Unlike `Experiment.config_defaults()`, these share the
+  resolution priority of the experiment's `config.txt` (which wins ties) and
+  override the user's `~/.dallingerconfig`.
+
 ### Changed
 
 - Configuration values are now resolved by source priority (package defaults <

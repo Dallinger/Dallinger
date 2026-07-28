@@ -6,7 +6,9 @@ lowest to highest:
 1. Dallinger package defaults (``dallinger/default_configs/``)
 2. Experiment class defaults (``Experiment.config_defaults()``)
 3. The user's ``~/.dallingerconfig``
-4. The experiment's ``config.txt``
+4. The experiment's settings: ``Experiment.config_settings()`` and
+   ``config.txt`` share this priority, with ``config.txt`` winning ties
+   because it is loaded later
 5. Environment variables
 6. Runtime writes (``config.set()``, ``config.extend()``, ``config.override()``)
 
@@ -414,6 +416,11 @@ class Configuration:
     def load(self, strict=True):
         self.load_defaults(strict)
 
+        if experiment_available():
+            # Loaded before config.txt at the same priority, so config.txt
+            # wins ties (newest layer wins within a source).
+            self.load_experiment_config_settings()
+
         local_config = os.path.join(os.getcwd(), LOCAL_CONFIG)
         if not os.path.exists(local_config):
             # Fall back to the initialized experiment's directory, so
@@ -473,6 +480,18 @@ class Configuration:
             strict=True,
             source=ConfigSource.EXPERIMENT_DEFAULTS,
         )
+
+    def load_experiment_config_settings(self):
+        from dallinger.experiment import load
+
+        exp_klass = load()
+        settings = exp_klass.config_settings()
+        if settings:
+            self.extend(
+                settings,
+                strict=True,
+                source=ConfigSource.EXPERIMENT_CONFIG,
+            )
 
 
 config = None

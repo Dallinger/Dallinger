@@ -299,7 +299,27 @@ class Experiment:
 
     @classmethod
     def config_defaults(cls):
-        """Override this classmethod to register new default values for config variables."""
+        """Override this classmethod to register new default values for config variables.
+
+        These are low-priority *suggestions*: a user's ``~/.dallingerconfig``,
+        the experiment's ``config.txt``, environment variables, and runtime
+        writes all override them. For authoritative experiment settings, use
+        :meth:`config_settings` instead.
+        """
+        return {}
+
+    @classmethod
+    def config_settings(cls):
+        """Override this classmethod to set authoritative config values in code.
+
+        Unlike :meth:`config_defaults`, values returned here are the
+        experiment's *decisions*: they share the resolution priority of the
+        experiment's ``config.txt`` and override the user's
+        ``~/.dallingerconfig``. If a key is set both here and in
+        ``config.txt``, the ``config.txt`` value wins, since it is loaded
+        later within the same priority. Environment variables and runtime
+        writes still override these values.
+        """
         return {}
 
     @property

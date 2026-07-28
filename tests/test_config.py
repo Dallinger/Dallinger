@@ -309,6 +309,39 @@ class TestConfigurationIntegrationTests:
 
         assert config.get("duration") == 12345.0
 
+    def test_experiment_config_settings_priority(self, tmpdir, monkeypatch):
+        # Experiment.config_settings() values are authoritative: they beat
+        # ~/.dallingerconfig, but config.txt wins ties within the shared
+        # EXPERIMENT_CONFIG priority because it is loaded later.
+        import dallinger.config
+        from dallinger.experiment import load as load_experiment
+
+        exp_klass = load_experiment()
+        monkeypatch.setattr(
+            exp_klass,
+            "config_settings",
+            classmethod(
+                lambda cls: {
+                    # Not in config.txt: should win over ~/.dallingerconfig.
+                    "group_name": "from_class_settings",
+                    # Also in config.txt: config.txt should win the tie.
+                    "organization_name": "settings_should_lose",
+                }
+            ),
+        )
+        monkeypatch.setenv("HOME", str(tmpdir))
+        with open(os.path.join(str(tmpdir), ".dallingerconfig"), "w") as f:
+            f.write("[Parameters]\ngroup_name = from_user_config\n")
+
+        saved_config = dallinger.config.config
+        try:
+            dallinger.config.config = None
+            config = get_config(load=True)
+            assert config.get("group_name") == "from_class_settings"
+            assert config.get("organization_name") != "settings_should_lose"
+        finally:
+            dallinger.config.config = saved_config
+
     def test_load_resolves_same_config_after_cwd_change(self, tmpdir, monkeypatch):
         # Long-running processes (workers, CLI tools) may load config after
         # the current working directory has changed away from the experiment
