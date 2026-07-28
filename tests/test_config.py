@@ -76,6 +76,49 @@ class TestConfigurationUnitTests:
         config.extend({"num_participants": 2})
         assert config.get("num_participants", 1) == 2
 
+    def test_source_priority_beats_load_order(self):
+        from dallinger.config import ConfigSource
+
+        config = Configuration()
+        config.register("mode", str)
+        config.extend({"mode": "live"}, source=ConfigSource.ENVIRONMENT)
+        # Loaded later, but from a lower-priority source.
+        config.extend({"mode": "sandbox"}, source=ConfigSource.USER_CONFIG)
+        config.ready = True
+        assert config.get("mode") == "live"
+
+    def test_runtime_writes_beat_all_sources(self):
+        from dallinger.config import ConfigSource
+
+        config = Configuration()
+        config.register("mode", str)
+        config.extend({"mode": "live"}, source=ConfigSource.ENVIRONMENT)
+        config.ready = True
+        config.set("mode", "debug")
+        assert config.get("mode") == "debug"
+
+    def test_newest_layer_wins_within_a_source(self):
+        from dallinger.config import ConfigSource
+
+        config = Configuration()
+        config.register("mode", str)
+        config.extend({"mode": "sandbox"}, source=ConfigSource.USER_CONFIG)
+        config.extend({"mode": "live"}, source=ConfigSource.USER_CONFIG)
+        config.ready = True
+        assert config.get("mode") == "live"
+
+    def test_write_reflects_source_priority(self, in_tempdir):
+        from dallinger.config import LOCAL_CONFIG, ConfigSource
+
+        config = Configuration()
+        config.register("mode", str)
+        config.extend({"mode": "live"}, source=ConfigSource.ENVIRONMENT)
+        config.extend({"mode": "sandbox"}, source=ConfigSource.USER_CONFIG)
+        config.ready = True
+        config.write()
+        with open(LOCAL_CONFIG) as txt:
+            assert "mode = live" in txt.read()
+
     def test_setting_unknown_key_is_ignored(self):
         config = Configuration()
         config.ready = True
@@ -266,19 +309,17 @@ class TestConfigurationIntegrationTests:
 
         assert config.get("duration") == 12345.0
 
-    def test_load_applies_experiment_defaults_after_cwd_change(
-        self, tmpdir, monkeypatch
-    ):
+    def test_load_resolves_same_config_after_cwd_change(self, tmpdir, monkeypatch):
         # Long-running processes (workers, CLI tools) may load config after
         # the current working directory has changed away from the experiment
-        # directory. Once the experiment package has been initialized, the
-        # experiment's config defaults should still be applied; otherwise
-        # different processes can silently resolve different config values
-        # (see https://gitlab.com/PsyNetDev/PsyNet/-/issues/1040).
+        # directory. Once the experiment package has been initialized, such
+        # processes must resolve the same config values (experiment defaults
+        # and config.txt included) as processes loading from the experiment
+        # directory (see https://gitlab.com/PsyNetDev/PsyNet/-/issues/1040).
         import sys
 
         import dallinger.config
-        from dallinger.config import initialize_experiment_package
+        from dallinger.config import ConfigSource, initialize_experiment_package
 
         saved_experiment_module = sys.modules.get("dallinger_experiment")
         saved_config = dallinger.config.config
@@ -286,12 +327,25 @@ class TestConfigurationIntegrationTests:
         original_cwd = os.getcwd()
         # Isolate the test from any real ~/.dallingerconfig.
         monkeypatch.setenv("HOME", str(tmpdir))
-        os.chdir(str(tmpdir))
         try:
-            # Simulate a fresh process by discarding the cached config.
+            # Reference: a fresh config loaded from the experiment directory.
+            dallinger.config.config = None
+            reference = get_config(load=True)
+
+            # A fresh config loaded after changing the working directory.
+            os.chdir(str(tmpdir))
             dallinger.config.config = None
             config = get_config(load=True)
-            assert config.get("duration") == 12345.0
+
+            assert config.get("duration") == reference.get("duration")
+            assert config.get("title") == reference.get("title")
+            # The experiment class defaults layer was applied, not skipped.
+            defaults_layers = [
+                layer
+                for layer in config.data
+                if layer.source == ConfigSource.EXPERIMENT_DEFAULTS
+            ]
+            assert defaults_layers and defaults_layers[0]["duration"] == 12345.0
         finally:
             os.chdir(original_cwd)
             dallinger.config.config = saved_config

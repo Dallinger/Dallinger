@@ -2,11 +2,18 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Configuration values are now resolved by source priority (package defaults <
+  experiment class defaults < `~/.dallingerconfig` < `config.txt` < environment
+  variables < runtime writes) instead of by load order, so out-of-order or
+  partial (re)loads can no longer change which source wins.
+
 ### Fixed
 
-- Fixed config loading so experiment-defined config defaults are still applied
-  when a process loads its configuration after changing away from the
-  experiment directory.
+- Fixed config loading so the experiment's config layers (class defaults and
+  `config.txt`) are still applied when a process loads its configuration after
+  changing away from the experiment directory.
 - Fixed `get_config()` so calling it without `load=True` no longer eagerly
   loads the configuration when an experiment is available.
 
