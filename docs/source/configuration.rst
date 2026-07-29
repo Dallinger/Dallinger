@@ -45,9 +45,15 @@ The sources are, from lowest to highest priority:
 6. **Runtime writes** — values set from code via ``config.set()``,
    ``config.extend()``, or ``config.override()``.
 
-Precedence is a fixed property of the source, not of load order, and it does
-not depend on the process's working directory: every process of an experiment
-resolves the same values.
+Tagged sources resolve by this fixed priority rather than layer insertion
+order. Untagged calls to ``config.extend()`` or ``config.load_from_file()`` are
+treated as runtime writes and therefore take the highest priority.
+
+Once an experiment package has been initialized, changing into a
+non-experiment directory does not prevent its class defaults, class settings,
+or ``config.txt`` from loading. A working directory containing another
+``experiment.py`` still takes precedence, and environment variables or runtime
+writes may differ between processes.
 
 
 Built-in configuration

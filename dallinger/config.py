@@ -12,18 +12,16 @@ lowest to highest:
 5. Environment variables
 6. Runtime writes (``config.set()``, ``config.extend()``, ``config.override()``)
 
-Precedence is a property of the source, not of load order: each loaded
-layer is tagged with a :class:`ConfigSource`, and lookups resolve layers
-by source priority (newest first within a source). This keeps resolution
-correct even when sources are (re)loaded out of order or a process loads
-its configuration after changing its working directory.
+Precedence is a property of the tagged source, not load order: lookups
+resolve layers by source priority (newest first within a source). Untagged
+``extend()`` and ``load_from_file()`` calls are treated as runtime writes,
+preserving their historical last-write-wins behavior.
 
-The experiment's location is likewise resolved from process state, not
-just the current working directory: once an experiment package has been
-initialized (see :func:`initialize_experiment_package`), its directory is
-used to find ``config.txt`` and the experiment's config defaults, so all
-processes of an experiment resolve the same configuration regardless of
-their working directory.
+After an experiment package has been initialized (see
+:func:`initialize_experiment_package`), its directory is used when the
+process changes into a non-experiment directory. A current working
+directory containing ``experiment.py`` still takes precedence, so a process
+should not move between different experiment roots.
 """
 
 import configparser
@@ -185,8 +183,10 @@ class ConfigSource(enum.IntEnum):
 class ConfigLayer(dict):
     """A mapping of config values tagged with the source that provided them.
 
-    Subclassing dict keeps layers directly iterable for callers that
-    inspect ``Configuration.data`` (e.g. PsyNet's deployment snapshot).
+    Subclassing dict preserves structural compatibility for callers that
+    inspect ``Configuration.data``. Raw layer iteration still follows load
+    order; callers needing resolved values should use
+    :meth:`Configuration.get` or :meth:`Configuration.as_dict`.
     """
 
     __slots__ = ("source",)
@@ -547,11 +547,11 @@ def experiment_directory():
     The current working directory counts if it contains an
     ``experiment.py`` file. Otherwise, fall back to the directory of the
     experiment package initialized in this process (via
-    ``initialize_experiment_package``). The fallback keeps config loading
-    consistent for processes that change their working directory after
-    importing the experiment; without it, such processes would silently
-    skip the experiment's config layers and resolve different config
-    values than other processes.
+    ``initialize_experiment_package``), provided that package contains
+    ``experiment.py`` or ``dallinger_experiment.py``. This preserves the
+    experiment's config layers after changing into a non-experiment
+    directory. If the new directory contains another ``experiment.py``, the
+    current working directory takes precedence.
     """
     if Path("experiment.py").exists():
         return os.getcwd()
