@@ -31,3 +31,25 @@ parameter can be used anywhere that built-in parameters are used.
 An optional ``validators`` parameter can also be passed, which must be either
 None or a list of callables that take a single argument (the value of the config)
 and may raise a ``ValueError`` describing why the value is invalid.
+
+To supply *values* for parameters from experiment code, override one of two
+classmethods on your Experiment class, depending on the intent:
+
+- :meth:`~dallinger.experiment.Experiment.config_defaults` — default values
+  that a user's ``~/.dallingerconfig``, the experiment's ``config.txt``,
+  environment variables, and runtime writes may override.
+- :meth:`~dallinger.experiment.Experiment.config_settings` — authoritative
+  values that share the priority of ``config.txt`` (which wins ties) and
+  override ``~/.dallingerconfig``.
+
+::
+
+    @classmethod
+    def config_defaults(cls):
+        return {**super().config_defaults(), "duration": 2.0}
+
+    @classmethod
+    def config_settings(cls):
+        return {**super().config_settings(), "dashboard_user": "my-user"}
+
+See :doc:`Configuration <configuration>` for the full precedence order.

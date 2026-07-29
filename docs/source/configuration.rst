@@ -18,14 +18,36 @@ You can then get and set parameters:
     config.get("duration")
     config.set("duration", 0.50)
 
-When retrieving a configuration parameter, Dallinger will look for the parameter
-first among environment variables, then in a ``config.txt`` in the experiment
-directory, and then in the ``.dallingerconfig`` file, using whichever value
-is found first. If the parameter is not found, Dallinger will use the default.
-
 If a value is extracted from the environment or a config file it will be converted
 to the correct type. You can also specify a value of ``file:/path/to/file`` to
 use the contents of that file on your local computer.
+
+
+Load order and precedence
+-------------------------
+
+Configuration values can come from several sources. When the same parameter is
+set in more than one source, the value from the higher-priority source wins.
+The sources are, from lowest to highest priority:
+
+1. **Dallinger package defaults** — shipped in ``dallinger/default_configs/``.
+2. **Experiment class defaults** — values returned by
+   :meth:`~dallinger.experiment.Experiment.config_defaults` on your experiment
+   class. These are suggestions that all of the sources below override.
+3. **~/.dallingerconfig** — the global, per-user config file in your home
+   directory.
+4. **The experiment's settings** — values returned by
+   :meth:`~dallinger.experiment.Experiment.config_settings` and the
+   ``config.txt`` file in the experiment directory. These share the same
+   priority; if a parameter is set in both, the ``config.txt`` value wins.
+5. **Environment variables** — a variable named after the config parameter
+   (e.g. ``dashboard_user``).
+6. **Runtime writes** — values set from code via ``config.set()``,
+   ``config.extend()``, or ``config.override()``.
+
+Precedence is a fixed property of the source, not of load order, and it does
+not depend on the process's working directory: every process of an experiment
+resolves the same values.
 
 
 Built-in configuration
