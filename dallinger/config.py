@@ -12,11 +12,6 @@ lowest to highest:
 5. Environment variables
 6. Runtime writes (``config.set()``, ``config.extend()``, ``config.override()``)
 
-Precedence is a property of the tagged source, not load order: lookups
-resolve layers by source priority (newest first within a source). Untagged
-``extend()`` and ``load_from_file()`` calls are treated as runtime writes,
-preserving their historical last-write-wins behavior.
-
 After an experiment package has been initialized (see
 :func:`initialize_experiment_package`), its directory is used when the
 process changes into a non-experiment directory. A current working
