@@ -421,14 +421,12 @@ class Configuration:
             # wins ties (newest layer wins within a source).
             self.load_experiment_config_settings()
 
-        local_config = os.path.join(os.getcwd(), LOCAL_CONFIG)
-        if not os.path.exists(local_config):
-            # Fall back to the initialized experiment's directory, so
-            # processes that changed their working directory still load
-            # the experiment's config.txt.
-            exp_dir = experiment_directory()
-            if exp_dir is not None:
-                local_config = os.path.join(exp_dir, LOCAL_CONFIG)
+        # Load config.txt from the experiment's directory, so processes
+        # that changed their working directory still resolve the same
+        # configuration (and unrelated config.txt files in the current
+        # directory cannot shadow the experiment's). Outside an experiment,
+        # fall back to the current directory.
+        local_config = os.path.join(experiment_directory() or os.getcwd(), LOCAL_CONFIG)
         if os.path.exists(local_config):
             self.load_from_file(
                 local_config, strict, source=ConfigSource.EXPERIMENT_CONFIG

@@ -360,6 +360,10 @@ class TestConfigurationIntegrationTests:
         original_cwd = os.getcwd()
         # Isolate the test from any real ~/.dallingerconfig.
         monkeypatch.setenv("HOME", str(tmpdir))
+        # An unrelated config.txt in the directory the process changes into
+        # must not shadow the experiment's own config.txt.
+        with open(os.path.join(str(tmpdir), "config.txt"), "w") as f:
+            f.write("[Parameters]\norganization_name = stray_config\n")
         try:
             # Reference: a fresh config loaded from the experiment directory.
             dallinger.config.config = None
@@ -372,6 +376,7 @@ class TestConfigurationIntegrationTests:
 
             assert config.get("duration") == reference.get("duration")
             assert config.get("title") == reference.get("title")
+            assert config.get("organization_name") == reference.get("organization_name")
             # The experiment class defaults layer was applied, not skipped.
             defaults_layers = [
                 layer
