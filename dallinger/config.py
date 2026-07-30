@@ -429,7 +429,7 @@ class Configuration:
         self.ready = True
 
     def register_extra_parameters(self):
-        initialize_experiment_package(os.getcwd())
+        initialize_experiment_package(experiment_directory() or os.getcwd())
         extra_parameters = None
 
         # Import and instantiate the experiment class if available

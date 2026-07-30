@@ -25,7 +25,12 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
 
 from dallinger import db, models, recruiters
-from dallinger.config import LOCAL_CONFIG, get_config, initialize_experiment_package
+from dallinger.config import (
+    LOCAL_CONFIG,
+    experiment_directory,
+    get_config,
+    initialize_experiment_package,
+)
 from dallinger.data import (
     Data,
     export,
@@ -2179,7 +2184,7 @@ def is_experiment_class(cls):
 def load():
     """Load the active experiment."""
     first_err = second_err = None
-    initialize_experiment_package(os.getcwd())
+    initialize_experiment_package(experiment_directory() or os.getcwd())
     try:
         try:
             from dallinger_experiment import experiment
