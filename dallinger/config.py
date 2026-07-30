@@ -366,7 +366,7 @@ class Configuration:
         # Lowest priority first (oldest first within a source), so later
         # parser.set calls overwrite earlier ones and the written file
         # reflects the resolved configuration.
-        for layer in sorted(reversed(self.data), key=lambda layer: layer.source):
+        for layer in reversed(self._layers_by_priority()):
             for k, v in layer.items():
                 if filter_sensitive and self.is_sensitive(k):
                     continue
