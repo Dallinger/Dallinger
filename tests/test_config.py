@@ -392,7 +392,7 @@ class TestConfigurationIntegrationTests:
             else:
                 sys.modules["dallinger_experiment"] = saved_experiment_module
 
-    def test_get_config_without_load_does_not_load(self, monkeypatch):
+    def test_get_config_without_load_does_not_load(self):
         # The experiment loader import inside get_config() used to shadow the
         # `load` parameter, forcing an eager config load whenever an
         # experiment was available.
