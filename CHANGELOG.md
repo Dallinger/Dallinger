@@ -25,6 +25,9 @@
   changes into a non-experiment directory.
 - Fixed `get_config()` so calling it without `load=True` no longer eagerly
   loads the configuration when an experiment is available.
+- Fixed the `config.txt` reload performed on `Experiment.run()` so it is
+  tagged with the experiment-config priority and no longer overrides
+  environment variables.
 
 ### Updated
 

@@ -27,6 +27,7 @@ from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
 from dallinger import db, models, recruiters
 from dallinger.config import (
     LOCAL_CONFIG,
+    ConfigSource,
     experiment_directory,
     get_config,
     initialize_experiment_package,
@@ -68,7 +69,7 @@ def exp_class_working_dir(meth):
             os.chdir(new_path)
             # Override configs
             config.register_extra_parameters()
-            config.load_from_file(LOCAL_CONFIG)
+            config.load_from_file(LOCAL_CONFIG, source=ConfigSource.EXPERIMENT_CONFIG)
             return meth(self, *args, **kwargs)
         finally:
             config.clear()

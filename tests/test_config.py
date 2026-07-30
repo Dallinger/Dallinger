@@ -392,6 +392,45 @@ class TestConfigurationIntegrationTests:
             else:
                 sys.modules["dallinger_experiment"] = saved_experiment_module
 
+    def test_exp_class_working_dir_reload_keeps_env_priority(self, tmpdir, monkeypatch):
+        # Regression test: the config.txt reload performed by the
+        # exp_class_working_dir decorator must be tagged EXPERIMENT_CONFIG,
+        # so environment variables keep their higher priority.
+        import sys
+        import types
+
+        import dallinger.config
+        from dallinger.experiment import exp_class_working_dir
+
+        # Isolate the test from any real ~/.dallingerconfig.
+        monkeypatch.setenv("HOME", str(tmpdir))
+        module = types.ModuleType("fake_experiment_module")
+        module.__file__ = os.path.join(os.getcwd(), "experiment.py")
+        monkeypatch.setitem(sys.modules, "fake_experiment_module", module)
+        monkeypatch.setenv("organization_name", "from_environment")
+
+        captured = {}
+
+        class Runner:
+            __module__ = "fake_experiment_module"
+
+            @exp_class_working_dir
+            def run(self):
+                captured["organization_name"] = get_config().get("organization_name")
+
+        saved_config = dallinger.config.config
+        try:
+            dallinger.config.config = None
+            config = get_config(load=True)
+            # Sanity check: the environment beats config.txt in a full load.
+            assert config.get("organization_name") == "from_environment"
+            Runner().run()
+        finally:
+            dallinger.config.config = saved_config
+
+        # The decorator's config.txt reload must not demote the environment.
+        assert captured["organization_name"] == "from_environment"
+
     def test_get_config_without_load_does_not_load(self):
         # The experiment loader import inside get_config() used to shadow the
         # `load` parameter, forcing an eager config load whenever an
