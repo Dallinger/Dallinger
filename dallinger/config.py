@@ -462,27 +462,26 @@ class Configuration:
             extra_parameters()
             self._module_params_loaded = True
 
-    def load_experiment_config_defaults(self):
+    def _load_experiment_mapping(self, method_name, source):
+        """Load a config mapping returned by a classmethod on the experiment class."""
         from dallinger.experiment import load
 
         exp_klass = load()
-        self.extend(
-            exp_klass.config_defaults(),
-            strict=True,
-            source=ConfigSource.EXPERIMENT_DEFAULTS,
+        mapping = getattr(exp_klass, method_name)()
+        if mapping:
+            self.extend(mapping, strict=True, source=source)
+
+    def load_experiment_config_defaults(self):
+        """Load suggested defaults from ``Experiment.config_defaults()``."""
+        self._load_experiment_mapping(
+            "config_defaults", ConfigSource.EXPERIMENT_DEFAULTS
         )
 
     def load_experiment_config_settings(self):
-        from dallinger.experiment import load
-
-        exp_klass = load()
-        settings = exp_klass.config_settings()
-        if settings:
-            self.extend(
-                settings,
-                strict=True,
-                source=ConfigSource.EXPERIMENT_SETTINGS,
-            )
+        """Load authoritative settings from ``Experiment.config_settings()``."""
+        self._load_experiment_mapping(
+            "config_settings", ConfigSource.EXPERIMENT_SETTINGS
+        )
 
 
 config = None
