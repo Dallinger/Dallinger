@@ -25,7 +25,13 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
 
 from dallinger import db, models, recruiters
-from dallinger.config import LOCAL_CONFIG, get_config, initialize_experiment_package
+from dallinger.config import (
+    LOCAL_CONFIG,
+    ConfigSource,
+    experiment_directory,
+    get_config,
+    initialize_experiment_package,
+)
 from dallinger.data import (
     Data,
     export,
@@ -63,7 +69,7 @@ def exp_class_working_dir(meth):
             os.chdir(new_path)
             # Override configs
             config.register_extra_parameters()
-            config.load_from_file(LOCAL_CONFIG)
+            config.load_from_file(LOCAL_CONFIG, source=ConfigSource.EXPERIMENT_CONFIG)
             return meth(self, *args, **kwargs)
         finally:
             config.clear()
@@ -299,7 +305,25 @@ class Experiment:
 
     @classmethod
     def config_defaults(cls):
-        """Override this classmethod to register new default values for config variables."""
+        """Override this classmethod to register new default values for config variables.
+
+        These are low-priority *suggestions*: a user's ``~/.dallingerconfig``,
+        the experiment's ``config.txt``, environment variables, and runtime
+        writes all override them. For authoritative experiment settings, use
+        :meth:`config_settings` instead.
+        """
+        return {}
+
+    @classmethod
+    def config_settings(cls):
+        """Override this classmethod to set authoritative config values in code.
+
+        Unlike :meth:`config_defaults`, values returned here are the
+        experiment's *decisions*: they override the user's
+        ``~/.dallingerconfig``. The experiment's ``config.txt``,
+        environment variables, and runtime writes still override these
+        values, in that order.
+        """
         return {}
 
     @property
@@ -2161,7 +2185,7 @@ def is_experiment_class(cls):
 def load():
     """Load the active experiment."""
     first_err = second_err = None
-    initialize_experiment_package(os.getcwd())
+    initialize_experiment_package(experiment_directory() or os.getcwd())
     try:
         try:
             from dallinger_experiment import experiment

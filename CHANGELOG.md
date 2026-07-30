@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `Experiment.config_settings()` for authoritative experiment config
+  values set in code. Unlike `Experiment.config_defaults()`, these override
+  the user's `~/.dallingerconfig`, while still being overridden by the
+  experiment's `config.txt`.
+
+### Changed
+
+- Tagged configuration values are now resolved by source priority (package
+  defaults < experiment class defaults < `~/.dallingerconfig` <
+  `Experiment.config_settings()` < `config.txt` < environment variables <
+  runtime writes) instead of layer insertion order. Untagged
+  `config.extend()` and `config.load_from_file()` calls remain highest-priority
+  runtime writes.
+
+### Fixed
+
+- Fixed config loading so the experiment's config layers (class defaults and
+  `config.txt`) are still applied after an initialized experiment process
+  changes into a non-experiment directory.
+- Fixed `get_config()` so calling it without `load=True` no longer eagerly
+  loads the configuration when an experiment is available.
+- Fixed the `config.txt` reload performed on `Experiment.run()` so it is
+  tagged with the experiment-config priority and no longer overrides
+  environment variables.
+
 ### Updated
 
 - Updated Python dependencies

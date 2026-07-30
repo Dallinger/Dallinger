@@ -181,12 +181,14 @@ def stub_config():
         "replay": False,
         "worker_multiplier": 1.5,
     }
-    from dallinger.config import Configuration, default_keys
+    from dallinger.config import ConfigSource, Configuration, default_keys
 
     config = Configuration()
     for key in default_keys:
         config.register(*key)
-    config.extend(defaults.copy())
+    # The stub values stand in for a fully loaded baseline configuration,
+    # so tag them as low-priority defaults rather than runtime overrides.
+    config.extend(defaults.copy(), source=ConfigSource.PACKAGE_DEFAULTS)
     # Patch load() so we don't update any key/value pairs from actual files:
     config.load = mock.Mock(
         side_effect=lambda strict=True, exp_klass=None: setattr(config, "ready", True)
