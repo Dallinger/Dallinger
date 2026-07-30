@@ -39,8 +39,8 @@ classmethods on your Experiment class, depending on the intent:
   that a user's ``~/.dallingerconfig``, the experiment's ``config.txt``,
   environment variables, and runtime writes may override.
 - :meth:`~dallinger.experiment.Experiment.config_settings` — authoritative
-  values that share the priority of ``config.txt`` (which wins ties) and
-  override ``~/.dallingerconfig``.
+  values that override ``~/.dallingerconfig`` but are still overridden by
+  the experiment's ``config.txt``.
 
 ::
 

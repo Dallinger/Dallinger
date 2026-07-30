@@ -6,11 +6,10 @@ lowest to highest:
 1. Dallinger package defaults (``dallinger/default_configs/``)
 2. Experiment class defaults (``Experiment.config_defaults()``)
 3. The user's ``~/.dallingerconfig``
-4. The experiment's settings: ``Experiment.config_settings()`` and
-   ``config.txt`` share this priority, with ``config.txt`` winning ties
-   because it is loaded later
-5. Environment variables
-6. Runtime writes (``config.set()``, ``config.extend()``, ``config.override()``)
+4. Experiment class settings (``Experiment.config_settings()``)
+5. The experiment's ``config.txt``
+6. Environment variables
+7. Runtime writes (``config.set()``, ``config.extend()``, ``config.override()``)
 
 After an experiment package has been initialized (see
 :func:`initialize_experiment_package`), its directory is used when the
@@ -170,6 +169,7 @@ class ConfigSource(enum.IntEnum):
     PACKAGE_DEFAULTS = 10
     EXPERIMENT_DEFAULTS = 20
     USER_CONFIG = 30
+    EXPERIMENT_SETTINGS = 35
     EXPERIMENT_CONFIG = 40
     ENVIRONMENT = 50
     RUNTIME = 60
@@ -412,8 +412,6 @@ class Configuration:
         self.load_defaults(strict)
 
         if experiment_available():
-            # Loaded before config.txt at the same priority, so config.txt
-            # wins ties (newest layer wins within a source).
             self.load_experiment_config_settings()
 
         # Load config.txt from the experiment's directory, so processes
@@ -483,7 +481,7 @@ class Configuration:
             self.extend(
                 settings,
                 strict=True,
-                source=ConfigSource.EXPERIMENT_CONFIG,
+                source=ConfigSource.EXPERIMENT_SETTINGS,
             )
 
 

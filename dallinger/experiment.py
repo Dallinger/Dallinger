@@ -313,12 +313,10 @@ class Experiment:
         """Override this classmethod to set authoritative config values in code.
 
         Unlike :meth:`config_defaults`, values returned here are the
-        experiment's *decisions*: they share the resolution priority of the
-        experiment's ``config.txt`` and override the user's
-        ``~/.dallingerconfig``. If a key is set both here and in
-        ``config.txt``, the ``config.txt`` value wins, since it is loaded
-        later within the same priority. Environment variables and runtime
-        writes still override these values.
+        experiment's *decisions*: they override the user's
+        ``~/.dallingerconfig``. The experiment's ``config.txt``,
+        environment variables, and runtime writes still override these
+        values, in that order.
         """
         return {}
 

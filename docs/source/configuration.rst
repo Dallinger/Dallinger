@@ -36,13 +36,13 @@ The sources are, from lowest to highest priority:
    class. These are suggestions that all of the sources below override.
 3. **~/.dallingerconfig** — the global, per-user config file in your home
    directory.
-4. **The experiment's settings** — values returned by
-   :meth:`~dallinger.experiment.Experiment.config_settings` and the
-   ``config.txt`` file in the experiment directory. These share the same
-   priority; if a parameter is set in both, the ``config.txt`` value wins.
-5. **Environment variables** — a variable named after the config parameter
+4. **Experiment class settings** — values returned by
+   :meth:`~dallinger.experiment.Experiment.config_settings` on your experiment
+   class.
+5. **config.txt** — the ``config.txt`` file in the experiment directory.
+6. **Environment variables** — a variable named after the config parameter
    (e.g. ``dashboard_user``).
-6. **Runtime writes** — values set from code via ``config.set()``,
+7. **Runtime writes** — values set from code via ``config.set()``,
    ``config.extend()``, or ``config.override()``.
 
 Tagged sources resolve by this fixed priority rather than layer insertion

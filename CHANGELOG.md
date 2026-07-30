@@ -5,16 +5,16 @@
 ### Added
 
 - Added `Experiment.config_settings()` for authoritative experiment config
-  values set in code. Unlike `Experiment.config_defaults()`, these share the
-  resolution priority of the experiment's `config.txt` (which wins ties) and
-  override the user's `~/.dallingerconfig`.
+  values set in code. Unlike `Experiment.config_defaults()`, these override
+  the user's `~/.dallingerconfig`, while still being overridden by the
+  experiment's `config.txt`.
 
 ### Changed
 
 - Tagged configuration values are now resolved by source priority (package
-  defaults < experiment class defaults < `~/.dallingerconfig` < experiment
-  settings from `Experiment.config_settings()` and `config.txt` < environment
-  variables < runtime writes) instead of layer insertion order. Untagged
+  defaults < experiment class defaults < `~/.dallingerconfig` <
+  `Experiment.config_settings()` < `config.txt` < environment variables <
+  runtime writes) instead of layer insertion order. Untagged
   `config.extend()` and `config.load_from_file()` calls remain highest-priority
   runtime writes.
 

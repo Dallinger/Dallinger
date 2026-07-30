@@ -311,8 +311,8 @@ class TestConfigurationIntegrationTests:
 
     def test_experiment_config_settings_priority(self, tmpdir, monkeypatch):
         # Experiment.config_settings() values are authoritative: they beat
-        # ~/.dallingerconfig, but config.txt wins ties within the shared
-        # EXPERIMENT_CONFIG priority because it is loaded later.
+        # ~/.dallingerconfig, but config.txt still wins because it has a
+        # higher source priority (EXPERIMENT_CONFIG > EXPERIMENT_SETTINGS).
         import dallinger.config
         from dallinger.experiment import load as load_experiment
 
@@ -324,7 +324,7 @@ class TestConfigurationIntegrationTests:
                 lambda cls: {
                     # Not in config.txt: should win over ~/.dallingerconfig.
                     "group_name": "from_class_settings",
-                    # Also in config.txt: config.txt should win the tie.
+                    # Also in config.txt: config.txt should win.
                     "organization_name": "settings_should_lose",
                 }
             ),
