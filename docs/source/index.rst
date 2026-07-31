@@ -128,6 +128,7 @@ in order to develop new experiments. Follow the Developer Installation process f
     running_the_tests
     building_documentation
     contributing_to_dallinger
+    deployment_file_planning
 
 General Information
 ^^^^^^^^^^^^^^^^^^^
