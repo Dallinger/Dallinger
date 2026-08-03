@@ -178,7 +178,7 @@ ipykernel==7.3.0
     #   jupyter
     #   jupyter-console
     #   jupyterlab
-ipython==9.15.0
+ipython==9.16.1
     # via
     #   dallinger
     #   ipykernel
