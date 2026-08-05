@@ -25,10 +25,12 @@
   `participant_not_found` via `error_code` / `AjaxRejection.errorCode`).
 - Fixed Prolific pagination so that fetching submissions and studies follows
   the "next" link in Prolific's list responses instead of assuming that a
-  page shorter than the requested `page_size` is the final one. This ensures
-  participant status verification sees all submissions even when Prolific
-  caps the served page size (e.g. at 20), and makes `get_studies` paginated
-  for the first time. Fixes
+  page shorter than the requested `page_size` is the final one. This fixes a
+  crash in participant status verification when a study's submission count
+  is an exact multiple of the page size (Prolific returns a 404 error for
+  page requests past the end), keeps pagination correct regardless of how
+  Prolific sizes served pages, and makes `get_studies` paginated for the
+  first time. See
   [#9601](https://github.com/Dallinger/Dallinger/issues/9601).
 - Fixed config loading so the experiment's config layers (class defaults and
   `config.txt`) are still applied after an initialized experiment process
