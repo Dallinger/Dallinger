@@ -23,6 +23,13 @@
 - Fixed repeat-worker recruitment after multiple prior participations and added
   structured participant lookup errors for clients (`assignment_id_missing` /
   `participant_not_found` via `error_code` / `AjaxRejection.errorCode`).
+- Fixed Prolific pagination so that fetching submissions and studies follows
+  the "next" link in Prolific's list responses instead of assuming that a
+  page shorter than the requested `page_size` is the final one. This ensures
+  participant status verification sees all submissions even when Prolific
+  caps the served page size (e.g. at 20), and makes `get_studies` paginated
+  for the first time. Fixes
+  [#9601](https://github.com/Dallinger/Dallinger/issues/9601).
 - Fixed config loading so the experiment's config layers (class defaults and
   `config.txt`) are still applied after an initialized experiment process
   changes into a non-experiment directory.

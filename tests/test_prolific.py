@@ -534,8 +534,7 @@ def test_get_submissions_requires_study_id(subject):
     subject._req.assert_not_called()
 
 
-@pytest.mark.parametrize("page_lengths", ([100, 1], [100, 0], [100, 100, 50]))
-def test_get_submissions_returns_all_paginated_results(subject, page_lengths):
+def _make_pages(page_lengths):
     pages = []
     next_id = 0
     for length in page_lengths:
@@ -543,12 +542,11 @@ def test_get_submissions_returns_all_paginated_results(subject, page_lengths):
             [{"id": f"submission-{i}"} for i in range(next_id, next_id + length)]
         )
         next_id += length
-    subject._req = mock.MagicMock(side_effect=[{"results": page} for page in pages])
+    return pages
 
-    assert subject.get_submissions("study_123") == [
-        item for page in pages for item in page
-    ]
-    assert subject._req.call_args_list == [
+
+def _expected_submission_calls(page_count):
+    return [
         mock.call(
             method="GET",
             endpoint="/submissions/",
@@ -559,7 +557,80 @@ def test_get_submissions_returns_all_paginated_results(subject, page_lengths):
                 "page_size": 100,
             },
         )
-        for page in range(1, len(page_lengths) + 1)
+        for page in range(1, page_count + 1)
+    ]
+
+
+@pytest.mark.parametrize("page_lengths", ([100, 1], [100, 0], [100, 100, 50]))
+def test_get_submissions_returns_all_paginated_results(subject, page_lengths):
+    """Without link metadata, a partial page marks the end of the results."""
+    pages = _make_pages(page_lengths)
+    subject._req = mock.MagicMock(side_effect=[{"results": page} for page in pages])
+
+    assert subject.get_submissions("study_123") == [
+        item for page in pages for item in page
+    ]
+    assert subject._req.call_args_list == _expected_submission_calls(len(page_lengths))
+
+
+def test_get_submissions_follows_next_link_despite_capped_page_size(subject):
+    """The "next" link is authoritative even if Prolific serves smaller pages
+    than requested (e.g. caps the page size at 20)."""
+    pages = _make_pages([20, 20, 3])
+    responses = []
+    for i, page in enumerate(pages):
+        is_last = i == len(pages) - 1
+        responses.append(
+            {
+                "results": page,
+                "_links": {
+                    "next": {"href": None if is_last else f"https://api/{i + 2}"}
+                },
+            }
+        )
+    subject._req = mock.MagicMock(side_effect=responses)
+
+    assert subject.get_submissions("study_123") == [
+        item for page in pages for item in page
+    ]
+    assert subject._req.call_args_list == _expected_submission_calls(len(pages))
+
+
+def test_get_submissions_stops_on_null_next_link_despite_full_page(subject):
+    """A null "next" link ends pagination even when the page came back full."""
+    pages = _make_pages([100])
+    subject._req = mock.MagicMock(
+        side_effect=[{"results": pages[0], "_links": {"next": {"href": None}}}]
+    )
+
+    assert subject.get_submissions("study_123") == pages[0]
+    assert subject._req.call_args_list == _expected_submission_calls(1)
+
+
+def test_get_studies_returns_all_paginated_results(subject):
+    responses = [
+        {
+            "results": [{"id": "study-1", "status": "ACTIVE"}],
+            "_links": {"next": {"href": "https://api/2"}},
+        },
+        {
+            "results": [{"id": "study-2", "status": "COMPLETED"}],
+            "_links": {"next": {"href": None}},
+        },
+    ]
+    subject._req = mock.MagicMock(side_effect=responses)
+
+    assert subject.get_studies() == [
+        {"id": "study-1", "status": "ACTIVE"},
+        {"id": "study-2", "status": "COMPLETED"},
+    ]
+    assert subject._req.call_args_list == [
+        mock.call(
+            method="GET",
+            endpoint="/studies/",
+            params={"page": page, "page_size": 100},
+        )
+        for page in (1, 2)
     ]
 
 
