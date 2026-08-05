@@ -573,9 +573,10 @@ def test_get_submissions_returns_all_paginated_results(subject, page_lengths):
     assert subject._req.call_args_list == _expected_submission_calls(len(page_lengths))
 
 
-def test_get_submissions_follows_next_link_despite_capped_page_size(subject):
-    """The "next" link is authoritative even if Prolific serves smaller pages
-    than requested (e.g. caps the page size at 20)."""
+def test_get_submissions_follows_next_link_despite_short_pages(subject):
+    """The "next" link is authoritative even if Prolific were to serve smaller
+    pages than requested. (The live API honors the requested page_size, so
+    this is a robustness check rather than an observed behavior.)"""
     pages = _make_pages([20, 20, 3])
     responses = []
     for i, page in enumerate(pages):

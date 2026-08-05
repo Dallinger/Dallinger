@@ -194,13 +194,14 @@ class ProlificService:
     ) -> List[dict]:
         """Fetch every page of results from a paginated Prolific list endpoint.
 
-        Prolific paginates list responses (defaulting to 20 items per page)
-        and includes link metadata indicating whether a further page exists.
-        That "next" link is the authoritative continuation signal: we keep
-        fetching as long as it is present, even if Prolific serves smaller
-        pages than requested. If a response contains no link metadata (as in
-        some tests and mocks), we fall back to stopping at the first partial
-        page.
+        Prolific list responses include ``_links`` metadata whose "next" href
+        is the authoritative continuation signal: it is a URL while further
+        pages exist and null on the last page. Requesting a page past the end
+        returns a 404 error, so we must stop exactly when "next" becomes null
+        rather than probing for an empty page. The next href simply preserves
+        the requested page_size and increments the page number (verified
+        against the live API), so re-requesting with an incremented ``page``
+        param is equivalent to following the href itself.
         """
         base_params = dict(params or {})
         page = 1
@@ -627,10 +628,10 @@ def _has_next_page(response: dict, page_length: int, page_size: int) -> bool:
     """Whether a paginated Prolific list response points to a further page.
 
     Prolific list responses include link metadata of the form
-    ``{"_links": {"next": {"href": <url-or-null>}, ...}}``. When such
-    metadata is present, the presence of a non-null "next" link is
-    authoritative. Otherwise we fall back to treating a partial page as the
-    final one.
+    ``{"_links": {"next": {"href": <url-or-null>}, ...}}``; a non-null "next"
+    href is the authoritative signal that a further page exists. If a response
+    were ever to omit the link metadata, we fall back to treating a partial
+    page as the final one.
     """
     links = response.get("_links")
     if isinstance(links, dict) and "next" in links:
@@ -638,8 +639,6 @@ def _has_next_page(response: dict, page_length: int, page_size: int) -> bool:
         if isinstance(next_link, dict):
             next_link = next_link.get("href")
         return bool(next_link)
-    if "next" in response:
-        return bool(response["next"])
     return page_length >= page_size
 
 
