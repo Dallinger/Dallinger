@@ -58,7 +58,10 @@ def develop():
 def debug(port, skip_flask):
     from dallinger.command_line.utils import verify_package
 
-    if not verify_package():
+    # We don't need to verify the experiment module here because we're
+    # going to run it in a moment anyway. Skipping this step saves
+    # time for large experiments.
+    if not verify_package(verify_experiment=False):
         # We could instead use the @require_exp_directory decorator,
         # but this doesn't print anything useful without the verbose flag.
         # To consider for later: improving this default behavior of @require_exp_directory?

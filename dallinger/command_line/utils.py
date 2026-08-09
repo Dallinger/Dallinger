@@ -162,21 +162,19 @@ def require_exp_directory(f):
     return wrapper
 
 
-def verify_package(verbose=True):
+def verify_package(verbose=True, verify_experiment=True):
     """Perform a series of checks on the current directory to verify that
     it's a valid Dallinger experiment.
     """
-    results = (
-        verify_directory(verbose),
-        verify_python_version(verbose),
-        verify_experiment_module(verbose),
-        verify_config(verbose),
-        verify_no_conflicts(verbose),
+    return all(
+        (
+            verify_directory(verbose),
+            verify_python_version(verbose),
+            verify_experiment_module(verbose) if verify_experiment else True,
+            verify_config(verbose),
+            verify_no_conflicts(verbose),
+        )
     )
-
-    ok = all(results)
-
-    return ok
 
 
 def verify_directory(verbose=True):
@@ -264,20 +262,22 @@ def verify_experiment_module(verbose):
     if not os.path.exists("experiment.py"):
         return False
 
-    # Bootstrap a package in a temp directory and make it importable:
+    # Bootstrap a package in a temp directory and make it importable.
     temp_package_name = "TEMP_VERIFICATION_PACKAGE"
     tmp = tempfile.mkdtemp()
     clone_dir = os.path.join(tmp, temp_package_name)
     ExperimentFileSource(os.getcwd()).apply_to(clone_dir)
+
     initialize_experiment_package(clone_dir)
     from dallinger_experiment import experiment
 
-    if clone_dir not in experiment.__file__:
+    expected_directory = Path(os.path.abspath(clone_dir))
+    actual_directory = Path(os.path.abspath(experiment.__file__)).parent
+    if actual_directory != expected_directory:
         raise ImportError("Checking the wrong experiment.py... aborting.")
     classes = inspect.getmembers(experiment, inspect.isclass)
     exps = [c for c in classes if (c[1].__bases__[0].__name__ in "Experiment")]
 
-    # Clean up:
     for entry in [k for k in sys.modules if temp_package_name in k]:
         del sys.modules[entry]
 

@@ -1,6 +1,7 @@
 import os
 import re
 import subprocess
+import sys
 from time import sleep
 from unittest import mock
 from uuid import UUID
@@ -96,6 +97,14 @@ class TestVerify:
     def test_negative_payment(self, active_config, v_package):
         active_config.extend({"base_payment": -1.99})
         assert v_package() is False
+
+    def test_verify_package_imports_experiment_by_default(self, v_package):
+        assert v_package() is True
+        assert "dallinger_experiment" in sys.modules
+
+    def test_verify_package_does_not_import_experiment_when_disabled(self, v_package):
+        assert v_package(verify_experiment=False) is True
+        assert "dallinger_experiment" not in sys.modules
 
     def test_too_big_returns_false(self, v_directory):
         with mock.patch(
@@ -223,6 +232,12 @@ class TestDevelopCommand:
         assert found_in("run.sh", develop_directory)
         assert found_in("experiment.py", develop_directory)
         # etc...
+
+    def test_debug_succeeds_without_experiment_module_verification(self, develop):
+        with mock.patch("dallinger.command_line.develop.Queue"):
+            result = CliRunner().invoke(develop, ["debug", "--skip-flask"])
+
+        assert result.exit_code == 0, result.output
 
 
 @pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")
