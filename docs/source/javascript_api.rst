@@ -66,6 +66,8 @@ The fail_callback function will be passed a `dallinger.AjaxRejection` object whi
 includes detailed information about the error. Unexpected errors should be handled
 by calling the :func:`dallinger.error` method with the `AjaxRejection` object.
 
+.. js:autoclass:: dallinger.AjaxRejection
+
 
 Experiment Initialization and Completion
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

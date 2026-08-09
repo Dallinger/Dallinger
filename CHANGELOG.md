@@ -20,6 +20,9 @@
 
 ### Fixed
 
+- Fixed repeat-worker recruitment after multiple prior participations and added
+  structured participant lookup errors for clients (`assignment_id_missing` /
+  `participant_not_found` via `error_code` / `AjaxRejection.errorCode`).
 - Fixed config loading so the experiment's config layers (class defaults and
   `config.txt`) are still applied after an initialized experiment process
   changes into a non-experiment directory.
