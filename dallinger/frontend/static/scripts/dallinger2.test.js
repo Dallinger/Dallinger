@@ -82,6 +82,22 @@ describe('AjaxRejection', function () {
     expect(rejection.html).toBe('');
     expect(rejection.response).toEqual({});
   });
+
+  test.each([['null'], ['"a string"'], ['[1, 2]']])(
+    'handles non-object JSON body %s',
+    (body) => {
+      var dlgr = require('./dallinger2').dallinger;
+      var rejection = dlgr.AjaxRejection({
+        route: '/load-participant',
+        method: 'post',
+        error: {status: 500, response: body}
+      });
+
+      expect(rejection.response).toEqual({});
+      expect(rejection.html).toBe('');
+      expect(rejection.errorCode).toBeUndefined();
+    }
+  );
 });
 
 describe('AD block functions', function () {

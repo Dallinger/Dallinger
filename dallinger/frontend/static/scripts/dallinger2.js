@@ -196,12 +196,14 @@ var dallinger = (function () {
    *
    * ``status``     - HTTP status code from the failed request
    *
-   * ``response``   - Parsed JSON body from the server, when available
+   * ``response``   - Parsed JSON object body from the server, ``{}`` when the
+   *                  body is missing, unparseable, or not a JSON object
    *
    * ``html``       - Rendered error HTML from the server response, if present
    *
    * ``errorCode``  - Optional machine-readable ``error_code`` from the server
-   *                  JSON body (for example ``participant_not_found``)
+   *                  JSON body (for example ``participant_not_found`` or
+   *                  ``assignment_id_missing``)
    *
    * ``requestJSON`` - Serialized request details for error reporting
    *
@@ -215,7 +217,10 @@ var dallinger = (function () {
         parsed = JSON.parse(response);
       } catch (error) {
         console.log('Error response not parseable.');
-        parsed = {};
+        return {};
+      }
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {};
       }
       return parsed;
     };
