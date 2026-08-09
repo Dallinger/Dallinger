@@ -1,6 +1,7 @@
 import os
 import re
 import subprocess
+import sys
 from time import sleep
 from unittest import mock
 from uuid import UUID
@@ -97,20 +98,13 @@ class TestVerify:
         active_config.extend({"base_payment": -1.99})
         assert v_package() is False
 
-    def test_verify_package_checks_experiment_module_by_default(self, v_package):
-        with mock.patch(
-            "dallinger.command_line.utils.verify_experiment_module"
-        ) as verify_module:
-            verify_module.return_value = True
-            assert v_package() is True
-            verify_module.assert_called_once()
+    def test_verify_package_imports_experiment_by_default(self, v_package):
+        assert v_package() is True
+        assert "dallinger_experiment" in sys.modules
 
-    def test_verify_package_skips_experiment_module_when_disabled(self, v_package):
-        with mock.patch(
-            "dallinger.command_line.utils.verify_experiment_module"
-        ) as verify_module:
-            assert v_package(verify_experiment=False) is True
-            verify_module.assert_not_called()
+    def test_verify_package_does_not_import_experiment_when_disabled(self, v_package):
+        assert v_package(verify_experiment=False) is True
+        assert "dallinger_experiment" not in sys.modules
 
     def test_too_big_returns_false(self, v_directory):
         with mock.patch(
