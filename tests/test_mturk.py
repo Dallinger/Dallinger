@@ -1,5 +1,6 @@
 import datetime
 import hmac
+import logging
 import os
 import socket
 import sys
@@ -24,9 +25,14 @@ from dallinger.mturk import (
 )
 from dallinger.utils import generate_random_id
 
+logger = logging.getLogger(__name__)
+
 TEST_HIT_DESCRIPTION = "***TEST SUITE HIT***"
 TEST_QUALIFICATION_DESCRIPTION = "***TEST SUITE QUALIFICATION***"
 STANDARD_WAIT_SECS = 15
+# Searching for a Qualification we just created only works once MTurk has
+# indexed it, which can take a while.
+QUALIFICATION_INDEXING_WAIT_SECS = 60
 MAX_MTURK_RERUNS = 1
 if os.environ.get("CI"):
     MAX_MTURK_RERUNS = 3
@@ -349,14 +355,24 @@ def qtype(mturk):
         # request must have succeeded server-side before botocore transparently
         # retried it (e.g. after a timeout or transient 5XX from the sandbox).
         # Recover by looking up the qualification we just created.
+        mturk.max_wait_secs = QUALIFICATION_INDEXING_WAIT_SECS
         qtype = mturk.get_qualification_type_by_name(name)
         if qtype is None:
             raise
 
     yield qtype
 
-    # clean up
-    mturk.dispose_qualification_type(qtype["id"])
+    # clean up. Failing to delete the Qualification should not fail the test:
+    # MTurk removes Qualifications left inactive in the sandbox for 60 days.
+    try:
+        mturk.dispose_qualification_type(qtype["id"])
+    except (ClientError, MTurkServiceException) as err:
+        logger.warning(
+            "Could not delete test Qualification %s (%s): %s",
+            qtype["name"],
+            qtype["id"],
+            err,
+        )
 
 
 @pytest.fixture
