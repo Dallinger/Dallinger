@@ -31,6 +31,11 @@
 - Fixed the `config.txt` reload performed on `Experiment.run()` so it is
   tagged with the experiment-config priority and no longer overrides
   environment variables.
+- Fixed a flaky MTurk integration test setup error
+  (`DuplicateQualificationNameError`) caused by botocore transparently
+  retrying a `CreateQualificationType` request that had already succeeded
+  server-side; the test fixture now recovers by looking up the qualification
+  it created.
 
 ### Updated
 

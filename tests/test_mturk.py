@@ -339,9 +339,19 @@ def worker_id():
 def qtype(mturk):
     # build
     name = name_with_hostname_prefix()
-    qtype = mturk.create_qualification_type(
-        name=name, description=TEST_QUALIFICATION_DESCRIPTION, status="Active"
-    )
+    try:
+        qtype = mturk.create_qualification_type(
+            name=name, description=TEST_QUALIFICATION_DESCRIPTION, status="Active"
+        )
+    except DuplicateQualificationNameError:
+        # The name includes a long random suffix unique to this call, so if
+        # MTurk reports it as a duplicate, our own CreateQualificationType
+        # request must have succeeded server-side before botocore transparently
+        # retried it (e.g. after a timeout or transient 5XX from the sandbox).
+        # Recover by looking up the qualification we just created.
+        qtype = mturk.get_qualification_type_by_name(name)
+        if qtype is None:
+            raise
 
     yield qtype
 
