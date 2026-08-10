@@ -669,6 +669,9 @@ class TestMTurkService:
         )
         self.loop_until_2_quals(with_cleanup, substr_name)  # wait for indexing
         not_exact = substr_name[:-1]
+        # There will never be an exact match, so don't let the lookup spend
+        # its indexing-wait budget polling for one:
+        with_cleanup.max_wait_secs = 0
         with pytest.raises(MTurkServiceException):
             with_cleanup.get_qualification_type_by_name(not_exact)
 
