@@ -36,6 +36,9 @@
   retrying a `CreateQualificationType` request that had already succeeded
   server-side; the test fixture now recovers by looking up the qualification
   it created.
+- Fixed MTurk API `ThrottlingException` ("Rate exceeded") failures by
+  configuring the boto3 MTurk client with adaptive retry mode and a higher
+  attempt cap, so requests are paced client-side after throttling responses.
 
 ### Updated
 

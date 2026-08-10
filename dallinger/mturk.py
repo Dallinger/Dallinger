@@ -4,6 +4,7 @@ import time
 from functools import cached_property
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError, NoCredentialsError
 
 logger = logging.getLogger(__name__)
@@ -255,7 +256,14 @@ class MTurkService:
             region_name=self.region_name,
         )
         return session.client(
-            "mturk", endpoint_url=self.host, region_name=self.region_name
+            "mturk",
+            endpoint_url=self.host,
+            region_name=self.region_name,
+            # MTurk enforces fairly aggressive API rate limits. Adaptive retry
+            # mode adds a client-side rate limiter that paces requests after
+            # throttling responses, rather than blasting retries into the
+            # limit until "reached max retries" errors surface.
+            config=Config(retries={"mode": "adaptive", "max_attempts": 10}),
         )
 
     @cached_property
