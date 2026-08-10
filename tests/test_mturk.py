@@ -862,6 +862,33 @@ def with_mock(mturk):
     return mturk
 
 
+class TestMTurkClient:
+    def make_service(self, **kw):
+        params = {
+            "aws_access_key_id": "key",
+            "aws_secret_access_key": "secret",
+            "region_name": "us-east-1",
+        }
+        params.update(kw)
+        return MTurkService(**params)
+
+    def test_uses_adaptive_retries(self):
+        retries = self.make_service().mturk.meta.config.retries
+
+        assert retries["mode"] == "adaptive"
+
+    def test_shares_one_client_between_services_using_the_same_account(self):
+        # The adaptive rate limiter lives on the client, so it only paces
+        # requests usefully if the client is reused.
+        assert self.make_service().mturk is self.make_service().mturk
+
+    def test_uses_separate_clients_per_account_and_endpoint(self):
+        service = self.make_service()
+
+        assert service.mturk is not self.make_service(aws_access_key_id="other").mturk
+        assert service.mturk is not self.make_service(sandbox=False).mturk
+
+
 class TestMTurkServiceWithFakeConnection:
     def test_is_sandbox_by_default(self, with_mock):
         assert with_mock.is_sandbox
@@ -901,6 +928,25 @@ class TestMTurkServiceWithFakeConnection:
         }
         with_mock.max_wait_secs = 0
         assert with_mock.get_qualification_type_by_name("foo") is None
+
+    def test_get_qualification_type_by_name_backs_off_while_awaiting_indexing(
+        self, with_mock, monkeypatch
+    ):
+        delays = []
+        monkeypatch.setattr(time, "sleep", delays.append)
+        found = fake_qualification_type_response()["QualificationType"]
+        with_mock.mturk.list_qualification_types.side_effect = [
+            {"QualificationTypes": []},
+            {"QualificationTypes": []},
+            {"QualificationTypes": []},
+            {"QualificationTypes": [found]},
+        ]
+        with_mock.max_wait_secs = 60
+
+        result = with_mock.get_qualification_type_by_name(found["Name"])
+
+        assert result["id"] == found["QualificationTypeId"]
+        assert delays == [1, 2, 4]
 
     def test_get_qualification_type_by_name_raises_if_not_unique_and_not_exact_match(
         self, with_mock

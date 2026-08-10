@@ -1,7 +1,7 @@
 import datetime
 import logging
 import time
-from functools import cached_property
+from functools import cached_property, lru_cache
 
 import boto3
 from botocore.config import Config
@@ -11,6 +11,30 @@ logger = logging.getLogger(__name__)
 PERCENTAGE_APPROVED_REQUIREMENT_ID = "000000000000000000L0"
 LOCALE_REQUIREMENT_ID = "00000000000000000071"
 MAX_SUPPORTED_BATCH_SIZE = 100
+MAX_SEARCH_POLL_INTERVAL_SECS = 8
+
+
+@lru_cache(maxsize=None)
+def _mturk_client(aws_key, aws_secret, region_name, endpoint_url):
+    """Return a boto3 MTurk client, shared per credentials and endpoint.
+
+    MTurk throttles its API aggressively, so we ask botocore for adaptive
+    retries, which pace requests client-side once throttling responses come
+    back. That rate limiter lives on the client, so clients are cached and
+    reused: a caller that built a fresh client for every request would start
+    at full speed each time and rediscover the limit the hard way.
+    """
+    session = boto3.session.Session(
+        aws_access_key_id=aws_key,
+        aws_secret_access_key=aws_secret,
+        region_name=region_name,
+    )
+    return session.client(
+        "mturk",
+        endpoint_url=endpoint_url,
+        region_name=region_name,
+        config=Config(retries={"mode": "adaptive", "max_attempts": 10}),
+    )
 
 
 class MTurkServiceException(Exception):
@@ -250,21 +274,7 @@ class MTurkService:
 
     @cached_property
     def mturk(self):
-        session = boto3.session.Session(
-            aws_access_key_id=self.aws_key,
-            aws_secret_access_key=self.aws_secret,
-            region_name=self.region_name,
-        )
-        return session.client(
-            "mturk",
-            endpoint_url=self.host,
-            region_name=self.region_name,
-            # MTurk enforces fairly aggressive API rate limits. Adaptive retry
-            # mode adds a client-side rate limiter that paces requests after
-            # throttling responses, rather than blasting retries into the
-            # limit until "reached max retries" errors surface.
-            config=Config(retries={"mode": "adaptive", "max_attempts": 10}),
-        )
+        return _mturk_client(self.aws_key, self.aws_secret, self.region_name, self.host)
 
     @cached_property
     def sns(self):
@@ -341,13 +351,17 @@ class MTurkService:
         }
         results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
         # This loop is largely for tests, because there's some indexing that
-        # needs to happen on MTurk for search to work:
+        # needs to happen on MTurk for search to work. We back off between
+        # attempts so that waiting for the index does not itself contribute to
+        # API throttling.
         start = time.time()
+        delay = 1
         while not results:
             elapsed = time.time() - start
             if elapsed > self.max_wait_secs:
                 return None
-            time.sleep(1)
+            time.sleep(delay)
+            delay = min(delay * 2, MAX_SEARCH_POLL_INTERVAL_SECS)
             results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
 
         qualifications = [self._translate_qtype(r) for r in results]
