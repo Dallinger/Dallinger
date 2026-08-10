@@ -929,6 +929,23 @@ class TestMTurkServiceWithFakeConnection:
         with_mock.max_wait_secs = 0
         assert with_mock.get_qualification_type_by_name("foo") is None
 
+    def test_get_qualification_type_by_name_ignores_fuzzy_matches(self, with_mock):
+        # MTurk's search may return other Qualifications whose names merely
+        # share tokens with the requested name, especially before the
+        # requested Qualification has been indexed. These must not be
+        # mistaken for the real thing.
+        fuzzy_match = fake_qualification_type_response()["QualificationType"]
+        with_mock.mturk.list_qualification_types.return_value = {
+            "QualificationTypes": [fuzzy_match]
+        }
+        with_mock.max_wait_secs = 0
+
+        result = with_mock.get_qualification_type_by_name(
+            fuzzy_match["Name"] + " but not quite"
+        )
+
+        assert result is None
+
     def test_get_qualification_type_by_name_backs_off_while_awaiting_indexing(
         self, with_mock, monkeypatch
     ):

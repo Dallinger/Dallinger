@@ -353,32 +353,36 @@ class MTurkService:
             "MustBeOwnedByCaller": True,
             "MaxResults": max_fuzzy_matches_to_check,
         }
-        results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
-        # This loop is largely for tests, because there's some indexing that
-        # needs to happen on MTurk for search to work. We back off between
-        # attempts so that waiting for the index does not itself contribute to
-        # API throttling.
+        # A newly created Qualification is only searchable once MTurk has
+        # indexed it, so we poll until an exact name match appears, backing off
+        # between attempts so that waiting for the index does not itself
+        # contribute to API throttling. Meanwhile the fuzzy Query may already
+        # return *other* Qualifications whose names share tokens with ours
+        # (test suite names share a hostname prefix, for example), so a result
+        # is only ever returned if its name matches exactly.
         start = time.time()
         delay = 1
-        while not results:
-            elapsed = time.time() - start
-            if elapsed > self.max_wait_secs:
-                return None
+        while True:
+            results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
+            qualifications = [self._translate_qtype(r) for r in results]
+            exact_matches = [
+                qualification
+                for qualification in qualifications
+                if qualification["name"].upper() == query
+            ]
+            if exact_matches:
+                return exact_matches[0]
+            if time.time() - start > self.max_wait_secs:
+                break
             time.sleep(delay)
             delay = min(delay * 2, MAX_SEARCH_POLL_INTERVAL_SECS)
-            results = self.mturk.list_qualification_types(**args)["QualificationTypes"]
 
-        qualifications = [self._translate_qtype(r) for r in results]
         if len(qualifications) > 1:
-            for qualification in qualifications:
-                if qualification["name"].upper() == query:
-                    return qualification
-
             handle_and_raise_recruitment_error(
                 MTurkServiceException("{} was not a unique name".format(query))
             )
 
-        return qualifications[0]
+        return None
 
     def assign_qualification(self, qualification_id, worker_id, score, notify=False):
         """Score a worker for a specific qualification"""

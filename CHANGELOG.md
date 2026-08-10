@@ -44,6 +44,10 @@
 - Fixed MTurk integration tests failing during teardown when deleting a test
   Qualification is throttled; cleanup now logs a warning instead, since MTurk
   removes Qualifications left inactive in the sandbox for 60 days.
+- Fixed `MTurkService.get_qualification_type_by_name` returning a wrong,
+  fuzzy-matched Qualification when the requested Qualification had not been
+  indexed for search yet; results are now only returned on an exact name
+  match, polling until the index catches up.
 
 ### Updated
 
