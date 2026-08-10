@@ -37,10 +37,10 @@
   server-side; the test fixture now recovers by looking up the qualification
   it created.
 - Fixed MTurk API `ThrottlingException` ("Rate exceeded") failures by
-  configuring the boto3 MTurk client with adaptive retry mode and a higher
-  attempt cap, reusing one client per account and endpoint so that pacing
-  applies across `MTurkService` instances, and backing off between polls while
-  waiting for MTurk to index a newly created Qualification.
+  configuring the boto3 MTurk client with adaptive retry mode, reusing one
+  client per account and endpoint so that pacing applies across `MTurkService`
+  instances, and backing off between polls while waiting for MTurk to index a
+  newly created Qualification.
 - Fixed MTurk integration tests failing during teardown when deleting a test
   Qualification is throttled; cleanup now logs a warning instead, since MTurk
   removes Qualifications left inactive in the sandbox for 60 days.

@@ -23,6 +23,10 @@ def _mturk_client(aws_key, aws_secret, region_name, endpoint_url):
     back. That rate limiter lives on the client, so clients are cached and
     reused: a caller that built a fresh client for every request would start
     at full speed each time and rediscover the limit the hard way.
+
+    Keep the retry count modest. Once pacing is in effect every attempt can
+    also wait for the rate limiter, so a generous retry budget multiplies into
+    minutes spent inside a single call.
     """
     session = boto3.session.Session(
         aws_access_key_id=aws_key,
@@ -33,7 +37,7 @@ def _mturk_client(aws_key, aws_secret, region_name, endpoint_url):
         "mturk",
         endpoint_url=endpoint_url,
         region_name=region_name,
-        config=Config(retries={"mode": "adaptive", "max_attempts": 10}),
+        config=Config(retries={"mode": "adaptive", "max_attempts": 5}),
     )
 
 
