@@ -176,33 +176,50 @@ class ProlificService:
                 "Cannot fetch Prolific submissions without a study_id."
             )
 
-        page_size = 100
-        page = 1
-        submissions = []
-
-        while True:
-            query_params = {
-                "study": study_id,
-                "ordering": "started_at",
-                "page": page,
-                "page_size": page_size,
-            }
-            results = self._req(
-                method="GET", endpoint="/submissions/", params=query_params
-            )["results"]
-            submissions.extend(results)
-
-            if len(results) < page_size:
-                return submissions
-
-            page += 1
+        return self._get_all_pages(
+            endpoint="/submissions/",
+            params={"study": study_id, "ordering": "started_at"},
+        )
 
     def get_studies(self, states: List[str] = None) -> List[dict]:
+        """Return all studies in the given states (default: all states)."""
         if not states:
             states = AVAILABLE_STATES
         assert all([state in AVAILABLE_STATES for state in states])
-        studies = self._req(method="GET", endpoint="/studies/")["results"]
+        studies = self._get_all_pages(endpoint="/studies/")
         return [study for study in studies if study["status"] in states]
+
+    def _get_all_pages(
+        self, endpoint: str, params: Optional[dict] = None, page_size: int = 100
+    ) -> List[dict]:
+        """Fetch every page of results from a paginated Prolific list endpoint.
+
+        Prolific list responses include ``_links`` metadata whose "next" href
+        is the authoritative continuation signal: it is a URL while further
+        pages exist and null on the last page. Requesting a page past the end
+        returns a 404 error, so we must stop exactly when "next" becomes null
+        rather than probing for an empty page. The next href simply preserves
+        the requested page_size and increments the page number (verified
+        against the live API), so re-requesting with an incremented ``page``
+        param is equivalent to following the href itself.
+        """
+        base_params = dict(params or {})
+        page = 1
+        results = []
+
+        while True:
+            response = self._req(
+                method="GET",
+                endpoint=endpoint,
+                params={**base_params, "page": page, "page_size": page_size},
+            )
+            page_results = response["results"]
+            results.extend(page_results)
+
+            if not _has_next_page(response, len(page_results), page_size):
+                return results
+
+            page += 1
 
     def get_assignments_for_study(self, study_id: str) -> dict:
         """Return all submissions for the current Prolific study, keyed by
@@ -605,6 +622,24 @@ def _translate_submission_from_get_submission(prolific_assignment_info):
         "started_at": p["started_at"],
         "status": p["status"],
     }
+
+
+def _has_next_page(response: dict, page_length: int, page_size: int) -> bool:
+    """Whether a paginated Prolific list response points to a further page.
+
+    Prolific list responses include link metadata of the form
+    ``{"_links": {"next": {"href": <url-or-null>}, ...}}``; a non-null "next"
+    href is the authoritative signal that a further page exists. If a response
+    were ever to omit the link metadata, we fall back to treating a partial
+    page as the final one.
+    """
+    links = response.get("_links")
+    if isinstance(links, dict) and "next" in links:
+        next_link = links["next"]
+        if isinstance(next_link, dict):
+            next_link = next_link.get("href")
+        return bool(next_link)
+    return page_length >= page_size
 
 
 def _translate_submission_from_get_submissions(prolific_assignment_info, study_id):
