@@ -48,6 +48,11 @@
   by validating the working tree before development staging; strict packaged
   validation remains available through `dallinger verify`.
 
+### Removed
+
+- Removed the unused `demos/dev-requirements.txt` file and its obsolete
+  development dependency declarations.
+
 ## [v12.2.1](https://github.com/dallinger/dallinger/tree/v12.2.1) (2026-07-02)
 
 ### Changed
