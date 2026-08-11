@@ -46,7 +46,6 @@ tests/config.py
 node_modules/*
 Gemfile.lock
 .ruby-version
-package-lock.json
 pip-selfcheck.json
 
 # Tests will generate these two files. They're not supposed to be committed

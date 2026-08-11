@@ -31,10 +31,10 @@ Building from Your Current Local Source
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To build your working copy of the documentation using your already installed development
-verison of Dallinger, you'll first need to run ``yarn`` to install Javascript dependencies
-from npm. From the root of the main Dallinger directory::
+verison of Dallinger, you'll first need to run ``npm`` to install Javascript dependencies
+from the npm registry. From the root of the main Dallinger directory::
 
-    yarn
+    npm ci
 
 You can then generate the documentation::
 

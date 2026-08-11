@@ -14,6 +14,16 @@
 - Migrated `dlgr.demos` packaging from `setup.py` to Hatchling via
   `demos/pyproject.toml`. See
   [#9688](https://github.com/Dallinger/Dallinger/issues/9688).
+- Migrated JavaScript package management from Yarn 1 to npm: replaced
+  `yarn.lock` with a committed `package-lock.json`, translated the Yarn
+  `resolutions` field to npm `overrides`, and switched CI, deploy, and docs
+  tooling to `npm ci`. Contributors now only need Node.js/npm (no Yarn) to
+  build documentation and run the JavaScript tests. No production frontend
+  assets were changed.
+- Updated JavaScript build/test dependencies: bumped `jest` and
+  `jest-environment-jsdom` to the latest 30.x releases and refreshed in-range
+  transitive dependencies in `yarn.lock`. No production frontend assets were
+  changed.
 - Tagged configuration values are now resolved by source priority (package
   defaults < experiment class defaults < `~/.dallingerconfig` <
   `Experiment.config_settings()` < `config.txt` < environment variables <
@@ -95,7 +105,7 @@
 - Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock`: `follow-redirects` 1.15.9 → 1.16.0, `lodash` 4.17.23 → 4.18.1, and `picomatch` 2.3.1 → 2.3.2 / 4.0.3 → 4.0.4.
 - Fixed generated dependency pins so they remain installable on the lowest
   supported Python version.
-- Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock` (`follow-redirects`, `lodash`, `picomatch`), updating `webpack` and `webpack-cli`, and adding Yarn resolutions for patched `js-yaml`, `ws`, `engine.io`, `engine.io-client`, and `socket.io-adapter` versions.
+- Fixed GitHub Dependabot npm security alerts by updating JavaScript build/test dependencies in `yarn.lock`, updating `webpack` and `webpack-cli`, and adding Yarn resolutions for patched `brace-expansion`, `fast-uri`, `immutable`, `js-yaml`, `linkify-it`, `minimatch`, `socket.io-parser`, `ws`, `engine.io`, `engine.io-client`, and `socket.io-adapter` versions.
 
 ### Removed
 
