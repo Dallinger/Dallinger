@@ -35,6 +35,7 @@ from dallinger.notifications import MessengerError, admin_notifier, get_mailer
 from dallinger.prolific import (
     ProlificScreenOutDenied,
     ProlificServiceException,
+    ProlificSubmissionNotApprovableError,
     dev_prolific_service_from_config,
     prolific_service_from_config,
 )
@@ -160,6 +161,19 @@ class ProlificRecruitmentStatus(RecruitmentStatus):
     base_payment_cents: float
     median_session_duration_minutes: float
     real_wage_per_hour_excluding_bonuses: float
+
+
+@dataclass
+class RecruiterApprovalResult:
+    """Structured recruiter approval outcome.
+
+    Recruiters may return this when approval does not complete and the
+    experiment should update local participant state instead of continuing
+    through the normal post-submission checks.
+    """
+
+    approved: bool
+    participant_status: Optional[str] = None
 
 
 class Recruiter:
@@ -471,6 +485,26 @@ def prolific_submission_listener():
 PROLIFIC_AD_QUERYSTRING = "&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}"
 
 
+@dataclass(frozen=True)
+class _ProlificTerminalStatusHandling:
+    """How to reconcile a terminal Prolific status locally."""
+
+    worker_event_name: str
+    participant_status: str
+
+
+PROLIFIC_TERMINAL_STATUS_HANDLING = {
+    "RETURNED": _ProlificTerminalStatusHandling(
+        worker_event_name="AssignmentReturned",
+        participant_status="returned",
+    ),
+    "TIMED-OUT": _ProlificTerminalStatusHandling(
+        worker_event_name="AssignmentAbandoned",
+        participant_status="abandoned",
+    ),
+}
+
+
 def check_for_prolific_worker_status_discrepancy(local_status, prolific_status):
     """Return an action/command name to correct a local vs. remote status
     discrepancy, if there is one.
@@ -478,13 +512,11 @@ def check_for_prolific_worker_status_discrepancy(local_status, prolific_status):
     Currently we only make corrections for assignments we have marked as
     "working" locally.
     """
-    actions = {
-        # (local status, remote Prolific status): action to take
-        ("working", "TIMED-OUT"): "AssignmentAbandoned",
-        ("working", "RETURNED"): "AssignmentReturned",
-    }
+    if local_status != "working":
+        return None
 
-    return actions.get((local_status, prolific_status))
+    handling = PROLIFIC_TERMINAL_STATUS_HANDLING.get(prolific_status)
+    return handling.worker_event_name if handling else None
 
 
 class ProlificRecruiter(Recruiter):
@@ -766,18 +798,38 @@ class ProlificRecruiter(Recruiter):
             study_id=self.current_study_id, number_to_add=n
         )
 
-    def approve_hit(self, assignment_id: str):
-        """Approve a participant's assignment/submission on Prolific"""
+    def approve_hit(self, assignment_id: str) -> dict | RecruiterApprovalResult | None:
+        """Approve a participant's assignment/submission on Prolific.
+
+        Returns Prolific's API response when approval succeeds, a
+        RecruiterApprovalResult when the local participant status should be
+        reconciled with a terminal Prolific status, or None when an approval
+        error has been logged but does not map to a local status update.
+        """
         try:
             return self.prolificservice.approve_participant_submission(
                 submission_id=assignment_id
             )
         except ProlificServiceException as ex:
+            participant_status = None
+            if isinstance(ex, ProlificSubmissionNotApprovableError):
+                handling = PROLIFIC_TERMINAL_STATUS_HANDLING.get(ex.status)
+                participant_status = handling.participant_status if handling else None
+            next_step = (
+                f"Marking the local participant as '{participant_status}'."
+                if participant_status is not None
+                else "Will try to proceed anyway."
+            )
             logger.warning(
                 f"approve_participant_submission for assignment_id '{assignment_id}' "
-                f"failed with error '{str(ex)}'. Will try to proceed anyway."
+                f"failed with error '{str(ex)}'. {next_step}"
             )
             handle_recruitment_error(ex)
+            if participant_status is not None:
+                return RecruiterApprovalResult(
+                    approved=False,
+                    participant_status=participant_status,
+                )
 
     def close_recruitment(self):
         """Do nothing.

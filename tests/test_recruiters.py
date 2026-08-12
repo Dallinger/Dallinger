@@ -629,6 +629,31 @@ class TestProlificRecruiter:
 
         mock_logger.exception.assert_called_once_with("Boom!")
 
+    @pytest.mark.parametrize(
+        "prolific_status, participant_status",
+        [
+            ("TIMED-OUT", "abandoned"),
+            ("RETURNED", "returned"),
+        ],
+    )
+    def test_approve_hit_returns_failed_result_for_terminal_submission(
+        self, recruiter, prolific_status, participant_status
+    ):
+        from dallinger.prolific import ProlificSubmissionNotApprovableError
+        from dallinger.recruiters import RecruiterApprovalResult
+
+        recruiter.prolificservice.approve_participant_submission.side_effect = (
+            ProlificSubmissionNotApprovableError(prolific_status)
+        )
+
+        with mock.patch("dallinger.recruiters.logger"):
+            result = recruiter.approve_hit("fake-hit-id")
+
+        assert result == RecruiterApprovalResult(
+            approved=False,
+            participant_status=participant_status,
+        )
+
     def test_recruit_calls_add_participants_to_study(self, recruiter):
         recruiter.open_recruitment()
         recruiter.recruit(n=1)
