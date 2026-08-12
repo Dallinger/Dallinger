@@ -300,6 +300,18 @@ class TestBaseURL:
         config.set("num_dynos_web", 1)
         assert subject() == "https://dlgr-bogus.herokuapp.com"
 
+    def test_base_url_picks_from_viable_ports(self, subject, config):
+        config.set("host", "127.0.0.1")
+        config.set("base_port", 5000)
+        config.set("num_dynos_web", 3)
+        with mock.patch("dallinger.utils.random.choice") as mock_choice:
+            mock_choice.return_value = 5002
+            result = subject()
+        mock_choice.assert_called_once()
+        ports = mock_choice.call_args[0][0]
+        assert list(ports) == [5000, 5001, 5002]
+        assert result == "http://127.0.0.1:5002"
+
     @pytest.mark.xfail(
         reason="HOST aliasing removed to fix https://github.com/Dallinger/Dallinger/issues/2130"
     )

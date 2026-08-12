@@ -312,7 +312,17 @@ class HerokuLocalDeployment:
     DO_INIT_DB = True
 
     def configure(self):
-        self.exp_config.update({"mode": "debug"})
+        config = get_config()
+        original = self.exp_config.get("num_dynos_web") or (
+            config.get("num_dynos_web") if config.ready else None
+        )
+        if original is not None and original > 1:
+            self.out.log(
+                f"Overriding num_dynos_web={original} → 1 "
+                "(multiple web dynos provide no load distribution in local mode; "
+                "all traffic hits one dyno regardless)"
+            )
+        self.exp_config.update({"mode": "debug", "num_dynos_web": 1})
 
     def setup(self):
         self.exp_id, self.tmp_dir = setup_experiment(
@@ -380,13 +390,41 @@ class HerokuLocalDeployment:
         raise NotImplementedError()
 
 
+def wait_for_server(server_url, timeout, interval=0.5):
+    """Wait for the server at *server_url* to respond to HTTP requests."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            requests.get(server_url, timeout=min(interval, remaining))
+            return
+        except (requests.ConnectionError, requests.Timeout):
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                print(f"Waiting for {server_url} ...")
+                time.sleep(min(interval, remaining))
+    raise RuntimeError(
+        f"Server at {server_url} did not become ready within {timeout} seconds"
+    )
+
+
 class DebugDeployment(HerokuLocalDeployment):
     dispatch = {
         r"[^\"]{} (.*)$".format(recruiters.NEW_RECRUIT_LOG_PREFIX): "new_recruit",
         r"{}".format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
     }
 
-    def __init__(self, output, verbose, bot, proxy_port, exp_config, no_browsers=False):
+    def __init__(
+        self,
+        output,
+        verbose,
+        bot,
+        proxy_port,
+        exp_config,
+        no_browsers=False,
+    ):
         self.out = output
         self.verbose = verbose
         self.bot = bot
@@ -413,6 +451,7 @@ class DebugDeployment(HerokuLocalDeployment):
 
     def execute(self, heroku):
         base_url = get_base_url()
+        wait_for_server(base_url, timeout=60)
         self.out.log("Server is running on {}. Press Ctrl+C to exit.".format(base_url))
         self.out.log("Launching the experiment...")
         try:
@@ -544,7 +583,8 @@ class LoaderDeployment(HerokuLocalDeployment):
         self.zip_path = None
 
     def configure(self):
-        self.exp_config.update({"mode": "debug", "loglevel": 0})
+        super().configure()
+        self.exp_config.update({"loglevel": 0})
 
         self.zip_path = data.find_experiment_export(self.app_id)
         if self.zip_path is None:
