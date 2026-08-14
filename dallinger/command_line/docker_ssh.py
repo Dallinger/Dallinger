@@ -509,6 +509,11 @@ def _ignore_docker_ssh_resource_warnings():
         category=ResourceWarning,
         message=r"unclosed <docker\.transport\.sshconn\.SSHSocket",
     )
+    warnings.filterwarnings(
+        "ignore",
+        category=ResourceWarning,
+        message=r"unclosed file <_io\.FileIO name=\d+ mode='[rw]b' closefd=True>",
+    )
 
 
 def build_and_push_image(f):
