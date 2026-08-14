@@ -9,6 +9,7 @@ import select
 import socket
 import subprocess
 import sys
+import warnings
 import zipfile
 from contextlib import contextmanager, redirect_stdout
 from dataclasses import dataclass
@@ -480,6 +481,35 @@ def ensure_root_domain_ready(server, update):
     return True
 
 
+def _ignore_docker_ssh_resource_warnings():
+    """Suppress ResourceWarnings from docker-py's shell-out SSH transport.
+
+    In shell-out mode (``use_ssh_client=True``), docker-py never tracks the
+    connection pools it creates, so ``client.close()`` cannot reach the
+    spawned ``ssh`` subprocesses or their sockets. They are only reclaimed
+    at garbage collection, which emits ResourceWarnings. This is harmless
+    for a short-lived CLI process, so we mute those specific warnings
+    rather than patching docker-py internals.
+
+    The filters must be installed process-wide (not via a scoped
+    ``catch_warnings`` block) because the warnings fire at garbage
+    collection, after any scoped context would have exited. They are
+    installed after the deploy work is done, so they also take precedence
+    over Dallinger's ``setup_warning_hooks()``, which enables display of
+    all warnings and may run mid-command.
+    """
+    warnings.filterwarnings(
+        "ignore",
+        category=ResourceWarning,
+        message=r"subprocess \d+ is still running",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        category=ResourceWarning,
+        message=r"unclosed <docker\.transport\.sshconn\.SSHSocket",
+    )
+
+
 def build_and_push_image(f):
     """Decorator for click commands that depend on a pushed docker image.
 
@@ -596,6 +626,9 @@ def build_and_push_image(f):
                     docker_client.close()
                 except Exception:
                     pass
+                # docker-py leaks its shell-out SSH resources despite close();
+                # silence the resulting garbage-collection warnings.
+                _ignore_docker_ssh_resource_warnings()
 
             # Restore DOCKER_HOST
             if original_docker_host is None:

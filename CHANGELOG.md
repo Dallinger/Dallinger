@@ -20,6 +20,9 @@
 
 ### Fixed
 
+- Silenced spurious ResourceWarnings emitted during Docker-over-SSH
+  deployments by docker-py's shell-out SSH transport, which does not close
+  its connections when the client is closed.
 - Fixed repeat-worker recruitment after multiple prior participations and added
   structured participant lookup errors for clients (`assignment_id_missing` /
   `participant_not_found` via `error_code` / `AjaxRejection.errorCode`).
