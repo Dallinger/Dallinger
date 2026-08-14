@@ -495,9 +495,7 @@ def _ignore_docker_ssh_resource_warnings():
     ``catch_warnings`` block) because the warnings fire at garbage
     collection, after any scoped context would have exited. They are
     installed before the Docker client is created so mid-command GC
-    cannot print them, and again after the deploy work so they take
-    precedence over Dallinger's ``setup_warning_hooks()``, which enables
-    display of all warnings and may run mid-command.
+    cannot print them.
     """
     warnings.filterwarnings(
         "ignore",
@@ -635,8 +633,6 @@ def build_and_push_image(f):
                     docker_client.close()
                 except Exception:
                     pass
-                # Re-apply in case setup_warning_hooks() re-enabled warnings.
-                _ignore_docker_ssh_resource_warnings()
 
             # Restore DOCKER_HOST
             if original_docker_host is None:
