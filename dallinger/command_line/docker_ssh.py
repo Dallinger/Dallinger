@@ -494,9 +494,10 @@ def _ignore_docker_ssh_resource_warnings():
     The filters must be installed process-wide (not via a scoped
     ``catch_warnings`` block) because the warnings fire at garbage
     collection, after any scoped context would have exited. They are
-    installed after the deploy work is done, so they also take precedence
-    over Dallinger's ``setup_warning_hooks()``, which enables display of
-    all warnings and may run mid-command.
+    installed before the Docker client is created so mid-command GC
+    cannot print them, and again after the deploy work so they take
+    precedence over Dallinger's ``setup_warning_hooks()``, which enables
+    display of all warnings and may run mid-command.
     """
     warnings.filterwarnings(
         "ignore",
@@ -565,6 +566,9 @@ def build_and_push_image(f):
                 # Add server_pem to SSH agent so docker-py's SSH client can use it
                 # (necessary because docker.from_env() does not accept PEM files directly).
                 add_server_pem_to_ssh_agent()
+            # docker-py leaks shell-out SSH resources; mute the GC warnings
+            # before the client exists so they cannot fire mid-command.
+            _ignore_docker_ssh_resource_warnings()
             # Avoid Paramiko by using the system ssh client
             docker_client = docker.from_env(use_ssh_client=True)
 
@@ -626,8 +630,7 @@ def build_and_push_image(f):
                     docker_client.close()
                 except Exception:
                     pass
-                # docker-py leaks its shell-out SSH resources despite close();
-                # silence the resulting garbage-collection warnings.
+                # Re-apply in case setup_warning_hooks() re-enabled warnings.
                 _ignore_docker_ssh_resource_warnings()
 
             # Restore DOCKER_HOST
