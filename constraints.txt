@@ -439,7 +439,7 @@ python-discovery==1.4.4
     # via
     #   tox
     #   virtualenv
-python-json-logger==4.1.0
+python-json-logger==4.2.0
     # via
     #   dallinger
     #   jupyter-events
