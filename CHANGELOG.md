@@ -28,6 +28,10 @@
   its connections when the client is closed. The filters are installed
   before the Docker client is created so mid-command garbage collection
   cannot print them.
+- Fixed ``dallinger constraints generate`` so it upgrades Dallinger to the latest
+  compatible patch instead of keeping a stale pin from an existing
+  ``constraints.txt``. Implied requirements such as PsyNet's
+  ``dallinger>=12.2.0,<13`` therefore lock 12.2.1 rather than leftover 12.2.0.
 - Fixed repeat-worker recruitment after multiple prior participations and added
   structured participant lookup errors for clients (`assignment_id_missing` /
   `participant_not_found` via `error_code` / `AjaxRejection.errorCode`).
