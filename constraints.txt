@@ -493,7 +493,7 @@ rpds-py==0.30.0
     #   dallinger
     #   jsonschema
     #   referencing
-rq==2.10.0
+rq==2.11.0
     # via dallinger
 ruff==0.15.21
     # via dallinger
