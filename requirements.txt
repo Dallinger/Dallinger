@@ -148,7 +148,7 @@ rich==15.0.0
     # via dallinger
 rpds-py==0.30.0
     # via dallinger
-rq==2.10.0
+rq==2.11.0
     # via dallinger
 s3transfer==0.19.0
     # via boto3
