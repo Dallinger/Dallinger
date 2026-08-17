@@ -174,10 +174,9 @@ def generate_constraints(extras: Optional[List[str]] = None):
 
     This generation process uses ``uv pip compile``. The final compile passes
     ``--upgrade-package dallinger`` so an existing constraints.txt cannot keep a
-    stale Dallinger pin. Implied requirements such as PsyNet's
-    ``dallinger>=12.2.0,<13`` therefore lock the latest compatible patch (for
-    example 12.2.1 rather than 12.2.0). An explicit ``dallinger==X.Y.Z`` in the
-    input file is still honored.
+    stale Dallinger pin. Implied version ranges therefore lock the latest
+    compatible patch. An explicit ``dallinger==X.Y.Z`` in the input file is
+    still honored.
 
     If the constraints.txt file exists already it will be overwritten.
     For a version of this function that does not automatically overwrite the constraints.txt file,
@@ -478,6 +477,10 @@ def _compile_with_uv(
     extras: Optional[List[str]] = None,
     upgrade_packages: Optional[List[str]] = None,
 ):
+    """Compile *in_file* to *out_file* with ``uv pip compile``.
+
+    upgrade_packages: names passed through to ``--upgrade-package``.
+    """
     in_file = Path(in_file)
     out_file = Path(out_file)
     extras = extras or []
