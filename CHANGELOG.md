@@ -14,6 +14,42 @@
   through `ExperimentFileSource`. Experiments without a policy retain legacy
   selection and Git staging behavior. Plan traversal uses ordinary POSIX
   `lstat`/`scandir` containment (rejecting symlinks and special files).
+- Added `Experiment.config_settings()` for authoritative experiment config
+  values set in code. Unlike `Experiment.config_defaults()`, these override
+  the user's `~/.dallingerconfig`, while still being overridden by the
+  experiment's `config.txt`.
+
+### Changed
+
+- Tagged configuration values are now resolved by source priority (package
+  defaults < experiment class defaults < `~/.dallingerconfig` <
+  `Experiment.config_settings()` < `config.txt` < environment variables <
+  runtime writes) instead of layer insertion order. Untagged
+  `config.extend()` and `config.load_from_file()` calls remain highest-priority
+  runtime writes.
+
+### Fixed
+
+- Fixed repeat-worker recruitment after multiple prior participations and added
+  structured participant lookup errors for clients (`assignment_id_missing` /
+  `participant_not_found` via `error_code` / `AjaxRejection.errorCode`).
+- Fixed Prolific pagination so that fetching submissions and studies follows
+  the "next" link in Prolific's list responses instead of assuming that a
+  page shorter than the requested `page_size` is the final one. This fixes a
+  crash in participant status verification when a study's submission count
+  is an exact multiple of the page size (Prolific returns a 404 error for
+  page requests past the end), keeps pagination correct regardless of how
+  Prolific sizes served pages, and makes `get_studies` paginated for the
+  first time. See
+  [#9601](https://github.com/Dallinger/Dallinger/issues/9601).
+- Fixed config loading so the experiment's config layers (class defaults and
+  `config.txt`) are still applied after an initialized experiment process
+  changes into a non-experiment directory.
+- Fixed `get_config()` so calling it without `load=True` no longer eagerly
+  loads the configuration when an experiment is available.
+- Fixed the `config.txt` reload performed on `Experiment.run()` so it is
+  tagged with the experiment-config priority and no longer overrides
+  environment variables.
 
 ### Updated
 

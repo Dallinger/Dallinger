@@ -23,7 +23,7 @@ from jinja2 import TemplateNotFound
 from psycopg2.extensions import TransactionRollbackError
 from rq import Queue
 from sqlalchemy import exc, func
-from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
+from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.sql.expression import true
 
 from dallinger import db, experiment, models, recruiters
@@ -584,14 +584,13 @@ def prepare_advertisement():
 
     if worker_id is not None:
         # Check if this workerId has completed the task before
-        already_participated = (
+        already_participated = session.query(
             session.query(models.Participant)
             .filter(models.Participant.worker_id == worker_id)
-            .first()
-            is not None
-        )
+            .exists()
+        ).scalar()
 
-        if already_participated:
+        if already_participated and not config.get("allow_repeat_worker_ids", False):
             raise ExperimentError("already_did_exp_hit")
 
     kwargs = {
@@ -907,18 +906,14 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
 
     exp = Experiment()
 
-    fingerprint_found = False
-    if fingerprint_hash:
-        try:
-            fingerprint_found = (
-                session.query(models.Participant)
-                .filter_by(fingerprint_hash=fingerprint_hash)
-                .one_or_none()
-            )
-        except MultipleResultsFound:
-            fingerprint_found = True
-
-    if fingerprint_hash and fingerprint_found:
+    if (
+        fingerprint_hash
+        and session.query(
+            session.query(models.Participant)
+            .filter_by(fingerprint_hash=fingerprint_hash)
+            .exists()
+        ).scalar()
+    ):
         db.logger.warning("Same browser fingerprint detected.")
 
         # if mode == "live":
@@ -932,9 +927,9 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         # If this proves to be a problem, we can make this configurable via a config parameter in the future.
         # For now we just log a warning.
 
-    already_participated = (
-        session.query(models.Participant).filter_by(worker_id=worker_id).one_or_none()
-    )
+    already_participated = session.query(
+        session.query(models.Participant).filter_by(worker_id=worker_id).exists()
+    ).scalar()
 
     allow_repeat_worker_ids = config.get("allow_repeat_worker_ids", False)
     if already_participated:
@@ -1063,12 +1058,16 @@ def load_participant():
     assignment_id = participant_info.get("assignment_id")
     if assignment_id is None:
         return error_response(
-            error_type="/load-participant POST: no participant found", status=403
+            error_type="/load-participant POST: no participant found",
+            error_code="assignment_id_missing",
+            status=403,
         )
     ppt = exp.load_participant(assignment_id)
     if ppt is None:
         return error_response(
-            error_type="/load-participant POST: no participant found", status=403
+            error_type="/load-participant POST: no participant found",
+            error_code="participant_not_found",
+            status=403,
         )
 
     # return the data

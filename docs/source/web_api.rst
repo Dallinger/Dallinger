@@ -267,6 +267,16 @@ responsible for transforming ``entry_information`` data into an
 ``assignment_id`` data needed to lookup a participant.
 See :func:`~dallinger.experiment.Experiment.normalize_entry_information`.
 
+When the lookup fails, the JSON error response may include a machine-readable
+``error_code``:
+
+* ``assignment_id_missing`` - no ``assignment_id`` could be resolved from the
+  request
+* ``participant_not_found`` - an ``assignment_id`` was present, but no matching
+  participant exists
+
+JavaScript clients can read these values from ``AjaxRejection.errorCode``.
+
 ::
 
     POST /question/<participant_id>
