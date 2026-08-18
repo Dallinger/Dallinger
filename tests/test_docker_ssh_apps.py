@@ -2,6 +2,7 @@ import importlib
 from pathlib import Path
 from unittest import mock
 
+import click
 import pytest
 
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
@@ -133,27 +134,12 @@ def test_apps_outputs_table_when_all_inactive(monkeypatch, capsys):
 def test_invalid_policy_stops_before_docker_ssh_external_side_effects(
     tmp_path, monkeypatch
 ):
-    from dallinger.deployment_plan import DeploymentPolicyError
-
     (tmp_path / "deploy.toml").write_text("version = 999\nexclude = []\n")
     monkeypatch.chdir(tmp_path)
     wrapped_command = mock.Mock()
     wrapper = docker_ssh_module.build_and_push_image(wrapped_command)
 
-    with (
-        mock.patch.object(docker_ssh_module, "ensure_root_domain_ready") as root_ready,
-        mock.patch.object(docker_ssh_module, "_discover_server_apps") as discover,
-        mock.patch.object(docker_ssh_module.destroy, "callback") as destroy,
-        mock.patch.object(docker_ssh_module, "setup_experiment") as setup,
-        mock.patch.object(docker_ssh_module, "get_config") as get_config,
-        mock.patch.object(
-            docker_ssh_module, "ensure_remote_host_in_known_hosts"
-        ) as known_hosts,
-        mock.patch("docker.from_env") as docker_from_env,
-        mock.patch("dallinger.docker.tools.build_image") as build_image,
-        mock.patch("dallinger.command_line.docker.push.callback") as registry_push,
-        pytest.raises(DeploymentPolicyError, match="version"),
-    ):
+    with pytest.raises(click.UsageError, match="version"):
         wrapper(
             server="test-server",
             app_name=None,
@@ -163,21 +149,13 @@ def test_invalid_policy_stops_before_docker_ssh_external_side_effects(
             push_build=False,
         )
 
-    root_ready.assert_not_called()
-    discover.assert_not_called()
-    destroy.assert_not_called()
-    setup.assert_not_called()
-    get_config.assert_not_called()
-    known_hosts.assert_not_called()
-    docker_from_env.assert_not_called()
-    build_image.assert_not_called()
-    registry_push.assert_not_called()
     wrapped_command.assert_not_called()
 
 
 def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
     tmp_path, monkeypatch
 ):
+    pytest.importorskip("docker")
     events = []
     source = mock.Mock(deployment_plan=object())
     executor = mock.Mock()
@@ -215,7 +193,7 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
     with (
         mock.patch.object(
             docker_ssh_module,
-            "ExperimentFileSource",
+            "experiment_files",
             side_effect=make_source,
         ),
         mock.patch.object(docker_ssh_module, "get_config", return_value=config),

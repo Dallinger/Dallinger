@@ -26,6 +26,7 @@ from dallinger.command_line.docker_ssh import docker_ssh
 from dallinger.command_line.prolific import prolific
 from dallinger.command_line.utils import (
     Output,
+    experiment_files,
     header,
     log,
     render_rich_table,
@@ -52,7 +53,6 @@ from dallinger.notifications import (
 )
 from dallinger.recruiters import by_name
 from dallinger.utils import (
-    ExperimentFileSource,
     check_call,
     generate_random_id,
 )
@@ -216,7 +216,15 @@ def get_summary(app):
 @require_exp_directory
 def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
     """Run the experiment locally."""
-    debugger = DebugDeployment(Output(), verbose, bot, proxy, exp_config, no_browsers)
+    debugger = DebugDeployment(
+        Output(),
+        verbose,
+        bot,
+        proxy,
+        exp_config,
+        no_browsers,
+        experiment_file_source=experiment_files(),
+    )
     log(header, chevrons=False)
     debugger.run()
 
@@ -262,7 +270,11 @@ def _deploy_in_mode(mode, verbose, app=None, archive=None):
         prelaunch.append(prelaunch_db_bootstrapper(archive_path, log))
 
     return deploy_sandbox_shared_setup(
-        log=log, verbose=verbose, app=app, prelaunch_actions=prelaunch
+        log=log,
+        verbose=verbose,
+        app=app,
+        prelaunch_actions=prelaunch,
+        experiment_file_source=experiment_files(),
     )
 
 
@@ -862,7 +874,7 @@ def bot(app, debug):
     if debug is None:
         verify_id(None, None, app)
 
-    id, tmp = setup_experiment(log, experiment_file_source=ExperimentFileSource())
+    id, tmp = setup_experiment(log, experiment_file_source=experiment_files())
 
     if debug:
         url = debug
@@ -887,7 +899,7 @@ def verify():
         "Verifying current directory as a Dallinger experiment...",
         verbose=verbose,
     )
-    ok = verify_package(verbose=verbose)
+    ok = verify_package(verbose=verbose, experiment_file_source=experiment_files())
     if ok:
         log("✓ Everything looks good!", verbose=verbose)
     else:
@@ -897,7 +909,7 @@ def verify():
 @dallinger.command()
 def rq_worker():
     """Start an rq worker in the context of dallinger."""
-    setup_experiment(log, experiment_file_source=ExperimentFileSource())
+    setup_experiment(log, experiment_file_source=experiment_files())
     # right now we care about low queue for bots
     worker = Worker("low", connection=db.redis_conn)
     worker.work()

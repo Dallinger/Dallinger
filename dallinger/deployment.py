@@ -123,7 +123,12 @@ def handle_launch_data(
 
 
 def deploy_sandbox_shared_setup(
-    log, verbose=True, app=None, exp_config=None, prelaunch_actions=None
+    log,
+    verbose=True,
+    app=None,
+    exp_config=None,
+    prelaunch_actions=None,
+    experiment_file_source=None,
 ):
     """Set up Git, push to Heroku, and launch the app."""
     if verbose:
@@ -131,7 +136,7 @@ def deploy_sandbox_shared_setup(
     else:
         out = open(os.devnull, "w")
 
-    experiment_file_source = ExperimentFileSource(os.getcwd())
+    experiment_file_source = experiment_file_source or ExperimentFileSource(os.getcwd())
     config = get_config(load=True)
     heroku.sanity_check(config)
     heroku_app_id, tmp = setup_experiment(
@@ -331,6 +336,7 @@ class HerokuLocalDeployment:
     dispatch = {}  # Subclass may provide handlers for Heroku process output
     environ = None
     bot = False
+    experiment_file_source = None
     DEPLOY_NAME = "Heroku"
     WRAPPER_CLASS = HerokuLocalWrapper
     DO_INIT_DB = True
@@ -339,10 +345,11 @@ class HerokuLocalDeployment:
         self.exp_config.update({"mode": "debug"})
 
     def setup(self):
+        source = self.experiment_file_source or ExperimentFileSource(os.getcwd())
         self.exp_id, self.tmp_dir = setup_experiment(
             self.out.log,
             exp_config=self.exp_config,
-            experiment_file_source=ExperimentFileSource(os.getcwd()),
+            experiment_file_source=source,
         )
 
     def update_dir(self):
@@ -412,7 +419,16 @@ class DebugDeployment(HerokuLocalDeployment):
         r"{}".format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
     }
 
-    def __init__(self, output, verbose, bot, proxy_port, exp_config, no_browsers=False):
+    def __init__(
+        self,
+        output,
+        verbose,
+        bot,
+        proxy_port,
+        exp_config,
+        no_browsers=False,
+        experiment_file_source=None,
+    ):
         self.out = output
         self.verbose = verbose
         self.bot = bot
@@ -422,6 +438,7 @@ class DebugDeployment(HerokuLocalDeployment):
         self.complete = False
         self.status_thread = None
         self.no_browsers = no_browsers
+        self.experiment_file_source = experiment_file_source
         self.environ = {
             "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
         }

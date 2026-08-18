@@ -45,6 +45,54 @@ def test_require_exp_directory_surfaces_invalid_policy(tmp_path, monkeypatch):
     assert "Please check with dallinger verify" not in str(exc.value)
 
 
+def test_experiment_files_surfaces_invalid_policy(tmp_path, monkeypatch):
+    from dallinger.command_line.utils import experiment_files
+
+    (tmp_path / "deploy.toml").write_text("version = 2\nexclude = []\n")
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(click.UsageError, match="version"):
+        experiment_files()
+
+
+@pytest.mark.usefixtures("bartlett_dir")
+def test_require_exp_directory_reuses_one_file_source():
+    from dallinger.command_line.utils import experiment_files, require_exp_directory
+    from dallinger.utils import ExperimentFileSource
+
+    seen = []
+
+    @click.command()
+    @require_exp_directory
+    def dummy(**kwargs):
+        seen.append(experiment_files())
+        seen.append(experiment_files())
+
+    with mock.patch(
+        "dallinger.command_line.utils.ExperimentFileSource",
+        wraps=ExperimentFileSource,
+    ) as factory:
+        result = CliRunner().invoke(dummy)
+
+    assert result.exit_code == 0, result.output
+    assert factory.call_count == 1
+    assert len(seen) == 2
+    assert seen[0] is seen[1]
+
+
+def test_verify_surfaces_invalid_policy(tmp_path, monkeypatch):
+    from dallinger.command_line import verify
+
+    (tmp_path / "deploy.toml").write_text("version = 2\nexclude = []\n")
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(verify)
+
+    assert result.exit_code == 2
+    assert "version" in result.output
+    assert "Traceback" not in result.output
+
+
 @pytest.fixture
 def sleepless():
     # Use this fixture to ignore sleep() calls, for speed.
@@ -302,6 +350,16 @@ class TestDevelopCommand:
 
         assert result.exit_code == 0, result.output
 
+    def test_debug_surfaces_invalid_policy(self, develop, tmp_path, monkeypatch):
+        (tmp_path / "deploy.toml").write_text("version = 2\nexclude = []\n")
+        monkeypatch.chdir(tmp_path)
+
+        result = CliRunner().invoke(develop, ["debug", "--skip-flask"])
+
+        assert result.exit_code == 2
+        assert "version" in result.output
+        assert "Traceback" not in result.output
+
     def test_debug_reuses_one_policy_plan(
         self, active_config, develop, tmp_path, monkeypatch
     ):
@@ -378,6 +436,28 @@ class TestDebugCommand:
         CliRunner().invoke(debug, [])
         deployment.assert_called_once()
 
+    def test_debug_passes_verified_file_source(self, debug, deployment):
+        from dallinger.utils import ExperimentFileSource
+
+        result = CliRunner().invoke(debug, [])
+
+        assert result.exception is None, result.output
+        source = deployment.call_args.kwargs["experiment_file_source"]
+        assert isinstance(source, ExperimentFileSource)
+
+    def test_debug_surfaces_invalid_policy(
+        self, debug, deployment, tmp_path, monkeypatch
+    ):
+        (tmp_path / "deploy.toml").write_text("version = 2\nexclude = []\n")
+        monkeypatch.chdir(tmp_path)
+
+        result = CliRunner().invoke(debug, [])
+
+        deployment.assert_not_called()
+        assert result.exit_code == 2
+        assert "version" in result.output
+        assert "Traceback" not in result.output
+
     def test_wrong_python_version_fails(self, debug, deployment):
         with mock.patch("platform.python_version") as mock_python_version:
             mock_python_version.return_value = "3.10.0"
@@ -427,13 +507,21 @@ class TestSandboxAndDeploy:
     def test_uses_specified_app_id(self, sandbox, dsss):
         CliRunner().invoke(sandbox, ["--verbose", "--app", "some-app-id"])
         dsss.assert_called_once_with(
-            app="some-app-id", verbose=True, log=mock.ANY, prelaunch_actions=[]
+            app="some-app-id",
+            verbose=True,
+            log=mock.ANY,
+            prelaunch_actions=[],
+            experiment_file_source=mock.ANY,
         )
 
     def test_works_with_no_app_id(self, sandbox, dsss):
         CliRunner().invoke(sandbox, ["--verbose"])
         dsss.assert_called_once_with(
-            app=None, verbose=True, log=mock.ANY, prelaunch_actions=[]
+            app=None,
+            verbose=True,
+            log=mock.ANY,
+            prelaunch_actions=[],
+            experiment_file_source=mock.ANY,
         )
 
     def test_sandbox_puts_mode_in_config(self, sandbox, active_config, dsss):
@@ -469,7 +557,11 @@ class TestSandboxAndDeploy:
         CliRunner().invoke(sandbox, ["--verbose", "--archive", tempdir])
 
         dsss.assert_called_once_with(
-            app=None, verbose=True, log=mock.ANY, prelaunch_actions=[mock.ANY]
+            app=None,
+            verbose=True,
+            log=mock.ANY,
+            prelaunch_actions=[mock.ANY],
+            experiment_file_source=mock.ANY,
         )
 
     def test_rejects_invalid_archive_path(self, sandbox, dsss):

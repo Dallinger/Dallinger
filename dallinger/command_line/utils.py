@@ -144,6 +144,29 @@ def get_server_pem_path() -> Path:
     return pem_path
 
 
+_EXPERIMENT_FILES_META = "dallinger.experiment_files"
+
+
+def experiment_files(root="."):
+    """Return the command-scoped experiment files, building them if needed.
+
+    Policy errors become Click usage errors. Repeated calls in the same Click
+    command reuse one ``ExperimentFileSource``.
+    """
+    ctx = click.get_current_context(silent=True)
+    if ctx is not None:
+        existing = ctx.meta.get(_EXPERIMENT_FILES_META)
+        if existing is not None:
+            return existing
+    try:
+        source = ExperimentFileSource(root)
+    except (DeploymentPolicyError, DeploymentPlanError) as error:
+        raise click.UsageError(str(error)) from error
+    if ctx is not None:
+        ctx.meta[_EXPERIMENT_FILES_META] = source
+    return source
+
+
 def require_exp_directory(f):
     """Decorator to verify that a command is run inside a valid Dallinger
     experiment directory.
@@ -154,10 +177,10 @@ def require_exp_directory(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         try:
-            if not verify_package(kwargs.get("verbose")):
+            if not verify_package(
+                kwargs.get("verbose"), experiment_file_source=experiment_files()
+            ):
                 raise click.UsageError(error_one)
-        except (DeploymentPolicyError, DeploymentPlanError) as error:
-            raise click.UsageError(str(error)) from error
         except ValueError:
             raise click.UsageError(error_two)
         return f(*args, **kwargs)

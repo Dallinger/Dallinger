@@ -9,6 +9,7 @@ from rq import Queue
 from dallinger.command_line.utils import (
     Output,
     error,
+    experiment_files,
     header,
     log,
     require_exp_directory,
@@ -17,7 +18,6 @@ from dallinger.config import get_config
 from dallinger.db import redis_conn
 from dallinger.deployment import DevelopmentDeployment, handle_launch_data
 from dallinger.utils import (
-    ExperimentFileSource,
     develop_target_path,
     open_browser,
     setup_warning_hooks,
@@ -63,7 +63,7 @@ def develop():
 def debug(port, skip_flask):
     from dallinger.command_line.utils import verify_package
 
-    experiment_file_source = ExperimentFileSource()
+    experiment_file_source = experiment_files()
     # Skip deployable-package module verification so large experiments are not
     # copied before staging. Config loading still imports the working tree,
     # Flask imports the staged tree, and `dallinger verify` remains strict.
