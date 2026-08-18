@@ -18,16 +18,11 @@ from pytest import raises
 
 from dallinger import recruiters
 from dallinger.config import get_config
+from tests.helpers import write_deployment_policy
 
 
 def found_in(name, path):
     return os.path.exists(os.path.join(path, name))
-
-
-def write_deployment_policy(root, exclude=()):
-    """Write a minimal version 1 deployment policy."""
-    exclusions = ", ".join(f'"{path}"' for path in exclude)
-    (Path(root) / "deploy.toml").write_text(f"version = 1\nexclude = [{exclusions}]\n")
 
 
 @pytest.fixture
@@ -1057,6 +1052,22 @@ class TestSetupExperiment:
         assembled = Path(destination)
         assert assembled.joinpath("requirements.txt").read_text() == generated
         assert not assembled.joinpath("constraints.txt").exists()
+
+    def test_setup_errors_when_staging_omits_constraints(
+        self, setup_experiment, tmp_path, monkeypatch
+    ):
+        from dallinger.deployment_plan import DeploymentPlanError
+
+        source_root = Path.cwd()
+        experiment_root = tmp_path / "experiment"
+        shutil.copytree(source_root, experiment_root)
+        (experiment_root / "constraints.txt").unlink(missing_ok=True)
+        write_deployment_policy(experiment_root)
+        monkeypatch.chdir(experiment_root)
+
+        with mock.patch("dallinger.utils.ensure_constraints_file_presence"):
+            with pytest.raises(DeploymentPlanError, match="constraints.txt"):
+                setup_experiment(log=mock.Mock(), local_checks=False)
 
     def test_setup_refreshes_stale_constraints_in_staging_only(
         self, setup_experiment, tmp_path, monkeypatch

@@ -44,7 +44,7 @@
   or a generic verify message. Commands that verify then assemble reuse
   one ``ExperimentFileSource``.
 - Editable installs now fall back to the source tree when
-  ``importlib.metadata`` omits packaged Docker templates.
+  ``importlib.metadata`` omits a file list or packaged Docker templates.
 - Fixed repeat-worker recruitment after multiple prior participations and added
   structured participant lookup errors for clients (`assignment_id_missing` /
   `participant_not_found` via `error_code` / `AjaxRejection.errorCode`).

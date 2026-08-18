@@ -425,9 +425,13 @@ def abspath_from_egg(egg, path):
     `abspath_from_egg("dallinger", "dallinger/utils.py")`.
     Returns a `pathlib.Path` object or None if the path was not found.
     """
-    for file in files_metadata(egg):
-        if str(file) == path:
-            return file.locate()
+    for file in files_metadata(egg) or ():
+        if str(file) != path:
+            continue
+        located = file.locate()
+        if located is not None and Path(located).is_file():
+            return Path(located)
+        break
     # Editable installs may omit package data from importlib.metadata.
     candidate = Path(__file__).resolve().parent.parent / path
     if candidate.is_file():
@@ -738,7 +742,6 @@ def _stage_compiled_requirements(experiment_root, destination):
     """
     experiment_root = Path(experiment_root)
     destination = Path(destination)
-    _restore_authored_root_inputs(experiment_root, destination, copy_func=copy_file)
     source_constraints = experiment_root / "constraints.txt"
     dest_constraints = destination / "constraints.txt"
     if source_constraints.is_file() and not dest_constraints.exists():

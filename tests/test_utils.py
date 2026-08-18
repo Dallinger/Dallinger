@@ -377,6 +377,20 @@ class TestIsBrokenSymlink:
         assert not utils.is_broken_symlink(path)
 
 
+@pytest.mark.parametrize("metadata", [[], None])
+def test_abspath_from_egg_falls_back_to_source_tree(metadata):
+    with mock.patch("dallinger.utils.files_metadata", return_value=metadata):
+        path = utils.abspath_from_egg("dallinger", "dallinger/utils.py")
+
+    assert path.is_file()
+    assert path.name == "utils.py"
+
+
+def test_abspath_from_egg_returns_none_when_missing():
+    with mock.patch("dallinger.utils.files_metadata", return_value=[]):
+        assert utils.abspath_from_egg("dallinger", "dallinger/missing.txt") is None
+
+
 def test_check_experiment_dependencies_successful():
     with NamedTemporaryFile() as requirements_file:
         requirements = [

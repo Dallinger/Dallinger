@@ -1,7 +1,5 @@
-import json
 import os
 import unicodedata
-from pathlib import Path
 
 import pytest
 
@@ -13,6 +11,7 @@ from dallinger.deployment_plan import (
     parse_deployment_policy,
     validate_explicit_provider_destination,
 )
+from tests.helpers import write_deployment_policy, write_files
 
 pytestmark = pytest.mark.skipif(
     os.name != "posix",
@@ -20,23 +19,11 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def write_policy(root: Path, exclude=()) -> Path:
-    values = ", ".join(json.dumps(value) for value in exclude)
-    path = root / "deploy.toml"
-    path.write_text(f"version = 1\nexclude = [{values}]\n")
-    return path
-
-
-def write_files(root: Path, files: dict[str, str]) -> None:
-    for relative_path, content in files.items():
-        path = root / relative_path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content)
-
-
 def test_parse_valid_policy_normalizes_and_sorts_exclusions(tmp_path):
     decomposed = unicodedata.normalize("NFD", "café")
-    policy = parse_deployment_policy(write_policy(tmp_path, ["z/data", decomposed]))
+    policy = parse_deployment_policy(
+        write_deployment_policy(tmp_path, ["z/data", decomposed])
+    )
 
     assert policy.version == 1
     assert policy.exclude == ("café", "z/data")
@@ -92,13 +79,13 @@ def test_parse_rejects_unknown_missing_version_and_invalid_types(
 )
 def test_parse_rejects_nonliteral_or_unsafe_paths(tmp_path, excluded):
     with pytest.raises(DeploymentPolicyError):
-        parse_deployment_policy(write_policy(tmp_path, [excluded]))
+        parse_deployment_policy(write_deployment_policy(tmp_path, [excluded]))
 
 
 def test_parse_rejects_duplicate_normalized_paths(tmp_path):
     decomposed = unicodedata.normalize("NFD", "café")
     with pytest.raises(DeploymentPolicyError, match="Duplicate"):
-        parse_deployment_policy(write_policy(tmp_path, ["café", decomposed]))
+        parse_deployment_policy(write_deployment_policy(tmp_path, ["café", decomposed]))
 
 
 def test_explicit_provider_rejects_reserved_destination_prefixes():
@@ -126,7 +113,7 @@ def test_parse_rejects_symlinked_policy(tmp_path):
 
 
 def test_plan_is_sorted_and_independent_of_creation_order(tmp_path):
-    write_policy(tmp_path)
+    write_deployment_policy(tmp_path)
     write_files(tmp_path, {"z.txt": "z", "a.txt": "a", "m/n.txt": "n"})
 
     plan = build_deployment_plan(tmp_path)
@@ -140,7 +127,7 @@ def test_plan_is_sorted_and_independent_of_creation_order(tmp_path):
 
 
 def test_plan_applies_literal_prefixes_allows_missing_and_includes_policy(tmp_path):
-    write_policy(tmp_path, ["static/private", "missing"])
+    write_deployment_policy(tmp_path, ["static/private", "missing"])
     write_files(
         tmp_path,
         {
@@ -158,7 +145,7 @@ def test_plan_applies_literal_prefixes_allows_missing_and_includes_policy(tmp_pa
 
 
 def test_plan_omits_reserved_source_paths(tmp_path):
-    write_policy(tmp_path)
+    write_deployment_policy(tmp_path)
     write_files(
         tmp_path,
         {
@@ -186,7 +173,7 @@ def test_plan_omits_reserved_source_paths(tmp_path):
 
 
 def test_plan_records_entry_metadata_and_membership(tmp_path):
-    write_policy(tmp_path)
+    write_deployment_policy(tmp_path)
     script = tmp_path / "run.sh"
     script.write_text("#!/bin/sh\n")
     script.chmod(0o755)
@@ -198,12 +185,11 @@ def test_plan_records_entry_metadata_and_membership(tmp_path):
     assert entry.size == script.stat().st_size
     assert entry.executable is True
     assert entry.mode & 0o111
-    assert entry.source_category == "experiment"
     assert "run.sh" in plan
 
 
 def test_plan_records_only_fully_selected_directory_link_candidates(tmp_path):
-    write_policy(tmp_path, ["mixed/private"])
+    write_deployment_policy(tmp_path, ["mixed/private"])
     write_files(
         tmp_path,
         {
@@ -231,7 +217,7 @@ def test_plan_records_only_fully_selected_directory_link_candidates(tmp_path):
 
 
 def test_plan_rejects_selected_symlink_but_prunes_excluded_symlink(tmp_path):
-    write_policy(tmp_path, ["excluded-link"])
+    write_deployment_policy(tmp_path, ["excluded-link"])
     target = tmp_path / "target.txt"
     target.write_text("target")
     (tmp_path / "excluded-link").symlink_to(target)
@@ -247,7 +233,7 @@ def test_plan_rejects_selected_symlink_but_prunes_excluded_symlink(tmp_path):
 
 @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFO creation is unavailable")
 def test_plan_rejects_special_files(tmp_path):
-    write_policy(tmp_path)
+    write_deployment_policy(tmp_path)
     os.mkfifo(tmp_path / "events.fifo")
 
     with pytest.raises(DeploymentPlanError, match="FIFO"):
@@ -255,7 +241,7 @@ def test_plan_rejects_special_files(tmp_path):
 
 
 def test_plan_rejects_nested_repositories(tmp_path):
-    write_policy(tmp_path)
+    write_deployment_policy(tmp_path)
     marker = tmp_path / "vendor" / ".git"
     marker.parent.mkdir()
     marker.mkdir()

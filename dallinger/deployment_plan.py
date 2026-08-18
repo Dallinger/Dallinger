@@ -65,7 +65,6 @@ class DeploymentPlanEntry:
     size: int
     mode: int
     executable: bool
-    source_category: str = "experiment"
 
 
 @dataclass(frozen=True)

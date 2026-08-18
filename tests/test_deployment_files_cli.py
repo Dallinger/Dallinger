@@ -8,6 +8,7 @@ from click.testing import CliRunner
 from dallinger.command_line import dallinger
 from dallinger.command_line.deployment_files import deployment_files
 from dallinger.deployment_plan import parse_deployment_policy
+from tests.helpers import write_deployment_policy, write_files
 
 pytestmark = pytest.mark.skipif(
     os.name != "posix",
@@ -15,28 +16,16 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _write_policy(root: Path, exclude=()):
-    values = ", ".join(json.dumps(value) for value in exclude)
-    (root / "deploy.toml").write_text(f"version = 1\nexclude = [{values}]\n")
-
-
-def _write_files(root: Path, files: dict[str, str]):
-    for relative, contents in files.items():
-        path = root / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(contents)
-
-
 def test_list_emits_sorted_destinations_and_summary(tmp_path):
-    _write_policy(tmp_path, ["local"])
-    _write_files(tmp_path, {"a.txt": "a", "m/n.txt": "n", "local/x.txt": "x"})
+    write_deployment_policy(tmp_path, ["local"])
+    write_files(tmp_path, {"a.txt": "a", "m/n.txt": "n", "local/x.txt": "x"})
     runner = CliRunner()
 
     with runner.isolated_filesystem(temp_dir=tmp_path):
         # click isolated_filesystem uses a subdirectory; recreate fixtures there.
         cwd = Path.cwd()
-        _write_policy(cwd, ["local"])
-        _write_files(cwd, {"a.txt": "a", "m/n.txt": "n", "local/x.txt": "x"})
+        write_deployment_policy(cwd, ["local"])
+        write_files(cwd, {"a.txt": "a", "m/n.txt": "n", "local/x.txt": "x"})
         result = runner.invoke(deployment_files, ["list"])
 
     assert result.exit_code == 0
@@ -50,8 +39,8 @@ def test_list_json_omits_manifest_digest(tmp_path):
     runner = CliRunner()
     with runner.isolated_filesystem(temp_dir=tmp_path):
         cwd = Path.cwd()
-        _write_policy(cwd)
-        _write_files(cwd, {"asset.txt": "x"})
+        write_deployment_policy(cwd)
+        write_files(cwd, {"asset.txt": "x"})
         result = runner.invoke(deployment_files, ["list", "--json"])
 
     assert result.exit_code == 0
