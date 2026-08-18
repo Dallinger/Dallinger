@@ -69,9 +69,7 @@ def list_deployment_files(json_output: bool) -> None:
 
     for destination in destinations:
         click.echo(destination)
-    click.echo(
-        f"Summary: {_file_count(len(plan.entries))}, {plan.total_size} bytes"
-    )
+    click.echo(f"Summary: {_file_count(len(plan.entries))}, {plan.total_size} bytes")
 
 
 @deployment_files.command("init")
