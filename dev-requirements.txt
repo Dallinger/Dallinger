@@ -186,7 +186,7 @@ ipython==9.15.0
     #   jupyter-console
 ipython-pygments-lexers==1.1.1
     # via ipython
-ipywidgets==8.1.8
+ipywidgets==8.1.9
     # via jupyter
 isoduration==20.11.0
     # via jsonschema
