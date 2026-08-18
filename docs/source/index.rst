@@ -80,6 +80,7 @@ designing new experiments for others to use.
     developing_dallinger_setup_guide
     creating_an_experiment
     required_experiment_files
+    deploy_toml
     networks
     the_experiment_class
     classes
@@ -128,7 +129,6 @@ in order to develop new experiments. Follow the Developer Installation process f
     running_the_tests
     building_documentation
     contributing_to_dallinger
-    deployment_file_planning
 
 General Information
 ^^^^^^^^^^^^^^^^^^^
