@@ -12,8 +12,11 @@
 - Added opt-in `deploy.toml` experiment-file membership to verification,
   development staging, copied Docker/classic staging, and Heroku assembly
   through `ExperimentFileSource`. Experiments without a policy retain legacy
-  selection and Git staging behavior. Plan traversal uses ordinary POSIX
-  `lstat`/`scandir` containment (rejecting symlinks and special files).
+  selection and Git staging behavior as a compatibility fallback while
+  PsyNet trials `deploy.toml`; Git-based membership may later be
+  deprecated (warning, then removal). Git remains for provenance. Plan
+  traversal uses ordinary POSIX `lstat`/`scandir` containment (rejecting
+  symlinks and special files).
 - Added `Experiment.config_settings()` for authoritative experiment config
   values set in code. Unlike `Experiment.config_defaults()`, these override
   the user's `~/.dallingerconfig`, while still being overridden by the
@@ -58,7 +61,9 @@
   by validating the working tree before development staging; strict packaged
   validation remains available through `dallinger verify`.
 - Documented ``deploy.toml`` for experiment authors, including format,
-  auto-omitted paths, and ``dallinger deployment-files list`` / ``init``.
+  auto-omitted paths, ``dallinger deployment-files list`` / ``init``,
+  and that Git-based membership is a compatibility fallback that may
+  later be deprecated after PsyNet production use.
 
 ## [v12.2.1](https://github.com/dallinger/dallinger/tree/v12.2.1) (2026-07-02)
 

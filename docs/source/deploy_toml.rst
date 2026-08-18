@@ -89,6 +89,14 @@ destination, then a file count and total size.
 Experiments without ``deploy.toml``
 -----------------------------------
 
-If ``deploy.toml`` is absent, Dallinger keeps the legacy Git/walk
-selection used before this policy. PsyNet always creates a policy before
-launch, so PsyNet experiments should not rely on that fallback.
+If ``deploy.toml`` is absent, Dallinger keeps the previous Git/walk
+selection. That path is a compatibility fallback, not the intended
+long-term API.
+
+``deploy.toml`` is opt-in in this release. PsyNet always creates a
+policy before launch, and that is the proving ground. If that holds up
+in production use, Dallinger may deprecate Git-based membership
+(``.gitignore`` and similar deciding which files are staged), with a
+warning first and then removal. Git would still be used for provenance
+(commit identity and a dirty working tree). Until then, do not treat
+the Git fallback as a stable API.
