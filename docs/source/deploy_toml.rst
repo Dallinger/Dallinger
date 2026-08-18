@@ -58,11 +58,13 @@ What is always omitted
 These paths are left out of the plan even when they are not listed in
 ``exclude``:
 
-* ``deploy.toml`` itself
 * Version-control metadata at the experiment root (``.git``, and similar)
 * Source ``config.txt`` (Dallinger writes a filtered configuration later)
 * ``.dockerignore`` and ``.slugignore`` files (backend ignore files
   must not change membership after the plan is built)
+
+``deploy.toml`` itself is included in the plan so the deployed experiment
+keeps the same policy.
 
 Nested repositories or submodules under the experiment root are an
 error; exclude the nested tree or move it outside the experiment.
