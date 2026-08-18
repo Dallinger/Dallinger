@@ -52,6 +52,7 @@ from dallinger.notifications import (
 )
 from dallinger.recruiters import by_name
 from dallinger.utils import (
+    ExperimentFileSource,
     check_call,
     generate_random_id,
 )
@@ -861,7 +862,7 @@ def bot(app, debug):
     if debug is None:
         verify_id(None, None, app)
 
-    id, tmp = setup_experiment(log)
+    id, tmp = setup_experiment(log, experiment_file_source=ExperimentFileSource())
 
     if debug:
         url = debug
@@ -896,7 +897,7 @@ def verify():
 @dallinger.command()
 def rq_worker():
     """Start an rq worker in the context of dallinger."""
-    setup_experiment(log)
+    setup_experiment(log, experiment_file_source=ExperimentFileSource())
     # right now we care about low queue for bots
     worker = Worker("low", connection=db.redis_conn)
     worker.work()

@@ -520,6 +520,8 @@ def _reserved_kind(destination_parts: tuple[str, ...]) -> str | None:
         return "vcs"
     if root_name == "config.txt":
         return "configuration"
+    if root_name in _GENERATED_ROOT_DESTINATION_NAMES:
+        return "generated"
     if any(
         part == ".slugignore" or part.endswith(".dockerignore")
         for part in destination_parts
@@ -531,9 +533,7 @@ def _reserved_kind(destination_parts: tuple[str, ...]) -> str | None:
 def _require_posix_support(error_type: type[_ErrorType]) -> None:
     """Fail closed on non-POSIX platforms for this prototype."""
     if os.name != "posix":
-        raise error_type(
-            "Deployment planning currently requires a POSIX filesystem."
-        )
+        raise error_type("Deployment planning currently requires a POSIX filesystem.")
 
 
 def _assert_source_under_root(root: Path, source: Path) -> None:

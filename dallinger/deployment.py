@@ -340,7 +340,9 @@ class HerokuLocalDeployment:
 
     def setup(self):
         self.exp_id, self.tmp_dir = setup_experiment(
-            self.out.log, exp_config=self.exp_config
+            self.out.log,
+            exp_config=self.exp_config,
+            experiment_file_source=ExperimentFileSource(os.getcwd()),
         )
 
     def update_dir(self):
@@ -577,7 +579,10 @@ class LoaderDeployment(HerokuLocalDeployment):
 
     def setup(self):
         self.exp_id, self.tmp_dir = setup_experiment(
-            self.out.log, app=self.app_id, exp_config=self.exp_config
+            self.out.log,
+            app=self.app_id,
+            exp_config=self.exp_config,
+            experiment_file_source=ExperimentFileSource(os.getcwd()),
         )
 
     def execute(self, heroku):

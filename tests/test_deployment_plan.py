@@ -83,6 +83,10 @@ def test_parse_rejects_unknown_missing_version_and_invalid_types(
         "deploy.toml",
         ".git",
         "config.txt",
+        "constraints.txt",
+        "requirements.txt",
+        "runtime.txt",
+        "experiment_id.txt",
         ".dockerignore",
     ],
 )
@@ -159,6 +163,10 @@ def test_plan_omits_reserved_source_paths(tmp_path):
         tmp_path,
         {
             "config.txt": "raw secret",
+            "constraints.txt": "pins",
+            "requirements.txt": "dallinger",
+            "runtime.txt": "python-3.13",
+            "experiment_id.txt": "old-id",
             ".git/objects/example": "metadata",
             ".dockerignore": "*",
             "Dockerfile.production.dockerignore": "*",

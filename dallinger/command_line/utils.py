@@ -16,6 +16,7 @@ from rich.text import Text
 
 from dallinger.config import get_config, initialize_experiment_package
 from dallinger.constraints import _get_requested_python_version
+from dallinger.deployment_plan import DeploymentPlanError, DeploymentPolicyError
 from dallinger.utils import ExperimentFileSource
 from dallinger.version import __version__
 
@@ -155,6 +156,8 @@ def require_exp_directory(f):
         try:
             if not verify_package(kwargs.get("verbose")):
                 raise click.UsageError(error_one)
+        except (DeploymentPolicyError, DeploymentPlanError) as error:
+            raise click.UsageError(str(error)) from error
         except ValueError:
             raise click.UsageError(error_two)
         return f(*args, **kwargs)

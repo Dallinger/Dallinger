@@ -27,7 +27,12 @@ from dallinger.command_line.utils import (
 from dallinger.config import get_config
 from dallinger.deployment import handle_launch_data
 from dallinger.heroku.tools import HerokuApp
-from dallinger.utils import GitClient, abspath_from_egg, setup_experiment
+from dallinger.utils import (
+    ExperimentFileSource,
+    GitClient,
+    abspath_from_egg,
+    setup_experiment,
+)
 
 HEROKU_YML = abspath_from_egg("dallinger", "dallinger/docker/heroku.yml").read_text()
 
@@ -125,7 +130,12 @@ def build():
     from dallinger.docker.tools import build_image
 
     config = get_config(load=True)
-    _, tmp = setup_experiment(log=log, debug=True, local_checks=False)
+    _, tmp = setup_experiment(
+        log=log,
+        debug=True,
+        local_checks=False,
+        experiment_file_source=ExperimentFileSource(),
+    )
     build_image(tmp, config.get("docker_image_base_name"), Output(), force_build=True)
 
 
@@ -139,7 +149,13 @@ def push(use_existing: bool, **kwargs) -> str:
 
     config = get_config(load=True)
     app_name = kwargs.get("app_name", None)
-    _, tmp = setup_experiment(log=log, debug=True, local_checks=False, app=app_name)
+    _, tmp = setup_experiment(
+        log=log,
+        debug=True,
+        local_checks=False,
+        app=app_name,
+        experiment_file_source=ExperimentFileSource(),
+    )
     image_name_with_tag = build_image(
         tmp,
         config.get("docker_image_base_name"),
@@ -314,7 +330,12 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
 
     config = get_config(load=True)
     heroku_app_id, tmp = setup_experiment(
-        log, debug=False, app=app, exp_config=exp_config, local_checks=False
+        log,
+        debug=False,
+        app=app,
+        exp_config=exp_config,
+        local_checks=False,
+        experiment_file_source=ExperimentFileSource(),
     )
     # Register the experiment using all configured registration services.
     if config.get("mode") == "live":

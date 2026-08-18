@@ -30,6 +30,21 @@ def test_python_versions_consistent():
     assert not _python_versions_consistent("3.15", "3.14.1")
 
 
+def test_require_exp_directory_surfaces_invalid_policy(tmp_path, monkeypatch):
+    from dallinger.command_line.utils import require_exp_directory
+
+    (tmp_path / "deploy.toml").write_text("version = 2\nexclude = []\n")
+    monkeypatch.chdir(tmp_path)
+
+    @require_exp_directory
+    def dummy(**kwargs):
+        return "ok"
+
+    with pytest.raises(click.UsageError, match="version") as exc:
+        dummy()
+    assert "Please check with dallinger verify" not in str(exc.value)
+
+
 @pytest.fixture
 def sleepless():
     # Use this fixture to ignore sleep() calls, for speed.

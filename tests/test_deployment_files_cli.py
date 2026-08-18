@@ -7,6 +7,7 @@ from click.testing import CliRunner
 
 from dallinger.command_line import dallinger
 from dallinger.command_line.deployment_files import deployment_files
+from dallinger.deployment_plan import parse_deployment_policy
 
 pytestmark = pytest.mark.skipif(
     os.name != "posix",
@@ -69,7 +70,9 @@ def test_init_creates_starter_policy_once(tmp_path):
 
     assert first.exit_code == 0
     assert policy.is_file()
-    assert "version = 1" in policy.read_text()
+    parsed = parse_deployment_policy(policy)
+    assert parsed.version == 1
+    assert parsed.exclude[:2] == (".deploy", ".env")
     assert "legacy_diff_acknowledgement" not in policy.read_text()
     assert second.exit_code != 0
     assert "Refusing to overwrite" in second.output

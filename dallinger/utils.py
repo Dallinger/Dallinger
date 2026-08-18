@@ -29,10 +29,11 @@ from sqlalchemy import exc as sa_exc
 
 from dallinger import db
 from dallinger.config import get_config
-from dallinger.constraints import ensure_constraints_file_presence
+from dallinger.constraints import ensure_constraints_file_presence, working_directory
 from dallinger.deployment_plan import (
     POLICY_FILENAME,
     DeploymentPlan,
+    DeploymentPlanError,
     build_deployment_plan,
     materialize_deployment_plan_entry,
     validate_explicit_provider_destination,
@@ -427,6 +428,10 @@ def abspath_from_egg(egg, path):
     for file in files_metadata(egg):
         if str(file) == path:
             return file.locate()
+    # Editable installs may omit package data from importlib.metadata.
+    candidate = Path(__file__).resolve().parent.parent / path
+    if candidate.is_file():
+        return candidate
     return None
 
 
@@ -549,6 +554,9 @@ def bootstrap_development_session(
     copy_file(source_path / "run.sh", destination_path / "run.sh")
     (destination_path / "run.sh").chmod(0o744)  # Make run script executable
 
+    _restore_authored_root_inputs(
+        Path(experiment_path), Path(destination_path), copy_func=symlink_file
+    )
     config.write(directory=destination_path)
 
     return (experiment_uid, destination_path)
@@ -577,7 +585,8 @@ def setup_experiment(
         check_local_db_connection(log)
         check_experiment_dependencies(Path(os.getcwd()) / "requirements.txt")
 
-    if experiment_file_source is None or experiment_file_source.deployment_plan is None:
+    source = experiment_file_source or ExperimentFileSource(os.getcwd())
+    if source.deployment_plan is None:
         ensure_constraints_file_presence(os.getcwd())
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
@@ -611,7 +620,7 @@ def setup_experiment(
         log,
         config,
         for_remote=not local_checks,
-        experiment_file_source=experiment_file_source,
+        experiment_file_source=source,
     )
     log("Deployment temp directory: {}".format(temp_dir), chevrons=False)
 
@@ -641,9 +650,8 @@ def assemble_experiment_temp_dir(
     - Templates and static resources from Dallinger
     - An export of the loaded configuration
     - Heroku-specific files (Procile, runtime.txt) from Dallinger
-    - A requirements.txt file with the contents from the constraints.txt file
-      in the experiment (Dallinger should have generated one if needed by the
-      time we reach this code)
+    - A requirements.txt file whose contents come from compiled constraints
+      (generated in this staging directory when a deployment plan is in use)
     - A dallinger zip (only if dallinger is installed in editable mode)
     - A prepare_docker_image.sh.sh script (possibly empty)
 
@@ -676,10 +684,10 @@ def assemble_experiment_temp_dir(
             with open(os.path.join(dst, "runtime.txt"), "w") as file:
                 file.write("python-{}".format(pyversion))
 
-        requirements_path = Path(dst) / "requirements.txt"
-        # Overwrite requirements.txt with the contents of constraints.txt.
+        _restore_authored_root_inputs(Path(os.getcwd()), Path(dst), copy_func=copy_file)
         if not os.environ.get("SKIP_DEPENDENCY_CHECK"):
-            (Path(dst) / "constraints.txt").replace(requirements_path)
+            _stage_compiled_requirements(Path(os.getcwd()), Path(dst))
+        requirements_path = Path(dst) / "requirements.txt"
         if for_remote:
             dallinger_path = get_editable_dallinger_path()
             if dallinger_path and not os.environ.get("DALLINGER_NO_EGG_BUILD"):
@@ -705,6 +713,43 @@ def assemble_experiment_temp_dir(
         shutil.rmtree(private_tree, ignore_errors=True)
         raise
     return dst
+
+
+_AUTHORED_ROOT_INPUTS = ("requirements.txt",)
+
+
+def _restore_authored_root_inputs(experiment_root, destination, copy_func):
+    """Restore authored root files that the plan omits because assembly rewrites them."""
+    experiment_root = Path(experiment_root)
+    destination = Path(destination)
+    for name in _AUTHORED_ROOT_INPUTS:
+        source = experiment_root / name
+        target = destination / name
+        if source.is_file() and not os.path.lexists(target):
+            copy_func(os.fspath(source), os.fspath(target))
+
+
+def _stage_compiled_requirements(experiment_root, destination):
+    """Compile constraints in the staging directory without mutating the experiment.
+
+    The deployment plan omits generated root artifacts. Assembly restores
+    authored ``requirements.txt``, copies any existing ``constraints.txt`` as
+    a starting point, then ensures constraints in the staging tree.
+    """
+    experiment_root = Path(experiment_root)
+    destination = Path(destination)
+    _restore_authored_root_inputs(experiment_root, destination, copy_func=copy_file)
+    source_constraints = experiment_root / "constraints.txt"
+    dest_constraints = destination / "constraints.txt"
+    if source_constraints.is_file() and not dest_constraints.exists():
+        shutil.copyfile(source_constraints, dest_constraints)
+    with working_directory(destination):
+        ensure_constraints_file_presence(destination)
+    if not dest_constraints.is_file():
+        raise DeploymentPlanError(
+            "Staged experiment is missing constraints.txt after dependency compilation."
+        )
+    dest_constraints.replace(destination / "requirements.txt")
 
 
 def copy_file(from_path, to_path):
@@ -844,11 +889,18 @@ class ExperimentFileSource(FileSource):
                 "Experiment file selection must be either 'auto' or 'legacy'."
             )
         self.root = os.path.abspath(root_dir)
-        self.git = GitClient() if git_client is None else git_client
+        self._git_client = git_client
         self.deployment_plan: DeploymentPlan | None = None
         policy_path = os.path.join(self.root, POLICY_FILENAME)
         if selection == "auto" and os.path.lexists(policy_path):
             self.deployment_plan = build_deployment_plan(self.root)
+
+    @property
+    def git(self):
+        """Return the Git client, creating one only for legacy selection."""
+        if self._git_client is None:
+            self._git_client = GitClient()
+        return self._git_client
 
     def map_locations_to(self, dst):
         if self.deployment_plan is not None:
@@ -880,8 +932,6 @@ class ExperimentFileSource(FileSource):
         for entry in self.deployment_plan.entries:
             target = os.path.join(destination, *entry.destination.split("/"))
             ensure_directory(os.path.dirname(target))
-            if os.path.lexists(target):
-                continue
             if copy_func is copy_file:
                 materialize_deployment_plan_entry(
                     self.deployment_plan,
@@ -889,6 +939,8 @@ class ExperimentFileSource(FileSource):
                     target,
                 )
             else:
+                if os.path.lexists(target):
+                    continue
                 # Development links remain intentionally trusted/live.
                 symlink_file(entry.source, target)
 

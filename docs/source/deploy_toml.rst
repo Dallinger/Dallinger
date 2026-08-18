@@ -60,6 +60,10 @@ These paths are left out of the plan even when they are not listed in
 
 * Version-control metadata at the experiment root (``.git``, and similar)
 * Source ``config.txt`` (Dallinger writes a filtered configuration later)
+* Generated assembly files: ``constraints.txt``, ``requirements.txt``,
+  ``runtime.txt``, and ``experiment_id.txt``. Authored ``requirements.txt``
+  is restored during assembly, compiled to constraints in the staging
+  directory, then written back as the deployed ``requirements.txt``.
 * ``.dockerignore`` and ``.slugignore`` files (backend ignore files
   must not change membership after the plan is built)
 

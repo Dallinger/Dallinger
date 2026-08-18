@@ -27,17 +27,7 @@ def found_in(name, path):
 def write_deployment_policy(root, exclude=()):
     """Write a minimal version 1 deployment policy."""
     exclusions = ", ".join(f'"{path}"' for path in exclude)
-    (Path(root) / "deploy.toml").write_text(
-        f"version = 1\nexclude = [{exclusions}]\n"
-    )
-
-
-def write_reviewed_deployment_policy(root, exclude=()):
-    """Write a deploy.toml and ensure the directory is a git repo."""
-    root = Path(root)
-    if not (root / ".git").exists():
-        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-    write_deployment_policy(root, exclude)
+    (Path(root) / "deploy.toml").write_text(f"version = 1\nexclude = [{exclusions}]\n")
 
 
 @pytest.fixture
@@ -291,7 +281,7 @@ class TestExperimentFilesSource:
         (root / "ignored.txt").write_text("included by policy")
         (root / "excluded.txt").write_text("excluded by policy")
         (root / "config.txt").write_text("raw configuration")
-        write_reviewed_deployment_policy(root, exclude=["excluded.txt"])
+        write_deployment_policy(root, exclude=["excluded.txt"])
         monkeypatch.chdir(tmp_path)
 
         source = subject(root)
@@ -322,7 +312,7 @@ class TestExperimentFilesSource:
         root = tmp_path / "experiment"
         root.mkdir()
         (root / "asset.txt").write_text("asset")
-        write_reviewed_deployment_policy(root)
+        write_deployment_policy(root)
         expected_size = build_deployment_plan(root).total_size
 
         with mock.patch(
@@ -364,7 +354,7 @@ class TestExperimentFilesSource:
         (root / ".gitignore").write_text("ignored.txt\n")
         (root / "ignored.txt").write_text("selected")
         (root / "local.txt").write_text("not selected")
-        write_reviewed_deployment_policy(root, exclude=["local.txt"])
+        write_deployment_policy(root, exclude=["local.txt"])
         destination = tmp_path / "destination"
 
         with (
@@ -433,8 +423,6 @@ class TestExperimentFilesSource:
         (root / "static/public/asset.txt").write_text("public")
         (root / "static/other").mkdir()
         (root / "static/other/asset.txt").write_text("other")
-        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-        write_reviewed_deployment_policy(root, exclude=["static/private"])
         source = subject(root)
         destination = tmp_path / "destination"
 
@@ -818,7 +806,7 @@ class TestExperimentFilesSource:
         root.mkdir()
         source_path = root / "asset.txt"
         source_path.write_text("planned")
-        write_reviewed_deployment_policy(root)
+        write_deployment_policy(root)
         source = subject(root)
         outside = tmp_path / "outside.txt"
         outside.write_text("external")
@@ -837,7 +825,7 @@ class TestExperimentFilesSource:
         source_path = root / "run.sh"
         source_path.write_text("#!/bin/sh\n")
         source_path.chmod(0o751)
-        write_reviewed_deployment_policy(root)
+        write_deployment_policy(root)
         source = subject(root)
         destination = tmp_path / "destination"
 
@@ -851,7 +839,7 @@ class TestExperimentFilesSource:
         root = tmp_path / "experiment"
         root.mkdir()
         (root / "asset.txt").write_text("planned")
-        write_reviewed_deployment_policy(root)
+        write_deployment_policy(root)
         source = subject(root)
         canonical_parent = tmp_path / "private-var"
         canonical_parent.mkdir()
@@ -873,7 +861,7 @@ class TestExperimentFilesSource:
         root = tmp_path / "experiment"
         root.mkdir()
         (root / "asset.txt").write_text("planned")
-        write_reviewed_deployment_policy(root)
+        write_deployment_policy(root)
         source = subject(root)
         plan = source.deployment_plan
         entry = next(item for item in plan.entries if item.destination == "asset.txt")
@@ -895,11 +883,34 @@ class TestExperimentFilesSource:
         root = tmp_path / "experiment"
         root.mkdir()
         (root / "asset.txt").write_text("planned")
-        write_reviewed_deployment_policy(root)
+        write_deployment_policy(root)
         source = subject(root)
 
         with pytest.raises(ValueError, match="copy_file or symlink_file"):
             source.apply_to(tmp_path / "destination", copy_func=shutil.copyfile)
+
+    def test_plan_copy_raises_when_destination_already_exists(self, subject, tmp_path):
+        from dallinger.deployment_plan import DeploymentPlanError
+
+        root = tmp_path / "experiment"
+        root.mkdir()
+        (root / "asset.txt").write_text("planned")
+        write_deployment_policy(root)
+        destination = tmp_path / "destination"
+        destination.mkdir()
+        (destination / "asset.txt").write_text("existing")
+
+        with pytest.raises(DeploymentPlanError, match="already exists"):
+            subject(root).apply_to(destination)
+
+    def test_policy_source_does_not_construct_git_client(self, subject, tmp_path):
+        write_deployment_policy(tmp_path)
+        (tmp_path / "asset.txt").write_text("a")
+        with mock.patch("dallinger.utils.GitClient") as git:
+            source = subject(tmp_path)
+            list(source.map_locations_to(tmp_path / "dst"))
+            assert source.size == source.deployment_plan.total_size
+            git.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -1021,6 +1032,56 @@ class TestSetupExperiment:
         ensure_constraints.assert_not_called()
         assert assemble.call_args.kwargs["experiment_file_source"] is source
 
+    def test_setup_compiles_constraints_in_staging_when_policy_present(
+        self, setup_experiment, tmp_path, monkeypatch
+    ):
+        source_root = Path.cwd()
+        experiment_root = tmp_path / "experiment"
+        shutil.copytree(source_root, experiment_root)
+        (experiment_root / "constraints.txt").unlink(missing_ok=True)
+        write_deployment_policy(experiment_root)
+        monkeypatch.chdir(experiment_root)
+        generated = "# staged constraints\ndallinger==0.0.0\n"
+
+        def fake_ensure(directory, extras=None):
+            Path(directory).joinpath("constraints.txt").write_text(generated)
+
+        with mock.patch(
+            "dallinger.utils.ensure_constraints_file_presence",
+            side_effect=fake_ensure,
+        ) as ensure:
+            _, destination = setup_experiment(log=mock.Mock(), local_checks=False)
+
+        ensure.assert_called()
+        assert not (experiment_root / "constraints.txt").exists()
+        assembled = Path(destination)
+        assert assembled.joinpath("requirements.txt").read_text() == generated
+        assert not assembled.joinpath("constraints.txt").exists()
+
+    def test_setup_refreshes_stale_constraints_in_staging_only(
+        self, setup_experiment, tmp_path, monkeypatch
+    ):
+        source_root = Path.cwd()
+        experiment_root = tmp_path / "experiment"
+        shutil.copytree(source_root, experiment_root)
+        stale = "# automatically generated\nold==1.0.0\n"
+        (experiment_root / "constraints.txt").write_text(stale)
+        write_deployment_policy(experiment_root)
+        monkeypatch.chdir(experiment_root)
+        refreshed = "# automatically generated\nnew==2.0.0\n"
+
+        def fake_ensure(directory, extras=None):
+            Path(directory).joinpath("constraints.txt").write_text(refreshed)
+
+        with mock.patch(
+            "dallinger.utils.ensure_constraints_file_presence",
+            side_effect=fake_ensure,
+        ):
+            _, destination = setup_experiment(log=mock.Mock(), local_checks=False)
+
+        assert (experiment_root / "constraints.txt").read_text() == stale
+        assert Path(destination).joinpath("requirements.txt").read_text() == refreshed
+
     def test_setup_merges_frontend_files_from_core_and_experiment(
         self, setup_experiment
     ):
@@ -1105,13 +1166,27 @@ class TestSetupExperiment:
         raw_config_marker = "# raw source configuration marker\n"
         config_path = experiment_root / "config.txt"
         config_path.write_text(raw_config_marker + config_path.read_text())
-        write_reviewed_deployment_policy(
+        write_deployment_policy(
             experiment_root,
             exclude=["excluded.txt"],
         )
         monkeypatch.chdir(experiment_root)
 
-        _, destination = setup_experiment(log=mock.Mock())
+        def fake_ensure(directory, extras=None):
+            dest = Path(directory) / "constraints.txt"
+            source = experiment_root / "constraints.txt"
+            if dest.exists():
+                return
+            if source.is_file():
+                shutil.copyfile(source, dest)
+            else:
+                dest.write_text((Path(directory) / "requirements.txt").read_text())
+
+        with mock.patch(
+            "dallinger.utils.ensure_constraints_file_presence",
+            side_effect=fake_ensure,
+        ):
+            _, destination = setup_experiment(log=mock.Mock())
         assembled = Path(destination)
 
         assert (assembled / "ignored.txt").read_text() == "included"
