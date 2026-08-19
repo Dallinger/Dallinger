@@ -151,19 +151,23 @@ def experiment_files(root="."):
     """Return the command-scoped experiment files, building them if needed.
 
     Policy errors become Click usage errors. Repeated calls in the same Click
-    command reuse one ``ExperimentFileSource``.
+    command reuse one ``ExperimentFileSource`` when they resolve to the same
+    experiment root.
     """
+    resolved = os.path.abspath(root)
     ctx = click.get_current_context(silent=True)
+    cache = None
     if ctx is not None:
-        existing = ctx.meta.get(_EXPERIMENT_FILES_META)
+        cache = ctx.meta.setdefault(_EXPERIMENT_FILES_META, {})
+        existing = cache.get(resolved)
         if existing is not None:
             return existing
     try:
-        source = ExperimentFileSource(root)
+        source = ExperimentFileSource(resolved)
     except (DeploymentPolicyError, DeploymentPlanError) as error:
         raise click.UsageError(str(error)) from error
-    if ctx is not None:
-        ctx.meta[_EXPERIMENT_FILES_META] = source
+    if cache is not None:
+        cache[resolved] = source
     return source
 
 

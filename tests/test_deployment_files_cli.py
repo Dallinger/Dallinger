@@ -6,7 +6,10 @@ import pytest
 from click.testing import CliRunner
 
 from dallinger.command_line import dallinger
-from dallinger.command_line.deployment_files import deployment_files
+from dallinger.command_line.deployment_files import (
+    _STARTER_EXCLUSIONS,
+    deployment_files,
+)
 from dallinger.deployment_plan import parse_deployment_policy
 from tests.helpers import write_deployment_policy, write_files
 
@@ -61,7 +64,7 @@ def test_init_creates_starter_policy_once(tmp_path):
     assert policy.is_file()
     parsed = parse_deployment_policy(policy)
     assert parsed.version == 1
-    assert parsed.exclude[:2] == (".deploy", ".env")
+    assert parsed.exclude == tuple(sorted(_STARTER_EXCLUSIONS))
     assert "legacy_diff_acknowledgement" not in policy.read_text()
     assert second.exit_code != 0
     assert "Refusing to overwrite" in second.output

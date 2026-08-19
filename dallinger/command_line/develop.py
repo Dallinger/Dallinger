@@ -97,7 +97,7 @@ def debug(port, skip_flask):
 @develop.command()
 @require_exp_directory
 def bootstrap(exp_config=None):
-    _bootstrap(exp_config)
+    _bootstrap(exp_config, experiment_file_source=experiment_files())
 
 
 def _bootstrap(exp_config=None, experiment_file_source=None):

@@ -40,9 +40,11 @@
   the source experiment.
 - Invalid ``deploy.toml`` now surfaces as a Click usage error from
   ``dallinger sandbox``, ``deploy``, ``verify``, ``develop debug``,
-  ``docker push``, and docker-ssh image build, instead of a traceback
-  or a generic verify message. Commands that verify then assemble reuse
-  one ``ExperimentFileSource``.
+  ``develop bootstrap``, ``load``, ``docker push``, and docker-ssh image
+  build, instead of a traceback or a generic verify message. Commands that
+  verify then assemble reuse one ``ExperimentFileSource``.
+- Heroku Docker and docker-ssh image push reuse the just-built image instead of
+  assembling the experiment a second time.
 - Editable installs now fall back to the source tree when
   ``importlib.metadata`` omits a file list or packaged Docker templates.
 - Fixed repeat-worker recruitment after multiple prior participations and added
@@ -76,6 +78,9 @@
   auto-omitted paths, ``dallinger deployment-files list`` / ``init``,
   and that Git-based membership is a compatibility fallback that may
   later be deprecated after PsyNet production use.
+- Matched the documented ``dallinger deployment-files init`` starter
+  excludes to the CLI list, including ``deploy_logs``, ``develop``, and
+  ``local_only``.
 
 ## [v12.2.1](https://github.com/dallinger/dallinger/tree/v12.2.1) (2026-07-02)
 

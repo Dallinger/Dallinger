@@ -306,6 +306,27 @@ def test_dallinger_constraints_allows_extras_after_subcommand(
     assert "--extra" in call_args
 
 
+def test_ensure_constraints_file_presence_compiles_in_target_directory(
+    tmp_path, monkeypatch
+):
+    experiment = tmp_path / "experiment"
+    experiment.mkdir()
+    (experiment / "requirements.txt").write_text("dallinger==11.4.0\n")
+    monkeypatch.chdir(tmp_path)
+    compiled_in = []
+
+    def fake_generate(extras=None):
+        compiled_in.append(Path.cwd())
+        Path("constraints.txt").write_text("# generated\n")
+
+    with patch("dallinger.constraints.generate_constraints", side_effect=fake_generate):
+        ensure_constraints_file_presence(experiment)
+
+    assert compiled_in == [experiment.resolve()]
+    assert (experiment / "constraints.txt").is_file()
+    assert not (tmp_path / "constraints.txt").exists()
+
+
 def test_dallinger_constraints_unknown_extra_is_click_error(
     in_tempdir, python_version_file
 ):

@@ -29,7 +29,7 @@ from sqlalchemy import exc as sa_exc
 
 from dallinger import db
 from dallinger.config import get_config
-from dallinger.constraints import ensure_constraints_file_presence, working_directory
+from dallinger.constraints import ensure_constraints_file_presence
 from dallinger.deployment_plan import (
     POLICY_FILENAME,
     DeploymentPlan,
@@ -746,8 +746,7 @@ def _stage_compiled_requirements(experiment_root, destination):
     dest_constraints = destination / "constraints.txt"
     if source_constraints.is_file() and not dest_constraints.exists():
         shutil.copyfile(source_constraints, dest_constraints)
-    with working_directory(destination):
-        ensure_constraints_file_presence(destination)
+    ensure_constraints_file_presence(destination)
     if not dest_constraints.is_file():
         raise DeploymentPlanError(
             "Staged experiment is missing constraints.txt after dependency compilation."

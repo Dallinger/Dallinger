@@ -820,7 +820,13 @@ def load(app, verbose, replay, exp_config=None):
         exp_config = exp_config or {}
         exp_config["replay"] = True
     log(header, chevrons=False)
-    loader = LoaderDeployment(app, Output(), verbose, exp_config)
+    loader = LoaderDeployment(
+        app,
+        Output(),
+        verbose,
+        exp_config,
+        experiment_file_source=experiment_files(),
+    )
     loader.run()
 
 

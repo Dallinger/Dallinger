@@ -1,4 +1,5 @@
 import importlib
+import sys
 from pathlib import Path
 from unittest import mock
 
@@ -234,3 +235,51 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
         "remote-discovery",
         "assemble",
     ]
+
+
+def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatch):
+    source = mock.Mock(deployment_plan=object())
+    config = mock.Mock()
+    config.get.side_effect = lambda key, default=None: {
+        "docker_image_name": None,
+        "docker_image_base_name": "base-image",
+    }.get(key, default)
+    config.as_dict.return_value = {}
+    wrapped_command = mock.Mock(return_value="deployed")
+    wrapper = docker_ssh_module.build_and_push_image(wrapped_command)
+    setup = mock.Mock(return_value=("experiment-id", tmp_path / "assembly"))
+    docker_cli = importlib.import_module("dallinger.command_line.docker")
+    fake_docker = mock.MagicMock()
+    fake_tools = mock.Mock()
+    fake_tools.build_image.return_value = "built:image"
+
+    monkeypatch.chdir(tmp_path)
+    with (
+        mock.patch.object(docker_ssh_module, "experiment_files", return_value=source),
+        mock.patch.object(docker_ssh_module, "get_config", return_value=config),
+        mock.patch.object(
+            docker_ssh_module, "ensure_root_domain_ready", return_value=False
+        ),
+        mock.patch.object(docker_ssh_module, "setup_experiment", setup),
+        mock.patch.dict(
+            sys.modules,
+            {"docker": fake_docker, "dallinger.docker.tools": fake_tools},
+        ),
+        mock.patch.object(
+            docker_cli, "push_image", return_value="pushed:image"
+        ) as push_image,
+    ):
+        result = wrapper(
+            server="test-server",
+            app_name=None,
+            archive_path=None,
+            update=False,
+            local_build=True,
+            push_build=False,
+        )
+
+    assert result == "deployed"
+    setup.assert_called_once()
+    push_image.assert_called_once_with("built:image")
+    wrapped_command.assert_called_once()
+    assert wrapped_command.call_args.kwargs["image_name"] == "pushed:image"

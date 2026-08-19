@@ -578,13 +578,16 @@ class DebugDeployment(HerokuLocalDeployment):
 class LoaderDeployment(HerokuLocalDeployment):
     dispatch = {"Replay ready: (.*)$": "start_replay"}
 
-    def __init__(self, app_id, output, verbose, exp_config):
+    def __init__(
+        self, app_id, output, verbose, exp_config, experiment_file_source=None
+    ):
         self.app_id = app_id
         self.out = output
         self.verbose = verbose
         self.exp_config = exp_config or {}
         self.original_dir = os.getcwd()
         self.zip_path = None
+        self.experiment_file_source = experiment_file_source
 
     def configure(self):
         self.exp_config.update({"mode": "debug", "loglevel": 0})
@@ -595,11 +598,12 @@ class LoaderDeployment(HerokuLocalDeployment):
             raise IOError(msg.format(self.app_id))
 
     def setup(self):
+        source = self.experiment_file_source or ExperimentFileSource(os.getcwd())
         self.exp_id, self.tmp_dir = setup_experiment(
             self.out.log,
             app=self.app_id,
             exp_config=self.exp_config,
-            experiment_file_source=ExperimentFileSource(os.getcwd()),
+            experiment_file_source=source,
         )
 
     def execute(self, heroku):

@@ -80,6 +80,60 @@ def test_require_exp_directory_reuses_one_file_source():
     assert seen[0] is seen[1]
 
 
+def test_experiment_files_rebuilds_for_a_different_root(tmp_path):
+    from dallinger.command_line.utils import experiment_files
+    from dallinger.utils import ExperimentFileSource
+
+    first_root = tmp_path / "first"
+    second_root = tmp_path / "second"
+    first_root.mkdir()
+    second_root.mkdir()
+    seen = []
+
+    @click.command()
+    def dummy():
+        seen.append(experiment_files(first_root))
+        seen.append(experiment_files(second_root))
+        seen.append(experiment_files(first_root))
+
+    with mock.patch(
+        "dallinger.command_line.utils.ExperimentFileSource",
+        wraps=ExperimentFileSource,
+    ) as factory:
+        result = CliRunner().invoke(dummy)
+
+    assert result.exit_code == 0, result.output
+    assert factory.call_count == 2
+    assert seen[0].root == os.path.abspath(first_root)
+    assert seen[1].root == os.path.abspath(second_root)
+    assert seen[2] is seen[0]
+    assert seen[1] is not seen[0]
+
+
+def test_experiment_files_reuses_equivalent_roots(tmp_path, monkeypatch):
+    from dallinger.command_line.utils import experiment_files
+    from dallinger.utils import ExperimentFileSource
+
+    monkeypatch.chdir(tmp_path)
+    seen = []
+
+    @click.command()
+    def dummy():
+        seen.append(experiment_files("."))
+        seen.append(experiment_files(os.getcwd()))
+        seen.append(experiment_files(tmp_path))
+
+    with mock.patch(
+        "dallinger.command_line.utils.ExperimentFileSource",
+        wraps=ExperimentFileSource,
+    ) as factory:
+        result = CliRunner().invoke(dummy)
+
+    assert result.exit_code == 0, result.output
+    assert factory.call_count == 1
+    assert seen[0] is seen[1] is seen[2]
+
+
 def test_verify_surfaces_invalid_policy(tmp_path, monkeypatch):
     from dallinger.command_line import verify
 
@@ -344,6 +398,27 @@ class TestDevelopCommand:
         assert found_in("experiment.py", develop_directory)
         # etc...
 
+    def test_bootstrap_reuses_one_file_source(self, develop):
+        from dallinger.utils import ExperimentFileSource
+
+        with (
+            mock.patch(
+                "dallinger.command_line.utils.ExperimentFileSource",
+                wraps=ExperimentFileSource,
+            ) as factory,
+            mock.patch(
+                "dallinger.command_line.develop.DevelopmentDeployment"
+            ) as deployment,
+        ):
+            result = CliRunner().invoke(develop, ["bootstrap"])
+
+        assert result.exit_code == 0, result.output
+        assert factory.call_count == 1
+        assert isinstance(
+            deployment.call_args.kwargs["experiment_file_source"],
+            ExperimentFileSource,
+        )
+
     def test_debug_succeeds_without_experiment_module_verification(self, develop):
         with mock.patch("dallinger.command_line.develop.Queue"):
             result = CliRunner().invoke(develop, ["debug", "--skip-flask"])
@@ -585,8 +660,25 @@ class TestLoad:
     def test_load_with_app_id(self, load, deployment):
         CliRunner().invoke(load, ["--app", "some-app-id", "--replay", "--verbose"])
         deployment.assert_called_once_with(
-            "some-app-id", mock.ANY, True, {"replay": True}
+            "some-app-id",
+            mock.ANY,
+            True,
+            {"replay": True},
+            experiment_file_source=mock.ANY,
         )
+
+    def test_load_surfaces_invalid_policy(
+        self, load, deployment, tmp_path, monkeypatch
+    ):
+        (tmp_path / "deploy.toml").write_text("version = 2\nexclude = []\n")
+        monkeypatch.chdir(tmp_path)
+
+        result = CliRunner().invoke(load, ["--app", "some-app-id"])
+
+        deployment.assert_not_called()
+        assert result.exit_code == 2
+        assert "version" in result.output
+        assert "Traceback" not in result.output
 
 
 class TestSummary:

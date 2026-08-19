@@ -497,7 +497,7 @@ def build_and_push_image(f):
 
         import docker
 
-        from dallinger.command_line.docker import push
+        from dallinger.command_line.docker import push_image
         from dallinger.docker.tools import build_image
 
         config = get_config(load=True)
@@ -589,8 +589,8 @@ def build_and_push_image(f):
                     f"Image {image_name} built remotely, skipping push to registry because --push-build was not selected."
                 )
             else:
-                # If it's a local build, or if it's a remote build and and push_build, then push.
-                image_name = push.callback(use_existing=True, app_name=app_name)
+                # If it's a local build, or if it's a remote build and push_build, then push.
+                image_name = push_image(image_name)
 
             return f(*args, **dict(kwargs, image_name=image_name))
         finally:

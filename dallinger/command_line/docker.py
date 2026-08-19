@@ -149,8 +149,6 @@ def build():
 @click.option("--use-existing", is_flag=True, default=False)
 def push(use_existing: bool, **kwargs) -> str:
     """Build and push the docker image for this experiment."""
-    from docker import client
-
     from dallinger.docker.tools import build_image
 
     config = get_config(load=True)
@@ -168,6 +166,13 @@ def push(use_existing: bool, **kwargs) -> str:
         Output(),
         force_build=not use_existing,
     )
+    return push_image(image_name_with_tag)
+
+
+def push_image(image_name_with_tag: str) -> str:
+    """Push a local image to its registry and return the digest name."""
+    from docker import client
+
     docker_client = client.from_env()
     for line in docker_client.images.push(
         image_name_with_tag, stream=True, decode=True
@@ -349,10 +354,13 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
         registration.register(heroku_app_id, snapshot=None)
 
     # Build experiment image
-    build_image(tmp, Path(os.getcwd()).name, Output(), force_build=True)
-
-    # Push the built image to get the registry sha256
-    image_name = push.callback(use_existing=True, app_name=app)
+    image_name = build_image(
+        tmp,
+        config.get("docker_image_base_name") or Path(os.getcwd()).name,
+        Output(),
+        force_build=True,
+    )
+    image_name = push_image(image_name)
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")
