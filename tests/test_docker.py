@@ -120,14 +120,15 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
         mock.patch.object(
             docker_cli, "push_image", side_effect=StopAfterPush
         ) as push_image,
-        mock.patch.object(docker_cli, "push") as push_cmd,
     ):
         with pytest.raises(StopAfterPush):
             docker_cli.deploy_heroku_docker(log=mock.Mock(), verbose=False)
 
     setup.assert_called_once()
+    fake_tools.build_image.assert_called_once_with(
+        str(tmp_path), "registry/exp", mock.ANY, force_build=True
+    )
     push_image.assert_called_once_with("registry/exp:tag")
-    push_cmd.callback.assert_not_called()
 
 
 def get_yaml(config):

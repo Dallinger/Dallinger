@@ -658,14 +658,13 @@ class TestLoad:
             yield dep
 
     def test_load_with_app_id(self, load, deployment):
+        from dallinger.utils import ExperimentFileSource
+
         CliRunner().invoke(load, ["--app", "some-app-id", "--replay", "--verbose"])
-        deployment.assert_called_once_with(
-            "some-app-id",
-            mock.ANY,
-            True,
-            {"replay": True},
-            experiment_file_source=mock.ANY,
-        )
+        deployment.assert_called_once()
+        args, kwargs = deployment.call_args
+        assert args == ("some-app-id", mock.ANY, True, {"replay": True})
+        assert isinstance(kwargs["experiment_file_source"], ExperimentFileSource)
 
     def test_load_surfaces_invalid_policy(
         self, load, deployment, tmp_path, monkeypatch

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -51,6 +52,14 @@ def test_list_json_omits_manifest_digest(tmp_path):
     assert payload["destinations"] == ["asset.txt", "deploy.toml"]
     assert "manifest_digest" not in payload
     assert payload["file_count"] == 2
+
+
+def test_docs_starter_example_matches_cli_exclusions():
+    docs = Path(__file__).resolve().parents[1] / "docs" / "source" / "deploy_toml.rst"
+    match = re.search(r"exclude = \[([^\]]+)\]", docs.read_text())
+    assert match is not None
+    quoted = tuple(re.findall(r'"([^"]+)"', match.group(1)))
+    assert quoted == _STARTER_EXCLUSIONS
 
 
 def test_init_creates_starter_policy_once(tmp_path):
