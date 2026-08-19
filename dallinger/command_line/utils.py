@@ -147,7 +147,7 @@ def get_server_pem_path() -> Path:
 _EXPERIMENT_FILES_META = "dallinger.experiment_files"
 
 
-def experiment_files(root="."):
+def get_experiment_files(root="."):
     """Return the command-scoped experiment files, building them if needed.
 
     Policy errors become Click usage errors. Repeated calls in the same Click
@@ -182,7 +182,7 @@ def require_exp_directory(f):
     def wrapper(*args, **kwargs):
         try:
             if not verify_package(
-                kwargs.get("verbose"), experiment_file_source=experiment_files()
+                kwargs.get("verbose"), experiment_files=get_experiment_files()
             ):
                 raise click.UsageError(error_one)
         except ValueError:
@@ -195,7 +195,7 @@ def require_exp_directory(f):
 def verify_package(
     verbose=True,
     verify_experiment=True,
-    experiment_file_source=None,
+    experiment_files=None,
 ):
     """Perform a series of checks on the current directory to verify that
     it's a valid Dallinger experiment.
@@ -203,7 +203,7 @@ def verify_package(
     A command can pass one ``ExperimentFileSource`` here and to
     ``setup_experiment`` so verification and assembly share one frozen plan.
     """
-    file_source = experiment_file_source or ExperimentFileSource(os.getcwd())
+    file_source = experiment_files or ExperimentFileSource(os.getcwd())
     return all(
         (
             verify_directory(verbose, file_source),
@@ -219,7 +219,7 @@ def verify_package(
     )
 
 
-def verify_directory(verbose=True, experiment_file_source=None):
+def verify_directory(verbose=True, experiment_files=None):
     """Ensure that the current directory looks like a Dallinger experiment, and
     does not appear to have unintended contents that will be copied on
     deployment.
@@ -241,7 +241,7 @@ def verify_directory(verbose=True, experiment_file_source=None):
 
     # Check size
     max_size = exp_max_size_mb * mb_to_bytes
-    file_source = experiment_file_source or ExperimentFileSource(os.getcwd())
+    file_source = experiment_files or ExperimentFileSource(os.getcwd())
     size = file_source.size
     size_in_mb = round(size / mb_to_bytes)
     if size <= max_size:
@@ -298,7 +298,7 @@ def _python_versions_consistent(v1, v2):
     return True
 
 
-def verify_experiment_module(verbose, experiment_file_source=None):
+def verify_experiment_module(verbose, experiment_files=None):
     """Perform basic sanity checks on experiment.py."""
     ok = True
     if not os.path.exists("experiment.py"):
@@ -308,7 +308,7 @@ def verify_experiment_module(verbose, experiment_file_source=None):
     temp_package_name = "TEMP_VERIFICATION_PACKAGE"
     tmp = tempfile.mkdtemp()
     clone_dir = os.path.join(tmp, temp_package_name)
-    file_source = experiment_file_source or ExperimentFileSource(os.getcwd())
+    file_source = experiment_files or ExperimentFileSource(os.getcwd())
     file_source.apply_to(clone_dir)
 
     initialize_experiment_package(clone_dir)

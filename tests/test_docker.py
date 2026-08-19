@@ -112,7 +112,7 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
 
     with (
         mock.patch.object(docker_cli, "get_config", return_value=config),
-        mock.patch.object(docker_cli, "experiment_files", return_value=mock.Mock()),
+        mock.patch.object(docker_cli, "get_experiment_files", return_value=mock.Mock()),
         mock.patch.object(
             docker_cli, "setup_experiment", return_value=("uid", str(tmp_path))
         ) as setup,

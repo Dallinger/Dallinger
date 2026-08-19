@@ -35,7 +35,7 @@ from yaspin import yaspin
 from dallinger.command_line.config import get_configured_hosts, remove_host, store_host
 from dallinger.command_line.utils import (
     Output,
-    experiment_files,
+    get_experiment_files,
     render_rich_table,
     run_pre_launch_checks,
 )
@@ -493,7 +493,7 @@ def build_and_push_image(f):
 
     @wraps(f)
     def wrapper(*args, **kwargs):  # pragma: no cover
-        experiment_file_source = experiment_files(os.getcwd())
+        files = get_experiment_files(os.getcwd())
 
         import docker
 
@@ -574,7 +574,7 @@ def build_and_push_image(f):
                 exp_config=config.as_dict(),
                 local_checks=False,
                 app=app_name,
-                experiment_file_source=experiment_file_source,
+                experiment_files=files,
             )
             image_name = build_image(
                 tmp_dir, config.get("docker_image_base_name"), out=Output()

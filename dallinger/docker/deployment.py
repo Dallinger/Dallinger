@@ -24,6 +24,5 @@ class DockerDebugDeployment(DebugDeployment):
             self.out.log,
             exp_config=self.exp_config,
             local_checks=False,
-            experiment_file_source=self.experiment_file_source
-            or ExperimentFileSource(),
+            experiment_files=self.experiment_files or ExperimentFileSource(),
         )

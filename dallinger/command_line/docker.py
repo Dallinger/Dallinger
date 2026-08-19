@@ -18,7 +18,7 @@ from heroku3.core import Heroku as Heroku3Client
 from dallinger import heroku, registration
 from dallinger.command_line.utils import (
     Output,
-    experiment_files,
+    get_experiment_files,
     header,
     log,
     require_exp_directory,
@@ -81,7 +81,7 @@ def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
         proxy,
         exp_config,
         no_browsers,
-        experiment_file_source=experiment_files(),
+        experiment_files=get_experiment_files(),
     )
     log(header, chevrons=False)
     debugger.run()
@@ -140,7 +140,7 @@ def build():
         log=log,
         debug=True,
         local_checks=False,
-        experiment_file_source=experiment_files(),
+        experiment_files=get_experiment_files(),
     )
     build_image(tmp, config.get("docker_image_base_name"), Output(), force_build=True)
 
@@ -158,7 +158,7 @@ def push(use_existing: bool, **kwargs) -> str:
         debug=True,
         local_checks=False,
         app=app_name,
-        experiment_file_source=experiment_files(),
+        experiment_files=get_experiment_files(),
     )
     image_name_with_tag = build_image(
         tmp,
@@ -346,7 +346,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
         app=app,
         exp_config=exp_config,
         local_checks=False,
-        experiment_file_source=experiment_files(),
+        experiment_files=get_experiment_files(),
     )
     # Register the experiment using all configured registration services.
     if config.get("mode") == "live":

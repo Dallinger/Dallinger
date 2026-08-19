@@ -26,7 +26,7 @@ from dallinger.command_line.docker_ssh import docker_ssh
 from dallinger.command_line.prolific import prolific
 from dallinger.command_line.utils import (
     Output,
-    experiment_files,
+    get_experiment_files,
     header,
     log,
     render_rich_table,
@@ -223,7 +223,7 @@ def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
         proxy,
         exp_config,
         no_browsers,
-        experiment_file_source=experiment_files(),
+        experiment_files=get_experiment_files(),
     )
     log(header, chevrons=False)
     debugger.run()
@@ -274,7 +274,7 @@ def _deploy_in_mode(mode, verbose, app=None, archive=None):
         verbose=verbose,
         app=app,
         prelaunch_actions=prelaunch,
-        experiment_file_source=experiment_files(),
+        experiment_files=get_experiment_files(),
     )
 
 
@@ -825,7 +825,7 @@ def load(app, verbose, replay, exp_config=None):
         Output(),
         verbose,
         exp_config,
-        experiment_file_source=experiment_files(),
+        experiment_files=get_experiment_files(),
     )
     loader.run()
 
@@ -880,7 +880,7 @@ def bot(app, debug):
     if debug is None:
         verify_id(None, None, app)
 
-    id, tmp = setup_experiment(log, experiment_file_source=experiment_files())
+    id, tmp = setup_experiment(log, experiment_files=get_experiment_files())
 
     if debug:
         url = debug
@@ -905,7 +905,7 @@ def verify():
         "Verifying current directory as a Dallinger experiment...",
         verbose=verbose,
     )
-    ok = verify_package(verbose=verbose, experiment_file_source=experiment_files())
+    ok = verify_package(verbose=verbose, experiment_files=get_experiment_files())
     if ok:
         log("✓ Everything looks good!", verbose=verbose)
     else:
@@ -915,7 +915,7 @@ def verify():
 @dallinger.command()
 def rq_worker():
     """Start an rq worker in the context of dallinger."""
-    setup_experiment(log, experiment_file_source=experiment_files())
+    setup_experiment(log, experiment_files=get_experiment_files())
     # right now we care about low queue for bots
     worker = Worker("low", connection=db.redis_conn)
     worker.work()

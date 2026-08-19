@@ -518,7 +518,7 @@ def bootstrap_development_session(
     exp_config,
     experiment_path,
     log,
-    experiment_file_source=None,
+    experiment_files=None,
 ):
     check_local_db_connection(log)
     check_experiment_dependencies(Path(experiment_path) / "requirements.txt")
@@ -551,7 +551,7 @@ def bootstrap_development_session(
         experiment_path=experiment_path,
         destination=destination_path,
         copy_func=symlink_file,
-        experiment_file_source=experiment_file_source,
+        experiment_files=experiment_files,
     )
 
     copy_file(source_path / "app.py", destination_path / "app.py")
@@ -573,7 +573,7 @@ def setup_experiment(
     app=None,
     exp_config=None,
     local_checks=True,
-    experiment_file_source=None,
+    experiment_files=None,
 ):
     """Checks the experiment's python dependencies, then prepares a temp directory
     with files merged from the custom experiment and Dallinger.
@@ -589,7 +589,7 @@ def setup_experiment(
         check_local_db_connection(log)
         check_experiment_dependencies(Path(os.getcwd()) / "requirements.txt")
 
-    source = experiment_file_source or ExperimentFileSource(os.getcwd())
+    source = experiment_files or ExperimentFileSource(os.getcwd())
     if source.deployment_plan is None:
         ensure_constraints_file_presence(os.getcwd())
     # Generate a unique id for this experiment.
@@ -624,7 +624,7 @@ def setup_experiment(
         log,
         config,
         for_remote=not local_checks,
-        experiment_file_source=source,
+        experiment_files=source,
     )
     log("Deployment temp directory: {}".format(temp_dir), chevrons=False)
 
@@ -640,9 +640,7 @@ def setup_experiment(
     return (heroku_app_id, temp_dir)
 
 
-def assemble_experiment_temp_dir(
-    log, config, for_remote=False, experiment_file_source=None
-):
+def assemble_experiment_temp_dir(log, config, for_remote=False, experiment_files=None):
     """Create a temp directory from which to run an experiment.
     If for_remote is set to True the preparation includes bundling
     the local dallinger version if it was installed in editable mode.
@@ -672,7 +670,7 @@ def assemble_experiment_temp_dir(
             experiment_path=os.getcwd(),
             destination=dst,
             copy_func=copy_file,
-            experiment_file_source=experiment_file_source,
+            experiment_files=experiment_files,
         )
 
         # Write out the loaded configuration
@@ -769,14 +767,14 @@ def collate_experiment_files(
     experiment_path,
     destination,
     copy_func,
-    experiment_file_source=None,
+    experiment_files=None,
 ):
     """Coordinates getting required files from various sources into a
     target directory.
     """
     # Order matters here, since the first files copied "win" if there's a
     # collision:
-    source = experiment_file_source or ExperimentFileSource(experiment_path)
+    source = experiment_files or ExperimentFileSource(experiment_path)
     explicit_source = ExplicitFileSource(experiment_path)
     framework_source = DallingerFileSource(config, dallinger_package_path())
     explicit_locations = list(explicit_source.map_locations_to(destination))

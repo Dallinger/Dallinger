@@ -128,7 +128,7 @@ def deploy_sandbox_shared_setup(
     app=None,
     exp_config=None,
     prelaunch_actions=None,
-    experiment_file_source=None,
+    experiment_files=None,
 ):
     """Set up Git, push to Heroku, and launch the app."""
     if verbose:
@@ -136,7 +136,7 @@ def deploy_sandbox_shared_setup(
     else:
         out = open(os.devnull, "w")
 
-    experiment_file_source = experiment_file_source or ExperimentFileSource(os.getcwd())
+    experiment_files = experiment_files or ExperimentFileSource(os.getcwd())
     config = get_config(load=True)
     heroku.sanity_check(config)
     heroku_app_id, tmp = setup_experiment(
@@ -145,7 +145,7 @@ def deploy_sandbox_shared_setup(
         app=app,
         exp_config=exp_config,
         local_checks=False,
-        experiment_file_source=experiment_file_source,
+        experiment_files=experiment_files,
     )
 
     # Register the experiment using all configured registration services.
@@ -166,7 +166,7 @@ def deploy_sandbox_shared_setup(
     # Commit Heroku-specific files to tmp folder's git repo.
     git = GitClient(output=out)
     git.init()
-    _stage_heroku_assembly(git, experiment_file_source)
+    _stage_heroku_assembly(git, experiment_files)
     git.commit('"Experiment {}"'.format(heroku_app_id))
 
     # Initialize the app on Heroku.
@@ -294,9 +294,9 @@ def deploy_sandbox_shared_setup(
     return result
 
 
-def _stage_heroku_assembly(git, experiment_file_source):
+def _stage_heroku_assembly(git, experiment_files):
     """Stage a Heroku assembly without changing legacy ignore behavior."""
-    if experiment_file_source.deployment_plan is None:
+    if experiment_files.deployment_plan is None:
         git.add("--all")
     else:
         git.add("--force", "--all")
@@ -312,12 +312,12 @@ class DevelopmentDeployment:
         self,
         output,
         exp_config,
-        experiment_file_source=None,
+        experiment_files=None,
     ):
         self.out = output
         self.exp_config = exp_config or {}
         self.exp_config.update({"mode": "debug"})
-        self.experiment_file_source = experiment_file_source
+        self.experiment_files = experiment_files
 
     def run(self):
         """Bootstrap the environment and reset the database."""
@@ -325,7 +325,7 @@ class DevelopmentDeployment:
             self.exp_config,
             os.getcwd(),
             self.out.log,
-            experiment_file_source=self.experiment_file_source,
+            experiment_files=self.experiment_files,
         )
         db.init_db(drop_all=True)
 
@@ -336,7 +336,7 @@ class HerokuLocalDeployment:
     dispatch = {}  # Subclass may provide handlers for Heroku process output
     environ = None
     bot = False
-    experiment_file_source = None
+    experiment_files = None
     DEPLOY_NAME = "Heroku"
     WRAPPER_CLASS = HerokuLocalWrapper
     DO_INIT_DB = True
@@ -345,11 +345,11 @@ class HerokuLocalDeployment:
         self.exp_config.update({"mode": "debug"})
 
     def setup(self):
-        source = self.experiment_file_source or ExperimentFileSource(os.getcwd())
+        source = self.experiment_files or ExperimentFileSource(os.getcwd())
         self.exp_id, self.tmp_dir = setup_experiment(
             self.out.log,
             exp_config=self.exp_config,
-            experiment_file_source=source,
+            experiment_files=source,
         )
 
     def update_dir(self):
@@ -427,7 +427,7 @@ class DebugDeployment(HerokuLocalDeployment):
         proxy_port,
         exp_config,
         no_browsers=False,
-        experiment_file_source=None,
+        experiment_files=None,
     ):
         self.out = output
         self.verbose = verbose
@@ -438,7 +438,7 @@ class DebugDeployment(HerokuLocalDeployment):
         self.complete = False
         self.status_thread = None
         self.no_browsers = no_browsers
-        self.experiment_file_source = experiment_file_source
+        self.experiment_files = experiment_files
         self.environ = {
             "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
         }
@@ -578,16 +578,14 @@ class DebugDeployment(HerokuLocalDeployment):
 class LoaderDeployment(HerokuLocalDeployment):
     dispatch = {"Replay ready: (.*)$": "start_replay"}
 
-    def __init__(
-        self, app_id, output, verbose, exp_config, experiment_file_source=None
-    ):
+    def __init__(self, app_id, output, verbose, exp_config, experiment_files=None):
         self.app_id = app_id
         self.out = output
         self.verbose = verbose
         self.exp_config = exp_config or {}
         self.original_dir = os.getcwd()
         self.zip_path = None
-        self.experiment_file_source = experiment_file_source
+        self.experiment_files = experiment_files
 
     def configure(self):
         self.exp_config.update({"mode": "debug", "loglevel": 0})
@@ -598,12 +596,12 @@ class LoaderDeployment(HerokuLocalDeployment):
             raise IOError(msg.format(self.app_id))
 
     def setup(self):
-        source = self.experiment_file_source or ExperimentFileSource(os.getcwd())
+        source = self.experiment_files or ExperimentFileSource(os.getcwd())
         self.exp_id, self.tmp_dir = setup_experiment(
             self.out.log,
             app=self.app_id,
             exp_config=self.exp_config,
-            experiment_file_source=source,
+            experiment_files=source,
         )
 
     def execute(self, heroku):

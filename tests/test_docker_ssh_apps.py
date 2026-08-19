@@ -184,7 +184,7 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
 
     def setup(*args, **kwargs):
         events.append("assemble")
-        assert kwargs["experiment_file_source"] is source
+        assert kwargs["experiment_files"] is source
         return "experiment-id", tmp_path / "assembly"
 
     monkeypatch.chdir(tmp_path)
@@ -194,7 +194,7 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
     with (
         mock.patch.object(
             docker_ssh_module,
-            "experiment_files",
+            "get_experiment_files",
             side_effect=make_source,
         ),
         mock.patch.object(docker_ssh_module, "get_config", return_value=config),
@@ -255,7 +255,9 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
 
     monkeypatch.chdir(tmp_path)
     with (
-        mock.patch.object(docker_ssh_module, "experiment_files", return_value=source),
+        mock.patch.object(
+            docker_ssh_module, "get_experiment_files", return_value=source
+        ),
         mock.patch.object(docker_ssh_module, "get_config", return_value=config),
         mock.patch.object(
             docker_ssh_module, "ensure_root_domain_ready", return_value=False

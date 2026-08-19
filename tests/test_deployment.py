@@ -721,7 +721,7 @@ class TestExperimentFilesSource:
                 experiment_path=root,
                 destination=destination,
                 copy_func=symlink_file,
-                experiment_file_source=source,
+                experiment_files=source,
             )
 
         explicit_mappings.assert_called_once_with(destination)
@@ -955,7 +955,7 @@ def test_explicit_provider_rejects_reserved_destinations_before_materialization(
             experiment_path=tmp_path,
             destination=destination,
             copy_func=copy_file,
-            experiment_file_source=experiment_source,
+            experiment_files=experiment_source,
         )
 
     experiment_source.apply_to.assert_not_called()
@@ -1021,11 +1021,11 @@ class TestSetupExperiment:
             setup_experiment(
                 log=mock.Mock(),
                 local_checks=False,
-                experiment_file_source=source,
+                experiment_files=source,
             )
 
         ensure_constraints.assert_not_called()
-        assert assemble.call_args.kwargs["experiment_file_source"] is source
+        assert assemble.call_args.kwargs["experiment_files"] is source
 
     def test_setup_compiles_constraints_in_staging_when_policy_present(
         self, setup_experiment, tmp_path, monkeypatch

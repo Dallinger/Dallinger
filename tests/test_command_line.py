@@ -45,19 +45,19 @@ def test_require_exp_directory_surfaces_invalid_policy(tmp_path, monkeypatch):
     assert "Please check with dallinger verify" not in str(exc.value)
 
 
-def test_experiment_files_surfaces_invalid_policy(tmp_path, monkeypatch):
-    from dallinger.command_line.utils import experiment_files
+def test_get_experiment_files_surfaces_invalid_policy(tmp_path, monkeypatch):
+    from dallinger.command_line.utils import get_experiment_files
 
     (tmp_path / "deploy.toml").write_text("version = 2\nexclude = []\n")
     monkeypatch.chdir(tmp_path)
 
     with pytest.raises(click.UsageError, match="version"):
-        experiment_files()
+        get_experiment_files()
 
 
 @pytest.mark.usefixtures("bartlett_dir")
 def test_require_exp_directory_reuses_one_file_source():
-    from dallinger.command_line.utils import experiment_files, require_exp_directory
+    from dallinger.command_line.utils import get_experiment_files, require_exp_directory
     from dallinger.utils import ExperimentFileSource
 
     seen = []
@@ -65,8 +65,8 @@ def test_require_exp_directory_reuses_one_file_source():
     @click.command()
     @require_exp_directory
     def dummy(**kwargs):
-        seen.append(experiment_files())
-        seen.append(experiment_files())
+        seen.append(get_experiment_files())
+        seen.append(get_experiment_files())
 
     with mock.patch(
         "dallinger.command_line.utils.ExperimentFileSource",
@@ -80,8 +80,8 @@ def test_require_exp_directory_reuses_one_file_source():
     assert seen[0] is seen[1]
 
 
-def test_experiment_files_rebuilds_for_a_different_root(tmp_path):
-    from dallinger.command_line.utils import experiment_files
+def test_get_experiment_files_rebuilds_for_a_different_root(tmp_path):
+    from dallinger.command_line.utils import get_experiment_files
     from dallinger.utils import ExperimentFileSource
 
     first_root = tmp_path / "first"
@@ -92,9 +92,9 @@ def test_experiment_files_rebuilds_for_a_different_root(tmp_path):
 
     @click.command()
     def dummy():
-        seen.append(experiment_files(first_root))
-        seen.append(experiment_files(second_root))
-        seen.append(experiment_files(first_root))
+        seen.append(get_experiment_files(first_root))
+        seen.append(get_experiment_files(second_root))
+        seen.append(get_experiment_files(first_root))
 
     with mock.patch(
         "dallinger.command_line.utils.ExperimentFileSource",
@@ -110,8 +110,8 @@ def test_experiment_files_rebuilds_for_a_different_root(tmp_path):
     assert seen[1] is not seen[0]
 
 
-def test_experiment_files_reuses_equivalent_roots(tmp_path, monkeypatch):
-    from dallinger.command_line.utils import experiment_files
+def test_get_experiment_files_reuses_equivalent_roots(tmp_path, monkeypatch):
+    from dallinger.command_line.utils import get_experiment_files
     from dallinger.utils import ExperimentFileSource
 
     monkeypatch.chdir(tmp_path)
@@ -119,9 +119,9 @@ def test_experiment_files_reuses_equivalent_roots(tmp_path, monkeypatch):
 
     @click.command()
     def dummy():
-        seen.append(experiment_files("."))
-        seen.append(experiment_files(os.getcwd()))
-        seen.append(experiment_files(tmp_path))
+        seen.append(get_experiment_files("."))
+        seen.append(get_experiment_files(os.getcwd()))
+        seen.append(get_experiment_files(tmp_path))
 
     with mock.patch(
         "dallinger.command_line.utils.ExperimentFileSource",
@@ -415,7 +415,7 @@ class TestDevelopCommand:
         assert result.exit_code == 0, result.output
         assert factory.call_count == 1
         assert isinstance(
-            deployment.call_args.kwargs["experiment_file_source"],
+            deployment.call_args.kwargs["experiment_files"],
             ExperimentFileSource,
         )
 
@@ -517,7 +517,7 @@ class TestDebugCommand:
         result = CliRunner().invoke(debug, [])
 
         assert result.exception is None, result.output
-        source = deployment.call_args.kwargs["experiment_file_source"]
+        source = deployment.call_args.kwargs["experiment_files"]
         assert isinstance(source, ExperimentFileSource)
 
     def test_debug_surfaces_invalid_policy(
@@ -586,7 +586,7 @@ class TestSandboxAndDeploy:
             verbose=True,
             log=mock.ANY,
             prelaunch_actions=[],
-            experiment_file_source=mock.ANY,
+            experiment_files=mock.ANY,
         )
 
     def test_works_with_no_app_id(self, sandbox, dsss):
@@ -596,7 +596,7 @@ class TestSandboxAndDeploy:
             verbose=True,
             log=mock.ANY,
             prelaunch_actions=[],
-            experiment_file_source=mock.ANY,
+            experiment_files=mock.ANY,
         )
 
     def test_sandbox_puts_mode_in_config(self, sandbox, active_config, dsss):
@@ -636,7 +636,7 @@ class TestSandboxAndDeploy:
             verbose=True,
             log=mock.ANY,
             prelaunch_actions=[mock.ANY],
-            experiment_file_source=mock.ANY,
+            experiment_files=mock.ANY,
         )
 
     def test_rejects_invalid_archive_path(self, sandbox, dsss):
@@ -664,7 +664,7 @@ class TestLoad:
         deployment.assert_called_once()
         args, kwargs = deployment.call_args
         assert args == ("some-app-id", mock.ANY, True, {"replay": True})
-        assert isinstance(kwargs["experiment_file_source"], ExperimentFileSource)
+        assert isinstance(kwargs["experiment_files"], ExperimentFileSource)
 
     def test_load_surfaces_invalid_policy(
         self, load, deployment, tmp_path, monkeypatch
