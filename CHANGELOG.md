@@ -53,7 +53,8 @@
 - Removed the unused `demos/dev-requirements.txt` file and its obsolete
   development dependency declarations.
 - Removed obsolete development-service configuration, unused test fixtures,
-  generated demo data artifacts, and unreferenced frontend and demo assets.
+  generated demo data artifacts, unreferenced frontend and demo assets, and
+  the leftover `demos/MANIFEST.in` copied from the old root package.
 
 ## [v12.2.1](https://github.com/dallinger/dallinger/tree/v12.2.1) (2026-07-02)
 
