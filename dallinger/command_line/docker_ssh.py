@@ -35,6 +35,7 @@ from yaspin import yaspin
 from dallinger.command_line.config import get_configured_hosts, remove_host, store_host
 from dallinger.command_line.utils import (
     Output,
+    get_experiment_files,
     render_rich_table,
     run_pre_launch_checks,
 )
@@ -492,9 +493,11 @@ def build_and_push_image(f):
 
     @wraps(f)
     def wrapper(*args, **kwargs):  # pragma: no cover
+        files = get_experiment_files(os.getcwd())
+
         import docker
 
-        from dallinger.command_line.docker import push
+        from dallinger.command_line.docker import push_image
         from dallinger.docker.tools import build_image
 
         config = get_config(load=True)
@@ -571,6 +574,7 @@ def build_and_push_image(f):
                 exp_config=config.as_dict(),
                 local_checks=False,
                 app=app_name,
+                experiment_files=files,
             )
             image_name = build_image(
                 tmp_dir, config.get("docker_image_base_name"), out=Output()
@@ -585,8 +589,8 @@ def build_and_push_image(f):
                     f"Image {image_name} built remotely, skipping push to registry because --push-build was not selected."
                 )
             else:
-                # If it's a local build, or if it's a remote build and and push_build, then push.
-                image_name = push.callback(use_existing=True, app_name=app_name)
+                # If it's a local build, or if it's a remote build and push_build, then push.
+                image_name = push_image(image_name)
 
             return f(*args, **dict(kwargs, image_name=image_name))
         finally:

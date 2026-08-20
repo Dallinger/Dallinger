@@ -15,6 +15,7 @@ from dallinger.config import get_config
 from dallinger.heroku.tools import HerokuApp, HerokuLocalWrapper
 from dallinger.redis_utils import connect_to_redis
 from dallinger.utils import (
+    ExperimentFileSource,
     GitClient,
     bootstrap_development_session,
     get_base_url,
@@ -122,7 +123,12 @@ def handle_launch_data(
 
 
 def deploy_sandbox_shared_setup(
-    log, verbose=True, app=None, exp_config=None, prelaunch_actions=None
+    log,
+    verbose=True,
+    app=None,
+    exp_config=None,
+    prelaunch_actions=None,
+    experiment_files=None,
 ):
     """Set up Git, push to Heroku, and launch the app."""
     if verbose:
@@ -130,10 +136,16 @@ def deploy_sandbox_shared_setup(
     else:
         out = open(os.devnull, "w")
 
+    experiment_files = experiment_files or ExperimentFileSource(os.getcwd())
     config = get_config(load=True)
     heroku.sanity_check(config)
     heroku_app_id, tmp = setup_experiment(
-        log, debug=False, app=app, exp_config=exp_config, local_checks=False
+        log,
+        debug=False,
+        app=app,
+        exp_config=exp_config,
+        local_checks=False,
+        experiment_files=experiment_files,
     )
 
     # Register the experiment using all configured registration services.
@@ -154,7 +166,7 @@ def deploy_sandbox_shared_setup(
     # Commit Heroku-specific files to tmp folder's git repo.
     git = GitClient(output=out)
     git.init()
-    git.add("--all")
+    _stage_heroku_assembly(git, experiment_files)
     git.commit('"Experiment {}"'.format(heroku_app_id))
 
     # Initialize the app on Heroku.
@@ -282,21 +294,38 @@ def deploy_sandbox_shared_setup(
     return result
 
 
+def _stage_heroku_assembly(git, experiment_files):
+    """Stage a Heroku assembly without changing legacy ignore behavior."""
+    if experiment_files.deployment_plan is None:
+        git.add("--all")
+    else:
+        git.add("--force", "--all")
+
+
 class DevelopmentDeployment:
     """Collates files from Dallinger and the custom experment, then symlinks
     them into a target sub-directory, so Flask development server can be run
     manually in that directory.
     """
 
-    def __init__(self, output, exp_config):
+    def __init__(
+        self,
+        output,
+        exp_config,
+        experiment_files=None,
+    ):
         self.out = output
         self.exp_config = exp_config or {}
         self.exp_config.update({"mode": "debug"})
+        self.experiment_files = experiment_files
 
     def run(self):
         """Bootstrap the environment and reset the database."""
         experiment_uid, dst = bootstrap_development_session(
-            self.exp_config, os.getcwd(), self.out.log
+            self.exp_config,
+            os.getcwd(),
+            self.out.log,
+            experiment_files=self.experiment_files,
         )
         db.init_db(drop_all=True)
 
@@ -307,6 +336,7 @@ class HerokuLocalDeployment:
     dispatch = {}  # Subclass may provide handlers for Heroku process output
     environ = None
     bot = False
+    experiment_files = None
     DEPLOY_NAME = "Heroku"
     WRAPPER_CLASS = HerokuLocalWrapper
     DO_INIT_DB = True
@@ -315,8 +345,11 @@ class HerokuLocalDeployment:
         self.exp_config.update({"mode": "debug"})
 
     def setup(self):
+        source = self.experiment_files or ExperimentFileSource(os.getcwd())
         self.exp_id, self.tmp_dir = setup_experiment(
-            self.out.log, exp_config=self.exp_config
+            self.out.log,
+            exp_config=self.exp_config,
+            experiment_files=source,
         )
 
     def update_dir(self):
@@ -386,7 +419,16 @@ class DebugDeployment(HerokuLocalDeployment):
         r"{}".format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
     }
 
-    def __init__(self, output, verbose, bot, proxy_port, exp_config, no_browsers=False):
+    def __init__(
+        self,
+        output,
+        verbose,
+        bot,
+        proxy_port,
+        exp_config,
+        no_browsers=False,
+        experiment_files=None,
+    ):
         self.out = output
         self.verbose = verbose
         self.bot = bot
@@ -396,6 +438,7 @@ class DebugDeployment(HerokuLocalDeployment):
         self.complete = False
         self.status_thread = None
         self.no_browsers = no_browsers
+        self.experiment_files = experiment_files
         self.environ = {
             "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
         }
@@ -535,13 +578,14 @@ class DebugDeployment(HerokuLocalDeployment):
 class LoaderDeployment(HerokuLocalDeployment):
     dispatch = {"Replay ready: (.*)$": "start_replay"}
 
-    def __init__(self, app_id, output, verbose, exp_config):
+    def __init__(self, app_id, output, verbose, exp_config, experiment_files=None):
         self.app_id = app_id
         self.out = output
         self.verbose = verbose
         self.exp_config = exp_config or {}
         self.original_dir = os.getcwd()
         self.zip_path = None
+        self.experiment_files = experiment_files
 
     def configure(self):
         self.exp_config.update({"mode": "debug", "loglevel": 0})
@@ -552,8 +596,12 @@ class LoaderDeployment(HerokuLocalDeployment):
             raise IOError(msg.format(self.app_id))
 
     def setup(self):
+        source = self.experiment_files or ExperimentFileSource(os.getcwd())
         self.exp_id, self.tmp_dir = setup_experiment(
-            self.out.log, app=self.app_id, exp_config=self.exp_config
+            self.out.log,
+            app=self.app_id,
+            exp_config=self.exp_config,
+            experiment_files=source,
         )
 
     def execute(self, heroku):

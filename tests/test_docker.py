@@ -1,5 +1,9 @@
+import importlib
+import sys
 from pathlib import Path
+from unittest import mock
 
+import pytest
 import yaml
 
 
@@ -89,6 +93,42 @@ def test_add_image_name(tempdir):
         file.read_text()
         == "foo = bar\ndocker_image_base_name = the_base_image_name\ndocker_image_name = foobar_image\nbar = foo"
     )
+
+
+def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
+    docker_cli = importlib.import_module("dallinger.command_line.docker")
+
+    class StopAfterPush(Exception):
+        pass
+
+    config = mock.Mock()
+    config.get.side_effect = lambda key, default=None: {
+        "mode": "debug",
+        "docker_image_base_name": "registry/exp",
+    }.get(key, default)
+
+    fake_tools = mock.Mock()
+    fake_tools.build_image.return_value = "registry/exp:tag"
+
+    with (
+        mock.patch.object(docker_cli, "get_config", return_value=config),
+        mock.patch.object(docker_cli, "get_experiment_files", return_value=mock.Mock()),
+        mock.patch.object(
+            docker_cli, "setup_experiment", return_value=("uid", str(tmp_path))
+        ) as setup,
+        mock.patch.dict(sys.modules, {"dallinger.docker.tools": fake_tools}),
+        mock.patch.object(
+            docker_cli, "push_image", side_effect=StopAfterPush
+        ) as push_image,
+    ):
+        with pytest.raises(StopAfterPush):
+            docker_cli.deploy_heroku_docker(log=mock.Mock(), verbose=False)
+
+    setup.assert_called_once()
+    fake_tools.build_image.assert_called_once_with(
+        str(tmp_path), "registry/exp", mock.ANY, force_build=True
+    )
+    push_image.assert_called_once_with("registry/exp:tag")
 
 
 def get_yaml(config):
