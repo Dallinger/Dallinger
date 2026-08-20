@@ -100,3 +100,24 @@ class TestEntryPointImport:
         from dallinger.experiments import Bartlett1932
 
         assert Bartlett1932 is OrigExp
+
+    def test_registered_demo_entry_point_names(self):
+        expected = {
+            "Bartlett1932",
+            "TwentyFortyEight",
+            "CoordinationChatroom",
+            "ConcentrationGame",
+            "FunctionLearning",
+            "IteratedDrawing",
+            "MCMCP",
+            "RogersExperiment",
+            "SheepMarket",
+            "SnakeGame",
+            "VoxPopuli",
+        }
+        names = {
+            entry.name
+            for entry in experiments.entry_points(group="dallinger.experiments")
+        }
+        missing = expected - names
+        assert not missing, "Missing demo entry points: {}".format(sorted(missing))
