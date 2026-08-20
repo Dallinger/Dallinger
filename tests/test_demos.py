@@ -1,5 +1,6 @@
 import os
 import sys
+from importlib.metadata import distribution
 
 import pytest
 
@@ -111,7 +112,7 @@ class TestEntryPointImport:
         }
         names = {
             entry.name
-            for entry in experiments.entry_points(group="dallinger.experiments")
+            for entry in distribution("dlgr.demos").entry_points
+            if entry.group == "dallinger.experiments"
         }
-        missing = expected - names
-        assert not missing, "Missing demo entry points: {}".format(sorted(missing))
+        assert names == expected
