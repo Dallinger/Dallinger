@@ -58,9 +58,8 @@
 - Removed obsolete development-service configuration, unused test fixtures,
   generated demo data artifacts, unreferenced frontend and demo assets, and
   the leftover `demos/MANIFEST.in` copied from the old root package.
-- Removed `demos/setup.py` and the leftover `demos/MANIFEST.in`; demo
-  package metadata and experiment entry points now live in
-  `demos/pyproject.toml`.
+- Removed `demos/setup.py`; demo package metadata and experiment entry
+  points now live in `demos/pyproject.toml`.
 
 ## [v12.2.1](https://github.com/dallinger/dallinger/tree/v12.2.1) (2026-07-02)
 
