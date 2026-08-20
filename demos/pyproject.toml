@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dlgr.demos"
+version = "12.3.0a1"
+description = "Demonstration experiments for Dallinger"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+keywords = ["science", "cultural evolution", "experiments", "psychology"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.11",
+]
+maintainers = [
+    {name = "Jordan Suchow", email = "jws@stevens.edu"},
+    {name = "Peter Harrison", email = "pmch2@cam.ac.uk"},
+    {name = "Frank Höger", email = "fmhoeger@mirsem.org"},
+]
+
+[project.urls]
+Homepage = "https://github.com/Dallinger/Dallinger"
+Issues = "https://github.com/Dallinger/Dallinger/issues"
+Repository = "https://github.com/Dallinger/Dallinger"
+
+[project.entry-points."dallinger.experiments"]
+Bartlett1932 = "dlgr.demos.bartlett1932.experiment:Bartlett1932"
+TwentyFortyEight = "dlgr.demos.twentyfortyeight.experiment:TwentyFortyEight"
+CoordinationChatroom = "dlgr.demos.chatroom.experiment:CoordinationChatroom"
+ConcentrationGame = "dlgr.demos.concentration.experiment:ConcentrationGame"
+FunctionLearning = "dlgr.demos.function_learning.experiment:FunctionLearning"
+IteratedDrawing = "dlgr.demos.iterated_drawing.experiment:IteratedDrawing"
+MCMCP = "dlgr.demos.mcmcp.experiment:MCMCP"
+RogersExperiment = "dlgr.demos.rogers.experiment:RogersExperiment"
+SheepMarket = "dlgr.demos.sheep_market.experiment:SheepMarket"
+SnakeGame = "dlgr.demos.snake.experiment:SnakeGame"
+VoxPopuli = "dlgr.demos.vox_populi.experiment:VoxPopuli"
+
+# `dlgr` is a PEP 420 namespace; Hatchling needs an explicit package path.
+# Templates, static assets, and config.txt live beside the experiment modules
+# and are included as package data so a built wheel matches the git tree.
+[tool.hatch.build.targets.wheel]
+packages = ["dlgr"]
+
+[tool.hatch.build.targets.sdist]
+only-include = ["dlgr"]

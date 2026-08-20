@@ -113,27 +113,23 @@ available in your python path::
 
 
 Alternatively, an experiment installed as a python package can register itself
-with Dallinger and appear in the experiments module. This is done by including
-a `dallinger.experiments` item in the `entry_points` argument in the call to
-`setup` in an experiment's `setup.py`. For example::
+with Dallinger and appear in the experiments module. This is done by declaring
+a ``dallinger.experiments`` entry point in the package metadata. In
+``pyproject.toml``::
 
-    ...
-    setup(
-        ...,
-        entry_points={'dallinger.experiments': ['mypackage.MyFancyExperiment']},
-        ...
-    )
+    [project.entry-points."dallinger.experiments"]
+    MyFancyExperiment = "mypackage.experiment:MyFancyExperiment"
 
 
 An experiment package registered in this manner can be imported from
-`dallinger.experiments`::
+``dallinger.experiments``::
 
     import dallinger
 
     experiment = dallinger.experiments.MyFancyExperiment()
     experiment.run(...)
 
-See the `setup.py` from `dlgr.demos` for more examples.
+See ``demos/pyproject.toml`` for more examples.
 
 
 Running an Unpackaged Experiment Programmatically
