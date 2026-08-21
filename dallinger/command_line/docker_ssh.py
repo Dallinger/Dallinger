@@ -9,6 +9,7 @@ import select
 import socket
 import subprocess
 import sys
+import warnings
 import zipfile
 from contextlib import contextmanager, redirect_stdout
 from dataclasses import dataclass
@@ -480,6 +481,39 @@ def ensure_root_domain_ready(server, update):
     return True
 
 
+def _ignore_docker_ssh_resource_warnings():
+    """Suppress ResourceWarnings from docker-py's shell-out SSH transport.
+
+    In shell-out mode (``use_ssh_client=True``), docker-py never tracks the
+    connection pools it creates, so ``client.close()`` cannot reach the
+    spawned ``ssh`` subprocesses or their sockets. They are only reclaimed
+    at garbage collection, which emits ResourceWarnings. This is harmless
+    for a short-lived CLI process, so we mute those specific warnings
+    rather than patching docker-py internals.
+
+    The filters must be installed process-wide (not via a scoped
+    ``catch_warnings`` block) because the warnings fire at garbage
+    collection, after any scoped context would have exited. They are
+    installed before the Docker client is created so mid-command GC
+    cannot print them.
+    """
+    warnings.filterwarnings(
+        "ignore",
+        category=ResourceWarning,
+        message=r"subprocess \d+ is still running",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        category=ResourceWarning,
+        message=r"unclosed <docker\.transport\.sshconn\.SSHSocket",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        category=ResourceWarning,
+        message=r"unclosed file <_io\.FileIO name=\d+ mode='[rw]b' closefd=True>",
+    )
+
+
 def build_and_push_image(f):
     """Decorator for click commands that depend on a pushed docker image.
 
@@ -535,6 +569,9 @@ def build_and_push_image(f):
                 # Add server_pem to SSH agent so docker-py's SSH client can use it
                 # (necessary because docker.from_env() does not accept PEM files directly).
                 add_server_pem_to_ssh_agent()
+            # docker-py leaks shell-out SSH resources; mute the GC warnings
+            # before the client exists so they cannot fire mid-command.
+            _ignore_docker_ssh_resource_warnings()
             # Avoid Paramiko by using the system ssh client
             docker_client = docker.from_env(use_ssh_client=True)
 
