@@ -81,3 +81,17 @@ Use this structure:
 4. Residual risks / assumptions
 
 Keep summaries brief and make the primary feedback actionable.
+
+## 7) Update the pull request
+
+Always update the open pull request title and description to match the committed
+branch diff. Do this even if the current title or description looks close.
+
+- Find the PR: `gh pr view --json number,title,url,body`
+- Title: a concise, accurate summary of the committed change
+- Description: follow `.github/PULL_REQUEST_TEMPLATE.md` and keep every section
+  current (motivation, summary, behavior, testing, changelog, automatic review)
+- Record that `/branch-review` was run in **Automatic code review**
+- If `gh pr edit` fails (classic Projects GraphQL deprecation), use
+  `gh api repos/Dallinger/Dallinger/pulls/<n> -X PATCH` instead
+- If no pull request exists, say so and skip this step

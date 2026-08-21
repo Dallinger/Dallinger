@@ -58,6 +58,9 @@ record that explicitly in the pull request description.
 Use `.github/PULL_REQUEST_TEMPLATE.md` for the required pull request description
 format.
 
+When running `/branch-review`, always update the pull request title and
+description so they match the committed branch diff.
+
 ## Tests
 
 Run tests locally before finalizing a contribution:
