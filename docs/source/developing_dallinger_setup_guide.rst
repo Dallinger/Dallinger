@@ -171,9 +171,10 @@ Omit --global to set the identity only in this repository. You can read more abo
 Install prerequisites for building documentation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To be able to build the documentation, you will need yarn.
+To be able to build the documentation, you will need Node.js 20 or later
+(which includes npm). CI and ``.nvmrc`` use Node 20.
 
-Please follow the instructions `here <https://yarnpkg.com/lang/en/docs/install>`__  to install it.
+Please follow the instructions `here <https://nodejs.org/en/download>`__ to install it.
 
 Install Dallinger
 ~~~~~~~~~~~~~~~~~
@@ -559,9 +560,10 @@ Omit --global to set the identity only in this repository. You can read more abo
 Install prerequisites for building documentation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To be able to build the documentation, you will need yarn.
+To be able to build the documentation, you will need Node.js 20 or later
+(which includes npm). CI and ``.nvmrc`` use Node 20.
 
-Please follow the instructions `here <https://yarnpkg.com/lang/en/docs/install>`__  to install it.
+Please follow the instructions `here <https://nodejs.org/en/download>`__ to install it.
 
 Install Dallinger
 ~~~~~~~~~~~~~~~~~

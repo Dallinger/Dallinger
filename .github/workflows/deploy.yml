@@ -16,8 +16,9 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: "20"
+          cache: npm
       - name: Install node packages
-        run: yarn --frozen-lockfile --ignore-engines
+        run: npm ci
       - name: Cache pip
         uses: actions/cache@v5
         with:
