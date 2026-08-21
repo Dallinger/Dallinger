@@ -17,15 +17,13 @@
 - Migrated JavaScript package management from Yarn 1 to npm: replaced
   `yarn.lock` with a committed `package-lock.json`, translated the Yarn
   `resolutions` field to npm `overrides`, and switched CI, deploy, and docs
-  tooling to `npm ci`. `resp-modifier` and `test-exclude` keep patched
+  tooling to `npm ci`. Bumped `jest` and `jest-environment-jsdom` to the
+  latest 30.x releases and refreshed in-range transitive dependencies in
+  `package-lock.json`. `resp-modifier` and `test-exclude` keep patched
   `minimatch` 3.1.5 because minimatch 10 is not a callable CommonJS export.
   Contributors now only need Node.js 20+/npm (no Yarn) to build
   documentation and run the JavaScript tests. No production frontend
   assets were changed.
-- Updated JavaScript build/test dependencies: bumped `jest` and
-  `jest-environment-jsdom` to the latest 30.x releases and refreshed in-range
-  transitive dependencies in `yarn.lock`. No production frontend assets were
-  changed.
 - Tagged configuration values are now resolved by source priority (package
   defaults < experiment class defaults < `~/.dallingerconfig` <
   `Experiment.config_settings()` < `config.txt` < environment variables <
