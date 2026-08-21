@@ -171,8 +171,8 @@ Omit --global to set the identity only in this repository. You can read more abo
 Install prerequisites for building documentation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To be able to build the documentation, you will need Node.js (which
-includes npm).
+To be able to build the documentation, you will need Node.js 20 or later
+(which includes npm). CI and ``.nvmrc`` use Node 20.
 
 Please follow the instructions `here <https://nodejs.org/en/download>`__ to install it.
 
@@ -560,8 +560,8 @@ Omit --global to set the identity only in this repository. You can read more abo
 Install prerequisites for building documentation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To be able to build the documentation, you will need Node.js (which
-includes npm).
+To be able to build the documentation, you will need Node.js 20 or later
+(which includes npm). CI and ``.nvmrc`` use Node 20.
 
 Please follow the instructions `here <https://nodejs.org/en/download>`__ to install it.
 
