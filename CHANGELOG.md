@@ -68,6 +68,8 @@
 - Avoided a duplicate experiment-package copy during `dallinger develop debug`
   by validating the working tree before development staging; strict packaged
   validation remains available through `dallinger verify`.
+- Updated `.nvmrc` from the end-of-life Node 11 to Node 20, matching the
+  version used in CI.
 
 ### Removed
 
@@ -78,6 +80,16 @@
   the leftover `demos/MANIFEST.in` copied from the old root package.
 - Removed `demos/setup.py`; demo package metadata and experiment entry
   points now live in `demos/pyproject.toml`.
+- Removed the long-deprecated `dallinger.heroku.worker` compatibility shim;
+  import the Redis connection from `dallinger.db.redis_conn` instead.
+- Removed the redundant `demos/tox.ini` (the repository-level `tox.ini` style
+  environment already lints `demos`) and the unused `.jshintrc` in the
+  twentyfortyeight demo.
+- Removed unused bundled `markdown.min.js` copies and their script tags from
+  the MCMCP, iterated drawing, sheep market, and Vox Populi demos (the
+  Bartlett 1932 demo keeps its copy, which it actually uses).
+- Removed legacy release-workflow steps (pandoc README conversion, Node/Yarn
+  setup, and tox installation) that no longer feed the PyPI publish step.
 
 ## [v12.2.1](https://github.com/dallinger/dallinger/tree/v12.2.1) (2026-07-02)
 
