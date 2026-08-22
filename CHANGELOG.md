@@ -1,6 +1,22 @@
 # Changelog
 
-## [Unreleased]
+## [v12.3.0](https://github.com/dallinger/dallinger/tree/v12.3.0) (2026-08-22)
+
+### Migration Notes
+
+- The long-deprecated `dallinger.heroku.worker` compatibility shim is gone.
+  Import the Redis connection from `dallinger.db.redis_conn` instead.
+- Tagged configuration values are now resolved by source priority (package
+  defaults < experiment class defaults < `~/.dallingerconfig` <
+  `Experiment.config_settings()` < `config.txt` < environment variables <
+  runtime writes) instead of layer insertion order. Use
+  `Experiment.config_settings()` for values that must override
+  `~/.dallingerconfig`. Untagged `config.extend()` and
+  `config.load_from_file()` calls remain highest-priority runtime writes.
+- `dlgr.demos` is packaged with Hatchling via `demos/pyproject.toml`;
+  `demos/setup.py` has been removed.
+- Contributors building documentation or running JavaScript tests need
+  Node.js 20+ and npm. Yarn is no longer used.
 
 ### Added
 
@@ -62,15 +78,6 @@
   tagged with the experiment-config priority and no longer overrides
   environment variables.
 
-### Updated
-
-- Updated Python dependencies
-- Avoided a duplicate experiment-package copy during `dallinger develop debug`
-  by validating the working tree before development staging; strict packaged
-  validation remains available through `dallinger verify`.
-- Updated `.nvmrc` from the end-of-life Node 11 to Node 20, matching the
-  version used in CI.
-
 ### Removed
 
 - Removed the unused `demos/dev-requirements.txt` file and its obsolete
@@ -90,6 +97,15 @@
   Bartlett 1932 demo keeps its copy, which it actually uses).
 - Removed legacy release-workflow steps (pandoc README conversion, Node/Yarn
   setup, and tox installation) that no longer feed the PyPI publish step.
+
+### Updated
+
+- Updated Python dependencies
+- Avoided a duplicate experiment-package copy during `dallinger develop debug`
+  by validating the working tree before development staging; strict packaged
+  validation remains available through `dallinger verify`.
+- Updated `.nvmrc` from the end-of-life Node 11 to Node 20, matching the
+  version used in CI.
 
 ## [v12.2.1](https://github.com/dallinger/dallinger/tree/v12.2.1) (2026-07-02)
 
