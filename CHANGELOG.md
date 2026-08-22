@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added a Cursor `/release` command and release skill for cutting
+  Dallinger releases to PyPI and ghcr.
+
 ## [v12.3.0](https://github.com/dallinger/dallinger/tree/v12.3.0) (2026-08-22)
 
 ### Migration Notes
