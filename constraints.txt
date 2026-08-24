@@ -432,7 +432,7 @@ python-dateutil==2.9.0.post0
     #   heroku3
     #   jupyter-client
     #   pandas
-python-discovery==1.5.2
+python-discovery==1.5.3
     # via
     #   tox
     #   virtualenv
