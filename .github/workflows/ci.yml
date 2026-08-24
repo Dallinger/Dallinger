@@ -97,8 +97,9 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: "20"
-      - name: Yarn
-        run: yarn --frozen-lockfile --ignore-engines
+          cache: npm
+      - name: Install node packages
+        run: npm ci
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:

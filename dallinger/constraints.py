@@ -172,7 +172,11 @@ def generate_constraints(extras: Optional[List[str]] = None):
     and the dev-requirements.txt file. It contains a list of versions for all dependencies
     (explicit and implicit).
 
-    This generation process uses ``uv pip compile``.
+    This generation process uses ``uv pip compile``. The final compile passes
+    ``--upgrade-package dallinger`` so an existing constraints.txt cannot keep a
+    stale Dallinger pin. Implied version ranges therefore lock the latest
+    compatible patch. An explicit ``dallinger==X.Y.Z`` in the input file is
+    still honored.
 
     If the constraints.txt file exists already it will be overwritten.
     For a version of this function that does not automatically overwrite the constraints.txt file,
@@ -206,6 +210,7 @@ def generate_constraints(extras: Optional[List[str]] = None):
         output_path,
         constraints=[dallinger_dev_requirements_path],
         extras=extras,
+        upgrade_packages=["dallinger"],
     )
 
     _make_constraints_paths_relative()
@@ -470,10 +475,16 @@ def _compile_with_uv(
     out_file,
     constraints: Optional[list] = None,
     extras: Optional[List[str]] = None,
+    upgrade_packages: Optional[List[str]] = None,
 ):
+    """Compile *in_file* to *out_file* with ``uv pip compile``.
+
+    upgrade_packages: names passed through to ``--upgrade-package``.
+    """
     in_file = Path(in_file)
     out_file = Path(out_file)
     extras = extras or []
+    upgrade_packages = upgrade_packages or []
 
     if not in_file.resolve().parent == Path.cwd():
         # `uv pip compile` intelligently infers the Python version from the working directory, looking for example
@@ -497,6 +508,8 @@ def _compile_with_uv(
     ]
     for extra in extras:
         cmd += ["--extra", extra]
+    for package in upgrade_packages:
+        cmd += ["--upgrade-package", package]
     cmd += [
         str(in_file),
         "--output-file",

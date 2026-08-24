@@ -10,14 +10,6 @@ jobs:
     environment: pypi
     steps:
       - uses: actions/checkout@v5
-      - name: Install Ubuntu packages
-        run: sudo apt-get --yes install curl enchant-2 pandoc
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: "20"
-      - name: Install node packages
-        run: yarn --frozen-lockfile --ignore-engines
       - name: Cache pip
         uses: actions/cache@v5
         with:
@@ -26,12 +18,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
             ${{ runner.os }}-
-      - name: Python Installers
-        run: pip install --upgrade pip wheel tox
-      - name: Set up deployment
+      - name: Build distributions
         run: |
-          pandoc --from=markdown --to=rst --output=README.rst README.md
-          pip install build
+          pip install --upgrade pip build
           python -m build --sdist --wheel .
       - name: Deploy
         uses: pypa/gh-action-pypi-publish@release/v1

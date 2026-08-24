@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+## [v12.3.0](https://github.com/dallinger/dallinger/tree/v12.3.0) (2026-08-22)
+
+### Migration Notes
+
+- The long-deprecated `dallinger.heroku.worker` compatibility shim is gone.
+  Import the Redis connection from `dallinger.db.redis_conn` instead.
+- Tagged configuration values are now resolved by source priority (package
+  defaults < experiment class defaults < `~/.dallingerconfig` <
+  `Experiment.config_settings()` < `config.txt` < environment variables <
+  runtime writes) instead of layer insertion order. Use
+  `Experiment.config_settings()` for values that must override
+  `~/.dallingerconfig`. Untagged `config.extend()` and
+  `config.load_from_file()` calls remain highest-priority runtime writes.
+- `dlgr.demos` is packaged with Hatchling via `demos/pyproject.toml`;
+  `demos/setup.py` has been removed.
+- Contributors building documentation or running JavaScript tests need
+  Node.js 20+ and npm. Yarn is no longer used.
+
 ### Added
 
 - Added the version 1 literal `deploy.toml` parser and deterministic
@@ -24,6 +42,19 @@
 
 ### Changed
 
+- Migrated `dlgr.demos` packaging from `setup.py` to Hatchling via
+  `demos/pyproject.toml`. See
+  [#9688](https://github.com/Dallinger/Dallinger/issues/9688).
+- Migrated JavaScript package management from Yarn 1 to npm: replaced
+  `yarn.lock` with a committed `package-lock.json`, translated the Yarn
+  `resolutions` field to npm `overrides`, and switched CI, deploy, and docs
+  tooling to `npm ci`. Bumped `jest` and `jest-environment-jsdom` to the
+  latest 30.x releases and refreshed in-range transitive dependencies in
+  `package-lock.json`. `resp-modifier` and `test-exclude` keep patched
+  `minimatch` 3.1.5 because minimatch 10 is not a callable CommonJS export.
+  Contributors now only need Node.js 20+/npm (no Yarn) to build
+  documentation and run the JavaScript tests. No production frontend
+  assets were changed.
 - Tagged configuration values are now resolved by source priority (package
   defaults < experiment class defaults < `~/.dallingerconfig` <
   `Experiment.config_settings()` < `config.txt` < environment variables <
@@ -47,6 +78,14 @@
   assembling the experiment a second time.
 - Editable installs now fall back to the source tree when
   ``importlib.metadata`` omits a file list or packaged Docker templates.
+- Silenced spurious ResourceWarnings emitted during Docker-over-SSH
+  deployments by docker-py's shell-out SSH transport, which does not close
+  its connections when the client is closed. The filters are installed
+  before the Docker client is created so mid-command garbage collection
+  cannot print them.
+- Fixed ``dallinger constraints generate`` so it upgrades Dallinger to the latest
+  compatible patch instead of keeping a stale pin from an existing
+  ``constraints.txt``.
 - Fixed repeat-worker recruitment after multiple prior participations and added
   structured participant lookup errors for clients (`assignment_id_missing` /
   `participant_not_found` via `error_code` / `AjaxRejection.errorCode`).
@@ -68,6 +107,26 @@
   tagged with the experiment-config priority and no longer overrides
   environment variables.
 
+### Removed
+
+- Removed the unused `demos/dev-requirements.txt` file and its obsolete
+  development dependency declarations.
+- Removed obsolete development-service configuration, unused test fixtures,
+  generated demo data artifacts, unreferenced frontend and demo assets, and
+  the leftover `demos/MANIFEST.in` copied from the old root package.
+- Removed `demos/setup.py`; demo package metadata and experiment entry
+  points now live in `demos/pyproject.toml`.
+- Removed the long-deprecated `dallinger.heroku.worker` compatibility shim;
+  import the Redis connection from `dallinger.db.redis_conn` instead.
+- Removed the redundant `demos/tox.ini` (the repository-level `tox.ini` style
+  environment already lints `demos`) and the unused `.jshintrc` in the
+  twentyfortyeight demo.
+- Removed unused bundled `markdown.min.js` copies and their script tags from
+  the MCMCP, iterated drawing, sheep market, and Vox Populi demos (the
+  Bartlett 1932 demo keeps its copy, which it actually uses).
+- Removed legacy release-workflow steps (pandoc README conversion, Node/Yarn
+  setup, and tox installation) that no longer feed the PyPI publish step.
+
 ### Updated
 
 - Updated Python dependencies
@@ -81,6 +140,8 @@
 - Matched the documented ``dallinger deployment-files init`` starter
   excludes to the CLI list, including ``deploy_logs``, ``develop``, and
   ``local_only``.
+- Updated `.nvmrc` from the end-of-life Node 11 to Node 20, matching the
+  version used in CI.
 
 ## [v12.2.1](https://github.com/dallinger/dallinger/tree/v12.2.1) (2026-07-02)
 
@@ -111,7 +172,7 @@
 - Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock`: `follow-redirects` 1.15.9 → 1.16.0, `lodash` 4.17.23 → 4.18.1, and `picomatch` 2.3.1 → 2.3.2 / 4.0.3 → 4.0.4.
 - Fixed generated dependency pins so they remain installable on the lowest
   supported Python version.
-- Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock` (`follow-redirects`, `lodash`, `picomatch`), updating `webpack` and `webpack-cli`, and adding Yarn resolutions for patched `js-yaml`, `ws`, `engine.io`, `engine.io-client`, and `socket.io-adapter` versions.
+- Fixed GitHub Dependabot npm security alerts by updating JavaScript build/test dependencies in `yarn.lock`, updating `webpack` and `webpack-cli`, and adding Yarn resolutions for patched `brace-expansion`, `fast-uri`, `immutable`, `js-yaml`, `linkify-it`, `minimatch`, `socket.io-parser`, `ws`, `engine.io`, `engine.io-client`, and `socket.io-adapter` versions.
 
 ### Removed
 
