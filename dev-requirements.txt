@@ -146,7 +146,7 @@ greenlet==3.5.5
     # via
     #   gevent
     #   sqlalchemy
-gunicorn==26.1.0
+gunicorn==26.2.0
     # via dallinger
 h11==0.16.0
     # via
