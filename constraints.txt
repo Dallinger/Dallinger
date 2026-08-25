@@ -574,7 +574,7 @@ tornado==6.5.8
     #   jupyterlab
     #   notebook
     #   terminado
-tox==4.60.0
+tox==4.60.1
     # via dallinger
 traitlets==5.16.1
     # via
