@@ -18,25 +18,35 @@ from dallinger.deployment_plan import (
 
 _STARTER_EXCLUSIONS = (
     ".deploy",
-    ".env",
-    ".venv",
-    "__pycache__",
     "data",
     "deploy_logs",
     "develop",
     "local_only",
-    "node_modules",
-    "server.log",
     "snapshots",
 )
 
+_STARTER_EXCLUDE_ANYWHERE = (
+    "*.db",
+    "*.dmg",
+    ".env",
+    ".venv",
+    "__pycache__",
+    "node_modules",
+    "server.log",
+)
+
 _STARTER_POLICY = """\
-# Paths are literal, root-relative prefixes; Git globs and negation rules
-# are not supported.
+# exclude entries are literal, root-relative prefixes.
+# exclude_anywhere entries are literal basenames or *.suffix patterns
+# matched in every directory. Other Git globs and negation are not supported.
 version = 1
 
 exclude = [
 {exclusions}
+]
+
+exclude_anywhere = [
+{anywhere}
 ]
 """
 
@@ -82,16 +92,22 @@ def init_deployment_files() -> None:
             f"Refusing to overwrite existing deployment policy {policy_path}."
         )
 
-    exclusions = "\n".join(f'    "{value}",' for value in _STARTER_EXCLUSIONS)
+    exclusions = _format_starter_list(_STARTER_EXCLUSIONS)
+    anywhere = _format_starter_list(_STARTER_EXCLUDE_ANYWHERE)
     try:
         with policy_path.open("x", encoding="utf-8", newline="\n") as policy_file:
-            policy_file.write(_STARTER_POLICY.format(exclusions=exclusions))
+            policy_file.write(
+                _STARTER_POLICY.format(exclusions=exclusions, anywhere=anywhere)
+            )
     except OSError as error:
         raise click.ClickException(
             f"Cannot create deployment policy {policy_path}: {error}."
         ) from error
 
-    click.echo(f"Created {policy_path}. Review exclude paths before deploying.")
+    click.echo(
+        f"Created {policy_path}. Review exclude and exclude_anywhere paths "
+        "before deploying."
+    )
 
 
 def _build_plan_or_fail(root: Path) -> DeploymentPlan:
@@ -103,3 +119,8 @@ def _build_plan_or_fail(root: Path) -> DeploymentPlan:
 
 def _file_count(count: int) -> str:
     return "1 file" if count == 1 else f"{count} files"
+
+
+def _format_starter_list(values: tuple[str, ...]) -> str:
+    """Format starter names as indented TOML string array entries."""
+    return "\n".join(f'    "{value}",' for value in values)

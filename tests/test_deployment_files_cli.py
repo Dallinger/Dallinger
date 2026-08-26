@@ -8,6 +8,7 @@ from click.testing import CliRunner
 
 from dallinger.command_line import dallinger
 from dallinger.command_line.deployment_files import (
+    _STARTER_EXCLUDE_ANYWHERE,
     _STARTER_EXCLUSIONS,
     deployment_files,
 )
@@ -56,10 +57,11 @@ def test_list_json_omits_manifest_digest(tmp_path):
 
 def test_docs_starter_example_matches_cli_exclusions():
     docs = Path(__file__).resolve().parents[1] / "docs" / "source" / "deploy_toml.rst"
-    match = re.search(r"exclude = \[([^\]]+)\]", docs.read_text())
-    assert match is not None
-    quoted = tuple(re.findall(r'"([^"]+)"', match.group(1)))
-    assert quoted == _STARTER_EXCLUSIONS
+    text = docs.read_text()
+    exclude = _quoted_toml_array(text, "exclude")
+    exclude_anywhere = _quoted_toml_array(text, "exclude_anywhere")
+    assert exclude == _STARTER_EXCLUSIONS
+    assert exclude_anywhere == _STARTER_EXCLUDE_ANYWHERE
 
 
 def test_init_creates_starter_policy_once(tmp_path):
@@ -74,6 +76,7 @@ def test_init_creates_starter_policy_once(tmp_path):
     parsed = parse_deployment_policy(policy)
     assert parsed.version == 1
     assert parsed.exclude == tuple(sorted(_STARTER_EXCLUSIONS))
+    assert parsed.exclude_anywhere == tuple(sorted(_STARTER_EXCLUDE_ANYWHERE))
     assert "legacy_diff_acknowledgement" not in policy.read_text()
     assert second.exit_code != 0
     assert "Refusing to overwrite" in second.output
@@ -94,3 +97,9 @@ def test_deployment_files_group_is_registered():
     assert "list" in result.output
     assert "init" in result.output
     assert "check" not in result.output
+
+
+def _quoted_toml_array(text, key):
+    match = re.search(rf"{re.escape(key)} = \[([^\]]+)\]", text)
+    assert match is not None
+    return tuple(re.findall(r'"([^"]+)"', match.group(1)))

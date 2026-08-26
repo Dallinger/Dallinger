@@ -27,6 +27,16 @@ def test_parse_valid_policy_normalizes_and_sorts_exclusions(tmp_path):
 
     assert policy.version == 1
     assert policy.exclude == ("café", "z/data")
+    assert policy.exclude_anywhere == ()
+
+
+def test_parse_valid_policy_normalizes_and_sorts_exclude_anywhere(tmp_path):
+    decomposed = unicodedata.normalize("NFD", "café")
+    policy = parse_deployment_policy(
+        write_deployment_policy(tmp_path, exclude_anywhere=["zcache", decomposed])
+    )
+
+    assert policy.exclude_anywhere == ("café", "zcache")
 
 
 @pytest.mark.parametrize(
@@ -39,6 +49,8 @@ def test_parse_valid_policy_normalizes_and_sorts_exclusions(tmp_path):
         ("version = true\nexclude = []\n", "version"),
         ('version = 1\nexclude = "data"\n', "array of strings"),
         ("version = 1\nexclude = [1]\n", "array of strings"),
+        ('version = 1\nexclude = []\nexclude_anywhere = "cache"\n', "array of strings"),
+        ("version = 1\nexclude = []\nexclude_anywhere = [1]\n", "array of strings"),
         (
             "version = 1\nexclude = []\nlegacy_diff_acknowledgement = "
             f'"sha256:{"a" * 64}"\n',
@@ -88,6 +100,51 @@ def test_parse_rejects_duplicate_normalized_paths(tmp_path):
         parse_deployment_policy(write_deployment_policy(tmp_path, ["café", decomposed]))
 
 
+@pytest.mark.parametrize(
+    "excluded",
+    [
+        "",
+        "/absolute",
+        "has/slash",
+        "has\\slash",
+        "!negated",
+        "glob*",
+        "*",
+        "*.",
+        "*db",
+        "**",
+        "*.*",
+        ".",
+        "..",
+        "deploy.toml",
+        ".git",
+        "config.txt",
+        ".dockerignore",
+    ],
+)
+def test_parse_rejects_nonliteral_or_unsafe_exclude_anywhere_names(tmp_path, excluded):
+    with pytest.raises(DeploymentPolicyError):
+        parse_deployment_policy(
+            write_deployment_policy(tmp_path, exclude_anywhere=[excluded])
+        )
+
+
+def test_parse_accepts_exclude_anywhere_suffix_patterns(tmp_path):
+    policy = parse_deployment_policy(
+        write_deployment_policy(tmp_path, exclude_anywhere=["*.dmg", "*.db"])
+    )
+
+    assert policy.exclude_anywhere == ("*.db", "*.dmg")
+
+
+def test_parse_rejects_duplicate_normalized_exclude_anywhere_names(tmp_path):
+    decomposed = unicodedata.normalize("NFD", "café")
+    with pytest.raises(DeploymentPolicyError, match="Duplicate"):
+        parse_deployment_policy(
+            write_deployment_policy(tmp_path, exclude_anywhere=["café", decomposed])
+        )
+
+
 def test_explicit_provider_rejects_reserved_destination_prefixes():
     with pytest.raises(DeploymentPlanError, match="reserved"):
         validate_explicit_provider_destination("config.txt")
@@ -124,6 +181,75 @@ def test_plan_is_sorted_and_independent_of_creation_order(tmp_path):
         "m/n.txt",
         "z.txt",
     ]
+
+
+def test_plan_root_exclude_does_not_omit_nested_same_name(tmp_path):
+    write_deployment_policy(tmp_path, ["__pycache__", ".env"])
+    write_files(
+        tmp_path,
+        {
+            "__pycache__/root.pyc": "root cache",
+            "pkg/__pycache__/x.pyc": "nested cache",
+            ".env": "root secret",
+            "nested/.env": "nested secret",
+        },
+    )
+
+    plan = build_deployment_plan(tmp_path)
+
+    assert plan.destinations == {
+        "deploy.toml",
+        "nested/.env",
+        "pkg/__pycache__/x.pyc",
+    }
+
+
+def test_plan_exclude_anywhere_omits_nested_names_and_db_suffixes(tmp_path):
+    write_deployment_policy(
+        tmp_path,
+        exclude=["data"],
+        exclude_anywhere=["__pycache__", ".env", "*.db"],
+    )
+    write_files(
+        tmp_path,
+        {
+            "pkg/__pycache__/x.pyc": "nested cache",
+            "pkg/mod.py": "code",
+            "nested/.env": "nested secret",
+            "data/local.csv": "export",
+            "static/data/tone.wav": "stimulus",
+            "illegit.db": "root db",
+            "legit_dir/illegit.db": "nested db",
+            "keep.txt": "ok",
+        },
+    )
+
+    plan = build_deployment_plan(tmp_path)
+
+    assert plan.destinations == {
+        "deploy.toml",
+        "keep.txt",
+        "pkg/mod.py",
+        "static/data/tone.wav",
+    }
+
+
+def test_plan_empty_exclude_anywhere_still_includes_nested_pycache(tmp_path):
+    write_deployment_policy(tmp_path)
+    write_files(
+        tmp_path,
+        {
+            "pkg/__pycache__/x.pyc": "nested cache",
+            "nested/.env": "nested secret",
+            "illegit.db": "root db",
+        },
+    )
+
+    plan = build_deployment_plan(tmp_path)
+
+    assert "pkg/__pycache__/x.pyc" in plan
+    assert "nested/.env" in plan
+    assert "illegit.db" in plan
 
 
 def test_plan_applies_literal_prefixes_allows_missing_and_includes_policy(tmp_path):

@@ -1,8 +1,11 @@
 """Build deterministic deployment manifests from an experiment directory.
 
-This module turns a literal ``deploy.toml`` exclude list into an ordered plan of
-regular experiment-root files. Generated outputs, framework providers, and
-backend materialization live outside this module.
+This module turns a literal ``deploy.toml`` policy into an ordered plan of
+regular experiment-root files. ``exclude`` entries are root-relative prefixes;
+``exclude_anywhere`` entries are literal basenames or ``*.suffix`` patterns
+omitted in every directory.
+Generated outputs, framework providers, and backend materialization live
+outside this module.
 
 Traversal uses ordinary ``lstat`` / ``scandir`` checks (no symlink following).
 Selected symlinks and special files are rejected. The working tree is trusted
@@ -17,6 +20,7 @@ import shutil
 import stat
 import tomllib
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import AbstractSet, TypeVar
@@ -24,7 +28,7 @@ from typing import AbstractSet, TypeVar
 POLICY_FILENAME = "deploy.toml"
 SCHEMA_VERSION = 1
 
-_POLICY_KEYS = frozenset({"version", "exclude"})
+_POLICY_KEYS = frozenset({"version", "exclude", "exclude_anywhere"})
 _VCS_METADATA_NAMES = frozenset({".git", ".hg", ".svn", ".bzr"})
 _GENERATED_ROOT_DESTINATION_NAMES = frozenset(
     {
@@ -54,6 +58,7 @@ class DeploymentPolicy:
 
     version: int
     exclude: tuple[str, ...]
+    exclude_anywhere: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -179,28 +184,21 @@ def _parse_policy(raw_policy: dict) -> DeploymentPolicy:
             f"Deployment policy version must be the integer {SCHEMA_VERSION}."
         )
 
-    raw_exclusions = raw_policy["exclude"]
-    if not isinstance(raw_exclusions, list) or not all(
-        isinstance(item, str) for item in raw_exclusions
-    ):
-        raise DeploymentPolicyError(
-            "Deployment policy exclude must be an array of strings."
-        )
-
-    exclusions: list[str] = []
-    exact_entries: set[str] = set()
-    for raw_path in raw_exclusions:
-        normalized_path = _validate_policy_path(raw_path)
-        if normalized_path in exact_entries:
-            raise DeploymentPolicyError(
-                f"Duplicate normalized exclusion path: {normalized_path!r}."
-            )
-        exact_entries.add(normalized_path)
-        exclusions.append(normalized_path)
+    exclusions = _normalized_unique_strings(
+        _require_string_list(raw_policy["exclude"], "exclude"),
+        validator=_validate_policy_path,
+        duplicate_label="exclusion path",
+    )
+    anywhere = _normalized_unique_strings(
+        _optional_string_list(raw_policy, "exclude_anywhere"),
+        validator=_validate_anywhere_name,
+        duplicate_label="exclude_anywhere name",
+    )
 
     return DeploymentPolicy(
         version=version,
         exclude=tuple(sorted(exclusions)),
+        exclude_anywhere=tuple(sorted(anywhere)),
     )
 
 
@@ -256,6 +254,9 @@ def build_deployment_plan(
                 destination = "/".join(child_destination_parts)
 
                 if _is_excluded(child_destination_parts, exclusions):
+                    all_descendants_selected = False
+                    continue
+                if _is_omitted_anywhere(name, anywhere_names, anywhere_suffixes):
                     all_descendants_selected = False
                     continue
 
@@ -326,6 +327,7 @@ def build_deployment_plan(
     policy_snapshot = _read_policy_snapshot(root / POLICY_FILENAME)
     policy = policy_snapshot.policy
     exclusions = frozenset(policy.exclude)
+    anywhere_names, anywhere_suffixes = _anywhere_matchers(policy.exclude_anywhere)
     policy_source = root / POLICY_FILENAME
     register_destination(POLICY_FILENAME, policy_source)
     entries.append(
@@ -420,6 +422,42 @@ def _finalize_directory_candidate(
     )
 
 
+def _require_string_list(value: object, key: str) -> list[str]:
+    """Require a TOML array of strings for one policy key."""
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise DeploymentPolicyError(
+            f"Deployment policy {key} must be an array of strings."
+        )
+    return value
+
+
+def _optional_string_list(raw_policy: dict, key: str) -> list[str]:
+    """Return one optional TOML string array, or an empty list if omitted."""
+    if key not in raw_policy:
+        return []
+    return _require_string_list(raw_policy[key], key)
+
+
+def _normalized_unique_strings(
+    values: list[str],
+    *,
+    validator: Callable[[str], str],
+    duplicate_label: str,
+) -> list[str]:
+    """Validate strings, reject normalized duplicates, and return them in order."""
+    normalized_values: list[str] = []
+    exact_entries: set[str] = set()
+    for raw_value in values:
+        normalized = validator(raw_value)
+        if normalized in exact_entries:
+            raise DeploymentPolicyError(
+                f"Duplicate normalized {duplicate_label}: {normalized!r}."
+            )
+        exact_entries.add(normalized)
+        normalized_values.append(normalized)
+    return normalized_values
+
+
 def _validate_policy_path(value: str) -> str:
     """Validate and NFC-normalize one literal root-relative exclusion."""
     if not value:
@@ -461,6 +499,26 @@ def _validate_policy_path(value: str) -> str:
             f"Deployment policy cannot exclude required or reserved path {normalized!r}."
         )
     return normalized
+
+
+def _validate_anywhere_name(value: str) -> str:
+    """Validate one basename or ``*.suffix`` omitted at any depth."""
+    if "/" in value or "\\" in value:
+        raise DeploymentPolicyError(
+            f"exclude_anywhere entries must be a single path component: {value!r}."
+        )
+    if value.startswith("*."):
+        suffix = unicodedata.normalize("NFC", value[1:])
+        if any(character in suffix for character in _GLOB_CHARACTERS):
+            raise DeploymentPolicyError(
+                f"Glob syntax is unsupported in exclusion paths: {value!r}."
+            )
+        if not suffix.startswith(".") or suffix in {".", ".."} or len(suffix) < 2:
+            raise DeploymentPolicyError(
+                f"exclude_anywhere suffix patterns must look like '*.db': {value!r}."
+            )
+        return "*" + suffix
+    return _validate_policy_path(value)
 
 
 def _normalize_source_component(name: str, source: Path) -> str:
@@ -508,6 +566,26 @@ def _has_exclusion_at_or_below(
         return True
     prefix = destination + "/"
     return any(item.startswith(prefix) for item in exclusions)
+
+
+def _anywhere_matchers(
+    exclude_anywhere: tuple[str, ...],
+) -> tuple[frozenset[str], tuple[str, ...]]:
+    """Split exclude_anywhere into exact names and ``endswith`` suffixes."""
+    names = frozenset(item for item in exclude_anywhere if not item.startswith("*."))
+    suffixes = tuple(item[1:] for item in exclude_anywhere if item.startswith("*."))
+    return names, suffixes
+
+
+def _is_omitted_anywhere(
+    name: str,
+    anywhere_names: AbstractSet[str],
+    anywhere_suffixes: tuple[str, ...],
+) -> bool:
+    """Return whether a basename is omitted in every directory."""
+    return name in anywhere_names or bool(
+        anywhere_suffixes and name.endswith(anywhere_suffixes)
+    )
 
 
 def _reserved_kind(destination_parts: tuple[str, ...]) -> str | None:

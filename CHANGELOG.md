@@ -7,6 +7,12 @@
 - Added the version 1 literal `deploy.toml` parser and deterministic
   experiment-root deployment plan model, with development bulk directory links
   and ordinary copied materialization for remote staging.
+- Added optional ``exclude_anywhere`` to version 1 ``deploy.toml`` for
+  literal basenames omitted in every directory, distinct from root-relative
+  ``exclude`` prefixes. Starter ``dallinger deployment-files init`` writes
+  ``__pycache__``, ``.env``, ``.venv``, ``node_modules``, ``server.log``,
+  ``*.db``, and ``*.dmg`` there. ``exclude_anywhere`` accepts literal
+  basenames or ``*.suffix`` patterns (``endswith`` on the filename).
 - Added `dallinger deployment-files list` and `init` for inspecting and creating
   starter policies.
 - Added opt-in `deploy.toml` experiment-file membership to verification,
@@ -38,12 +44,12 @@
 ### Updated
 
 - Documented ``deploy.toml`` for experiment authors, including format,
-  auto-omitted paths, ``dallinger deployment-files list`` / ``init``,
-  and that Git-based membership is a compatibility fallback that may
-  later be deprecated after PsyNet production use.
+  ``exclude`` vs ``exclude_anywhere``, auto-omitted paths,
+  ``dallinger deployment-files list`` / ``init``, and that Git-based
+  membership is a compatibility fallback that may later be deprecated
+  after PsyNet production use.
 - Matched the documented ``dallinger deployment-files init`` starter
-  excludes to the CLI list, including ``deploy_logs``, ``develop``, and
-  ``local_only``.
+  ``exclude`` and ``exclude_anywhere`` lists to the CLI.
 
 ## [v12.3.0](https://github.com/dallinger/dallinger/tree/v12.3.0) (2026-08-22)
 

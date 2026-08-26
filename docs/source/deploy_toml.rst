@@ -19,22 +19,29 @@ A version 1 policy looks like this:
 
 .. code-block:: toml
 
-   # Paths are literal, root-relative prefixes; Git globs and negation
-   # are not supported.
+   # exclude entries are literal, root-relative prefixes.
+   # exclude_anywhere entries are literal basenames or *.suffix patterns
+   # matched in every directory. Other Git globs and negation are not
+   # supported.
    version = 1
 
    exclude = [
        ".deploy",
-       ".env",
-       ".venv",
-       "__pycache__",
        "data",
        "deploy_logs",
        "develop",
        "local_only",
+       "snapshots",
+   ]
+
+   exclude_anywhere = [
+       "*.db",
+       "*.dmg",
+       ".env",
+       ".venv",
+       "__pycache__",
        "node_modules",
        "server.log",
-       "snapshots",
    ]
 
 Rules:
@@ -42,12 +49,17 @@ Rules:
 * ``version`` must be the integer ``1``.
 * ``exclude`` is a list of literal, root-relative path prefixes.
   Excluding ``static/assets`` also excludes every path under that
-  directory.
-* Git-style globs (``*``, ``?``, ``[]``, ``{}``) and negation are not
-  supported.
+  directory. Excluding ``data`` skips ``./data``, not ``static/data``.
+* ``exclude_anywhere`` is an optional list of literal basenames or
+  ``*.suffix`` patterns. A basename is omitted in every directory, so
+  ``__pycache__`` skips ``pkg/__pycache__`` as well as ``./__pycache__``.
+  ``*.db`` skips any file or directory whose name ends with ``.db``.
+  Entries must be a single path component. Other glob characters
+  (``?``, ``[]``, ``{}``, extra ``*``) and negation are not supported.
+* ``exclude`` does not accept globs; those prefixes stay literal.
 * Hidden, untracked, and Git-ignored files are selected unless they
-  match an exclude prefix or an auto-omitted path below. Review the
-  working tree before deploying.
+  match an ``exclude`` prefix, an ``exclude_anywhere`` name, or an
+  auto-omitted path below. Review the working tree before deploying.
 
 Create a starter file with ``dallinger deployment-files init``. The
 command refuses to overwrite an existing ``deploy.toml``. PsyNet
@@ -59,7 +71,7 @@ What is always omitted
 ----------------------
 
 These paths are left out of the plan even when they are not listed in
-``exclude``:
+``exclude`` or ``exclude_anywhere``:
 
 * Version-control metadata at the experiment root (``.git``, and similar)
 * Source ``config.txt`` (Dallinger writes a filtered configuration later)
