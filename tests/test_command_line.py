@@ -279,13 +279,15 @@ class TestVerify:
         Path("experiment.py").write_text("")
         Path(".gitignore").write_text("ignored.bin\n")
         Path("ignored.bin").write_bytes(b"x" * 1_000_001)
-        Path("deploy.toml").write_text("version = 1\nexclude = []\n")
+        Path("deploy.toml").write_text("version = 1\n[exclude]\n")
         subprocess.run(["git", "init", "-q"], check=True)
 
         with mock.patch.dict(os.environ, {"EXP_MAX_SIZE_MB": "1"}):
             assert v_directory(verbose=False) is False
 
-        Path("deploy.toml").write_text('version = 1\nexclude = ["ignored.bin"]\n')
+        Path("deploy.toml").write_text(
+            'version = 1\n[exclude]\npaths = ["ignored.bin"]\n'
+        )
         with mock.patch.dict(os.environ, {"EXP_MAX_SIZE_MB": "1"}):
             assert v_directory(verbose=False) is True
 
@@ -445,7 +447,7 @@ class TestDevelopCommand:
         shutil.copytree(Path.cwd(), experiment_root)
         (experiment_root / ".gitignore").write_text("ignored.txt\n")
         (experiment_root / "ignored.txt").write_text("included")
-        (experiment_root / "deploy.toml").write_text("version = 1\nexclude = []\n")
+        (experiment_root / "deploy.toml").write_text("version = 1\n[exclude]\n")
         subprocess.run(["git", "init", "-q"], cwd=experiment_root, check=True)
         monkeypatch.chdir(experiment_root)
         develop_directory = active_config.get("dallinger_develop_directory")

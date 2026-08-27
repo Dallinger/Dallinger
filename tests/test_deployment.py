@@ -276,7 +276,7 @@ class TestExperimentFilesSource:
         (root / "ignored.txt").write_text("included by policy")
         (root / "excluded.txt").write_text("excluded by policy")
         (root / "config.txt").write_text("raw configuration")
-        write_deployment_policy(root, exclude=["excluded.txt"])
+        write_deployment_policy(root, paths=["excluded.txt"])
         monkeypatch.chdir(tmp_path)
 
         source = subject(root)
@@ -349,7 +349,7 @@ class TestExperimentFilesSource:
         (root / ".gitignore").write_text("ignored.txt\n")
         (root / "ignored.txt").write_text("selected")
         (root / "local.txt").write_text("not selected")
-        write_deployment_policy(root, exclude=["local.txt"])
+        write_deployment_policy(root, paths=["local.txt"])
         destination = tmp_path / "destination"
 
         with (
@@ -411,7 +411,7 @@ class TestExperimentFilesSource:
     ):
         root = tmp_path / "experiment"
         root.mkdir()
-        write_deployment_policy(root, exclude=["static/private"])
+        write_deployment_policy(root, paths=["static/private"])
         (root / "static/private").mkdir(parents=True)
         (root / "static/private/secret.txt").write_text("secret")
         (root / "static/public").mkdir()
@@ -433,7 +433,7 @@ class TestExperimentFilesSource:
     ):
         root = tmp_path / "experiment"
         root.mkdir()
-        write_deployment_policy(root, exclude=["static/nested/private"])
+        write_deployment_policy(root, paths=["static/nested/private"])
         (root / "static/nested/public").mkdir(parents=True)
         (root / "static/nested/public/asset.txt").write_text("public")
         (root / "static/safe").mkdir()
@@ -1179,7 +1179,7 @@ class TestSetupExperiment:
         config_path.write_text(raw_config_marker + config_path.read_text())
         write_deployment_policy(
             experiment_root,
-            exclude=["excluded.txt"],
+            paths=["excluded.txt"],
         )
         monkeypatch.chdir(experiment_root)
 

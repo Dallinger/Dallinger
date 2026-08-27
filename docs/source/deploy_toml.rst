@@ -19,13 +19,12 @@ A version 1 policy looks like this:
 
 .. code-block:: toml
 
-   # exclude entries are literal, root-relative prefixes.
-   # exclude_anywhere entries are literal basenames or *.suffix patterns
-   # matched in every directory. Other Git globs and negation are not
-   # supported.
+   # Git globs and negation are not supported.
    version = 1
 
-   exclude = [
+   [exclude]
+   # Root-relative prefixes. data skips ./data, not static/data.
+   paths = [
        ".deploy",
        "data",
        "deploy_logs",
@@ -33,33 +32,41 @@ A version 1 policy looks like this:
        "local_only",
        "snapshots",
    ]
-
-   exclude_anywhere = [
-       "*.db",
-       "*.dmg",
+   # Basenames skipped in every directory.
+   names = [
        ".env",
        ".venv",
        "__pycache__",
        "node_modules",
        "server.log",
    ]
+   # Literal endings such as .db, skipped in every directory.
+   suffixes = [
+       ".db",
+       ".dmg",
+   ]
 
 Rules:
 
 * ``version`` must be the integer ``1``.
-* ``exclude`` is a list of literal, root-relative path prefixes.
-  Excluding ``static/assets`` also excludes every path under that
-  directory. Excluding ``data`` skips ``./data``, not ``static/data``.
-* ``exclude_anywhere`` is an optional list of literal basenames or
-  ``*.suffix`` patterns. A basename is omitted in every directory, so
+* ``exclude`` is a table. Its keys are optional; omitted keys mean “exclude
+  nothing of that kind.”
+* ``paths`` are literal, root-relative prefixes. Excluding
+  ``static/assets`` also excludes every path under that directory.
+  Excluding ``data`` skips ``./data``, not ``static/data``. Putting
+  ``__pycache__`` here skips only ``./__pycache__``; use ``names`` for
+  the same basename in every directory.
+* ``names`` are literal basenames omitted in every directory, so
   ``__pycache__`` skips ``pkg/__pycache__`` as well as ``./__pycache__``.
-  ``*.db`` skips any file or directory whose name ends with ``.db``.
-  Entries must be a single path component. Other glob characters
-  (``?``, ``[]``, ``{}``, extra ``*``) and negation are not supported.
-* ``exclude`` does not accept globs; those prefixes stay literal.
+  Each entry must be a single path component.
+* ``suffixes`` are literal endings omitted in every directory. ``.db``
+  skips any file or directory whose name ends with ``.db``. Write
+  ``.db``, not ``*.db``.
+* None of these lists accept Git globs (``*``, ``?``, ``[]``, ``{}``) or
+  negation (``!``).
 * Hidden, untracked, and Git-ignored files are selected unless they
-  match an ``exclude`` prefix, an ``exclude_anywhere`` name, or an
-  auto-omitted path below. Review the working tree before deploying.
+  match a path, name, or suffix above, or an auto-omitted path below.
+  Review the working tree before deploying.
 
 Create a starter file with ``dallinger deployment-files init``. The
 command refuses to overwrite an existing ``deploy.toml``. PsyNet
@@ -71,7 +78,7 @@ What is always omitted
 ----------------------
 
 These paths are left out of the plan even when they are not listed in
-``exclude`` or ``exclude_anywhere``:
+``[exclude]``:
 
 * Version-control metadata at the experiment root (``.git``, and similar)
 * Source ``config.txt`` (Dallinger writes a filtered configuration later)

@@ -16,7 +16,7 @@ from dallinger.deployment_plan import (
     build_deployment_plan,
 )
 
-_STARTER_EXCLUSIONS = (
+_STARTER_EXCLUDE_PATHS = (
     ".deploy",
     "data",
     "deploy_logs",
@@ -25,9 +25,7 @@ _STARTER_EXCLUSIONS = (
     "snapshots",
 )
 
-_STARTER_EXCLUDE_ANYWHERE = (
-    "*.db",
-    "*.dmg",
+_STARTER_EXCLUDE_NAMES = (
     ".env",
     ".venv",
     "__pycache__",
@@ -35,18 +33,27 @@ _STARTER_EXCLUDE_ANYWHERE = (
     "server.log",
 )
 
+_STARTER_EXCLUDE_SUFFIXES = (
+    ".db",
+    ".dmg",
+)
+
 _STARTER_POLICY = """\
-# exclude entries are literal, root-relative prefixes.
-# exclude_anywhere entries are literal basenames or *.suffix patterns
-# matched in every directory. Other Git globs and negation are not supported.
+# Git globs and negation are not supported.
 version = 1
 
-exclude = [
-{exclusions}
+[exclude]
+# Root-relative prefixes. data skips ./data, not static/data.
+paths = [
+{paths}
 ]
-
-exclude_anywhere = [
-{anywhere}
+# Basenames skipped in every directory.
+names = [
+{names}
+]
+# Literal endings such as .db, skipped in every directory.
+suffixes = [
+{suffixes}
 ]
 """
 
@@ -92,12 +99,14 @@ def init_deployment_files() -> None:
             f"Refusing to overwrite existing deployment policy {policy_path}."
         )
 
-    exclusions = _format_starter_list(_STARTER_EXCLUSIONS)
-    anywhere = _format_starter_list(_STARTER_EXCLUDE_ANYWHERE)
     try:
         with policy_path.open("x", encoding="utf-8", newline="\n") as policy_file:
             policy_file.write(
-                _STARTER_POLICY.format(exclusions=exclusions, anywhere=anywhere)
+                _STARTER_POLICY.format(
+                    paths=_format_starter_list(_STARTER_EXCLUDE_PATHS),
+                    names=_format_starter_list(_STARTER_EXCLUDE_NAMES),
+                    suffixes=_format_starter_list(_STARTER_EXCLUDE_SUFFIXES),
+                )
             )
     except OSError as error:
         raise click.ClickException(
@@ -105,7 +114,7 @@ def init_deployment_files() -> None:
         ) from error
 
     click.echo(
-        f"Created {policy_path}. Review exclude and exclude_anywhere paths "
+        f"Created {policy_path}. Review [exclude] paths, names, and suffixes "
         "before deploying."
     )
 
@@ -114,7 +123,7 @@ def _build_plan_or_fail(root: Path) -> DeploymentPlan:
     try:
         return build_deployment_plan(root)
     except (DeploymentPolicyError, DeploymentPlanError) as error:
-        raise click.ClickException(str(error)) from error
+        raise click.UsageError(str(error)) from error
 
 
 def _file_count(count: int) -> str:

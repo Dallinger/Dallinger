@@ -4,14 +4,15 @@ import json
 from pathlib import Path
 
 
-def write_deployment_policy(root, exclude=(), exclude_anywhere=None):
+def write_deployment_policy(root, paths=(), *, names=(), suffixes=()):
     """Write a minimal version 1 ``deploy.toml`` and return its path."""
-    lines = [
-        "version = 1",
-        f"exclude = [{_toml_string_array(exclude)}]",
-    ]
-    if exclude_anywhere is not None:
-        lines.append(f"exclude_anywhere = [{_toml_string_array(exclude_anywhere)}]")
+    lines = ["version = 1", "[exclude]"]
+    if paths:
+        lines.append(f"paths = [{_toml_string_array(paths)}]")
+    if names:
+        lines.append(f"names = [{_toml_string_array(names)}]")
+    if suffixes:
+        lines.append(f"suffixes = [{_toml_string_array(suffixes)}]")
     path = Path(root) / "deploy.toml"
     path.write_text("\n".join(lines) + "\n")
     return path

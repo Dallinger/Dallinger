@@ -1,4 +1,5 @@
 import os
+import re
 import unicodedata
 
 import pytest
@@ -26,17 +27,18 @@ def test_parse_valid_policy_normalizes_and_sorts_exclusions(tmp_path):
     )
 
     assert policy.version == 1
-    assert policy.exclude == ("café", "z/data")
-    assert policy.exclude_anywhere == ()
+    assert policy.exclude_paths == ("café", "z/data")
+    assert policy.exclude_names == ()
+    assert policy.exclude_suffixes == ()
 
 
-def test_parse_valid_policy_normalizes_and_sorts_exclude_anywhere(tmp_path):
+def test_parse_valid_policy_normalizes_and_sorts_names(tmp_path):
     decomposed = unicodedata.normalize("NFD", "café")
     policy = parse_deployment_policy(
-        write_deployment_policy(tmp_path, exclude_anywhere=["zcache", decomposed])
+        write_deployment_policy(tmp_path, names=["zcache", decomposed])
     )
 
-    assert policy.exclude_anywhere == ("café", "zcache")
+    assert policy.exclude_names == ("café", "zcache")
 
 
 @pytest.mark.parametrize(
@@ -44,18 +46,23 @@ def test_parse_valid_policy_normalizes_and_sorts_exclude_anywhere(tmp_path):
     [
         ("exclude = []\n", "version"),
         ("version = 1\n", "exclude"),
-        ('version = 1\nexclude = []\nextra = "x"\n', "Unknown"),
-        ("version = 2\nexclude = []\n", "version"),
-        ("version = true\nexclude = []\n", "version"),
-        ('version = 1\nexclude = "data"\n', "array of strings"),
-        ("version = 1\nexclude = [1]\n", "array of strings"),
-        ('version = 1\nexclude = []\nexclude_anywhere = "cache"\n', "array of strings"),
-        ("version = 1\nexclude = []\nexclude_anywhere = [1]\n", "array of strings"),
+        ('version = 1\n[exclude]\nextra = "x"\n', "Unknown exclude"),
+        ("version = 2\n[exclude]\n", "version"),
+        ("version = true\n[exclude]\n", "version"),
+        ('version = 1\nexclude = "data"\n', "table"),
+        ("version = 1\nexclude = []\n", "table"),
+        ('version = 1\n[exclude]\npaths = "data"\n', "array of strings"),
+        ("version = 1\n[exclude]\npaths = [1]\n", "array of strings"),
+        ('version = 1\n[exclude]\nnames = "cache"\n', "array of strings"),
+        ("version = 1\n[exclude]\nnames = [1]\n", "array of strings"),
+        ('version = 1\n[exclude]\nsuffixes = ".db"\n', "array of strings"),
+        ("version = 1\n[exclude]\nsuffixes = [1]\n", "array of strings"),
         (
-            "version = 1\nexclude = []\nlegacy_diff_acknowledgement = "
+            "version = 1\n[exclude]\nlegacy_diff_acknowledgement = "
             f'"sha256:{"a" * 64}"\n',
-            "Unknown",
+            "Unknown exclude",
         ),
+        ("version = 1\nfoo = 1\n[exclude]\n", "Unknown deployment policy"),
     ],
 )
 def test_parse_rejects_unknown_missing_version_and_invalid_types(
@@ -122,26 +129,65 @@ def test_parse_rejects_duplicate_normalized_paths(tmp_path):
         ".dockerignore",
     ],
 )
-def test_parse_rejects_nonliteral_or_unsafe_exclude_anywhere_names(tmp_path, excluded):
+def test_parse_rejects_nonliteral_or_unsafe_exclude_names(tmp_path, excluded):
     with pytest.raises(DeploymentPolicyError):
-        parse_deployment_policy(
-            write_deployment_policy(tmp_path, exclude_anywhere=[excluded])
-        )
+        parse_deployment_policy(write_deployment_policy(tmp_path, names=[excluded]))
 
 
-def test_parse_accepts_exclude_anywhere_suffix_patterns(tmp_path):
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        ("", "exclude.names"),
+        ("!secret", "exclude.names"),
+        ("config.txt", "reserved"),
+    ],
+)
+def test_parse_exclude_name_errors_name_the_policy_key(tmp_path, value, message):
+    with pytest.raises(DeploymentPolicyError, match=message):
+        parse_deployment_policy(write_deployment_policy(tmp_path, names=[value]))
+
+
+def test_parse_accepts_exclude_suffixes(tmp_path):
     policy = parse_deployment_policy(
-        write_deployment_policy(tmp_path, exclude_anywhere=["*.dmg", "*.db"])
+        write_deployment_policy(tmp_path, suffixes=[".dmg", ".db"])
     )
 
-    assert policy.exclude_anywhere == ("*.db", "*.dmg")
+    assert policy.exclude_suffixes == (".db", ".dmg")
 
 
-def test_parse_rejects_duplicate_normalized_exclude_anywhere_names(tmp_path):
+@pytest.mark.parametrize(
+    "suffix",
+    ["", ".", "..", "db", "*.db", ".d*b", ".db*", "/.db", "a.db"],
+)
+def test_parse_rejects_nonliteral_or_unsafe_exclude_suffixes(tmp_path, suffix):
+    with pytest.raises(DeploymentPolicyError):
+        parse_deployment_policy(write_deployment_policy(tmp_path, suffixes=[suffix]))
+
+
+@pytest.mark.parametrize(
+    ("value", "field", "where"),
+    [
+        ("glob*", "paths", "exclude.paths"),
+        ("*.db", "paths", "exclude.paths"),
+        ("glob*", "names", "exclude.names"),
+        ("*.db", "names", "exclude.names"),
+        ("*.db", "suffixes", "exclude.suffixes"),
+        (".d*b", "suffixes", "exclude.suffixes"),
+    ],
+)
+def test_parse_glob_errors_name_the_policy_key(tmp_path, value, field, where):
+    with pytest.raises(
+        DeploymentPolicyError,
+        match=rf"Glob syntax is unsupported in {where}: {re.escape(repr(value))}",
+    ):
+        parse_deployment_policy(write_deployment_policy(tmp_path, **{field: [value]}))
+
+
+def test_parse_rejects_duplicate_normalized_exclude_names(tmp_path):
     decomposed = unicodedata.normalize("NFD", "café")
     with pytest.raises(DeploymentPolicyError, match="Duplicate"):
         parse_deployment_policy(
-            write_deployment_policy(tmp_path, exclude_anywhere=["café", decomposed])
+            write_deployment_policy(tmp_path, names=["café", decomposed])
         )
 
 
@@ -162,7 +208,7 @@ def test_explicit_provider_allows_nested_config_and_normalizes_nfc():
 
 def test_parse_rejects_symlinked_policy(tmp_path):
     target = tmp_path / "policy.toml"
-    target.write_text("version = 1\nexclude = []\n")
+    target.write_text("version = 1\n[exclude]\n")
     (tmp_path / "deploy.toml").symlink_to(target)
 
     with pytest.raises(DeploymentPolicyError, match="symbolic link"):
@@ -204,11 +250,12 @@ def test_plan_root_exclude_does_not_omit_nested_same_name(tmp_path):
     }
 
 
-def test_plan_exclude_anywhere_omits_nested_names_and_db_suffixes(tmp_path):
+def test_plan_exclude_names_and_suffixes_omit_nested_junk(tmp_path):
     write_deployment_policy(
         tmp_path,
-        exclude=["data"],
-        exclude_anywhere=["__pycache__", ".env", "*.db"],
+        paths=["data"],
+        names=["__pycache__", ".env"],
+        suffixes=[".db"],
     )
     write_files(
         tmp_path,
@@ -236,14 +283,16 @@ def test_plan_exclude_anywhere_omits_nested_names_and_db_suffixes(tmp_path):
 
 def test_starter_policy_omits_nested_junk_and_keeps_nested_data(tmp_path):
     from dallinger.command_line.deployment_files import (
-        _STARTER_EXCLUDE_ANYWHERE,
-        _STARTER_EXCLUSIONS,
+        _STARTER_EXCLUDE_NAMES,
+        _STARTER_EXCLUDE_PATHS,
+        _STARTER_EXCLUDE_SUFFIXES,
     )
 
     write_deployment_policy(
         tmp_path,
-        exclude=_STARTER_EXCLUSIONS,
-        exclude_anywhere=_STARTER_EXCLUDE_ANYWHERE,
+        paths=_STARTER_EXCLUDE_PATHS,
+        names=_STARTER_EXCLUDE_NAMES,
+        suffixes=_STARTER_EXCLUDE_SUFFIXES,
     )
     write_files(
         tmp_path,
@@ -267,7 +316,7 @@ def test_starter_policy_omits_nested_junk_and_keeps_nested_data(tmp_path):
     assert "static/data/tone.wav" in plan
 
 
-def test_plan_empty_exclude_anywhere_still_includes_nested_pycache(tmp_path):
+def test_plan_empty_exclude_still_includes_nested_pycache(tmp_path):
     write_deployment_policy(tmp_path)
     write_files(
         tmp_path,
@@ -283,6 +332,31 @@ def test_plan_empty_exclude_anywhere_still_includes_nested_pycache(tmp_path):
     assert "pkg/__pycache__/x.pyc" in plan
     assert "nested/.env" in plan
     assert "illegit.db" in plan
+
+
+def test_plan_exclude_suffix_prunes_matching_directory(tmp_path):
+    write_deployment_policy(tmp_path, suffixes=[".db"])
+    write_files(
+        tmp_path,
+        {
+            "complete/keep.txt": "ok",
+            "store.db/secret.txt": "hidden",
+            "store.db.bak": "kept",
+        },
+    )
+
+    plan = build_deployment_plan(tmp_path)
+    destinations = {
+        candidate.destination for candidate in plan.directory_link_candidates
+    }
+
+    assert plan.destinations == {
+        "complete/keep.txt",
+        "deploy.toml",
+        "store.db.bak",
+    }
+    assert "complete" in destinations
+    assert "store.db" not in destinations
 
 
 def test_plan_applies_literal_prefixes_allows_missing_and_includes_policy(tmp_path):

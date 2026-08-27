@@ -4,15 +4,13 @@
 
 ### Added
 
-- Added the version 1 literal `deploy.toml` parser and deterministic
-  experiment-root deployment plan model, with development bulk directory links
-  and ordinary copied materialization for remote staging.
-- Added optional ``exclude_anywhere`` to version 1 ``deploy.toml`` for
-  literal basenames omitted in every directory, distinct from root-relative
-  ``exclude`` prefixes. Starter ``dallinger deployment-files init`` writes
-  ``__pycache__``, ``.env``, ``.venv``, ``node_modules``, ``server.log``,
-  ``*.db``, and ``*.dmg`` there. ``exclude_anywhere`` accepts literal
-  basenames or ``*.suffix`` patterns (``endswith`` on the filename).
+- Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
+  (``paths``, ``names``, ``suffixes``) plus the deterministic
+  experiment-root deployment plan model, with development bulk directory
+  links and ordinary copied materialization for remote staging. Starter
+  ``dallinger deployment-files init`` writes root-relative prefixes in
+  ``paths``, nested junk names such as ``__pycache__`` in ``names``, and
+  ``.db`` / ``.dmg`` in ``suffixes``.
 - Added `dallinger deployment-files list` and `init` for inspecting and creating
   starter policies.
 - Added opt-in `deploy.toml` experiment-file membership to verification,
@@ -33,9 +31,10 @@
   the source experiment.
 - Invalid ``deploy.toml`` now surfaces as a Click usage error from
   ``dallinger sandbox``, ``deploy``, ``verify``, ``develop debug``,
-  ``develop bootstrap``, ``load``, ``docker push``, and docker-ssh image
-  build, instead of a traceback or a generic verify message. Commands that
-  verify then assemble reuse one ``ExperimentFileSource``.
+  ``develop bootstrap``, ``load``, ``docker push``, docker-ssh image
+  build, and ``dallinger deployment-files list``, instead of a traceback
+  or a generic verify message. Commands that verify then assemble reuse
+  one ``ExperimentFileSource``.
 - Heroku Docker and docker-ssh image push reuse the just-built image instead of
   assembling the experiment a second time.
 - Editable installs now fall back to the source tree when
@@ -44,12 +43,12 @@
 ### Updated
 
 - Documented ``deploy.toml`` for experiment authors, including format,
-  ``exclude`` vs ``exclude_anywhere``, auto-omitted paths,
+  the nested ``[exclude]`` table, auto-omitted paths,
   ``dallinger deployment-files list`` / ``init``, and that Git-based
   membership is a compatibility fallback that may later be deprecated
   after PsyNet production use.
 - Matched the documented ``dallinger deployment-files init`` starter
-  ``exclude`` and ``exclude_anywhere`` lists to the CLI.
+  ``paths``, ``names``, and ``suffixes`` lists to the CLI.
 
 ## [v12.3.0](https://github.com/dallinger/dallinger/tree/v12.3.0) (2026-08-22)
 

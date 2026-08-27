@@ -1,9 +1,9 @@
 """Build deterministic deployment manifests from an experiment directory.
 
 This module turns a literal ``deploy.toml`` policy into an ordered plan of
-regular experiment-root files. ``exclude`` entries are root-relative prefixes;
-``exclude_anywhere`` entries are literal basenames or ``*.suffix`` patterns
-omitted in every directory.
+regular experiment-root files. The ``[exclude]`` table has ``paths``
+(root-relative prefixes), ``names`` (basenames in every directory), and
+``suffixes`` (``.db``-style endings in every directory).
 Generated outputs, framework providers, and backend materialization live
 outside this module.
 
@@ -28,7 +28,8 @@ from typing import AbstractSet, TypeVar
 POLICY_FILENAME = "deploy.toml"
 SCHEMA_VERSION = 1
 
-_POLICY_KEYS = frozenset({"version", "exclude", "exclude_anywhere"})
+_POLICY_KEYS = frozenset({"version", "exclude"})
+_EXCLUDE_KEYS = frozenset({"paths", "names", "suffixes"})
 _VCS_METADATA_NAMES = frozenset({".git", ".hg", ".svn", ".bzr"})
 _GENERATED_ROOT_DESTINATION_NAMES = frozenset(
     {
@@ -57,8 +58,9 @@ class DeploymentPolicy:
     """The validated, normalized contents of a version 1 ``deploy.toml``."""
 
     version: int
-    exclude: tuple[str, ...]
-    exclude_anywhere: tuple[str, ...]
+    exclude_paths: tuple[str, ...]
+    exclude_names: tuple[str, ...]
+    exclude_suffixes: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -184,21 +186,37 @@ def _parse_policy(raw_policy: dict) -> DeploymentPolicy:
             f"Deployment policy version must be the integer {SCHEMA_VERSION}."
         )
 
-    exclusions = _normalized_unique_strings(
-        _require_string_list(raw_policy["exclude"], "exclude"),
+    exclude_table = raw_policy["exclude"]
+    if not isinstance(exclude_table, dict):
+        raise DeploymentPolicyError(
+            "Deployment policy exclude must be a table with paths, names, and suffixes."
+        )
+    unknown_exclude_keys = set(exclude_table) - _EXCLUDE_KEYS
+    if unknown_exclude_keys:
+        keys = ", ".join(sorted(unknown_exclude_keys))
+        raise DeploymentPolicyError(f"Unknown exclude key(s): {keys}.")
+
+    paths = _normalized_unique_strings(
+        _optional_string_list(exclude_table, "paths"),
         validator=_validate_policy_path,
-        duplicate_label="exclusion path",
+        duplicate_label="exclude.paths entry",
     )
-    anywhere = _normalized_unique_strings(
-        _optional_string_list(raw_policy, "exclude_anywhere"),
-        validator=_validate_anywhere_name,
-        duplicate_label="exclude_anywhere name",
+    names = _normalized_unique_strings(
+        _optional_string_list(exclude_table, "names"),
+        validator=_validate_exclude_name,
+        duplicate_label="exclude.names entry",
+    )
+    suffixes = _normalized_unique_strings(
+        _optional_string_list(exclude_table, "suffixes"),
+        validator=_validate_exclude_suffix,
+        duplicate_label="exclude.suffixes entry",
     )
 
     return DeploymentPolicy(
         version=version,
-        exclude=tuple(sorted(exclusions)),
-        exclude_anywhere=tuple(sorted(anywhere)),
+        exclude_paths=tuple(sorted(paths)),
+        exclude_names=tuple(sorted(names)),
+        exclude_suffixes=tuple(sorted(suffixes)),
     )
 
 
@@ -326,8 +344,9 @@ def build_deployment_plan(
 
     policy_snapshot = _read_policy_snapshot(root / POLICY_FILENAME)
     policy = policy_snapshot.policy
-    exclusions = frozenset(policy.exclude)
-    anywhere_names, anywhere_suffixes = _anywhere_matchers(policy.exclude_anywhere)
+    exclusions = frozenset(policy.exclude_paths)
+    anywhere_names = frozenset(policy.exclude_names)
+    anywhere_suffixes = policy.exclude_suffixes
     policy_source = root / POLICY_FILENAME
     register_destination(POLICY_FILENAME, policy_source)
     entries.append(
@@ -458,6 +477,16 @@ def _normalized_unique_strings(
     return normalized_values
 
 
+def _reject_unsupported_globs(
+    value: str, *, where: str, reported: str | None = None
+) -> None:
+    """Reject Git-style glob characters in one policy field."""
+    if any(character in _GLOB_CHARACTERS for character in value):
+        raise DeploymentPolicyError(
+            f"Glob syntax is unsupported in {where}: {(reported or value)!r}."
+        )
+
+
 def _validate_policy_path(value: str) -> str:
     """Validate and NFC-normalize one literal root-relative exclusion."""
     if not value:
@@ -474,10 +503,7 @@ def _validate_policy_path(value: str) -> str:
         raise DeploymentPolicyError(
             f"Negated exclusion paths are unsupported: {value!r}."
         )
-    if any(character in _GLOB_CHARACTERS for character in value):
-        raise DeploymentPolicyError(
-            f"Glob syntax is unsupported in exclusion paths: {value!r}."
-        )
+    _reject_unsupported_globs(value, where="exclude.paths")
 
     components = value.split("/")
     if any(not component for component in components):
@@ -494,31 +520,50 @@ def _validate_policy_path(value: str) -> str:
         for component in components
     )
     normalized = "/".join(normalized_parts)
-    if _reserved_kind(normalized_parts) is not None:
-        raise DeploymentPolicyError(
-            f"Deployment policy cannot exclude required or reserved path {normalized!r}."
-        )
+    _reject_reserved_exclusion(normalized_parts)
     return normalized
 
 
-def _validate_anywhere_name(value: str) -> str:
-    """Validate one basename or ``*.suffix`` omitted at any depth."""
+def _validate_exclude_name(value: str) -> str:
+    """Validate one basename omitted in every directory."""
+    if not value:
+        raise DeploymentPolicyError("exclude.names entries must not be empty.")
     if "/" in value or "\\" in value:
         raise DeploymentPolicyError(
-            f"exclude_anywhere entries must be a single path component: {value!r}."
+            f"exclude.names entries must be a single path component: {value!r}."
         )
-    if value.startswith("*."):
-        suffix = unicodedata.normalize("NFC", value[1:])
-        if any(character in suffix for character in _GLOB_CHARACTERS):
-            raise DeploymentPolicyError(
-                f"Glob syntax is unsupported in exclusion paths: {value!r}."
-            )
-        if not suffix.startswith(".") or suffix in {".", ".."} or len(suffix) < 2:
-            raise DeploymentPolicyError(
-                f"exclude_anywhere suffix patterns must look like '*.db': {value!r}."
-            )
-        return "*" + suffix
-    return _validate_policy_path(value)
+    if value.startswith("!"):
+        raise DeploymentPolicyError(
+            f"Negated exclude.names entries are unsupported: {value!r}."
+        )
+    _reject_unsupported_globs(value, where="exclude.names")
+    normalized = _normalize_path_component(
+        value,
+        context=f"exclude.names entry {value!r}",
+        error_type=DeploymentPolicyError,
+    )
+    _reject_reserved_exclusion((normalized,))
+    return normalized
+
+
+def _validate_exclude_suffix(value: str) -> str:
+    """Validate one ``.db``-style suffix omitted in every directory."""
+    if "/" in value or "\\" in value:
+        raise DeploymentPolicyError(
+            f"exclude.suffixes entries must be a single path component: {value!r}."
+        )
+    _reject_unsupported_globs(value, where="exclude.suffixes")
+    normalized = unicodedata.normalize("NFC", value)
+    if (
+        not normalized.startswith(".")
+        or normalized in {".", ".."}
+        or len(normalized) < 2
+    ):
+        raise DeploymentPolicyError(
+            f"exclude.suffixes entries must look like '.db': {value!r}."
+        )
+    _reject_reserved_exclusion((normalized,))
+    return normalized
 
 
 def _normalize_source_component(name: str, source: Path) -> str:
@@ -568,13 +613,14 @@ def _has_exclusion_at_or_below(
     return any(item.startswith(prefix) for item in exclusions)
 
 
-def _anywhere_matchers(
-    exclude_anywhere: tuple[str, ...],
-) -> tuple[frozenset[str], tuple[str, ...]]:
-    """Split exclude_anywhere into exact names and ``endswith`` suffixes."""
-    names = frozenset(item for item in exclude_anywhere if not item.startswith("*."))
-    suffixes = tuple(item[1:] for item in exclude_anywhere if item.startswith("*."))
-    return names, suffixes
+def _reject_reserved_exclusion(destination_parts: tuple[str, ...]) -> None:
+    """Reject exclusions that target required or reserved destinations."""
+    if _reserved_kind(destination_parts) is None:
+        return
+    raise DeploymentPolicyError(
+        "Deployment policy cannot exclude required or reserved path "
+        f"{'/'.join(destination_parts)!r}."
+    )
 
 
 def _is_omitted_anywhere(
