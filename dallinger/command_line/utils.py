@@ -16,6 +16,7 @@ from rich.text import Text
 
 from dallinger.config import get_config, initialize_experiment_package
 from dallinger.constraints import _get_requested_python_version
+from dallinger.deployment_plan import DeploymentPlanError, DeploymentPolicyError
 from dallinger.utils import ExperimentFileSource
 from dallinger.version import __version__
 
@@ -143,6 +144,33 @@ def get_server_pem_path() -> Path:
     return pem_path
 
 
+_EXPERIMENT_FILES_META = "dallinger.experiment_files"
+
+
+def get_experiment_files(root="."):
+    """Return the command-scoped experiment files, building them if needed.
+
+    Policy errors become Click usage errors. Repeated calls in the same Click
+    command reuse one ``ExperimentFileSource`` when they resolve to the same
+    experiment root.
+    """
+    resolved = os.path.abspath(root)
+    ctx = click.get_current_context(silent=True)
+    cache = None
+    if ctx is not None:
+        cache = ctx.meta.setdefault(_EXPERIMENT_FILES_META, {})
+        existing = cache.get(resolved)
+        if existing is not None:
+            return existing
+    try:
+        source = ExperimentFileSource(resolved)
+    except (DeploymentPolicyError, DeploymentPlanError) as error:
+        raise click.UsageError(str(error)) from error
+    if cache is not None:
+        cache[resolved] = source
+    return source
+
+
 def require_exp_directory(f):
     """Decorator to verify that a command is run inside a valid Dallinger
     experiment directory.
@@ -153,7 +181,9 @@ def require_exp_directory(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         try:
-            if not verify_package(kwargs.get("verbose")):
+            if not verify_package(
+                kwargs.get("verbose"), experiment_files=get_experiment_files()
+            ):
                 raise click.UsageError(error_one)
         except ValueError:
             raise click.UsageError(error_two)
@@ -162,22 +192,34 @@ def require_exp_directory(f):
     return wrapper
 
 
-def verify_package(verbose=True, verify_experiment=True):
+def verify_package(
+    verbose=True,
+    verify_experiment=True,
+    experiment_files=None,
+):
     """Perform a series of checks on the current directory to verify that
     it's a valid Dallinger experiment.
+
+    A command can pass one ``ExperimentFileSource`` here and to
+    ``setup_experiment`` so verification and assembly share one frozen plan.
     """
+    file_source = experiment_files or ExperimentFileSource(os.getcwd())
     return all(
         (
-            verify_directory(verbose),
+            verify_directory(verbose, file_source),
             verify_python_version(verbose),
-            verify_experiment_module(verbose) if verify_experiment else True,
+            (
+                verify_experiment_module(verbose, file_source)
+                if verify_experiment
+                else True
+            ),
             verify_config(verbose),
             verify_no_conflicts(verbose),
         )
     )
 
 
-def verify_directory(verbose=True):
+def verify_directory(verbose=True, experiment_files=None):
     """Ensure that the current directory looks like a Dallinger experiment, and
     does not appear to have unintended contents that will be copied on
     deployment.
@@ -199,7 +241,7 @@ def verify_directory(verbose=True):
 
     # Check size
     max_size = exp_max_size_mb * mb_to_bytes
-    file_source = ExperimentFileSource(os.getcwd())
+    file_source = experiment_files or ExperimentFileSource(os.getcwd())
     size = file_source.size
     size_in_mb = round(size / mb_to_bytes)
     if size <= max_size:
@@ -256,7 +298,7 @@ def _python_versions_consistent(v1, v2):
     return True
 
 
-def verify_experiment_module(verbose):
+def verify_experiment_module(verbose, experiment_files=None):
     """Perform basic sanity checks on experiment.py."""
     ok = True
     if not os.path.exists("experiment.py"):
@@ -266,7 +308,8 @@ def verify_experiment_module(verbose):
     temp_package_name = "TEMP_VERIFICATION_PACKAGE"
     tmp = tempfile.mkdtemp()
     clone_dir = os.path.join(tmp, temp_package_name)
-    ExperimentFileSource(os.getcwd()).apply_to(clone_dir)
+    file_source = experiment_files or ExperimentFileSource(os.getcwd())
+    file_source.apply_to(clone_dir)
 
     initialize_experiment_package(clone_dir)
     from dallinger_experiment import experiment
