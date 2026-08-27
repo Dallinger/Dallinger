@@ -496,7 +496,7 @@ ruff==0.16.4
     # via dallinger
 s3transfer==0.19.2
     # via boto3
-selenium==4.47.0
+selenium==4.48.0
     # via dallinger
 send2trash==2.1.0
     # via jupyter-server
