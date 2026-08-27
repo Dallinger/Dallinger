@@ -234,6 +234,39 @@ def test_plan_exclude_anywhere_omits_nested_names_and_db_suffixes(tmp_path):
     }
 
 
+def test_starter_policy_omits_nested_junk_and_keeps_nested_data(tmp_path):
+    from dallinger.command_line.deployment_files import (
+        _STARTER_EXCLUDE_ANYWHERE,
+        _STARTER_EXCLUSIONS,
+    )
+
+    write_deployment_policy(
+        tmp_path,
+        exclude=_STARTER_EXCLUSIONS,
+        exclude_anywhere=_STARTER_EXCLUDE_ANYWHERE,
+    )
+    write_files(
+        tmp_path,
+        {
+            "pkg/__pycache__/x.pyc": "nested cache",
+            "pkg/mod.py": "code",
+            "nested/.env": "nested secret",
+            "illegit.db": "root db",
+            "legit_dir/illegit.db": "nested db",
+            "static/data/tone.wav": "stimulus",
+        },
+    )
+
+    plan = build_deployment_plan(tmp_path)
+
+    assert "pkg/__pycache__/x.pyc" not in plan
+    assert "nested/.env" not in plan
+    assert "illegit.db" not in plan
+    assert "legit_dir/illegit.db" not in plan
+    assert "pkg/mod.py" in plan
+    assert "static/data/tone.wav" in plan
+
+
 def test_plan_empty_exclude_anywhere_still_includes_nested_pycache(tmp_path):
     write_deployment_policy(tmp_path)
     write_files(

@@ -1473,6 +1473,24 @@ class TestSetupExperimentAdditional:
         assert found_in(os.path.join("static", "different", "ad.html"), dst)
 
 
+def test_stage_heroku_assembly_uses_git_add_all_without_policy():
+    from dallinger.deployment import _stage_heroku_assembly
+
+    git = mock.Mock()
+    _stage_heroku_assembly(git, mock.Mock(deployment_plan=None))
+
+    git.add.assert_called_once_with("--all")
+
+
+def test_stage_heroku_assembly_force_adds_with_policy():
+    from dallinger.deployment import _stage_heroku_assembly
+
+    git = mock.Mock()
+    _stage_heroku_assembly(git, mock.Mock(deployment_plan=object()))
+
+    git.add.assert_called_once_with("--force", "--all")
+
+
 @pytest.mark.usefixtures("active_config", "launch", "fake_git", "fake_redis", "faster")
 class TestDeploySandboxSharedSetupNoExternalCalls:
     @pytest.fixture
