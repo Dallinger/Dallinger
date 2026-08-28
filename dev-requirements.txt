@@ -635,7 +635,7 @@ virtualenv==21.7.4
     # via
     #   pre-commit
     #   tox
-wcwidth==0.8.2
+wcwidth==0.8.3
     # via prompt-toolkit
 webcolors==25.10.0
     # via jsonschema
