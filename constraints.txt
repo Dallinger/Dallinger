@@ -225,7 +225,7 @@ jupyter-builder==1.2.2
     # via
     #   jupyterlab
     #   notebook
-jupyter-client==8.9.1
+jupyter-client==8.10.0
     # via
     #   ipykernel
     #   jupyter-console
