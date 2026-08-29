@@ -4,7 +4,7 @@
     # via -r dev-requirements.in
 alabaster==1.0.0
     # via sphinx
-ansi2html==1.9.2
+ansi2html==1.9.3
     # via dallinger
 anyio==4.14.2
     # via
