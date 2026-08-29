@@ -2,7 +2,7 @@
 #    ./scripts/update_dependencies.sh
 # Compiled for Python 3.11
     # via -r requirements.in
-ansi2html==1.9.2
+ansi2html==1.9.3
     # via dallinger
 apscheduler==3.11.3
     # via dallinger
