@@ -200,7 +200,7 @@ user-agents==2.2.0
     # via dallinger
 uv==0.12.5
     # via dallinger
-websocket-client==1.9.0
+websocket-client==1.9.1
     # via selenium
 werkzeug==3.1.8
     # via
