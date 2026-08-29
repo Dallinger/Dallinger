@@ -643,7 +643,7 @@ webencodings==0.6.1
     # via
     #   bleach
     #   tinycss2
-websocket-client==1.9.0
+websocket-client==1.9.1
     # via
     #   jupyter-server
     #   selenium
