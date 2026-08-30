@@ -629,6 +629,34 @@ class TestProlificRecruiter:
 
         mock_logger.exception.assert_called_once_with("Boom!")
 
+    @pytest.mark.parametrize("prolific_status", ["ACTIVE", "TIMED-OUT"])
+    def test_approve_hit_logs_expected_status_warning_without_exception(
+        self, recruiter, prolific_status
+    ):
+        from dallinger.prolific import ProlificServiceException
+
+        error = ProlificServiceException(
+            "Prolific session not yet submitted "
+            f"(current status is '{prolific_status}')."
+        )
+        recruiter.prolificservice.approve_participant_submission.side_effect = error
+        exp_klass = mock.Mock()
+
+        with (
+            mock.patch("dallinger.recruiters.logger") as mock_logger,
+            mock.patch("dallinger.recruiters.get_exp_klass", return_value=exp_klass),
+        ):
+            result = recruiter.approve_hit("fake-hit-id")
+
+        assert result is None
+        mock_logger.warning.assert_called_once()
+        message = str(mock_logger.warning.call_args.args[0])
+        assert "expected Prolific status" in message
+        assert prolific_status in message
+        assert "Prolific approval was not completed" in message
+        mock_logger.exception.assert_not_called()
+        exp_klass.handle_recruitment_error.assert_called_once_with(error)
+
     def test_recruit_calls_add_participants_to_study(self, recruiter):
         recruiter.open_recruitment()
         recruiter.recruit(n=1)
