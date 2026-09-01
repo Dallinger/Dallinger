@@ -49,6 +49,11 @@
   after PsyNet production use.
 - Matched the documented ``dallinger deployment-files init`` starter
   ``paths``, ``names``, and ``suffixes`` lists to the CLI.
+- Regenerated the committed ``tests/experiment/constraints.txt`` fixture
+  against the released v12.3.0 pins (dropping the removed ``chardet``
+  dependency, which the stale v12.2.1-based file still carried) and added
+  ``tests/experiment`` to ``scripts/update_experiments_constraints.py`` so
+  the fixture is refreshed with each release like the demo constraints.
 
 ## [v12.3.0](https://github.com/dallinger/dallinger/tree/v12.3.0) (2026-08-22)
 
