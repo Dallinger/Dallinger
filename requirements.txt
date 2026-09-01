@@ -2,7 +2,7 @@
 #    ./scripts/update_dependencies.sh
 # Compiled for Python 3.11
     # via -r requirements.in
-ansi2html==1.9.2
+ansi2html==1.9.3
     # via dallinger
 apscheduler==3.11.3
     # via dallinger
@@ -18,13 +18,13 @@ beautifulsoup4==4.15.0
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.43.80
+boto3==1.43.86
     # via dallinger
-botocore==1.43.80
+botocore==1.43.86
     # via
     #   boto3
     #   s3transfer
-build==1.5.0
+build==1.6.0
     # via dallinger
 certifi==2026.7.22
     # via
@@ -45,7 +45,7 @@ croniter==6.2.4
     # via rq
 cryptography==50.0.1
     # via paramiko
-faker==40.37.0
+faker==40.38.0
     # via dallinger
 flask==3.1.3
     # via
@@ -109,7 +109,7 @@ paramiko==3.5.1
     # via dallinger
 pexpect==4.9.0
     # via dallinger
-platformdirs==4.11.4
+platformdirs==4.11.7
     # via dallinger
 psutil==7.2.2
     # via dallinger
@@ -148,11 +148,11 @@ rich==15.0.0
     # via dallinger
 rpds-py==0.30.0
     # via dallinger
-rq==2.11.0
+rq==2.12.0
     # via dallinger
 s3transfer==0.19.2
     # via boto3
-selenium==4.47.0
+selenium==4.48.0
     # via dallinger
 simple-websocket==1.1.0
     # via flask-sock
@@ -198,9 +198,9 @@ urllib3==2.7.0
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.12.6
+uv==0.12.9
     # via dallinger
-websocket-client==1.9.0
+websocket-client==1.9.2
     # via selenium
 werkzeug==3.1.8
     # via
