@@ -42,6 +42,9 @@
 
 ### Updated
 
+- Updated Python dependencies (regenerated ``requirements.txt``,
+  ``dev-requirements.txt``, and ``constraints.txt``; bumped the ruff
+  pre-commit hook).
 - Documented ``deploy.toml`` for experiment authors, including format,
   the nested ``[exclude]`` table, auto-omitted paths,
   ``dallinger deployment-files list`` / ``init``, and that Git-based
@@ -132,13 +135,6 @@
 - Fixed the `config.txt` reload performed on `Experiment.run()` so it is
   tagged with the experiment-config priority and no longer overrides
   environment variables.
-
-### Updated
-
-- Updated Python dependencies
-- Avoided a duplicate experiment-package copy during `dallinger develop debug`
-  by validating the working tree before development staging; strict packaged
-  validation remains available through `dallinger verify`.
 
 ### Removed
 
