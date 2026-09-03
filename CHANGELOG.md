@@ -24,6 +24,14 @@
 
 ### Fixed
 
+- Experiment Docker image tags now hash the whole assembled experiment
+  directory (excluding per-deployment generated files such as ``config.txt``
+  and ``experiment_id.txt``) instead of only ``requirements.txt`` and
+  ``prepare_docker_image.sh``. Two experiment variants that differed only in
+  ``experiment.py`` previously shared one image tag, so parallel deploys
+  raced each other's builds and one app could silently run the other
+  variant's code. Unchanged experiments keep a stable tag, so image reuse
+  still works.
 - Frozen-plan Heroku and docker-ssh assembly now compile ``constraints.txt``
   in the staging directory instead of skipping generation. Experiments with
   ``deploy.toml`` no longer need a pre-existing ``constraints.txt`` in the

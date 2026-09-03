@@ -11,6 +11,7 @@ from jinja2 import Template
 from pip._internal.network.session import PipSession
 from pip._internal.req import parse_requirements
 
+from dallinger.config import LOCAL_CONFIG
 from dallinger.docker.wheel_filename import parse_wheel_filename
 from dallinger.utils import (
     JSON_LOGFILE,
@@ -257,22 +258,49 @@ def get_required_dallinger_version(experiment_tmp_path: str) -> str:
     return parse_wheel_filename(dallinger_requirements[0][len("file:") :]).version
 
 
+# Files in the assembled experiment directory that are generated per
+# deployment (or per local docker-compose run) and must not influence the
+# image tag: hashing them would give every deployment a unique tag and
+# defeat image reuse. Deploy-time configuration reaches the containers
+# through the environment, not through these baked files.
+IMAGE_TAG_EXCLUDED_FILES = frozenset(
+    {
+        LOCAL_CONFIG,  # config.txt: resolved config, includes the deploy id
+        "experiment_id.txt",
+        "docker-compose.yml",
+        ".env",
+        JSON_LOGFILE,
+    }
+)
+
+
 def get_experiment_image_tag(experiment_tmp_path: str) -> str:
     """Return a docker image tag to be used for the experiment.
 
-    The tag needs to be a hash of all the files that, when changed,
-    require the image to be rebuilt.
+    The tag is a hash of the assembled experiment directory (the Docker
+    build context), excluding per-deployment generated files, so that a
+    tag uniquely identifies the code baked into the image.
 
-    When an experiment is changed an older image can still be used,
-    as long as no dependencies or build script changed.
-    The experiment directory can then be mounted to have the latest changes.
-    This saves the need to rebuild the image too often.
+    Hashing only a subset of files (as done previously with
+    ``requirements.txt`` and ``prepare_docker_image.sh``) let two
+    experiment variants with different ``experiment.py`` files share one
+    tag: deployed in parallel they raced each other's builds, and one app
+    ended up running the other variant's code.
+
+    An unchanged experiment still maps to a stable tag, so an existing
+    image can be reused; when code does change, Docker's layer cache keeps
+    the rebuild cheap.
     """
-    files = "requirements.txt", "prepare_docker_image.sh"
+    root = Path(experiment_tmp_path)
     hash = sha256()
-    for filename in files:
-        filepath = Path(experiment_tmp_path) / filename
+    for filepath in sorted(path for path in root.rglob("*") if path.is_file()):
+        relative_path = filepath.relative_to(root)
+        if relative_path.parts[0] in IMAGE_TAG_EXCLUDED_FILES:
+            continue
+        hash.update(relative_path.as_posix().encode())
+        hash.update(b"\0")
         hash.update(filepath.read_bytes())
+        hash.update(b"\0")
     return hash.hexdigest()[:8]
 
 

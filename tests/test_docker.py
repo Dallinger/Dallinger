@@ -146,3 +146,60 @@ def test_num_dynos():
     result = get_yaml({"num_dynos_worker": n})
     for i in range(n):
         assert f"worker_{i + 1}" in result["services"]
+
+
+def make_experiment_tmp_dir(tmp_path, name="exp"):
+    """Create a minimal assembled experiment directory for tag hashing tests."""
+    exp_dir = tmp_path / name
+    (exp_dir / "static").mkdir(parents=True)
+    (exp_dir / "requirements.txt").write_text("dallinger==12.3.0\n")
+    (exp_dir / "prepare_docker_image.sh").write_text("#!/bin/sh\ntrue\n")
+    (exp_dir / "experiment.py").write_text("class Exp:\n    pass\n")
+    (exp_dir / "static" / "script.js").write_text("console.log('hi');\n")
+    return exp_dir
+
+
+def test_image_tag_stable_for_identical_content(tmp_path):
+    from dallinger.docker.tools import get_experiment_image_tag
+
+    first = make_experiment_tmp_dir(tmp_path, "first")
+    second = make_experiment_tmp_dir(tmp_path, "second")
+    assert get_experiment_image_tag(str(first)) == get_experiment_image_tag(str(second))
+
+
+def test_image_tag_changes_when_experiment_code_changes(tmp_path):
+    """Two variants differing only in experiment.py must not share a tag.
+
+    Previously only requirements.txt and prepare_docker_image.sh were
+    hashed, so parallel deploys of two variants raced each other's builds
+    under one tag and one app ran the other variant's code.
+    """
+    from dallinger.docker.tools import get_experiment_image_tag
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    tag_before = get_experiment_image_tag(str(exp_dir))
+    (exp_dir / "experiment.py").write_text("class Exp:\n    variant = 'other'\n")
+    assert get_experiment_image_tag(str(exp_dir)) != tag_before
+
+
+def test_image_tag_changes_when_nested_file_changes(tmp_path):
+    from dallinger.docker.tools import get_experiment_image_tag
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    tag_before = get_experiment_image_tag(str(exp_dir))
+    (exp_dir / "static" / "script.js").write_text("console.log('changed');\n")
+    assert get_experiment_image_tag(str(exp_dir)) != tag_before
+
+
+def test_image_tag_ignores_per_deployment_files(tmp_path):
+    """Generated per-deploy files must not make every deployment a new tag."""
+    from dallinger.docker.tools import get_experiment_image_tag
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    tag_before = get_experiment_image_tag(str(exp_dir))
+    (exp_dir / "config.txt").write_text("[Parameters]\nid = deploy-specific\n")
+    (exp_dir / "experiment_id.txt").write_text("some-uuid")
+    (exp_dir / "docker-compose.yml").write_text("services: {}\n")
+    (exp_dir / ".env").write_text("FLASK_SECRET_KEY=random\n")
+    (exp_dir / "logs.jsonl").write_text("")
+    assert get_experiment_image_tag(str(exp_dir)) == tag_before
