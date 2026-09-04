@@ -198,7 +198,7 @@ urllib3==2.7.0
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.12.5
+uv==0.12.10
     # via dallinger
 websocket-client==1.9.0
     # via selenium
