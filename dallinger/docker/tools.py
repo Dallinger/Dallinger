@@ -11,7 +11,6 @@ from jinja2 import Template
 from pip._internal.network.session import PipSession
 from pip._internal.req import parse_requirements
 
-from dallinger.config import LOCAL_CONFIG
 from dallinger.docker.wheel_filename import parse_wheel_filename
 from dallinger.utils import (
     JSON_LOGFILE,
@@ -258,60 +257,57 @@ def get_required_dallinger_version(experiment_tmp_path: str) -> str:
     return parse_wheel_filename(dallinger_requirements[0][len("file:") :]).version
 
 
-# Files in the assembled experiment directory that are generated per
-# deployment (or per local docker-compose run) and must not influence the
-# image tag: hashing them would give every deployment a unique tag and
-# defeat image reuse. Deploy-time configuration reaches the containers
-# through the environment, not through these baked files.
-IMAGE_TAG_EXCLUDED_FILES = frozenset(
-    {
-        LOCAL_CONFIG,  # config.txt: resolved config, includes the deploy id
-        "experiment_id.txt",
-        "docker-compose.yml",
-        ".env",
-        JSON_LOGFILE,
-    }
-)
-
-
 def get_experiment_image_tag(experiment_tmp_path: str) -> str:
-    """Return a docker image tag to be used for the experiment.
+    """Return a docker image tag from the experiment's dependency inputs.
 
-    The tag is a hash of the assembled experiment directory (the Docker
-    build context), excluding per-deployment generated files, so that a
-    tag uniquely identifies the code baked into the image.
-
-    Hashing only a subset of files (as done previously with
-    ``requirements.txt`` and ``prepare_docker_image.sh``) let two
-    experiment variants with different ``experiment.py`` files share one
-    tag: deployed in parallel they raced each other's builds, and one app
-    ended up running the other variant's code.
-
-    An unchanged experiment still maps to a stable tag, so an existing
-    image can be reused; when code does change, Docker's layer cache keeps
-    the rebuild cheap.
+    Used for local ``docker debug`` (the experiment directory is bind-mounted,
+    so the image is only a deps environment) and for ``dallinger docker build``
+    / ``push --use-existing``. SSH and Heroku-docker deploys instead pass
+    :func:`docker_tag_from_experiment_id` into :func:`build_image`, because
+    those paths ``COPY`` the experiment into the image.
     """
-    root = Path(experiment_tmp_path)
+    files = "requirements.txt", "prepare_docker_image.sh"
     hash = sha256()
-    for filepath in sorted(path for path in root.rglob("*") if path.is_file()):
-        relative_path = filepath.relative_to(root)
-        if relative_path.parts[0] in IMAGE_TAG_EXCLUDED_FILES:
-            continue
-        hash.update(relative_path.as_posix().encode())
-        hash.update(b"\0")
+    for filename in files:
+        filepath = Path(experiment_tmp_path) / filename
         hash.update(filepath.read_bytes())
-        hash.update(b"\0")
     return hash.hexdigest()[:8]
 
 
+def docker_tag_from_experiment_id(experiment_id: str) -> str:
+    """Return a Docker tag unique to this launch.
+
+    On SSH and Heroku-docker deploy the experiment directory is copied into
+    the image and compose pins that tag for the life of the app. A deps-only
+    hash is then unsafe: two variants with the same ``requirements.txt`` and
+    ``prepare_docker_image.sh`` share a tag, race each other's builds, and
+    one app can run the other variant's code.
+
+    ``experiment_id`` is the per-launch UID from ``setup_experiment``. Docker
+    tags allow ``[A-Za-z0-9_.-]`` and must not start with ``.`` or ``-``.
+    """
+    tag = "".join(
+        ch if ch.isalnum() or ch in "_.-" else "-" for ch in str(experiment_id)
+    )
+    tag = tag.lstrip(".-") or "latest"
+    return tag[:128]
+
+
 def build_image(
-    tmp_dir, base_image_name, out, needs_chrome=False, force_build=True
+    tmp_dir,
+    base_image_name,
+    out,
+    needs_chrome=False,
+    force_build=True,
+    image_tag=None,
 ) -> str:
     """Build the docker image for the experiment and return its name.
-    If force_build=False, then the image will only be rebuilt if requirements.txt or prepare_docker_image.sh
-    have changed.
+
+    If ``image_tag`` is set, use it (deploy: per-launch UID). Otherwise hash
+    ``requirements.txt`` and ``prepare_docker_image.sh``. If
+    ``force_build`` is False, skip the build when that tag already exists.
     """
-    tag = get_experiment_image_tag(tmp_dir)
+    tag = image_tag or get_experiment_image_tag(tmp_dir)
     image_name = f"{base_image_name}:{tag}"
     base_image_name = get_base_image(tmp_dir, needs_chrome)
     client = docker.client.from_env()

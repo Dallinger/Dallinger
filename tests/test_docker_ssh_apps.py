@@ -6,6 +6,8 @@ from unittest import mock
 import click
 import pytest
 
+from dallinger.docker.tools import docker_tag_from_experiment_id
+
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
 
 
@@ -164,6 +166,7 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
     config.get.side_effect = lambda key, default=None: {
         "docker_image_name": None,
         "docker_image_base_name": "base-image",
+        "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     }.get(key, default)
     config.as_dict.return_value = {"example": "value"}
     docker_client = mock.Mock()
@@ -216,7 +219,9 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
         mock.patch.object(docker_ssh_module, "ensure_remote_host_in_known_hosts"),
         mock.patch.object(docker_ssh_module, "add_server_pem_to_ssh_agent"),
         mock.patch("docker.from_env", return_value=docker_client),
-        mock.patch("dallinger.docker.tools.build_image", return_value="built:image"),
+        mock.patch(
+            "dallinger.docker.tools.build_image", return_value="built:image"
+        ) as build_image,
     ):
         result = wrapper(
             server="test-server",
@@ -235,6 +240,9 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
         "remote-discovery",
         "assemble",
     ]
+    assert build_image.call_args.kwargs["image_tag"] == (
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    )
 
 
 def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatch):
@@ -243,6 +251,7 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
     config.get.side_effect = lambda key, default=None: {
         "docker_image_name": None,
         "docker_image_base_name": "base-image",
+        "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     }.get(key, default)
     config.as_dict.return_value = {}
     wrapped_command = mock.Mock(return_value="deployed")
@@ -252,6 +261,7 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
     fake_docker = mock.MagicMock()
     fake_tools = mock.Mock()
     fake_tools.build_image.return_value = "built:image"
+    fake_tools.docker_tag_from_experiment_id = docker_tag_from_experiment_id
 
     monkeypatch.chdir(tmp_path)
     with (
@@ -285,3 +295,6 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
     push_image.assert_called_once_with("built:image")
     wrapped_command.assert_called_once()
     assert wrapped_command.call_args.kwargs["image_name"] == "pushed:image"
+    assert fake_tools.build_image.call_args.kwargs["image_tag"] == (
+        "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    )

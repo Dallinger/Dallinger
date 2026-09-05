@@ -105,10 +105,14 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
     config.get.side_effect = lambda key, default=None: {
         "mode": "debug",
         "docker_image_base_name": "registry/exp",
+        "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     }.get(key, default)
 
     fake_tools = mock.Mock()
     fake_tools.build_image.return_value = "registry/exp:tag"
+    fake_tools.docker_tag_from_experiment_id.side_effect = lambda experiment_id: (
+        experiment_id
+    )
 
     with (
         mock.patch.object(docker_cli, "get_config", return_value=config),
@@ -126,7 +130,11 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
 
     setup.assert_called_once()
     fake_tools.build_image.assert_called_once_with(
-        str(tmp_path), "registry/exp", mock.ANY, force_build=True
+        str(tmp_path),
+        "registry/exp",
+        mock.ANY,
+        force_build=True,
+        image_tag="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     )
     push_image.assert_called_once_with("registry/exp:tag")
 
@@ -159,47 +167,50 @@ def make_experiment_tmp_dir(tmp_path, name="exp"):
     return exp_dir
 
 
-def test_image_tag_stable_for_identical_content(tmp_path):
-    from dallinger.docker.tools import get_experiment_image_tag
+def test_deps_image_tag_ignores_experiment_code(tmp_path):
+    """Local docker debug hashes only dependency inputs.
 
-    first = make_experiment_tmp_dir(tmp_path, "first")
-    second = make_experiment_tmp_dir(tmp_path, "second")
-    assert get_experiment_image_tag(str(first)) == get_experiment_image_tag(str(second))
-
-
-def test_image_tag_changes_when_experiment_code_changes(tmp_path):
-    """Two variants differing only in experiment.py must not share a tag.
-
-    Previously only requirements.txt and prepare_docker_image.sh were
-    hashed, so parallel deploys of two variants raced each other's builds
-    under one tag and one app ran the other variant's code.
+    experiment.py is bind-mounted, so a code-only change must keep the same
+    tag. SSH/Heroku-docker deploys do not use this hash.
     """
     from dallinger.docker.tools import get_experiment_image_tag
 
     exp_dir = make_experiment_tmp_dir(tmp_path)
     tag_before = get_experiment_image_tag(str(exp_dir))
     (exp_dir / "experiment.py").write_text("class Exp:\n    variant = 'other'\n")
-    assert get_experiment_image_tag(str(exp_dir)) != tag_before
-
-
-def test_image_tag_changes_when_nested_file_changes(tmp_path):
-    from dallinger.docker.tools import get_experiment_image_tag
-
-    exp_dir = make_experiment_tmp_dir(tmp_path)
-    tag_before = get_experiment_image_tag(str(exp_dir))
     (exp_dir / "static" / "script.js").write_text("console.log('changed');\n")
-    assert get_experiment_image_tag(str(exp_dir)) != tag_before
+    assert get_experiment_image_tag(str(exp_dir)) == tag_before
 
 
-def test_image_tag_ignores_per_deployment_files(tmp_path):
-    """Generated per-deploy files must not make every deployment a new tag."""
+def test_deps_image_tag_changes_when_requirements_change(tmp_path):
     from dallinger.docker.tools import get_experiment_image_tag
 
     exp_dir = make_experiment_tmp_dir(tmp_path)
     tag_before = get_experiment_image_tag(str(exp_dir))
-    (exp_dir / "config.txt").write_text("[Parameters]\nid = deploy-specific\n")
-    (exp_dir / "experiment_id.txt").write_text("some-uuid")
-    (exp_dir / "docker-compose.yml").write_text("services: {}\n")
-    (exp_dir / ".env").write_text("FLASK_SECRET_KEY=random\n")
-    (exp_dir / "logs.jsonl").write_text("")
-    assert get_experiment_image_tag(str(exp_dir)) == tag_before
+    (exp_dir / "requirements.txt").write_text("dallinger==12.4.0\n")
+    assert get_experiment_image_tag(str(exp_dir)) != tag_before
+
+
+def test_deps_image_tag_changes_when_prepare_script_changes(tmp_path):
+    from dallinger.docker.tools import get_experiment_image_tag
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    tag_before = get_experiment_image_tag(str(exp_dir))
+    (exp_dir / "prepare_docker_image.sh").write_text("#!/bin/sh\necho other\n")
+    assert get_experiment_image_tag(str(exp_dir)) != tag_before
+
+
+def test_deploy_image_tag_is_unique_per_launch():
+    """Copied-in deploys must not share a tag across launches."""
+    from dallinger.docker.tools import docker_tag_from_experiment_id
+
+    lucid = docker_tag_from_experiment_id("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    prolific = docker_tag_from_experiment_id("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+    assert lucid != prolific
+    assert lucid == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+
+
+def test_deploy_image_tag_sanitizes_invalid_docker_characters():
+    from dallinger.docker.tools import docker_tag_from_experiment_id
+
+    assert docker_tag_from_experiment_id("exp=id:with/slash") == "exp-id-with-slash"
