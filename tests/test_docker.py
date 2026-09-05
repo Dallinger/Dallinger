@@ -105,10 +105,14 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
     config.get.side_effect = lambda key, default=None: {
         "mode": "debug",
         "docker_image_base_name": "registry/exp",
+        "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     }.get(key, default)
 
     fake_tools = mock.Mock()
     fake_tools.build_image.return_value = "registry/exp:tag"
+    fake_tools.docker_tag_from_experiment_id.side_effect = lambda experiment_id: (
+        experiment_id
+    )
 
     with (
         mock.patch.object(docker_cli, "get_config", return_value=config),
@@ -126,7 +130,11 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
 
     setup.assert_called_once()
     fake_tools.build_image.assert_called_once_with(
-        str(tmp_path), "registry/exp", mock.ANY, force_build=True
+        str(tmp_path),
+        "registry/exp",
+        mock.ANY,
+        force_build=True,
+        image_tag="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     )
     push_image.assert_called_once_with("registry/exp:tag")
 
@@ -146,3 +154,63 @@ def test_num_dynos():
     result = get_yaml({"num_dynos_worker": n})
     for i in range(n):
         assert f"worker_{i + 1}" in result["services"]
+
+
+def make_experiment_tmp_dir(tmp_path, name="exp"):
+    """Create a minimal assembled experiment directory for tag hashing tests."""
+    exp_dir = tmp_path / name
+    (exp_dir / "static").mkdir(parents=True)
+    (exp_dir / "requirements.txt").write_text("dallinger==12.3.0\n")
+    (exp_dir / "prepare_docker_image.sh").write_text("#!/bin/sh\ntrue\n")
+    (exp_dir / "experiment.py").write_text("class Exp:\n    pass\n")
+    (exp_dir / "static" / "script.js").write_text("console.log('hi');\n")
+    return exp_dir
+
+
+def test_deps_image_tag_ignores_experiment_code(tmp_path):
+    """Local docker debug hashes only dependency inputs.
+
+    experiment.py is bind-mounted, so a code-only change must keep the same
+    tag. SSH/Heroku-docker deploys do not use this hash.
+    """
+    from dallinger.docker.tools import get_experiment_image_tag
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    tag_before = get_experiment_image_tag(str(exp_dir))
+    (exp_dir / "experiment.py").write_text("class Exp:\n    variant = 'other'\n")
+    (exp_dir / "static" / "script.js").write_text("console.log('changed');\n")
+    assert get_experiment_image_tag(str(exp_dir)) == tag_before
+
+
+def test_deps_image_tag_changes_when_requirements_change(tmp_path):
+    from dallinger.docker.tools import get_experiment_image_tag
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    tag_before = get_experiment_image_tag(str(exp_dir))
+    (exp_dir / "requirements.txt").write_text("dallinger==12.4.0\n")
+    assert get_experiment_image_tag(str(exp_dir)) != tag_before
+
+
+def test_deps_image_tag_changes_when_prepare_script_changes(tmp_path):
+    from dallinger.docker.tools import get_experiment_image_tag
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    tag_before = get_experiment_image_tag(str(exp_dir))
+    (exp_dir / "prepare_docker_image.sh").write_text("#!/bin/sh\necho other\n")
+    assert get_experiment_image_tag(str(exp_dir)) != tag_before
+
+
+def test_deploy_image_tag_is_unique_per_launch():
+    """Copied-in deploys must not share a tag across launches."""
+    from dallinger.docker.tools import docker_tag_from_experiment_id
+
+    lucid = docker_tag_from_experiment_id("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    prolific = docker_tag_from_experiment_id("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+    assert lucid != prolific
+    assert lucid == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+
+
+def test_deploy_image_tag_sanitizes_invalid_docker_characters():
+    from dallinger.docker.tools import docker_tag_from_experiment_id
+
+    assert docker_tag_from_experiment_id("exp=id:with/slash") == "exp-id-with-slash"

@@ -532,7 +532,7 @@ def build_and_push_image(f):
         import docker
 
         from dallinger.command_line.docker import push_image
-        from dallinger.docker.tools import build_image
+        from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
 
         config = get_config(load=True)
         image_name = config.get("docker_image_name", None)
@@ -614,7 +614,10 @@ def build_and_push_image(f):
                 experiment_files=files,
             )
             image_name = build_image(
-                tmp_dir, config.get("docker_image_base_name"), out=Output()
+                tmp_dir,
+                config.get("docker_image_base_name"),
+                out=Output(),
+                image_tag=docker_tag_from_experiment_id(config.get("id")),
             )
 
             remote_build = not local_build
