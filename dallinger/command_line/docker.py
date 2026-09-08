@@ -337,7 +337,7 @@ def _deploy_in_mode(mode, verbose, app=None):
 
 
 def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
-    from dallinger.docker.tools import build_image
+    from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
 
     config = get_config(load=True)
     heroku_app_id, tmp = setup_experiment(
@@ -353,12 +353,14 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
         log("Registering the experiment on configured services...")
         registration.register(heroku_app_id, snapshot=None)
 
-    # Build experiment image
+    # Build experiment image. Tag with the launch UID so concurrent deploys
+    # cannot share or overwrite one image (the experiment is COPYd in, not mounted).
     image_name = build_image(
         tmp,
         config.get("docker_image_base_name") or Path(os.getcwd()).name,
         Output(),
         force_build=True,
+        image_tag=docker_tag_from_experiment_id(config.get("id")),
     )
     image_name = push_image(image_name)
 

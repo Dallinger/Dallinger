@@ -17,7 +17,7 @@ from email.utils import parseaddr
 from functools import wraps
 from getpass import getuser
 from io import BytesIO
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from secrets import token_urlsafe
 from shlex import quote
 from socket import gethostbyname_ex, gethostname
@@ -532,7 +532,7 @@ def build_and_push_image(f):
         import docker
 
         from dallinger.command_line.docker import push_image
-        from dallinger.docker.tools import build_image
+        from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
 
         config = get_config(load=True)
         image_name = config.get("docker_image_name", None)
@@ -614,7 +614,10 @@ def build_and_push_image(f):
                 experiment_files=files,
             )
             image_name = build_image(
-                tmp_dir, config.get("docker_image_base_name"), out=Output()
+                tmp_dir,
+                config.get("docker_image_base_name"),
+                out=Output(),
+                image_tag=docker_tag_from_experiment_id(config.get("id")),
             )
 
             remote_build = not local_build
@@ -1083,6 +1086,72 @@ It currently resolves to {ipaddr_experiment}."""
     }
 
 
+def experiment_image_from_compose(compose_yml: str) -> str | None:
+    """Return the image compose pins on the experiment ``web`` service."""
+    if not compose_yml:
+        return None
+    match = re.search(r"(?m)^  web:\n(?:    .*\n)*?    image: (\S+)", compose_yml)
+    if not match:
+        return None
+    return match.group(1).strip().strip("'\"") or None
+
+
+def read_remote_experiment_image(executor, app: str) -> str | None:
+    """Read the experiment image name from an app's remote compose file."""
+    raw = executor.run(
+        f"cat ~/dallinger/{app}/docker-compose.yml",
+        raise_=False,
+    )
+    return experiment_image_from_compose(raw or "")
+
+
+def apps_pinning_image(grep_paths: str, except_app: str) -> list[str]:
+    """Return app names whose compose files pin an image, excluding ``except_app``."""
+    apps = []
+    for line in (grep_paths or "").splitlines():
+        line = line.strip()
+        if not line.endswith("docker-compose.yml"):
+            continue
+        app_name = PurePosixPath(line).parent.name
+        if app_name and app_name != except_app:
+            apps.append(app_name)
+    return apps
+
+
+def image_pinned_by_other_apps(executor, image_name: str, except_app: str) -> bool:
+    """True if another app's compose file still pins this experiment image."""
+    needle = f"    image: {image_name}"
+    raw = executor.run(
+        f"grep -xF -l {quote(needle)} $HOME/dallinger/*/docker-compose.yml",
+        raise_=False,
+    )
+    return bool(apps_pinning_image(raw or "", except_app))
+
+
+def remove_experiment_image(executor, image_name: str | None) -> None:
+    """Remove a compose-pinned experiment image.
+
+    ``docker rmi`` without ``--force`` leaves the image if a container still
+    uses it.
+    """
+    if not image_name:
+        return
+    print(f"Removing experiment image {image_name}")
+    executor.run(f"docker rmi {quote(image_name)}", raise_=False)
+
+
+def remove_unshared_experiment_image(
+    executor, image_name: str | None, except_app: str
+) -> None:
+    """Remove an experiment image unless another app's compose still pins it."""
+    if not image_name:
+        return
+    if image_pinned_by_other_apps(executor, image_name, except_app):
+        print(f"Not removing image {image_name}: another app still pins it in compose")
+        return
+    remove_experiment_image(executor, image_name)
+
+
 def get_experiment_id_from_archive(archive_path):
     with zipfile.ZipFile(archive_path) as archive:
         with archive.open("experiment_id.md") as fh:
@@ -1298,6 +1367,10 @@ def destroy(server, app):
         print(f"App {app} is not deployed")
         raise click.Abort()
 
+    experiment_image = None
+    if docker_compose_exists:
+        experiment_image = read_remote_experiment_image(executor, app)
+
     # Inspect the active Caddyfile only after we know the app exists.
     caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
     uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
@@ -1324,6 +1397,7 @@ def destroy(server, app):
     executor.run(
         f"docker compose -f ~/dallinger/{app}/docker-compose.yml down", raise_=False
     )
+    remove_unshared_experiment_image(executor, experiment_image, except_app=app)
     executor.run(f"rm -rf ~/dallinger/{app}/")
     print(f"App {app} removed")
 

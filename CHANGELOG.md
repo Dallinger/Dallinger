@@ -24,6 +24,18 @@
 
 ### Fixed
 
+- SSH and Heroku-docker deploys now tag the experiment image with the
+  per-launch experiment UID instead of a hash of ``requirements.txt`` and
+  ``prepare_docker_image.sh``. Those files do not identify the copied
+  experiment code, so two variants (for example PsyNet ``audio_gibbs``
+  Lucid vs Prolific) could share one tag, race each other's builds, and
+  one app could run the other variant's code. Local ``docker debug`` still
+  uses the dependency hash because it bind-mounts the experiment directory.
+  ``dallinger docker build`` / ``push --use-existing`` also still use that
+  hash. ``dallinger docker-ssh destroy`` removes the compose-pinned
+  experiment image after ``compose down``. The image is kept if another
+  app's compose still pins it, and ``docker rmi`` is not forced, so a
+  shared ``docker_image_name`` in use by a container is also kept.
 - Frozen-plan Heroku and docker-ssh assembly now compile ``constraints.txt``
   in the staging directory instead of skipping generation. Experiments with
   ``deploy.toml`` no longer need a pre-existing ``constraints.txt`` in the

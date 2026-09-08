@@ -1,10 +1,14 @@
 import importlib
+import subprocess
 import sys
+import uuid
 from pathlib import Path
 from unittest import mock
 
 import click
 import pytest
+
+from dallinger.docker.tools import docker_tag_from_experiment_id
 
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
 
@@ -164,6 +168,7 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
     config.get.side_effect = lambda key, default=None: {
         "docker_image_name": None,
         "docker_image_base_name": "base-image",
+        "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     }.get(key, default)
     config.as_dict.return_value = {"example": "value"}
     docker_client = mock.Mock()
@@ -216,7 +221,9 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
         mock.patch.object(docker_ssh_module, "ensure_remote_host_in_known_hosts"),
         mock.patch.object(docker_ssh_module, "add_server_pem_to_ssh_agent"),
         mock.patch("docker.from_env", return_value=docker_client),
-        mock.patch("dallinger.docker.tools.build_image", return_value="built:image"),
+        mock.patch(
+            "dallinger.docker.tools.build_image", return_value="built:image"
+        ) as build_image,
     ):
         result = wrapper(
             server="test-server",
@@ -235,6 +242,9 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
         "remote-discovery",
         "assemble",
     ]
+    assert build_image.call_args.kwargs["image_tag"] == (
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    )
 
 
 def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatch):
@@ -243,6 +253,7 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
     config.get.side_effect = lambda key, default=None: {
         "docker_image_name": None,
         "docker_image_base_name": "base-image",
+        "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     }.get(key, default)
     config.as_dict.return_value = {}
     wrapped_command = mock.Mock(return_value="deployed")
@@ -252,6 +263,7 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
     fake_docker = mock.MagicMock()
     fake_tools = mock.Mock()
     fake_tools.build_image.return_value = "built:image"
+    fake_tools.docker_tag_from_experiment_id = docker_tag_from_experiment_id
 
     monkeypatch.chdir(tmp_path)
     with (
@@ -285,3 +297,173 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
     push_image.assert_called_once_with("built:image")
     wrapped_command.assert_called_once()
     assert wrapped_command.call_args.kwargs["image_name"] == "pushed:image"
+    assert fake_tools.build_image.call_args.kwargs["image_tag"] == (
+        "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    )
+
+
+def test_experiment_image_from_compose_reads_web_not_infra_images():
+    yml = docker_ssh_module.get_docker_compose_yml(
+        {
+            "num_dynos_worker": 2,
+            "clock_on": True,
+            "docker_worker_cpu_shares": 1024,
+            "docker_image_name": "ghcr.io/org/exp:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        },
+        "my-app",
+        "ghcr.io/org/exp:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "pw",
+    )
+    parsed = docker_ssh_module.experiment_image_from_compose(yml)
+    assert parsed == "ghcr.io/org/exp:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    assert parsed not in {
+        "redis",
+        "postgres:12",
+        "caddy:2",
+        "docker.io/bitnamilegacy/pgbouncer:1.24.1",
+        "amir20/dozzle:v10.0.2",
+    }
+
+
+def test_remove_experiment_image_runs_docker_rmi_without_force():
+    executor = mock.Mock()
+    docker_ssh_module.remove_experiment_image(executor, "registry/exp:old-uid")
+    executor.run.assert_called_once_with(
+        "docker rmi registry/exp:old-uid", raise_=False
+    )
+    assert "--force" not in executor.run.call_args[0][0]
+
+
+def test_remove_unshared_skips_rmi_when_another_app_pins_the_image():
+    executor = mock.Mock()
+    executor.run.return_value = "/home/ubuntu/dallinger/otherapp/docker-compose.yml\n"
+    docker_ssh_module.remove_unshared_experiment_image(
+        executor, "registry/exp:shared", except_app="myapp"
+    )
+    commands = [call.args[0] for call in executor.run.call_args_list]
+    assert any(cmd.startswith("grep -xF -l") for cmd in commands)
+    assert not any(cmd.startswith("docker rmi") for cmd in commands)
+
+
+def _patch_destroy_executor(monkeypatch, run):
+    executor = mock.Mock()
+    executor.run.side_effect = run
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"test-server": {"host": "example.com", "user": "ubuntu"}},
+    )
+    monkeypatch.setattr(docker_ssh_module, "Executor", lambda *args, **kwargs: executor)
+    return executor
+
+
+def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
+    compose_yml = docker_ssh_module.get_docker_compose_yml(
+        {},
+        "myapp",
+        "registry/exp:old-uid",
+        "pw",
+    )
+    commands = []
+
+    def run(cmd, raise_=True):
+        commands.append(cmd)
+        if cmd.startswith("test -f") and "caddy.d" in cmd:
+            return ""
+        if cmd.startswith("test -f") and "docker-compose.yml" in cmd:
+            return "Yes"
+        if cmd == "cat ~/dallinger/myapp/docker-compose.yml":
+            return compose_yml
+        if cmd == "cat ~/dallinger/Caddyfile":
+            return "https://example.com {\n    reverse_proxy other_web:5000\n}\n"
+        if cmd.startswith("grep -xF -l"):
+            return "/home/ubuntu/dallinger/myapp/docker-compose.yml\n"
+        return ""
+
+    _patch_destroy_executor(monkeypatch, run)
+    docker_ssh_module.destroy.callback(server="test-server", app="myapp")
+
+    down = "docker compose -f ~/dallinger/myapp/docker-compose.yml down"
+    rmi = "docker rmi registry/exp:old-uid"
+    rm_tree = "rm -rf ~/dallinger/myapp/"
+    assert commands.index(down) < commands.index(rmi) < commands.index(rm_tree)
+    rmi_commands = [cmd for cmd in commands if cmd.startswith("docker rmi")]
+    assert rmi_commands == [rmi]
+    for forbidden in (
+        "redis",
+        "postgres:12",
+        "caddy:2",
+        "pgbouncer",
+        "amir20/dozzle",
+    ):
+        assert not any(forbidden in cmd for cmd in rmi_commands)
+
+
+class _LocalDockerExecutor:
+    def run(self, cmd, raise_=True):
+        result = subprocess.run(
+            cmd, shell=True, capture_output=True, text=True, check=False
+        )
+        if raise_ and result.returncode != 0:
+            raise RuntimeError(result.stderr)
+        return result.stdout
+
+
+def _docker_image_exists(tag):
+    return (
+        subprocess.run(
+            ["docker", "image", "inspect", tag],
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
+
+
+def _import_empty_image(tag):
+    empty_tar = subprocess.check_output(["tar", "-c", "-T", "/dev/null"])
+    subprocess.run(
+        ["docker", "import", "--change", 'CMD ["true"]', "-", tag],
+        input=empty_tar,
+        check=True,
+    )
+
+
+@pytest.mark.docker
+def test_real_docker_rmi_removes_unused_tag_and_keeps_in_use_and_prefix_tags():
+    suffix = uuid.uuid4().hex[:12]
+    unused = f"dallinger-cleanup-test-{suffix}:unused"
+    in_use = f"dallinger-cleanup-test-{suffix}:in-use"
+    prefix_short = f"dallinger-cleanup-test-{suffix}:abc"
+    prefix_long = f"dallinger-cleanup-test-{suffix}:abcd"
+    container = f"dallinger-cleanup-test-{suffix}"
+    executor = _LocalDockerExecutor()
+    created = []
+    try:
+        for tag in (unused, in_use, prefix_short, prefix_long):
+            _import_empty_image(tag)
+            created.append(tag)
+            assert _docker_image_exists(tag)
+
+        subprocess.run(
+            ["docker", "create", "--name", container, in_use],
+            check=True,
+            capture_output=True,
+        )
+
+        docker_ssh_module.remove_experiment_image(executor, unused)
+        docker_ssh_module.remove_experiment_image(executor, in_use)
+        docker_ssh_module.remove_experiment_image(executor, prefix_short)
+
+        assert not _docker_image_exists(unused)
+        assert _docker_image_exists(in_use)
+        assert not _docker_image_exists(prefix_short)
+        assert _docker_image_exists(prefix_long)
+    finally:
+        subprocess.run(
+            ["docker", "rm", "-f", container], capture_output=True, check=False
+        )
+        for tag in created:
+            subprocess.run(
+                ["docker", "rmi", "-f", tag], capture_output=True, check=False
+            )
