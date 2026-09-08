@@ -534,6 +534,65 @@ def test_get_submissions_requires_study_id(subject):
     subject._req.assert_not_called()
 
 
+def test_get_participant_submission_without_translate_returns_payload(subject):
+    payload = {
+        "id": "sub-1",
+        "status": "ACTIVE",
+        "bonus_payments": [20, 30],
+    }
+    response = mock.MagicMock()
+    response.ok = True
+    response.json.return_value = payload
+    with mock.patch(
+        "dallinger.prolific.requests.request", return_value=response
+    ) as req:
+        assert subject.get_participant_submission("sub-1", translate=False) == payload
+    assert req.call_args.args[:2] == (
+        "GET",
+        f"{subject.api_root}/submissions/sub-1/",
+    )
+
+
+def test_get_participant_submission_without_translate_returns_none_on_http_error(
+    subject,
+):
+    response = mock.MagicMock()
+    response.ok = False
+    response.status_code = 404
+    with mock.patch("dallinger.prolific.requests.request", return_value=response):
+        with mock.patch(
+            "dallinger.recruiters.handle_and_raise_recruitment_error"
+        ) as handle:
+            assert (
+                subject.get_participant_submission("missing", translate=False) is None
+            )
+            handle.assert_not_called()
+
+
+def test_get_participant_submission_still_raises_on_error_payload(subject):
+    response = mock.MagicMock()
+    response.ok = True
+    response.json.return_value = {"error": "not found"}
+    with mock.patch("dallinger.prolific.requests.request", return_value=response):
+        with pytest.raises(ProlificServiceException):
+            subject.get_participant_submission("sub-1")
+
+
+def test_dev_get_participant_submission_without_translate_goes_through_req(
+    active_config,
+):
+    active_config.extend(
+        {"prolific_workspace": "My Workspace", "prolific_project": "My Project"}
+    )
+    service = DevProlificService(
+        api_token="fake-token", api_version="v1", referer_header="test-header"
+    )
+    with mock.patch("dallinger.prolific.requests.request") as req:
+        fetched = service.get_participant_submission("sub1", translate=False)
+    req.assert_not_called()
+    assert fetched["status"] == "AWAITING REVIEW"
+
+
 def _make_pages(page_lengths):
     pages = []
     next_id = 0
