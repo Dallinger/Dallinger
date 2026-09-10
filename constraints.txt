@@ -391,7 +391,7 @@ ptyprocess==0.7.0
     # via
     #   pexpect
     #   terminado
-pure-eval==0.2.3
+pure-eval==0.2.4
     # via stack-data
 pycparser==3.0
     # via cffi
