@@ -11,6 +11,7 @@ import warnings
 from pathlib import Path
 from unittest import mock
 
+import click
 import pexpect
 import pytest
 import requests
@@ -1647,6 +1648,126 @@ class Testhandle_launch_data:
             mock_post.return_value = result
             assert handler("/some-launch-url", error=log) == {"message": "msg!"}
 
+    def test_https_wait_progress_is_status_not_error(self):
+        from dallinger.deployment import _HTTPS_WAIT_BAR_STYLE, _https_wait_progress
+
+        progress = _https_wait_progress()
+        assert progress.console.file is sys.stdout
+        assert _HTTPS_WAIT_BAR_STYLE != "red"
+        assert not any(
+            "percentage" in getattr(column, "text_format", "")
+            for column in progress.columns
+        )
+
+    def test_https_wait_bar_is_indeterminate(self, handler):
+        from dallinger.deployment import HTTPS_WAIT_MESSAGE, Progress
+
+        log = mock.Mock()
+        added = {}
+        original = Progress.add_task
+
+        def spy(self, description, *args, **kwargs):
+            if description == HTTPS_WAIT_MESSAGE:
+                added.update(kwargs)
+            return original(self, description, *args, **kwargs)
+
+        result = mock.Mock(ok=True, json=mock.Mock(return_value={"message": "msg!"}))
+        with (
+            mock.patch("dallinger.deployment.requests.post", return_value=result),
+            mock.patch.object(Progress, "add_task", spy),
+        ):
+            assert handler("/some-launch-url", error=log) == {"message": "msg!"}
+
+        assert added.get("total") is None
+
+    def test_startup_failure_classification(self):
+        from dallinger.deployment import _is_startup_exception, _is_startup_status
+
+        assert _is_startup_exception(requests.exceptions.SSLError("tls"))
+        assert _is_startup_exception(requests.exceptions.ConnectionError("down"))
+        assert not _is_startup_exception(requests.exceptions.HTTPError("500"))
+        assert _is_startup_status(502)
+        assert _is_startup_status("503")
+        assert not _is_startup_status(500)
+
+    def test_ssl_errors_are_quiet_until_success(self, handler):
+        log = mock.Mock()
+        ssl_error = requests.exceptions.SSLError(
+            "[SSL: TLSV1_ALERT_INTERNAL_ERROR] tlsv1 alert internal error"
+        )
+        success = mock.Mock(ok=True, json=mock.Mock(return_value={"message": "msg!"}))
+        with (
+            mock.patch("dallinger.deployment.requests.post") as mock_post,
+            mock.patch("dallinger.deployment.time.sleep"),
+        ):
+            mock_post.side_effect = [ssl_error, ssl_error, success]
+            assert handler("/some-launch-url", error=log, delay=0.05, attempts=3) == {
+                "message": "msg!"
+            }
+
+        log.assert_not_called()
+
+    def test_ssl_errors_are_reported_after_timeout(self, handler):
+        log = mock.Mock()
+        ssl_error = requests.exceptions.SSLError(
+            "[SSL: TLSV1_ALERT_INTERNAL_ERROR] tlsv1 alert internal error"
+        )
+        with (
+            mock.patch("dallinger.deployment.requests.post") as mock_post,
+            mock.patch("dallinger.deployment.time.sleep"),
+        ):
+            mock_post.side_effect = ssl_error
+            with pytest.raises(click.ClickException) as excinfo:
+                handler("/some-launch-url", error=log, delay=0.05, attempts=3)
+
+        messages = [call.args[0] for call in log.call_args_list]
+        assert messages[0] == (
+            "Timed out waiting for the experiment URL to become reachable."
+        )
+        assert "Error accessing /some-launch-url" in messages[1]
+        assert "tlsv1 alert internal error" in messages[1]
+        assert "never became reachable" in excinfo.value.message
+        assert not any(
+            "Experiment launch failed. Trying again" in msg for msg in messages
+        )
+
+    def test_gateway_errors_are_quiet_until_success(self, handler):
+        log = mock.Mock()
+        gateway = mock.Mock(ok=False, status_code=502, text="Bad Gateway")
+        success = mock.Mock(ok=True, json=mock.Mock(return_value={"message": "msg!"}))
+        with (
+            mock.patch("dallinger.deployment.requests.post") as mock_post,
+            mock.patch("dallinger.deployment.time.sleep"),
+        ):
+            mock_post.side_effect = [gateway, success]
+            assert handler("/some-launch-url", error=log, delay=0.05, attempts=3) == {
+                "message": "msg!"
+            }
+
+        log.assert_not_called()
+
+    def test_gateway_errors_are_reported_after_timeout(self, handler):
+        log = mock.Mock()
+        gateway = mock.Mock(ok=False, status_code=502, text="Bad Gateway")
+        gateway.raise_for_status = mock.Mock(side_effect=requests.exceptions.HTTPError)
+        with (
+            mock.patch("dallinger.deployment.requests.post") as mock_post,
+            mock.patch("dallinger.deployment.time.sleep"),
+        ):
+            mock_post.return_value = gateway
+            with pytest.raises(click.ClickException) as excinfo:
+                handler("/some-launch-url", error=log, delay=0.05, attempts=3)
+
+        messages = [call.args[0] for call in log.call_args_list]
+        assert messages[0] == (
+            "Timed out waiting for the experiment URL to become reachable."
+        )
+        assert "Error accessing /some-launch-url (502)" in messages[1]
+        assert "never became reachable" in excinfo.value.message
+        assert not any(
+            "Experiment launch failed. Trying again" in msg for msg in messages
+        )
+
     def test_failure_mock(self, handler):
         log = mock.Mock()
         with mock.patch("dallinger.deployment.requests.post") as mock_post:
@@ -1657,7 +1778,7 @@ class Testhandle_launch_data:
                 status_code=500,
                 text="Failure",
             )
-            with pytest.raises(requests.exceptions.HTTPError):
+            with pytest.raises(click.ClickException) as excinfo:
                 handler("/some-launch-url", error=log, delay=0.05, attempts=3)
 
         log.assert_has_calls(
@@ -1675,13 +1796,28 @@ class Testhandle_launch_data:
                 mock.call("msg!"),
             ]
         )
+        assert excinfo.value.message == (
+            "Experiment launch failed. /some-launch-url returned HTTP 500. "
+            "Check the experiment server logs for details."
+        )
+
+    def test_failed_launch_prints_error_without_traceback(self, handler):
+        @click.command()
+        def launch():
+            handler("http://127.0.0.1:1/launch", print, attempts=1)
+
+        result = click.testing.CliRunner().invoke(launch)
+        assert result.exit_code == 1
+        assert "Error: Experiment launch failed." in result.output
+        assert "never became reachable" in result.output
+        assert "Traceback" not in result.output
 
     def test_failure_real(self, handler):
         log = mock.Mock()
 
         try:
             handler("https://httpbingo.org/status/500", log, attempts=1)
-        except requests.exceptions.HTTPError:
+        except click.ClickException:
             pass
         log.assert_has_calls(
             [
@@ -1695,12 +1831,13 @@ class Testhandle_launch_data:
         log.reset_mock()
         try:
             handler("https://nonexistent.example.com/", log, attempts=1)
-        except requests.exceptions.ConnectionError:
+        except click.ClickException:
             pass
-        assert (
-            "Error accessing https://nonexistent.example.com/"
-            in log.call_args_list[0][0][0]
+        messages = [call.args[0] for call in log.call_args_list]
+        assert messages[0] == (
+            "Timed out waiting for the experiment URL to become reachable."
         )
+        assert "Error accessing https://nonexistent.example.com/" in messages[1]
 
     def test_non_json_response_error(self, handler):
         log = mock.Mock()
@@ -1735,7 +1872,7 @@ class Testhandle_launch_data:
             mock_post.return_value = mock_response
 
             # Test Heroku context
-            with pytest.raises(requests.exceptions.HTTPError):
+            with pytest.raises(click.ClickException):
                 handler(
                     "https://example.com/some-launch-url", error=log, context="heroku"
                 )
@@ -1745,7 +1882,7 @@ class Testhandle_launch_data:
 
             # Test SSH context with Dozzle
             mock_print.reset_mock()
-            with pytest.raises(requests.exceptions.HTTPError):
+            with pytest.raises(click.ClickException):
                 handler(
                     "https://example.com/some-launch-url",
                     error=log,
@@ -1759,7 +1896,7 @@ class Testhandle_launch_data:
 
             # Test local context
             mock_print.reset_mock()
-            with pytest.raises(requests.exceptions.HTTPError):
+            with pytest.raises(click.ClickException):
                 handler("/some-launch-url", error=log, context="local")
             mock_print.assert_not_called()
 
