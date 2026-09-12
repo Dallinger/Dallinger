@@ -2,6 +2,7 @@ import io
 import logging
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from dallinger.step_progress import (
     SKIPPED,
     StepProgress,
     active_steps,
+    latest_log_path,
 )
 
 STEPS = [("first", "Check the server"), ("second", "Launch the experiment")]
@@ -155,6 +157,31 @@ def test_output_becomes_the_running_step_detail_and_is_logged():
     assert "=> [2/8] RUN pip install" in Path(log_path).read_text()
 
 
+def test_latest_log_symlink_can_be_followed_during_the_run(tmp_path, monkeypatch):
+    real_mkstemp = tempfile.mkstemp
+
+    monkeypatch.setattr(
+        "dallinger.step_progress.tempfile.gettempdir", lambda: str(tmp_path)
+    )
+    monkeypatch.setattr(
+        "dallinger.step_progress.tempfile.mkstemp",
+        lambda prefix, suffix: real_mkstemp(
+            prefix=prefix, suffix=suffix, dir=str(tmp_path)
+        ),
+    )
+
+    console = terminal_console()
+    steps = StepProgress("Deploying", STEPS, console=console)
+    with steps:
+        with steps.step("first"):
+            print("building")
+            latest = Path(latest_log_path())
+            assert latest.is_symlink()
+            assert latest.resolve() == Path(steps._transcript.path).resolve()
+            # Flushed as it arrives, so tail -f can read it mid-run.
+            assert "building" in latest.read_text()
+
+
 def test_log_records_are_diverted_into_the_panel():
     console = terminal_console()
     handler = logging.StreamHandler(sys.__stdout__)
@@ -188,6 +215,7 @@ def test_a_failed_step_replays_its_output_in_full(capsys):
     assert "#5 [3/8] RUN pip install" in printed
     assert "ERROR: failed to solve" in printed
     assert "Full log: " in printed
+    assert "Follow: tail -f " in printed
 
 
 def test_an_error_between_steps_replays_output_since_the_last_step(capsys):

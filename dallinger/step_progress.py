@@ -90,11 +90,40 @@ _PANEL_CHROME_WIDTH = 12
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07")
 
 
+def latest_log_path():
+    """Stable path that always points at the run currently being logged."""
+    return os.path.join(tempfile.gettempdir(), "dallinger-deploy.log")
+
+
 def _new_log_path():
-    """A file to keep the full output of one run."""
+    """A file to keep the full output of one run, plus a followable latest link."""
     handle, path = tempfile.mkstemp(prefix="dallinger-deploy-", suffix=".log")
     os.close(handle)
+    _point_latest_log(path)
     return path
+
+
+def _point_latest_log(path):
+    """Make :func:`latest_log_path` a symlink to ``path``.
+
+    ``tail -f /tmp/dallinger-deploy.log`` then follows the current run.
+    Each run still has its own file, so an earlier ``tail -f`` of a unique
+    path keeps reading that run.
+    """
+    latest = latest_log_path()
+    staging = f"{latest}.{os.getpid()}.new"
+    try:
+        os.symlink(os.path.abspath(path), staging)
+        os.replace(staging, latest)
+    except OSError:
+        logging.getLogger(__name__).debug(
+            "Could not point %s at %s", latest, path, exc_info=True
+        )
+        if os.path.lexists(staging):
+            try:
+                os.unlink(staging)
+            except OSError:
+                pass
 
 
 def _terminal_fd():
@@ -191,6 +220,7 @@ class _Transcript:
     def _emit(self, line):
         clean = _ANSI.sub("", line).rstrip()
         self._file.write(clean + "\n")
+        self._file.flush()
         if clean.strip():
             self._on_line(clean.strip())
 
@@ -419,6 +449,7 @@ class StepProgress:
             # Nothing the run printed is lost, even though the panel only
             # showed one line of it at a time.
             self._epilogue.append((False, f"Full log: {self._transcript.path}"))
+            self._epilogue.append((False, f"Follow: tail -f {latest_log_path()}"))
         self._print_epilogue()
         if self._transcript is not None:
             self._transcript.close()

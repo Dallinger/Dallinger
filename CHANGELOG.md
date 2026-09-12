@@ -60,7 +60,9 @@
   produces, including output from tools it runs such as ``docker build``, is
   shown as the running step's latest line instead of scrolling past the
   checklist, and is written in full to a log file whose path is printed at the
-  end. A failed step replays its own output below the checklist. Log and
+  end. ``/tmp/dallinger-deploy.log`` always points at the current run, so
+  ``tail -f /tmp/dallinger-deploy.log`` follows it. A failed step replays
+  its own output below the checklist. Log and
   dashboard details are printed once, after the checklist. Without a terminal
   each step prints a plain start and finish line and other output appears
   between them as before.

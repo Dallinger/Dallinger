@@ -305,8 +305,12 @@ Everything the deploy produces is shown in the checklist rather than
 scrolling past it. While a step runs, its latest line of output appears
 beside it, so a long image build reports progress like
 ``⠋ Build the Docker image  => [4/8] RUN pip install …``. The complete
-output is written to a log file whose path is printed when the run
-finishes, so nothing is lost.
+output is written to a per-run log file, and ``/tmp/dallinger-deploy.log``
+always points at the current run, so you can follow it with::
+
+    tail -f /tmp/dallinger-deploy.log
+
+The unique path is also printed when the run finishes.
 
 A step that cannot complete is marked ``✗``. Its full output is then
 replayed below the checklist, followed by the reason it failed, so a
@@ -323,6 +327,7 @@ message and the details you need to run the experiment:
     Logs: https://logs.0.0.0.0.nip.io (user = dallinger, password = …)
     Dashboard: https://admin:foobar@dlgr-d5543ddd.0.0.0.0.nip.io/dashboard (user = admin, password = foobar)
     Full log: /tmp/dallinger-deploy-4pk1uvzc.log
+    Follow: tail -f /tmp/dallinger-deploy.log
 
 Without a terminal, for example in CI or when output is redirected to a
 file, there is no live region and nothing is captured: each step prints one
