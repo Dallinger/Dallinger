@@ -54,9 +54,16 @@
 - ``dallinger docker-ssh deploy`` / ``sandbox`` now show the deploy as a live
   checklist of its steps, with a spinner on the step in progress and a tick
   once it succeeds; a step that fails is marked and the reason is printed
-  below it. Log and dashboard details are printed once, after the checklist,
-  instead of part-way through the deploy. Without a terminal each step prints
-  a plain start and finish line instead.
+  below it. The list starts at building the Docker image. ``psynet debug ssh``
+  and ``psynet deploy ssh`` start the same checklist earlier, with preparing
+  the experiment, so the whole command is one panel. Everything the deploy
+  produces, including output from tools it runs such as ``docker build``, is
+  shown as the running step's latest line instead of scrolling past the
+  checklist, and is written in full to a log file whose path is printed at the
+  end. A failed step replays its own output below the checklist. Log and
+  dashboard details are printed once, after the checklist. Without a terminal
+  each step prints a plain start and finish line and other output appears
+  between them as before.
 - Experiment launch waits for the URL to become reachable (TLS, connection,
   or gateway startup) instead of printing those retries as launch failures.
   The wait is shown on the deploy checklist, or as a pulsing progress bar for

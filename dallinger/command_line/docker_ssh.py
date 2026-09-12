@@ -44,7 +44,7 @@ from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import handle_launch_data, setup_experiment
-from dallinger.step_progress import StepProgress, active_steps
+from dallinger.step_progress import active_steps, ssh_launch_progress
 from dallinger.utils import (
     BLUE,
     END,
@@ -593,82 +593,81 @@ def build_and_push_image(f):
 
         docker_client = None
         try:
-            if not local_build:
-                # Set DOCKER_HOST to point to the remote server via SSH
-                server_info = CONFIGURED_HOSTS[kwargs["server"]]
-                ssh_host = server_info["host"]
-                ssh_user = server_info.get("user")
-                ensure_remote_host_in_known_hosts(ssh_host, ssh_user)
-                os.environ["DOCKER_HOST"] = (
-                    f"ssh://{(ssh_user + '@') if ssh_user else ''}{ssh_host}"
-                )
-                print(
-                    f"Attempting to build image on remote host: {os.environ['DOCKER_HOST']}"
-                )
-                # Add server_pem to SSH agent so docker-py's SSH client can use it
-                # (necessary because docker.from_env() does not accept PEM files directly).
-                add_server_pem_to_ssh_agent()
-            # docker-py leaks shell-out SSH resources; mute the GC warnings
-            # before the client exists so they cannot fire mid-command.
-            _ignore_docker_ssh_resource_warnings()
-            # Avoid Paramiko by using the system ssh client
-            docker_client = docker.from_env(use_ssh_client=True)
-
-            if image_name:
-                try:
-                    # Use the docker_client to inspect the image
-                    docker_client.images.get_registry_data(image_name)
-                    print(f"Image {image_name} found on remote registry")
-                    return f(*args, **dict(kwargs, image_name=image_name))
-                except docker.errors.ImageNotFound:
-                    # The image is not on the registry. Check if it's available locally
-                    # and push it if it is. If images.get succeeds it means the image is available locally
-                    print(
-                        f"Image {image_name} not found on remote registry. Trying to push"
-                    )
-                    raw_result = docker_client.images.push(image_name)
-                    # This is brittle, but it's an edge case not worth more effort
-                    if not json.loads(raw_result.split("\r\n")[-2]).get("error"):
-                        print(f"Image {image_name} pushed to remote registry")
-                        return f(*args, **dict(kwargs, image_name=image_name))
-                    # The image is not available, neither locally nor on the remote registry
-                    print(
-                        f"Could not find image {image_name} specified in experiment config as `docker_image_name`"
-                    )
-                    raise click.Abort
-                except Exception as e:
-                    print(f"Error checking remote image: {e}")
-                    # Fall through to build if there's any other error checking remote
-                    pass
-
             app_name = kwargs.get("app_name", None)
-            _, tmp_dir = setup_experiment(
-                Output().log,
-                exp_config=config.as_dict(),
-                local_checks=False,
-                app=app_name,
-                experiment_files=files,
-            )
-            image_name = build_image(
-                tmp_dir,
-                config.get("docker_image_base_name"),
-                out=Output(),
-                image_tag=docker_tag_from_experiment_id(config.get("id")),
-            )
+            title = f"Deploying {app_name}" if app_name else "Deploying experiment"
+            with ssh_launch_progress(title, DOCKER_SSH_STEPS) as steps:
+                with steps.step("image"):
+                    if not local_build:
+                        # Set DOCKER_HOST to point to the remote server via SSH
+                        server_info = CONFIGURED_HOSTS[kwargs["server"]]
+                        ssh_host = server_info["host"]
+                        ssh_user = server_info.get("user")
+                        ensure_remote_host_in_known_hosts(ssh_host, ssh_user)
+                        os.environ["DOCKER_HOST"] = (
+                            f"ssh://{(ssh_user + '@') if ssh_user else ''}{ssh_host}"
+                        )
+                        steps.set_detail(f"on {os.environ['DOCKER_HOST']}")
+                        # Add server_pem to SSH agent so docker-py's SSH client can use it
+                        # (necessary because docker.from_env() does not accept PEM files directly).
+                        add_server_pem_to_ssh_agent()
+                    # docker-py leaks shell-out SSH resources; mute the GC warnings
+                    # before the client exists so they cannot fire mid-command.
+                    _ignore_docker_ssh_resource_warnings()
+                    # Avoid Paramiko by using the system ssh client
+                    docker_client = docker.from_env(use_ssh_client=True)
 
-            remote_build = not local_build
-            if remote_build and not push_build:
-                # If built remotely and not pushing, the image is only on the remote daemon.
-                # We need to get its full name (repo:tag) for deployment.
-                # The build_image function already returns the image name, so we use that.
-                print(
-                    f"Image {image_name} built remotely, skipping push to registry because --push-build was not selected."
-                )
-            else:
-                # If it's a local build, or if it's a remote build and push_build, then push.
-                image_name = push_image(image_name)
+                    resolved_image = image_name
+                    if resolved_image:
+                        try:
+                            docker_client.images.get_registry_data(resolved_image)
+                            steps.set_detail(
+                                f"{resolved_image} already on the registry"
+                            )
+                        except docker.errors.ImageNotFound:
+                            steps.set_detail(
+                                f"{resolved_image} not on the registry; trying to push"
+                            )
+                            raw_result = docker_client.images.push(resolved_image)
+                            # This is brittle, but it's an edge case not worth more effort
+                            if not json.loads(raw_result.split("\r\n")[-2]).get(
+                                "error"
+                            ):
+                                steps.set_detail(
+                                    f"{resolved_image} pushed to the registry"
+                                )
+                            else:
+                                print(
+                                    f"Could not find image {resolved_image} specified in experiment config as `docker_image_name`"
+                                )
+                                raise click.Abort
+                        except Exception as e:
+                            print(f"Error checking remote image: {e}")
+                            resolved_image = None
 
-            return f(*args, **dict(kwargs, image_name=image_name))
+                    if not resolved_image:
+                        _, tmp_dir = setup_experiment(
+                            Output().log,
+                            exp_config=config.as_dict(),
+                            local_checks=False,
+                            app=app_name,
+                            experiment_files=files,
+                        )
+                        resolved_image = build_image(
+                            tmp_dir,
+                            config.get("docker_image_base_name"),
+                            out=Output(),
+                            image_tag=docker_tag_from_experiment_id(config.get("id")),
+                        )
+
+                        remote_build = not local_build
+                        if remote_build and not push_build:
+                            steps.set_detail(
+                                f"{resolved_image} built remotely (not pushed)"
+                            )
+                        else:
+                            resolved_image = push_image(resolved_image)
+
+                return f(*args, **dict(kwargs, image_name=resolved_image))
         finally:
             # Close client first so the SSH connection tears down cleanly
             if docker_client is not None:
@@ -779,7 +778,11 @@ def deploy(**kwargs):  # pragma: no cover
     return _deploy_in_mode(mode="live", **kwargs)
 
 
-#: The fixed sequence an SSH deploy walks through, shown as a live checklist.
+#: The fixed sequence an SSH launch walks through, shown as a live checklist.
+#: ``psynet debug ssh`` / ``psynet deploy ssh`` include the prepare step;
+#: ``dallinger docker-ssh`` starts at the image.
+PREPARE_STEP = ("prepare", "Prepare the experiment")
+IMAGE_STEP = ("image", "Build the Docker image")
 DEPLOY_STEPS = [
     ("server", "Check the server"),
     ("services", "Start the web server and shared services"),
@@ -787,6 +790,8 @@ DEPLOY_STEPS = [
     ("experiment", "Start the experiment"),
     ("launch", "Launch the experiment"),
 ]
+DOCKER_SSH_STEPS = [IMAGE_STEP, *DEPLOY_STEPS]
+SSH_LAUNCH_STEPS = [PREPARE_STEP, *DOCKER_SSH_STEPS]
 
 
 def _deploy_in_mode(
@@ -889,14 +894,13 @@ It currently resolves to {ipaddr_experiment}."""
             )
             raise click.Abort
 
-    steps = StepProgress(
-        title=f"{'Updating' if update else 'Deploying'} {experiment_id}",
+    heading = f"{'Updating' if update else 'Deploying'} {experiment_id}"
+    with ssh_launch_progress(
+        heading,
+        DEPLOY_STEPS,
         subtitle=f"https://{experiment_hostname}",
-        steps=DEPLOY_STEPS,
-    )
-    launch_data = {}
-
-    with steps:
+    ) as steps:
+        launch_data = {}
         with steps.step("server"):
             executor = Executor(ssh_host, user=ssh_user, app=app_identifier)
             executor.run("mkdir -p ~/dallinger/caddy.d")
@@ -1100,30 +1104,28 @@ It currently resolves to {ipaddr_experiment}."""
                     context="ssh",
                 )
 
-    recruitment_msg = launch_data.get("recruitment_msg")
-    if recruitment_msg:
-        print_status(recruitment_msg)
+        recruitment_msg = launch_data.get("recruitment_msg")
+        if recruitment_msg:
+            steps.add_epilogue(recruitment_msg)
 
-    dashboard_link = (
-        f"https://{dashboard_user}:{dashboard_password}@{experiment_hostname}/dashboard"
-    )
-    pem_path = get_server_pem_path()
-    log_command = (
-        f"ssh -i {pem_path} {(ssh_user + '@') if ssh_user else ''}{ssh_host} "
-        f"docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
-    )
+        dashboard_link = f"https://{dashboard_user}:{dashboard_password}@{experiment_hostname}/dashboard"
+        pem_path = get_server_pem_path()
+        log_command = (
+            f"ssh -i {pem_path} {(ssh_user + '@') if ssh_user else ''}{ssh_host} "
+            f"docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
+        )
 
-    deployment_infos = []
-    if push_build:
-        deployment_infos.append(f"Deployed Docker image name: {image_name}")
+        deployment_infos = []
+        if push_build:
+            deployment_infos.append(f"Deployed Docker image name: {image_name}")
 
-    deployment_infos += [
-        f"Follow logs: {log_command}",
-        f"Logs: {logs_url} (user = dallinger, password = {dozzle_password})",
-        f"Dashboard: {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
-    ]
-    for line in deployment_infos:
-        print_bold(line)
+        deployment_infos += [
+            f"Follow logs: {log_command}",
+            f"Logs: {logs_url} (user = dallinger, password = {dozzle_password})",
+            f"Dashboard: {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
+        ]
+        for line in deployment_infos:
+            steps.add_epilogue(line, bold=True)
 
     deploy_log_path = Path("deploy_logs") / f"{experiment_id}.txt"
     deploy_log_path.parent.mkdir(exist_ok=True)
@@ -1491,7 +1493,9 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         look_for_keys=False,  # don't scan ~/.ssh for keys
     )
 
-    if active_steps() is None:
+    if active_steps() is not None:
+        active_steps().set_detail(f"connecting to {host}")
+    else:
         print_status(f"Connecting to {host}")
     with _spinner() as spinner:
         try:

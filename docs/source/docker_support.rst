@@ -281,10 +281,14 @@ In this example we use the ``hotair`` recruiter and set the dashboard password t
 
 The deploy walks through a fixed list of steps, shown as a checklist that
 updates in place. The step being worked on carries a spinner, and each
-finished step is ticked::
+finished step is ticked. ``psynet debug ssh`` and ``psynet deploy ssh``
+include preparing the experiment and building the Docker image at the
+top of the same list; ``dallinger docker-ssh`` starts at the image::
 
-    ┌────────────────────── Deploying dlgr-d5543ddd ───────────────────────┐
+    ┌────────────────────── Debugging my-fun-app ──────────────────────────┐
     │ ┌──────────────────────────────────────────────────────────────────┐ │
+    │ │ ✓ Prepare the experiment                                         │ │
+    │ │ ✓ Build the Docker image                                         │ │
     │ │ ✓ Check the server                                               │ │
     │ │ ✓ Start the web server and shared services                       │ │
     │ │ ✓ Prepare the database                                           │ │
@@ -295,8 +299,18 @@ finished step is ticked::
 
 Waiting for HTTPS is normal on a first deploy: Caddy is still obtaining a
 certificate, so the experiment URL refuses TLS connections for a few
-seconds. A step that cannot complete is marked ``✗`` and the reason is
-printed below the checklist.
+seconds.
+
+Everything the deploy produces is shown in the checklist rather than
+scrolling past it. While a step runs, its latest line of output appears
+beside it, so a long image build reports progress like
+``⠋ Build the Docker image  => [4/8] RUN pip install …``. The complete
+output is written to a log file whose path is printed when the run
+finishes, so nothing is lost.
+
+A step that cannot complete is marked ``✗``. Its full output is then
+replayed below the checklist, followed by the reason it failed, so a
+failure needs no digging in the log.
 
 When the deploy finishes, the checklist is followed by the recruitment
 message and the details you need to run the experiment:
@@ -308,10 +322,12 @@ message and the details you need to run the experiment:
     Follow logs: ssh debian@0.0.0.0 docker compose -f '~/dallinger/dlgr-d5543ddd/docker-compose.yml' logs -f
     Logs: https://logs.0.0.0.0.nip.io (user = dallinger, password = …)
     Dashboard: https://admin:foobar@dlgr-d5543ddd.0.0.0.0.nip.io/dashboard (user = admin, password = foobar)
+    Full log: /tmp/dallinger-deploy-4pk1uvzc.log
 
 Without a terminal, for example in CI or when output is redirected to a
-file, there is no live region: each step prints one line when it starts and
-one when it finishes, so the log keeps the same information in order.
+file, there is no live region and nothing is captured: each step prints one
+line when it starts and one when it finishes, and all other output appears
+between them as usual.
 
 Dallinger uses the free service [nip.io](https://nip.io/) to provide a URL for the experiment to get an SSL certificate from Let's Encrypt.
 The experiment URL is a combination of the app id and the server IP. In this case the id of the deployed experiment is ``dlgr-d5543ddd``.

@@ -16,6 +16,7 @@ from dallinger.utils import (
     JSON_LOGFILE,
     abspath_from_egg,
     get_editable_dallinger_path,
+    stream_subprocess_output,
 )
 
 docker_compose_template = Template(
@@ -387,7 +388,7 @@ def build_image(
         """
         dockerfile_path.write_text(dockerfile_text)
     try:
-        check_output(docker_build_invocation, env=env)
+        stream_subprocess_output(docker_build_invocation, env=env)
     except CalledProcessError:
         raise BuildError
     out.blather(f"Built image: {image_name}" + "\n")

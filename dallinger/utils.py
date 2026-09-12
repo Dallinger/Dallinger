@@ -330,6 +330,24 @@ def wrap_subprocess_call(func, wrap_stdout=True):
     return wrapper
 
 
+def stream_subprocess_output(cmd, **kwargs):
+    """Run ``cmd``, forwarding each line of its output as it arrives.
+
+    ``subprocess.check_output`` holds everything back until the command
+    finishes and lets the child write to our stderr directly. Streaming
+    instead means long builds can report progress through whatever owns the
+    output, such as the deploy checklist.
+    """
+    process = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **kwargs
+    )
+    with process.stdout:
+        for line in process.stdout:
+            sys.stdout.write(line.decode("utf-8", errors="replace"))
+    if process.wait() != 0:
+        raise subprocess.CalledProcessError(process.returncode, cmd)
+
+
 check_call = wrap_subprocess_call(subprocess.check_call)
 call = wrap_subprocess_call(subprocess.call)
 check_output = wrap_subprocess_call(subprocess.check_output, wrap_stdout=False)

@@ -2,6 +2,7 @@ import io
 import locale
 import os
 import socket
+import subprocess
 import tempfile
 from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
@@ -89,6 +90,19 @@ class TestSubprocessWrapper:
         sys.stderr.fileno.side_effect = io.UnsupportedOperation
         utils.wrap_subprocess_call(sample)(stderr=None)
         sys.stderr.write.assert_called_once_with(b"Output")
+
+
+class TestStreamSubprocessOutput:
+    def test_output_arrives_line_by_line_while_running(self, capsys):
+        utils.stream_subprocess_output(
+            ["sh", "-c", "echo first; echo second >&2"],
+        )
+
+        assert capsys.readouterr().out.split() == ["first", "second"]
+
+    def test_a_failing_command_raises(self):
+        with pytest.raises(subprocess.CalledProcessError):
+            utils.stream_subprocess_output(["sh", "-c", "exit 3"])
 
 
 class TestShowDeprecationWarningsOnce:

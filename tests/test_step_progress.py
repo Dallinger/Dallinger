@@ -1,4 +1,8 @@
 import io
+import logging
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from rich.console import Console
@@ -6,6 +10,7 @@ from rich.console import Console
 from dallinger.step_progress import (
     DONE,
     FAILED,
+    MAX_PANEL_WIDTH,
     PENDING,
     RUNNING,
     SKIPPED,
@@ -108,6 +113,148 @@ def test_only_one_display_may_own_the_terminal():
             inner.__enter__()
 
     assert active_steps() is None
+
+
+def test_ssh_launch_progress_reuses_the_live_checklist():
+    console = plain_console()
+    from dallinger.step_progress import ssh_launch_progress
+
+    outer = StepProgress("Debugging app", STEPS, console=console)
+    with outer:
+        with ssh_launch_progress("Deploying app", STEPS, subtitle="host") as inner:
+            assert inner is outer
+            # The command that started the panel keeps the title.
+            assert outer._title == "Debugging app"
+            assert outer._subtitle == "host"
+            with inner.step("first"):
+                pass
+    assert active_steps() is None
+
+
+def test_panel_stops_growing_on_a_wide_terminal():
+    from dallinger.step_progress import MAX_PANEL_WIDTH
+
+    console = Console(file=io.StringIO(), force_terminal=True, width=200, height=40)
+    steps = StepProgress("Deploying dlgr-1", STEPS, console=console)
+
+    console.print(steps.renderable())
+    widths = {len(line.rstrip()) for line in console.file.getvalue().splitlines()}
+
+    assert max(widths) == MAX_PANEL_WIDTH
+
+
+def test_output_becomes_the_running_step_detail_and_is_logged():
+    console = terminal_console()
+    steps = StepProgress("Deploying", STEPS, console=console)
+
+    with steps:
+        with steps.step("first") as step:
+            print("=> [2/8] RUN pip install")
+            assert step.detail == "=> [2/8] RUN pip install"
+            # Nothing reached the terminal.
+            assert "pip install" not in console.file.getvalue()
+        log_path = steps._transcript.path
+
+    assert "=> [2/8] RUN pip install" in Path(log_path).read_text()
+
+
+def test_log_records_are_diverted_into_the_panel():
+    console = terminal_console()
+    handler = logging.StreamHandler(sys.__stdout__)
+    logger = logging.getLogger("dallinger.tests.step_progress")
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    try:
+        steps = StepProgress("Deploying", STEPS, console=console)
+        with steps:
+            with steps.step("first") as step:
+                logger.warning("Ignoring constraints.txt in in-repo experiment")
+                assert step.detail == "Ignoring constraints.txt in in-repo experiment"
+        assert handler.stream is sys.__stdout__
+    finally:
+        logger.removeHandler(handler)
+
+
+def test_a_failed_step_replays_its_output_in_full(capsys):
+    console = terminal_console()
+    steps = StepProgress("Deploying", STEPS, console=console)
+
+    with pytest.raises(RuntimeError):
+        with steps:
+            with steps.step("first"):
+                print("#5 [3/8] RUN pip install")
+                print("ERROR: failed to solve")
+                raise RuntimeError("build failed")
+
+    printed = capsys.readouterr().out
+    assert "Output from the failed step (Check the server)" in printed
+    assert "#5 [3/8] RUN pip install" in printed
+    assert "ERROR: failed to solve" in printed
+    assert "Full log: " in printed
+
+
+def test_an_error_between_steps_replays_output_since_the_last_step(capsys):
+    console = terminal_console()
+    steps = StepProgress("Deploying", STEPS, console=console)
+
+    with pytest.raises(RuntimeError):
+        with steps:
+            with steps.step("first"):
+                print("that step went fine")
+            print("about to look up the server")
+            raise RuntimeError("failed between steps")
+
+    printed = capsys.readouterr().out
+    assert "Output before the error:" in printed
+    assert "about to look up the server" in printed
+    # The step that succeeded has already been accounted for.
+    assert "that step went fine" not in printed
+
+
+def test_child_process_output_is_captured_from_the_descriptors(tmp_path):
+    """A child writing to inherited descriptors must not reach the terminal."""
+    from dallinger.step_progress import _FdCapture, _Transcript
+
+    log = tmp_path / "deploy.log"
+    seen = []
+    transcript = _Transcript(str(log), seen.append)
+    capture = _FdCapture(transcript)
+    try:
+        subprocess.run(["sh", "-c", "echo out; echo err >&2"], check=True)
+    finally:
+        capture.close()
+    transcript.close()
+
+    assert seen == ["out", "err"]
+    assert log.read_text().splitlines() == ["out", "err"]
+
+
+def test_a_long_detail_is_shortened_to_keep_the_panel_shape():
+    console = terminal_console()
+    steps = StepProgress("Deploying", STEPS, console=console)
+
+    with steps:
+        with steps.step("first") as step:
+            steps.set_detail("x" * 500)
+            assert len(step.detail) < MAX_PANEL_WIDTH
+            assert step.detail.endswith("…")
+
+
+def test_epilogue_prints_after_the_panel_closes(capsys):
+    console = plain_console()
+    steps = StepProgress("Deploying", STEPS, console=console)
+    with steps:
+        with steps.step("first"):
+            pass
+        steps.add_epilogue("Dashboard: https://example.org")
+        steps.add_epilogue("Follow logs: ssh example", bold=True)
+        with steps.step("second"):
+            pass
+
+    assert "Dashboard: https://example.org" not in console.file.getvalue()
+    captured = capsys.readouterr().out
+    assert "Dashboard: https://example.org" in captured
+    assert "Follow logs: ssh example" in captured
 
 
 def test_unique_step_keys_are_required():

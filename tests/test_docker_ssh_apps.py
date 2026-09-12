@@ -13,6 +13,13 @@ from dallinger.docker.tools import docker_tag_from_experiment_id
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
 
 
+def test_ssh_launch_steps_start_with_prepare_then_image():
+    keys = [key for key, _label in docker_ssh_module.SSH_LAUNCH_STEPS]
+    assert keys[:2] == ["prepare", "image"]
+    assert docker_ssh_module.DOCKER_SSH_STEPS[0][0] == "image"
+    assert "prepare" not in [key for key, _ in docker_ssh_module.DOCKER_SSH_STEPS]
+
+
 def _mock_executor():
     executor = mock.Mock()
     executor.run.side_effect = [
