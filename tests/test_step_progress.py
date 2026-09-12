@@ -10,7 +10,6 @@ from rich.console import Console
 from dallinger.step_progress import (
     DONE,
     FAILED,
-    MAX_PANEL_WIDTH,
     PENDING,
     RUNNING,
     SKIPPED,
@@ -131,16 +130,14 @@ def test_ssh_launch_progress_reuses_the_live_checklist():
     assert active_steps() is None
 
 
-def test_panel_stops_growing_on_a_wide_terminal():
-    from dallinger.step_progress import MAX_PANEL_WIDTH
-
+def test_panel_spans_the_whole_terminal_width():
     console = Console(file=io.StringIO(), force_terminal=True, width=200, height=40)
     steps = StepProgress("Deploying dlgr-1", STEPS, console=console)
 
     console.print(steps.renderable())
     widths = {len(line.rstrip()) for line in console.file.getvalue().splitlines()}
 
-    assert max(widths) == MAX_PANEL_WIDTH
+    assert widths == {200}
 
 
 def test_output_becomes_the_running_step_detail_and_is_logged():
@@ -236,7 +233,7 @@ def test_a_long_detail_is_shortened_to_keep_the_panel_shape():
     with steps:
         with steps.step("first") as step:
             steps.set_detail("x" * 500)
-            assert len(step.detail) < MAX_PANEL_WIDTH
+            assert len(step.detail) < console.width
             assert step.detail.endswith("…")
 
 

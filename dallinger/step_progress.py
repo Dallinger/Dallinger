@@ -83,10 +83,6 @@ _PLAIN_PREFIXES = {
     SKIPPED: "–",
 }
 
-#: Deploy hosts and image names are long, but a checklist that spans a wide
-#: terminal is hard to read, so the panel stops growing here.
-MAX_PANEL_WIDTH = 100
-
 #: Room for a detail line once the panel's borders, padding and icon are
 #: taken out, so a long image name shortens instead of reflowing the panel.
 _PANEL_CHROME_WIDTH = 12
@@ -517,11 +513,7 @@ class StepProgress:
         """Shorten ``detail`` so the panel keeps its shape."""
         if not detail:
             return detail
-        available = (
-            min(self._console.width, MAX_PANEL_WIDTH)
-            - _PANEL_CHROME_WIDTH
-            - len(step.label)
-        )
+        available = self._console.width - _PANEL_CHROME_WIDTH - len(step.label)
         if available < 12:
             return None
         if len(detail) <= available:
@@ -565,7 +557,6 @@ class StepProgress:
             subtitle=self._subtitle,
             box=box.SQUARE,
             padding=(0, 1),
-            width=min(self._console.width, MAX_PANEL_WIDTH),
         )
 
     def _icon(self, step):
