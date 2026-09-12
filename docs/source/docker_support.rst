@@ -278,24 +278,40 @@ Now you can deploy an experiment image to the server:
         dallinger docker start-services
 
 In this example we use the ``hotair`` recruiter and set the dashboard password to ``foobar``.
-The above command will output:
+
+The deploy walks through a fixed list of steps, shown as a checklist that
+updates in place. The step being worked on carries a spinner, and each
+finished step is ticked::
+
+    ┌────────────────────── Deploying dlgr-d5543ddd ───────────────────────┐
+    │ ┌──────────────────────────────────────────────────────────────────┐ │
+    │ │ ✓ Check the server                                               │ │
+    │ │ ✓ Start the web server and shared services                       │ │
+    │ │ ✓ Prepare the database                                           │ │
+    │ │ ✓ Start the experiment                                           │ │
+    │ │ ⠋ Launch the experiment  waiting for HTTPS (attempt 2 of 6)       │ │
+    │ └──────────────────────────────────────────────────────────────────┘ │
+    └───────────── https://dlgr-d5543ddd.0.0.0.0.nip.io ───────────────────┘
+
+Waiting for HTTPS is normal on a first deploy: Caddy is still obtaining a
+certificate, so the experiment URL refuses TLS connections for a few
+seconds. A step that cannot complete is marked ``✗`` and the reason is
+printed below the checklist.
+
+When the deploy finishes, the checklist is followed by the recruitment
+message and the details you need to run the experiment:
 
 .. code-block:: shell
 
-    Connecting to 0.0.0.0
-    Connected.
-    Launched http and postgresql servers. Starting experiment
-    Creating database dlgr-d5543ddd
-    Experiment dlgr-d5543ddd started. Initializing database
-    Database initialized
-    Launching experiment
     Initial recruitment list:
     https://dlgr-d5543ddd.0.0.0.0.nip.io/ad?recruiter=hotair&assignmentId=F2Q19C&hitId=BE9BWB&workerId=YC30TJ&mode=debug
-    Additional details:
-    Recruitment requests will open browser windows automatically.
-    To display the logs for this experiment you can run:
-    ssh debian@0.0.0.0 docker compose -f '~/dallinger/dlgr-d5543ddd/docker-compose.yml' logs -f
-    You can now log in to the console at https://dlgr-d5543ddd.0.0.0.0.nip.io/dashboard as user admin using password foobar
+    Follow logs: ssh debian@0.0.0.0 docker compose -f '~/dallinger/dlgr-d5543ddd/docker-compose.yml' logs -f
+    Logs: https://logs.0.0.0.0.nip.io (user = dallinger, password = …)
+    Dashboard: https://admin:foobar@dlgr-d5543ddd.0.0.0.0.nip.io/dashboard (user = admin, password = foobar)
+
+Without a terminal, for example in CI or when output is redirected to a
+file, there is no live region: each step prints one line when it starts and
+one when it finishes, so the log keeps the same information in order.
 
 Dallinger uses the free service [nip.io](https://nip.io/) to provide a URL for the experiment to get an SSL certificate from Let's Encrypt.
 The experiment URL is a combination of the app id and the server IP. In this case the id of the deployed experiment is ``dlgr-d5543ddd``.

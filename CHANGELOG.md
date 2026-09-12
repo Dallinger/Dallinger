@@ -51,12 +51,20 @@
   assembling the experiment a second time.
 - Editable installs now fall back to the source tree when
   ``importlib.metadata`` omits a file list or packaged Docker templates.
+- ``dallinger docker-ssh deploy`` / ``sandbox`` now show the deploy as a live
+  checklist of its steps, with a spinner on the step in progress and a tick
+  once it succeeds; a step that fails is marked and the reason is printed
+  below it. Log and dashboard details are printed once, after the checklist,
+  instead of part-way through the deploy. Without a terminal each step prints
+  a plain start and finish line instead.
 - Experiment launch waits for the URL to become reachable (TLS, connection,
-  or gateway startup) with a pulsing progress bar instead of printing those
-  retries as launch failures. The last error is still reported if launch does
-  not succeed before the timeout, and a failed launch now ends with a short
-  ``Error: Experiment launch failed. ...`` diagnosis instead of a Python
-  traceback.
+  or gateway startup) instead of printing those retries as launch failures.
+  The wait is shown on the deploy checklist, or as a pulsing progress bar for
+  commands that have no checklist. The last error is still reported if launch
+  does not succeed before the timeout, and a failed launch now ends with a
+  short ``Error: Experiment launch failed. ...`` diagnosis instead of a Python
+  traceback. Launch errors go through the same output channel as the rest of
+  the deploy, so they no longer interleave with progress output.
 
 ### Updated
 
