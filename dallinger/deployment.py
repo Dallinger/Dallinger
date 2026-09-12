@@ -5,6 +5,7 @@ import re
 import sys
 import threading
 import time
+from contextlib import contextmanager
 from shlex import quote
 from urllib.parse import urlparse, urlunparse
 
@@ -24,13 +25,14 @@ from dallinger import data, db, heroku, recruiters, registration
 from dallinger.config import get_config
 from dallinger.heroku.tools import HerokuApp, HerokuLocalWrapper
 from dallinger.redis_utils import connect_to_redis
+from dallinger.step_progress import active_steps
 from dallinger.utils import (
     ExperimentFileSource,
     GitClient,
     bootstrap_development_session,
     get_base_url,
     open_browser,
-    print_bold,
+    print_status,
     setup_experiment,
 )
 
@@ -87,13 +89,61 @@ def _https_wait_progress():
     )
 
 
-def _announce_https_wait(announced):
-    """Print a one-line wait notice on non-TTY logs; the progress bar covers TTYs."""
-    if announced:
-        return True
-    if not sys.stdout.isatty():
-        Console(highlight=False).print(HTTPS_WAIT_MESSAGE)
-    return True
+class _StepsWait:
+    """Show the launch wait as an annotation on the live deploy checklist."""
+
+    def __init__(self, steps):
+        self._steps = steps
+
+    def describe(self, attempt, attempts):
+        self._steps.set_detail(f"waiting for HTTPS (attempt {attempt} of {attempts})")
+
+    def hide(self):
+        self._steps.set_detail(None)
+
+
+class _BarWait:
+    """Own a progress bar for the launch wait when no checklist is live."""
+
+    def __init__(self):
+        self._progress = _https_wait_progress()
+        self._task_id = None
+        self._announced = False
+
+    def __enter__(self):
+        self._progress.__enter__()
+        self._task_id = self._progress.add_task(HTTPS_WAIT_MESSAGE, total=None)
+        return self
+
+    def __exit__(self, *exc_info):
+        return self._progress.__exit__(*exc_info)
+
+    def describe(self, attempt, attempts):
+        if not self._announced:
+            self._announced = True
+            if not sys.stdout.isatty():
+                # The bar is disabled without a TTY, so say it once in the log.
+                print_status(HTTPS_WAIT_MESSAGE)
+        self._progress.update(
+            self._task_id,
+            description=f"{HTTPS_WAIT_MESSAGE} (attempt {attempt} of {attempts})",
+        )
+
+    def hide(self):
+        """Clear the bar before writing errors to the same stdout stream."""
+        self._progress.update(self._task_id, visible=False)
+        self._progress.refresh()
+
+
+@contextmanager
+def _launch_wait_display():
+    """Yield the wait display belonging to whichever live region owns stdout."""
+    steps = active_steps()
+    if steps is not None:
+        yield _StepsWait(steps)
+        return
+    with _BarWait() as wait:
+        yield wait
 
 
 def handle_launch_data(
@@ -108,8 +158,9 @@ def handle_launch_data(
     """POST to ``url`` (``/launch``), retrying with exponential backoff.
 
     Connection, TLS, and gateway-startup failures are expected while the
-    server becomes reachable. Those retries show a progress bar instead of
-    error output. Application errors are still reported as they happen. If
+    server becomes reachable. Those retries are shown as wait status (on the
+    live deploy checklist if there is one, otherwise a progress bar) instead
+    of error output. Application errors are still reported as they happen. If
     every attempt fails, the last error is reported and a
     ``click.ClickException`` summarizing the failure is raised.
 
@@ -126,10 +177,8 @@ def handle_launch_data(
     launch_request = None
     last_startup_error = None
     saw_application_error = False
-    announced_wait = False
 
-    with _https_wait_progress() as progress:
-        task_id = progress.add_task(HTTPS_WAIT_MESSAGE, total=None)
+    with _launch_wait_display() as wait:
         for remaining_attempt in sorted(range(attempts), reverse=True):
             startup_failure = False
             try:
@@ -142,6 +191,7 @@ def handle_launch_data(
                     last_startup_error = f"Error accessing {url}:\n{err}"
                 else:
                     saw_application_error = True
+                    wait.hide()
                     error(f"Error accessing {url}:\n{err}")
 
             if request_happened and _is_startup_status(launch_request.status_code):
@@ -168,8 +218,10 @@ def handle_launch_data(
                         last_startup_error = detail
                     else:
                         saw_application_error = True
+                        wait.hide()
                         error(detail)
                 except ValueError as err:
+                    wait.hide()
                     error(
                         f"Error parsing response from {url}, "
                         f"check server logs for details.\n{err}\n{launch_request.text}"
@@ -177,11 +229,12 @@ def handle_launch_data(
                     raise
 
             if request_happened and launch_request.ok:
-                progress.update(task_id, total=1, completed=1)
+                wait.hide()
                 return launch_data
 
             if request_happened:
                 saw_application_error = True
+                wait.hide()
                 error(
                     "Error accessing {} ({}):\n{}".format(
                         url, launch_request.status_code, launch_request.text
@@ -189,16 +242,7 @@ def handle_launch_data(
                 )
 
             if startup_failure and not saw_application_error:
-                announced_wait = _announce_https_wait(announced_wait)
-                attempt_number = attempts - remaining_attempt
-                progress.update(
-                    task_id,
-                    description=(
-                        f"{HTTPS_WAIT_MESSAGE} (attempt {attempt_number} of {attempts})"
-                    ),
-                )
-            elif saw_application_error:
-                progress.update(task_id, visible=False)
+                wait.describe(attempts - remaining_attempt, attempts)
 
             if remaining_attempt:
                 delay = delay * BACKOFF_FACTOR
@@ -231,14 +275,15 @@ def handle_launch_data(
         else:
             summary = f"Could not reach {url}."
 
-    # Show appropriate log location message based on deployment context
+    # Same channel as other launch messages: do not mix print_bold with error().
     if context == "heroku":
-        print_bold(
+        error(
             "For detailed server logs, visit the Papertrail add-on in your Heroku dashboard"
         )
     elif context == "ssh" and dns_host and dozzle_password:
-        print_bold(
-            f"Check the detailed server logs at https://logs.{dns_host} (user = dallinger, password = {dozzle_password})"
+        error(
+            f"Check the detailed server logs at https://logs.{dns_host} "
+            f"(user = dallinger, password = {dozzle_password})"
         )
 
     # A ClickException prints as "Error: <message>" and exits non-zero, so a

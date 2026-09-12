@@ -21,6 +21,7 @@ from importlib.util import find_spec
 from pathlib import Path
 from unicodedata import normalize
 
+import click
 import redis
 from faker import Faker
 from flask import request
@@ -1286,9 +1287,14 @@ BLUE = "\033[34m"
 BOLD = "\033[1m"
 
 
+def print_status(message):
+    """Print an operator-facing deploy progress line."""
+    click.echo(message)
+
+
 def print_bold(message):
-    """Print with bold formatting."""
-    print(f"{BOLD}{message}{END}")
+    """Print a copy-paste fact (URLs, passwords, commands)."""
+    click.secho(message, bold=True)
 
 
 def port_is_open(port, host="127.0.0.1"):

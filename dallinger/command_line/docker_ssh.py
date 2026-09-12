@@ -44,6 +44,7 @@ from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import handle_launch_data, setup_experiment
+from dallinger.step_progress import StepProgress, active_steps
 from dallinger.utils import (
     BLUE,
     END,
@@ -52,9 +53,44 @@ from dallinger.utils import (
     RED,
     abspath_from_egg,
     print_bold,
+    print_status,
 )
 
 from .utils import get_server_pem_path
+
+
+class _NullSpinner:
+    """Stand-in for yaspin while another live region owns the terminal."""
+
+    def ok(self, text=""):
+        pass
+
+    def fail(self, text=""):
+        pass
+
+    def start(self):
+        pass
+
+    def stop(self):
+        pass
+
+
+@contextmanager
+def _spinner(text=None, color="green"):
+    """Spin only when this command owns the terminal.
+
+    A live :class:`~dallinger.step_progress.StepProgress` already shows a
+    spinner for the step in progress, and two animations cannot share one
+    cursor, so the checklist wins.
+    """
+    if active_steps() is not None:
+        yield _NullSpinner()
+        return
+    kwargs = {"color": color}
+    if text is not None:
+        kwargs["text"] = text
+    with yaspin(**kwargs) as spinner:
+        yield spinner
 
 
 @dataclass(frozen=True)
@@ -743,6 +779,16 @@ def deploy(**kwargs):  # pragma: no cover
     return _deploy_in_mode(mode="live", **kwargs)
 
 
+#: The fixed sequence an SSH deploy walks through, shown as a live checklist.
+DEPLOY_STEPS = [
+    ("server", "Check the server"),
+    ("services", "Start the web server and shared services"),
+    ("database", "Prepare the database"),
+    ("experiment", "Start the experiment"),
+    ("launch", "Launch the experiment"),
+]
+
+
 def _deploy_in_mode(
     app_name,
     archive_path,
@@ -843,212 +889,220 @@ It currently resolves to {ipaddr_experiment}."""
             )
             raise click.Abort
 
-    executor = Executor(ssh_host, user=ssh_user, app=app_identifier)
-    executor.run("mkdir -p ~/dallinger/caddy.d")
-
-    if not use_subdomain and not preflight_root_clean:
-        conflicts = _discover_server_apps(executor)
-        if conflicts:
-            joined = ", ".join(conflicts)
-            print(
-                f"{RED}Root domain deployments require terminating existing experiments.{END}\n"
-                f"{RED}Found deployed experiments:{END} {joined}"
-            )
-            raise click.Abort()
-
-    if not update:
-        # Check if there's an existing app with the same name
-        app_yml = f"~/dallinger/{app_identifier}/docker-compose.yml"
-        app_yml_exists = executor.run(f"ls {app_yml}", raise_=False)
-        messages = []
-        if app_yml_exists:
-            messages.append(
-                f"App with name {app_identifier} already exists: found {app_yml} file. Aborting."
-            )
-        caddy_yml = f"~/dallinger/caddy.d/{app_identifier}"
-        caddy_yml_exists = executor.run(f"ls {caddy_yml}", raise_=False)
-        if caddy_yml_exists:
-            print(
-                f"App with name {app_identifier} already exists: found {app_yml} file. Aborting."
-            )
-        if app_yml_exists or caddy_yml_exists:
-            messages.append(
-                "Use a different name, destroy the current app or add --update"
-            )
-            print("\n".join(messages))
-            raise click.Abort
-
-        print("Removing any pre-existing Redis volumes.")
-        remove_redis_volumes(app_identifier, executor)
-    else:
-        app_yml = f"~/dallinger/{app_identifier}/docker-compose.yml"
-        yml_file_exists = executor.run(f"ls -l {app_yml}", raise_=False)
-        if not yml_file_exists:
-            print(
-                f"{app_yml} file not found. App {app_identifier} does not exist on the server."
-            )
-            raise click.Abort
-
-    sftp = get_sftp(ssh_host, user=ssh_user)
-    dozzle_base = "/logs" if not use_subdomain else ""
-    rendered_compose = DOCKER_COMPOSE_SERVER_TPL.render(dozzle_base=dozzle_base)
-    sftp.putfo(BytesIO(rendered_compose.encode()), "dallinger/docker-compose.yml")
-    caddy_template = CADDYFILE_SUBDOMAIN if use_subdomain else CADDYFILE_ROOT
-    caddy_kwargs = {"host": dns_host, "tls": tls}
-    if not use_subdomain:
-        caddy_kwargs["backend"] = f"{app_identifier}_web:5000"
-    sftp.putfo(
-        BytesIO(caddy_template.format(**caddy_kwargs).encode()),
-        "dallinger/Caddyfile",
+    steps = StepProgress(
+        title=f"{'Updating' if update else 'Deploying'} {experiment_id}",
+        subtitle=f"https://{experiment_hostname}",
+        steps=DEPLOY_STEPS,
     )
+    launch_data = {}
 
-    dozzle_password = get_dotenv_values(executor).get(
-        "DOZZLE_PASSWORD", dashboard_password
-    )
-    set_dozzle_password(executor, sftp, dozzle_password)
+    with steps:
+        with steps.step("server"):
+            executor = Executor(ssh_host, user=ssh_user, app=app_identifier)
+            executor.run("mkdir -p ~/dallinger/caddy.d")
 
-    print("Launching http, postgresql and dozzle servers.")
-    executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
-
-    if not update:
-        print("Starting experiment.")
-    else:
-        print("Restarting experiment.")
-
-    logs_url = (
-        f"https://{dns_host}/logs" if not use_subdomain else f"https://logs.{dns_host}"
-    )
-    print_bold(
-        f"To view the logs for this experiment go to {logs_url} (user = dallinger, password = {dozzle_password})"
-    )
-    cfg = config.as_dict(include_sensitive=True)
-
-    # AWS credential keys need to be converted to upper case
-    for key in "aws_access_key_id", "aws_secret_access_key":
-        cfg[key.upper()] = cfg.pop(key, None)
-
-    # Remove unneeded sensitive keys
-    for key in "database_url", "heroku_auth_token":
-        cfg.pop(key, None)
-
-    cfg.update(
-        {
-            "FLASK_SECRET_KEY": token_urlsafe(16),
-            "AWS_DEFAULT_REGION": config["aws_region"],
-            "smtp_username": config.get("smtp_username"),
-            "auto_recruit": config["auto_recruit"],
-            "mode": mode,
-            "CREATOR": f"{USER}@{HOSTNAME}",
-            "DALLINGER_UID": experiment_uuid,
-            "ADMIN_USER": "admin",
-            "docker_image_name": image_name,
-        }
-    )
-    cfg.update(config_options)
-    del cfg["host"]  # The uppercase variable will be used instead
-    executor.run(f"mkdir -p dallinger/{experiment_id}")
-    postgresql_password = token_urlsafe(16)
-    sftp.putfo(
-        BytesIO(
-            get_docker_compose_yml(
-                cfg, experiment_id, image_name, postgresql_password, executor
-            ).encode()
-        ),
-        f"dallinger/{experiment_id}/docker-compose.yml",
-    )
-    # We invoke the "ls" command in the context of the `web` container.
-    # `docker compose` will honour `web`'s dependencies and block
-    # until postgresql is ready. This way we can be sure we can start creating the database.
-    executor.run(
-        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
-    )
-    grant_roles_script = (
-        f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
-    )
-    if not update:
-        print("Cleaning up db/user")
-        executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
-        )
-        executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
-        )
-        print(f"Creating database {experiment_id}")
-        executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
-        )
-
-        if archive_path is not None:
-            print(f"Loading database data from {archive_path}")
-            with remote_postgres(server_info, experiment_id) as db_uri:
-                engine = create_db_engine(db_uri)
-                bootstrap_db_from_zip(archive_path, engine)
-                with engine.connect() as conn:
-                    conn.execute(grant_roles_script)
-                    conn.execute(f'GRANT USAGE ON SCHEMA public TO "{experiment_id}"')
-                    conn.execute(
-                        f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA PUBLIC TO "{experiment_id}"'
+            if not use_subdomain and not preflight_root_clean:
+                conflicts = _discover_server_apps(executor)
+                if conflicts:
+                    joined = ", ".join(conflicts)
+                    print(
+                        f"{RED}Root domain deployments require terminating existing experiments.{END}\n"
+                        f"{RED}Found deployed experiments:{END} {joined}"
                     )
+                    raise click.Abort()
 
-    test_user_script = (
-        rf"""SELECT FROM pg_catalog.pg_roles WHERE rolname = '{experiment_id}'"""
-    )
-    query_user_result = executor.run(
-        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(test_user_script)}",
-        raise_=False,
-    )
-    if "0 rows" in query_user_result:
-        # Create the user: it doesn't exist yet
-        create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
-        executor.run(
-            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
+            if not update:
+                # Check if there's an existing app with the same name
+                app_yml = f"~/dallinger/{app_identifier}/docker-compose.yml"
+                app_yml_exists = executor.run(f"ls {app_yml}", raise_=False)
+                messages = []
+                if app_yml_exists:
+                    messages.append(
+                        f"App with name {app_identifier} already exists: found {app_yml} file. Aborting."
+                    )
+                caddy_yml = f"~/dallinger/caddy.d/{app_identifier}"
+                caddy_yml_exists = executor.run(f"ls {caddy_yml}", raise_=False)
+                if caddy_yml_exists:
+                    print(
+                        f"App with name {app_identifier} already exists: found {app_yml} file. Aborting."
+                    )
+                if app_yml_exists or caddy_yml_exists:
+                    messages.append(
+                        "Use a different name, destroy the current app or add --update"
+                    )
+                    print("\n".join(messages))
+                    raise click.Abort
+
+                steps.set_detail("removing pre-existing Redis volumes")
+                remove_redis_volumes(app_identifier, executor)
+            else:
+                app_yml = f"~/dallinger/{app_identifier}/docker-compose.yml"
+                yml_file_exists = executor.run(f"ls -l {app_yml}", raise_=False)
+                if not yml_file_exists:
+                    print(
+                        f"{app_yml} file not found. App {app_identifier} does not exist on the server."
+                    )
+                    raise click.Abort
+
+        with steps.step("services"):
+            sftp = get_sftp(ssh_host, user=ssh_user)
+            dozzle_base = "/logs" if not use_subdomain else ""
+            rendered_compose = DOCKER_COMPOSE_SERVER_TPL.render(dozzle_base=dozzle_base)
+            sftp.putfo(
+                BytesIO(rendered_compose.encode()), "dallinger/docker-compose.yml"
+            )
+            caddy_template = CADDYFILE_SUBDOMAIN if use_subdomain else CADDYFILE_ROOT
+            caddy_kwargs = {"host": dns_host, "tls": tls}
+            if not use_subdomain:
+                caddy_kwargs["backend"] = f"{app_identifier}_web:5000"
+            sftp.putfo(
+                BytesIO(caddy_template.format(**caddy_kwargs).encode()),
+                "dallinger/Caddyfile",
+            )
+
+            dozzle_password = get_dotenv_values(executor).get(
+                "DOZZLE_PASSWORD", dashboard_password
+            )
+            set_dozzle_password(executor, sftp, dozzle_password)
+            executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
+
+        logs_url = (
+            f"https://{dns_host}/logs"
+            if not use_subdomain
+            else f"https://logs.{dns_host}"
         )
-    else:
-        # Change the password of the existing user
-        change_password_script = f"""ALTER USER "{experiment_id}" WITH ENCRYPTED PASSWORD '{postgresql_password}'"""
-        executor.run(
-            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(change_password_script)}"
+        cfg = config.as_dict(include_sensitive=True)
+
+        # AWS credential keys need to be converted to upper case
+        for key in "aws_access_key_id", "aws_secret_access_key":
+            cfg[key.upper()] = cfg.pop(key, None)
+
+        # Remove unneeded sensitive keys
+        for key in "database_url", "heroku_auth_token":
+            cfg.pop(key, None)
+
+        cfg.update(
+            {
+                "FLASK_SECRET_KEY": token_urlsafe(16),
+                "AWS_DEFAULT_REGION": config["aws_region"],
+                "smtp_username": config.get("smtp_username"),
+                "auto_recruit": config["auto_recruit"],
+                "mode": mode,
+                "CREATOR": f"{USER}@{HOSTNAME}",
+                "DALLINGER_UID": experiment_uuid,
+                "ADMIN_USER": "admin",
+                "docker_image_name": image_name,
+            }
         )
+        cfg.update(config_options)
+        del cfg["host"]  # The uppercase variable will be used instead
 
-    executor.run(
-        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
-    )
+        with steps.step("database"):
+            executor.run(f"mkdir -p dallinger/{experiment_id}")
+            postgresql_password = token_urlsafe(16)
+            sftp.putfo(
+                BytesIO(
+                    get_docker_compose_yml(
+                        cfg, experiment_id, image_name, postgresql_password, executor
+                    ).encode()
+                ),
+                f"dallinger/{experiment_id}/docker-compose.yml",
+            )
+            # We invoke the "ls" command in the context of the `web` container.
+            # `docker compose` will honour `web`'s dependencies and block
+            # until postgresql is ready. This way we can be sure we can start creating the database.
+            executor.run(
+                f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
+            )
+            grant_roles_script = f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
+            if not update:
+                steps.set_detail("dropping the previous database")
+                executor.run(
+                    rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
+                )
+                executor.run(
+                    rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
+                )
+                steps.set_detail(f"creating database {experiment_id}")
+                executor.run(
+                    rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
+                )
 
-    executor.run(
-        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
-    )
-    if archive_path is None and not update:
-        print(f"Experiment {experiment_id} started.")
-        print("Initializing database...")
-        executor.run(
-            f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
-        )
-        print("Database initialized.")
+                if archive_path is not None:
+                    steps.set_detail(f"loading data from {archive_path}")
+                    with remote_postgres(server_info, experiment_id) as db_uri:
+                        engine = create_db_engine(db_uri)
+                        bootstrap_db_from_zip(archive_path, engine)
+                        with engine.connect() as conn:
+                            conn.execute(grant_roles_script)
+                            conn.execute(
+                                f'GRANT USAGE ON SCHEMA public TO "{experiment_id}"'
+                            )
+                            conn.execute(
+                                f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA PUBLIC TO "{experiment_id}"'
+                            )
 
-    if use_subdomain:
-        # We give caddy the alias for the service. If we scale up the service container caddy will
-        # send requests to all of them in a round robin fashion.
-        caddy_conf = f"{experiment_hostname} {{\n    {tls}\n    reverse_proxy {experiment_id}_web:5000\n}}"
-        sftp.putfo(
-            BytesIO(caddy_conf.encode()),
-            f"dallinger/caddy.d/{experiment_id}",
-        )
+            steps.set_detail("granting database privileges")
+            test_user_script = rf"""SELECT FROM pg_catalog.pg_roles WHERE rolname = '{experiment_id}'"""
+            query_user_result = executor.run(
+                f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(test_user_script)}",
+                raise_=False,
+            )
+            if "0 rows" in query_user_result:
+                # Create the user: it doesn't exist yet
+                create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
+                executor.run(
+                    f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
+                )
+            else:
+                # Change the password of the existing user
+                change_password_script = f"""ALTER USER "{experiment_id}" WITH ENCRYPTED PASSWORD '{postgresql_password}'"""
+                executor.run(
+                    f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(change_password_script)}"
+                )
 
-    # Tell caddy we changed something in the configuration
-    executor.reload_caddy()
+            executor.run(
+                f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
+            )
 
-    if update:
-        print("Skipping experiment launch logic because we are in update mode.")
-    else:
-        print("Launching experiment")
-        launch_data = handle_launch_data(
-            f"https://{experiment_hostname}/launch",
-            print,
-            dns_host=dns_host,
-            dozzle_password=dozzle_password,
-            context="ssh",
-        )
-        print(launch_data.get("recruitment_msg"))
+        with steps.step("experiment"):
+            executor.run(
+                f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
+            )
+            if archive_path is None and not update:
+                steps.set_detail("initializing the database")
+                executor.run(
+                    f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
+                )
+
+            if use_subdomain:
+                # We give caddy the alias for the service. If we scale up the service container caddy will
+                # send requests to all of them in a round robin fashion.
+                caddy_conf = f"{experiment_hostname} {{\n    {tls}\n    reverse_proxy {experiment_id}_web:5000\n}}"
+                sftp.putfo(
+                    BytesIO(caddy_conf.encode()),
+                    f"dallinger/caddy.d/{experiment_id}",
+                )
+
+            # Tell caddy we changed something in the configuration
+            steps.set_detail("reloading the Caddy configuration")
+            executor.reload_caddy()
+
+        if update:
+            steps.skip("launch", detail="update mode")
+        else:
+            with steps.step("launch"):
+                launch_data = handle_launch_data(
+                    f"https://{experiment_hostname}/launch",
+                    print_status,
+                    dns_host=dns_host,
+                    dozzle_password=dozzle_password,
+                    context="ssh",
+                )
+
+    recruitment_msg = launch_data.get("recruitment_msg")
+    if recruitment_msg:
+        print_status(recruitment_msg)
 
     dashboard_link = (
         f"https://{dashboard_user}:{dashboard_password}@{experiment_hostname}/dashboard"
@@ -1064,10 +1118,9 @@ It currently resolves to {ipaddr_experiment}."""
         deployment_infos.append(f"Deployed Docker image name: {image_name}")
 
     deployment_infos += [
-        "To display the logs for this experiment you can run:",
-        log_command,
-        f"Or you can head to {logs_url} (user = dallinger, password = {dozzle_password})",
-        f"You can now log in to the console at {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
+        f"Follow logs: {log_command}",
+        f"Logs: {logs_url} (user = dallinger, password = {dozzle_password})",
+        f"Dashboard: {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
     ]
     for line in deployment_infos:
         print_bold(line)
@@ -1438,8 +1491,9 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         look_for_keys=False,  # don't scan ~/.ssh for keys
     )
 
-    print(f"Connecting to {host}")
-    with yaspin() as spinner:
+    if active_steps() is None:
+        print_status(f"Connecting to {host}")
+    with _spinner() as spinner:
         try:
             client.connect(**connect_kwargs)
             spinner.ok("Connected.")
@@ -1584,14 +1638,14 @@ class Executor:
             raise click.Abort
 
     def reload_caddy(self):
-        with yaspin(text="Reloading Caddy config file", color="green"):
+        with _spinner(text="Reloading Caddy config file"):
             self.run(
                 "docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
                 "caddy reload --config /etc/caddy/Caddyfile"
             )
 
     def restart_dozzle(self):
-        with yaspin(text="Restarting Dozzle", color="green"):
+        with _spinner(text="Restarting Dozzle"):
             self.run("docker compose -f ~/dallinger/docker-compose.yml restart dozzle")
 
     def run_and_echo(self, cmd):  # pragma: no cover

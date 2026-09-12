@@ -1801,6 +1801,49 @@ class Testhandle_launch_data:
             "Check the experiment server logs for details."
         )
 
+    def test_application_error_hides_wait_bar(self, handler):
+        log = mock.Mock()
+        with (
+            mock.patch("dallinger.deployment.requests.post") as mock_post,
+            mock.patch("dallinger.deployment.time.sleep"),
+            mock.patch("dallinger.deployment._BarWait.hide") as hide,
+        ):
+            mock_post.return_value = mock.Mock(
+                ok=False,
+                json=mock.Mock(return_value={"message": "msg!"}),
+                status_code=500,
+                text="Failure",
+            )
+            with pytest.raises(click.ClickException):
+                handler("/some-launch-url", error=log, delay=0.05, attempts=1)
+
+        hide.assert_called()
+
+    def test_wait_annotates_the_live_checklist_instead_of_a_bar(self, handler):
+        from dallinger.step_progress import StepProgress
+
+        ssl_error = requests.exceptions.SSLError("tlsv1 alert internal error")
+        success = mock.Mock(ok=True, json=mock.Mock(return_value={"message": "msg!"}))
+        steps = StepProgress("Deploying", [("launch", "Launch the experiment")])
+        with (
+            mock.patch("dallinger.deployment.requests.post") as mock_post,
+            mock.patch("dallinger.deployment.time.sleep"),
+            mock.patch("dallinger.deployment._https_wait_progress") as bar,
+            steps as live,
+            live.step("launch"),
+        ):
+            mock_post.side_effect = [ssl_error, success]
+            with mock.patch.object(live, "set_detail") as set_detail:
+                assert handler(
+                    "/some-launch-url", error=mock.Mock(), delay=0.05, attempts=2
+                ) == {"message": "msg!"}
+
+        bar.assert_not_called()
+        assert set_detail.call_args_list == [
+            mock.call("waiting for HTTPS (attempt 1 of 2)"),
+            mock.call(None),
+        ]
+
     def test_failed_launch_prints_error_without_traceback(self, handler):
         @click.command()
         def launch():
@@ -1857,7 +1900,6 @@ class Testhandle_launch_data:
         log = mock.Mock()
         with (
             mock.patch("dallinger.deployment.requests.post") as mock_post,
-            mock.patch("dallinger.deployment.print_bold") as mock_print,
             mock.patch("dallinger.deployment.time.sleep"),
         ):
             mock_response = mock.Mock(
@@ -1876,12 +1918,14 @@ class Testhandle_launch_data:
                 handler(
                     "https://example.com/some-launch-url", error=log, context="heroku"
                 )
-            mock_print.assert_called_once_with(
+            messages = [call.args[0] for call in log.call_args_list]
+            assert (
                 "For detailed server logs, visit the Papertrail add-on in your Heroku dashboard"
+                in messages
             )
 
             # Test SSH context with Dozzle
-            mock_print.reset_mock()
+            log.reset_mock()
             with pytest.raises(click.ClickException):
                 handler(
                     "https://example.com/some-launch-url",
@@ -1890,15 +1934,20 @@ class Testhandle_launch_data:
                     dns_host="example.com",
                     dozzle_password="secret",
                 )
-            mock_print.assert_called_once_with(
-                "Check the detailed server logs at https://logs.example.com (user = dallinger, password = secret)"
+            messages = [call.args[0] for call in log.call_args_list]
+            assert (
+                "Check the detailed server logs at https://logs.example.com "
+                "(user = dallinger, password = secret)" in messages
             )
 
             # Test local context
-            mock_print.reset_mock()
+            log.reset_mock()
             with pytest.raises(click.ClickException):
                 handler("/some-launch-url", error=log, context="local")
-            mock_print.assert_not_called()
+            messages = [call.args[0] for call in log.call_args_list]
+            assert not any(
+                "Papertrail" in msg or "logs.example.com" in msg for msg in messages
+            )
 
 
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")

@@ -31,6 +31,8 @@ from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import (
     GitClient,
     abspath_from_egg,
+    print_bold,
+    print_status,
     setup_experiment,
 )
 
@@ -312,13 +314,16 @@ def deploy_image(image_name, mode, config_options):
         data=app._h._resource_serialize(payload),
     )
 
-    print("Launching experiment")
+    print_status("Launching experiment.")
     app_url = f"https://{app_hostname}"
-    launch_data = handle_launch_data(f"{app_url}/launch", print, context="heroku")
-    print(launch_data.get("recruitment_msg"))
-
-    print(
-        f"You can login to {app_url}/dashboard using this password {dashboard_password} and the username 'admin'"
+    launch_data = handle_launch_data(
+        f"{app_url}/launch", print_status, context="heroku"
+    )
+    recruitment_msg = launch_data.get("recruitment_msg")
+    if recruitment_msg:
+        print_status(recruitment_msg)
+    print_bold(
+        f"Dashboard: {app_url}/dashboard (user = admin, password = {dashboard_password})"
     )
 
 
