@@ -51,6 +51,12 @@
   assembling the experiment a second time.
 - Editable installs now fall back to the source tree when
   ``importlib.metadata`` omits a file list or packaged Docker templates.
+- Experiment launch waits for the URL to become reachable (TLS, connection,
+  or gateway startup) with a pulsing progress bar instead of printing those
+  retries as launch failures. The last error is still reported if launch does
+  not succeed before the timeout, and a failed launch now ends with a short
+  ``Error: Experiment launch failed. ...`` diagnosis instead of a Python
+  traceback.
 
 ### Updated
 
