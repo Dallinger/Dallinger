@@ -96,7 +96,7 @@ croniter==6.2.4
     # via rq
 cryptography==50.0.0
     # via paramiko
-debugpy==1.8.21
+debugpy==1.8.22
     # via ipykernel
 defusedxml==0.7.1
     # via
