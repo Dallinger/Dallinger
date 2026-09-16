@@ -35,6 +35,21 @@ def log(msg, level="info"):
     logfunc("{}/{}: {}".format(os.getpid(), id(gevent.hub.getcurrent()), msg))
 
 
+def publish_control_event(payload):
+    """Publish one control event, logging instead of raising if redis is down.
+
+    Control events are notifications, and every caller is in the middle of
+    bookkeeping it must finish. Raising would abort a teardown partway and
+    leave a client registered on a channel whose listener retries forever.
+    """
+    try:
+        redis_conn.publish(CONTROL_CHANNEL, json.dumps(payload))
+    except RedisError:
+        app.logger.exception(
+            "Could not publish {} control event.".format(payload.get("event"))
+        )
+
+
 class Channel:
     """A channel relays messages from a redis pubsub to multiple clients.
 
@@ -61,16 +76,13 @@ class Channel:
             "Subscribed client {} to channel {}".format(client, self.name),
             level="debug",
         )
-        redis_conn.publish(
-            CONTROL_CHANNEL,
-            json.dumps(
-                {
-                    "type": "channel",
-                    "event": "subscribed",
-                    "channel": self.name,
-                    "client": client.client_info(),
-                }
-            ),
+        publish_control_event(
+            {
+                "type": "channel",
+                "event": "subscribed",
+                "channel": self.name,
+                "client": client.client_info(),
+            }
         )
 
     def unsubscribe(self, client):
@@ -81,16 +93,13 @@ class Channel:
                 "Unsubscribed client {} from channel {}".format(client, self.name),
                 level="debug",
             )
-            redis_conn.publish(
-                CONTROL_CHANNEL,
-                json.dumps(
-                    {
-                        "type": "channel",
-                        "event": "unsubscribed",
-                        "channel": self.name,
-                        "client": client.client_info(),
-                    }
-                ),
+            publish_control_event(
+                {
+                    "type": "channel",
+                    "event": "unsubscribed",
+                    "channel": self.name,
+                    "client": client.client_info(),
+                }
             )
 
     def relay(self, message):
@@ -137,8 +146,16 @@ class Channel:
                 try:
                     for message in pubsub.listen():
                         self.relay(message)
-                        delay = self.RECONNECT_DELAY_SECS
-                        reported = False
+                        if message["type"] == "message":
+                            # redis-py resubscribes on every reconnect, so a
+                            # confirmation frame arrives while the connection
+                            # is still flapping. Only traffic proves recovery.
+                            delay = self.RECONNECT_DELAY_SECS
+                            reported = False
+                        # ``relay`` only spawns senders, and messages already
+                        # in the socket buffer are read without blocking, so
+                        # nothing else here hands the hub back.
+                        gevent.sleep(0)
                 except RETRYABLE_REDIS_ERRORS:
                     message = "Lost redis connection on channel {}, retrying in {}s."
                     if reported:
@@ -232,17 +249,14 @@ class Client:
                 self.ws.send(message)
             except (socket.error, ConnectionClosed) as e:
                 chat_backend.unsubscribe(self)
-                redis_conn.publish(
-                    CONTROL_CHANNEL,
-                    json.dumps(
-                        {
-                            "type": "websocket",
-                            "event": "disconnected",
-                            "reason": self.ws.close_reason or "",
-                            "message": self.ws.close_message or "",
-                            "client": self.client_info(),
-                        }
-                    ),
+                publish_control_event(
+                    {
+                        "type": "websocket",
+                        "event": "disconnected",
+                        "reason": self.ws.close_reason or "",
+                        "message": self.ws.close_message or "",
+                        "client": self.client_info(),
+                    }
                 )
                 if isinstance(e, ConnectionClosed):
                     raise
@@ -255,17 +269,16 @@ class Client:
 
     def publish(self):
         """Relay messages from client to redis."""
-        redis_conn.publish(
-            CONTROL_CHANNEL,
-            json.dumps(
+        try:
+            # Inside the ``finally`` below: ``chat()`` has already subscribed
+            # the client, so everything from here on needs teardown.
+            publish_control_event(
                 {
                     "type": "websocket",
                     "event": "connected",
                     "client": self.client_info(),
                 }
-            ),
-        )
-        try:
+            )
             while self.ws.connected:
                 try:
                     # ``receive()`` waits on a ``threading.Event``, which gevent
@@ -276,17 +289,14 @@ class Client:
                     # here so the "unsubscribed" control message precedes the
                     # "disconnected" one; subscribers rely on that order.
                     chat_backend.unsubscribe(self)
-                    redis_conn.publish(
-                        CONTROL_CHANNEL,
-                        json.dumps(
-                            {
-                                "type": "websocket",
-                                "event": "disconnected",
-                                "reason": self.ws.close_reason or "",
-                                "message": self.ws.close_message or "",
-                                "client": self.client_info(),
-                            }
-                        ),
+                    publish_control_event(
+                        {
+                            "type": "websocket",
+                            "event": "disconnected",
+                            "reason": self.ws.close_reason or "",
+                            "message": self.ws.close_message or "",
+                            "client": self.client_info(),
+                        }
                     )
                     raise
                 if message is None:

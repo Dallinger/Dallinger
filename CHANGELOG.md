@@ -54,6 +54,11 @@
   `subscribe()` is not retried; it logs and stops. The pubsub is closed on
   every exit, including when the greenlet is killed, so its connection returns
   to the pool.
+- A redis outage no longer strands a `/chat` client. The connect,
+  disconnect, subscribe, and unsubscribe events on `dallinger_control` are
+  notifications, so a failed publish is logged rather than raised. It
+  previously aborted `ChatBackend.unsubscribe` partway, leaving a client
+  registered on a channel whose listener then retried forever.
 - SSH and Heroku-docker deploys now tag the experiment image with the
   per-launch experiment UID instead of a hash of ``requirements.txt`` and
   ``prepare_docker_image.sh``. Those files do not identify the copied
@@ -104,7 +109,11 @@
   receive loop slept for 0.1s (or whatever `?tolerance=` asked for) before
   each `receive()`, and the redis relay greenlet slept 0.001s per message.
   Both `receive()` and `PubSub.listen()` already block on gevent-aware
-  waits, so the sleeps only added delivery latency.
+  waits, so the timed sleeps only added delivery latency. The relay yields
+  with `gevent.sleep(0)` after each message, which runs the senders it just
+  spawned and gives other greenlets a turn without waiting on a timer; a
+  burst already sitting in the socket buffer otherwise reads straight
+  through without reaching the hub.
 - The `tolerance` query parameter on `/chat` is no longer read. Clients may
   still send it; it has no effect and raises no warning.
 - ``ProlificService.get_participant_submission`` accepts ``translate=False``

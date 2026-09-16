@@ -48,6 +48,10 @@ channel named `<channel>`. Messages are relayed as soon as they arrive. For more
 information see
 :doc:`Using WebSockets in Dallinger Experiments <using_websockets>`.
 
+Clients may prefix outgoing messages with any channel name except
+`dallinger_control`, which is reserved for the server's own connection and
+subscription events. Messages a client addresses to it are discarded.
+
 The `tolerance` parameter, which once capped delivery lag, is accepted and
 ignored. Clients that still send it are unaffected.
 

@@ -17,8 +17,9 @@ channel subscribers (generally either participants or the experiment itself).
 
 When a client makes a WebSocket connection to the `/chat?channel=<channel>`
 route (see :doc:`The Web API <web_api>`) it opens a persistent connection to the
-experiment over which it can send messages (to any channel) and will receive all
-messages published to the `channel` named in the initial request.
+experiment over which it can send messages (to any channel except the reserved
+`"dallinger_control"` channel) and will receive all messages published to the
+`channel` named in the initial request.
 
 Additionally, Experiment classes can provide a
 :attr:`~dallinger.experiment.Experiment.channel` attribute which will
@@ -126,9 +127,12 @@ WebSocket connection, disconnection, subscription, and un-subscription events
 over the `"dallinger_control"` channel.
 
 Messages sent over the socket connection can be prefixed with any channel name,
-not just the channel to which the connection is subscribed. Additional
-subscriptions can be established by opening new websocket connections to
-the `/chat` route with different `channel` values.
+not just the channel to which the connection is subscribed. The exception is
+`"dallinger_control"`, which is reserved for the server's own connection and
+subscription events: the server discards a client message addressed to it and
+logs a warning, because the experiment treats anything arriving on that channel
+as genuine. Additional subscriptions can be established by opening new websocket
+connections to the `/chat` route with different `channel` values.
 
 
 Experiment Channel Setup

@@ -251,6 +251,58 @@ class TestChannel:
         assert traceback.call_count == 2
         assert oneliner.call_count == 1
 
+    def test_resubscribe_confirmation_does_not_reset_the_backoff(self, sockets, pubsub):
+        def flapping_stream():
+            yield {"type": "subscribe", "channel": b"custom", "data": 1}
+            raise sockets.ConnectionError("dropped again")
+
+        pubsub.listen.side_effect = [
+            sockets.ConnectionError("one"),
+            flapping_stream(),
+            iter([]),
+        ]
+        channel = sockets.Channel("custom")
+        channel.RECONNECT_DELAY_SECS = 1
+        channel.MAX_RECONNECT_DELAY_SECS = 8
+        delays = []
+
+        logger = sockets.app.logger
+        with (
+            patch.object(logger, "exception") as traceback,
+            patch.object(logger, "warning") as oneliner,
+            patch.object(sockets.gevent, "sleep", delays.append),
+        ):
+            channel.listen()
+
+        # The zeroes are the loop's cooperative yields, not retry waits.
+        assert [d for d in delays if d] == [1, 2]
+        assert traceback.call_count == 1
+        assert oneliner.call_count == 1
+
+    @pytest.mark.timeout(10)
+    def test_relay_loop_yields_between_buffered_messages(
+        self, sockets, pubsub, mockclient
+    ):
+        order = []
+
+        def buffered_stream():
+            for payload in (b"one", b"two"):
+                order.append("read {}".format(payload.decode("utf-8")))
+                yield {"type": "message", "channel": b"custom", "data": payload}
+
+        pubsub.listen.side_effect = buffered_stream
+        mockclient.send.side_effect = order.append
+        channel = sockets.Channel("custom")
+        channel.subscribe(mockclient)
+
+        channel.start()
+        gevent.wait([channel.greenlet], timeout=1)
+
+        # ``relay`` only spawns senders, and a burst already in the socket
+        # buffer reads without blocking, so the sends run only if the loop
+        # hands the hub back between messages.
+        assert order == ["read one", "custom:one", "read two", "custom:two"]
+
     def test_failed_subscribe_is_not_retried(self, sockets, pubsub):
         pubsub.subscribe.side_effect = sockets.ConnectionError("no redis")
 
@@ -380,6 +432,21 @@ class TestChatBackend:
 
         chat.channels["quorum"].stop()
 
+    @pytest.mark.timeout(10)
+    def test_unsubscribe_drops_channel_when_control_publish_fails(
+        self, sockets, chat, pubsub, mockclient
+    ):
+        pubsub.listen.side_effect = parking_listen
+        chat.subscribe(mockclient, "quorum")
+        gevent.sleep(0)
+        channel = chat.channels["quorum"]
+        sockets.redis_conn.publish.side_effect = sockets.ConnectionError("no redis")
+
+        chat.unsubscribe(mockclient)
+
+        assert "quorum" not in chat.channels
+        assert channel.greenlet is None
+
     def test_unsubscribe_keeps_channel_with_remaining_clients(self, chat, mockclient):
         other = Mock()
         other.client_info.return_value = '{"class": "MockClient"}'
@@ -408,6 +475,25 @@ class TestClient:
         msg_data = json.loads(sockets.redis_conn.publish.mock_calls[0].args[1])
         assert msg_data["type"] == "websocket"
         assert msg_data["event"] == "connected"
+
+    def test_teardown_covers_the_connected_event(self, sockets, chat, mocksocket):
+        client = sockets.Client(mocksocket)
+        chat.subscribe(client, "special")
+        events = []
+
+        def fail_on_connect(payload):
+            events.append(payload["event"])
+            if payload["event"] == "connected":
+                raise RuntimeError("boom")
+
+        with patch.object(sockets, "publish_control_event", fail_on_connect):
+            with pytest.raises(RuntimeError):
+                client.publish()
+
+        # ``chat()`` subscribes before calling ``publish()``, so a failure
+        # anywhere inside it still has to unsubscribe.
+        assert events == ["connected", "unsubscribed"]
+        assert "special" not in chat.channels
 
     def test_send_exception_unsubscribes_client(self, client, channel):
         client.ws.send.side_effect = socket.error()
@@ -491,6 +577,7 @@ class TestClient:
         sent = json.loads(sockets.redis_conn.publish.mock_calls[0].args[1])
         assert sent["event"] == "connected"
 
+    @pytest.mark.timeout(10)
     def test_receive_loop_yields_while_waiting(self, sockets, yielding_socket):
         client = sockets.Client(yielding_socket)
         order = []
