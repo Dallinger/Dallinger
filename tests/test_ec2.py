@@ -15,7 +15,128 @@ from dallinger.command_line.lib.ec2 import (
     get_instance_details,
     get_pem_path,
     register_key_pair,
+    remove_dns_records,
 )
+
+
+def _route_53_client(*pages):
+    """Return a mock Route 53 client whose paginator yields the given record pages."""
+    route_53 = mock.Mock()
+    route_53.get_paginator.return_value.paginate.return_value = [
+        {"ResourceRecordSets": page} for page in pages
+    ]
+    return route_53
+
+
+def _record(name, value="ec2-1-2-3-4.compute.amazonaws.com"):
+    return {
+        "Name": name,
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [{"Value": value}],
+    }
+
+
+def _deleted_names(route_53):
+    return [
+        call.kwargs["ChangeBatch"]["Changes"][0]["ResourceRecordSet"]["Name"]
+        for call in route_53.change_resource_record_sets.call_args_list
+    ]
+
+
+class TestRemoveDnsRecords:
+    """Tests that record selection targets only the names Dallinger manages"""
+
+    def test_removes_exact_name_and_wildcard(self):
+        route_53 = _route_53_client(
+            [
+                _record("exp.example.com."),
+                _record("\\052.exp.example.com."),
+            ]
+        )
+
+        remove_dns_records("ZONE", "exp.example.com", route_53=route_53)
+
+        assert _deleted_names(route_53) == [
+            "exp.example.com.",
+            "\\052.exp.example.com.",
+        ]
+
+    def test_leaves_unrelated_records_with_matching_suffix(self):
+        route_53 = _route_53_client(
+            [
+                _record(
+                    "staging-exp.example.com.", value="other.compute.amazonaws.com"
+                ),
+                _record("exp.example.com."),
+            ]
+        )
+
+        remove_dns_records("ZONE", "exp.example.com", route_53=route_53)
+
+        assert _deleted_names(route_53) == ["exp.example.com."]
+
+    def test_zone_apex_keeps_subdomains_and_ns_soa_records(self):
+        route_53 = _route_53_client(
+            [
+                {"Name": "example.com.", "Type": "NS", "TTL": 172800},
+                {"Name": "example.com.", "Type": "SOA", "TTL": 900},
+                _record("exp.example.com."),
+                _record("example.com.", value="1.2.3.4"),
+            ]
+        )
+
+        remove_dns_records("ZONE", "example.com", route_53=route_53)
+
+        deleted = [
+            call.kwargs["ChangeBatch"]["Changes"][0]["ResourceRecordSet"]
+            for call in route_53.change_resource_record_sets.call_args_list
+        ]
+        assert [(record["Name"], record["Type"]) for record in deleted] == [
+            ("example.com.", "CNAME")
+        ]
+
+    def test_replaces_a_record_left_at_the_managed_name(self):
+        route_53 = _route_53_client(
+            [{"Name": "exp.example.com.", "Type": "A", "TTL": 300}]
+        )
+
+        remove_dns_records("ZONE", "exp.example.com", route_53=route_53)
+
+        assert _deleted_names(route_53) == ["exp.example.com."]
+
+    def test_finds_records_beyond_the_first_page(self):
+        route_53 = _route_53_client(
+            [_record("other.example.com.")],
+            [_record("exp.example.com.")],
+        )
+
+        remove_dns_records("ZONE", "exp.example.com", route_53=route_53)
+
+        assert _deleted_names(route_53) == ["exp.example.com."]
+
+    def test_confirm_declined_aborts_without_deleting(self, monkeypatch):
+        route_53 = _route_53_client([_record("exp.example.com.")])
+        monkeypatch.setattr(click, "confirm", lambda msg: False)
+
+        with pytest.raises(SystemExit):
+            remove_dns_records(
+                "ZONE", "exp.example.com", route_53=route_53, confirm=True
+            )
+
+        route_53.change_resource_record_sets.assert_not_called()
+
+    def test_alias_records_without_targets_do_not_crash(self, capsys, monkeypatch):
+        route_53 = _route_53_client(
+            [{"Name": "exp.example.com.", "Type": "A", "AliasTarget": {}}]
+        )
+        confirmed = []
+        monkeypatch.setattr(click, "confirm", lambda msg: confirmed.append(msg) or True)
+
+        remove_dns_records("ZONE", "exp.example.com", route_53=route_53, confirm=True)
+
+        assert "an unknown target" in confirmed[0]
+        assert _deleted_names(route_53) == ["exp.example.com."]
 
 
 class TestGetInstanceDetails:
