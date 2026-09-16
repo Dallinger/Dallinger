@@ -135,12 +135,21 @@ class TestChannel:
 
         mockclient.send.assert_called_once_with("quorum:Calloo! Callay!")
 
-    def test_failed_subscribe_skips_listening(self, sockets, pubsub):
-        pubsub.subscribe.side_effect = sockets.ConnectionError("no redis")
-        sockets.Channel("custom").start()
-        gevent.wait()
-        pubsub.listen.assert_not_called()
-        pubsub.close.assert_called_once_with()
+    @pytest.mark.timeout(10)
+    def test_failed_subscribe_is_retried(self, sockets, pubsub, mockclient):
+        pubsub.subscribe.side_effect = [sockets.ConnectionError("no redis"), None]
+        pubsub.listen.return_value = [
+            {"type": "message", "channel": b"custom", "data": b"after retry"}
+        ]
+        channel = sockets.Channel("custom")
+        channel.RECONNECT_DELAY_SECS = 0
+        channel.subscribe(mockclient)
+
+        channel.start()
+        gevent.wait(timeout=1)
+
+        assert pubsub.subscribe.call_count == 2
+        mockclient.send.assert_called_once_with("custom:after retry")
 
     def test_listen_closes_pubsub(self, sockets, pubsub):
         sockets.Channel("custom").start()
@@ -303,11 +312,16 @@ class TestChannel:
         # hands the hub back between messages.
         assert order == ["read one", "custom:one", "read two", "custom:two"]
 
-    def test_failed_subscribe_is_not_retried(self, sockets, pubsub):
-        pubsub.subscribe.side_effect = sockets.ConnectionError("no redis")
+    def test_protocol_error_on_subscribe_stops_the_relay(self, sockets, pubsub):
+        from redis.exceptions import ResponseError
 
-        sockets.Channel("custom").listen()
+        pubsub.subscribe.side_effect = ResponseError("bad channel")
 
+        with patch.object(sockets.gevent, "sleep") as sleep:
+            sockets.Channel("custom").listen()
+
+        # Retrying would raise the same error, so the relay gives up.
+        sleep.assert_not_called()
         pubsub.listen.assert_not_called()
         pubsub.close.assert_called_once_with()
 
@@ -456,6 +470,47 @@ class TestChatBackend:
         chat.unsubscribe(mockclient)
 
         assert chat.channels["quorum"].clients == [other]
+
+    def test_channel_that_stops_listening_is_dropped(self, chat, sockets, pubsub):
+        from redis.exceptions import ResponseError
+
+        pubsub.listen.side_effect = ResponseError("bad command")
+        chat.channels["quorum"] = channel = sockets.Channel("quorum")
+
+        channel.listen()
+
+        assert "quorum" not in chat.channels
+
+    def test_forget_keeps_a_channel_replaced_under_the_same_name(self, chat, sockets):
+        dead = sockets.Channel("quorum")
+        chat.channels["quorum"] = live = sockets.Channel("quorum")
+
+        chat.forget(dead)
+
+        assert chat.channels["quorum"] is live
+
+    @pytest.mark.timeout(10)
+    def test_subscribe_after_a_dead_listener_gets_a_live_one(
+        self, chat, sockets, pubsub, mockclient
+    ):
+        from redis.exceptions import ResponseError
+
+        pubsub.listen.side_effect = ResponseError("bad command")
+        chat.subscribe(mockclient, "quorum")
+        gevent.wait(timeout=1)
+
+        pubsub.listen.side_effect = None
+        pubsub.listen.return_value = [
+            {"type": "message", "channel": b"quorum", "data": b"back"}
+        ]
+        late = Mock()
+        late.client_info.return_value = '{"class": "MockClient"}'
+        chat.subscribe(late, "quorum")
+        gevent.wait(timeout=1)
+
+        # The dead channel is gone, so this client is relaying on a new one.
+        late.send.assert_called_once_with("quorum:back")
+        mockclient.send.assert_not_called()
 
 
 @pytest.mark.slow

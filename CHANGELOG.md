@@ -51,9 +51,12 @@
   a single line per attempt after that. A redis `TimeoutError` is retried the
   same way; any other `RedisError` is protocol-level, so it is logged and ends
   the relay rather than retrying into the same failure. A failed initial
-  `subscribe()` is not retried; it logs and stops. The pubsub is closed on
-  every exit, including when the greenlet is killed, so its connection returns
-  to the pool.
+  `subscribe()` is retried on the same schedule, so a client that connects
+  during an outage relays again once redis returns. A channel whose listener
+  does stop is dropped from the per-process backend, so a later subscriber
+  starts a fresh listener instead of attaching to a dead channel. The pubsub
+  is closed on every exit, including when the greenlet is killed, so its
+  connection returns to the pool.
 - A redis outage no longer strands a `/chat` client. The connect,
   disconnect, subscribe, and unsubscribe events on `dallinger_control` are
   notifications, so a failed publish is logged rather than raised. It

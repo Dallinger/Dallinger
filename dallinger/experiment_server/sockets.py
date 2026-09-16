@@ -118,32 +118,33 @@ class Channel:
 
         This is run continuously in a separate greenlet.
 
-        A lost redis connection is retried without limit. ``launch``
-        subscribes the experiment to its own channel and to the control
-        channel and never unsubscribes either, so giving up would leave an
-        experiment deaf until its worker restarts. Every other channel is
-        bounded by ``ChatBackend.unsubscribe``, which stops the greenlet once
-        the last client leaves. The full traceback is logged once per outage
-        and a single line per attempt after that, because at the ceiling an
-        outage otherwise writes six tracebacks a minute for every channel.
+        A lost redis connection is retried without limit, and so is the
+        first subscription. ``launch`` subscribes the experiment to its own
+        channel and to the control channel and never unsubscribes either, so
+        giving up would leave an experiment deaf until its worker restarts.
+        Every other channel is bounded by ``ChatBackend.unsubscribe``, which
+        stops the greenlet once the last client leaves. The full traceback is
+        logged once per outage and a single line per attempt after that,
+        because at the ceiling an outage otherwise writes six tracebacks a
+        minute for every channel.
         """
         pubsub = redis_conn.pubsub()
         name = self.name
         if isinstance(name, str):
             name = name.encode("utf-8")
         try:
-            try:
-                pubsub.subscribe([name])
-            except RedisError:
-                app.logger.exception(
-                    "Could not subscribe to channel {}.".format(self.name)
-                )
-                return
-            log("Listening on channel {}".format(self.name))
             delay = self.RECONNECT_DELAY_SECS
             reported = False
+            subscribed = False
             while True:
                 try:
+                    if not subscribed:
+                        # redis-py records the subscription only once the
+                        # command succeeds, and replays it itself on every
+                        # later reconnect.
+                        pubsub.subscribe([name])
+                        subscribed = True
+                        log("Listening on channel {}".format(self.name))
                     for message in pubsub.listen():
                         self.relay(message)
                         if message["type"] == "message":
@@ -157,11 +158,15 @@ class Channel:
                         # nothing else here hands the hub back.
                         gevent.sleep(0)
                 except RETRYABLE_REDIS_ERRORS:
-                    message = "Lost redis connection on channel {}, retrying in {}s."
+                    template = (
+                        "Lost redis connection on channel {}, retrying in {}s."
+                        if subscribed
+                        else "Could not subscribe to channel {}, retrying in {}s."
+                    )
                     if reported:
-                        app.logger.warning(message.format(self.name, delay))
+                        app.logger.warning(template.format(self.name, delay))
                     else:
-                        app.logger.exception(message.format(self.name, delay))
+                        app.logger.exception(template.format(self.name, delay))
                         reported = True
                     gevent.sleep(delay)
                     delay = min(delay * 2, self.MAX_RECONNECT_DELAY_SECS)
@@ -176,6 +181,7 @@ class Channel:
             # Returns the connection to the redis pool. ``stop()`` reaches this
             # too, because killing a greenlet raises inside it.
             pubsub.close()
+            chat_backend.forget(self)
 
     def start(self):
         """Start relaying messages."""
@@ -214,6 +220,17 @@ class ChatBackend:
             if not channel.clients and self.channels.get(name) is channel:
                 del self.channels[name]
                 channel.stop()
+
+    def forget(self, channel):
+        """Drop a channel whose listener has stopped.
+
+        The listening greenlet calls this as it exits, so a later subscriber
+        builds a channel with a live listener instead of attaching to a dead
+        one. The identity check keeps a replacement already registered under
+        the same name.
+        """
+        if self.channels.get(channel.name) is channel:
+            del self.channels[channel.name]
 
 
 # There is one chat backend per process.
