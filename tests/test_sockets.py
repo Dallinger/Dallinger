@@ -35,6 +35,7 @@ def sockets(redis):
     sockets.redis_conn = redis
     # use a separate ChatBackend for each test
     sockets.chat_backend = sockets.ChatBackend()
+    sockets._process_experiment = None
 
     yield sockets
 
@@ -92,6 +93,27 @@ def yielding_socket():
             return "custom:delivered"
 
     return YieldingSocket()
+
+
+@pytest.fixture
+def scripted_socket():
+    def build(*frames):
+        ws = Mock()
+        ws.close_reason = None
+        ws.close_message = None
+        ws.connected = True
+        remaining = list(frames)
+
+        def receive():
+            if not remaining:
+                ws.connected = False
+                return None
+            return remaining.pop(0)
+
+        ws.receive = Mock(side_effect=receive)
+        return ws
+
+    return build
 
 
 @pytest.fixture
@@ -737,3 +759,469 @@ class TestChatEndpoint:
             if call.args[0] != sockets.CONTROL_CHANNEL
         ]
         assert relayed == [("special", "incoming message!")]
+
+
+@pytest.mark.slow
+class TestExperimentSocket:
+    def sync_client(self, sockets, ws, experiment, **kwargs):
+        return sockets.Client(ws, experiment=experiment, **kwargs)
+
+    def relayed(self, sockets):
+        """Everything published to redis but the connect/disconnect events."""
+        return [
+            call.args
+            for call in sockets.redis_conn.publish.mock_calls
+            if call.args[0] != sockets.CONTROL_CHANNEL
+        ]
+
+    def test_frame_reaches_the_experiment_and_not_redis(self, sockets, scripted_socket):
+        exp = Mock()
+        client = self.sync_client(
+            sockets,
+            scripted_socket('game:{"action": "rock"}'),
+            exp,
+            participant_id="42",
+            scope="page-7",
+        )
+
+        client.publish()
+
+        call = exp.handle_websocket_message.mock_calls[0]
+        assert call.args == ('{"action": "rock"}',)
+        assert call.kwargs["channel_name"] == "game"
+        assert call.kwargs["participant_id"] == "42"
+        assert call.kwargs["scope"] == "page-7"
+        # Comparable with a Dallinger DateTime column, which is naive.
+        assert call.kwargs["receive_time"].tzinfo is None
+        assert self.relayed(sockets) == []
+
+    def test_session_is_removed_after_every_frame(self, sockets, scripted_socket):
+        exp = Mock()
+        client = self.sync_client(sockets, scripted_socket("game:one", "game:two"), exp)
+
+        with patch.object(sockets, "session") as session:
+            client.publish()
+
+        assert exp.handle_websocket_message.call_count == 2
+        assert session.remove.call_count == 2
+
+    def test_failing_handler_keeps_the_connection_open(self, sockets, scripted_socket):
+        exp = Mock()
+        exp.handle_websocket_message.side_effect = [ValueError("boom"), None]
+        client = self.sync_client(sockets, scripted_socket("game:one", "game:two"), exp)
+
+        with patch.object(sockets, "session") as session:
+            with patch.object(sockets.app, "logger") as logger:
+                client.publish()
+
+        assert exp.handle_websocket_message.call_count == 2
+        assert session.remove.call_count == 2
+        logger.exception.assert_called_once()
+
+    def test_binary_frame_closes_the_connection(self, sockets, scripted_socket):
+        exp = Mock()
+        ws = scripted_socket(b'game:{"action": "rock"}', "game:never read")
+        client = self.sync_client(sockets, ws, exp)
+
+        client.publish()
+
+        ws.close.assert_called_once_with(
+            sockets.UNSUPPORTED_DATA_CLOSE_CODE, "text frames only"
+        )
+        exp.handle_websocket_message.assert_not_called()
+        assert ws.receive.call_count == 1
+
+    def test_binary_frame_announces_the_disconnect(self, sockets, scripted_socket):
+        client = self.sync_client(sockets, scripted_socket(b"game:payload"), Mock())
+
+        client.publish()
+
+        events = [
+            json.loads(call.args[1])
+            for call in sockets.redis_conn.publish.mock_calls
+            if call.args[0] == sockets.CONTROL_CHANNEL
+        ]
+        assert [event["event"] for event in events] == ["connected", "disconnected"]
+        assert events[-1]["reason"] == sockets.UNSUPPORTED_DATA_CLOSE_CODE
+        assert events[-1]["message"] == "text frames only"
+
+    def test_binary_frame_closes_under_the_send_lock(self, sockets, scripted_socket):
+        # ``send`` and ``close`` write to the same socket with no coordination
+        # of their own inside simple_websocket, and a relay greenlet spawned by
+        # ``Channel.relay`` can be inside ``send`` when this close runs.
+        ws = scripted_socket(b"game:payload")
+        client = sockets.Client(ws)
+        held = []
+        ws.close.side_effect = lambda *args: held.append(client.send_lock.locked())
+
+        client.publish()
+
+        assert held == [True]
+
+    def test_control_channel_frame_never_reaches_the_handler(
+        self, sockets, scripted_socket
+    ):
+        exp = Mock()
+        client = self.sync_client(
+            sockets, scripted_socket('dallinger_control:{"event": "forged"}'), exp
+        )
+
+        client.publish()
+
+        exp.handle_websocket_message.assert_not_called()
+
+    def test_malformed_frame_never_reaches_the_handler(self, sockets, scripted_socket):
+        exp = Mock()
+        client = self.sync_client(sockets, scripted_socket("no separator"), exp)
+
+        client.publish()
+
+        exp.handle_websocket_message.assert_not_called()
+
+    def test_handler_can_restore_the_broadcast(self, sockets, scripted_socket):
+        from dallinger import db
+        from dallinger.experiment import Experiment
+
+        class Republishing(Experiment):
+            def __init__(self):
+                # Experiment.__init__ wants a database; only the publish path
+                # is under test here.
+                pass
+
+            def handle_websocket_message(self, message, *, channel_name, **kwargs):
+                self.publish_to_subscribers(message, "chat_broadcast")
+
+        frame = 'chat:{"text": "hi"}'
+
+        sockets.Client(scripted_socket(frame)).publish()
+        relayed_payload = self.relayed(sockets)[0][1]
+        sockets.redis_conn.publish.reset_mock()
+
+        client = self.sync_client(sockets, scripted_socket(frame), Republishing())
+        with patch.object(db, "redis_conn", sockets.redis_conn):
+            client.publish()
+
+        # Subscribers get the payload the relay would have sent them, on a
+        # channel the experiment is not itself subscribed to.
+        assert self.relayed(sockets) == [("chat_broadcast", relayed_payload)]
+
+    def test_a_client_without_an_experiment_relays_to_redis(
+        self, sockets, scripted_socket
+    ):
+        client = sockets.Client(scripted_socket("game:payload"))
+
+        client.publish()
+
+        assert sockets.redis_conn.publish.mock_calls[-1].args == ("game", "payload")
+
+
+@pytest.mark.slow
+class TestClientInfo:
+    def test_reports_the_connection_scope(self, sockets):
+        client = sockets.Client(
+            Mock(), worker_id="w1", participant_id="42", scope="page-7"
+        )
+
+        assert client.client_info() == {
+            "class": "dallinger.experiment_server.sockets.Client",
+            "worker_id": "w1",
+            "participant_id": "42",
+            "scope": "page-7",
+        }
+
+    def test_control_events_carry_the_scope(self, sockets, scripted_socket):
+        # An experiment tracking connections sees the scope at connect time,
+        # not only once that connection sends a frame.
+        with patch.object(
+            sockets, "request", Mock(args={"channel": "special", "scope": "page-7"})
+        ):
+            sockets.chat(scripted_socket())
+
+        events = [
+            json.loads(call.args[1])
+            for call in sockets.redis_conn.publish.mock_calls
+            if call.args[0] == sockets.CONTROL_CHANNEL
+        ]
+        assert events
+        assert all(event["client"]["scope"] == "page-7" for event in events)
+
+
+def channel_events(sockets):
+    """The subscribe/unsubscribe bookkeeping a channel announces."""
+    return [
+        json.loads(call.args[1])["event"]
+        for call in sockets.redis_conn.publish.mock_calls
+        if call.args[0] == sockets.CONTROL_CHANNEL
+        and json.loads(call.args[1])["type"] == "channel"
+    ]
+
+
+@pytest.mark.slow
+class TestChannellessConnection:
+    """A connection that names no channel sends without receiving."""
+
+    def connect(self, sockets, ws, **args):
+        with patch.object(sockets, "request", Mock(args=args)):
+            sockets.chat(ws)
+
+    @pytest.mark.parametrize("args", [{}, {"channel": ""}], ids=["absent", "empty"])
+    def test_no_channel_builds_no_channel(self, sockets, scripted_socket, args):
+        self.connect(sockets, scripted_socket("game:payload"), **args)
+
+        assert channel_events(sockets) == []
+
+    def test_a_named_channel_still_builds_one(self, sockets, scripted_socket):
+        self.connect(sockets, scripted_socket("game:payload"), channel="special")
+
+        assert channel_events(sockets) == ["subscribed", "unsubscribed"]
+
+    def test_frames_are_still_relayed(self, sockets, scripted_socket):
+        self.connect(sockets, scripted_socket("game:payload"))
+
+        relayed = [
+            call.args
+            for call in sockets.redis_conn.publish.mock_calls
+            if call.args[0] != sockets.CONTROL_CHANNEL
+        ]
+        assert relayed == [("game", "payload")]
+
+
+@pytest.mark.slow
+class TestExperimentSocketConnection:
+    def connect(self, sockets, ws, **args):
+        with patch.object(sockets, "request", Mock(args=args)):
+            sockets.experiment_socket(ws)
+
+    def connect_chat(self, sockets, ws, **args):
+        with patch.object(sockets, "request", Mock(args=args)):
+            sockets.chat(ws)
+
+    def test_unknown_participant_is_refused(self, sockets, mocksocket):
+        with patch.object(sockets, "resolve_participant_id", return_value=None):
+            with patch.object(sockets, "Experiment") as experiment_factory:
+                self.connect(
+                    sockets,
+                    mocksocket,
+                    channel="special",
+                    participant_id="999",
+                )
+
+        mocksocket.close.assert_called_once_with(
+            sockets.REFUSED_CLOSE_CODE, "unknown participant"
+        )
+        experiment_factory.assert_not_called()
+        assert "special" not in sockets.chat_backend.channels
+
+    def test_the_chat_route_still_relays(self, sockets, scripted_socket):
+        ws = scripted_socket("special:payload")
+        self.connect_chat(sockets, ws, channel="special")
+
+        ws.close.assert_not_called()
+        relayed = [
+            call.args
+            for call in sockets.redis_conn.publish.mock_calls
+            if call.args[0] != sockets.CONTROL_CHANNEL
+        ]
+        assert relayed == [("special", "payload")]
+
+    def test_lookup_failure_asks_the_client_to_retry(self, sockets, mocksocket):
+        from sqlalchemy.exc import OperationalError
+
+        failure = OperationalError("SELECT 1", {}, Exception("no server"))
+        with patch.object(sockets, "resolve_participant_id", side_effect=failure):
+            with patch.object(sockets, "Experiment") as experiment_factory:
+                self.connect(
+                    sockets,
+                    mocksocket,
+                    channel="special",
+                    participant_id="42",
+                )
+
+        mocksocket.close.assert_called_once_with(
+            sockets.UNAVAILABLE_CLOSE_CODE, "participant lookup failed"
+        )
+        experiment_factory.assert_not_called()
+
+    def test_known_participant_gets_an_experiment(self, sockets, scripted_socket):
+        ws = scripted_socket("special:payload")
+        with patch.object(sockets, "resolve_participant_id", return_value="42"):
+            with patch.object(sockets, "Experiment") as experiment_factory:
+                self.connect(
+                    sockets,
+                    ws,
+                    channel="special",
+                    participant_id="42",
+                    scope="page-7",
+                )
+
+        ws.close.assert_not_called()
+        experiment_factory.assert_called_once_with()
+        exp = experiment_factory.return_value
+        call = exp.handle_websocket_message.mock_calls[0]
+        assert call.kwargs["scope"] == "page-7"
+        # The parsed id rendered back, not the query string it came from.
+        assert call.kwargs["participant_id"] == "42"
+
+    def test_building_the_experiment_releases_the_session(
+        self, sockets, scripted_socket
+    ):
+        ws = scripted_socket()
+        with patch.object(sockets, "resolve_participant_id", return_value="42"):
+            with patch.object(sockets, "Experiment"):
+                with patch.object(sockets, "session") as session:
+                    self.connect(
+                        sockets,
+                        ws,
+                        channel="special",
+                        participant_id="42",
+                    )
+
+        # configure() may have queried, and this connection can now idle in
+        # receive() indefinitely.
+        session.remove.assert_called_once_with()
+
+    def test_connections_share_one_experiment(self, sockets, scripted_socket):
+        with patch.object(sockets, "resolve_participant_id", return_value="42"):
+            with patch.object(sockets, "Experiment") as experiment_factory:
+                for _ in range(3):
+                    self.connect(
+                        sockets,
+                        scripted_socket("special:payload"),
+                        channel="special",
+                        participant_id="42",
+                    )
+
+        experiment_factory.assert_called_once_with()
+        exp = experiment_factory.return_value
+        assert exp.handle_websocket_message.call_count == 3
+
+    def test_two_greenlets_build_one_experiment(self, sockets):
+        built = []
+
+        def build():
+            # Experiment.__init__ runs configure(), which is experiment code
+            # and may query, so the constructor can yield here.
+            gevent.sleep(0)
+            built.append(Mock())
+            return built[-1]
+
+        with patch.object(sockets, "Experiment", side_effect=build):
+            greenlets = [gevent.spawn(sockets.process_experiment) for _ in range(2)]
+            gevent.joinall(greenlets)
+
+        assert len(built) == 1
+        assert [g.value for g in greenlets] == [built[0], built[0]]
+
+    def test_a_experiment_socket_still_subscribes_to_its_channel(
+        self, sockets, scripted_socket
+    ):
+        # A experiment socket changes the inbound direction only, so broadcasts to
+        # ``channel`` still have to reach the browser.
+        with patch.object(sockets, "resolve_participant_id", return_value="42"):
+            with patch.object(sockets, "Experiment"):
+                self.connect(
+                    sockets,
+                    scripted_socket("special:payload"),
+                    channel="special",
+                    participant_id="42",
+                )
+
+        assert channel_events(sockets) == ["subscribed", "unsubscribed"]
+
+    def test_a_failed_experiment_releases_the_session(self, sockets, mocksocket):
+        with patch.object(sockets, "resolve_participant_id", return_value="42"):
+            with patch.object(sockets, "Experiment", side_effect=ValueError("boom")):
+                with patch.object(sockets, "session") as session:
+                    self.connect(
+                        sockets,
+                        mocksocket,
+                        channel="special",
+                        participant_id="42",
+                    )
+
+        # configure() may have queried before raising.
+        session.remove.assert_called_once_with()
+
+    def test_a_failed_experiment_is_not_cached(self, sockets, mocksocket):
+        with patch.object(sockets, "resolve_participant_id", return_value="42"):
+            with patch.object(sockets, "Experiment", side_effect=ValueError("boom")):
+                self.connect(
+                    sockets,
+                    mocksocket,
+                    channel="special",
+                    participant_id="42",
+                )
+
+        mocksocket.close.assert_called_once_with(
+            sockets.UNAVAILABLE_CLOSE_CODE, "experiment unavailable"
+        )
+        assert sockets._process_experiment is None
+        assert "special" not in sockets.chat_backend.channels
+
+    def test_the_chat_route_does_not_look_up_the_participant(self, sockets, mocksocket):
+        with patch.object(sockets, "resolve_participant_id") as lookup:
+            self.connect_chat(
+                sockets, mocksocket, channel="special", participant_id="nonsense"
+            )
+
+        lookup.assert_not_called()
+
+
+@pytest.mark.slow
+class TestResolveParticipantId:
+    def test_non_numeric_id_is_not_a_lookup(self, sockets):
+        with patch.object(sockets, "session") as session:
+            assert sockets.resolve_participant_id("not-a-number") is None
+
+        session.query.assert_not_called()
+
+    def test_missing_id_is_not_a_lookup(self, sockets):
+        with patch.object(sockets, "session") as session:
+            assert sockets.resolve_participant_id(None) is None
+
+        session.query.assert_not_called()
+
+    def test_a_failed_query_still_releases_the_session(self, sockets):
+        from sqlalchemy.exc import OperationalError
+
+        with patch.object(sockets, "session") as session:
+            session.query.side_effect = OperationalError(
+                "SELECT 1", {}, Exception("no server")
+            )
+
+            with pytest.raises(OperationalError):
+                sockets.resolve_participant_id("42")
+
+        session.remove.assert_called_once_with()
+
+
+@pytest.mark.slow
+class TestResolveParticipantIdAgainstTheDatabase:
+    """The lookup against a real participant table, not a mocked session."""
+
+    def test_finds_a_real_participant(self, sockets, a):
+        # resolve_participant_id calls session.remove(), which detaches
+        # anything built here, so read the id before the lookup.
+        participant_id = a.participant().id
+
+        assert sockets.resolve_participant_id(str(participant_id)) == str(
+            participant_id
+        )
+
+    def test_absent_id_is_unknown(self, sockets, a):
+        participant_id = a.participant().id
+
+        assert sockets.resolve_participant_id(str(participant_id + 1000)) is None
+
+    def test_non_ascii_digits_yield_the_parsed_id(self, sockets, a):
+        participant_id = a.participant().id
+        arabic_indic = str(participant_id).translate(
+            str.maketrans(
+                "0123456789",
+                "\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669",
+            )
+        )
+
+        # int() accepts these. The raw string reaching the column instead
+        # would raise DataError on every query made with it.
+        assert sockets.resolve_participant_id(arabic_indic) == str(participant_id)

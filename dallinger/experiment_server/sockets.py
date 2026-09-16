@@ -3,6 +3,7 @@
 import json
 import os
 import socket
+from datetime import datetime
 
 import gevent
 from flask import request
@@ -11,10 +12,12 @@ from gevent.lock import Semaphore
 from redis import ConnectionError, RedisError
 from redis import TimeoutError as RedisTimeoutError
 from simple_websocket import ConnectionClosed
+from sqlalchemy.exc import SQLAlchemyError
 
-from dallinger.db import redis_conn
+from dallinger import models
+from dallinger.db import redis_conn, session
 
-from .experiment_server import app
+from .experiment_server import Experiment, app
 
 sock = Sock(app)
 
@@ -22,6 +25,18 @@ sock = Sock(app)
 app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
 
 CONTROL_CHANNEL = "dallinger_control"
+
+#: RFC 6455 policy violation, reported to the browser as ``event.code`` on
+#: ``onclose``. Dallinger's bundled ``ReconnectingWebSocket`` stops retrying on
+#: it.
+REFUSED_CLOSE_CODE = 1008
+
+#: IANA "try again later". Unlike a refusal, a client should reconnect.
+UNAVAILABLE_CLOSE_CODE = 1013
+
+#: RFC 6455 unsupported data. Sent when a client frames something this
+#: protocol has no way to route.
+UNSUPPORTED_DATA_CLOSE_CODE = 1003
 
 # redis-py reconnects and resubscribes the pubsub before re-raising these,
 # so a later read resumes the stream. Other RedisErrors are protocol-level
@@ -33,6 +48,27 @@ def log(msg, level="info"):
     # Log including pid and greenlet id
     logfunc = getattr(app.logger, level)
     logfunc("{}/{}: {}".format(os.getpid(), id(gevent.hub.getcurrent()), msg))
+
+
+_process_experiment = None
+_process_experiment_lock = Semaphore()
+
+
+def process_experiment():
+    """The one ``Experiment`` this process hands to its experiment-socket clients.
+
+    ``Experiment.__init__`` runs ``configure()``, which is experiment code and
+    may query, so the constructor can yield and two connections would otherwise
+    each build one.
+    """
+    global _process_experiment
+    with _process_experiment_lock:
+        if _process_experiment is None:
+            try:
+                _process_experiment = Experiment()
+            finally:
+                session.remove()
+    return _process_experiment
 
 
 def publish_control_event(payload):
@@ -238,12 +274,25 @@ chat_backend = ChatBackend()
 
 
 class Client:
-    """Represents a single websocket client."""
+    """Represents a single websocket client.
 
-    def __init__(self, ws, worker_id=None, participant_id=None):
+    A client holding an ``experiment`` hands it each inbound message. One
+    without publishes to redis for a subscriber to pick up.
+    """
+
+    def __init__(
+        self,
+        ws,
+        worker_id=None,
+        participant_id=None,
+        scope=None,
+        experiment=None,
+    ):
         self.ws = ws
         self.worker_id = worker_id
         self.participant_id = participant_id
+        self.scope = scope
+        self.experiment = experiment
 
         # This lock is used to make sure that multiple greenlets
         # cannot send to the same socket concurrently.
@@ -254,6 +303,7 @@ class Client:
             "class": self.__class__.__module__ + "." + self.__class__.__name__,
             "worker_id": self.worker_id,
             "participant_id": self.participant_id,
+            "scope": self.scope,
         }
 
     def send(self, message):
@@ -281,13 +331,19 @@ class Client:
             # log('Sent to {}: {}'.format(self, message), level='debug')
 
     def subscribe(self, channel):
-        """Start listening to messages on the specified channel."""
-        chat_backend.subscribe(self, channel)
+        """Start listening to messages on ``channel``, if there is one.
+
+        A connection may name no channel, in which case it receives nothing
+        and only sends. Subscribing to the empty name would build a channel
+        redis refuses to subscribe to.
+        """
+        if channel:
+            chat_backend.subscribe(self, channel)
 
     def publish(self):
-        """Relay messages from client to redis."""
+        """Read messages from the client until the connection closes."""
         try:
-            # Inside the ``finally`` below: ``chat()`` has already subscribed
+            # Inside the ``finally`` below: ``_serve()`` has already subscribed
             # the client, so everything from here on needs teardown.
             publish_control_event(
                 {
@@ -302,22 +358,27 @@ class Client:
                     # patches, so this loop yields to the hub here.
                     message = self.ws.receive()
                 except ConnectionClosed:
-                    # Also unsubscribed by the ``finally`` below. It happens
-                    # here so the "unsubscribed" control message precedes the
-                    # "disconnected" one; subscribers rely on that order.
-                    chat_backend.unsubscribe(self)
-                    publish_control_event(
-                        {
-                            "type": "websocket",
-                            "event": "disconnected",
-                            "reason": self.ws.close_reason or "",
-                            "message": self.ws.close_message or "",
-                            "client": self.client_info(),
-                        }
+                    self.publish_disconnected(
+                        self.ws.close_reason or "", self.ws.close_message or ""
                     )
                     raise
                 if message is None:
                     continue
+                if not isinstance(message, str):
+                    # A binary frame has no channel prefix to split on, so
+                    # there is nowhere to route it.
+                    log(
+                        "Closing connection from {} after a binary frame.".format(
+                            self.client_info()
+                        ),
+                        level="warning",
+                    )
+                    with self.send_lock:
+                        self.ws.close(UNSUPPORTED_DATA_CLOSE_CODE, "text frames only")
+                    self.publish_disconnected(
+                        UNSUPPORTED_DATA_CLOSE_CODE, "text frames only"
+                    )
+                    return
                 channel_name, separator, data = message.partition(":")
                 if not separator or not channel_name:
                     log(
@@ -336,22 +397,143 @@ class Client:
                         level="warning",
                     )
                     continue
-                redis_conn.publish(channel_name, data)
+                if self.experiment is not None:
+                    self.handle(channel_name, data)
+                else:
+                    redis_conn.publish(channel_name, data)
         finally:
             chat_backend.unsubscribe(self)
 
+    def publish_disconnected(self, reason, message=""):
+        """Unsubscribe and announce that this connection is over.
 
-def chat(ws):
-    """Relay chat messages to and from clients."""
+        ``reason`` is the numeric close code and ``message`` the text, matching
+        ``simple_websocket``, where ``close_reason`` holds ``event.code``
+        despite its name.
+
+        Unsubscribing first puts the "unsubscribed" control message ahead of
+        the "disconnected" one; subscribers rely on that order. ``publish()``
+        unsubscribes again in its ``finally``, which is a no-op by then.
+        """
+        chat_backend.unsubscribe(self)
+        publish_control_event(
+            {
+                "type": "websocket",
+                "event": "disconnected",
+                "reason": reason,
+                "message": message,
+                "client": self.client_info(),
+            }
+        )
+
+    def handle(self, channel_name, data):
+        """Pass one frame to the experiment running in this process.
+
+        The session is removed afterwards so the next frame starts with an
+        empty identity map and no open transaction. Experiment code owns its
+        own commits.
+
+        Letting a handler's exception propagate would unwind ``publish()``
+        and close a connection the participant's browser expects to stay open.
+        """
+        try:
+            self.experiment.handle_websocket_message(
+                data,
+                channel_name=channel_name,
+                participant_id=self.participant_id,
+                scope=self.scope,
+                # Naive local, like models.timenow(). Every Dallinger DateTime
+                # column is naive, so an aware value stored in one loses its
+                # offset and reads back as local.
+                receive_time=datetime.now(),
+            )
+        except Exception:
+            app.logger.exception(
+                "Error handling websocket message from {}.".format(self.client_info())
+            )
+        finally:
+            session.remove()
+
+
+def resolve_participant_id(participant_id):
+    """The id of the participant ``participant_id`` names, or ``None``.
+
+    The id comes back as a string, which is the form every other Dallinger
+    route carries it in. It is the parsed value rendered back rather than the
+    query string, because ``int()`` accepts more than the column does,
+    including surrounding whitespace, a leading sign, and non-ASCII decimal
+    digits. Passing the raw string on would let a lookup succeed here and then
+    raise ``DataError`` on every later query.
+    """
+    try:
+        lookup_id = int(participant_id)
+    except (TypeError, ValueError):
+        return None
+    try:
+        found = (
+            session.query(models.Participant.id).filter_by(id=lookup_id).scalar()
+            is not None
+        )
+    finally:
+        session.remove()
+    return str(lookup_id) if found else None
+
+
+def _serve(ws, participant_id=None, experiment=None):
+    """Subscribe a connection to its channel and relay until it closes."""
     client = Client(
         ws,
         worker_id=request.args.get("worker_id"),
-        participant_id=request.args.get("participant_id"),
+        participant_id=participant_id,
+        scope=request.args.get("scope"),
+        experiment=experiment,
     )
     client.subscribe(request.args.get("channel"))
     client.publish()
 
 
-# We need to keep the function around for tests, so we apply the decorator
+def chat(ws):
+    """Relay messages between a client and redis."""
+    _serve(ws, participant_id=request.args.get("participant_id"))
+
+
+def experiment_socket(ws):
+    """Hand each inbound message to the experiment running in this process."""
+    requested_id = request.args.get("participant_id")
+    try:
+        participant_id = resolve_participant_id(requested_id)
+    except SQLAlchemyError:
+        log(
+            "Could not look up participant {!r} for an experiment socket.".format(
+                requested_id
+            ),
+            level="exception",
+        )
+        ws.close(UNAVAILABLE_CLOSE_CODE, "participant lookup failed")
+        return
+    # handle_websocket_message is told which participant sent each message, so
+    # a connection we cannot name is refused rather than handled anonymously.
+    # Existence is all this proves: the route is unauthenticated, so the id is
+    # not evidence of who is on the other end.
+    if participant_id is None:
+        log(
+            "Refusing experiment socket for unknown participant {!r}.".format(
+                requested_id
+            ),
+            level="warning",
+        )
+        ws.close(REFUSED_CLOSE_CODE, "unknown participant")
+        return
+    try:
+        experiment = process_experiment()
+    except Exception:
+        log("Could not build the experiment.", level="exception")
+        ws.close(UNAVAILABLE_CLOSE_CODE, "experiment unavailable")
+        return
+    _serve(ws, participant_id=participant_id, experiment=experiment)
+
+
+# We need to keep the functions around for tests, so we apply the decorators
 # manually
 sock.route("/chat")(chat)
+sock.route("/experiment-socket")(experiment_socket)

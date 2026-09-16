@@ -391,6 +391,25 @@ class TestExperimentBaseClass:
                 receive_time=mock.ANY,
             )
 
+    def test_default_websocket_handler_reaches_send_intact(self, exp):
+        # The default handler rebuilds the prefixed string send() expects, so
+        # an experiment socket queues the same work an ordinary connection does.
+        # What send() then enqueues is test_send_enqueues_worker_function.
+        with mock.patch("dallinger.experiment.db.get_queue") as mock_get_queue:
+            mock_queue = mock_get_queue.return_value = mock.Mock()
+            exp.channel = "exp_default"
+            exp.handle_websocket_message(
+                '{"key":"value","sender":1}',
+                channel_name="exp_default",
+                participant_id="1",
+                scope="page-7",
+            )
+
+        assert mock_queue.enqueue.mock_calls[0].kwargs["details"] == {
+            "message": '{"key":"value","sender":1}',
+            "channel_name": "exp_default",
+        }
+
     def test_session_arg_deprecation_warning(self, klass):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")

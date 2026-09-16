@@ -100,4 +100,8 @@ which are useful when writing a custom experiment:
 
 .. js:autofunction:: dallinger.goToPage
 
+.. js:autofunction:: dallinger.stopReconnectingIfRefused
+
 .. js:autoattribute:: dallinger.identity
+
+.. js:autoattribute:: dallinger.WEBSOCKET_REFUSED
