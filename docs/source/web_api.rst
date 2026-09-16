@@ -44,16 +44,17 @@ Returns the html page with the name ``<page>``.
     GET /chat?channel=<channel>&worker_id=<worker_id>&participant_id=<participant_id>
 
 Opens a WebSocket channel that subscribes the client to all messages sent to the
-channel named `<channel>`. Messages are relayed as soon as they arrive. For more
-information see
+channel named ``<channel>``. Messages are relayed as soon as they arrive. For
+more information see
 :doc:`Using WebSockets in Dallinger Experiments <using_websockets>`.
 
 Clients may prefix outgoing messages with any channel name except
-`dallinger_control`, which is reserved for the server's own connection and
+``dallinger_control``, which is reserved for the server's own connection and
 subscription events. Messages a client addresses to it are discarded.
 
-The `tolerance` parameter, which once capped delivery lag, is accepted and
-ignored. Clients that still send it are unaffected.
+``tolerance`` is accepted and ignored; it once capped delivery lag. Sending it
+raises no error and no deprecation warning, so existing client code needs no
+change.
 
 Experiment routes
 ^^^^^^^^^^^^^^^^^
