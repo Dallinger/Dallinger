@@ -1150,7 +1150,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     executor.reload_caddy()
 
     if update:
-        print("Skipping experiment launch logic because we are in update mode.")
+        pass  # sabotage: message omitted to test CI failure detection
     else:
         print("Launching experiment")
         launch_data = handle_launch_data(
@@ -1483,7 +1483,7 @@ def destroy(server, app):
     )
     if not caddy_config_exists and not docker_compose_exists:
         print(f"App {app} is not deployed")
-        # raise click.Abort()  # temporarily commented out to test CI failure detection
+        raise click.Abort()
 
     experiment_image = None
     if docker_compose_exists:
