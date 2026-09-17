@@ -1604,11 +1604,11 @@ def test_get_editable_dallinger_path_pep660(tmp_path, monkeypatch):
     )
 
     class FakeDist:
-        files = [Path("dallinger-12.2.0a1.dist-info/direct_url.json")]
-
         @staticmethod
-        def locate_file(_path):
-            return direct_url_path
+        def read_text(filename):
+            return (
+                direct_url_path.read_text() if filename == "direct_url.json" else None
+            )
 
     monkeypatch.setattr("dallinger.utils.get_distribution", lambda _: FakeDist())
 

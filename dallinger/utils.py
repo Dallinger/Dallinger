@@ -456,16 +456,12 @@ def get_editable_dallinger_path():
         dist = get_distribution("dallinger")
     except PackageNotFoundError:
         return None
-    direct_url_relpath = next(
-        (path for path in dist.files or [] if path.name == "direct_url.json"),
-        None,
-    )
-    if direct_url_relpath is None:
+    raw = dist.read_text("direct_url.json")
+    if raw is None:
         return None
-    direct_url_path = Path(dist.locate_file(direct_url_relpath))
     try:
-        metadata = json.loads(direct_url_path.read_text())
-    except (OSError, json.JSONDecodeError):
+        metadata = json.loads(raw)
+    except json.JSONDecodeError:
         return None
     if not metadata.get("dir_info", {}).get("editable"):
         return None
