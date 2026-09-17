@@ -46,9 +46,9 @@ bleach==6.4.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-boto3==1.43.94
+boto3==1.43.96
     # via dallinger
-botocore==1.43.94
+botocore==1.43.96
     # via
     #   boto3
     #   s3transfer
@@ -56,7 +56,7 @@ build==1.6.1
     # via dallinger
 bump2version==1.0.1
     # via dallinger
-cachetools==7.1.8
+cachetools==7.2.0
     # via tox
 cattrs==24.1.3
     # via sphinx-js
@@ -96,7 +96,7 @@ croniter==6.2.4
     # via rq
 cryptography==50.0.1
     # via paramiko
-debugpy==1.8.21
+debugpy==1.8.22
     # via ipykernel
 defusedxml==0.7.1
     # via
@@ -119,7 +119,7 @@ faker==40.39.0
     # via dallinger
 fastjsonschema==2.22.2
     # via nbformat
-filelock==3.32.6
+filelock==3.32.7
     # via
     #   python-discovery
     #   tox
@@ -138,7 +138,7 @@ flask-wtf==1.3.0
     # via dallinger
 fqdn==1.5.1
     # via jsonschema
-gevent==26.8.0
+gevent==26.9.0
     # via
     #   dallinger
     #   gunicorn
@@ -248,7 +248,7 @@ jupyter-events==0.12.1
     # via jupyter-server
 jupyter-lsp==2.3.1
     # via jupyterlab
-jupyter-server==2.21.0
+jupyter-server==2.21.1
     # via
     #   jupyter-lsp
     #   jupyterlab
@@ -263,7 +263,7 @@ jupyterlab==4.6.3
     #   notebook
 jupyterlab-pygments==0.3.0
     # via nbconvert
-jupyterlab-server==2.28.0
+jupyterlab-server==2.28.1
     # via
     #   jupyterlab
     #   notebook
@@ -362,7 +362,7 @@ pexpect==4.9.0
     # via
     #   dallinger
     #   ipython
-platformdirs==4.11.8
+platformdirs==4.11.9
     # via
     #   dallinger
     #   jupyter-core
@@ -412,9 +412,9 @@ pynacl==1.6.2
     # via paramiko
 pypandoc==1.17
     # via dallinger
-pyproject-api==1.11.0
+pyproject-api==1.11.1
     # via tox
-pyproject-hooks==1.2.0
+pyproject-hooks==1.3.3
     # via build
 pysocks==1.7.1
     # via urllib3
@@ -422,7 +422,7 @@ pytest==9.1.1
     # via
     #   dallinger
     #   pytest-rerunfailures
-pytest-rerunfailures==16.6.1
+pytest-rerunfailures==16.7
     # via dallinger
 python-dateutil==2.9.0.post0
     # via
@@ -492,7 +492,7 @@ rpds-py==0.30.0
     #   referencing
 rq==2.12.0
     # via dallinger
-ruff==0.16.7
+ruff==0.16.8
     # via dallinger
 s3transfer==0.19.2
     # via boto3
@@ -566,7 +566,7 @@ tinycss2==1.5.1
     # via bleach
 tomli-w==1.2.0
     # via tox
-tornado==6.5.9
+tornado==6.5.10
     # via
     #   ipykernel
     #   jupyter-client
@@ -574,7 +574,7 @@ tornado==6.5.9
     #   jupyterlab
     #   notebook
     #   terminado
-tox==4.61.4
+tox==4.61.5
     # via dallinger
 traitlets==5.16.1
     # via
@@ -620,7 +620,7 @@ ua-parser-builtins==202606
     # via ua-parser
 uri-template==1.3.0
     # via jsonschema
-urllib3==2.7.0
+urllib3==2.8.0
     # via
     #   botocore
     #   dallinger
@@ -629,9 +629,9 @@ urllib3==2.7.0
     #   selenium
 user-agents==2.2.0
     # via dallinger
-uv==0.12.13
+uv==0.12.15
     # via dallinger
-virtualenv==21.7.9
+virtualenv==21.7.10
     # via
     #   pre-commit
     #   tox
