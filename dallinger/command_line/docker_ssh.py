@@ -1483,7 +1483,7 @@ def destroy(server, app):
     )
     if not caddy_config_exists and not docker_compose_exists:
         print(f"App {app} is not deployed")
-        raise click.Abort()
+        # raise click.Abort()  # temporarily commented out to test CI failure detection
 
     experiment_image = None
     if docker_compose_exists:
