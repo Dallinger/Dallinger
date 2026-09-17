@@ -1594,7 +1594,7 @@ def test_get_editable_dallinger_path():
 def test_get_editable_dallinger_path_pep660(tmp_path, monkeypatch):
     from dallinger.utils import get_editable_dallinger_path
 
-    monkeypatch.setattr("dallinger.utils.os.path.isfile", lambda _: False)
+    monkeypatch.setattr("dallinger.utils.sys.path", [])
 
     source_root = tmp_path / "workspace"
     source_root.mkdir()
