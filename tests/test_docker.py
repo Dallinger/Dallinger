@@ -214,3 +214,45 @@ def test_deploy_image_tag_sanitizes_invalid_docker_characters():
     from dallinger.docker.tools import docker_tag_from_experiment_id
 
     assert docker_tag_from_experiment_id("exp=id:with/slash") == "exp-id-with-slash"
+
+
+def test_split_ssh_host_port():
+    from dallinger.command_line.docker_ssh import split_ssh_host_port
+
+    assert split_ssh_host_port("example.com") == ("example.com", 22)
+    assert split_ssh_host_port("localhost:2222") == ("localhost", 2222)
+    assert split_ssh_host_port("::1") == ("::1", 22)
+    assert split_ssh_host_port("[::1]:2200") == ("::1", 2200)
+    assert split_ssh_host_port("[::1]") == ("::1", 22)
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "",
+        ":2222",
+        "example.com:abc",
+        "example.com:70000",
+        "[::1]:abc",
+        "[::1]:70000",
+        "[::1",
+        "example.com:22:33",
+    ],
+)
+def test_split_ssh_host_port_rejects_invalid_host_formats(host):
+    import click
+
+    from dallinger.command_line.docker_ssh import split_ssh_host_port
+
+    with pytest.raises(click.UsageError):
+        split_ssh_host_port(host)
+
+
+def test_is_loopback_host():
+    from dallinger.command_line.docker_ssh import is_loopback_host
+
+    assert is_loopback_host("localhost")
+    assert is_loopback_host("127.0.0.1")
+    assert is_loopback_host("127.0.0.2")
+    assert not is_loopback_host("203.0.113.10")
+    assert not is_loopback_host("example.com")
