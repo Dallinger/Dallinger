@@ -1042,10 +1042,15 @@ class TestSetupExperiment:
         def fake_ensure(directory, extras=None):
             Path(directory).joinpath("constraints.txt").write_text(generated)
 
-        with mock.patch(
-            "dallinger.utils.ensure_constraints_file_presence",
-            side_effect=fake_ensure,
-        ) as ensure:
+        with (
+            mock.patch(
+                "dallinger.utils.ensure_constraints_file_presence",
+                side_effect=fake_ensure,
+            ) as ensure,
+            mock.patch(
+                "dallinger.utils.get_editable_dallinger_path", return_value=None
+            ),
+        ):
             _, destination = setup_experiment(log=mock.Mock(), local_checks=False)
 
         ensure.assert_called()

@@ -1150,7 +1150,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     executor.reload_caddy()
 
     if update:
-        pass  # sabotage: message omitted to test CI failure detection
+        print("Skipping experiment launch logic because we are in update mode.")
     else:
         print("Launching experiment")
         launch_data = handle_launch_data(
