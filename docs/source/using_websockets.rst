@@ -11,14 +11,15 @@ the named channel. If the named "channel" doesn't already exist it will be
 created on the server. Both clients (participants) and the experiment instance
 can subscribe and create channels.
 
-The channel backend publishes all incoming messages to a redis queue. It also looks for
-new messages on the queue for and relays channel specific messages to all
+The channel backend publishes all incoming messages to a redis queue. It also
+looks for new messages on the queue and relays channel specific messages to all
 channel subscribers (generally either participants or the experiment itself).
 
 When a client makes a WebSocket connection to the `/chat?channel=<channel>`
 route (see :doc:`The Web API <web_api>`) it opens a persistent connection to the
-experiment over which it can send messages (to any channel) and will receive all
-messages published to the `channel` named in the initial request.
+experiment over which it can send messages (to any channel except the reserved
+`"dallinger_control"` channel) and will receive all messages published to the
+`channel` named in the initial request.
 
 Additionally, Experiment classes can provide a
 :attr:`~dallinger.experiment.Experiment.channel` attribute which will
@@ -126,9 +127,12 @@ WebSocket connection, disconnection, subscription, and un-subscription events
 over the `"dallinger_control"` channel.
 
 Messages sent over the socket connection can be prefixed with any channel name,
-not just the channel to which the connection is subscribed. Additional
-subscriptions can be established by opening new websocket connections to
-the `/chat` route with different `channel` values.
+not just the channel to which the connection is subscribed. The exception is
+`"dallinger_control"`, which is reserved for the server's own connection and
+subscription events. The experiment treats anything arriving on that channel as
+genuine, so the server discards a client message addressed to it and logs a
+warning. Additional subscriptions can be established by opening new websocket
+connections to the `/chat` route with different `channel` values.
 
 
 Experiment Channel Setup
@@ -173,9 +177,9 @@ clients can subscribe to multiple channels.
 
 For example, after launch an experiment could broadcast a `create_chatroom` type
 message with a `chatroom` property set to e.g. `"room_1"` and an array of
-`partcicpant_ids`. Clients could then subscribe to the `"room_1"` channel using
+`participant_ids`. Clients could then subscribe to the `"room_1"` channel using
 the `/chat` route only if their `participant_id` matches one of the values in
-`participant_ids`. That way only only the clients with the matching
+`participant_ids`. That way only the clients with the matching
 `participant_ids` would receive messages for `"room_1"`.
 
 If these chat room messages need to be handled by the experiment code, then the

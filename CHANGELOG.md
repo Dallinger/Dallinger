@@ -24,6 +24,44 @@
 
 ### Fixed
 
+- The `/chat` WebSocket route unsubscribes a client from its channels
+  whenever the receive loop exits, not only when `receive()` raises
+  `ConnectionClosed`. A channel left with no clients stops its listener
+  greenlet and is dropped from the per-process backend, so a long-running
+  experiment no longer accumulates idle greenlets and redis pubsub
+  connections.
+- A `/chat` client can no longer publish to the `dallinger_control` channel.
+  `launch` subscribes the experiment to that channel and dispatches what
+  arrives there as a server-sent event, so a participant's browser could forge
+  control events for any participant id. Client frames addressed to it are now
+  logged with the sending client and dropped. Publishing to another
+  participant's own channel is still possible and is tracked separately.
+- A `/chat` message with no `:` separator, or with an empty channel name
+  before it, is logged and discarded. A missing separator previously raised
+  `ValueError`, which killed the client's connection, and an empty name was
+  published to a redis channel nothing subscribes to.
+- `Channel.listen` resumes relaying after a lost redis connection instead of
+  dying with an unhandled greenlet traceback. redis-py reconnects and
+  resubscribes the pubsub before re-raising, but `connect_to_redis` builds
+  connections with redis-py's default of zero retries, so the error still
+  reached the relay and ended it. The loop now re-reads after a delay that
+  doubles from 0.5s to a 10s ceiling, and is not given up on, because `launch`
+  subscribes the experiment to its own channel and to the control channel and
+  never unsubscribes either. The full traceback is logged once per outage and
+  a single line per attempt after that. A redis `TimeoutError` is retried the
+  same way; any other `RedisError` is protocol-level, so it is logged and ends
+  the relay rather than retrying into the same failure. A failed initial
+  `subscribe()` is retried on the same schedule, so a client that connects
+  during an outage relays again once redis returns. A channel whose listener
+  does stop is dropped from the per-process backend, so a later subscriber
+  starts a fresh listener instead of attaching to a dead channel. The pubsub
+  is closed on every exit, including when the greenlet is killed, so its
+  connection returns to the pool.
+- A redis outage no longer strands a `/chat` client. The connect,
+  disconnect, subscribe, and unsubscribe events on `dallinger_control` are
+  notifications, so a failed publish is logged rather than raised. It
+  previously aborted `ChatBackend.unsubscribe` partway, leaving a client
+  registered on a channel whose listener then retried forever.
 - SSH and Heroku-docker deploys now tag the experiment image with the
   per-launch experiment UID instead of a hash of ``requirements.txt`` and
   ``prepare_docker_image.sh``. Those files do not identify the copied
@@ -79,6 +117,17 @@
 
 ### Changed
 
+- The `/chat` WebSocket route no longer sleeps between reads. The client
+  receive loop slept for 0.1s (or whatever `?tolerance=` asked for) before
+  each `receive()`, and the redis relay greenlet slept 0.001s per message.
+  Both `receive()` and `PubSub.listen()` already block on gevent-aware
+  waits, so the timed sleeps only added delivery latency. The relay yields
+  with `gevent.sleep(0)` after each message, which runs the senders it just
+  spawned and gives other greenlets a turn without waiting on a timer; a
+  burst already sitting in the socket buffer otherwise reads straight
+  through without reaching the hub.
+- The `tolerance` query parameter on `/chat` is no longer read. Clients may
+  still send it; it has no effect and raises no warning.
 - ``ProlificService.get_participant_submission`` accepts ``translate=False``
   to return the Prolific payload (including ``bonus_payments``) or ``None``
   on a miss, instead of translating fields and raising a recruitment
