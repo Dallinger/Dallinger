@@ -635,6 +635,54 @@ class Experiment:
             channel_name = self.channel
         db.redis_conn.publish(channel_name, data)
 
+    def publish_to_participants(self, payload, participant_ids, scope=None):
+        """Send a payload to the WebSocket connections of specific participants.
+
+        Where
+        :func:`~dallinger.experiment.Experiment.publish_to_subscribers`
+        broadcasts to everyone subscribed to a channel, this method addresses
+        participants. The recipients need no subscription and no channel of
+        their own: any connection to ``/chat`` or ``/experiment-socket`` which
+        supplied a ``participant_id`` can be addressed, and the payload will be
+        delivered to every connection that participant holds, on whichever web
+        process is holding it. The method may be called from anywhere,
+        including a worker event or a WebSocket handler.
+
+        The payload arrives on the client prefixed with the reserved
+        ``dallinger_direct`` channel name, in the same ``<channel>:<payload>``
+        format as every other message, so a client can distinguish a directed
+        message from a channel broadcast. Experiments should neither publish to
+        that channel nor subscribe to it.
+
+        Naming a participant who has no open connection, or who is not
+        connected to this deployment at all, delivers nothing and is not an
+        error. Delivery is best effort, as it is for a broadcast: a payload
+        published while a participant is reconnecting will not be replayed to
+        their new connection.
+
+        A redis failure is the exception, and raises. The payload will have
+        reached nobody when it does, so the whole call can be retried.
+
+        :param payload: the message to deliver, as anything ``json.dumps``
+            accepts. It is serialized once, so every recipient of a single call
+            is sent identical bytes
+        :type payload: dict, list, str, or other JSON-serializable object
+        :param participant_ids: the participants to deliver to. A single id may
+            be given in place of a sequence, and an id which is not a whole
+            number is logged and skipped
+        :type participant_ids: list of int or str, or a single int or str
+        :param scope: deliver only to those connections which supplied this
+            same ``scope`` value, the opaque string a connection may name in
+            its query string. The default of ``None`` delivers to all of a
+            participant's connections. It allows an experiment to reach the
+            page a participant is on rather than a tab left open on an earlier
+            one
+        :type scope: str or None
+        """
+        from dallinger.experiment_server.sockets import publish_to_participants
+
+        publish_to_participants(payload, participant_ids, scope=scope)
+
     def client_info(self):
         """Returns a JSON compatible dictionary with data about this client to
         be included in control channel messages.
