@@ -1,5 +1,7 @@
 import json
+import numbers
 import socket
+from decimal import Decimal
 from unittest.mock import Mock, patch
 
 import gevent
@@ -1167,8 +1169,59 @@ class TestExperimentSocketConnection:
         lookup.assert_not_called()
 
 
+class TestNormalizedParticipantId:
+    @pytest.mark.parametrize(
+        "given, expected",
+        [
+            ("42", "42"),
+            (42, "42"),
+            (b"42", "42"),
+            ("  42  ", "42"),
+            ("042", "42"),
+            ("+42", "42"),
+            ("-42", "-42"),
+            ("\u0664\u0662", "42"),
+        ],
+    )
+    def test_a_whole_number_is_its_parsed_form(self, sockets, given, expected):
+        assert sockets.normalized_participant_id(given) == expected
+
+    @pytest.mark.parametrize("given", [12.7, 12.0, float("inf"), Decimal("12")])
+    def test_a_number_that_is_not_an_integer_is_refused(self, sockets, given):
+        # int() reads 12.7 as 12, and raises OverflowError rather than
+        # ValueError on an infinity.
+        assert sockets.normalized_participant_id(given) is None
+
+    def test_a_boolean_is_refused(self, sockets):
+        # bool is an int subclass, so int(True) is 1.
+        assert sockets.normalized_participant_id(True) is None
+
+    @pytest.mark.parametrize(
+        "given", ["", "not-a-number", "12.7", None, [42], object()]
+    )
+    def test_an_unparseable_value_is_refused(self, sockets, given):
+        assert sockets.normalized_participant_id(given) is None
+
+    def test_an_integer_that_is_not_an_int_is_parsed(self, sockets):
+        """A numpy integer out of a dataframe column takes this path."""
+
+        class Counted:
+            def __int__(self):
+                return 42
+
+        numbers.Integral.register(Counted)
+
+        assert sockets.normalized_participant_id(Counted()) == "42"
+
+
 @pytest.mark.slow
 class TestResolveParticipantId:
+    def test_a_number_that_is_not_an_integer_is_not_a_lookup(self, sockets):
+        with patch.object(sockets, "session") as session:
+            assert sockets.resolve_participant_id(12.7) is None
+
+        session.query.assert_not_called()
+
     def test_non_numeric_id_is_not_a_lookup(self, sockets):
         with patch.object(sockets, "session") as session:
             assert sockets.resolve_participant_id("not-a-number") is None

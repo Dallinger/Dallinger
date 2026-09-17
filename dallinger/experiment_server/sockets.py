@@ -1,6 +1,7 @@
 """Handles relaying websocket messages between processes using redis."""
 
 import json
+import numbers
 import os
 import socket
 from datetime import datetime
@@ -455,28 +456,49 @@ class Client:
             session.remove()
 
 
-def resolve_participant_id(participant_id):
-    """The id of the participant ``participant_id`` names, or ``None``.
+def normalized_participant_id(participant_id):
+    """The string form of the participant id ``participant_id`` names, or ``None``.
 
     The id comes back as a string, which is the form every other Dallinger
     route carries it in. It is the parsed value rendered back rather than the
-    query string, because ``int()`` accepts more than the column does,
+    value passed in, because ``int()`` accepts more than the column does,
     including surrounding whitespace, a leading sign, and non-ASCII decimal
-    digits. Passing the raw string on would let a lookup succeed here and then
-    raise ``DataError`` on every later query.
+    digits. Passing the raw string on would let a lookup succeed and then raise
+    ``DataError`` on every later query.
+
+    Only text and whole numbers are parsed. ``int()`` would read ``12.7`` as
+    participant 12 and ``True`` as participant 1, so a value that is neither a
+    string nor an integer is refused rather than truncated. ``numbers.Integral``
+    rather than ``int`` so that a numpy integer, which a caller reading ids out
+    of a dataframe column has, is a whole number here too.
     """
+    if isinstance(participant_id, bool) or not isinstance(
+        participant_id, (str, bytes, numbers.Integral)
+    ):
+        return None
     try:
-        lookup_id = int(participant_id)
-    except (TypeError, ValueError):
+        return str(int(participant_id))
+    except ValueError:
+        return None
+
+
+def resolve_participant_id(participant_id):
+    """The id of the participant ``participant_id`` names, or ``None``.
+
+    Existence is checked against the normalized id, so a value the column
+    cannot hold is refused before a query is made with it.
+    """
+    normalized = normalized_participant_id(participant_id)
+    if normalized is None:
         return None
     try:
         found = (
-            session.query(models.Participant.id).filter_by(id=lookup_id).scalar()
+            session.query(models.Participant.id).filter_by(id=int(normalized)).scalar()
             is not None
         )
     finally:
         session.remove()
-    return str(lookup_id) if found else None
+    return normalized if found else None
 
 
 def _serve(ws, participant_id=None, experiment=None):
