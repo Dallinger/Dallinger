@@ -370,6 +370,26 @@ def test_get_sftp_sets_working_directory_to_remote_home(monkeypatch):
     assert sftp.changed_to == "/home/tester"
 
 
+def test_get_sftp_propagates_exec_command_failure(monkeypatch):
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    class DummyClient:
+        def open_sftp(self):
+            return object()
+
+        def exec_command(self, command):
+            raise OSError("channel closed")
+
+    monkeypatch.setattr(
+        docker_ssh, "get_connected_ssh_client", lambda host, user=None: DummyClient()
+    )
+
+    with pytest.raises(OSError, match="channel closed"):
+        docker_ssh.get_sftp("localhost")
+
+
 def test_set_dozzle_password_skips_restart_when_not_running():
     import importlib
 
