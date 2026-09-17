@@ -515,6 +515,48 @@ def _ignore_docker_ssh_resource_warnings():
     )
 
 
+def _image_usable_from_registry(docker_client, image_name):
+    """Return whether image_name can be deployed straight from the registry.
+
+    Pushes a local copy if the registry does not have the image yet. Returns
+    False when the registry cannot be consulted, leaving the caller to build the
+    image. Only the registry interaction is guarded here: wrapping the deploy
+    itself would turn any deploy failure into a silent rebuild and retry.
+    """
+    import docker
+
+    try:
+        # Use the docker_client to inspect the image
+        docker_client.images.get_registry_data(image_name)
+    except docker.errors.ImageNotFound:
+        pass
+    except Exception as e:
+        print(f"Error checking remote image: {e}")
+        return False
+    else:
+        print(f"Image {image_name} found on remote registry")
+        return True
+
+    # The image is not on the registry. Check if it's available locally
+    # and push it if it is. If images.push succeeds it means the image is available locally
+    print(f"Image {image_name} not found on remote registry. Trying to push")
+    try:
+        raw_result = docker_client.images.push(image_name)
+        # This is brittle, but it's an edge case not worth more effort
+        push_failed = bool(json.loads(raw_result.split("\r\n")[-2]).get("error"))
+    except Exception as e:
+        print(f"Error pushing image {image_name}: {e}")
+        return False
+    if push_failed:
+        # The image is not available, neither locally nor on the remote registry
+        print(
+            f"Could not find image {image_name} specified in experiment config as `docker_image_name`"
+        )
+        raise click.Abort
+    print(f"Image {image_name} pushed to remote registry")
+    return True
+
+
 def build_and_push_image(f):
     """Decorator for click commands that depend on a pushed docker image.
 
@@ -578,32 +620,8 @@ def build_and_push_image(f):
             # Avoid Paramiko by using the system ssh client
             docker_client = docker.from_env(use_ssh_client=True)
 
-            if image_name:
-                try:
-                    # Use the docker_client to inspect the image
-                    docker_client.images.get_registry_data(image_name)
-                    print(f"Image {image_name} found on remote registry")
-                    return f(*args, **dict(kwargs, image_name=image_name))
-                except docker.errors.ImageNotFound:
-                    # The image is not on the registry. Check if it's available locally
-                    # and push it if it is. If images.get succeeds it means the image is available locally
-                    print(
-                        f"Image {image_name} not found on remote registry. Trying to push"
-                    )
-                    raw_result = docker_client.images.push(image_name)
-                    # This is brittle, but it's an edge case not worth more effort
-                    if not json.loads(raw_result.split("\r\n")[-2]).get("error"):
-                        print(f"Image {image_name} pushed to remote registry")
-                        return f(*args, **dict(kwargs, image_name=image_name))
-                    # The image is not available, neither locally nor on the remote registry
-                    print(
-                        f"Could not find image {image_name} specified in experiment config as `docker_image_name`"
-                    )
-                    raise click.Abort
-                except Exception as e:
-                    print(f"Error checking remote image: {e}")
-                    # Fall through to build if there's any other error checking remote
-                    pass
+            if image_name and _image_usable_from_registry(docker_client, image_name):
+                return f(*args, **dict(kwargs, image_name=image_name))
 
             app_name = kwargs.get("app_name", None)
             _, tmp_dir = setup_experiment(
