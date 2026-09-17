@@ -803,7 +803,21 @@ def set_dozzle_password(executor, sftp, new_password):
         }
     }
     sftp.putfo(BytesIO(json.dumps(dozzle_users).encode()), "dallinger/dozzle-users.yml")
-    executor.restart_dozzle()
+    dozzle_running = executor.run(
+        "docker ps --filter name=^dozzle$ --format '{{.ID}}'",
+        raise_=False,
+    ).strip()
+    if dozzle_running:
+        executor.restart_dozzle()
+
+
+def ensure_postgres_schema_permissions(executor, experiment_id):
+    # PostgreSQL 15+ no longer grants CREATE on schema public to all users.
+    grant_schema_script = f'GRANT USAGE, CREATE ON SCHEMA public TO "{experiment_id}"'
+    executor.run(
+        "docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql "
+        f'psql -U dallinger -d "{experiment_id}" -c {quote(grant_schema_script)}'
+    )
 
 
 @docker_ssh.command("set-dozzle-password")
@@ -1110,6 +1124,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     executor.run(
         f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
     )
+    ensure_postgres_schema_permissions(executor, experiment_id)
 
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
@@ -1653,18 +1668,27 @@ class Executor:
         """Run the given command and block until it completes.
         If `raise` is True and the command fails, print the reason and raise an exception.
         """
-        channel = self.client.get_transport().open_session()
-        channel.exec_command(cmd)
-        status = channel.recv_exit_status()
+        status, stdout, stderr = self._run_with_status(cmd)
         if raise_ and status != 0:
             print(f"Error: exit code was not 0 ({status})")
-            print(channel.recv(10**10).decode())
-            print(channel.recv_stderr(10**10).decode())
-            self.print_docker_compose_logs()
+            print(stdout)
+            print(stderr)
+            compose_logs = self.print_docker_compose_logs()
+            if _is_remote_disk_full_error(stdout, stderr, compose_logs):
+                print(get_remote_disk_full_guidance(self.host, self.app))
+                self.offer_safe_disk_cleanup()
             raise ExecuteException(
                 f"An error occurred when running the following command on the remote server: \n{cmd}"
             )
-        return channel.recv(10**10).decode()
+        return stdout
+
+    def _run_with_status(self, cmd):
+        channel = self.client.get_transport().open_session()
+        channel.exec_command(cmd)
+        status = channel.recv_exit_status()
+        stdout = channel.recv(10**10).decode()
+        stderr = channel.recv_stderr(10**10).decode()
+        return status, stdout, stderr
 
     def print_docker_compose_logs(self):
         if self.app:
@@ -1675,10 +1699,40 @@ class Executor:
             status = channel.recv_exit_status()
             if status != 0:
                 print("`docker compose` logs failed to run.")
+                return ""
             else:
+                logs = channel.recv(10**10).decode()
                 print("*** BEGIN docker compose logs ***")
-                print(channel.recv(10**10).decode())
+                print(logs)
                 print("*** END docker compose logs ***\n")
+                return logs
+        return ""
+
+    def offer_safe_disk_cleanup(self):
+        if not (sys.stdin.isatty() and sys.stdout.isatty()):
+            print("Non-interactive session detected; skipping automatic cleanup.")
+            return
+        if not click.confirm(
+            "Run safe Docker cleanup now on the remote host? "
+            "(unused images + stopped containers)",
+            default=False,
+        ):
+            return
+        print("Running safe cleanup steps on the remote host:")
+        for description, command in (
+            ("Remove unused images", "docker image prune -af"),
+            ("Remove stopped containers", "docker container prune -f"),
+        ):
+            print(f"- {description}: {command}")
+            status, stdout, stderr = self._run_with_status(command)
+            if status != 0:
+                print(f"Cleanup step failed with exit code {status}.")
+                if stdout:
+                    print(stdout)
+                if stderr:
+                    print(stderr)
+                return
+        print("Safe cleanup completed. Re-run your previous command.")
 
     def check_sudo(self):
         """Make sure the current user is authorized to invoke sudo without providing a password.
@@ -1848,13 +1902,48 @@ def get_dns_host(ssh_host):
     return f"{ip_addr}.nip.io"
 
 
+def _is_remote_disk_full_error(*outputs):
+    output = "\n".join(str(chunk) for chunk in outputs if chunk).lower()
+    return any(
+        marker in output
+        for marker in (
+            "no space left on device",
+            "diskfull",
+            "disk full",
+        )
+    )
+
+
+def get_remote_disk_full_guidance(host, app=None):
+    guidance = [
+        "",
+        f"Remote Docker host '{host}' appears to be out of disk space.",
+        "Safe cleanup steps (low-risk) are:",
+        "  docker image prune -af",
+        "  docker container prune -f",
+        "",
+        "Dallinger can run these safe steps for you automatically.",
+        "We intentionally do not auto-prune volumes here, to avoid data loss.",
+        "",
+    ]
+    return "\n".join(guidance)
+
+
 class ExecuteException(Exception):
     pass
 
 
 def get_sftp(host, user=None) -> paramiko.SFTPClient:
     client = get_connected_ssh_client(host, user)
-    return client.open_sftp()
+    sftp = client.open_sftp()
+    try:
+        _, stdout, _ = client.exec_command('printf %s "$HOME"')
+        remote_home = stdout.read().decode().strip()
+        if remote_home:
+            sftp.chdir(remote_home)
+    except Exception:
+        pass
+    return sftp
 
 
 logging.getLogger("paramiko.transport").setLevel(logging.ERROR)

@@ -332,3 +332,97 @@ def test_option_update_parses_as_boolean():
     result_update = runner.invoke(cmd, ["--update"])
     assert result_update.exit_code == 0
     assert "True:bool" in result_update.output
+
+
+def test_get_sftp_sets_working_directory_to_remote_home(monkeypatch):
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    class DummyStdout:
+        def read(self):
+            return b"/home/tester\n"
+
+    class DummySFTP:
+        changed_to = None
+
+        def chdir(self, path):
+            self.changed_to = path
+
+    class DummyClient:
+        def __init__(self):
+            self.sftp = DummySFTP()
+
+        def open_sftp(self):
+            return self.sftp
+
+        def exec_command(self, command):
+            assert command == 'printf %s "$HOME"'
+            return None, DummyStdout(), None
+
+    client = DummyClient()
+    monkeypatch.setattr(
+        docker_ssh, "get_connected_ssh_client", lambda host, user=None: client
+    )
+
+    sftp = docker_ssh.get_sftp("localhost")
+    assert sftp is client.sftp
+    assert sftp.changed_to == "/home/tester"
+
+
+def test_set_dozzle_password_skips_restart_when_not_running():
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    executor = mock.Mock()
+
+    def run_side_effect(command, raise_=True):
+        if "test -f ~/dallinger/.env.json" in command:
+            return ""
+        if "docker ps --filter name=^dozzle$" in command:
+            return ""
+        return ""
+
+    executor.run.side_effect = run_side_effect
+    sftp = mock.Mock()
+
+    docker_ssh.set_dozzle_password(executor, sftp, "secret-password")
+
+    assert sftp.putfo.call_count == 2
+    executor.restart_dozzle.assert_not_called()
+
+
+def test_ensure_postgres_schema_permissions_grants_create():
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    executor = mock.Mock()
+
+    docker_ssh.ensure_postgres_schema_permissions(executor, "dlgr-abcdef12")
+
+    assert executor.run.call_count == 1
+    command = executor.run.call_args[0][0]
+    assert 'psql -U dallinger -d "dlgr-abcdef12"' in command
+    assert "GRANT USAGE, CREATE ON SCHEMA public TO" in command
+
+
+def test_is_remote_disk_full_error_detects_common_markers():
+    from dallinger.command_line.docker_ssh import _is_remote_disk_full_error
+
+    assert _is_remote_disk_full_error("no space left on device")
+    assert _is_remote_disk_full_error("psycopg2.errors.DiskFull")
+    assert _is_remote_disk_full_error("Error response from daemon: disk full")
+    assert not _is_remote_disk_full_error("authentication failed")
+
+
+def test_get_remote_disk_full_guidance_recommends_safe_cleanup_only():
+    from dallinger.command_line.docker_ssh import get_remote_disk_full_guidance
+
+    guidance = get_remote_disk_full_guidance("example.org", app="dlgr-abcd1234")
+    assert (
+        "Remote Docker host 'example.org' appears to be out of disk space." in guidance
+    )
+    assert "docker image prune -af" in guidance
+    assert "docker container prune -f" in guidance
+    assert "do not auto-prune volumes" in guidance
+    assert "docker system prune -af --volumes" not in guidance
