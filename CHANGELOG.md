@@ -24,6 +24,19 @@
 
 ### Fixed
 
+- docker-ssh deploy now correctly handles SSH hosts specified as ``host:port``
+  and IPv6 addresses. The ``--update`` flag now yields a boolean instead of the
+  string ``"update"``. TLS certificate verification is skipped for loopback
+  deployments. SFTP operations now use the remote user's home directory as the
+  working directory. Dozzle is only restarted when it is already running.
+  PostgreSQL 15+ schema ``public`` permissions are granted after database
+  creation. Disk-full errors on the remote host are detected and offer guided
+  safe cleanup. Pre-release Dallinger versions fall back to the ``latest`` base
+  image tag. The ``auto_recruit`` config key no longer crashes when Redis is
+  unavailable. A new ``docker-ssh-smoke`` CI job (triggered by the
+  ``run-docker-ssh-smoke`` PR label) runs five end-to-end smoke tests covering
+  deploy/destroy, app listing, server listing, missing-app error handling, and
+  the ``--update`` refresh flow.
 - SSH and Heroku-docker deploys now tag the experiment image with the
   per-launch experiment UID instead of a hash of ``requirements.txt`` and
   ``prepare_docker_image.sh``. Those files do not identify the copied
