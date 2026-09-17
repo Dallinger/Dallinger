@@ -1677,7 +1677,7 @@ class Executor:
             print(stderr)
             compose_logs = self.print_docker_compose_logs()
             if _is_remote_disk_full_error(stdout, stderr, compose_logs):
-                print(get_remote_disk_full_guidance(self.host, self.app))
+                print(get_remote_disk_full_guidance(self.host))
                 self.offer_safe_disk_cleanup()
             raise ExecuteException(
                 f"An error occurred when running the following command on the remote server: \n{cmd}"
@@ -1945,7 +1945,7 @@ def _is_remote_disk_full_error(*outputs):
     )
 
 
-def get_remote_disk_full_guidance(host, app=None):
+def get_remote_disk_full_guidance(host):
     guidance = [
         "",
         f"Remote Docker host '{host}' appears to be out of disk space.",

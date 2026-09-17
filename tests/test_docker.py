@@ -438,7 +438,7 @@ def test_is_remote_disk_full_error_detects_common_markers():
 def test_get_remote_disk_full_guidance_recommends_safe_cleanup_only():
     from dallinger.command_line.docker_ssh import get_remote_disk_full_guidance
 
-    guidance = get_remote_disk_full_guidance("example.org", app="dlgr-abcd1234")
+    guidance = get_remote_disk_full_guidance("example.org")
     assert (
         "Remote Docker host 'example.org' appears to be out of disk space." in guidance
     )
