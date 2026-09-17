@@ -435,6 +435,42 @@ def test_docker_ssh_fixture_precondition_uses_pytest_fail():
         _skip_or_fail("missing dependency")
 
 
+def test_executor_drain_channel_reads_stdout_and_stderr_concurrently():
+    """_drain_channel must drain both streams before calling recv_exit_status.
+
+    FakeChannel simulates the SSH deadlock: recv_exit_status() blocks until
+    stderr has been read (because the remote process is stuck writing to a full
+    buffer). A sequential implementation that calls recv_exit_status() first
+    would deadlock; _drain_channel must drain both streams concurrently first.
+    """
+    import threading
+
+    from dallinger.command_line.docker_ssh import Executor
+
+    stderr_drained = threading.Event()
+
+    class FakeChannel:
+        def recv(self, _size):
+            return b""
+
+        def recv_stderr(self, _size):
+            if not stderr_drained.is_set():
+                stderr_drained.set()
+                return b"big stderr output"
+            return b""
+
+        def recv_exit_status(self):
+            if not stderr_drained.wait(timeout=1.0):
+                raise TimeoutError(
+                    "deadlock: recv_exit_status called before stderr was drained"
+                )
+            return 0
+
+    status, stdout, stderr = Executor._drain_channel(FakeChannel())
+    assert status == 0
+    assert stderr == "big stderr output"
+
+
 def test_get_required_dallinger_version_prerelease_falls_back_to_latest(tmp_path):
     from dallinger.docker.tools import get_required_dallinger_version
 

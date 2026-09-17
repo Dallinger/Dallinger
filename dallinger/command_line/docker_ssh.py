@@ -10,6 +10,7 @@ import select
 import socket
 import subprocess
 import sys
+import threading
 import warnings
 import zipfile
 from contextlib import contextmanager, redirect_stdout
@@ -1683,13 +1684,43 @@ class Executor:
             )
         return stdout
 
+    @staticmethod
+    def _drain_channel(channel):
+        """Drain stdout and stderr concurrently, then return (status, stdout, stderr).
+
+        Draining both streams in separate threads prevents the SSH deadlock that
+        occurs when recv_exit_status() is called while the remote command is blocked
+        trying to write to a full stderr transport buffer.
+        """
+        stdout_chunks = []
+        stderr_chunks = []
+
+        def drain(recv_fn, buf):
+            while True:
+                chunk = recv_fn(65536)
+                if not chunk:
+                    break
+                buf.append(chunk)
+
+        t_out = threading.Thread(target=drain, args=(channel.recv, stdout_chunks))
+        t_err = threading.Thread(
+            target=drain, args=(channel.recv_stderr, stderr_chunks)
+        )
+        t_out.start()
+        t_err.start()
+        t_out.join()
+        t_err.join()
+        status = channel.recv_exit_status()
+        return (
+            status,
+            b"".join(stdout_chunks).decode(),
+            b"".join(stderr_chunks).decode(),
+        )
+
     def _run_with_status(self, cmd):
         channel = self.client.get_transport().open_session()
         channel.exec_command(cmd)
-        status = channel.recv_exit_status()
-        stdout = channel.recv(10**10).decode()
-        stderr = channel.recv_stderr(10**10).decode()
-        return status, stdout, stderr
+        return self._drain_channel(channel)
 
     def print_docker_compose_logs(self):
         if self.app:
@@ -1697,12 +1728,11 @@ class Executor:
             channel.exec_command(
                 f'docker compose -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
             )
-            status = channel.recv_exit_status()
+            status, logs, _ = self._drain_channel(channel)
             if status != 0:
                 print("`docker compose` logs failed to run.")
                 return ""
             else:
-                logs = channel.recv(10**10).decode()
                 print("*** BEGIN docker compose logs ***")
                 print(logs)
                 print("*** END docker compose logs ***\n")
