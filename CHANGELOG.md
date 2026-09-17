@@ -57,6 +57,10 @@
   not succeed before the timeout, and a failed launch now ends with a short
   ``Error: Experiment launch failed. ...`` diagnosis instead of a Python
   traceback.
+- docker-ssh deploy now reports the real experiment hostname and IP (or that
+  the name did not resolve) when DNS does not match the server, instead of
+  ``It currently resolves to True``. The error also points at ``--dns-host``,
+  dnschecker.org, and the 5-minute Route 53 TTL after reprovisioning.
 
 ### Updated
 

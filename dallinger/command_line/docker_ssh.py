@@ -828,20 +828,7 @@ You can override this by creating a DNS A record pointing to
 you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}""")
     experiment_hostname = f"{experiment_id}.{dns_host}" if use_subdomain else dns_host
 
-    if dns_host != "nip.io":
-        # Check dns_host: make sure that the experiment host resolves to the remote host
-        dns_ok = ipaddr_experiment = ipaddr_server = True
-        try:
-            ipaddr_server = gethostbyname_ex(f"{ssh_host}")[2][0]
-            ipaddr_experiment = gethostbyname_ex(experiment_hostname)[2][0]
-        except Exception:
-            dns_ok = False
-        if not dns_ok or (ipaddr_experiment != ipaddr_server):
-            print(
-                f"""The dns name for the experiment ({experiment_hostname}) should resolve to {ipaddr_server}.
-It currently resolves to {ipaddr_experiment}."""
-            )
-            raise click.Abort
+    _check_experiment_hostname_dns(ssh_host, experiment_hostname)
 
     executor = Executor(ssh_host, user=ssh_user, app=app_identifier)
     executor.run("mkdir -p ~/dallinger/caddy.d")
@@ -1677,6 +1664,61 @@ def get_retrying_http_client():
     http.mount("https://", adapter)
     http.mount("http://", adapter)
     return http
+
+
+def _first_ipv4(hostname):
+    """Return the first IPv4 address for hostname, or None if lookup fails."""
+    try:
+        return gethostbyname_ex(hostname)[2][0]
+    except (OSError, UnicodeError):
+        # UnicodeError comes from the idna codec for malformed names,
+        # for example a label longer than 63 characters.
+        return None
+
+
+def _check_experiment_hostname_dns(ssh_host, experiment_hostname):
+    """Abort unless the experiment hostname resolves to the SSH host IP."""
+    ipaddr_server = _first_ipv4(ssh_host)
+    ipaddr_experiment = _first_ipv4(experiment_hostname)
+    if ipaddr_server and ipaddr_experiment == ipaddr_server:
+        return
+
+    if ipaddr_experiment:
+        current_text = ipaddr_experiment
+    else:
+        current_text = "nothing (the name did not resolve)"
+
+    checker_url = f"https://dnschecker.org/#A/{experiment_hostname}"
+    print(f"{RED}DNS resolution error:{END}")
+    if ipaddr_server:
+        print(
+            f"  The experiment hostname ({experiment_hostname}) should resolve to {ipaddr_server}."
+        )
+        print(f"  It currently resolves to {current_text}.")
+        print("  Check that --dns-host is correct.")
+    else:
+        print(
+            f"  The server name ({ssh_host}) did not resolve to an IPv4 address, "
+            f"so the experiment hostname ({experiment_hostname}) cannot be checked against it."
+        )
+        print(f"  The experiment hostname currently resolves to {current_text}.")
+        print("  Check that the host configured for --server is correct.")
+    print(
+        f"  Confirm the A record globally at {checker_url} "
+        "(green ticks mean it is resolving correctly)."
+    )
+    if ipaddr_server and ipaddr_experiment:
+        print(
+            "  If you recently reused this DNS name for a new server, caches may "
+            "still point at the old IP. Dallinger Route 53 records use a 5-minute TTL, "
+            "so wait about 5 minutes and try again, or use a different --dns-host."
+        )
+    elif not ipaddr_experiment:
+        print(
+            "  If you just provisioned the server, wait until DNS has propagated "
+            "(up to about 5 minutes for Dallinger Route 53 records) and try again."
+        )
+    raise click.Abort()
 
 
 def get_dns_host(ssh_host):
