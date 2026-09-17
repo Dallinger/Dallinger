@@ -428,6 +428,13 @@ def test_get_remote_disk_full_guidance_recommends_safe_cleanup_only():
     assert "docker system prune -af --volumes" not in guidance
 
 
+def test_docker_ssh_fixture_precondition_uses_pytest_fail():
+    from dallinger.pytest_docker_ssh import _skip_or_fail
+
+    with pytest.raises(pytest.fail.Exception):
+        _skip_or_fail("missing dependency")
+
+
 def test_get_required_dallinger_version_prerelease_falls_back_to_latest(tmp_path):
     from dallinger.docker.tools import get_required_dallinger_version
 
