@@ -463,8 +463,6 @@ def get_editable_dallinger_path():
     if direct_url_relpath is None:
         return None
     direct_url_path = Path(dist.locate_file(direct_url_relpath))
-    if not direct_url_path.is_file():
-        return None
     try:
         metadata = json.loads(direct_url_path.read_text())
     except (OSError, json.JSONDecodeError):
