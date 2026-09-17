@@ -1,6 +1,7 @@
 import json
 import numbers
 import socket
+from datetime import datetime
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
@@ -64,6 +65,21 @@ def client(sockets):
     ws.close_reason = "Unexpected"
     ws.close_message = "Mock message"
     return sockets.Client(ws)
+
+
+@pytest.fixture
+def registered(sockets):
+    """Build a connection for a participant and make it addressable."""
+
+    def build(participant_id, scope=None):
+        ws = Mock()
+        ws.close_reason = None
+        ws.close_message = None
+        client = sockets.Client(ws, participant_id=participant_id, scope=scope)
+        sockets.chat_backend.register(client)
+        return client
+
+    return build
 
 
 @pytest.fixture
@@ -1278,3 +1294,589 @@ class TestResolveParticipantIdAgainstTheDatabase:
         # int() accepts these. The raw string reaching the column instead
         # would raise DataError on every query made with it.
         assert sockets.resolve_participant_id(arabic_indic) == str(participant_id)
+
+
+def published_envelopes(sockets):
+    """Every directed-send envelope published to redis, as JSON strings."""
+    return [
+        call.args[1]
+        for call in sockets.redis_conn.publish.mock_calls
+        if call.args[0] == sockets.DIRECT_CHANNEL
+    ]
+
+
+def sockets_envelope_fields():
+    from dallinger.experiment_server import sockets
+
+    return sockets.ENVELOPE_FIELDS
+
+
+#: A well formed envelope from another process, for tests that vary one field.
+DIRECT_ENVELOPE = {
+    "participant_ids": ["42"],
+    "scope": None,
+    "origin": "another process",
+    "payload": '{"type": "wake"}',
+}
+
+
+def envelope_message(sockets, envelope):
+    """The pubsub frame another process reads for a published envelope."""
+    return {
+        "type": "message",
+        "channel": sockets.DIRECT_CHANNEL.encode("utf-8"),
+        "data": envelope.encode("utf-8"),
+    }
+
+
+class TestParticipantRegistry:
+    def test_a_chat_connection_is_addressable(self, sockets, mocksocket):
+        addressed = []
+        mocksocket.receive = Mock(
+            side_effect=lambda: addressed.append(
+                dict(sockets.chat_backend.clients_by_participant)
+            )
+        )
+
+        with patch.object(sockets, "request", Mock(args={"participant_id": "42"})):
+            sockets.chat(mocksocket)
+
+        assert list(addressed[0]) == ["42"]
+
+    def test_a_connection_without_a_participant_is_not_addressable(
+        self, sockets, mocksocket
+    ):
+        addressed = []
+        mocksocket.receive = Mock(
+            side_effect=lambda: addressed.append(
+                dict(sockets.chat_backend.clients_by_participant)
+            )
+        )
+
+        with patch.object(sockets, "request", Mock(args={"channel": "special"})):
+            sockets.chat(mocksocket)
+
+        assert addressed == [{}]
+        assert sockets.chat_backend.direct_channel is None
+
+    def test_an_experiment_socket_is_addressable(self, sockets, mocksocket):
+        addressed = []
+        mocksocket.receive = Mock(
+            side_effect=lambda: addressed.append(
+                dict(sockets.chat_backend.clients_by_participant)
+            )
+        )
+
+        with (
+            patch.object(sockets, "resolve_participant_id", return_value="42"),
+            patch.object(sockets, "process_experiment", return_value=Mock()),
+            patch.object(sockets, "request", Mock(args={"participant_id": "42"})),
+        ):
+            sockets.experiment_socket(mocksocket)
+
+        assert list(addressed[0]) == ["42"]
+
+    def test_a_closed_connection_is_no_longer_addressable(self, sockets, mocksocket):
+        with patch.object(sockets, "request", Mock(args={"participant_id": "42"})):
+            sockets.chat(mocksocket)
+
+        assert sockets.chat_backend.clients_by_participant == {}
+
+    def test_a_failed_send_stops_addressing_the_connection(self, sockets, registered):
+        client = registered("42")
+        client.ws.send.side_effect = socket.error("broken pipe")
+
+        with pytest.raises(ConnectionClosed):
+            client.send("dallinger_direct:{}")
+
+        assert sockets.chat_backend.clients_by_participant == {}
+
+    @pytest.mark.parametrize(
+        "named", ["012", " 42 ", "42"], ids=["padded", "spaced", "plain"]
+    )
+    def test_an_id_is_addressed_by_its_parsed_value(self, sockets, registered, named):
+        registered(named)
+
+        assert list(sockets.chat_backend.clients_by_participant) == [str(int(named))]
+
+    def test_an_unparseable_id_is_not_addressable(self, sockets, registered):
+        registered("not-a-number")
+
+        assert sockets.chat_backend.clients_by_participant == {}
+
+    def test_every_connection_of_one_participant_is_kept(self, sockets, registered):
+        first = registered("42")
+        second = registered("42")
+
+        assert sockets.chat_backend.clients_by_participant["42"] == {first, second}
+
+    def test_deregistering_one_connection_keeps_the_others(self, sockets, registered):
+        first = registered("42")
+        second = registered("42")
+
+        sockets.chat_backend.deregister(first)
+
+        assert sockets.chat_backend.clients_by_participant["42"] == {second}
+
+    def test_a_subscriber_that_is_not_a_connection_is_not_addressable(self, sockets):
+        # ``on_launch`` subscribes the experiment to its own channels through
+        # the same backend, and an ``Experiment`` has no ``addressable_id``.
+        experiment = Mock(spec=["client_info", "send"])
+
+        sockets.chat_backend.register(experiment)
+        sockets.chat_backend.unsubscribe(experiment)
+
+        assert sockets.chat_backend.clients_by_participant == {}
+
+    def test_the_listener_starts_with_the_first_addressable_client(
+        self, sockets, registered, pubsub
+    ):
+        pubsub.listen.side_effect = parking_listen
+        registered("42")
+
+        assert isinstance(sockets.chat_backend.direct_channel, sockets.DirectChannel)
+
+    def test_a_second_client_joins_the_running_listener(
+        self, sockets, registered, pubsub
+    ):
+        pubsub.listen.side_effect = parking_listen
+        registered("42")
+        listener = sockets.chat_backend.direct_channel
+
+        registered("43")
+
+        # A listener per registration would relay every envelope once per
+        # listener.
+        assert sockets.chat_backend.direct_channel is listener
+
+    def test_the_listener_outlives_the_last_one(self, sockets, registered, pubsub):
+        pubsub.listen.side_effect = parking_listen
+        client = registered("42")
+        listener = sockets.chat_backend.direct_channel
+
+        sockets.chat_backend.deregister(client)
+
+        # Stopping here would leave a registration during ``Greenlet.kill``
+        # either attached to a dying listener or served by a second one.
+        assert sockets.chat_backend.direct_channel is listener
+
+    def test_a_client_arriving_after_a_dead_listener_gets_a_live_one(
+        self, sockets, registered
+    ):
+        registered("42")
+        first = sockets.chat_backend.direct_channel
+        gevent.wait(timeout=1)
+
+        assert sockets.chat_backend.direct_channel is None
+
+        registered("43")
+
+        assert sockets.chat_backend.direct_channel is not first
+
+
+class TestDirectedSend:
+    def test_the_named_participant_receives_the_payload(self, sockets, registered):
+        client = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [42])
+        gevent.wait(timeout=1)
+
+        client.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+
+    def test_other_participants_receive_nothing(self, sockets, registered):
+        other = registered("43")
+
+        sockets.publish_to_participants({"type": "wake"}, [42])
+        gevent.wait(timeout=1)
+
+        other.ws.send.assert_not_called()
+
+    def test_every_connection_of_the_participant_receives_it(self, sockets, registered):
+        first = registered("42")
+        second = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [42])
+        gevent.wait(timeout=1)
+
+        assert first.ws.send.call_count == 1
+        assert second.ws.send.call_count == 1
+
+    def test_an_id_is_matched_by_its_parsed_value(self, sockets, registered):
+        client = registered("012")
+
+        sockets.publish_to_participants({"type": "wake"}, ["12"])
+        gevent.wait(timeout=1)
+
+        assert client.ws.send.call_count == 1
+
+    def test_a_single_id_needs_no_list(self, sockets, registered):
+        client = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, 42)
+        gevent.wait(timeout=1)
+
+        assert client.ws.send.call_count == 1
+
+    def test_a_repeated_id_delivers_once(self, sockets, registered):
+        client = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [42, "42", "042"])
+        gevent.wait(timeout=1)
+
+        assert client.ws.send.call_count == 1
+
+    def test_a_scope_reaches_only_connections_opened_with_it(self, sockets, registered):
+        current = registered("42", scope="page-7")
+        stale = registered("42", scope="page-6")
+
+        sockets.publish_to_participants({"type": "wake"}, [42], scope="page-7")
+        gevent.wait(timeout=1)
+
+        assert current.ws.send.call_count == 1
+        stale.ws.send.assert_not_called()
+
+    def test_a_scope_does_not_reach_a_connection_opened_without_one(
+        self, sockets, registered
+    ):
+        unscoped = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [42], scope="page-7")
+        gevent.wait(timeout=1)
+
+        # No scope is a scope of its own, not a wildcard.
+        unscoped.ws.send.assert_not_called()
+
+    def test_a_scope_that_is_not_text_is_compared_as_text(self, sockets, registered):
+        # A connection names its scope in a query string, so it holds "7".
+        client = registered("42", scope="7")
+
+        sockets.publish_to_participants({"type": "wake"}, [42], scope=7)
+        gevent.wait(timeout=1)
+
+        client.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+
+    def test_the_envelope_carries_a_scope_as_text(self, sockets, registered):
+        registered("42", scope="7")
+
+        sockets.publish_to_participants({"type": "wake"}, [42], scope=7)
+
+        assert json.loads(published_envelopes(sockets)[0])["scope"] == "7"
+
+    def test_no_scope_reaches_every_connection(self, sockets, registered):
+        scoped = registered("42", scope="page-7")
+        unscoped = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [42])
+        gevent.wait(timeout=1)
+
+        assert scoped.ws.send.call_count == 1
+        assert unscoped.ws.send.call_count == 1
+
+    def test_the_envelope_reaches_the_other_processes(self, sockets, registered):
+        registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [42, 43], scope="page-7")
+
+        envelope = json.loads(published_envelopes(sockets)[0])
+        assert envelope["participant_ids"] == ["42", "43"]
+        assert envelope["scope"] == "page-7"
+        assert envelope["origin"] == sockets.process_token()
+        assert json.loads(envelope["payload"]) == {"type": "wake"}
+
+    def test_a_failed_publish_reaches_nobody(self, sockets, registered):
+        client = registered("42")
+        sockets.redis_conn.publish.side_effect = sockets.RedisError("no redis")
+
+        with pytest.raises(sockets.RedisError):
+            sockets.publish_to_participants({"type": "wake"}, [42])
+        gevent.wait(timeout=1)
+
+        # Delivering locally first would serve this process and no other, and
+        # a retry would then send to these connections twice.
+        client.ws.send.assert_not_called()
+
+    def test_the_payload_is_serialized_once(self, sockets, registered):
+        client = registered("42")
+
+        sockets.publish_to_participants({"type": "wake", "token": "abc"}, [42])
+        gevent.wait(timeout=1)
+
+        envelope = json.loads(published_envelopes(sockets)[0])
+        frame = client.ws.send.mock_calls[0].args[0]
+        assert frame == "{}:{}".format(sockets.DIRECT_CHANNEL, envelope["payload"])
+
+    def test_a_datetime_in_the_payload_is_serialized(self, sockets, registered):
+        client = registered("42")
+
+        sockets.publish_to_participants({"at": datetime(2026, 9, 17, 12, 30)}, [42])
+        gevent.wait(timeout=1)
+
+        frame = client.ws.send.mock_calls[0].args[0]
+        assert json.loads(frame.split(":", 1)[1]) == {"at": "2026-09-17T12:30:00"}
+
+    def test_an_unaddressable_id_is_skipped(self, sockets, registered):
+        client = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, ["not-a-number", 42])
+        gevent.wait(timeout=1)
+
+        assert client.ws.send.call_count == 1
+        assert json.loads(published_envelopes(sockets)[0])["participant_ids"] == ["42"]
+
+    def test_a_send_no_one_can_receive_publishes_nothing(self, sockets, registered):
+        registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [None])
+
+        assert published_envelopes(sockets) == []
+
+    def test_naming_a_participant_who_is_elsewhere_still_publishes(
+        self, sockets, registered
+    ):
+        registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [43])
+        gevent.wait(timeout=1)
+
+        assert json.loads(published_envelopes(sockets)[0])["participant_ids"] == ["43"]
+
+
+class TestDirectChannelListener:
+    def listener(self, sockets, backend=None):
+        return sockets.DirectChannel(backend or sockets.chat_backend)
+
+    def test_an_envelope_from_another_process_is_delivered(self, sockets, registered):
+        client = registered("42")
+        envelope = json.dumps(
+            {
+                "participant_ids": ["42"],
+                "scope": None,
+                "origin": "another process",
+                "payload": '{"type": "wake"}',
+            }
+        )
+
+        self.listener(sockets).relay(envelope_message(sockets, envelope))
+        gevent.wait(timeout=1)
+
+        client.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+
+    def test_this_process_does_not_deliver_its_own_envelope_twice(
+        self, sockets, registered
+    ):
+        client = registered("42")
+        sockets.publish_to_participants({"type": "wake"}, [42])
+
+        for envelope in published_envelopes(sockets):
+            self.listener(sockets).relay(envelope_message(sockets, envelope))
+        gevent.wait(timeout=1)
+
+        assert client.ws.send.call_count == 1
+
+    def test_a_scope_is_honoured_across_processes(self, sockets, registered):
+        stale = registered("42", scope="page-6")
+        envelope = json.dumps(
+            {
+                "participant_ids": ["42"],
+                "scope": "page-7",
+                "origin": "another process",
+                "payload": '{"type": "wake"}',
+            }
+        )
+
+        self.listener(sockets).relay(envelope_message(sockets, envelope))
+        gevent.wait(timeout=1)
+
+        stale.ws.send.assert_not_called()
+
+    def test_an_unreadable_envelope_is_discarded(self, sockets, registered):
+        client = registered("42")
+
+        self.listener(sockets).relay(envelope_message(sockets, "not json"))
+        gevent.wait(timeout=1)
+
+        client.ws.send.assert_not_called()
+
+    def test_an_envelope_naming_its_ids_as_text_is_discarded(self, sockets, registered):
+        # Iterating "42" yields "4", which is a participant the send did not
+        # name and this process holds a connection for.
+        client = registered("4")
+        envelope = dict(DIRECT_ENVELOPE, participant_ids="42")
+
+        self.listener(sockets).relay(envelope_message(sockets, json.dumps(envelope)))
+        gevent.wait(timeout=1)
+
+        client.ws.send.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "field, value",
+        [
+            # An unhashable id raises on the registry lookup rather than missing.
+            pytest.param("participant_ids", [["42"]], id="an-id-unhashable"),
+            pytest.param("payload", {"type": "wake"}, id="payload-not-text"),
+            pytest.param("origin", 7, id="origin-not-text"),
+        ],
+    )
+    def test_an_envelope_that_is_not_one_reaches_nobody(
+        self, sockets, registered, field, value
+    ):
+        client = registered("42")
+        envelope = dict(DIRECT_ENVELOPE, **{field: value})
+
+        self.listener(sockets).relay(envelope_message(sockets, json.dumps(envelope)))
+        gevent.wait(timeout=1)
+
+        client.ws.send.assert_not_called()
+
+    def test_a_frame_carrying_no_envelope_leaves_the_listener_reading(
+        self, sockets, pubsub, registered
+    ):
+        pubsub.listen.return_value = [
+            envelope_message(sockets, "[]"),
+            envelope_message(sockets, json.dumps(DIRECT_ENVELOPE)),
+        ]
+
+        client = registered("42")
+        gevent.wait(timeout=1)
+
+        # The envelope behind the bad frame still arrived, so the greenlet
+        # that reads them did not unwind on the first one.
+        client.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+
+    def test_a_subscribe_confirmation_is_not_an_envelope(self, sockets, registered):
+        client = registered("42")
+
+        with patch.object(sockets, "log") as log:
+            self.listener(sockets).relay(
+                {"type": "subscribe", "channel": b"dallinger_direct", "data": 1}
+            )
+        gevent.wait(timeout=1)
+
+        # Read as an envelope a confirmation is unreadable, so dropping the
+        # type check costs a warning for every subscription rather than a
+        # delivery.
+        log.assert_not_called()
+        client.ws.send.assert_not_called()
+
+    def test_each_process_delivers_to_its_own_clients(self, sockets, registered):
+        here = registered("42")
+        there_backend = sockets.ChatBackend()
+        there = sockets.Client(Mock(), participant_id="42")
+        there_backend.register(there)
+        here_listener = self.listener(sockets)
+        there_listener = self.listener(sockets, there_backend)
+
+        sockets.publish_to_participants({"type": "wake"}, [42])
+        for envelope in published_envelopes(sockets):
+            here_listener.relay(envelope_message(sockets, envelope))
+            # The second backend stands in for a second process, which reads
+            # the same envelope holding a token of its own.
+            with patch.object(sockets, "process_token", return_value="another process"):
+                there_listener.relay(envelope_message(sockets, envelope))
+        gevent.wait(timeout=1)
+
+        # One copy each: the sending process delivered to ``here`` directly and
+        # skipped its own envelope, and the other process delivered from it.
+        here.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+        there.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+
+
+class TestProcessToken:
+    def test_the_token_is_stable_within_a_process(self, sockets):
+        assert sockets.process_token() == sockets.process_token()
+
+    def test_a_forked_worker_gets_a_token_of_its_own(self, sockets):
+        # With preload_app this module is imported before the fork, so a token
+        # fixed at import would be shared and every worker would discard the
+        # others' envelopes as its own.
+        before = sockets.process_token()
+
+        with patch.object(sockets.os, "getpid", return_value=-1):
+            assert sockets.process_token() != before
+
+
+class TestParsedEnvelope:
+    def test_a_well_formed_envelope_comes_back(self, sockets):
+        assert sockets.parsed_envelope(json.dumps(DIRECT_ENVELOPE)) == DIRECT_ENVELOPE
+
+    def test_a_scope_of_text_comes_back(self, sockets):
+        envelope = dict(DIRECT_ENVELOPE, scope="page-7")
+
+        assert sockets.parsed_envelope(json.dumps(envelope)) == envelope
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            pytest.param("not json", id="not-json"),
+            pytest.param("[]", id="a-json-array"),
+            pytest.param('"text"', id="a-json-string"),
+            pytest.param("12", id="a-json-number"),
+            pytest.param("null", id="json-null"),
+            pytest.param(None, id="no-data"),
+        ],
+    )
+    def test_a_frame_carrying_no_envelope_is_refused(self, sockets, data):
+        assert sockets.parsed_envelope(data) is None
+
+    @pytest.mark.parametrize("field", sorted(sockets_envelope_fields()))
+    def test_an_envelope_missing_a_field_is_refused(self, sockets, field):
+        envelope = dict(DIRECT_ENVELOPE)
+        del envelope[field]
+
+        assert sockets.parsed_envelope(json.dumps(envelope)) is None
+
+    @pytest.mark.parametrize(
+        "field, value",
+        [
+            pytest.param("participant_ids", "42", id="ids-not-a-list"),
+            pytest.param("participant_ids", [42], id="an-id-not-text"),
+            pytest.param("participant_ids", [["42"]], id="an-id-unhashable"),
+            pytest.param("payload", {"type": "wake"}, id="payload-not-text"),
+            pytest.param("payload", None, id="payload-null"),
+            pytest.param("origin", 7, id="origin-not-text"),
+            pytest.param("scope", 7, id="scope-not-text"),
+        ],
+    )
+    def test_an_envelope_with_a_field_of_the_wrong_type_is_refused(
+        self, sockets, field, value
+    ):
+        envelope = dict(DIRECT_ENVELOPE, **{field: value})
+
+        assert sockets.parsed_envelope(json.dumps(envelope)) is None
+
+
+class TestReservedChannels:
+    def test_a_client_may_not_subscribe_to_the_direct_channel(
+        self, sockets, mocksocket
+    ):
+        with patch.object(sockets.chat_backend, "subscribe") as subscribe:
+            with patch.object(
+                sockets, "request", Mock(args={"channel": sockets.DIRECT_CHANNEL})
+            ):
+                sockets.chat(mocksocket)
+
+        # The connection drops its channels as it closes, so the channel map
+        # is empty afterwards whether or not the name was refused.
+        subscribe.assert_not_called()
+
+    def test_a_client_may_not_subscribe_to_the_control_channel(
+        self, sockets, mocksocket
+    ):
+        with patch.object(sockets.chat_backend, "subscribe") as subscribe:
+            with patch.object(
+                sockets, "request", Mock(args={"channel": sockets.CONTROL_CHANNEL})
+            ):
+                sockets.chat(mocksocket)
+
+        # The connection drops its channels as it closes, so the channel map
+        # is empty afterwards whether or not the name was refused.
+        subscribe.assert_not_called()
+
+    def test_a_client_may_not_publish_to_the_direct_channel(self, sockets, mocksocket):
+        mocksocket.receive.return_value = (
+            'dallinger_direct:{"participant_ids": ["42"], "payload": "{}"}'
+        )
+
+        sockets.Client(mocksocket).publish()
+
+        assert published_envelopes(sockets) == []

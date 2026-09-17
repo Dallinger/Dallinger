@@ -4,6 +4,17 @@
 
 ### Added
 
+- `Experiment.publish_to_participants(payload, participant_ids, scope=None)`
+  sends a payload to the WebSocket connections of specific participants, across
+  gunicorn workers, instead of giving each participant a channel of their own.
+  Any connection which supplied a `participant_id` can be addressed, on `/chat`
+  or `/experiment-socket`, and every connection a participant holds receives a
+  copy. The payload arrives on the client prefixed with the reserved
+  `dallinger_direct` channel name. An optional `scope` limits delivery to those
+  connections which supplied the same scope value, allowing an experiment to
+  reach the page a participant is on rather than a tab left open on an earlier
+  one.
+
 - A new `/experiment-socket` route hands each inbound frame to the experiment's new
   `handle_websocket_message` method on the web process that owns the socket,
   instead of publishing it to redis for a worker to pick up later. The default
@@ -134,6 +145,15 @@
   ``paths``, ``names``, and ``suffixes`` lists to the CLI.
 
 ### Changed
+
+- Clients may no longer subscribe to Dallinger's own channels. The `channel`
+  argument may not name `dallinger_control`, which reports every connection's
+  worker and participant ids, nor the new `dallinger_direct`, which carries the
+  directed messages published to every participant on the deployment. A
+  connection naming either is logged and left unsubscribed rather than refused,
+  and may still send and receive otherwise. Client messages addressed to
+  `dallinger_control` were already discarded, and the same now applies to
+  `dallinger_direct`.
 
 - The `/chat` WebSocket route no longer sleeps between reads. The client
   receive loop slept for 0.1s (or whatever `?tolerance=` asked for) before
