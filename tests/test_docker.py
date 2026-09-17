@@ -426,3 +426,12 @@ def test_get_remote_disk_full_guidance_recommends_safe_cleanup_only():
     assert "docker container prune -f" in guidance
     assert "do not auto-prune volumes" in guidance
     assert "docker system prune -af --volumes" not in guidance
+
+
+def test_get_required_dallinger_version_prerelease_falls_back_to_latest(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("dallinger==12.2.0a1\n")
+
+    assert get_required_dallinger_version(str(tmp_path)) == ""

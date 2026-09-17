@@ -104,6 +104,7 @@ def handle_launch_data(
     dns_host=None,
     dozzle_password=None,
     context=None,
+    verify=True,
 ):
     """POST to ``url`` (``/launch``), retrying with exponential backoff.
 
@@ -133,7 +134,7 @@ def handle_launch_data(
         for remaining_attempt in sorted(range(attempts), reverse=True):
             startup_failure = False
             try:
-                launch_request = requests.post(url)
+                launch_request = requests.post(url, verify=verify)
                 request_happened = True
             except requests.exceptions.RequestException as err:
                 request_happened = False

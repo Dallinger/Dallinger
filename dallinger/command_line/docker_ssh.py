@@ -1159,6 +1159,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
             dns_host=dns_host,
             dozzle_password=dozzle_password,
             context="ssh",
+            verify=HAS_TLS,
         )
         print(launch_data.get("recruitment_msg"))
 
