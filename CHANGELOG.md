@@ -24,8 +24,8 @@
 
 ### Fixed
 
-- docker-ssh deploy now correctly handles SSH hosts specified as ``host:port``
-  and IPv6 addresses. The ``--update`` flag now yields a boolean instead of the
+- docker-ssh deploy now correctly handles SSH hosts specified as ``host:port``.
+  The ``--update`` flag now yields a boolean instead of the
   string ``"update"``. TLS certificate verification is skipped for loopback
   deployments. SFTP operations now use the remote user's home directory as the
   working directory. Dozzle is only restarted when it is already running.

@@ -22,6 +22,7 @@ durations.txt
 .env
 .idea
 .pytest_cache
+/.pytest-docker-ssh/
 .tox
 .vscode
 /snapshots/

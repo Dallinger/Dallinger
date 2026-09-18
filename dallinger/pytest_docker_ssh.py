@@ -359,20 +359,19 @@ def docker_ssh_server():
         "sleep",
         "infinity",
     ]
-    run_target = _run_command(run_target_command, check=False)
-    if run_target.returncode != 0:
-        if (
-            "address already in use"
-            in f"{run_target.stdout}\n{run_target.stderr}".lower()
-        ):
-            _skip_or_fail("docker-ssh fixture requires free local ports 80 and 443")
-        raise RuntimeError(
-            "Failed to start docker-ssh target container.\n"
-            f"STDOUT:\n{run_target.stdout}\nSTDERR:\n{run_target.stderr}"
-        )
-
     server = None
     try:
+        run_target = _run_command(run_target_command, check=False)
+        if run_target.returncode != 0:
+            if (
+                "address already in use"
+                in f"{run_target.stdout}\n{run_target.stderr}".lower()
+            ):
+                _skip_or_fail("docker-ssh fixture requires free local ports 80 and 443")
+            raise RuntimeError(
+                "Failed to start docker-ssh target container.\n"
+                f"STDOUT:\n{run_target.stdout}\nSTDERR:\n{run_target.stderr}"
+            )
         _run_command(
             [
                 "docker",
@@ -469,6 +468,7 @@ def docker_ssh_server():
             server.remove_server()
         _run_command(["docker", "rm", "-f", container_name], check=False)
         _run_command(["docker", "volume", "rm", "-f", docker_data_volume], check=False)
+        shutil.rmtree(tmp_root, ignore_errors=True)
 
 
 @pytest.fixture
