@@ -152,7 +152,10 @@ sees it. That is what a turn-based game wants, since a player's raw move should
 not be echoed to the room before the experiment has ruled on it. A chat room
 wants the opposite.
 
-To fan a message out as well as handle it, publish it from the handler::
+Messages can be sent to particular participants using the
+:func:`~dallinger.experiment.Experiment.publish_to_participants` method, which
+is described in its own section below. To fan a message out to all of the
+subscribers of a channel, publish it from the handler::
 
     def handle_websocket_message(
         self, message, *, channel_name, participant_id, scope, receive_time
@@ -215,6 +218,39 @@ participants enrolled is not. Send that work to a worker with
 experiment that opens an experiment socket without overriding the method gets
 the same asynchronous handling ``/chat`` gives.
 
+A handler will typically dispatch on the message type, doing the work that has
+to happen immediately and queueing the rest::
+
+    def handle_websocket_message(
+        self, message, *, channel_name, participant_id, scope, receive_time
+    ):
+        data = json.loads(message)
+        if data["type"] == "move":
+            participant = Participant.query.get(int(participant_id))
+            # Assign a new dict rather than mutating the existing one
+            participant.details = dict(
+                participant.details,
+                move=data["action"],
+                at=receive_time.isoformat(),
+            )
+            db.session.commit()
+            self.publish_to_participants(
+                {"type": "move_accepted", "by": participant_id},
+                participant_ids=[self.partner_of(participant_id)],
+            )
+        else:
+            db.get_queue("high").enqueue(score_the_round, participant_id)
+
+The explicit commit is required, because Dallinger removes the session once the
+handler returns and discards any uncommitted work along with it.
+``score_the_round`` must be a module-level function in the experiment package,
+since the worker process imports it by name.
+
+``details`` is an ordinary JSONB column with no change tracking, so SQLAlchemy
+will only notice the write if the attribute is assigned a new value, and a
+``datetime`` such as ``receive_time`` has to be converted with ``isoformat()``
+before it can be stored in one.
+
 A payload carrying the ``immediate`` flag is the exception. The default
 implementation passes the message to
 :func:`~dallinger.experiment.Experiment.send`, which runs
@@ -232,6 +268,120 @@ and Dallinger uses ``COPY`` to export data. Psycopg 3 waits cooperatively on its
 own and keeps ``COPY``, but it needs the SQLAlchemy 2.0 upgrade first, and
 Dallinger pins ``sqlalchemy==1.4.54``. `Issue #9807
 <https://github.com/Dallinger/Dallinger/issues/9807>`_ has the full comparison.
+
+
+Sending to Specific Participants
+--------------------------------
+
+While :func:`~dallinger.experiment.Experiment.publish_to_subscribers` sends a
+message to every subscriber of a channel, the
+:func:`~dallinger.experiment.Experiment.publish_to_participants` method sends a
+payload to particular participants, named by their participant ids::
+
+    self.publish_to_participants(
+        {"type": "move_accepted", "by": participant_id},
+        participant_ids=[partner_id],
+    )
+
+The recipients do not need a channel of their own, and do not need to subscribe
+to anything. Any connection which included a ``participant_id`` argument in its
+url, on either the ``/chat`` or the ``/experiment-socket`` route, can be
+addressed in this way, and the payload will be delivered to every connection
+that participant currently holds, whichever web process is holding it. The
+method may be called from anywhere, including a WebSocket handler, a worker
+event, or an ordinary route.
+
+This replaces the pattern of giving each participant a channel named after
+them, such as ``participant_12_channel``. Named channels remain the natural
+choice for a group of participants who should all receive the same messages.
+
+A directed message is no more confidential than the channel name it replaces.
+Neither WebSocket route is authenticated. ``/experiment-socket`` checks that
+the participant exists and ``/chat`` checks nothing, so a connection is
+addressed by the ``participant_id`` it claims rather than by one it has proved
+it owns, and anyone who can guess a participant id can open a socket naming it
+and be sent that participant's directed messages. Guessing
+``participant_12_channel`` took the same knowledge. Treat the id as Dallinger
+treats every other ``participant_id``, and keep out of a payload anything
+another participant must not read.
+
+Naming a participant who has no open connection, or who is not connected to this
+deployment at all, delivers nothing and is not an error. As with a broadcast, no
+message is buffered or replayed, so a payload published while a participant is
+reconnecting will not reach them. Anything a client must not miss should be
+stored in the database, with the directed message serving as a prompt to fetch
+it.
+
+A redis failure is the one delivery problem which is reported. It raises, and
+the payload will have reached none of the recipients, so the call can be
+retried as a whole.
+
+Directed Message Format
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Directed messages arrive on the client prefixed with the reserved
+``dallinger_direct`` channel name, using the same ``channel:payload`` format as
+every other WebSocket message, so a single connection can receive both channel
+broadcasts and directed messages::
+
+    socket.onmessage = function (msg) {
+        // Ignore messages which are not directed to this participant
+        if (msg.data.indexOf('dallinger_direct:') !== 0) { return; }
+        // Parse the payload
+        var data = JSON.parse(msg.data.substring('dallinger_direct:'.length));
+        // Take different actions based on message type
+        switch (data.type) {
+           ...
+        }
+    };
+
+Like ``dallinger_control``, the ``dallinger_direct`` channel is reserved for
+Dallinger's own use. Experiments should not publish to it, and clients may
+neither publish to it nor subscribe to it; the server discards such a message or
+subscription and logs a warning. Both channels carry messages in the same format
+as the ones a client expects to receive, so a subscriber would be given other
+participants' messages as though they were its own.
+
+Connection Scope
+~~~~~~~~~~~~~~~~
+
+A participant may hold more than one connection at a time, for example a page
+which opens two sockets, or a reload whose previous socket has not yet timed
+out. By default every one of them receives the payload. The optional ``scope``
+argument limits delivery to those connections which included the same ``scope``
+value in their url::
+
+    def handle_websocket_message(
+        self, message, *, channel_name, participant_id, scope, receive_time
+    ):
+        ...
+        self.publish_to_participants(
+            {"type": "accepted"}, participant_ids=[participant_id], scope=scope
+        )
+
+The handler is given the ``scope`` of the connection its message arrived on, so
+replying with that value reaches the page which sent the message and leaves a
+tab open on an earlier page untouched.
+
+That value should not be passed on when addressing a different participant.
+Their connections will have supplied a scope of their own, and a payload scoped
+to the sender's page will silently reach none of them. Supply a scope when
+addressing the same participant, and omit it otherwise, unless the experiment
+has defined scope as a value which both participants share.
+
+Dallinger compares the two values as strings and does not interpret them; what a
+scope means is up to the experiment. A connection which supplied no scope will
+only receive messages which were published without one.
+
+Cross-Process Delivery
+~~~~~~~~~~~~~~~~~~~~~~
+
+The process which publishes a directed message delivers it to any matching
+connections it holds itself, and publishes an envelope naming the recipients to
+redis so that the other web processes can deliver it to theirs. Every process
+reads every envelope and delivers to whichever of the named participants it
+holds connections for. The payload is serialized once, by the publishing
+process, so every recipient of a single call is sent identical bytes.
 
 
 Client Implementation
