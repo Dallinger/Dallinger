@@ -188,7 +188,8 @@ def push_image(image_name_with_tag: str) -> str:
         stop=tenacity.stop_after_attempt(DOCKER_PUSH_MAX_ATTEMPTS),
         wait=tenacity.wait_fixed(5),
         before_sleep=lambda s: print(
-            f"Push attempt {s.attempt_number} failed ({s.outcome.exception()}); retrying..."
+            f"Push attempt {s.attempt_number} failed ({s.outcome.exception()}); "
+            f"retrying in {s.next_action.sleep:.0f}s..."
         ),
         reraise=True,
     ):
