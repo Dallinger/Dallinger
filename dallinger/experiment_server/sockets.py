@@ -75,8 +75,9 @@ UNAVAILABLE_CLOSE_CODE = 1013
 UNSUPPORTED_DATA_CLOSE_CODE = 1003
 
 # redis-py reconnects and resubscribes the pubsub before re-raising these,
-# so a later read resumes the stream. Other RedisErrors are protocol-level
-# and a retry would hit the same thing.
+# so a later read resumes the stream. Other RedisErrors are protocol-level,
+# and redis-py leaves the connection as it was, so a retry on it would hit the
+# same thing.
 RETRYABLE_REDIS_ERRORS = (ConnectionError, RedisTimeoutError)
 
 
@@ -135,6 +136,12 @@ class Channel:
     #: doubling on each consecutive failure up to the maximum.
     RECONNECT_DELAY_SECS = 0.5
     MAX_RECONNECT_DELAY_SECS = 10
+
+    #: Whether a redis error other than a lost connection or a timeout starts
+    #: the listener over on a new pubsub instead of ending it. A channel that
+    #: ends is dropped by ``ChatBackend.forget``, and its next subscriber
+    #: builds another.
+    rebuilds_on_protocol_error = False
 
     def __init__(self, name):
         self.name = name
@@ -198,7 +205,8 @@ class Channel:
         stops the greenlet once the last client leaves. The full traceback is
         logged once per outage and a single line per attempt after that,
         because at the ceiling an outage otherwise writes six tracebacks a
-        minute for every channel.
+        minute for every channel. Any other redis error ends the listener
+        unless ``rebuilds_on_protocol_error`` is set.
         """
         pubsub = redis_conn.pubsub()
         name = self.name
@@ -229,12 +237,24 @@ class Channel:
                         # in the socket buffer are read without blocking, so
                         # nothing else here hands the hub back.
                         gevent.sleep(0)
-                except RETRYABLE_REDIS_ERRORS:
+                except RedisError as error:
+                    retryable = isinstance(error, RETRYABLE_REDIS_ERRORS)
+                    if not (retryable or self.rebuilds_on_protocol_error):
+                        app.logger.exception(
+                            "Unrecoverable redis error on channel {}.".format(self.name)
+                        )
+                        return
                     template = (
                         "Lost redis connection on channel {}, retrying in {}s."
                         if subscribed
                         else "Could not subscribe to channel {}, retrying in {}s."
                     )
+                    if not retryable:
+                        # ``close()`` disconnects, so the new pubsub starts on
+                        # a fresh stream.
+                        pubsub.close()
+                        pubsub = redis_conn.pubsub()
+                        subscribed = False
                     if reported:
                         app.logger.warning(template.format(self.name, delay))
                     else:
@@ -242,11 +262,6 @@ class Channel:
                         reported = True
                     gevent.sleep(delay)
                     delay = min(delay * 2, self.MAX_RECONNECT_DELAY_SECS)
-                except RedisError:
-                    app.logger.exception(
-                        "Unrecoverable redis error on channel {}.".format(self.name)
-                    )
-                    return
                 else:
                     return
         finally:
@@ -274,6 +289,11 @@ class DirectChannel(Channel):
     participants, and the backend looks up their connections, so a client is
     addressable without having subscribed to anything.
     """
+
+    #: Registrations live on the backend rather than here, so a listener that
+    #: ended would leave every one of them unreachable from other processes
+    #: until the next connection named a participant.
+    rebuilds_on_protocol_error = True
 
     def __init__(self, backend):
         super().__init__(DIRECT_CHANNEL)
@@ -624,7 +644,7 @@ def publish_to_participants(payload, participant_ids, scope=None):
     A redis failure raises, having delivered to nobody, so the caller can
     retry the whole send rather than guess which half of it landed.
     """
-    if isinstance(participant_ids, (str, bytes, int)):
+    if isinstance(participant_ids, (str, bytes, numbers.Integral)):
         participant_ids = [participant_ids]
     addressable_ids = []
     for participant_id in participant_ids:
