@@ -1517,6 +1517,23 @@ class TestDirectedSend:
 
         assert client.ws.send.call_count == 1
 
+    def test_a_single_integer_that_is_not_an_int_needs_no_list(
+        self, sockets, registered
+    ):
+        """A numpy integer is an ``Integral`` without being an ``int``."""
+
+        class Counted:
+            def __int__(self):
+                return 42
+
+        numbers.Integral.register(Counted)
+        client = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, Counted())
+        gevent.wait(timeout=1)
+
+        assert client.ws.send.call_count == 1
+
     def test_a_repeated_id_delivers_once(self, sockets, registered):
         client = registered("42")
 
@@ -1779,6 +1796,46 @@ class TestDirectChannelListener:
         # skipped its own envelope, and the other process delivered from it.
         here.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
         there.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+
+    @pytest.mark.timeout(10)
+    @pytest.mark.parametrize("failing", ["subscribe", "listen"])
+    def test_a_protocol_error_starts_over_on_a_new_pubsub(
+        self, sockets, redis, registered, failing
+    ):
+        from redis.exceptions import ResponseError
+
+        errors = [ResponseError("bad reply")]
+
+        def fail_once(*args):
+            if errors:
+                raise errors.pop()
+            return parking_listen()
+
+        # Only the first call fails, so a listener that retried on this pubsub
+        # would sit reading it rather than reach the healthy one.
+        broken = Mock()
+        broken.listen.side_effect = parking_listen
+        getattr(broken, failing).side_effect = fail_once
+        healthy = Mock()
+
+        def healthy_listen():
+            yield envelope_message(sockets, json.dumps(DIRECT_ENVELOPE))
+            Event().wait()
+
+        healthy.listen.side_effect = healthy_listen
+        redis.pubsub.side_effect = [broken, healthy]
+
+        with patch.object(sockets.DirectChannel, "RECONNECT_DELAY_SECS", 0):
+            client = registered("42")
+            listener = sockets.chat_backend.direct_channel
+            gevent.wait(timeout=1)
+
+        # redis-py leaves the broken connection as it was, so the listener
+        # drops it and subscribes again on a fresh one.
+        broken.close.assert_called_once_with()
+        healthy.subscribe.assert_called_once_with([b"dallinger_direct"])
+        client.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+        assert sockets.chat_backend.direct_channel is listener
 
 
 class TestProcessToken:

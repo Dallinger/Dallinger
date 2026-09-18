@@ -13,7 +13,9 @@
   `dallinger_direct` channel name. An optional `scope` limits delivery to those
   connections which supplied the same scope value, allowing an experiment to
   reach the page a participant is on rather than a tab left open on an earlier
-  one.
+  one. A protocol-level redis error ends a channel's listener, but the one
+  that relays directed sends between web processes starts over on a new redis
+  connection instead.
 
 - A new `/experiment-socket` route hands each inbound frame to the experiment's new
   `handle_websocket_message` method on the web process that owns the socket,
