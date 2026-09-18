@@ -33,10 +33,9 @@
   creation. Disk-full errors on the remote host are detected and offer guided
   safe cleanup. Pre-release Dallinger versions fall back to the ``latest`` base
   image tag. The ``auto_recruit`` config key no longer crashes when Redis is
-  unavailable. A new ``docker-ssh-smoke`` CI job (triggered by the
-  ``run-docker-ssh-smoke`` PR label) runs five end-to-end smoke tests covering
-  deploy/destroy, app listing, server listing, missing-app error handling, and
-  the ``--update`` refresh flow.
+  unavailable. A new ``docker-ssh-smoke`` CI job runs five end-to-end smoke
+  tests on every PR covering deploy/destroy, app listing, server listing,
+  missing-app error handling, and the ``--update`` refresh flow.
 - SSH and Heroku-docker deploys now tag the experiment image with the
   per-launch experiment UID instead of a hash of ``requirements.txt`` and
   ``prepare_docker_image.sh``. Those files do not identify the copied
