@@ -13,6 +13,7 @@ from shlex import quote
 
 import click
 import requests
+import tenacity
 from heroku3.core import Heroku as Heroku3Client
 
 from dallinger import heroku, registration
@@ -35,6 +36,12 @@ from dallinger.utils import (
 )
 
 HEROKU_YML = abspath_from_egg("dallinger", "dallinger/docker/heroku.yml").read_text()
+
+# The Docker SDK default read timeout (60 s) is too short for large image
+# layers on slow connections. This timeout applies to how long the SDK will
+# wait for the next chunk of data from the daemon, not the total push duration.
+DOCKER_PUSH_TIMEOUT = 180
+DOCKER_PUSH_MAX_ATTEMPTS = 2
 
 
 @click.group()
@@ -173,28 +180,40 @@ def push_image(image_name_with_tag: str) -> str:
     """Push a local image to its registry and return the digest name."""
     from docker import client
 
-    docker_client = client.from_env()
-    for line in docker_client.images.push(
-        image_name_with_tag, stream=True, decode=True
+    docker_client = client.from_env(timeout=DOCKER_PUSH_TIMEOUT)
+    for attempt in tenacity.Retrying(
+        retry=tenacity.retry_if_exception_type(
+            (requests.exceptions.ReadTimeout, requests.exceptions.ConnectionError)
+        ),
+        stop=tenacity.stop_after_attempt(DOCKER_PUSH_MAX_ATTEMPTS),
+        wait=tenacity.wait_fixed(5),
+        before_sleep=lambda s: print(
+            f"Push attempt {s.attempt_number} failed ({s.outcome.exception()}); retrying..."
+        ),
+        reraise=True,
     ):
-        if "status" in line:
-            print(line["status"], end="")
-            print(line.get("progress", ""))
-        if "error" in line:
-            print(line.get("error", "") + "\n")
-            if "unauthenticated" in line["error"]:
-                registry_name = image_name_with_tag.split("/")[0]
-                for help_line in REGISTRY_UNAUTHORIZED_HELP_TEXTS.get(
-                    registry_name, REGISTRY_UNAUTHORIZED_HELP_TEXT
-                ):
-                    print(help_line.format(**locals()))
-            if "denied" in line["error"]:
-                print(
-                    f"Your current account does not have permission to push to {image_name_with_tag}"
-                )
-            raise click.Abort
-        if "aux" in line:
-            print(f"Pushed image: {line['aux']['Digest']}\n")
+        with attempt:
+            for line in docker_client.images.push(
+                image_name_with_tag, stream=True, decode=True
+            ):
+                if "status" in line:
+                    print(line["status"], end="")
+                    print(line.get("progress", ""))
+                if "error" in line:
+                    print(line.get("error", "") + "\n")
+                    if "unauthenticated" in line["error"]:
+                        registry_name = image_name_with_tag.split("/")[0]
+                        for help_line in REGISTRY_UNAUTHORIZED_HELP_TEXTS.get(
+                            registry_name, REGISTRY_UNAUTHORIZED_HELP_TEXT
+                        ):
+                            print(help_line.format(**locals()))
+                    if "denied" in line["error"]:
+                        print(
+                            f"Your current account does not have permission to push to {image_name_with_tag}"
+                        )
+                    raise click.Abort
+                if "aux" in line:
+                    print(f"Pushed image: {line['aux']['Digest']}\n")
     pushed_image = docker_client.images.get(image_name_with_tag).attrs["RepoDigests"][0]
     print(f"Image {pushed_image} built and pushed.\n")
     return pushed_image
