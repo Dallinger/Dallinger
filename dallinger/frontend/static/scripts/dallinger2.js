@@ -713,6 +713,47 @@ var dallinger = (function () {
   };
 
   /**
+   * The close code Dallinger uses to refuse a websocket connection, such as
+   * one whose `participant_id` names no participant. RFC 6455 policy
+   * violation.
+   */
+  dlgr.WEBSOCKET_REFUSED = 1008;
+
+  /**
+   * Stop a ReconnectingWebSocket retrying a connection the server refused.
+   *
+   * `ReconnectingWebSocket` reconnects after every close and reports the close
+   * code on its `connecting` event rather than on `close`, so a refusal is
+   * otherwise indistinguishable from a dropped network connection and repeats
+   * forever.
+   *
+   * The socket is left in the `CLOSED` state, so code that polls
+   * `readyState` can tell a refusal from a reconnect in progress.
+   *
+   * @param {ReconnectingWebSocket} socket the socket to watch
+   * @param {function} [callback] called with the close code and reason when
+   *   the connection is refused
+   * @returns {ReconnectingWebSocket} the socket that was passed in
+   */
+  dlgr.stopReconnectingIfRefused = function (socket, callback) {
+    socket.addEventListener("connecting", function (event) {
+      if (event.code !== dlgr.WEBSOCKET_REFUSED) { return; }
+      // The reconnect timer scheduled by this close calls open() on this
+      // instance, and open() is an own property, so replacing it cancels the
+      // retry.
+      socket.open = function () {};
+      socket.close();
+      // `close()` reaches CLOSED only through a live socket's onclose, and
+      // ReconnectingWebSocket has already dropped its reference to that socket
+      // before it fires `connecting`. Without this the socket would report
+      // CONNECTING forever.
+      socket.readyState = WebSocket.CLOSED;
+      if (callback) { callback(event.code, event.reason); }
+    });
+    return socket;
+  };
+
+  /**
    * Waits for a WebSocket message indicating that quorum has been reached.
    *
    * This method is called automatically within `createParticipant()` and the

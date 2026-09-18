@@ -4,12 +4,14 @@ Using WebSockets in Dallinger Experiments
 Dallinger provides some helpers to facilitate realtime communication between
 participants and the experiment using the WebSocket protocol.
 
-The experiment server runs a WebSocket service located at the route `/chat` that
-implements a Publish-Subscribe pattern. Connecting to that service with a
-`channel` argument in the url will subscribe a client to all messages sent to
-the named channel. If the named "channel" doesn't already exist it will be
-created on the server. Both clients (participants) and the experiment instance
-can subscribe and create channels.
+The experiment server runs two WebSocket routes. The first, `/chat`, implements
+a Publish-Subscribe pattern. Connecting to that service with a `channel`
+argument in the url will subscribe a client to all messages sent to the named
+channel. If the named "channel" doesn't already exist it will be created on the
+server. Both clients (participants) and the experiment instance can subscribe
+and create channels. The second, `/experiment-socket`, hands each incoming
+message to the experiment on the web process holding the connection instead of
+publishing it, and is described in its own section below.
 
 The channel backend publishes all incoming messages to a redis queue. It also
 looks for new messages on the queue and relays channel specific messages to all
@@ -68,6 +70,169 @@ care to manage any database sessions. The
 `dallinger.db.scoped_session_decorator` can be used to wrap functions and the
 `dallinger.db.sessions_scope` contextmanager can provide more granular/repeated
 session management.
+
+The Experiment Socket
+---------------------
+
+Both of the paths described so far run the experiment's code on the process
+that subscribed the experiment to the channel, which is the one that served
+``/launch``.
+Messages reach it through redis, and by default a worker handles them some time
+later.
+
+A connection to the ``/experiment-socket`` route works differently. Each
+incoming message goes straight to the
+:func:`~dallinger.experiment.Experiment.handle_websocket_message` method, on the
+web process that owns the socket, before the next message is read. Nothing is
+published to redis on the way. Use it when a participant's action has to be
+acted on immediately, such as a move in a turn-based game::
+
+    socket = new ReconnectingWebSocket(
+      ws_scheme + location.host + "/experiment-socket" +
+        "?channel=" + channel_id +
+        "&participant_id=" + dallinger.identity.participantId +
+        "&worker_id=" + dallinger.identity.workerId +
+        "&scope=" + encodeURIComponent(page_scope)
+    );
+
+An experiment socket subscribes to ``channel`` just as a ``/chat`` connection
+does, so broadcasts to that channel reach the browser the same way. Only the
+inbound direction differs.
+
+``channel`` is optional. A connection that leaves it out subscribes to nothing
+and receives nothing, which suits a game socket that only reports moves. It can
+still send, because each message carries its own channel prefix, which is
+passed to the method as ``channel_name``.
+
+``scope`` is optional, and Dallinger does not interpret it. Whatever the browser
+sends is stored on the connection and reported back unchanged, both to the
+method and in the ``client`` payload of every control channel event. It exists
+because two connections from the same participant are otherwise
+indistinguishable. What it should contain is the experiment's decision;
+identifying the page the participant is on is one choice, and lets a handler
+ignore a message from a page they have since left.
+
+Messages must be text. Dallinger splits each one on its channel prefix, and a
+binary frame has no prefix to split on, so the connection is closed with code
+``1003`` and the reason ``text frames only``.
+
+An experiment socket must name a participant that exists, because every message
+is reported to the method as coming from someone. Dallinger closes the socket
+otherwise, with code ``1008`` and the reason ``unknown participant``.
+Two failures that are not the client's fault close with ``1013`` instead, which
+tells the client to try again later: a participant lookup that raises, and an
+experiment class that fails to build.
+
+The lookup proves only that a row with that id exists. ``/experiment-socket`` is
+not authenticated, so the id says which participant the connection claims to be,
+not who is sending the messages. Treat it as Dallinger treats every other
+``participant_id``.
+
+``ReconnectingWebSocket`` reconnects after every close, and reports the close
+code on its ``connecting`` event rather than on ``close``. A refusal is
+therefore indistinguishable from a dropped network connection, and repeats
+forever. Pass the socket to ``dallinger.stopReconnectingIfRefused`` to handle
+it::
+
+    socket = new ReconnectingWebSocket(...);
+    dallinger.stopReconnectingIfRefused(socket, function (code, reason) {
+      console.error("The server refused the connection: " + reason);
+    });
+
+The callback is optional. The socket is left in the ``CLOSED`` state, so code
+that reads ``readyState`` can tell a refusal from a reconnect still in
+progress. A close with any other code, including the ``1013`` above, still
+reconnects.
+
+Reaching Other Participants from a Handler
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A message that goes to the handler never reaches the channel, so no other client
+sees it. That is what a turn-based game wants, since a player's raw move should
+not be echoed to the room before the experiment has ruled on it. A chat room
+wants the opposite.
+
+To fan a message out as well as handle it, publish it from the handler::
+
+    def handle_websocket_message(
+        self, message, *, channel_name, participant_id, scope, receive_time
+    ):
+        # ... act on the message, commit whatever it changed ...
+        self.publish_to_subscribers(message, "chatroom_broadcast")
+
+Publish to a channel the experiment does not subscribe to, as above, and give
+the browsers that channel to listen on. Dallinger subscribes the experiment to
+its :attr:`~dallinger.experiment.Experiment.channel` at launch, so publishing a
+handled message back to that channel delivers it to the experiment a second
+time, through :func:`~dallinger.experiment.Experiment.send` and a worker.
+
+Leaving the publish out is easy to miss. The database rows are correct and the
+sender's own browser shows the message, while every other client sees nothing.
+
+Sessions and the Experiment Socket
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Dallinger removes the database session after each message, so a handler always
+starts with an empty identity map, and nothing holds a transaction open between
+messages. Two consequences for experiment code:
+
+- Load rows inside the handler and let them go when it returns. An ORM object
+  kept on the experiment instance, or on anything else that outlives the call,
+  is detached by the time the next message arrives.
+- Commit your own writes. Dallinger does not commit for you here, just as it
+  does not for a worker event.
+
+The experiment instance is built once per web process and shared by every sync
+socket that process is serving, which is the arrangement the launched experiment
+already has on the process that served ``/launch``. Keep per-participant state
+off it.
+
+The same rule reaches back into
+:func:`~dallinger.experiment.Experiment.configure`. Dallinger removes the
+session as soon as the constructor returns, so a row loaded there and kept on
+``self`` is detached before the first message arrives, and stays that way for
+the life of the process. Setting plain values from the configuration, which is
+what ``configure`` is for, is unaffected.
+
+An exception raised by a handler is logged, and the connection stays open.
+
+What a Handler Blocks
+~~~~~~~~~~~~~~~~~~~~~
+
+A handler blocks the whole web process, not just the connection it came from.
+
+Dallinger's web workers run under gunicorn's gevent worker, and gevent switches
+greenlets only at a yield point. Nothing in ``psycopg2`` yields; it waits for
+the database inside a C socket call. So while one handler waits on a query,
+every other websocket on that worker, and every HTTP request it is serving,
+waits with it.
+
+Budget accordingly. A couple of indexed queries is fine. A sequential scan, an
+external HTTP call, or anything whose duration grows with the number of
+participants enrolled is not. Send that work to a worker with
+``dallinger.db.get_queue()``, which is what the default
+:func:`~dallinger.experiment.Experiment.handle_websocket_message` does. An
+experiment that opens an experiment socket without overriding the method gets
+the same asynchronous handling ``/chat`` gives.
+
+A payload carrying the ``immediate`` flag is the exception. The default
+implementation passes the message to
+:func:`~dallinger.experiment.Experiment.send`, which runs
+:func:`~dallinger.experiment.Experiment.receive_message` inline for such a
+payload. On an experiment socket that inline work happens on the web process
+rather than on a worker, and the budget above applies to it.
+
+Making Database Waits Cooperative
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Two changes would remove that budget, and Dallinger makes neither today.
+``psycogreen.gevent.patch_psycopg()`` is only a few lines, but it puts
+connections into psycopg2's asynchronous mode, which does not support ``COPY``,
+and Dallinger uses ``COPY`` to export data. Psycopg 3 waits cooperatively on its
+own and keeps ``COPY``, but it needs the SQLAlchemy 2.0 upgrade first, and
+Dallinger pins ``sqlalchemy==1.4.54``. `Issue #9807
+<https://github.com/Dallinger/Dallinger/issues/9807>`_ has the full comparison.
+
 
 Client Implementation
 ---------------------

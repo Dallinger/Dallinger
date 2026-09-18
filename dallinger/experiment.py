@@ -458,6 +458,14 @@ class Experiment:
         hand off any state synchronization and database writes to async worker
         events.
 
+        This method also backs the default
+        :func:`~dallinger.experiment.Experiment.handle_websocket_message`, so a
+        ``/experiment-socket`` connection reaches it on the web process that owns the
+        socket rather than on the one subscribed to the channel. An
+        ``immediate`` payload is therefore processed on that web process, and
+        blocks every other websocket and request it is serving until
+        :func:`~dallinger.experiment.Experiment.receive_message` returns.
+
         :param raw_message: a formatted message string ``'$channel_name:$data'``
         :type raw_message: str
         """
@@ -500,6 +508,56 @@ class Experiment:
             },
             queue_name="high",
         )
+
+    def handle_websocket_message(
+        self,
+        message,
+        *,
+        channel_name,
+        participant_id=None,
+        scope=None,
+        receive_time=None,
+    ):
+        """Handle one message from a ``/experiment-socket`` connection.
+
+        Unlike :func:`~dallinger.experiment.Experiment.send`, this runs on the
+        web process that owns the websocket, before the next message is read.
+        Use it for messages the experiment must act on immediately. The default
+        implementation passes the message to ``send()``, so an experiment that
+        does not override this keeps the asynchronous handling it had.
+
+        The session is removed once this returns, and one experiment instance
+        serves every experiment socket on the process, so load what you
+        need per call, commit your own writes, and keep per-participant state
+        off ``self``.
+
+        A handler blocks the whole web process while it waits on the database.
+        The message does not reach ``channel_name`` either. See
+        :doc:`Using WebSockets in Dallinger Experiments <using_websockets>` for
+        the query budget and for broadcasting from a handler.
+
+        :param message: the payload, with the channel prefix already stripped
+        :type message: str
+        :param channel_name: the channel prefix the payload arrived with
+        :type channel_name: str
+        :param participant_id: the id of an existing participant, as named by
+            the connection. ``/experiment-socket`` is unauthenticated, so this says
+            which participant the connection claims to be, not who is sending
+        :type participant_id: str
+        :param scope: opaque string from the connection's query string, passed
+            through without being interpreted. It is how an experiment tells
+            apart two connections from the same participant, which are
+            otherwise identical
+        :type scope: str or None
+        :param receive_time: when the message was read off the socket, naive and
+            in local time, as :func:`~dallinger.models.timenow` and every
+            Dallinger ``DateTime`` column are. Read the arrival time from this
+            argument. The default implementation does not forward it, and
+            :func:`~dallinger.experiment.Experiment.send` stamps its own, which
+            is when it ran rather than when the message arrived
+        :type receive_time: datetime.datetime
+        """
+        self.send("{}:{}".format(channel_name, message))
 
     @classmethod
     def handle_recruitment_error(cls, error, **kwargs):
