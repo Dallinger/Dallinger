@@ -44,6 +44,24 @@
   and retries forever. The socket is left in the `CLOSED` state rather than
   reporting `CONNECTING` indefinitely.
 
+- `dallinger.openChatSocket(options)` and `dallinger.openExperimentSocket(options)`
+  open a WebSocket connection to `/chat` or `/experiment-socket`, identified
+  from `dallinger.identity`, and return a `dallinger.Socket`. Its
+  `send(channel, payload)` encodes the payload as JSON, and holds a message sent
+  while the connection is down until it reopens, where
+  `ReconnectingWebSocket.send` throws. `onBroadcast` and `onDirect` callbacks
+  receive the parsed payloads of the subscribed channel and of directed
+  messages, and `onOpen` callbacks run on every open, including reconnects. A
+  refused connection is not retried, and `close()` returns a `Deferred` that
+  resolves once the connection has closed. Each connection sends
+  `dallinger.pageScope`, generated once per page load, as its `scope` unless it
+  is given another. `dallinger.waitForQuorum` and the `chatroom_ws` demo use
+  them.
+
+- A `partner_echo` demo pairs two participants, each on an
+  `/experiment-socket` connection, and delivers each one's messages to the other
+  with `publish_to_participants`.
+
 - Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
   (``paths``, ``names``, ``suffixes``) plus the deterministic
   experiment-root deployment plan model, with development bulk directory
@@ -64,6 +82,11 @@
 
 ### Fixed
 
+- The `chatroom_ws` demo sends its "has joined the chat" message, which calling
+  `ReconnectingWebSocket.onopen` as a method had silently skipped. Its Leave
+  button now works while the connection is reconnecting, where it used to throw
+  or wait for a close event that never came. Chat messages and log lines are
+  inserted as text rather than HTML.
 - The `/chat` WebSocket route unsubscribes a client from its channels
   whenever the receive loop exits, not only when `receive()` raises
   `ConnectionClosed`. A channel left with no clients stops its listener
