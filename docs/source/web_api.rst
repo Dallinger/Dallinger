@@ -46,7 +46,8 @@ Returns the html page with the name ``<page>``.
 Opens a WebSocket channel that subscribes the client to all messages sent to the
 channel named ``<channel>``. Messages are relayed as soon as they arrive. For
 more information see
-:doc:`Using WebSockets in Dallinger Experiments <using_websockets>`.
+:doc:`Using WebSockets in Dallinger Experiments <using_websockets>`. In the
+browser, ``dallinger.openChatSocket`` opens this connection.
 
 Clients may prefix outgoing messages with any channel name except
 ``dallinger_control``, which is reserved for the server's own connection and
@@ -78,7 +79,7 @@ instead of publishing it to the named channel. No other subscriber sees the
 message. Everything else matches ``/chat``, including the reserved channel
 names, the directed messages a connection supplying a ``participant_id``
 receives, and the optional ``channel`` the connection still receives broadcasts
-on.
+on. In the browser, ``dallinger.openExperimentSocket`` opens this connection.
 
 An experiment socket must carry a ``participant_id`` that exists, or the server
 closes the connection with code ``1008``. If the participant lookup raises, or
