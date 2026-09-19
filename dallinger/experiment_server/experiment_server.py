@@ -517,6 +517,8 @@ def launch():
     # redis communication channel:
     if exp.channel is not None:
         try:
+            # Nothing publishes to either channel until a participant
+            # connects, so neither subscription is waited on.
             sockets.chat_backend.subscribe(exp, exp.channel)
             # Additionally subscribe the experiment to the Dallinger Control
             # channel for messages about websocket

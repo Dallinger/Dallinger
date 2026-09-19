@@ -64,6 +64,15 @@
 
 ### Fixed
 
+- A WebSocket connection waits for redis to confirm its channel subscription
+  before it relays anything. A process subscribes to a channel the first time
+  one of its connections names it, and the publish travels on a different redis
+  connection, so a client which sent a message as soon as its socket opened
+  could have that message reach every other subscriber and not itself. A lost
+  redis connection arms the wait again, so a connection arriving during an
+  outage waits for the restored subscription. The wait is bounded, so a
+  subscription redis cannot confirm delays the connection rather than holding
+  it open.
 - The `/chat` WebSocket route unsubscribes a client from its channels
   whenever the receive loop exits, not only when `receive()` raises
   `ConnectionClosed`. A channel left with no clients stops its listener
