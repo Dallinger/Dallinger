@@ -316,15 +316,8 @@ class Client:
             try:
                 self.ws.send(message)
             except (socket.error, ConnectionClosed) as e:
-                chat_backend.unsubscribe(self)
-                publish_control_event(
-                    {
-                        "type": "websocket",
-                        "event": "disconnected",
-                        "reason": self.ws.close_reason or "",
-                        "message": self.ws.close_message or "",
-                        "client": self.client_info(),
-                    }
+                self.publish_disconnected(
+                    self.ws.close_reason or "", self.ws.close_message or ""
                 )
                 if isinstance(e, ConnectionClosed):
                     raise

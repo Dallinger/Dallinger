@@ -618,6 +618,8 @@ class TestClient:
         msg_data = json.loads(sockets.redis_conn.publish.mock_calls[2].args[1])
         assert msg_data["type"] == "websocket"
         assert msg_data["event"] == "disconnected"
+        assert msg_data["reason"] == "Unexpected"
+        assert msg_data["message"] == "Mock message"
 
     def test_closed_socket_unsubscribes_client(self, client, channel):
         channel.subscribe(client)
