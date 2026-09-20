@@ -138,9 +138,9 @@ class Channel:
     MAX_RECONNECT_DELAY_SECS = 10
 
     #: Whether a redis error other than a lost connection or a timeout starts
-    #: the listener over on a new pubsub instead of ending it. A channel that
-    #: ends is dropped by ``ChatBackend.forget``, and its next subscriber
-    #: builds another.
+    #: the listener over even before redis has accepted the channel name. A
+    #: listener that ends is dropped by ``ChatBackend.forget``, and its next
+    #: subscriber builds another.
     rebuilds_on_protocol_error = False
 
     def __init__(self, name):
@@ -205,8 +205,14 @@ class Channel:
         stops the greenlet once the last client leaves. The full traceback is
         logged once per outage and a single line per attempt after that,
         because at the ceiling an outage otherwise writes six tracebacks a
-        minute for every channel. Any other redis error ends the listener
-        unless ``rebuilds_on_protocol_error`` is set.
+        minute for every channel.
+
+        A redis error that is not a lost connection starts the listener over
+        on a fresh pubsub once redis has accepted the channel name, because
+        nothing moves the clients already on this channel to the one its next
+        subscriber would build. A name redis has never accepted may be what it
+        refused, so the listener ends and ``ChatBackend.forget`` drops the
+        channel. ``rebuilds_on_protocol_error`` rebuilds even then.
         """
         pubsub = redis_conn.pubsub()
         name = self.name
@@ -216,6 +222,7 @@ class Channel:
             delay = self.RECONNECT_DELAY_SECS
             reported = False
             subscribed = False
+            ever_subscribed = False
             while True:
                 try:
                     if not subscribed:
@@ -223,7 +230,7 @@ class Channel:
                         # command succeeds, and replays it itself on every
                         # later reconnect.
                         pubsub.subscribe([name])
-                        subscribed = True
+                        subscribed = ever_subscribed = True
                         log("Listening on channel {}".format(self.name))
                     for message in pubsub.listen():
                         self.relay(message)
@@ -239,7 +246,9 @@ class Channel:
                         gevent.sleep(0)
                 except RedisError as error:
                     retryable = isinstance(error, RETRYABLE_REDIS_ERRORS)
-                    if not (retryable or self.rebuilds_on_protocol_error):
+                    if not (
+                        retryable or ever_subscribed or self.rebuilds_on_protocol_error
+                    ):
                         app.logger.exception(
                             "Unrecoverable redis error on channel {}.".format(self.name)
                         )

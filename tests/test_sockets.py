@@ -247,19 +247,33 @@ class TestChannel:
 
         mockclient.send.assert_called_once_with("custom:after retry")
 
-    def test_protocol_error_stops_the_relay(self, sockets, pubsub):
+    def test_a_protocol_error_after_subscribing_starts_over(
+        self, sockets, redis, mockclient
+    ):
         from redis.exceptions import ResponseError
 
-        pubsub.listen.side_effect = ResponseError("bad command")
+        broken = Mock()
+        broken.listen.side_effect = ResponseError("bad reply")
+        healthy = Mock()
+
+        def healthy_listen():
+            yield {"type": "message", "channel": b"custom", "data": b"after rebuild"}
+            Event().wait()
+
+        healthy.listen.side_effect = healthy_listen
+        redis.pubsub.side_effect = [broken, healthy]
         channel = sockets.Channel("custom")
+        channel.RECONNECT_DELAY_SECS = 0
+        channel.subscribe(mockclient)
 
-        with patch.object(sockets.gevent, "sleep") as sleep:
-            channel.listen()
+        channel.start()
+        gevent.wait(timeout=1)
 
-        # Retrying would raise the same error, so the relay gives up.
-        sleep.assert_not_called()
-        assert pubsub.listen.call_count == 1
-        pubsub.close.assert_called_once_with()
+        # Nothing moves a client already on the channel to the one a later
+        # subscriber would build, so the listener rebuilds instead of ending.
+        broken.close.assert_called_once_with()
+        healthy.subscribe.assert_called_once_with([b"custom"])
+        mockclient.send.assert_called_once_with("custom:after rebuild")
 
     @pytest.mark.timeout(10)
     def test_stop_closes_pubsub(self, sockets, pubsub, mockclient):
@@ -357,11 +371,12 @@ class TestChannel:
 
         pubsub.subscribe.side_effect = ResponseError("bad channel")
 
-        with patch.object(sockets.gevent, "sleep") as sleep:
+        # Redis never accepted the name, so the relay gives up rather than
+        # retrying it. A sleep that raises fails the test instead of letting
+        # a retrying loop spin.
+        with patch.object(sockets.gevent, "sleep", side_effect=AssertionError):
             sockets.Channel("custom").listen()
 
-        # Retrying would raise the same error, so the relay gives up.
-        sleep.assert_not_called()
         pubsub.listen.assert_not_called()
         pubsub.close.assert_called_once_with()
 
@@ -514,10 +529,11 @@ class TestChatBackend:
     def test_channel_that_stops_listening_is_dropped(self, chat, sockets, pubsub):
         from redis.exceptions import ResponseError
 
-        pubsub.listen.side_effect = ResponseError("bad command")
+        pubsub.subscribe.side_effect = ResponseError("bad channel")
         chat.channels["quorum"] = channel = sockets.Channel("quorum")
 
-        channel.listen()
+        with patch.object(sockets.gevent, "sleep", side_effect=AssertionError):
+            channel.listen()
 
         assert "quorum" not in chat.channels
 
@@ -535,11 +551,11 @@ class TestChatBackend:
     ):
         from redis.exceptions import ResponseError
 
-        pubsub.listen.side_effect = ResponseError("bad command")
+        pubsub.subscribe.side_effect = ResponseError("bad channel")
         chat.subscribe(mockclient, "quorum")
         gevent.wait(timeout=1)
 
-        pubsub.listen.side_effect = None
+        pubsub.subscribe.side_effect = None
         pubsub.listen.return_value = [
             {"type": "message", "channel": b"quorum", "data": b"back"}
         ]
