@@ -2,8 +2,6 @@
 
 ## [Unreleased]
 
-## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
-
 ### Added
 
 - docker-ssh now writes a non-secret ``~/dallinger/<app>/deployment.json``
@@ -25,30 +23,6 @@
 - Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
   docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
   This is the canary path for unreleased docker-ssh features.
-- Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
-  (``paths``, ``names``, ``suffixes``) plus the deterministic
-  experiment-root deployment plan model, with development bulk directory
-  links and ordinary copied materialization for remote staging. Starter
-  ``dallinger deployment-files init`` writes root-relative prefixes in
-  ``paths``, nested junk names such as ``__pycache__`` in ``names``, and
-  ``.db`` / ``.dmg`` in ``suffixes``.
-- Added `dallinger deployment-files list` and `init` for inspecting and creating
-  starter policies.
-- Added opt-in `deploy.toml` experiment-file membership to verification,
-  development staging, copied Docker/classic staging, and Heroku assembly
-  through `ExperimentFileSource`. Experiments without a policy retain legacy
-  selection and Git staging behavior as a compatibility fallback while
-  PsyNet trials `deploy.toml`; Git-based membership may later be
-  deprecated (warning, then removal). Git remains for provenance. Plan
-  traversal uses ordinary POSIX `lstat`/`scandir` containment (rejecting
-  symlinks and special files).
-
-### Changed
-
-- ``ProlificService.get_participant_submission`` accepts ``translate=False``
-  to return the Prolific payload (including ``bonus_payments``) or ``None``
-  on a miss, instead of translating fields and raising a recruitment
-  error. ``_req`` takes ``raise_on_error`` (default ``True``).
 
 ### Fixed
 
@@ -88,6 +62,38 @@
   delete failures leave the named tunnel in place. Isolated app Postgres
   uses a pinned container name. The host Caddy image is pinned to
   ``caddy:2.10.2``. Deploy logs no longer include dashboard passwords.
+
+## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
+
+### Added
+
+- Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
+  (``paths``, ``names``, ``suffixes``) plus the deterministic
+  experiment-root deployment plan model, with development bulk directory
+  links and ordinary copied materialization for remote staging. Starter
+  ``dallinger deployment-files init`` writes root-relative prefixes in
+  ``paths``, nested junk names such as ``__pycache__`` in ``names``, and
+  ``.db`` / ``.dmg`` in ``suffixes``.
+- Added `dallinger deployment-files list` and `init` for inspecting and creating
+  starter policies.
+- Added opt-in `deploy.toml` experiment-file membership to verification,
+  development staging, copied Docker/classic staging, and Heroku assembly
+  through `ExperimentFileSource`. Experiments without a policy retain legacy
+  selection and Git staging behavior as a compatibility fallback while
+  PsyNet trials `deploy.toml`; Git-based membership may later be
+  deprecated (warning, then removal). Git remains for provenance. Plan
+  traversal uses ordinary POSIX `lstat`/`scandir` containment (rejecting
+  symlinks and special files).
+
+### Changed
+
+- ``ProlificService.get_participant_submission`` accepts ``translate=False``
+  to return the Prolific payload (including ``bonus_payments``) or ``None``
+  on a miss, instead of translating fields and raising a recruitment
+  error. ``_req`` takes ``raise_on_error`` (default ``True``).
+
+### Fixed
+
 - SSH and Heroku-docker deploys now tag the experiment image with the
   per-launch experiment UID instead of a hash of ``requirements.txt`` and
   ``prepare_docker_image.sh``. Those files do not identify the copied
