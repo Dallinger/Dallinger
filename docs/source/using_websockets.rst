@@ -42,6 +42,16 @@ receive and process incoming WebSocket messages.
 Experiments may also send messages to all channel subscribers using the
 :func:`~dallinger.experiment.Experiment.publish_to_subscribers` method.
 
+A connection's ``subscribed`` message is sent as soon as it joins its channel,
+which may be before redis has confirmed the subscription on that web process.
+Its ``connected`` message waits, for up to two seconds, until redis has
+confirmed that subscription and, if the connection named a participant, the one
+which carries directed messages. An experiment which replies to a newly arrived
+participant, whether on their channel or with
+:func:`~dallinger.experiment.Experiment.publish_to_participants`, should reply
+to ``connected`` rather than ``subscribed``, as a reply to ``subscribed`` may be
+sent before the connection can receive it.
+
 It's possible for an experiment class to subscribe to messages on
 additional WebSocket channels. To avoid duplicate subscriptions it's generally
 best to create such subscriptions in your Experiment class's

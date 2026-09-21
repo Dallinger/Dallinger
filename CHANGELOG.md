@@ -72,7 +72,10 @@
   redis connection arms the wait again, so a connection arriving during an
   outage waits for the restored subscription. The wait is bounded. If redis
   cannot confirm a subscription within two seconds, the connection starts
-  relaying anyway instead of waiting for redis to recover.
+  relaying anyway instead of waiting for redis to recover. The `connected`
+  control message is sent after the wait and `subscribed` before it, so the
+  WebSocket docs direct an experiment greeting a new connection to reply to
+  `connected`.
 - The `/chat` WebSocket route unsubscribes a client from its channels
   whenever the receive loop exits, not only when `receive()` raises
   `ConnectionClosed`. A channel left with no clients stops its listener
