@@ -359,7 +359,7 @@ class TestBotRecruiter:
     def test_on_task_completion__returns_event_type_and_new_status(self, recruiter):
         assert recruiter.on_task_completion() == {
             "new_status": "submitted",
-            "action": "BotRecruiterSubmissionComplete",
+            "action": "RecruiterSubmissionComplete",
         }
 
     def test_notify_duration_exceeded_rejects_participants(self, a, recruiter):

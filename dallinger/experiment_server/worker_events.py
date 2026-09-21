@@ -30,7 +30,6 @@ LOG_EVENT_TYPES = frozenset(
         "AssignmentReassigned",
         "AssignmentReturned",
         "RecruiterSubmissionComplete",
-        "BotRecruiterSubmissionComplete",
         "BotAssignmentRejected",
         "NotificationMissing",
     )
@@ -266,19 +265,6 @@ class RecruiterSubmissionComplete(WorkerEvent):
         self.experiment.on_recruiter_submission_complete(
             participant=self.participant, event=self.data
         )
-
-
-class BotRecruiterSubmissionComplete(WorkerEvent):
-    def __call__(self):
-        self.log("Received bot submission.")
-        self.update_participant_end_time()
-
-        # No checks for bot submission
-        self.participant.recruiter.approve_hit(self.assignment_id)
-        self.participant.status = "approved"
-        self.experiment.submission_successful(participant=self.participant)
-        self.commit()
-        self.experiment.recruit()
 
 
 class BotAssignmentRejected(WorkerEvent):
