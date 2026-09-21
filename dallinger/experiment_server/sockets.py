@@ -42,8 +42,9 @@ def publish_control_event(payload):
     bookkeeping it must finish. Raising would abort a teardown partway and
     leave a client registered on a channel whose listener retries forever.
     """
+    json_payload = json.dumps(payload)
     try:
-        redis_conn.publish(CONTROL_CHANNEL, json.dumps(payload))
+        redis_conn.publish(CONTROL_CHANNEL, json_payload)
     except RedisError:
         app.logger.exception(
             "Could not publish {} control event.".format(payload.get("event"))
@@ -104,11 +105,10 @@ class Channel:
 
     def relay(self, message):
         """Send one pubsub message to every subscribed client."""
-        data = message.get("data")
-        if message["type"] != "message" or data == "None":
+        if message["type"] != "message":
             return
         payload = "{}:{}".format(
-            message["channel"].decode("utf-8"), data.decode("utf-8")
+            message["channel"].decode("utf-8"), message["data"].decode("utf-8")
         )
         for client in self.clients:
             gevent.spawn(client.send, payload)
@@ -215,8 +215,8 @@ class ChatBackend:
         """
         for name, channel in list(self.channels.items()):
             channel.unsubscribe(client)
-            # ``Greenlet.kill`` blocks, so ``stop()`` reaches the hub: drop
-            # the channel first, or a subscribe in that window attaches to it.
+            # Remove the channel before stopping it so a concurrent subscribe
+            # doesn't re-attach to a channel that is in the middle of shutting down.
             if not channel.clients and self.channels.get(name) is channel:
                 del self.channels[name]
                 channel.stop()
