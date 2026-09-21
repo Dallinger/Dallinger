@@ -4,6 +4,25 @@
 
 ### Added
 
+- docker-ssh now writes a non-secret ``~/dallinger/<app>/deployment.json``
+  manifest on deploy (ingress, public origin, database layout, hibernation
+  state, and optional Cloudflare resource ids). Legacy apps without a file
+  remain classic Caddy / shared-Postgres deployments. ``docker-ssh apps``
+  shows ingress and origin when known.
+- docker-ssh can deploy mixed classic Caddy and per-app Cloudflare tunnel
+  apps on one host. Cloudflare apps use isolated Compose/Postgres, a
+  first-level hostname, and a named ``dallinger-{app}`` tunnel. The API
+  token is read from the environment (or Keychain) and never stored in
+  hosts JSON. ``docker-ssh gc`` reports tunnels missing from that
+  server; ``--apply`` also requires ``--confirm-no-other-hosts``.
+- docker-ssh experiments now include an unprivileged Caddy front door and a
+  private hibernation controller. Opt-in ``docker_ssh_idle_hibernate`` sleeps
+  expensive services after idle traffic; ``/health`` does not keep an app
+  awake. ``docker-ssh hibernate`` / ``awaken`` work whenever the front door
+  is installed.
+- Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
+  docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
+  This is the canary path for unreleased docker-ssh features.
 - Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
   (``paths``, ``names``, ``suffixes``) plus the deterministic
   experiment-root deployment plan model, with development bulk directory
@@ -24,6 +43,30 @@
 
 ### Fixed
 
+- docker-ssh hibernation now waits until web ``/health`` succeeds before
+  treating an app as awake, lists sleeping apps as ``hibernating`` rather
+  than ``running``, and gives the controller the Docker socket group so it
+  can start and stop project containers. The front-door Caddyfile uses
+  Caddy 2 reverse_proxy defaults (no Caddy v1 ``{>Header}`` placeholders)
+  and does not inject the hibernation secret, so WebSockets keep working
+  and privileged controller routes stay private. The front door proxies to
+  a backend alias that disappears when ``web`` is stopped, so a down
+  container cannot resolve back to Caddy itself. The controller negotiates
+  the Docker Engine API version at startup so Engine 29+ hosts do not
+  crash-loop. Destroy removes a leftover
+  ``*.cfargotunnel.com`` CNAME even when the named tunnel is already gone,
+  and logs a warning if Cloudflare DNS or tunnel deletion fails. Compose
+  now writes UID/GID for classic and Cloudflare deploys so containers run
+  as the SSH user, and chowns existing ``~/dallinger-data/<app>`` trees,
+  front-door state, and ``docker_volumes`` host bind mounts left behind by
+  older root-owned deploys. ``GET /health`` no longer waits on the awaken
+  lock. A leftover ``waking`` marker after a controller restart is treated
+  as hibernating unless the ``web`` backend is already up, even if Postgres
+  or Redis came up during the failed wake. Bind-mount chown retries with
+  passwordless sudo and then a root Alpine container. Cloudflare DNS
+  delete failures leave the named tunnel in place. Isolated app Postgres
+  uses a pinned container name. The host Caddy image is pinned to
+  ``caddy:2.10.2``. Deploy logs no longer include dashboard passwords.
 - SSH and Heroku-docker deploys now tag the experiment image with the
   per-launch experiment UID instead of a hash of ``requirements.txt`` and
   ``prepare_docker_image.sh``. Those files do not identify the copied

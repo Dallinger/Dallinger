@@ -1332,6 +1332,19 @@ class TestSetupExperiment:
 
         assert "dallinger" in (Path(tmp_dir) / "requirements.txt").read_text()
 
+    def test_dallinger_source_overrides_no_egg_build(
+        self, active_config, tmp_path, monkeypatch
+    ):
+        from dallinger.utils import assemble_experiment_temp_dir
+
+        monkeypatch.setenv("DALLINGER_NO_EGG_BUILD", "1")
+        monkeypatch.setenv("DALLINGER_SOURCE", str(tmp_path / "src"))
+        with mock.patch(
+            "dallinger.utils.build_and_place", return_value="dallinger-local.whl"
+        ) as build:
+            assemble_experiment_temp_dir(mock.Mock(), active_config, for_remote=True)
+        build.assert_called_once_with(str(tmp_path / "src"), mock.ANY)
+
     def test_assembly_failure_removes_private_temporary_tree(
         self, active_config, tmp_path, monkeypatch
     ):

@@ -391,6 +391,75 @@ def test_abspath_from_egg_returns_none_when_missing():
         assert utils.abspath_from_egg("dallinger", "dallinger/missing.txt") is None
 
 
+def test_replace_dallinger_requirement_handles_git_and_equality_pins():
+    text = (
+        "psynet==13.4.0\n"
+        "dallinger[docker] @ git+https://github.com/Dallinger/Dallinger.git@9e51dae\n"
+        "pandas\n"
+    )
+    out = utils.replace_dallinger_requirement(text, "dallinger-local.whl")
+    assert "file:dallinger-local.whl" in out
+    assert "9e51dae" not in out
+    assert "psynet==13.4.0" in out
+    compact = utils.replace_dallinger_requirement(
+        "dallinger[docker]@git+https://github.com/Dallinger/Dallinger.git@abc123\n",
+        "dallinger-local.whl",
+    )
+    assert compact == "file:dallinger-local.whl\n"
+    assert "abc123" not in compact
+    appended = utils.replace_dallinger_requirement("psynet\n", "dallinger-local.whl")
+    assert appended.endswith("file:dallinger-local.whl\n")
+
+
+def test_dockerfile_reinstalls_local_dallinger_wheel_requires_copy_then_flags():
+    good = (
+        "FROM python:3.12\n"
+        "COPY . /experiment\n"
+        "RUN pip install --force-reinstall --no-deps dallinger-*.whl\n"
+    )
+    before_copy = (
+        "FROM python:3.12\n"
+        "RUN pip install --force-reinstall --no-deps dallinger-*.whl\n"
+        "COPY . /experiment\n"
+    )
+    missing_no_deps = (
+        "FROM python:3.12\n"
+        "COPY . /experiment\n"
+        "RUN pip install --force-reinstall dallinger-*.whl\n"
+    )
+    assert utils.dockerfile_reinstalls_local_dallinger_wheel(good)
+    assert not utils.dockerfile_reinstalls_local_dallinger_wheel(before_copy)
+    assert not utils.dockerfile_reinstalls_local_dallinger_wheel(missing_no_deps)
+
+
+def test_build_and_place_copies_wheel_not_sdist(tmp_path, monkeypatch):
+    source = tmp_path / "src"
+    dest = tmp_path / "dest"
+    dist = source / "dist"
+    dist.mkdir(parents=True)
+    dest.mkdir()
+    (dist / "dallinger-1.tar.gz").write_bytes(b"sdist")
+    (dist / "dallinger-1-py3-none-any.whl").write_bytes(b"wheel")
+    monkeypatch.setattr("dallinger.utils.check_output", lambda *args, **kwargs: b"")
+
+    name = utils.build_and_place(str(source), str(dest))
+
+    assert name.endswith(".whl")
+    assert (dest / name).read_bytes() == b"wheel"
+
+
+def test_build_and_place_requires_a_wheel(tmp_path, monkeypatch):
+    source = tmp_path / "src"
+    dest = tmp_path / "dest"
+    (source / "dist").mkdir(parents=True)
+    dest.mkdir()
+    (source / "dist" / "dallinger-1.tar.gz").write_bytes(b"sdist")
+    monkeypatch.setattr("dallinger.utils.check_output", lambda *args, **kwargs: b"")
+
+    with pytest.raises(RuntimeError, match="no wheel"):
+        utils.build_and_place(str(source), str(dest))
+
+
 def test_check_experiment_dependencies_successful():
     with NamedTemporaryFile() as requirements_file:
         requirements = [

@@ -54,8 +54,21 @@ def get_configured_hosts():
     return res
 
 
+HOST_SECRET_KEY_PARTS = ("token", "password", "secret", "credential")
+
+
 def store_host(host: Dict[str, str]):
-    """Store the given ssh host info in the local user config."""
+    """Store the given ssh host info in the local user config.
+
+    Host records are not a secret store: API tokens and passwords are rejected.
+    """
+    for key in host:
+        lowered = str(key).lower()
+        if any(part in lowered for part in HOST_SECRET_KEY_PARTS):
+            raise click.UsageError(
+                "Docker-ssh host records must not contain credentials. "
+                f"Refusing to store field {key!r}."
+            )
     hosts_dir = NEW_HOSTS_DIR
     if not hosts_dir.is_dir():
         hosts_dir.mkdir(parents=True)

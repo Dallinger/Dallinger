@@ -593,6 +593,50 @@ Docker Deployment Configuration
 
     Defaults to ``1024``, lower this value to limit worker containers CPU usage when CPU cycles are constrained.
 
+``cloudflare_api_token`` *unicode*
+    API token used by ``dallinger docker-ssh`` Cloudflare tunnel deploys.
+    Prefer setting ``CLOUDFLARE_API_TOKEN`` in the environment (or the CMS
+    macOS Keychain item) rather than writing this value to disk. It is never
+    stored in docker-ssh host records or remote ``deployment.json`` files.
+
+``cloudflare_account_id`` *unicode*
+    Cloudflare account id for named ``dallinger-{app}`` tunnels. May also be
+    stored as non-secret metadata on a docker-ssh server record.
+
+``cloudflare_zone_id`` *unicode*
+    Cloudflare DNS zone id that will hold first-level experiment CNAMEs.
+
+``cloudflare_dns_zone`` *unicode*
+    DNS zone for experiment hostnames, for example ``science-of-music.org``.
+    Distinct from classic Caddy ``--dns-host``.
+
+``docker_ssh_idle_hibernate`` *boolean*
+    Opt-in automatic sleep for docker-ssh experiments. Default ``False``.
+    After ``docker_ssh_idle_hibernate_minutes`` with no participant/dashboard
+    traffic, expensive containers stop. ``/health`` probes are ignored and
+    do not reset the idle timer. Manual ``dallinger docker-ssh hibernate``
+    and ``awaken`` work even when this flag is false.
+
+    Do not enable idle sleep on an experiment that is still recruiting, or
+    that relies on long-lived WebSockets or other in-memory participant
+    state: sleep stops web, workers, Redis, and (for Cloudflare apps)
+    Postgres. A later visit starts a spinner until those services are
+    healthy again. A crash while the app is awake returns HTTP 503 and is
+    not auto-restarted. Expensive services use Compose ``restart: "no"``, so
+    a host reboot also leaves them stopped. The controller then records
+    hibernation so a visitor or ``dallinger docker-ssh awaken`` starts them
+    again. The front door and controller stay up.
+
+``docker_ssh_idle_hibernate_minutes`` *int*
+    Quiet period before automatic hibernation. Default ``60``.
+
+``docker_ssh_monitoring_kind`` *unicode*
+    Generic monitoring kind written into the docker-ssh deployment manifest.
+    Default ``experiment``. PsyNet sets this to ``psynet``.
+
+``docker_ssh_monitoring_path`` *unicode*
+    Availability path recorded in the deployment manifest. Default ``/health``.
+
 ``server_pem`` *unicode*
     **Required for SSH-based deployments** (``dallinger docker-ssh`` and ``dallinger ec2``).
 

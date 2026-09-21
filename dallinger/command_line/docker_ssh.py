@@ -12,7 +12,7 @@ import sys
 import warnings
 import zipfile
 from contextlib import contextmanager, redirect_stdout
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from email.utils import parseaddr
 from functools import wraps
 from getpass import getuser
@@ -22,6 +22,7 @@ from secrets import token_urlsafe
 from shlex import quote
 from socket import gethostbyname_ex, gethostname
 from typing import Dict, Literal
+from urllib.parse import quote as url_quote
 from uuid import uuid4
 
 import click
@@ -54,6 +55,30 @@ from dallinger.utils import (
     print_bold,
 )
 
+from .lib.app_manifest import (
+    HIBERNATION_AWAKE,
+    HIBERNATION_HIBERNATING,
+    HIBERNATION_WAKING,
+    INGRESS_CLASSIC,
+    INGRESS_CLOUDFLARE,
+    DeploymentManifest,
+    discover_app_names_from_listing,
+    parse_remote_manifest_dump,
+    public_origin_for_hostname,
+    remote_manifest_path,
+)
+from .lib.cloudflare import (
+    CloudflareError,
+    app_from_tunnel_name,
+    delete_experiment_tunnel,
+    ensure_experiment_tunnel,
+    list_prefixed_tunnels,
+    load_api_token,
+    public_resource_ids,
+    tunnel_name_for_app,
+    validate_app_dns_label,
+)
+from .lib.cloudflare import public_hostname as cloudflare_public_hostname
 from .utils import get_server_pem_path
 
 
@@ -65,12 +90,24 @@ class App:
     ----------
     name : str
         App/project name on the remote server.
-    state : Literal["running", "inactive"]
+    state : Literal["running", "inactive", "hibernating", "waking"]
         Runtime state label used by CLI output and app selection logic.
+    ingress : str
+        ``classic`` host Caddy or ``cloudflare`` per-app tunnel.
+    public_origin : str or None
+        HTTPS origin when known from a deployment manifest.
+    database_layout : str
+        ``shared`` server Postgres or ``app`` Postgres in the experiment stack.
+    hibernation_state : str
+        ``awake``, ``hibernating``, or ``waking``.
     """
 
     name: str
-    state: Literal["running", "inactive"]
+    state: Literal["running", "inactive", "hibernating", "waking"]
+    ingress: str = "classic"
+    public_origin: str | None = None
+    database_layout: str = "shared"
+    hibernation_state: str = "awake"
 
 
 # Find an identifier for the current user to use as CREATOR of the experiment
@@ -91,6 +128,17 @@ DOCKER_COMPOSE_EXP_TPL = Template(
         "dallinger", "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2"
     ).read_text()
 )
+
+DOCKER_COMPOSE_EXP_TUNNEL_TPL = Template(
+    abspath_from_egg(
+        "dallinger",
+        "dallinger/docker/ssh_templates/docker-compose-experiment-tunnel.yml.j2",
+    ).read_text()
+)
+
+FRONTDOOR_CADDYFILE = abspath_from_egg(
+    "dallinger", "dallinger/docker/ssh_templates/Caddyfile.frontdoor"
+).read_text()
 
 
 CADDYFILE_SUBDOMAIN = """
@@ -162,10 +210,40 @@ def list_servers():
     "--host", required=True, help="IP address or dns name of the remote server"
 )
 @click.option("--user", help="User to use when connecting to remote host")
-def add(host, user):
+@click.option(
+    "--default-ingress",
+    type=click.Choice([INGRESS_CLASSIC, INGRESS_CLOUDFLARE]),
+    default=INGRESS_CLASSIC,
+    show_default=True,
+    help="Default participant ingress for deploys that omit --ingress",
+)
+@click.option(
+    "--cloudflare-account-id",
+    default=None,
+    help="Cloudflare account id for per-app tunnels (non-secret)",
+)
+@click.option(
+    "--cloudflare-zone-id",
+    default=None,
+    help="Cloudflare DNS zone id for experiment hostnames (non-secret)",
+)
+@click.option(
+    "--cloudflare-dns-zone",
+    default=None,
+    help="DNS zone used for first-level experiment names, for example science-of-music.org",
+)
+def add(
+    host,
+    user,
+    default_ingress,
+    cloudflare_account_id,
+    cloudflare_zone_id,
+    cloudflare_dns_zone,
+):
     """Add a server to deploy experiments through ssh using docker.
     The server needs `docker` and `docker compose` usable by the current user.
-    Port 80 and 443 must be free for dallinger to use.
+    Classic Caddy ingress needs free ports 80 and 443. Cloudflare tunnel apps
+    do not publish those ports.
     In case `docker` and/or `docker compose` are missing, dallinger will try to
     install them using `sudo`. The given user must have passwordless sudo rights.
 
@@ -175,8 +253,22 @@ def add(host, user):
     [Parameters]
     server_pem = ~/.ssh/your-key.pem
     """
+    if default_ingress == INGRESS_CLOUDFLARE and not all(
+        (cloudflare_account_id, cloudflare_zone_id, cloudflare_dns_zone)
+    ):
+        raise click.UsageError(
+            "Cloudflare as the server default requires --cloudflare-account-id, "
+            "--cloudflare-zone-id, and --cloudflare-dns-zone."
+        )
     prepare_server(host, user)
-    store_host(dict(host=host, user=user))
+    record = {"host": host, "user": user, "default_ingress": default_ingress}
+    if cloudflare_account_id:
+        record["cloudflare_account_id"] = cloudflare_account_id.strip()
+    if cloudflare_zone_id:
+        record["cloudflare_zone_id"] = cloudflare_zone_id.strip()
+    if cloudflare_dns_zone:
+        record["cloudflare_dns_zone"] = cloudflare_dns_zone.strip().lower().rstrip(".")
+    store_host(record)
 
 
 @servers.command()
@@ -358,8 +450,10 @@ option_archive = click.option(
 option_config = click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 option_dns_host = click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as ssh host. "
-    "You can use 'nip.io' to automatically generate a nip.io domain from the server's IP address.",
+    help="Classic Caddy DNS name. Must resolve all its subdomains to the SSH "
+    "host IP. Not used as the Cloudflare zone; store that with "
+    "--cloudflare-dns-zone. You can use 'nip.io' to generate a nip.io domain "
+    "from the server's IP address.",
 )
 option_server = click.option(
     "--server",
@@ -387,6 +481,15 @@ option_push_build = click.option(
     is_flag=True,
     default=False,
     help="Push the built image to a registry. This option is selected automatically if --local-build is used.",
+)
+option_ingress = click.option(
+    "--ingress",
+    type=click.Choice([INGRESS_CLASSIC, INGRESS_CLOUDFLARE]),
+    default=None,
+    help=(
+        "How participants reach the experiment: classic host Caddy or a per-app "
+        "Cloudflare tunnel. Defaults to the server's default_ingress, or classic."
+    ),
 )
 
 
@@ -419,22 +522,227 @@ def _executor_for_server(server, app=None):
 
 
 def _discover_server_apps(executor):
-    existing = set()
-
     listing = executor.run(
         "ls -1 ~/dallinger/caddy.d 2>/dev/null || true; "
-        "ls -1 ~/dallinger/*/docker-compose.yml 2>/dev/null || true",
+        "ls -1 ~/dallinger/*/docker-compose.yml 2>/dev/null || true; "
+        "ls -1 ~/dallinger/*/deployment.json 2>/dev/null || true",
         raise_=False,
     )
-    for entry in listing.splitlines():
-        if not entry:
-            continue
-        if entry.endswith("/docker-compose.yml"):
-            existing.add(Path(entry).parent.name)
-        else:
-            existing.add(entry)
+    return discover_app_names_from_listing(listing or "")
 
-    return sorted(existing)
+
+def _load_remote_manifests(executor, app_names):
+    """Read non-secret deployment.json files for the given apps in one SSH call."""
+    if not app_names:
+        return {}
+    parts = []
+    for name in app_names:
+        path = remote_manifest_path(name)
+        parts.append(
+            f'printf "%s\\n" "=== {name} ==="; cat ~/{path} 2>/dev/null || true'
+        )
+    raw = executor.run("; ".join(parts), raise_=False)
+    return parse_remote_manifest_dump(raw or "")
+
+
+def _prepare_manifest_path(executor, app: str) -> None:
+    """Remove a directory Docker may have created at the manifest bind-mount."""
+    path = remote_manifest_path(app)
+    executor.run(f"if [ -d ~/{path} ]; then rm -rf ~/{path}; fi")
+
+
+def _upload_app_manifest(sftp, manifest: DeploymentManifest, executor=None) -> None:
+    """Write ``deployment.json`` next to the app Compose file. Never logs secrets."""
+    if executor is not None:
+        _prepare_manifest_path(executor, manifest.app)
+    sftp.putfo(
+        BytesIO(manifest.to_json().encode()),
+        remote_manifest_path(manifest.app),
+    )
+
+
+def _resolve_ingress(server_info, ingress=None):
+    """Return classic or cloudflare from --ingress or the host record."""
+    requested = ingress or server_info.get("default_ingress") or INGRESS_CLASSIC
+    requested = str(requested).strip().lower()
+    if requested not in {INGRESS_CLASSIC, INGRESS_CLOUDFLARE}:
+        raise click.UsageError(
+            f"Unknown ingress mode {requested!r}; expected classic or cloudflare."
+        )
+    return requested
+
+
+def _config_text(config, key):
+    try:
+        value = config.get(key)
+    except Exception:
+        return ""
+    return str(value or "").strip()
+
+
+def _cloudflare_settings(server_info, config, dns_zone=None):
+    """Resolve non-secret Cloudflare account/zone settings for a deploy.
+
+    ``--dns-host`` is a classic Caddy hostname and is never used as the
+    Cloudflare DNS zone.
+    """
+    account_id = str(
+        server_info.get("cloudflare_account_id") or ""
+    ).strip() or _config_text(config, "cloudflare_account_id")
+    zone_id = str(server_info.get("cloudflare_zone_id") or "").strip() or _config_text(
+        config, "cloudflare_zone_id"
+    )
+    dns_zone = (
+        (dns_zone or "").strip()
+        or str(server_info.get("cloudflare_dns_zone") or "").strip()
+        or _config_text(config, "cloudflare_dns_zone")
+    )
+    dns_zone = dns_zone.lower().rstrip(".")
+    missing = [
+        name
+        for name, value in (
+            ("cloudflare account id", account_id),
+            ("cloudflare zone id", zone_id),
+            ("DNS zone", dns_zone),
+        )
+        if not value
+    ]
+    if missing:
+        raise click.UsageError(
+            "Cloudflare docker-ssh deploys need "
+            + ", ".join(missing)
+            + ". Store them on the server record or in Dallinger config."
+        )
+    return {
+        "account_id": account_id,
+        "zone_id": zone_id,
+        "dns_zone": dns_zone,
+    }
+
+
+def _compose_environment(config, config_options, mode, experiment_uuid, image_name):
+    """Build the environment mapping written into an experiment Compose file."""
+    cfg = config.as_dict(include_sensitive=True)
+    for key in "aws_access_key_id", "aws_secret_access_key":
+        cfg[key.upper()] = cfg.pop(key, None)
+    for key in "database_url", "heroku_auth_token", "cloudflare_api_token":
+        cfg.pop(key, None)
+    cfg.update(
+        {
+            "FLASK_SECRET_KEY": token_urlsafe(16),
+            "AWS_DEFAULT_REGION": config["aws_region"],
+            "smtp_username": config.get("smtp_username"),
+            "auto_recruit": config["auto_recruit"],
+            "mode": mode,
+            "CREATOR": f"{USER}@{HOSTNAME}",
+            "DALLINGER_UID": experiment_uuid,
+            "ADMIN_USER": "admin",
+            "docker_image_name": image_name,
+        }
+    )
+    cfg.update(config_options)
+    cfg.pop("host", None)
+    return cfg
+
+
+def _idle_settings(config_map):
+    """Return idle hibernation flag and minutes from a compose/config mapping."""
+    enabled = str(config_map.get("docker_ssh_idle_hibernate", False)).lower() in {
+        "true",
+        "1",
+        "yes",
+    }
+    try:
+        minutes = int(config_map.get("docker_ssh_idle_hibernate_minutes") or 60)
+    except (TypeError, ValueError):
+        minutes = 60
+    return enabled, max(minutes, 1)
+
+
+def _monitoring_settings(config_map):
+    """Return generic monitoring kind and path for a deployment manifest."""
+    kind = str(config_map.get("docker_ssh_monitoring_kind") or "experiment").strip()
+    path = str(config_map.get("docker_ssh_monitoring_path") or "/health").strip()
+    return kind or "experiment", path or "/health"
+
+
+def _existing_compose_value(raw_yml, key):
+    if not raw_yml:
+        return None
+    match = re.search(rf"{re.escape(key)}:\s*[\"']?([^\s\"']+)", raw_yml)
+    return match.group(1) if match else None
+
+
+def _existing_compose_password(raw_yml, experiment_id):
+    """Read the app Postgres password from an existing Compose file."""
+    found = _existing_compose_value(raw_yml, "POSTGRES_PASSWORD")
+    if found:
+        return found
+    if not raw_yml:
+        return None
+    match = re.search(
+        rf"postgresql://{re.escape(experiment_id)}:([^@]+)@",
+        raw_yml,
+    )
+    return match.group(1) if match else None
+
+
+def _upload_frontdoor_caddyfile(sftp, executor, app):
+    """Install the unprivileged front-door Caddyfile and state directory."""
+    executor.run(f"mkdir -p ~/dallinger/{app}/state")
+    sftp.putfo(
+        BytesIO(FRONTDOOR_CADDYFILE.encode()),
+        f"dallinger/{app}/Caddyfile.frontdoor",
+    )
+
+
+def _compose_ingress(executor, app):
+    """Infer ingress from a remote Compose file when no manifest exists."""
+    yml = executor.run(f"cat ~/dallinger/{app}/docker-compose.yml", raise_=False) or ""
+    if "cloudflared:" in yml:
+        return INGRESS_CLOUDFLARE, yml
+    if yml.strip():
+        return INGRESS_CLASSIC, yml
+    return None, yml
+
+
+def _abort_classic_overwrite_of_cloudflare(existing_ingress, app_identifier):
+    """Refuse to replace a Cloudflare app with classic Caddy via --update."""
+    if existing_ingress == INGRESS_CLOUDFLARE:
+        print(
+            f"{RED}App {app_identifier} is a Cloudflare tunnel deploy. "
+            f"Destroy it before replacing it with classic Caddy ingress.{END}"
+        )
+        raise click.Abort
+
+
+def _public_dashboard_url(hostname):
+    """Return a dashboard URL that does not embed credentials."""
+    return f"https://{hostname}/dashboard"
+
+
+def _record_deployment_infos(experiment_id, lines):
+    """Print and persist operator notes without secrets."""
+    for line in lines:
+        print_bold(line)
+    deploy_log_path = Path("deploy_logs") / f"{experiment_id}.txt"
+    deploy_log_path.parent.mkdir(exist_ok=True)
+    deploy_log_path.write_text("\n".join(lines) + "\n")
+
+
+def _install_tunnel_token(executor, sftp, app, connector_token):
+    """Install the per-app connector token at mode 0600. Do not log the token."""
+    executor.run(f"mkdir -p -m 700 ~/dallinger/{app}/secrets")
+    sftp.putfo(
+        BytesIO((connector_token + "\n").encode()),
+        f"dallinger/{app}/secrets/cloudflare-tunnel-token",
+    )
+    executor.run(f"chmod 600 ~/dallinger/{app}/secrets/cloudflare-tunnel-token")
+
+
+def _abort_cloudflare(exc):
+    print(f"{RED}Cloudflare error:{END} {exc}")
+    raise click.Abort()
 
 
 def ensure_root_domain_ready(server, update):
@@ -738,6 +1046,7 @@ def set_dozzle_password_cmd(server, password):
 @option_update
 @option_local_build
 @option_push_build
+@option_ingress
 @validate_update
 @build_and_push_image
 def sandbox(**kwargs):  # pragma: no cover
@@ -754,6 +1063,7 @@ def sandbox(**kwargs):  # pragma: no cover
 @option_update
 @option_local_build
 @option_push_build
+@option_ingress
 @validate_update
 @build_and_push_image
 def deploy(**kwargs):  # pragma: no cover
@@ -773,6 +1083,7 @@ def _deploy_in_mode(
     local_build,  # noqa
     push_build,
     preflight_root_clean,
+    ingress=None,
 ):
     config = get_config(load=True)
 
@@ -783,6 +1094,34 @@ def _deploy_in_mode(
     ssh_user = server_info.get("user")
     dashboard_user = config.get("dashboard_user", "admin")
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
+
+    experiment_uuid = str(uuid4())
+    use_subdomain = should_use_subdomain(app_name, archive_path)
+    if app_name:
+        experiment_id = app_name
+    elif archive_path:
+        experiment_id = get_experiment_id_from_archive(archive_path)
+    else:
+        experiment_id = f"dlgr-{experiment_uuid[:8]}"
+
+    app_identifier = app_name or experiment_id
+    ingress_mode = _resolve_ingress(server_info, ingress)
+    if ingress_mode == INGRESS_CLOUDFLARE:
+        return _deploy_cloudflare_in_mode(
+            archive_path=archive_path,
+            config=config,
+            config_options=config_options,
+            dashboard_password=dashboard_password,
+            dashboard_user=dashboard_user,
+            experiment_id=experiment_id,
+            experiment_uuid=experiment_uuid,
+            image_name=image_name,
+            mode=mode,
+            push_build=push_build,
+            server=server,
+            server_info=server_info,
+            update=update,
+        )
 
     # We deleted this because synchronizing configs between local and remote can cause problems especially when using
     # different credential managers
@@ -796,17 +1135,6 @@ def _deploy_in_mode(
             print("Run `dallinger email-test` to verify your configuration")
             raise click.Abort
     tls = "tls internal" if not HAS_TLS else f"tls {email_addr}"
-
-    experiment_uuid = str(uuid4())
-    use_subdomain = should_use_subdomain(app_name, archive_path)
-    if app_name:
-        experiment_id = app_name
-    elif archive_path:
-        experiment_id = get_experiment_id_from_archive(archive_path)
-    else:
-        experiment_id = f"dlgr-{experiment_uuid[:8]}"
-
-    app_identifier = app_name or experiment_id
 
     # Check if server is an IP address
     try:
@@ -873,8 +1201,8 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         caddy_yml = f"~/dallinger/caddy.d/{app_identifier}"
         caddy_yml_exists = executor.run(f"ls {caddy_yml}", raise_=False)
         if caddy_yml_exists:
-            print(
-                f"App with name {app_identifier} already exists: found {app_yml} file. Aborting."
+            messages.append(
+                f"App with name {app_identifier} already exists: found {caddy_yml} file. Aborting."
             )
         if app_yml_exists or caddy_yml_exists:
             messages.append(
@@ -893,6 +1221,8 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
                 f"{app_yml} file not found. App {app_identifier} does not exist on the server."
             )
             raise click.Abort
+        existing_ingress, _existing_yml = _compose_ingress(executor, app_identifier)
+        _abort_classic_overwrite_of_cloudflare(existing_ingress, app_identifier)
 
     sftp = get_sftp(ssh_host, user=ssh_user)
     dozzle_base = "/logs" if not use_subdomain else ""
@@ -926,40 +1256,55 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     print_bold(
         f"To view the logs for this experiment go to {logs_url} (user = dallinger, password = {dozzle_password})"
     )
-    cfg = config.as_dict(include_sensitive=True)
-
-    # AWS credential keys need to be converted to upper case
-    for key in "aws_access_key_id", "aws_secret_access_key":
-        cfg[key.upper()] = cfg.pop(key, None)
-
-    # Remove unneeded sensitive keys
-    for key in "database_url", "heroku_auth_token":
-        cfg.pop(key, None)
-
-    cfg.update(
-        {
-            "FLASK_SECRET_KEY": token_urlsafe(16),
-            "AWS_DEFAULT_REGION": config["aws_region"],
-            "smtp_username": config.get("smtp_username"),
-            "auto_recruit": config["auto_recruit"],
-            "mode": mode,
-            "CREATOR": f"{USER}@{HOSTNAME}",
-            "DALLINGER_UID": experiment_uuid,
-            "ADMIN_USER": "admin",
-            "docker_image_name": image_name,
-        }
+    cfg = _compose_environment(
+        config, config_options, mode, experiment_uuid, image_name
     )
-    cfg.update(config_options)
-    del cfg["host"]  # The uppercase variable will be used instead
     executor.run(f"mkdir -p dallinger/{experiment_id}")
     postgresql_password = token_urlsafe(16)
+    hibernation_secret = token_urlsafe(16)
+    if update:
+        existing_yml = (
+            executor.run(
+                f"cat ~/dallinger/{experiment_id}/docker-compose.yml", raise_=False
+            )
+            or ""
+        )
+        hibernation_secret = (
+            _existing_compose_value(existing_yml, "HIBERNATION_SECRET")
+            or hibernation_secret
+        )
     sftp.putfo(
         BytesIO(
             get_docker_compose_yml(
-                cfg, experiment_id, image_name, postgresql_password, executor
+                cfg,
+                experiment_id,
+                image_name,
+                postgresql_password,
+                executor,
+                hibernation_secret=hibernation_secret,
             ).encode()
         ),
         f"dallinger/{experiment_id}/docker-compose.yml",
+    )
+    _write_experiment_compose_env(
+        executor, experiment_id, cfg.get("docker_volumes", "")
+    )
+    _upload_frontdoor_caddyfile(sftp, executor, experiment_id)
+    public_origin = public_origin_for_hostname(experiment_hostname)
+    idle_enabled, idle_minutes = _idle_settings(cfg)
+    monitoring_kind, monitoring_path = _monitoring_settings(cfg)
+    _upload_app_manifest(
+        sftp,
+        DeploymentManifest.classic(
+            app=experiment_id,
+            server=server,
+            public_origin=public_origin,
+            idle_hibernate=idle_enabled,
+            idle_hibernate_minutes=idle_minutes,
+            monitoring_kind=monitoring_kind,
+            monitoring_path=monitoring_path,
+        ),
+        executor,
     )
     # We invoke the "ls" command in the context of the `web` container.
     # `docker compose` will honour `web`'s dependencies and block
@@ -1055,9 +1400,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         )
         print(launch_data.get("recruitment_msg"))
 
-    dashboard_link = (
-        f"https://{dashboard_user}:{dashboard_password}@{experiment_hostname}/dashboard"
-    )
+    dashboard_link = _public_dashboard_url(experiment_hostname)
     pem_path = get_server_pem_path()
     log_command = (
         f"ssh -i {pem_path} {(ssh_user + '@') if ssh_user else ''}{ssh_host} "
@@ -1071,23 +1414,226 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     deployment_infos += [
         "To display the logs for this experiment you can run:",
         log_command,
-        f"Or you can head to {logs_url} (user = dallinger, password = {dozzle_password})",
-        f"You can now log in to the console at {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
+        f"Or you can head to {logs_url} (user = dallinger)",
+        f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
     ]
-    for line in deployment_infos:
-        print_bold(line)
-
-    deploy_log_path = Path("deploy_logs") / f"{experiment_id}.txt"
-    deploy_log_path.parent.mkdir(exist_ok=True)
-    with open(deploy_log_path, "w") as f:
-        for line in deployment_infos:
-            f.write(f"{line}\n")
+    _record_deployment_infos(experiment_id, deployment_infos)
 
     return {
         "dashboard_user": dashboard_user,
         "dashboard_password": dashboard_password,
         "dashboard_link": dashboard_link,
         "log_command": log_command,
+        "app": experiment_id,
+        "server": server,
+        "ingress": "classic",
+        "public_origin": public_origin,
+    }
+
+
+def _deploy_cloudflare_in_mode(
+    *,
+    archive_path,
+    config,
+    config_options,
+    dashboard_password,
+    dashboard_user,
+    experiment_id,
+    experiment_uuid,
+    image_name,
+    mode,
+    push_build,
+    server,
+    server_info,
+    update,
+):
+    """Deploy an isolated Cloudflare-tunnel experiment on a docker-ssh host."""
+    try:
+        validate_app_dns_label(experiment_id)
+    except CloudflareError as exc:
+        _abort_cloudflare(exc)
+
+    settings = _cloudflare_settings(server_info, config)
+    hostname = cloudflare_public_hostname(experiment_id, settings["dns_zone"])
+    public_origin = public_origin_for_hostname(hostname)
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
+    executor = Executor(ssh_host, user=ssh_user, app=experiment_id)
+
+    compose_yml_path = f"~/dallinger/{experiment_id}/docker-compose.yml"
+    compose_exists = executor.run(f"ls {compose_yml_path}", raise_=False)
+    if update:
+        if not compose_exists:
+            print(
+                f"{compose_yml_path} file not found. App {experiment_id} does not exist on the server."
+            )
+            raise click.Abort()
+        existing_ingress, existing_yml = _compose_ingress(executor, experiment_id)
+        if existing_ingress == INGRESS_CLASSIC:
+            print(
+                f"{RED}App {experiment_id} is a classic Caddy deploy. "
+                f"Destroy it before replacing it with Cloudflare ingress.{END}"
+            )
+            raise click.Abort()
+        postgresql_password = _existing_compose_password(
+            existing_yml, experiment_id
+        ) or token_urlsafe(16)
+        hibernation_secret = _existing_compose_value(
+            existing_yml, "HIBERNATION_SECRET"
+        ) or token_urlsafe(16)
+    else:
+        caddy_exists = executor.run(
+            f"ls ~/dallinger/caddy.d/{experiment_id}", raise_=False
+        )
+        if compose_exists or caddy_exists:
+            found = (
+                compose_yml_path
+                if compose_exists
+                else f"~/dallinger/caddy.d/{experiment_id}"
+            )
+            print(
+                f"App with name {experiment_id} already exists: found {found}. "
+                "Use a different name, destroy the current app, or add --update"
+            )
+            raise click.Abort()
+        print("Removing any pre-existing Redis and Postgres volumes.")
+        remove_named_volume(f"{experiment_id}_redis_data", executor)
+        remove_named_volume(f"{experiment_id}_postgres_data", executor)
+        postgresql_password = token_urlsafe(16)
+        hibernation_secret = token_urlsafe(16)
+
+    try:
+        api_token = load_api_token(config)
+        tunnel = ensure_experiment_tunnel(
+            account_id=settings["account_id"],
+            zone_id=settings["zone_id"],
+            app=experiment_id,
+            dns_zone=settings["dns_zone"],
+            api_token=api_token,
+        )
+    except CloudflareError as exc:
+        _abort_cloudflare(exc)
+
+    sftp = get_sftp(ssh_host, user=ssh_user)
+    executor.run(f"mkdir -p -m 700 dallinger/{experiment_id}/secrets")
+    _install_tunnel_token(executor, sftp, experiment_id, tunnel["connector_token"])
+    cfg = _compose_environment(
+        config, config_options, mode, experiment_uuid, image_name
+    )
+    sftp.putfo(
+        BytesIO(
+            get_docker_compose_yml(
+                cfg,
+                experiment_id,
+                image_name,
+                postgresql_password,
+                executor,
+                ingress=INGRESS_CLOUDFLARE,
+                hibernation_secret=hibernation_secret,
+            ).encode()
+        ),
+        f"dallinger/{experiment_id}/docker-compose.yml",
+    )
+    _write_experiment_compose_env(
+        executor, experiment_id, cfg.get("docker_volumes", "")
+    )
+    _upload_frontdoor_caddyfile(sftp, executor, experiment_id)
+    idle_enabled, idle_minutes = _idle_settings(cfg)
+    monitoring_kind, monitoring_path = _monitoring_settings(cfg)
+    _upload_app_manifest(
+        sftp,
+        DeploymentManifest.via_cloudflare(
+            app=experiment_id,
+            server=server,
+            public_origin=public_origin,
+            resources=public_resource_ids(tunnel),
+            idle_hibernate=idle_enabled,
+            idle_hibernate_minutes=idle_minutes,
+            monitoring_kind=monitoring_kind,
+            monitoring_path=monitoring_path,
+        ),
+        executor,
+    )
+
+    if not update:
+        print("Starting experiment.")
+    else:
+        print("Restarting experiment.")
+
+    executor.run(
+        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
+    )
+    if update and postgresql_password:
+        change_password_script = f"""ALTER USER "{experiment_id}" WITH ENCRYPTED PASSWORD '{postgresql_password}'"""
+        executor.run(
+            f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T postgresql psql -U {quote(experiment_id)} -c {quote(change_password_script)}",
+            raise_=False,
+        )
+
+    executor.run(
+        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
+    )
+    grant_roles_script = (
+        f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
+    )
+    if archive_path is not None:
+        print(f"Loading database data from {archive_path}")
+        with remote_postgres(server_info, experiment_id) as db_uri:
+            engine = create_db_engine(db_uri)
+            bootstrap_db_from_zip(archive_path, engine)
+            with engine.connect() as conn:
+                conn.execute(grant_roles_script)
+                conn.execute(f'GRANT USAGE ON SCHEMA public TO "{experiment_id}"')
+                conn.execute(
+                    f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA PUBLIC TO "{experiment_id}"'
+                )
+    elif not update:
+        print(f"Experiment {experiment_id} started.")
+        print("Initializing database...")
+        executor.run(
+            f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
+        )
+        print("Database initialized.")
+
+    if update:
+        print("Skipping experiment launch logic because we are in update mode.")
+    else:
+        print("Launching experiment")
+        launch_data = handle_launch_data(
+            f"{public_origin}/launch",
+            print,
+            dns_host=None,
+            dozzle_password=dashboard_password,
+            context="ssh",
+        )
+        print(launch_data.get("recruitment_msg"))
+
+    dashboard_link = _public_dashboard_url(hostname)
+    pem_path = get_server_pem_path()
+    log_command = (
+        f"ssh -i {pem_path} {(ssh_user + '@') if ssh_user else ''}{ssh_host} "
+        f"docker compose -f '~/dallinger/{experiment_id}/docker-compose.yml' logs -f"
+    )
+    deployment_infos = []
+    if push_build:
+        deployment_infos.append(f"Deployed Docker image name: {image_name}")
+    deployment_infos += [
+        "To display the logs for this experiment you can run:",
+        log_command,
+        f"Public origin: {public_origin}",
+        f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
+    ]
+    _record_deployment_infos(experiment_id, deployment_infos)
+    return {
+        "dashboard_user": dashboard_user,
+        "dashboard_password": dashboard_password,
+        "dashboard_link": dashboard_link,
+        "log_command": log_command,
+        "app": experiment_id,
+        "server": server,
+        "ingress": INGRESS_CLOUDFLARE,
+        "public_origin": public_origin,
+        "tunnel_name": tunnel_name_for_app(experiment_id),
     }
 
 
@@ -1163,16 +1709,20 @@ def get_experiment_id_from_archive(archive_path):
             return fh.read().decode("utf-8")
 
 
-def remove_redis_volumes(app_name, executor):
-    redis_volume_name = f"{app_name}_redis_data"
+def remove_named_volume(volume_name, executor):
+    """Remove a Docker volume if it exists."""
     stdout = io.StringIO()
     with redirect_stdout(stdout):
         try:
-            executor.run(f"docker volume rm '{redis_volume_name}'")
+            executor.run(f"docker volume rm '{volume_name}'")
         except ExecuteException:
             err = stdout.getvalue()
             if "no such volume" not in err.lower():
                 raise ExecuteException(err)
+
+
+def remove_redis_volumes(app_name, executor):
+    remove_named_volume(f"{app_name}_redis_data", executor)
 
 
 def get_apps(server):
@@ -1197,14 +1747,36 @@ def get_apps(server):
 
     app_names = _discover_server_apps(executor)
     running_projects = _get_running_app_names(executor)
+    manifests = _load_remote_manifests(executor, app_names)
+    hibernating_apps, waking_apps = _remote_hibernation_markers(executor)
 
-    return [
-        App(
-            name=app_name,
-            state="running" if app_name in running_projects else "inactive",
+    apps = []
+    for app_name in app_names:
+        manifest = manifests.get(app_name)
+        origin = manifest.public_origin if manifest and manifest.public_origin else None
+        if app_name in hibernating_apps:
+            hibernation_state = HIBERNATION_HIBERNATING
+        elif app_name in waking_apps:
+            hibernation_state = HIBERNATION_WAKING
+        else:
+            hibernation_state = HIBERNATION_AWAKE
+        if hibernation_state in {HIBERNATION_HIBERNATING, HIBERNATION_WAKING}:
+            state = hibernation_state
+        elif app_name in running_projects:
+            state = "running"
+        else:
+            state = "inactive"
+        apps.append(
+            App(
+                name=app_name,
+                state=state,
+                ingress=manifest.ingress if manifest else "classic",
+                public_origin=origin,
+                database_layout=manifest.database_layout if manifest else "shared",
+                hibernation_state=hibernation_state,
+            )
         )
-        for app_name in app_names
-    ]
+    return apps
 
 
 @docker_ssh.command()
@@ -1225,9 +1797,22 @@ def apps(server):
 
     rows = []
     for app in visible_apps:
-        style = "green" if app.state == "running" else "red"
-        rows.append([app.name, Text(app.state, style=style)])
-    print(render_rich_table(rows, headers=["app", "state"]))
+        if app.state == "running":
+            style = "green"
+        elif app.state in {HIBERNATION_HIBERNATING, HIBERNATION_WAKING}:
+            style = "yellow"
+        else:
+            style = "red"
+        origin = app.public_origin or ""
+        rows.append(
+            [
+                app.name,
+                Text(app.state, style=style),
+                app.ingress,
+                origin,
+            ]
+        )
+    print(render_rich_table(rows, headers=["app", "state", "ingress", "origin"]))
     return [app.name for app in visible_apps]
 
 
@@ -1273,6 +1858,7 @@ def export(app, local, no_scrub, server):
         except ValueError as exc:
             raise click.UsageError(str(exc)) from exc
         click.echo(f"Exporting data from app '{app}'.")
+    awaken_app(server, app, required=False)
     with remote_postgres(server_info, app) as db_uri:
         export_db_uri(
             app,
@@ -1300,7 +1886,11 @@ def select_running_app(server):
         If zero or multiple apps are found running on the server.
     """
     apps = get_apps(server)
-    running = [app.name for app in apps if app.state == "running"]
+    running = [
+        app.name
+        for app in apps
+        if app.state in {"running", HIBERNATION_HIBERNATING, HIBERNATION_WAKING}
+    ]
     if len(running) == 1:
         return running[0]
     if len(running) > 1:
@@ -1320,6 +1910,27 @@ def _get_running_app_names(executor):
     return {entry.strip() for entry in result.splitlines() if entry.strip()}
 
 
+def _remote_hibernation_markers(executor):
+    """Return app names whose live state markers are hibernating or waking."""
+    result = (
+        executor.run(
+            "ls -1 ~/dallinger/*/state/hibernating "
+            "~/dallinger/*/state/waking 2>/dev/null || true",
+            raise_=False,
+        )
+        or ""
+    )
+    hibernating = set()
+    waking = set()
+    for line in result.splitlines():
+        path = line.strip()
+        if path.endswith("/state/waking"):
+            waking.add(PurePosixPath(path).parent.parent.name)
+        elif path.endswith("/state/hibernating"):
+            hibernating.add(PurePosixPath(path).parent.parent.name)
+    return hibernating, waking
+
+
 @contextmanager
 def remote_postgres(server_info, app):
     """A context manager that opens an ssh tunnel to the remote host and
@@ -1327,27 +1938,99 @@ def remote_postgres(server_info, app):
     """
     from sshtunnel import SSHTunnelForwarder
 
+    tunnel = None
     try:
         ssh_host = server_info["host"]
         ssh_user = server_info.get("user")
         executor = Executor(ssh_host, user=ssh_user, app=app)
-        # Prepare a tunnel to be able to pass a postgresql URL to the databse
-        # on the remote docker container. First we need to find the IP of the
-        # container running docker
-        postgresql_remote_ip = executor.run(
-            "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' dallinger-postgresql-1"
-        ).strip()
+        container, remote_ip, isolated = _resolve_remote_postgres(executor, app)
+        if isolated:
+            env = _inspect_container_env(executor, container)
+            db_user = env.get("POSTGRES_USER") or app
+            db_password = env.get("POSTGRES_PASSWORD") or ""
+            db_name = env.get("POSTGRES_DB") or app
+            if not db_password:
+                raise ExecuteException(
+                    f"Could not read POSTGRES_PASSWORD from {container}."
+                )
+            uri_user = url_quote(db_user, safe="")
+            uri_password = url_quote(db_password, safe="")
+            uri_db = url_quote(db_name, safe="")
+        else:
+            uri_user = "dallinger"
+            uri_password = "dallinger"
+            uri_db = url_quote(app, safe="")
         pem_path = get_server_pem_path()
         tunnel = SSHTunnelForwarder(
             ssh_host,
             ssh_username=ssh_user,
             ssh_pkey=str(pem_path),
-            remote_bind_address=(postgresql_remote_ip, 5432),
+            remote_bind_address=(remote_ip, 5432),
         )
         tunnel.start()
-        yield f"postgresql://dallinger:dallinger@localhost:{tunnel.local_bind_port}/{app}"
+        yield (
+            f"postgresql://{uri_user}:{uri_password}"
+            f"@localhost:{tunnel.local_bind_port}/{uri_db}"
+        )
     finally:
-        tunnel.stop()
+        if tunnel is not None:
+            tunnel.stop()
+
+
+def _resolve_remote_postgres(executor, app):
+    """Return (container, ip, isolated) for the app's Postgres, never a sibling app."""
+    for name in (f"{app}_postgresql", f"{app}-postgresql-1"):
+        ip = _inspect_container_ip(executor, name)
+        if ip:
+            return name, ip, True
+        if _container_exists(executor, name):
+            raise ExecuteException(
+                f"Postgres container {name} exists but is not running. "
+                "Awaken the app before export."
+            )
+    shared = "dallinger-postgresql-1"
+    ip = _inspect_container_ip(executor, shared)
+    if ip:
+        return shared, ip, False
+    raise ExecuteException(f"Could not find a Postgres container for app {app}.")
+
+
+def _container_exists(executor, container):
+    raw = executor.run(
+        "docker inspect -f '{{.Id}}' " + quote(container),
+        raise_=False,
+    )
+    ident = (raw or "").strip().split()[0] if (raw or "").strip() else ""
+    if not ident:
+        return False
+    lowered = ident.lower()
+    return "error" not in lowered and "no such" not in lowered
+
+
+def _inspect_container_ip(executor, container):
+    raw = executor.run(
+        "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "
+        + quote(container),
+        raise_=False,
+    )
+    ip = (raw or "").strip().split()[0] if (raw or "").strip() else ""
+    if not re.match(r"^\d{1,3}(?:\.\d{1,3}){3}$", ip):
+        return ""
+    return ip
+
+
+def _inspect_container_env(executor, container):
+    raw = executor.run(
+        "docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "
+        + quote(container),
+        raise_=False,
+    )
+    env = {}
+    for line in (raw or "").splitlines():
+        if "=" in line:
+            key, value = line.split("=", 1)
+            env[key] = value
+    return env
 
 
 @docker_ssh.command()
@@ -1360,51 +2043,244 @@ def destroy(server, app):
     ssh_user = server_info.get("user")
     executor = Executor(ssh_host, user=ssh_user, app=app)
 
-    # Check if either the caddy config or the docker compose exist
-    # If not, the app is not deployed
     caddy_config_exists = executor.run(
         f"test -f ~/dallinger/caddy.d/{app} && echo Yes", raise_=False
     )
     docker_compose_exists = executor.run(
         f"test -f ~/dallinger/{app}/docker-compose.yml && echo Yes", raise_=False
     )
-    if not caddy_config_exists and not docker_compose_exists:
+    manifest_exists = executor.run(
+        f"test -f ~/dallinger/{app}/deployment.json && echo Yes", raise_=False
+    )
+    if not caddy_config_exists and not docker_compose_exists and not manifest_exists:
         print(f"App {app} is not deployed")
         raise click.Abort()
+
+    manifests = _load_remote_manifests(executor, [app])
+    manifest = manifests.get(app)
+    if manifest:
+        ingress = manifest.ingress
+    elif docker_compose_exists:
+        ingress, _yml = _compose_ingress(executor, app)
+        ingress = ingress or INGRESS_CLASSIC
+    else:
+        ingress = INGRESS_CLASSIC
 
     experiment_image = None
     if docker_compose_exists:
         experiment_image = read_remote_experiment_image(executor, app)
 
-    # Inspect the active Caddyfile only after we know the app exists.
-    caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
-    uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
-    dns_host = server_info["host"]
-
-    # Remove the caddy configuration file and reload caddy config
-    executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
-
-    if uses_root_domain:
-        # The apex host pointed straight at this app; restore the default
-        # health-check layout so the server behaves like a subdomain setup again.
-        config = get_config(load=True)
-        email_addr = config.get("contact_email_on_error")
-        HAS_TLS = ssh_host != "localhost"
-        tls_value = "tls internal" if not HAS_TLS else f"tls {email_addr}"
-        sftp = get_sftp(ssh_host, user=ssh_user)
-        sftp.putfo(
-            BytesIO(CADDYFILE_SUBDOMAIN.format(host=dns_host, tls=tls_value).encode()),
-            "dallinger/Caddyfile",
+    if ingress == INGRESS_CLOUDFLARE:
+        _destroy_cloudflare_resources(app, server_info, manifest)
+        executor.run(
+            f"docker compose -f ~/dallinger/{app}/docker-compose.yml down -v",
+            raise_=False,
+        )
+    else:
+        caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
+        uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
+        dns_host = server_info["host"]
+        executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
+        if uses_root_domain:
+            config = get_config(load=True)
+            email_addr = config.get("contact_email_on_error")
+            HAS_TLS = ssh_host != "localhost"
+            tls_value = "tls internal" if not HAS_TLS else f"tls {email_addr}"
+            sftp = get_sftp(ssh_host, user=ssh_user)
+            sftp.putfo(
+                BytesIO(
+                    CADDYFILE_SUBDOMAIN.format(host=dns_host, tls=tls_value).encode()
+                ),
+                "dallinger/Caddyfile",
+            )
+        executor.reload_caddy()
+        executor.run(
+            f"docker compose -f ~/dallinger/{app}/docker-compose.yml down",
+            raise_=False,
         )
 
-    executor.reload_caddy()
-
-    executor.run(
-        f"docker compose -f ~/dallinger/{app}/docker-compose.yml down", raise_=False
-    )
     remove_unshared_experiment_image(executor, experiment_image, except_app=app)
     executor.run(f"rm -rf ~/dallinger/{app}/")
     print(f"App {app} removed")
+
+
+def _destroy_cloudflare_resources(app, server_info, manifest=None):
+    """Delete the experiment CNAME and named tunnel. Warn if the API is unavailable."""
+    config = get_config(load=True)
+    try:
+        settings = _cloudflare_settings(
+            server_info,
+            config,
+            dns_zone=(manifest.cloudflare or {}).get("dns_zone") if manifest else None,
+        )
+        api_token = load_api_token(config)
+    except (CloudflareError, click.UsageError) as exc:
+        print(
+            f"{RED}Skipping Cloudflare DNS/tunnel cleanup:{END} {exc}\n"
+            "The local app will still be removed. Re-run destroy after fixing credentials "
+            "or use `dallinger docker-ssh gc`."
+        )
+        return
+    cloudflare = dict(manifest.cloudflare or {}) if manifest else {}
+    try:
+        delete_experiment_tunnel(
+            account_id=settings["account_id"],
+            zone_id=settings["zone_id"],
+            app=app,
+            dns_zone=cloudflare.get("dns_zone") or settings["dns_zone"],
+            hostname=cloudflare.get("hostname"),
+            tunnel_id=cloudflare.get("tunnel_id"),
+            dns_record_id=cloudflare.get("dns_record_id"),
+            api_token=api_token,
+        )
+    except CloudflareError as exc:
+        print(
+            f"{RED}Cloudflare cleanup failed:{END} {exc}\n"
+            "Local compose teardown will continue; retry destroy or gc."
+        )
+
+
+@docker_ssh.command()
+@option_server
+@click.option(
+    "--apply",
+    is_flag=True,
+    default=False,
+    help="Delete orphan tunnels instead of only listing them",
+)
+@click.option(
+    "--confirm-no-other-hosts",
+    is_flag=True,
+    default=False,
+    help=(
+        "Required with --apply. Confirms this Cloudflare account has no "
+        "docker-ssh tunnel apps on any other server."
+    ),
+)
+def gc(server, apply, confirm_no_other_hosts):
+    """List (or delete) Cloudflare tunnels whose apps are not on this server.
+
+    Dry-run is the default. ``--apply`` also requires
+    ``--confirm-no-other-hosts`` because a shared Cloudflare account can
+    host tunnels for rr-pc01 and musix at once.
+    """
+    server_info = CONFIGURED_HOSTS[server]
+    config = get_config(load=True)
+    settings = _cloudflare_settings(server_info, config)
+    try:
+        api_token = load_api_token(config)
+        tunnels = list_prefixed_tunnels(settings["account_id"], api_token)
+    except CloudflareError as exc:
+        _abort_cloudflare(exc)
+    deployed = {app.name for app in get_apps(server)}
+    orphans = []
+    for tunnel in tunnels:
+        app = app_from_tunnel_name(tunnel.get("name") or "")
+        if app and app not in deployed:
+            orphans.append((app, tunnel))
+    if not orphans:
+        print("No orphan dallinger-* Cloudflare tunnels for this server.")
+        return []
+    print(
+        f"{RED}These Cloudflare tunnels are not deployed on {server}.{END}\n"
+        "They may belong to another host on the same DNS zone."
+    )
+    rows = [
+        [app, tunnel.get("id", ""), tunnel.get("name", "")] for app, tunnel in orphans
+    ]
+    print(render_rich_table(rows, headers=["app", "tunnel_id", "tunnel_name"]))
+    if not apply:
+        print(
+            "Re-run with --apply --confirm-no-other-hosts to delete these "
+            "DNS records and tunnels. Do not confirm if another docker-ssh "
+            "host uses the same Cloudflare account."
+        )
+        return [app for app, _tunnel in orphans]
+    if not confirm_no_other_hosts:
+        print(
+            f"{RED}Refusing --apply without --confirm-no-other-hosts.{END}\n"
+            "These tunnels may belong to another host on the same DNS zone."
+        )
+        raise click.Abort
+    for app, tunnel in orphans:
+        print_bold(f"Deleting Cloudflare resources for {app}")
+        try:
+            delete_experiment_tunnel(
+                account_id=settings["account_id"],
+                zone_id=settings["zone_id"],
+                app=app,
+                dns_zone=settings["dns_zone"],
+                tunnel_id=tunnel.get("id"),
+                api_token=api_token,
+            )
+        except CloudflareError as exc:
+            print(f"{RED}Failed to delete {app}:{END} {exc}")
+    return [app for app, _tunnel in orphans]
+
+
+@docker_ssh.command()
+@click.option("--app", required=True, help="Name of the experiment app to hibernate")
+@option_server
+def hibernate(server, app):
+    """Stop expensive services for an app while keeping its front door awake."""
+    _run_hibernation_action(server, app, "hibernate")
+
+
+@docker_ssh.command()
+@click.option("--app", required=True, help="Name of the experiment app to awaken")
+@option_server
+def awaken(server, app):
+    """Start a hibernated app without re-launching recruitment."""
+    awaken_app(server, app)
+
+
+def awaken_app(server, app, required=True):
+    """Wake a docker-ssh app, waiting until Postgres and web are ready."""
+    return _run_hibernation_action(server, app, "awaken", required=required)
+
+
+def _run_hibernation_action(server, app, action, required=True):
+    server_info = CONFIGURED_HOSTS[server]
+    ssh_host = server_info["host"]
+    ssh_user = server_info.get("user")
+    executor = Executor(ssh_host, user=ssh_user, app=app)
+    compose = f"~/dallinger/{app}/docker-compose.yml"
+    if not executor.run(f"test -f {compose} && echo Yes", raise_=False):
+        print(f"App {app} is not deployed")
+        if required:
+            raise click.Abort()
+        return False
+    if "controller:" not in (executor.run(f"cat {compose}", raise_=False) or ""):
+        print(
+            f"{RED}App {app} has no hibernation front door. Redeploy or update it first.{END}"
+        )
+        if required:
+            raise click.Abort()
+        return False
+    try:
+        result = executor.run(
+            f"docker compose -f {compose} exec -T controller dallinger_hibernation client {action}"
+        )
+    except ExecuteException:
+        print(f"{RED}Could not {action} app {app}.{END}")
+        if required:
+            raise
+        return False
+    print(result.strip() or f"App {app} {action} requested")
+    try:
+        payload = json.loads(result.strip() or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    manifests = _load_remote_manifests(executor, [app])
+    manifest = manifests.get(app)
+    if manifest:
+        if action == "hibernate":
+            state = HIBERNATION_HIBERNATING
+        else:
+            state = payload.get("status") or "awake"
+        sftp = get_sftp(ssh_host, user=ssh_user)
+        _upload_app_manifest(sftp, replace(manifest, hibernation_state=state), executor)
+    return True
 
 
 def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
@@ -1642,6 +2518,8 @@ def get_docker_compose_yml(
     experiment_image: str,
     postgresql_password: str,
     executor: Executor = None,
+    ingress: str = INGRESS_CLASSIC,
+    hibernation_secret: str = "",
 ) -> str:
     """Generate a docker-compose.yml file based on the given"""
     docker_volumes = config.get("docker_volumes", "")
@@ -1656,13 +2534,89 @@ def get_docker_compose_yml(
         else:
             docker_volumes = new_volume
     config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
+    idle_enabled, idle_minutes = _idle_settings(config)
+    template = (
+        DOCKER_COMPOSE_EXP_TUNNEL_TPL
+        if ingress == INGRESS_CLOUDFLARE
+        else DOCKER_COMPOSE_EXP_TPL
+    )
 
-    return DOCKER_COMPOSE_EXP_TPL.render(
+    return template.render(
         experiment_id=experiment_id,
         experiment_image=experiment_image,
         config=config_str,
         docker_volumes=docker_volumes,
         postgresql_password=postgresql_password,
+        hibernation_secret=hibernation_secret or token_urlsafe(16),
+        idle_enabled=str(idle_enabled).lower(),
+        idle_minutes=idle_minutes,
+    )
+
+
+def _remote_bind_mount_dirs(docker_volumes, experiment_id):
+    """Return quoted remote host dirs to mkdir/chown for compose bind mounts."""
+    dirs = ['"$HOME/dallinger-data/$app"', '"$HOME/dallinger/$app/state"']
+    seen = set(dirs)
+    for spec in str(docker_volumes or "").split(","):
+        host = spec.strip().split(":", 1)[0].strip()
+        snippet = _remote_host_dir_snippet(host, experiment_id)
+        if snippet and snippet not in seen:
+            seen.add(snippet)
+            dirs.append(snippet)
+    return dirs
+
+
+def _remote_host_dir_snippet(host, experiment_id):
+    """Return a bash-quoted host directory, or None for relative/named volumes."""
+    host = str(host or "").strip()
+    if not host or host.startswith("."):
+        return None
+    host = host.replace("{{ experiment_id }}", experiment_id)
+    for prefix in ("${HOME}", "$HOME", "~"):
+        if host == prefix:
+            return '"$HOME"'
+        if host.startswith(prefix + "/"):
+            rest = host[len(prefix) + 1 :]
+            if not rest or ".." in rest.split("/"):
+                return None
+            return f'"$HOME/{rest}"'
+    if host.startswith("/"):
+        return quote(host)
+    return None
+
+
+def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
+    """Write UID/GID so experiment containers run as the SSH user.
+
+    Older docker-ssh deploys left data dirs owned by root. Recursively chown
+    ``~/dallinger-data/<app>``, the front-door state dir, and every host bind
+    mount in ``docker_volumes`` (including PsyNet ``~/psynet-data/assets``).
+    If a plain chown fails (root-owned leftovers), try passwordless sudo
+    then a root ``alpine:3.20`` container. If all three fail, warn rather
+    than abort: a fresh dir is still created as the SSH user.
+    """
+    app = quote(experiment_id)
+    dirs = " ".join(_remote_bind_mount_dirs(docker_volumes, experiment_id))
+    executor.run(
+        "uid=$(id -u); gid=$(id -g); "
+        "docker_gid=$(stat -c %g /var/run/docker.sock); "
+        f"app={app}; "
+        'printf "UID=%s\\nGID=%s\\nDOCKER_GID=%s\\n" '
+        '"$uid" "$gid" "$docker_gid" > "$HOME/dallinger/$app/.env"; '
+        f"for d in {dirs}; do "
+        '  mkdir -p "$d"; '
+        '  if chown -R "$uid:$gid" "$d" 2>/dev/null; then '
+        "    :; "
+        '  elif sudo -n chown -R "$uid:$gid" "$d" 2>/dev/null; then '
+        "    :; "
+        '  elif [ "$d" != "$HOME" ] && docker run --rm -v "$d:$d" '
+        'alpine:3.20 chown -R "$uid:$gid" "$d"; then '
+        "    :; "
+        "  else "
+        '    echo "Warning: could not chown $d for $app; '
+        'root-owned files from older deploys may be unwritable."; '
+        "  fi; "
+        "done"
     )
 
 

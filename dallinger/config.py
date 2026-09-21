@@ -127,6 +127,10 @@ default_keys = (
     ("num_dynos_worker", int, []),
     ("organization_name", str, []),
     ("port", int, ["PORT"]),
+    ("cloudflare_api_token", str, ["CLOUDFLARE_API_TOKEN"], True),
+    ("cloudflare_account_id", str, ["CLOUDFLARE_ACCOUNT_ID"]),
+    ("cloudflare_zone_id", str, ["CLOUDFLARE_ZONE_ID"]),
+    ("cloudflare_dns_zone", str, ["CLOUDFLARE_DNS_ZONE"]),
     ("prolific_api_token", str, ["PROLIFIC_RESEARCHER_API_TOKEN"], True),
     ("prolific_api_version", str, []),
     ("prolific_completion_config", str, [], False, [is_valid_json]),
@@ -159,6 +163,10 @@ default_keys = (
     ("docker_image_name", str, [], ""),
     ("docker_volumes", str, [], ""),
     ("docker_worker_cpu_shares", int, [], ""),
+    ("docker_ssh_idle_hibernate", bool, []),
+    ("docker_ssh_idle_hibernate_minutes", int, []),
+    ("docker_ssh_monitoring_kind", str, []),
+    ("docker_ssh_monitoring_path", str, []),
     ("server_pem", str, []),
 )
 

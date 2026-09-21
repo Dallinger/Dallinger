@@ -108,6 +108,7 @@ dallinger-housekeeper = "dallinger.command_line:dallinger_housekeeper"
 dallinger_heroku_web = "dallinger_scripts.web:main"
 dallinger_heroku_worker = "dallinger_scripts.worker:main"
 dallinger_heroku_clock = "dallinger_scripts.clock:main"
+dallinger_hibernation = "dallinger_scripts.hibernation:main"
 
 [project.urls]
 Changelog = "https://github.com/Dallinger/Dallinger/blob/master/CHANGELOG.md"
@@ -121,6 +122,8 @@ Repository = "https://github.com/Dallinger/Dallinger"
 "dallinger/docker/docker-compose.yml.j2" = "dallinger/docker/docker-compose.yml.j2"
 "dallinger/docker/heroku.yml" = "dallinger/docker/heroku.yml"
 "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2" = "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2"
+"dallinger/docker/ssh_templates/docker-compose-experiment-tunnel.yml.j2" = "dallinger/docker/ssh_templates/docker-compose-experiment-tunnel.yml.j2"
+"dallinger/docker/ssh_templates/Caddyfile.frontdoor" = "dallinger/docker/ssh_templates/Caddyfile.frontdoor"
 "dallinger/docker/ssh_templates/docker-compose-server.yml.j2" = "dallinger/docker/ssh_templates/docker-compose-server.yml.j2"
 
 [tool.hatch.build.targets.wheel]

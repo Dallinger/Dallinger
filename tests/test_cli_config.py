@@ -83,6 +83,19 @@ def test_migrate_hosts_does_not_overwrite(tmp_dirs):
     assert json.loads((NEW_HOSTS_DIR / "test_host").read_text()) == new_host
 
 
+def test_store_host_rejects_credential_fields(tmp_dirs):
+    from dallinger.command_line.config import store_host
+
+    with pytest.raises(Exception, match="credentials"):
+        store_host(
+            {
+                "host": "example.com",
+                "user": "ubuntu",
+                "cloudflare_api_token": "should-not-be-stored",
+            }
+        )
+
+
 def test_store_host(tmp_dirs):
     from dallinger.command_line.config import get_configured_hosts, store_host
 

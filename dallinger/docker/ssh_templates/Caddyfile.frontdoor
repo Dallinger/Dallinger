@@ -1,0 +1,49 @@
+{
+	admin off
+}
+
+:5000 {
+	@parked {
+		file {
+			root /state
+			try_files hibernating waking
+		}
+	}
+	@health path /health /health/
+
+	handle @health {
+		handle @parked {
+			reverse_proxy controller:8080
+		}
+		handle {
+			reverse_proxy experiment-backend:5000 {
+				transport http {
+					dial_timeout 3s
+				}
+			}
+		}
+	}
+
+	handle @parked {
+		reverse_proxy controller:8080
+	}
+
+	handle {
+		reverse_proxy experiment-backend:5000 {
+			flush_interval -1
+			transport http {
+				dial_timeout 3s
+			}
+		}
+	}
+
+	handle_errors {
+		header Content-Type application/json
+		respond `{"status":"unavailable"}` 503
+	}
+
+	log {
+		output file /state/access.log
+		format json
+	}
+}
