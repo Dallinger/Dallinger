@@ -6,19 +6,21 @@
     "browser-sync": "^3.0.4",
     "browser-sync-webpack-plugin": "^2.4.0",
     "fingerprintjs2": "^1.5.1",
-    "jest": "^30.4.2",
-    "jest-environment-jsdom": "^30.4.1",
+    "jest": "^30.5.2",
+    "jest-environment-jsdom": "^30.5.2",
     "jsdoc": "^4.0.5",
-    "webpack": "^5.109.2",
-    "webpack-cli": "^7.2.2"
+    "webpack": "^5.111.1",
+    "webpack-cli": "^7.2.3"
   },
   "overrides": {
-    "engine.io": "^6.6.9",
+    "baseline-browser-mapping": "^2.11.25",
+    "browserslist": "^4.29.0",
+    "engine.io": "^6.6.10",
     "engine.io-client": "^6.6.6",
-    "fast-uri": "^3.1.5",
+    "fast-uri": "^3.1.8",
     "immutable": "^4.3.9",
     "kind-of": "^6.0.3",
-    "js-yaml": "^3.15.1",
+    "js-yaml": "^3.15.2",
     "linkify-it": "^5.0.2",
     "lodash": "^4.17.21",
     "follow-redirects": "^1.16.0",
@@ -32,7 +34,7 @@
       "minimatch": "^3.1.5"
     },
     "test-exclude": {
-      "minimatch": "^3.1.5"
+      "minimatch": "^10.2.6"
     }
   },
   "engines": {

@@ -69,6 +69,12 @@
 
 ### Updated
 
+- Updated JavaScript development dependencies (``jest``,
+  ``jest-environment-jsdom``, ``webpack``, ``webpack-cli``) and npm
+  overrides for patched ``js-yaml``, ``fast-uri``, ``engine.io``,
+  ``browserslist``, and ``baseline-browser-mapping``. Left
+  ``test-exclude`` on minimatch 10 (required by Jest 30.5) while
+  ``resp-modifier`` still pins callable minimatch 3.x.
 - Updated Python dependencies (regenerated ``requirements.txt``,
   ``dev-requirements.txt``, and ``constraints.txt``; bumped the ruff
   pre-commit hook).
