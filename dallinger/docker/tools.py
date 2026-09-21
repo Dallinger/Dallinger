@@ -16,6 +16,7 @@ from dallinger.docker.wheel_filename import parse_wheel_filename
 from dallinger.utils import (
     JSON_LOGFILE,
     abspath_from_egg,
+    dockerfile_reinstalls_local_dallinger_wheel,
     get_editable_dallinger_path,
 )
 
@@ -104,6 +105,9 @@ class DockerComposeWrapper:
             fh.write(f"FLASK_SECRET_KEY=${self.env.get('FLASK_SECRET_KEY')}\n")
             fh.write(f"UID={os.getuid()}\n")
             fh.write(f"GID={os.getgid()}\n")
+            sock = "/var/run/docker.sock"
+            docker_gid = os.stat(sock).st_gid if os.path.exists(sock) else os.getgid()
+            fh.write(f"DOCKER_GID={docker_gid}\n")
 
     def __enter__(self):
         return self.start()
@@ -361,6 +365,15 @@ def build_image(
         out.blather(
             "Found a custom Dockerfile in the experiment directory, will use this for deployment."
         )
+        wheels = list(Path(tmp_dir).glob("dallinger-*.whl"))
+        if wheels and not dockerfile_reinstalls_local_dallinger_wheel(
+            dockerfile_path.read_text(encoding="utf-8")
+        ):
+            raise click.UsageError(
+                "A local Dallinger wheel is staged, but the experiment "
+                "Dockerfile does not force-reinstall dallinger-*.whl after "
+                "COPY with --no-deps."
+            )
     else:
         dockerfile_text = rf"""# syntax=docker/dockerfile:1
         FROM {base_image_name}
@@ -400,6 +413,13 @@ def build_image(
         RUN {ssh_mount} grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
             python3 -m pip install -r /tmp/requirements_no_dallinger.txt || true
         COPY . /experiment
+        # Reinstall a staged local wheel last so it wins over any later
+        # ``psynet`` / Git Dallinger pin copied with the experiment tree.
+        RUN set -- /experiment/dallinger-*.whl; \
+            if [ -f "$1" ]; then \
+                pip uninstall -y dallinger || true; \
+                pip install --force-reinstall --no-deps "$1"; \
+            fi
         ENV PORT=5000
         CMD dallinger_heroku_web
         """

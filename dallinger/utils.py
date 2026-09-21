@@ -427,6 +427,11 @@ def abspath_from_egg(egg, path):
     `abspath_from_egg("dallinger", "dallinger/utils.py")`.
     Returns a `pathlib.Path` object or None if the path was not found.
     """
+    # Prefer the imported package tree so a PYTHONPATH/worktree checkout wins
+    # over an older installed copy's package data.
+    candidate = Path(__file__).resolve().parent.parent / path
+    if candidate.is_file():
+        return candidate
     for file in files_metadata(egg) or ():
         if str(file) != path:
             continue
@@ -434,10 +439,6 @@ def abspath_from_egg(egg, path):
         if located is not None and Path(located).is_file():
             return Path(located)
         break
-    # Editable installs may omit package data from importlib.metadata.
-    candidate = Path(__file__).resolve().parent.parent / path
-    if candidate.is_file():
-        return candidate
     return None
 
 
@@ -715,8 +716,13 @@ def assemble_experiment_temp_dir(log, config, for_remote=False, experiment_files
             _stage_compiled_requirements(Path(os.getcwd()), Path(dst))
         requirements_path = Path(dst) / "requirements.txt"
         if for_remote:
-            dallinger_path = get_editable_dallinger_path()
-            if dallinger_path and not os.environ.get("DALLINGER_NO_EGG_BUILD"):
+            source = os.environ.get("DALLINGER_SOURCE", "").strip()
+            dallinger_path = source or (
+                None
+                if os.environ.get("DALLINGER_NO_EGG_BUILD")
+                else get_editable_dallinger_path()
+            )
+            if dallinger_path:
                 log(
                     "Dallinger is installed as an editable package, "
                     "and so will be copied and deployed in its current state, "
@@ -728,13 +734,34 @@ def assemble_experiment_temp_dir(log, config, for_remote=False, experiment_files
                     "or you can install dallinger without the editable (-e) flag."
                 )
                 egg_name = build_and_place(dallinger_path, dst)
-                # Replace the line about dallinger in requirements.txt so that
-                # it refers to the just generated package
-                constraints_text = requirements_path.read_text()
-                new_constraints_text = re.sub(
-                    "dallinger==.*", f"file:{egg_name}", constraints_text
-                )
-                requirements_path.write_text(new_constraints_text)
+                custom_dockerfile = (Path(os.getcwd()) / "Dockerfile").is_file()
+                if custom_dockerfile:
+                    dockerfile_text = (Path(os.getcwd()) / "Dockerfile").read_text(
+                        encoding="utf-8"
+                    )
+                    if not dockerfile_reinstalls_local_dallinger_wheel(dockerfile_text):
+                        import click
+
+                        raise click.UsageError(
+                            "DALLINGER_SOURCE needs a Dockerfile that "
+                            "force-reinstalls dallinger-*.whl after COPY "
+                            "with --no-deps."
+                        )
+                    # Custom Dockerfiles (including PsyNet) install
+                    # requirements before COPY. Keep the pin; the image must
+                    # force-reinstall this wheel after the source copy.
+                    log(
+                        "Staged a local Dallinger wheel for the experiment image. "
+                        "A custom Dockerfile is present, so the pin in "
+                        "requirements.txt is left unchanged; the image should "
+                        f"install {egg_name} after COPY ."
+                    )
+                else:
+                    requirements_path.write_text(
+                        replace_dallinger_requirement(
+                            requirements_path.read_text(), egg_name
+                        )
+                    )
     except BaseException:
         shutil.rmtree(private_tree, ignore_errors=True)
         raise
@@ -742,6 +769,42 @@ def assemble_experiment_temp_dir(log, config, for_remote=False, experiment_files
 
 
 _AUTHORED_ROOT_INPUTS = ("requirements.txt",)
+_DALLINGER_REQUIREMENT_LINE = re.compile(
+    r"^(?P<indent>[ \t]*)(?:-e[ \t]+)?dallinger(?:\[[^\]]+\])?(?:[ \t]*@[ \t]*\S+|==\S*).*$",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+
+def dockerfile_reinstalls_local_dallinger_wheel(text: str) -> bool:
+    """Return whether Dockerfile force-reinstalls a staged wheel after COPY."""
+    copy_dot = None
+    for index, line in enumerate(text.splitlines()):
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        if stripped.upper().startswith("COPY ") and stripped[5:].lstrip().startswith(
+            "."
+        ):
+            copy_dot = index
+    if copy_dot is None:
+        return False
+    after = "\n".join(text.splitlines()[copy_dot + 1 :])
+    return (
+        "dallinger-*.whl" in after
+        and "--force-reinstall" in after
+        and "--no-deps" in after
+    )
+
+
+def replace_dallinger_requirement(text: str, egg_name: str) -> str:
+    """Point every Dallinger pin at a locally built wheel, including Git URLs."""
+    replacement = rf"\g<indent>file:{egg_name}"
+    new_text, count = _DALLINGER_REQUIREMENT_LINE.subn(replacement, text)
+    if count:
+        return new_text
+    if text and not text.endswith("\n"):
+        text += "\n"
+    return text + f"file:{egg_name}\n"
 
 
 def _restore_authored_root_inputs(experiment_root, destination, copy_func):
@@ -1202,18 +1265,21 @@ def exclusion_policy():
 
 
 def build_and_place(source: str, destination: str) -> str:
-    """Builds a python egg with the source found at `source` and places it in
-    `destination`.
-    Only works if dallinger is currently installed in editable mode.
+    """Build a wheel from ``source`` and copy it into ``destination``.
 
-    Returns the full path of the newly created distribution file.
+    ``python -m build`` may also emit an sdist. Only the wheel is copied,
+    because experiment Dockerfiles reinstall ``dallinger-*.whl``.
     """
     old_dir = os.getcwd()
     try:
         os.chdir(source)
         check_output(["python", "-m", "build"])
-        # The built package is the last addition to the `dist` directory
-        package_path = max(Path(source).glob("dist/*"), key=os.path.getctime)
+        wheels = list(Path(source).glob("dist/*.whl"))
+        if not wheels:
+            raise RuntimeError(
+                f"python -m build produced no wheel in {Path(source) / 'dist'}"
+            )
+        package_path = max(wheels, key=lambda path: path.stat().st_mtime)
         shutil.copy(package_path, destination)
     finally:
         os.chdir(old_dir)

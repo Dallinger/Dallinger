@@ -1,4 +1,23 @@
 services:
+  postgresql:
+    restart: "no"
+    image: postgres:12
+    container_name: {{ experiment_id }}_postgresql
+    environment:
+      POSTGRES_USER: {{ experiment_id }}
+      POSTGRES_PASSWORD: {{ postgresql_password }}
+      POSTGRES_DB: {{ experiment_id }}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ experiment_id }}"]
+      interval: 2s
+      timeout: 5s
+    networks:
+      app:
+        aliases:
+          - postgresql
+
   redis:
     restart: "no"
     image: redis
@@ -20,6 +39,8 @@ services:
     user: "${UID}:${GID}"
     command: dallinger_heroku_web
     depends_on: &commondepends
+      postgresql:
+        condition: service_healthy
       redis:
         condition: service_healthy
       pgbouncer:
@@ -72,6 +93,9 @@ services:
     restart: "no"
     image: docker.io/bitnamilegacy/pgbouncer:1.24.1
     container_name: {{ experiment_id }}_pgbouncer
+    depends_on:
+      postgresql:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/5432'"]
       interval: 2s
@@ -81,7 +105,6 @@ services:
       app:
         aliases:
           - {{ experiment_id }}_pgbouncer
-      dallinger:
     environment:
       - POSTGRESQL_HOST=postgresql
       - PGBOUNCER_AUTH_TYPE=md5
@@ -92,7 +115,6 @@ services:
       - PGBOUNCER_PORT=5432
       - PGBOUNCER_DATABASE={{ experiment_id }}
       - PGBOUNCER_POOL_MODE=transaction
-      # Connections to postgres will be closed after 60 seconds of inactivity
       - PGBOUNCER_SERVER_IDLE_TIMEOUT=60
 
 {%- if config["clock_on"] %}
@@ -112,6 +134,21 @@ services:
       - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
 {%- endif %}
 
+  cloudflared:
+    restart: unless-stopped
+    image: cloudflare/cloudflared:2026.9.1
+    user: "${UID}:${GID}"
+    command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/secrets/cloudflare-tunnel-token"]
+    environment:
+      HOME: /tmp
+    depends_on:
+      frontdoor:
+        condition: service_started
+    volumes:
+      - ./secrets/cloudflare-tunnel-token:/run/secrets/cloudflare-tunnel-token:ro
+    networks:
+      - app
+
   frontdoor:
     restart: unless-stopped
     image: caddy:2.10.2
@@ -130,8 +167,6 @@ services:
       app:
         aliases:
           - {{ experiment_id }}_frontdoor
-      dallinger:
-        aliases:
           - {{ experiment_id }}_web
 
   controller:
@@ -163,9 +198,8 @@ services:
 
 volumes:
   redis_data:
+  postgres_data:
 
 networks:
   app:
     name: {{ experiment_id }}_app
-  dallinger:
-    name: dallinger

@@ -35,12 +35,84 @@ def test_get_docker_compose_yml_uses_app_scoped_redis():
     assert services["redis"]["networks"] == {
         "app": {"aliases": ["dlgr-8c43a887_redis"]}
     }
-    assert services["web"]["networks"]["app"] is None
+    assert services["web"]["networks"] == {"app": {"aliases": ["experiment-backend"]}}
     assert services["worker_1"]["networks"] == ["app"]
     assert services["pgbouncer"]["networks"]["app"]["aliases"] == [
         "dlgr-8c43a887_pgbouncer"
     ]
     assert result["networks"]["app"]["name"] == "dlgr-8c43a887_app"
+    assert "frontdoor" in services
+    assert "controller" in services
+    assert services["frontdoor"]["networks"]["dallinger"]["aliases"] == [
+        "dlgr-8c43a887_web"
+    ]
+    assert "/var/run/docker.sock" not in str(services["frontdoor"])
+    assert services["controller"]["group_add"] == ["${DOCKER_GID}"]
+    assert services["controller"]["user"] == "${UID}:${GID}"
+    assert services["web"]["restart"] == "no"
+    assert services["frontdoor"]["restart"] == "unless-stopped"
+    assert services["frontdoor"]["user"] == "${UID}:${GID}"
+    assert services["frontdoor"]["environment"]["XDG_DATA_HOME"] == "/state/caddy-data"
+    assert "HIBERNATION_SECRET" not in services["frontdoor"].get("environment", {})
+    assert services["controller"]["environment"]["HIBERNATION_MANIFEST_PATH"] == (
+        "/app/deployment.json"
+    )
+    assert "./deployment.json:/app/deployment.json" in services["controller"]["volumes"]
+    assert "ImportError" in services["controller"]["command"][-1]
+    assert services["pgbouncer"]["healthcheck"]["test"][0] == "CMD-SHELL"
+
+
+def test_hibernation_secret_is_json_quoted_in_compose():
+    from dallinger.command_line.docker_ssh import get_docker_compose_yml
+
+    secret = 'abc: "quoted"'
+    for ingress in ("classic", "cloudflare"):
+        yaml_contents = get_docker_compose_yml(
+            {},
+            "dlgr-8c43a887",
+            "ghcr.io/dallinger/dallinger/bartlett1932",
+            "foobar",
+            ingress=ingress,
+            hibernation_secret=secret,
+        )
+        result = yaml.safe_load(yaml_contents)
+        assert (
+            result["services"]["controller"]["environment"]["HIBERNATION_SECRET"]
+            == secret
+        )
+
+
+def test_tunnel_compose_has_isolated_postgres_and_no_published_ports():
+    result = get_yaml({}, ingress="cloudflare")
+    services = result["services"]
+    dumped = yaml.safe_dump(result)
+
+    assert services["postgresql"]["container_name"] == "dlgr-8c43a887_postgresql"
+    assert "postgresql" in services
+    assert "cloudflared" in services
+    assert "frontdoor" in services
+    assert "controller" in services
+    assert "dallinger" not in result.get("networks", {})
+    assert "ports:" not in dumped
+    assert services["web"]["networks"] == {"app": {"aliases": ["experiment-backend"]}}
+    assert "/var/run/docker.sock" not in str(services["frontdoor"])
+    assert any(
+        "/var/run/docker.sock" in str(volume)
+        for volume in services["controller"]["volumes"]
+    )
+    assert result["networks"]["app"]["name"] == "dlgr-8c43a887_app"
+    assert services["controller"]["group_add"] == ["${DOCKER_GID}"]
+    assert services["web"]["restart"] == "no"
+    assert services["cloudflared"]["restart"] == "unless-stopped"
+    assert services["frontdoor"]["user"] == "${UID}:${GID}"
+    assert services["frontdoor"]["environment"]["XDG_DATA_HOME"] == "/state/caddy-data"
+    assert "HIBERNATION_SECRET" not in services["frontdoor"].get("environment", {})
+    assert "./deployment.json:/app/deployment.json" in services["controller"]["volumes"]
+    assert services["cloudflared"]["environment"]["HOME"] == "/tmp"
+    assert services["pgbouncer"]["healthcheck"]["test"][0] == "CMD-SHELL"
+    assert services["pgbouncer"]["depends_on"]["postgresql"]["condition"] == (
+        "service_healthy"
+    )
 
 
 def test_get_docker_compose_yml_env_vars_always_strings():
@@ -139,11 +211,15 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
     push_image.assert_called_once_with("registry/exp:tag")
 
 
-def get_yaml(config):
+def get_yaml(config, ingress="classic"):
     from dallinger.command_line.docker_ssh import get_docker_compose_yml
 
     yaml_contents = get_docker_compose_yml(
-        config, "dlgr-8c43a887", "ghcr.io/dallinger/dallinger/bartlett1932", "foobar"
+        config,
+        "dlgr-8c43a887",
+        "ghcr.io/dallinger/dallinger/bartlett1932",
+        "foobar",
+        ingress=ingress,
     )
     return yaml.safe_load(yaml_contents)
 
@@ -551,3 +627,376 @@ def test_push_image_does_not_retry_click_abort():
             push_image("registry/exp:tag")
 
     assert fake_client.images.push.call_count == 1
+
+
+def test_frontdoor_caddyfile_validates_on_caddy_2_10():
+    import json
+    import shutil
+    import subprocess
+
+    caddyfile = Path("dallinger/docker/ssh_templates/Caddyfile.frontdoor")
+    text = caddyfile.read_text()
+    assert "{>" not in text
+    assert "X-Hibernation-Secret" not in text
+    assert "header_up Connection" not in text
+    assert "header_up Upgrade" not in text
+    if not shutil.which("docker"):
+        pytest.skip("docker is required to validate the front-door Caddyfile")
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{caddyfile.resolve()}:/etc/caddy/Caddyfile:ro",
+            "caddy:2.10.2",
+            "caddy",
+            "adapt",
+            "--config",
+            "/etc/caddy/Caddyfile",
+            "--validate",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    adapted = json.dumps(json.loads(result.stdout))
+    assert "{>" not in adapted
+    assert "X-Hibernation-Secret" not in adapted
+    assert "{http.request.header.Connection}" not in adapted
+    assert "{http.request.header.Upgrade}" not in adapted
+
+
+def test_frontdoor_caddy_forwards_upgrade_headers(tmp_path):
+    import json
+    import os
+    import shutil
+    import subprocess
+    import time
+    import urllib.request
+
+    if not shutil.which("docker"):
+        pytest.skip("docker is required to exercise front-door Upgrade headers")
+
+    echo = tmp_path / "echo.py"
+    echo.write_text(
+        "from http.server import BaseHTTPRequestHandler, HTTPServer\n"
+        "import json\n"
+        "import os\n"
+        "\n"
+        "class H(BaseHTTPRequestHandler):\n"
+        "    def do_GET(self):\n"
+        "        body = json.dumps(dict(self.headers)).encode()\n"
+        "        self.send_response(200)\n"
+        "        self.send_header('Content-Type', 'application/json')\n"
+        "        self.send_header('Content-Length', str(len(body)))\n"
+        "        self.end_headers()\n"
+        "        self.wfile.write(body)\n"
+        "\n"
+        "    def log_message(self, *args):\n"
+        "        return\n"
+        "\n"
+        "HTTPServer(('0.0.0.0', int(os.environ.get('PORT', '5000'))), H).serve_forever()\n"
+    )
+    state = tmp_path / "state"
+    state.mkdir()
+    caddyfile = Path("dallinger/docker/ssh_templates/Caddyfile.frontdoor").resolve()
+    suffix = str(os.getpid())
+    net = f"dlgr-caddy-{suffix}"
+    names = {
+        "experiment-backend": f"dlgr-web-{suffix}",
+        "controller": f"dlgr-ctrl-{suffix}",
+        "frontdoor": f"dlgr-fd-{suffix}",
+    }
+    created = []
+    try:
+        create = subprocess.run(
+            ["docker", "network", "create", net], capture_output=True, text=True
+        )
+        if create.returncode != 0:
+            pytest.skip(create.stderr or create.stdout)
+        for alias, port in (("experiment-backend", "5000"), ("controller", "8080")):
+            started = subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "-d",
+                    "--rm",
+                    "--name",
+                    names[alias],
+                    "--network",
+                    net,
+                    "--network-alias",
+                    alias,
+                    "-e",
+                    f"PORT={port}",
+                    "-v",
+                    f"{echo}:/echo.py:ro",
+                    "python:3.12-alpine",
+                    "python",
+                    "/echo.py",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if started.returncode != 0:
+                pytest.skip(started.stderr or started.stdout)
+            created.append(names[alias])
+        started = subprocess.run(
+            [
+                "docker",
+                "run",
+                "-d",
+                "--rm",
+                "--name",
+                names["frontdoor"],
+                "--network",
+                net,
+                "-p",
+                "127.0.0.1::5000",
+                "-v",
+                f"{caddyfile}:/etc/caddy/Caddyfile:ro",
+                "-v",
+                f"{state}:/state",
+                "caddy:2.10.2",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if started.returncode != 0:
+            pytest.skip(started.stderr or started.stdout)
+        created.append(names["frontdoor"])
+        mapped = subprocess.check_output(
+            ["docker", "port", names["frontdoor"], "5000"], text=True
+        ).strip()
+        listen = mapped.split("->")[-1].strip()
+        if listen.startswith("0.0.0.0:"):
+            listen = "127.0.0.1:" + listen.split(":")[-1]
+        request = urllib.request.Request(
+            f"http://{listen}/ad",
+            headers={
+                "Connection": "Upgrade",
+                "Upgrade": "websocket",
+                "Sec-WebSocket-Version": "13",
+                "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+            },
+        )
+        payload = None
+        for _ in range(20):
+            try:
+                with urllib.request.urlopen(request, timeout=2) as response:
+                    payload = json.loads(response.read())
+                    break
+            except Exception:
+                time.sleep(0.25)
+        assert payload is not None
+        dumped = json.dumps(payload)
+        assert "{>" not in dumped
+        headers = {str(key).lower(): str(value) for key, value in payload.items()}
+        assert headers.get("upgrade") != "{>Upgrade}"
+        assert headers.get("connection") != "{>Connection}"
+    finally:
+        for name in created:
+            subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+        subprocess.run(["docker", "network", "rm", net], capture_output=True)
+
+
+def test_frontdoor_caddy_returns_503_when_backend_alias_is_absent(tmp_path):
+    import json
+    import os
+    import shutil
+    import subprocess
+    import time
+    import urllib.error
+    import urllib.request
+
+    if not shutil.which("docker"):
+        pytest.skip("docker is required to exercise a missing backend alias")
+
+    state = tmp_path / "state"
+    state.mkdir()
+    caddyfile = Path("dallinger/docker/ssh_templates/Caddyfile.frontdoor").resolve()
+    suffix = f"{os.getpid()}-absent"
+    net = f"dlgr-caddy-{suffix}"
+    name = f"dlgr-fd-{suffix}"
+    try:
+        create = subprocess.run(
+            ["docker", "network", "create", net], capture_output=True, text=True
+        )
+        if create.returncode != 0:
+            pytest.skip(create.stderr or create.stdout)
+        started = subprocess.run(
+            [
+                "docker",
+                "run",
+                "-d",
+                "--rm",
+                "--name",
+                name,
+                "--network",
+                net,
+                "-p",
+                "127.0.0.1::5000",
+                "-v",
+                f"{caddyfile}:/etc/caddy/Caddyfile:ro",
+                "-v",
+                f"{state}:/state",
+                "caddy:2.10.2",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if started.returncode != 0:
+            pytest.skip(started.stderr or started.stdout)
+        mapped = subprocess.check_output(["docker", "port", name, "5000"], text=True)
+        listen = mapped.strip().split("->")[-1].strip()
+        if listen.startswith("0.0.0.0:"):
+            listen = "127.0.0.1:" + listen.split(":")[-1]
+        error = None
+        for _ in range(20):
+            try:
+                urllib.request.urlopen(f"http://{listen}/ad", timeout=5)
+            except urllib.error.HTTPError as exc:
+                error = exc
+                break
+            except Exception:
+                time.sleep(0.25)
+        assert error is not None
+        assert error.code == 503
+        assert json.loads(error.read())["status"] == "unavailable"
+        stats = subprocess.check_output(
+            ["docker", "stats", name, "--no-stream", "--format", "{{.MemUsage}}"],
+            text=True,
+        )
+        used = stats.split("/", 1)[0]
+        assert "GiB" not in used
+    finally:
+        subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+        subprocess.run(["docker", "network", "rm", net], capture_output=True)
+
+
+def test_frontdoor_caddy_sends_parked_health_to_controller(tmp_path):
+    import json
+    import os
+    import shutil
+    import subprocess
+    import time
+    import urllib.request
+
+    if not shutil.which("docker"):
+        pytest.skip("docker is required to exercise parked /health routing")
+
+    echo = tmp_path / "echo.py"
+    echo.write_text(
+        "from http.server import BaseHTTPRequestHandler, HTTPServer\n"
+        "import json, os\n"
+        "class H(BaseHTTPRequestHandler):\n"
+        "    def do_GET(self):\n"
+        "        body = json.dumps({'from': os.environ['ROLE']}).encode()\n"
+        "        self.send_response(200)\n"
+        "        self.send_header('Content-Type', 'application/json')\n"
+        "        self.send_header('Content-Length', str(len(body)))\n"
+        "        self.end_headers()\n"
+        "        self.wfile.write(body)\n"
+        "    def log_message(self, *args):\n"
+        "        return\n"
+        "HTTPServer(('0.0.0.0', int(os.environ['PORT'])), H).serve_forever()\n"
+    )
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "hibernating").write_text("")
+    caddyfile = Path("dallinger/docker/ssh_templates/Caddyfile.frontdoor").resolve()
+    suffix = f"{os.getpid()}-parked"
+    net = f"dlgr-caddy-{suffix}"
+    names = {
+        "web": f"dlgr-web-{suffix}",
+        "controller": f"dlgr-ctl-{suffix}",
+        "frontdoor": f"dlgr-fd-{suffix}",
+    }
+    created = []
+    try:
+        create = subprocess.run(
+            ["docker", "network", "create", net], capture_output=True, text=True
+        )
+        if create.returncode != 0:
+            pytest.skip(create.stderr or create.stdout)
+        for alias, port, role in (
+            ("experiment-backend", "5000", "web"),
+            ("controller", "8080", "controller"),
+        ):
+            started = subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "-d",
+                    "--rm",
+                    "--name",
+                    names["web" if alias == "experiment-backend" else "controller"],
+                    "--network",
+                    net,
+                    "--network-alias",
+                    alias,
+                    "-e",
+                    f"PORT={port}",
+                    "-e",
+                    f"ROLE={role}",
+                    "-v",
+                    f"{echo}:/echo.py:ro",
+                    "python:3.12-alpine",
+                    "python",
+                    "/echo.py",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if started.returncode != 0:
+                pytest.skip(started.stderr or started.stdout)
+            created.append(
+                names["web" if alias == "experiment-backend" else "controller"]
+            )
+        started = subprocess.run(
+            [
+                "docker",
+                "run",
+                "-d",
+                "--rm",
+                "--name",
+                names["frontdoor"],
+                "--network",
+                net,
+                "-p",
+                "127.0.0.1::5000",
+                "-v",
+                f"{caddyfile}:/etc/caddy/Caddyfile:ro",
+                "-v",
+                f"{state}:/state",
+                "caddy:2.10.2",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if started.returncode != 0:
+            pytest.skip(started.stderr or started.stdout)
+        created.append(names["frontdoor"])
+        mapped = subprocess.check_output(
+            ["docker", "port", names["frontdoor"], "5000"], text=True
+        ).strip()
+        listen = mapped.split("->")[-1].strip()
+        if listen.startswith("0.0.0.0:"):
+            listen = "127.0.0.1:" + listen.split(":")[-1]
+        payload = None
+        for _ in range(20):
+            try:
+                with urllib.request.urlopen(
+                    f"http://{listen}/health", timeout=2
+                ) as response:
+                    payload = json.loads(response.read())
+                    break
+            except Exception:
+                time.sleep(0.25)
+        assert payload == {"from": "controller"}
+    finally:
+        for name in created:
+            subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+        subprocess.run(["docker", "network", "rm", net], capture_output=True)

@@ -19,6 +19,10 @@ dallinger_email_address = dallinger@mailinator.com
 
 [Experiment]
 docker_worker_cpu_shares = 1024
+docker_ssh_idle_hibernate = False
+docker_ssh_idle_hibernate_minutes = 60
+docker_ssh_monitoring_kind = experiment
+docker_ssh_monitoring_path = /health
 enable_global_experiment_registry = False
 language = en
 lock_table_when_creating_participant = True
@@ -51,6 +55,12 @@ prolific_estimated_completion_minutes = 0
 prolific_is_custom_screening = False
 prolific_completion_config = {}
 prolific_recruitment_config = {}
+
+[Cloudflare]
+cloudflare_api_token =
+cloudflare_account_id =
+cloudflare_zone_id =
+cloudflare_dns_zone =
 
 [Internationalization]
 disable_browser_autotranslate = False
