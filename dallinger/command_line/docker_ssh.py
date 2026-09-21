@@ -503,6 +503,17 @@ def should_use_subdomain(app_name, archive_path):
     return False
 
 
+def _root_domain_preflight_required(server, app_name, archive_path, ingress):
+    """Return whether this deploy would take over the host Caddy root site.
+
+    Cloudflare apps use ``{app}.{zone}`` even when ``--app`` is omitted, so
+    they must not offer to destroy every experiment on the server.
+    """
+    if _resolve_ingress(CONFIGURED_HOSTS[server], ingress) == INGRESS_CLOUDFLARE:
+        return False
+    return not should_use_subdomain(app_name, archive_path)
+
+
 def split_ssh_host_port(host):
     """Parse SSH host strings into ``(host, port)``.
 
@@ -733,7 +744,13 @@ def _compose_environment(config, config_options, mode, experiment_uuid, image_na
         }
     )
     cfg.update(config_options)
-    cfg.pop("host", None)
+    for key in (
+        "host",
+        "database_url",
+        "heroku_auth_token",
+        "cloudflare_api_token",
+    ):
+        cfg.pop(key, None)
     return cfg
 
 
@@ -983,12 +1000,13 @@ def build_and_push_image(f):
         # If we build locally we have to push the image to the registry
         push_build = kwargs.get("push_build", False) or local_build
 
-        use_subdomain = should_use_subdomain(
-            kwargs.get("app_name"), kwargs.get("archive_path")
-        )
-
         preflight_root_clean = False
-        if not use_subdomain:
+        if _root_domain_preflight_required(
+            kwargs["server"],
+            kwargs.get("app_name"),
+            kwargs.get("archive_path"),
+            kwargs.get("ingress"),
+        ):
             preflight_root_clean = ensure_root_domain_ready(
                 server=kwargs["server"], update=kwargs.get("update", False)
             )
@@ -2622,15 +2640,13 @@ class Executor:
             return
         if not click.confirm(
             "Run safe Docker cleanup now on the remote host? "
-            "(unused images + stopped containers)",
+            "(unused images, and stopped containers that are not a "
+            "deployed Dallinger app)",
             default=False,
         ):
             return
         print("Running safe cleanup steps on the remote host:")
-        for description, command in (
-            ("Remove unused images", "docker image prune -af"),
-            ("Remove stopped containers", "docker container prune -f"),
-        ):
+        for description, command in _safe_disk_cleanup_steps():
             print(f"- {description}: {command}")
             status, stdout, stderr = self._run_with_status(command)
             if status != 0:
@@ -2900,15 +2916,47 @@ def _is_remote_disk_full_error(*outputs):
     )
 
 
+def _selective_stopped_container_cleanup():
+    """Remove stopped containers that are not a deployed Dallinger app.
+
+    ``docker container prune`` would delete hibernated web, Redis, and
+    Postgres containers. ``awaken`` starts those existing containers and
+    does not recreate them.
+    """
+    return (
+        "docker ps -aq --filter status=exited --filter status=created "
+        "--filter status=dead "
+        "--format '{{.ID}} {{.Label \"com.docker.compose.project\"}}' | "
+        "while read -r id project; do "
+        'if [ -n "$project" ] && '
+        '[ -f "$HOME/dallinger/$project/docker-compose.yml" ]; then continue; fi; '
+        'docker rm "$id" >/dev/null; done'
+    )
+
+
+def _safe_disk_cleanup_steps():
+    """Return (description, command) pairs for a disk-full cleanup."""
+    return (
+        ("Remove unused images", "docker image prune -af"),
+        (
+            "Remove stopped containers that are not a deployed Dallinger app",
+            _selective_stopped_container_cleanup(),
+        ),
+    )
+
+
 def get_remote_disk_full_guidance(host):
+    image_prune, container_cleanup = _safe_disk_cleanup_steps()
     guidance = [
         "",
         f"Remote Docker host '{host}' appears to be out of disk space.",
         "Safe cleanup steps (low-risk) are:",
-        "  docker image prune -af",
-        "  docker container prune -f",
+        f"  {image_prune[1]}",
+        f"  {container_cleanup[1]}",
         "",
-        "Dallinger can run these safe steps for you automatically.",
+        "Do not run 'docker container prune -f'. That deletes stopped",
+        "containers for hibernated experiments, and awaken cannot recreate them.",
+        "Dallinger can run the safe steps for you automatically.",
         "We intentionally do not auto-prune volumes here, to avoid data loss.",
         "",
     ]

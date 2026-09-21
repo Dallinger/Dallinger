@@ -321,6 +321,10 @@ class HibernationController:
                     self._start_expensive()
                     self._wait_until_ready()
                     self._write_state(STATE_AWAKE)
+                    # Restart the quiet period. The access log still shows
+                    # the old request that caused the sleep, and a CLI awaken
+                    # does not add a new one.
+                    self._latest_activity = self.clock()
                 except Exception:
                     self._write_state(STATE_HIBERNATING)
                     raise

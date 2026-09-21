@@ -621,11 +621,14 @@ Docker Deployment Configuration
     that relies on long-lived WebSockets or other in-memory participant
     state: sleep stops web, workers, Redis, and (for Cloudflare apps)
     Postgres. A later visit starts a spinner until those services are
-    healthy again. A crash while the app is awake returns HTTP 503 and is
-    not auto-restarted. Expensive services use Compose ``restart: "no"``, so
-    a host reboot also leaves them stopped. The controller then records
-    hibernation so a visitor or ``dallinger docker-ssh awaken`` starts them
-    again. The front door and controller stay up.
+    healthy again. Expensive services use Compose ``restart: unless-stopped``.
+    A host reboot brings back an app that was running. An explicit hibernate
+    is a Docker stop, so those containers stay stopped across reboot and
+    ``/health`` keeps reporting hibernating until a visitor or
+    ``dallinger docker-ssh awaken``. ``awaken`` restarts the idle quiet
+    period, including when the operator wakes the app from the command line.
+    The front door and controller stay up. Docker may restart a crashed
+    container; ``/health`` returns HTTP 503 while the backend is actually down.
 
 ``docker_ssh_idle_hibernate_minutes`` *int*
     Quiet period before automatic hibernation. Default ``60``.

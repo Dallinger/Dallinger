@@ -127,6 +127,19 @@ def test_health_probes_do_not_count_as_activity(tmp_path):
     assert controller.current_state() == "hibernating"
 
 
+def test_awaken_restarts_the_idle_quiet_period(tmp_path):
+    docker = FakeDocker([_container("web")])
+    now = 1_700_000_060
+    (tmp_path / "access.log").write_text(
+        json.dumps({"ts": 1_700_000_000, "request": {"uri": "/ad"}}) + "\n"
+    )
+    controller = _controller(tmp_path, docker, clock=lambda: now, idle_minutes=1)
+    controller.hibernate()
+    controller.awaken()
+    assert controller.maybe_idle_hibernate(now) is False
+    assert controller.current_state() == "awake"
+
+
 def test_recent_non_health_traffic_prevents_idle_sleep(tmp_path):
     docker = FakeDocker([_container("web")])
     now = 1_700_000_030

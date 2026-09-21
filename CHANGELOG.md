@@ -41,6 +41,15 @@
   tests on every PR covering deploy/destroy, app listing, server listing,
   missing-app error handling, the ``--update`` refresh flow, and classic
   hibernate/awaken (``/health`` stays up without starting ``web``).
+- ``docker-ssh awaken`` restarts the idle quiet period, so an idle-enabled
+  app is not parked again immediately after a command-line wake. Cloudflare
+  deploys no longer offer to destroy every app on the host when ``--app``
+  is omitted. Disk-full cleanup removes unused images and stopped containers
+  that are not a deployed Dallinger app, and does not prune hibernated
+  services. Expensive services use ``restart: unless-stopped``: a reboot
+  restores an app that was running, and an explicit hibernate stays stopped.
+  ``--config cloudflare_api_token`` cannot be written into the remote
+  Compose environment.
 - docker-ssh hibernation now waits until web ``/health`` succeeds before
   treating an app as awake, lists sleeping apps as ``hibernating`` rather
   than ``running``, and gives the controller the Docker socket group so it

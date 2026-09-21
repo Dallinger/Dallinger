@@ -551,6 +551,29 @@ def test_resolve_ingress_uses_server_default():
     assert docker_ssh_module._resolve_ingress({}) == "classic"
 
 
+def test_cloudflare_deploy_skips_root_domain_preflight(monkeypatch):
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"lab": {"host": "lab.example", "default_ingress": "cloudflare"}},
+    )
+    assert not docker_ssh_module._root_domain_preflight_required(
+        "lab", None, None, None
+    )
+    assert not docker_ssh_module._root_domain_preflight_required(
+        "lab", None, "/tmp/export.zip", None
+    )
+    assert not docker_ssh_module._root_domain_preflight_required(
+        "lab", None, None, "cloudflare"
+    )
+    assert docker_ssh_module._root_domain_preflight_required(
+        "lab", None, None, "classic"
+    )
+    assert not docker_ssh_module._root_domain_preflight_required(
+        "lab", "dlgr-abcd1234", None, "classic"
+    )
+
+
 def test_destroy_cloudflare_skips_caddy_and_removes_volumes(monkeypatch):
     dump = (
         "=== myapp ===\n"
@@ -742,9 +765,14 @@ def test_compose_environment_strips_cloudflare_api_token():
             return self.as_dict()[key]
 
     env = docker_ssh_module._compose_environment(
-        Config(), {}, "live", "uuid", "image:tag"
+        Config(),
+        {"cloudflare_api_token": "from-cli", "host": "smuggled"},
+        "live",
+        "uuid",
+        "image:tag",
     )
     assert "cloudflare_api_token" not in env
+    assert "from-cli" not in env.values()
     assert env["AWS_ACCESS_KEY_ID"] == "id"
     assert "host" not in env
 

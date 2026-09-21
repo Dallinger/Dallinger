@@ -223,11 +223,15 @@ passwordless ``sudo -n`` and then a root ``alpine:3.20`` container. If that
 chown fails, deploy warns and continues.
 
 Do not turn on idle sleep while recruitment is running, or for experiments
-that keep WebSocket or other in-memory participant state. A crash while
-awake returns HTTP 503 and is not auto-restarted. After a host reboot the
-front door and controller come back; if the ``web`` backend is still down
-the controller records hibernation so a visitor or
-``dallinger docker-ssh awaken`` starts them. A leftover ``waking`` marker
+that keep WebSocket or other in-memory participant state. Expensive
+services use ``restart: unless-stopped``: a host reboot brings back an app
+that was running, and an explicit hibernate stays stopped.
+``dallinger docker-ssh awaken`` restarts the idle quiet period so a
+just-woken app is not parked again on the next check. ``/health`` returns
+HTTP 503 while the backend is down. After a host reboot the front door and
+controller come back; if the ``web`` backend is still down the controller
+records hibernation so a visitor or ``dallinger docker-ssh awaken`` starts
+them. A leftover ``waking`` marker
 after a controller restart is treated the same way, even if Postgres or
 Redis already came up. Isolated Cloudflare Postgres uses a pinned
 ``{app}_postgresql`` container name so export does not fall back to the

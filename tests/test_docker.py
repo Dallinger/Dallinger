@@ -49,7 +49,7 @@ def test_get_docker_compose_yml_uses_app_scoped_redis():
     assert "/var/run/docker.sock" not in str(services["frontdoor"])
     assert services["controller"]["group_add"] == ["${DOCKER_GID}"]
     assert services["controller"]["user"] == "${UID}:${GID}"
-    assert services["web"]["restart"] == "no"
+    assert services["web"]["restart"] == "unless-stopped"
     assert services["frontdoor"]["restart"] == "unless-stopped"
     assert services["frontdoor"]["user"] == "${UID}:${GID}"
     assert services["frontdoor"]["environment"]["XDG_DATA_HOME"] == "/state/caddy-data"
@@ -102,7 +102,7 @@ def test_tunnel_compose_has_isolated_postgres_and_no_published_ports():
     )
     assert result["networks"]["app"]["name"] == "dlgr-8c43a887_app"
     assert services["controller"]["group_add"] == ["${DOCKER_GID}"]
-    assert services["web"]["restart"] == "no"
+    assert services["web"]["restart"] == "unless-stopped"
     assert services["cloudflared"]["restart"] == "unless-stopped"
     assert services["frontdoor"]["user"] == "${UID}:${GID}"
     assert services["frontdoor"]["environment"]["XDG_DATA_HOME"] == "/state/caddy-data"
@@ -511,6 +511,15 @@ def test_is_remote_disk_full_error_detects_common_markers():
     assert not _is_remote_disk_full_error("authentication failed")
 
 
+def test_disk_cleanup_keeps_stopped_containers_for_deployed_apps():
+    from dallinger.command_line.docker_ssh import _safe_disk_cleanup_steps
+
+    commands = [command for _description, command in _safe_disk_cleanup_steps()]
+    assert commands[0] == "docker image prune -af"
+    assert "docker container prune" not in commands[1]
+    assert "dallinger/$project/docker-compose.yml" in commands[1]
+
+
 def test_get_remote_disk_full_guidance_recommends_safe_cleanup_only():
     from dallinger.command_line.docker_ssh import get_remote_disk_full_guidance
 
@@ -519,7 +528,9 @@ def test_get_remote_disk_full_guidance_recommends_safe_cleanup_only():
         "Remote Docker host 'example.org' appears to be out of disk space." in guidance
     )
     assert "docker image prune -af" in guidance
+    assert "docker-compose.yml" in guidance
     assert "docker container prune -f" in guidance
+    assert "Do not run 'docker container prune -f'" in guidance
     assert "do not auto-prune volumes" in guidance
     assert "docker system prune -af --volumes" not in guidance
 

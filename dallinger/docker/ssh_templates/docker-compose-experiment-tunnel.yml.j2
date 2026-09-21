@@ -1,6 +1,6 @@
 services:
   postgresql:
-    restart: "no"
+    restart: unless-stopped
     image: postgres:12
     container_name: {{ experiment_id }}_postgresql
     environment:
@@ -19,7 +19,7 @@ services:
           - postgresql
 
   redis:
-    restart: "no"
+    restart: unless-stopped
     image: redis
     command: redis-server --appendonly yes
     volumes:
@@ -34,7 +34,7 @@ services:
           - {{ experiment_id }}_redis
 
   web:
-    restart: "no"
+    restart: unless-stopped
     image: {{ experiment_image }}
     user: "${UID}:${GID}"
     command: dallinger_heroku_web
@@ -69,7 +69,7 @@ services:
   {% set num_dynos = config["num_dynos_worker"] | default('1') | int %}
   {%- for number in range(num_dynos) %}
   worker_{{ number + 1 }}:
-    restart: "no"
+    restart: unless-stopped
     image: {{ experiment_image }}
     command: dallinger_heroku_worker
     cpu_shares: {{ config["docker_worker_cpu_shares"] }}
@@ -90,7 +90,7 @@ services:
   {%- endfor %}
 
   pgbouncer:
-    restart: "no"
+    restart: unless-stopped
     image: docker.io/bitnamilegacy/pgbouncer:1.24.1
     container_name: {{ experiment_id }}_pgbouncer
     depends_on:
@@ -119,7 +119,7 @@ services:
 
 {%- if config["clock_on"] %}
   clock:
-    restart: "no"
+    restart: unless-stopped
     image: {{ experiment_image }}
     user: "${UID}:${GID}"
     command: dallinger_heroku_clock
