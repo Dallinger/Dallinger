@@ -30,6 +30,14 @@ from sqlalchemy import exc as sa_exc
 from dallinger import db
 from dallinger.config import get_config
 from dallinger.constraints import ensure_constraints_file_presence
+from dallinger.deployment_plan import (
+    POLICY_FILENAME,
+    DeploymentPlan,
+    DeploymentPlanError,
+    build_deployment_plan,
+    materialize_deployment_plan_entry,
+    validate_explicit_provider_destination,
+)
 from dallinger.models import Participant
 
 local_warning_cache = {}
@@ -209,8 +217,8 @@ class GitClient:
             for k, v in config.items():
                 self._run(["git", "config", k, v])
 
-    def add(self, what):
-        self._run(["git", "add", what])
+    def add(self, *what):
+        self._run(["git", "add", *what])
 
     def commit(self, msg):
         self._run(["git", "commit", "-m", '"{}"'.format(msg)])
@@ -417,9 +425,17 @@ def abspath_from_egg(egg, path):
     `abspath_from_egg("dallinger", "dallinger/utils.py")`.
     Returns a `pathlib.Path` object or None if the path was not found.
     """
-    for file in files_metadata(egg):
-        if str(file) == path:
-            return file.locate()
+    for file in files_metadata(egg) or ():
+        if str(file) != path:
+            continue
+        located = file.locate()
+        if located is not None and Path(located).is_file():
+            return Path(located)
+        break
+    # Editable installs may omit package data from importlib.metadata.
+    candidate = Path(__file__).resolve().parent.parent / path
+    if candidate.is_file():
+        return candidate
     return None
 
 
@@ -498,7 +514,12 @@ def develop_target_path(config):
     return develop_path
 
 
-def bootstrap_development_session(exp_config, experiment_path, log):
+def bootstrap_development_session(
+    exp_config,
+    experiment_path,
+    log,
+    experiment_files=None,
+):
     check_local_db_connection(log)
     check_experiment_dependencies(Path(experiment_path) / "requirements.txt")
 
@@ -530,31 +551,47 @@ def bootstrap_development_session(exp_config, experiment_path, log):
         experiment_path=experiment_path,
         destination=destination_path,
         copy_func=symlink_file,
+        experiment_files=experiment_files,
     )
 
     copy_file(source_path / "app.py", destination_path / "app.py")
     copy_file(source_path / "run.sh", destination_path / "run.sh")
     (destination_path / "run.sh").chmod(0o744)  # Make run script executable
 
+    _restore_authored_root_inputs(
+        Path(experiment_path), Path(destination_path), copy_func=symlink_file
+    )
     config.write(directory=destination_path)
 
     return (experiment_uid, destination_path)
 
 
 def setup_experiment(
-    log, debug=True, verbose=False, app=None, exp_config=None, local_checks=True
+    log,
+    debug=True,
+    verbose=False,
+    app=None,
+    exp_config=None,
+    local_checks=True,
+    experiment_files=None,
 ):
     """Checks the experiment's python dependencies, then prepares a temp directory
     with files merged from the custom experiment and Dallinger.
 
     The resulting directory includes all the files necessary to deploy to
     Heroku.
+
+    Commands that verify before assembly may pass the same
+    ``ExperimentFileSource`` to ``verify_package`` and this function to retain
+    one command-scoped deployment plan.
     """
     if local_checks:
         check_local_db_connection(log)
         check_experiment_dependencies(Path(os.getcwd()) / "requirements.txt")
 
-    ensure_constraints_file_presence(os.getcwd())
+    source = experiment_files or ExperimentFileSource(os.getcwd())
+    if source.deployment_plan is None:
+        ensure_constraints_file_presence(os.getcwd())
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
 
@@ -583,7 +620,12 @@ def setup_experiment(
     if not config.get("dashboard_password", None):
         config.set("dashboard_password", fake.password(length=20, special_chars=False))
 
-    temp_dir = assemble_experiment_temp_dir(log, config, for_remote=not local_checks)
+    temp_dir = assemble_experiment_temp_dir(
+        log,
+        config,
+        for_remote=not local_checks,
+        experiment_files=source,
+    )
     log("Deployment temp directory: {}".format(temp_dir), chevrons=False)
 
     # Zip up the temporary directory and place it in the cwd.
@@ -598,7 +640,7 @@ def setup_experiment(
     return (heroku_app_id, temp_dir)
 
 
-def assemble_experiment_temp_dir(log, config, for_remote=False):
+def assemble_experiment_temp_dir(log, config, for_remote=False, experiment_files=None):
     """Create a temp directory from which to run an experiment.
     If for_remote is set to True the preparation includes bundling
     the local dallinger version if it was installed in editable mode.
@@ -610,9 +652,8 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
     - Templates and static resources from Dallinger
     - An export of the loaded configuration
     - Heroku-specific files (Procile, runtime.txt) from Dallinger
-    - A requirements.txt file with the contents from the constraints.txt file
-      in the experiment (Dallinger should have generated one if needed by the
-      time we reach this code)
+    - A requirements.txt file whose contents come from compiled constraints
+      (generated in this staging directory when a deployment plan is in use)
     - A dallinger zip (only if dallinger is installed in editable mode)
     - A prepare_docker_image.sh.sh script (possibly empty)
 
@@ -621,50 +662,94 @@ def assemble_experiment_temp_dir(log, config, for_remote=False):
     Returns the absolute path of the new directory.
     """
     exp_id = config.get("id")
-    dst = os.path.join(tempfile.mkdtemp(), exp_id)
-    collate_experiment_files(
-        config, experiment_path=os.getcwd(), destination=dst, copy_func=copy_file
-    )
+    private_tree = tempfile.mkdtemp()
+    dst = os.path.join(private_tree, exp_id)
+    try:
+        collate_experiment_files(
+            config,
+            experiment_path=os.getcwd(),
+            destination=dst,
+            copy_func=copy_file,
+            experiment_files=experiment_files,
+        )
 
-    # Write out the loaded configuration
-    config.write(filter_sensitive=True, directory=dst)
+        # Write out the loaded configuration
+        config.write(filter_sensitive=True, directory=dst)
 
-    # Write out the experiment id
-    with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
-        file.write(exp_id)
+        # Write out the experiment id
+        with open(os.path.join(dst, "experiment_id.txt"), "w") as file:
+            file.write(exp_id)
 
-    # Write out a runtime.txt file based on configuration
-    pyversion = config.get("heroku_python_version", None)
-    if pyversion:
-        with open(os.path.join(dst, "runtime.txt"), "w") as file:
-            file.write("python-{}".format(pyversion))
+        # Write out a runtime.txt file based on configuration
+        pyversion = config.get("heroku_python_version", None)
+        if pyversion:
+            with open(os.path.join(dst, "runtime.txt"), "w") as file:
+                file.write("python-{}".format(pyversion))
 
-    requirements_path = Path(dst) / "requirements.txt"
-    # Overwrite the requirements.txt file with the contents of the constraints.txt file
-    if not os.environ.get("SKIP_DEPENDENCY_CHECK"):
-        (Path(dst) / "constraints.txt").replace(requirements_path)
-    if for_remote:
-        dallinger_path = get_editable_dallinger_path()
-        if dallinger_path and not os.environ.get("DALLINGER_NO_EGG_BUILD"):
-            log(
-                "Dallinger is installed as an editable package, "
-                "and so will be copied and deployed in its current state, "
-                "ignoring the dallinger version specified in your experiment's "
-                "requirements.txt file!\n"
-                "If you don't need this you can speed up startup time by setting "
-                "the environment variable DALLINGER_NO_EGG_BUILD:\n"
-                "    export DALLINGER_NO_EGG_BUILD=1\n"
-                "or you can install dallinger without the editable (-e) flag."
-            )
-            egg_name = build_and_place(dallinger_path, dst)
-            # Replace the line about dallinger in requirements.txt so that
-            # it refers to the just generated package
-            constraints_text = requirements_path.read_text()
-            new_constraints_text = re.sub(
-                "dallinger==.*", f"file:{egg_name}", constraints_text
-            )
-            requirements_path.write_text(new_constraints_text)
+        _restore_authored_root_inputs(Path(os.getcwd()), Path(dst), copy_func=copy_file)
+        if not os.environ.get("SKIP_DEPENDENCY_CHECK"):
+            _stage_compiled_requirements(Path(os.getcwd()), Path(dst))
+        requirements_path = Path(dst) / "requirements.txt"
+        if for_remote:
+            dallinger_path = get_editable_dallinger_path()
+            if dallinger_path and not os.environ.get("DALLINGER_NO_EGG_BUILD"):
+                log(
+                    "Dallinger is installed as an editable package, "
+                    "and so will be copied and deployed in its current state, "
+                    "ignoring the dallinger version specified in your experiment's "
+                    "requirements.txt file!\n"
+                    "If you don't need this you can speed up startup time by setting "
+                    "the environment variable DALLINGER_NO_EGG_BUILD:\n"
+                    "    export DALLINGER_NO_EGG_BUILD=1\n"
+                    "or you can install dallinger without the editable (-e) flag."
+                )
+                egg_name = build_and_place(dallinger_path, dst)
+                # Replace the line about dallinger in requirements.txt so that
+                # it refers to the just generated package
+                constraints_text = requirements_path.read_text()
+                new_constraints_text = re.sub(
+                    "dallinger==.*", f"file:{egg_name}", constraints_text
+                )
+                requirements_path.write_text(new_constraints_text)
+    except BaseException:
+        shutil.rmtree(private_tree, ignore_errors=True)
+        raise
     return dst
+
+
+_AUTHORED_ROOT_INPUTS = ("requirements.txt",)
+
+
+def _restore_authored_root_inputs(experiment_root, destination, copy_func):
+    """Restore authored root files that the plan omits because assembly rewrites them."""
+    experiment_root = Path(experiment_root)
+    destination = Path(destination)
+    for name in _AUTHORED_ROOT_INPUTS:
+        source = experiment_root / name
+        target = destination / name
+        if source.is_file() and not os.path.lexists(target):
+            copy_func(os.fspath(source), os.fspath(target))
+
+
+def _stage_compiled_requirements(experiment_root, destination):
+    """Compile constraints in the staging directory without mutating the experiment.
+
+    The deployment plan omits generated root artifacts. Assembly restores
+    authored ``requirements.txt``, copies any existing ``constraints.txt`` as
+    a starting point, then ensures constraints in the staging tree.
+    """
+    experiment_root = Path(experiment_root)
+    destination = Path(destination)
+    source_constraints = experiment_root / "constraints.txt"
+    dest_constraints = destination / "constraints.txt"
+    if source_constraints.is_file() and not dest_constraints.exists():
+        shutil.copyfile(source_constraints, dest_constraints)
+    ensure_constraints_file_presence(destination)
+    if not dest_constraints.is_file():
+        raise DeploymentPlanError(
+            "Staged experiment is missing constraints.txt after dependency compilation."
+        )
+    dest_constraints.replace(destination / "requirements.txt")
 
 
 def copy_file(from_path, to_path):
@@ -677,17 +762,38 @@ def symlink_file(from_path, to_path):
     os.symlink(from_path, to_path)
 
 
-def collate_experiment_files(config, experiment_path, destination, copy_func):
+def collate_experiment_files(
+    config,
+    experiment_path,
+    destination,
+    copy_func,
+    experiment_files=None,
+):
     """Coordinates getting required files from various sources into a
     target directory.
     """
     # Order matters here, since the first files copied "win" if there's a
     # collision:
-    ExperimentFileSource(experiment_path).apply_to(destination, copy_func=copy_func)
-    ExplicitFileSource(experiment_path).apply_to(destination, copy_func=copy_func)
-    DallingerFileSource(config, dallinger_package_path()).apply_to(
-        destination, copy_func=copy_func
-    )
+    source = experiment_files or ExperimentFileSource(experiment_path)
+    explicit_source = ExplicitFileSource(experiment_path)
+    framework_source = DallingerFileSource(config, dallinger_package_path())
+    explicit_locations = list(explicit_source.map_locations_to(destination))
+    _validate_explicit_file_mappings(explicit_locations, destination)
+    framework_locations = list(framework_source.map_locations_to(destination))
+
+    if copy_func is symlink_file and source.deployment_plan is not None:
+        later_locations = (*explicit_locations, *framework_locations)
+        source.apply_development_to(
+            destination,
+            protected_destinations=(target for _, target in later_locations),
+        )
+        _apply_file_mappings(explicit_locations, copy_func)
+        _apply_file_mappings(framework_locations, copy_func)
+        return
+
+    source.apply_to(destination, copy_func=copy_func)
+    _apply_file_mappings(explicit_locations, copy_func)
+    _apply_file_mappings(framework_locations, copy_func)
 
 
 class FileSource:
@@ -711,18 +817,7 @@ class FileSource:
         """Copy files based iterable of source and destination tuples.
         Files are not overwritten if they already exist.
         """
-        for from_path, to_path in self.map_locations_to(destination):
-            target_folder = os.path.dirname(to_path)
-            ensure_directory(target_folder)
-            if os.path.exists(to_path):
-                continue
-            if is_broken_symlink(from_path):
-                raise OSError(
-                    f"Cannot copy broken symlink: {from_path}. "
-                    "If this file comes from a virtual environment directory (e.g. .venv), we recommend adding that "
-                    "virtual environment directory to your .gitignore file."
-                )
-            copy_func(from_path, to_path)
+        _apply_file_mappings(self.map_locations_to(destination), copy_func)
 
     def map_locations_to(self, destination):
         """Return a generator of two-tuples, where the first element is
@@ -781,13 +876,112 @@ class DallingerFileSource(FileSource):
 class ExperimentFileSource(FileSource):
     """Treat an experiment directory as a potential source of files for
     copying to a temp directory as part of a deployment (debug or otherwise).
+
+    ``selection="auto"`` opts into a deployment plan when ``deploy.toml`` is
+    present and otherwise retains legacy Git-based selection. The explicit
+    ``selection="legacy"`` mode is reserved for compatibility inspection and
+    rollback.
     """
 
-    def __init__(self, root_dir="."):
+    def __init__(self, root_dir=".", *, selection="auto", git_client=None):
+        if selection not in {"auto", "legacy"}:
+            raise ValueError(
+                "Experiment file selection must be either 'auto' or 'legacy'."
+            )
         self.root = os.path.abspath(root_dir)
-        self.git = GitClient()
+        self._git_client = git_client
+        self.deployment_plan: DeploymentPlan | None = None
+        policy_path = os.path.join(self.root, POLICY_FILENAME)
+        if selection == "auto" and os.path.lexists(policy_path):
+            self.deployment_plan = build_deployment_plan(self.root)
+
+    @property
+    def git(self):
+        """Return the Git client, creating one only for legacy selection."""
+        if self._git_client is None:
+            self._git_client = GitClient()
+        return self._git_client
 
     def map_locations_to(self, dst):
+        if self.deployment_plan is not None:
+            for entry in self.deployment_plan.entries:
+                yield (
+                    os.fspath(entry.source),
+                    os.path.join(dst, *entry.destination.split("/")),
+                )
+            return
+
+        yield from self._map_legacy_locations_to(dst)
+
+    @property
+    def size(self):
+        """Return planned size without restatting policy-selected files."""
+        if self.deployment_plan is not None:
+            return self.deployment_plan.total_size
+        return super().size
+
+    def apply_to(self, destination, copy_func=copy_file):
+        """Materialize a plan safely, or retain legacy source behavior."""
+        if self.deployment_plan is None:
+            return super().apply_to(destination, copy_func=copy_func)
+        if copy_func not in {copy_file, symlink_file}:
+            raise ValueError(
+                "Plan-backed experiment files require copy_file or symlink_file."
+            )
+
+        for entry in self.deployment_plan.entries:
+            target = os.path.join(destination, *entry.destination.split("/"))
+            ensure_directory(os.path.dirname(target))
+            if copy_func is copy_file:
+                materialize_deployment_plan_entry(
+                    self.deployment_plan,
+                    entry,
+                    target,
+                )
+            else:
+                if os.path.lexists(target):
+                    continue
+                # Development links remain intentionally trusted/live.
+                symlink_file(entry.source, target)
+
+    def apply_development_to(self, destination, protected_destinations=()):
+        """Materialize a policy plan with collision-safe bulk directory links."""
+        if self.deployment_plan is None:
+            return super().apply_to(destination, copy_func=symlink_file)
+
+        protected = _development_protected_paths(destination, protected_destinations)
+        candidates = _select_development_directory_candidates(
+            self.deployment_plan, protected
+        )
+        covered_ranges = []
+        for candidate in candidates:
+            target = os.path.join(destination, *candidate.destination.split("/"))
+            ensure_directory(os.path.dirname(target))
+            if os.path.lexists(target):
+                continue
+            symlink_file(candidate.source, target)
+            covered_ranges.append((candidate.entry_start, candidate.entry_stop))
+
+        range_index = 0
+        entry_index = 0
+        entries = self.deployment_plan.entries
+        while entry_index < len(entries):
+            if (
+                range_index < len(covered_ranges)
+                and entry_index == covered_ranges[range_index][0]
+            ):
+                entry_index = covered_ranges[range_index][1]
+                range_index += 1
+                continue
+            entry = entries[entry_index]
+            target = os.path.join(destination, *entry.destination.split("/"))
+            ensure_directory(os.path.dirname(target))
+            if not os.path.lexists(target):
+                symlink_file(entry.source, target)
+            entry_index += 1
+
+    def _map_legacy_locations_to(self, dst):
+        """Return the unchanged legacy Git/walk selection mapping."""
         # The GitClient and os.walk may return different representations of the
         # same unicode characters, so we use unicodedata.normalize() for
         # comparisons:
@@ -824,6 +1018,89 @@ class ExperimentFileSource(FileSource):
                 )
 
 
+def _apply_file_mappings(mappings, copy_func):
+    """Apply already-computed source/destination mappings with first-wins behavior."""
+    for from_path, to_path in mappings:
+        target_folder = os.path.dirname(to_path)
+        ensure_directory(target_folder)
+        if os.path.exists(to_path):
+            continue
+        if is_broken_symlink(from_path):
+            raise OSError(
+                f"Cannot copy broken symlink: {from_path}. "
+                "If this file comes from a virtual environment directory (e.g. .venv), we recommend adding that "
+                "virtual environment directory to your .gitignore file."
+            )
+        copy_func(from_path, to_path)
+
+
+def _validate_explicit_file_mappings(mappings, destination):
+    """Reject unsafe explicit-provider targets before staging begins."""
+    destination_root = os.path.abspath(destination)
+    for _, target in mappings:
+        relative = os.path.relpath(os.path.abspath(target), destination_root)
+        validate_explicit_provider_destination(Path(relative).as_posix())
+
+
+def _development_protected_paths(destination, protected_destinations):
+    """Return later-provider destination keys within the tree."""
+    destination_root = os.path.abspath(destination)
+    protected = set()
+    for target in protected_destinations:
+        target = os.path.abspath(target)
+        try:
+            inside_destination = (
+                os.path.commonpath((destination_root, target)) == destination_root
+            )
+        except ValueError:
+            inside_destination = False
+        if not inside_destination:
+            return frozenset({""})
+        relative = os.path.relpath(target, destination_root)
+        if relative == os.curdir:
+            return frozenset({""})
+        protected.add(_development_path_key(Path(relative).parts))
+    return frozenset(protected)
+
+
+def _development_path_key(parts):
+    """Return an NFC-normalized POSIX key for destination components."""
+    return "/".join(normalize("NFC", part) for part in parts)
+
+
+def _development_paths_overlap(first, second):
+    """Return whether two destinations are equal or one is an ancestor."""
+    if not first or not second:
+        return True
+    return (
+        first == second
+        or first.startswith(second + "/")
+        or second.startswith(first + "/")
+    )
+
+
+def _select_development_directory_candidates(plan, protected):
+    """Select shallowest disjoint candidates that do not overlap protected paths."""
+    selected = []
+    selected_destinations = set()
+    for candidate in sorted(
+        plan.directory_link_candidates,
+        key=lambda item: (item.destination.count("/"), item.destination),
+    ):
+        candidate_key = _development_path_key(candidate.destination.split("/"))
+        ancestors = {
+            "/".join(candidate_key.split("/")[:depth])
+            for depth in range(1, candidate_key.count("/") + 2)
+        }
+        if selected_destinations.intersection(ancestors):
+            continue
+        if any(_development_paths_overlap(candidate_key, path) for path in protected):
+            continue
+        selected.append(candidate)
+        selected_destinations.add(candidate_key)
+    return tuple(sorted(selected, key=lambda item: item.entry_start))
+
+
 class ExplicitFileSource(FileSource):
     """Add files that are explicitly requested by the experimenter with a hook function."""
 
@@ -833,7 +1110,15 @@ class ExplicitFileSource(FileSource):
     def map_locations_to(self, dst):
         from dallinger.config import initialize_experiment_package
 
-        initialize_experiment_package(dst)
+        experiment_root = os.path.abspath(self.root)
+        package_name = os.path.basename(experiment_root)
+        initialize_experiment_package(experiment_root)
+        package = sys.modules.get("dallinger_experiment")
+        if sys.modules.get(package_name) is package:
+            # ``initialize_experiment_package`` installs the stable alias used
+            # below; do not retain a root-basename alias that can point later
+            # assemblies at an unrelated experiment with the same directory name.
+            del sys.modules[package_name]
         from dallinger.experiment import load
 
         exp_class = load()

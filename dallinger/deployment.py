@@ -2,19 +2,30 @@ import codecs
 import json
 import os
 import re
+import sys
 import threading
 import time
 from shlex import quote
 from urllib.parse import urlparse, urlunparse
 
+import click
 import redis
 import requests
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from dallinger import data, db, heroku, recruiters, registration
 from dallinger.config import get_config
 from dallinger.heroku.tools import HerokuApp, HerokuLocalWrapper
 from dallinger.redis_utils import connect_to_redis
 from dallinger.utils import (
+    ExperimentFileSource,
     GitClient,
     bootstrap_development_session,
     get_base_url,
@@ -26,6 +37,63 @@ from dallinger.utils import (
 DEFAULT_DELAY = 1
 BACKOFF_FACTOR = 2
 MAX_ATTEMPTS = 6
+STARTUP_STATUS_CODES = frozenset({502, 503, 504})
+HTTPS_WAIT_MESSAGE = "Waiting for the experiment URL to become reachable"
+# Status, not an error: write to stdout. Only the bar is restyled; Rich's
+# default complete/pulse color is magenta-red.
+_HTTPS_WAIT_BAR_STYLE = "green"
+
+
+def _is_startup_exception(exc):
+    """True when the launch URL is not accepting HTTPS/HTTP yet."""
+    return isinstance(
+        exc,
+        (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.RetryError,
+            requests.exceptions.ChunkedEncodingError,
+        ),
+    )
+
+
+def _is_startup_status(status_code):
+    """True for gateway statuses that mean the app is still starting."""
+    try:
+        return int(status_code) in STARTUP_STATUS_CODES
+    except (TypeError, ValueError):
+        return False
+
+
+def _https_wait_progress():
+    """Progress bar for the HTTPS wait. Disabled when stdout is not a TTY.
+
+    The wait has no known length (the first POST may succeed, or we may retry
+    until the timeout), so the bar is indeterminate: it pulses instead of
+    sitting at 0%.
+    """
+    return Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(
+            complete_style=_HTTPS_WAIT_BAR_STYLE,
+            finished_style=_HTTPS_WAIT_BAR_STYLE,
+            pulse_style=_HTTPS_WAIT_BAR_STYLE,
+        ),
+        TimeElapsedColumn(),
+        console=Console(highlight=False),
+        transient=True,
+        disable=not sys.stdout.isatty(),
+    )
+
+
+def _announce_https_wait(announced):
+    """Print a one-line wait notice on non-TTY logs; the progress bar covers TTYs."""
+    if announced:
+        return True
+    if not sys.stdout.isatty():
+        Console(highlight=False).print(HTTPS_WAIT_MESSAGE)
+    return True
 
 
 def handle_launch_data(
@@ -37,9 +105,13 @@ def handle_launch_data(
     dozzle_password=None,
     context=None,
 ):
-    """Sends a POST request to the given `url`, retrying it with exponential backoff.
-    The passed `error` function is invoked to give feedback as each error occurs,
-    possibly multiple times. If all attempts fail, an exception is raised.
+    """POST to ``url`` (``/launch``), retrying with exponential backoff.
+
+    Connection, TLS, and gateway-startup failures are expected while the
+    server becomes reachable. Those retries show a progress bar instead of
+    error output. Application errors are still reported as they happen. If
+    every attempt fails, the last error is reported and a
+    ``click.ClickException`` summarizing the failure is raised.
 
     Args:
         url: The URL to send the POST request to
@@ -52,58 +124,112 @@ def handle_launch_data(
     """
     launch_data = None
     launch_request = None
-    for remaining_attempt in sorted(range(attempts), reverse=True):  # [3, 2, 1, 0]
-        try:
-            launch_request = requests.post(url)
-            request_happened = True
-        except requests.exceptions.RequestException as err:
-            request_happened = False
-            error(f"Error accessing {url}:\n{err}")
+    last_startup_error = None
+    saw_application_error = False
+    announced_wait = False
 
-        if request_happened:
+    with _https_wait_progress() as progress:
+        task_id = progress.add_task(HTTPS_WAIT_MESSAGE, total=None)
+        for remaining_attempt in sorted(range(attempts), reverse=True):
+            startup_failure = False
             try:
-                launch_data = launch_request.json()
-            except json.decoder.JSONDecodeError:
-                # The backend did not return JSON. It means our dallinger instance
-                # was not (yet) running at the time of the request.
-                # We treat this similarly to a RequestException: we'll try again after waiting.
+                launch_request = requests.post(url)
+                request_happened = True
+            except requests.exceptions.RequestException as err:
                 request_happened = False
-                error(
-                    f"Error parsing response from {url}, "
-                    f"check server logs for details.\n{launch_request.text}"
-                )
-            except ValueError as err:
-                error(
-                    f"Error parsing response from {url}, "
-                    f"check server logs for details.\n{err}\n{launch_request.text}"
-                )
-                raise
+                if _is_startup_exception(err):
+                    startup_failure = True
+                    last_startup_error = f"Error accessing {url}:\n{err}"
+                else:
+                    saw_application_error = True
+                    error(f"Error accessing {url}:\n{err}")
 
-        # Early return if successful
-        if request_happened and launch_request.ok:
-            return launch_data
-
-        if request_happened:
-            error(
-                "Error accessing {} ({}):\n{}".format(
+            if request_happened and _is_startup_status(launch_request.status_code):
+                startup_failure = True
+                request_happened = False
+                last_startup_error = "Error accessing {} ({}):\n{}".format(
                     url, launch_request.status_code, launch_request.text
                 )
-            )
 
-        if remaining_attempt:
-            delay = delay * BACKOFF_FACTOR
-            next_attempt_count = attempts - (remaining_attempt - 1)
-            error(
-                "Experiment launch failed. Trying again "
-                "(attempt {} of {}) in {} seconds ...".format(
-                    next_attempt_count, attempts, delay
+            if request_happened:
+                try:
+                    launch_data = launch_request.json()
+                except json.decoder.JSONDecodeError:
+                    # Non-JSON usually means the app is not serving yet, or a
+                    # real HTML error page. Treat a successful HTTP response
+                    # as startup; treat error statuses as application failures.
+                    request_happened = False
+                    detail = (
+                        f"Error parsing response from {url}, "
+                        f"check server logs for details.\n{launch_request.text}"
+                    )
+                    if launch_request.ok:
+                        startup_failure = True
+                        last_startup_error = detail
+                    else:
+                        saw_application_error = True
+                        error(detail)
+                except ValueError as err:
+                    error(
+                        f"Error parsing response from {url}, "
+                        f"check server logs for details.\n{err}\n{launch_request.text}"
+                    )
+                    raise
+
+            if request_happened and launch_request.ok:
+                progress.update(task_id, total=1, completed=1)
+                return launch_data
+
+            if request_happened:
+                saw_application_error = True
+                error(
+                    "Error accessing {} ({}):\n{}".format(
+                        url, launch_request.status_code, launch_request.text
+                    )
                 )
-            )
-        time.sleep(delay)
 
-    error("Experiment launch failed after multiple attempts.")
-    if launch_data and launch_data.get("message"):
-        error(launch_data["message"])
+            if startup_failure and not saw_application_error:
+                announced_wait = _announce_https_wait(announced_wait)
+                attempt_number = attempts - remaining_attempt
+                progress.update(
+                    task_id,
+                    description=(
+                        f"{HTTPS_WAIT_MESSAGE} (attempt {attempt_number} of {attempts})"
+                    ),
+                )
+            elif saw_application_error:
+                progress.update(task_id, visible=False)
+
+            if remaining_attempt:
+                delay = delay * BACKOFF_FACTOR
+                if not startup_failure or saw_application_error:
+                    next_attempt_count = attempts - (remaining_attempt - 1)
+                    error(
+                        "Experiment launch failed. Trying again "
+                        "(attempt {} of {}) in {} seconds ...".format(
+                            next_attempt_count, attempts, delay
+                        )
+                    )
+                time.sleep(delay)
+
+    if not saw_application_error and last_startup_error:
+        error("Timed out waiting for the experiment URL to become reachable.")
+        error(last_startup_error)
+        summary = (
+            f"{url} never became reachable. The experiment server may still be "
+            "starting up, or its TLS certificate may not have been issued yet."
+        )
+    else:
+        error("Experiment launch failed after multiple attempts.")
+        if launch_data and launch_data.get("message"):
+            error(launch_data["message"])
+        if launch_request is not None:
+            summary = (
+                f"{url} returned HTTP {launch_request.status_code}. "
+                "Check the experiment server logs for details."
+            )
+        else:
+            summary = f"Could not reach {url}."
 
     # Show appropriate log location message based on deployment context
     if context == "heroku":
@@ -115,14 +241,18 @@ def handle_launch_data(
             f"Check the detailed server logs at https://logs.{dns_host} (user = dallinger, password = {dozzle_password})"
         )
 
-    if launch_request is not None:
-        launch_request.raise_for_status()
-
-    raise requests.exceptions.ConnectionError
+    # A ClickException prints as "Error: <message>" and exits non-zero, so a
+    # failed launch reads as a diagnosis rather than a Python traceback.
+    raise click.ClickException(f"Experiment launch failed. {summary}")
 
 
 def deploy_sandbox_shared_setup(
-    log, verbose=True, app=None, exp_config=None, prelaunch_actions=None
+    log,
+    verbose=True,
+    app=None,
+    exp_config=None,
+    prelaunch_actions=None,
+    experiment_files=None,
 ):
     """Set up Git, push to Heroku, and launch the app."""
     if verbose:
@@ -130,10 +260,16 @@ def deploy_sandbox_shared_setup(
     else:
         out = open(os.devnull, "w")
 
+    experiment_files = experiment_files or ExperimentFileSource(os.getcwd())
     config = get_config(load=True)
     heroku.sanity_check(config)
     heroku_app_id, tmp = setup_experiment(
-        log, debug=False, app=app, exp_config=exp_config, local_checks=False
+        log,
+        debug=False,
+        app=app,
+        exp_config=exp_config,
+        local_checks=False,
+        experiment_files=experiment_files,
     )
 
     # Register the experiment using all configured registration services.
@@ -154,7 +290,7 @@ def deploy_sandbox_shared_setup(
     # Commit Heroku-specific files to tmp folder's git repo.
     git = GitClient(output=out)
     git.init()
-    git.add("--all")
+    _stage_heroku_assembly(git, experiment_files)
     git.commit('"Experiment {}"'.format(heroku_app_id))
 
     # Initialize the app on Heroku.
@@ -282,21 +418,38 @@ def deploy_sandbox_shared_setup(
     return result
 
 
+def _stage_heroku_assembly(git, experiment_files):
+    """Stage a Heroku assembly without changing legacy ignore behavior."""
+    if experiment_files.deployment_plan is None:
+        git.add("--all")
+    else:
+        git.add("--force", "--all")
+
+
 class DevelopmentDeployment:
     """Collates files from Dallinger and the custom experment, then symlinks
     them into a target sub-directory, so Flask development server can be run
     manually in that directory.
     """
 
-    def __init__(self, output, exp_config):
+    def __init__(
+        self,
+        output,
+        exp_config,
+        experiment_files=None,
+    ):
         self.out = output
         self.exp_config = exp_config or {}
         self.exp_config.update({"mode": "debug"})
+        self.experiment_files = experiment_files
 
     def run(self):
         """Bootstrap the environment and reset the database."""
         experiment_uid, dst = bootstrap_development_session(
-            self.exp_config, os.getcwd(), self.out.log
+            self.exp_config,
+            os.getcwd(),
+            self.out.log,
+            experiment_files=self.experiment_files,
         )
         db.init_db(drop_all=True)
 
@@ -307,6 +460,7 @@ class HerokuLocalDeployment:
     dispatch = {}  # Subclass may provide handlers for Heroku process output
     environ = None
     bot = False
+    experiment_files = None
     DEPLOY_NAME = "Heroku"
     WRAPPER_CLASS = HerokuLocalWrapper
     DO_INIT_DB = True
@@ -315,8 +469,11 @@ class HerokuLocalDeployment:
         self.exp_config.update({"mode": "debug"})
 
     def setup(self):
+        source = self.experiment_files or ExperimentFileSource(os.getcwd())
         self.exp_id, self.tmp_dir = setup_experiment(
-            self.out.log, exp_config=self.exp_config
+            self.out.log,
+            exp_config=self.exp_config,
+            experiment_files=source,
         )
 
     def update_dir(self):
@@ -386,7 +543,16 @@ class DebugDeployment(HerokuLocalDeployment):
         r"{}".format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
     }
 
-    def __init__(self, output, verbose, bot, proxy_port, exp_config, no_browsers=False):
+    def __init__(
+        self,
+        output,
+        verbose,
+        bot,
+        proxy_port,
+        exp_config,
+        no_browsers=False,
+        experiment_files=None,
+    ):
         self.out = output
         self.verbose = verbose
         self.bot = bot
@@ -396,6 +562,7 @@ class DebugDeployment(HerokuLocalDeployment):
         self.complete = False
         self.status_thread = None
         self.no_browsers = no_browsers
+        self.experiment_files = experiment_files
         self.environ = {
             "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
         }
@@ -535,13 +702,14 @@ class DebugDeployment(HerokuLocalDeployment):
 class LoaderDeployment(HerokuLocalDeployment):
     dispatch = {"Replay ready: (.*)$": "start_replay"}
 
-    def __init__(self, app_id, output, verbose, exp_config):
+    def __init__(self, app_id, output, verbose, exp_config, experiment_files=None):
         self.app_id = app_id
         self.out = output
         self.verbose = verbose
         self.exp_config = exp_config or {}
         self.original_dir = os.getcwd()
         self.zip_path = None
+        self.experiment_files = experiment_files
 
     def configure(self):
         self.exp_config.update({"mode": "debug", "loglevel": 0})
@@ -552,8 +720,12 @@ class LoaderDeployment(HerokuLocalDeployment):
             raise IOError(msg.format(self.app_id))
 
     def setup(self):
+        source = self.experiment_files or ExperimentFileSource(os.getcwd())
         self.exp_id, self.tmp_dir = setup_experiment(
-            self.out.log, app=self.app_id, exp_config=self.exp_config
+            self.out.log,
+            app=self.app_id,
+            exp_config=self.exp_config,
+            experiment_files=source,
         )
 
     def execute(self, heroku):

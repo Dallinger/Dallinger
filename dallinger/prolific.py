@@ -121,26 +121,40 @@ class ProlificService:
             json={"action": "APPROVE"},
         )
 
-    def get_participant_submission(self, submission_id: str) -> dict:
-        """Retrieve details of a participant Submission
+    def get_participant_submission(
+        self, submission_id: str, *, translate: bool = True
+    ) -> Optional[dict]:
+        """Retrieve details of a participant Submission.
 
         See: https://docs.prolific.com/api-reference/submissions
 
         This is roughly equivalent to an Assignment on MTurk.
 
-        Example return value:
+        By default the result is translated to Dallinger assignment fields
+        and a miss is a recruitment error. Pass ``translate=False`` to return
+        the Prolific payload (including ``bonus_payments``) or ``None`` on a
+        miss.
+
+        Example return value (default):
 
         {
-            "id": "60d9aadeb86739de712faee0",
-            "study_id": "60aca280709ee40ec37d4885",
-            "participant": "60bf9310e8dec401be6e9615",
+            "assignment_id": "60d9aadeb86739de712faee0",
+            "hit_id": "60aca280709ee40ec37d4885",
+            "worker_id": "60bf9310e8dec401be6e9615",
             "started_at": "2021-05-20T11:03:00.457Z",
             "status": "ACTIVE",
         }
         """
-        response = self._req(method="GET", endpoint=f"/submissions/{submission_id}/")
-        if response:
-            return _translate_submission_from_get_submission(response)
+        response = self._req(
+            method="GET",
+            endpoint=f"/submissions/{submission_id}/",
+            raise_on_error=translate,
+        )
+        if not response:
+            return None
+        if not translate:
+            return response
+        return _translate_submission_from_get_submission(response)
 
     def get_total_cost(self, study_id: str) -> float:
         """Get the total cost of a study including platform fees in cents."""
@@ -561,7 +575,9 @@ class ProlificService:
         """
         return self._req(method="GET", endpoint="/users/me/")
 
-    def _req(self, method: str, endpoint: str, **kw) -> dict:
+    def _req(
+        self, method: str, endpoint: str, *, raise_on_error: bool = True, **kw
+    ) -> Optional[dict]:
         """Runs the actual request/response cycle:
         * Adds Authorization header
         * Adds Referer header to help Prolific identify our requests
@@ -569,6 +585,9 @@ class ProlificService:
         * Logs all requests (we might want to stop doing this when we're
           out of our "beta" period with Prolific)
         * Parses response and does error handling
+
+        When ``raise_on_error`` is false, a miss returns ``None`` instead of a
+        recruitment error.
         """
         from dallinger.recruiters import handle_and_raise_recruitment_error
 
@@ -583,7 +602,12 @@ class ProlificService:
             "args": kw,
         }
         logger.warning(f"Prolific API request: {json.dumps(summary)}")
-        response = requests.request(method, url, headers=headers, **kw)
+        try:
+            response = requests.request(method, url, headers=headers, **kw)
+        except requests.RequestException:
+            if not raise_on_error:
+                return None
+            raise
 
         if method == "DELETE" and response.ok:
             return {"status_code": response.status_code}
@@ -591,13 +615,17 @@ class ProlificService:
         try:
             parsed = response.json()
         except requests.exceptions.JSONDecodeError as err:
+            if not raise_on_error:
+                return None
             handle_and_raise_recruitment_error(
                 ProlificServiceException(
                     f"Failed to parse the following JSON response from Prolific: {err.doc}"
                 )
             )
 
-        if "error" in parsed:
+        if isinstance(parsed, dict) and "error" in parsed:
+            if not raise_on_error:
+                return None
             error = {
                 "method": method,
                 "token": self.api_token_fragment,
@@ -608,6 +636,9 @@ class ProlificService:
             handle_and_raise_recruitment_error(
                 ProlificServiceException(json.dumps(error))
             )
+
+        if not raise_on_error and not response.ok:
+            return None
 
         return parsed
 
@@ -721,7 +752,9 @@ class DevProlificService(ProlificService):
 
         return True
 
-    def _req(self, method: str, endpoint: str, **kw) -> dict:
+    def _req(
+        self, method: str, endpoint: str, *, raise_on_error: bool = True, **kw
+    ) -> Optional[dict]:
         """Does NOT make any requests but instead writes to the log."""
         self.log_request(method=method, endpoint=endpoint, **kw)
         response = None

@@ -1,4 +1,5 @@
 from dallinger.deployment import DebugDeployment, setup_experiment
+from dallinger.utils import ExperimentFileSource
 
 
 class DockerDebugDeployment(DebugDeployment):
@@ -23,4 +24,5 @@ class DockerDebugDeployment(DebugDeployment):
             self.out.log,
             exp_config=self.exp_config,
             local_checks=False,
+            experiment_files=self.experiment_files or ExperimentFileSource(),
         )

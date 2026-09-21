@@ -258,15 +258,13 @@ def get_required_dallinger_version(experiment_tmp_path: str) -> str:
 
 
 def get_experiment_image_tag(experiment_tmp_path: str) -> str:
-    """Return a docker image tag to be used for the experiment.
+    """Return a docker image tag from the experiment's dependency inputs.
 
-    The tag needs to be a hash of all the files that, when changed,
-    require the image to be rebuilt.
-
-    When an experiment is changed an older image can still be used,
-    as long as no dependencies or build script changed.
-    The experiment directory can then be mounted to have the latest changes.
-    This saves the need to rebuild the image too often.
+    Used for local ``docker debug`` (the experiment directory is bind-mounted,
+    so the image is only a deps environment) and for ``dallinger docker build``
+    / ``push --use-existing``. SSH and Heroku-docker deploys instead pass
+    :func:`docker_tag_from_experiment_id` into :func:`build_image`, because
+    those paths ``COPY`` the experiment into the image.
     """
     files = "requirements.txt", "prepare_docker_image.sh"
     hash = sha256()
@@ -276,14 +274,40 @@ def get_experiment_image_tag(experiment_tmp_path: str) -> str:
     return hash.hexdigest()[:8]
 
 
+def docker_tag_from_experiment_id(experiment_id: str) -> str:
+    """Return a Docker tag unique to this launch.
+
+    On SSH and Heroku-docker deploy the experiment directory is copied into
+    the image and compose pins that tag for the life of the app. A deps-only
+    hash is then unsafe: two variants with the same ``requirements.txt`` and
+    ``prepare_docker_image.sh`` share a tag, race each other's builds, and
+    one app can run the other variant's code.
+
+    ``experiment_id`` is the per-launch UID from ``setup_experiment``. Docker
+    tags allow ``[A-Za-z0-9_.-]`` and must not start with ``.`` or ``-``.
+    """
+    tag = "".join(
+        ch if ch.isalnum() or ch in "_.-" else "-" for ch in str(experiment_id)
+    )
+    tag = tag.lstrip(".-") or "latest"
+    return tag[:128]
+
+
 def build_image(
-    tmp_dir, base_image_name, out, needs_chrome=False, force_build=True
+    tmp_dir,
+    base_image_name,
+    out,
+    needs_chrome=False,
+    force_build=True,
+    image_tag=None,
 ) -> str:
     """Build the docker image for the experiment and return its name.
-    If force_build=False, then the image will only be rebuilt if requirements.txt or prepare_docker_image.sh
-    have changed.
+
+    If ``image_tag`` is set, use it (deploy: per-launch UID). Otherwise hash
+    ``requirements.txt`` and ``prepare_docker_image.sh``. If
+    ``force_build`` is False, skip the build when that tag already exists.
     """
-    tag = get_experiment_image_tag(tmp_dir)
+    tag = image_tag or get_experiment_image_tag(tmp_dir)
     image_name = f"{base_image_name}:{tag}"
     base_image_name = get_base_image(tmp_dir, needs_chrome)
     client = docker.client.from_env()

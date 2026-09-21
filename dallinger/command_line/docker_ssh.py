@@ -17,7 +17,7 @@ from email.utils import parseaddr
 from functools import wraps
 from getpass import getuser
 from io import BytesIO
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from secrets import token_urlsafe
 from shlex import quote
 from socket import gethostbyname_ex, gethostname
@@ -36,6 +36,7 @@ from yaspin import yaspin
 from dallinger.command_line.config import get_configured_hosts, remove_host, store_host
 from dallinger.command_line.utils import (
     Output,
+    get_experiment_files,
     render_rich_table,
     run_pre_launch_checks,
 )
@@ -514,6 +515,48 @@ def _ignore_docker_ssh_resource_warnings():
     )
 
 
+def _image_usable_from_registry(docker_client, image_name):
+    """Return whether image_name can be deployed straight from the registry.
+
+    Pushes a local copy if the registry does not have the image yet. Returns
+    False when the registry cannot be consulted, leaving the caller to build the
+    image. Only the registry interaction is guarded here: wrapping the deploy
+    itself would turn any deploy failure into a silent rebuild and retry.
+    """
+    import docker
+
+    try:
+        # Use the docker_client to inspect the image
+        docker_client.images.get_registry_data(image_name)
+    except docker.errors.ImageNotFound:
+        pass
+    except Exception as e:
+        print(f"Error checking remote image: {e}")
+        return False
+    else:
+        print(f"Image {image_name} found on remote registry")
+        return True
+
+    # The image is not on the registry. Check if it's available locally
+    # and push it if it is. If images.push succeeds it means the image is available locally
+    print(f"Image {image_name} not found on remote registry. Trying to push")
+    try:
+        raw_result = docker_client.images.push(image_name)
+        # This is brittle, but it's an edge case not worth more effort
+        push_failed = bool(json.loads(raw_result.split("\r\n")[-2]).get("error"))
+    except Exception as e:
+        print(f"Error pushing image {image_name}: {e}")
+        return False
+    if push_failed:
+        # The image is not available, neither locally nor on the remote registry
+        print(
+            f"Could not find image {image_name} specified in experiment config as `docker_image_name`"
+        )
+        raise click.Abort
+    print(f"Image {image_name} pushed to remote registry")
+    return True
+
+
 def build_and_push_image(f):
     """Decorator for click commands that depend on a pushed docker image.
 
@@ -526,10 +569,12 @@ def build_and_push_image(f):
 
     @wraps(f)
     def wrapper(*args, **kwargs):  # pragma: no cover
+        files = get_experiment_files(os.getcwd())
+
         import docker
 
-        from dallinger.command_line.docker import push
-        from dallinger.docker.tools import build_image
+        from dallinger.command_line.docker import push_image
+        from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
 
         config = get_config(load=True)
         image_name = config.get("docker_image_name", None)
@@ -575,32 +620,8 @@ def build_and_push_image(f):
             # Avoid Paramiko by using the system ssh client
             docker_client = docker.from_env(use_ssh_client=True)
 
-            if image_name:
-                try:
-                    # Use the docker_client to inspect the image
-                    docker_client.images.get_registry_data(image_name)
-                    print(f"Image {image_name} found on remote registry")
-                    return f(*args, **dict(kwargs, image_name=image_name))
-                except docker.errors.ImageNotFound:
-                    # The image is not on the registry. Check if it's available locally
-                    # and push it if it is. If images.get succeeds it means the image is available locally
-                    print(
-                        f"Image {image_name} not found on remote registry. Trying to push"
-                    )
-                    raw_result = docker_client.images.push(image_name)
-                    # This is brittle, but it's an edge case not worth more effort
-                    if not json.loads(raw_result.split("\r\n")[-2]).get("error"):
-                        print(f"Image {image_name} pushed to remote registry")
-                        return f(*args, **dict(kwargs, image_name=image_name))
-                    # The image is not available, neither locally nor on the remote registry
-                    print(
-                        f"Could not find image {image_name} specified in experiment config as `docker_image_name`"
-                    )
-                    raise click.Abort
-                except Exception as e:
-                    print(f"Error checking remote image: {e}")
-                    # Fall through to build if there's any other error checking remote
-                    pass
+            if image_name and _image_usable_from_registry(docker_client, image_name):
+                return f(*args, **dict(kwargs, image_name=image_name))
 
             app_name = kwargs.get("app_name", None)
             _, tmp_dir = setup_experiment(
@@ -608,9 +629,13 @@ def build_and_push_image(f):
                 exp_config=config.as_dict(),
                 local_checks=False,
                 app=app_name,
+                experiment_files=files,
             )
             image_name = build_image(
-                tmp_dir, config.get("docker_image_base_name"), out=Output()
+                tmp_dir,
+                config.get("docker_image_base_name"),
+                out=Output(),
+                image_tag=docker_tag_from_experiment_id(config.get("id")),
             )
 
             remote_build = not local_build
@@ -622,8 +647,8 @@ def build_and_push_image(f):
                     f"Image {image_name} built remotely, skipping push to registry because --push-build was not selected."
                 )
             else:
-                # If it's a local build, or if it's a remote build and and push_build, then push.
-                image_name = push.callback(use_existing=True, app_name=app_name)
+                # If it's a local build, or if it's a remote build and push_build, then push.
+                image_name = push_image(image_name)
 
             return f(*args, **dict(kwargs, image_name=image_name))
         finally:
@@ -821,20 +846,7 @@ You can override this by creating a DNS A record pointing to
 you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}""")
     experiment_hostname = f"{experiment_id}.{dns_host}" if use_subdomain else dns_host
 
-    if dns_host != "nip.io":
-        # Check dns_host: make sure that the experiment host resolves to the remote host
-        dns_ok = ipaddr_experiment = ipaddr_server = True
-        try:
-            ipaddr_server = gethostbyname_ex(f"{ssh_host}")[2][0]
-            ipaddr_experiment = gethostbyname_ex(experiment_hostname)[2][0]
-        except Exception:
-            dns_ok = False
-        if not dns_ok or (ipaddr_experiment != ipaddr_server):
-            print(
-                f"""The dns name for the experiment ({experiment_hostname}) should resolve to {ipaddr_server}.
-It currently resolves to {ipaddr_experiment}."""
-            )
-            raise click.Abort
+    _check_experiment_hostname_dns(ssh_host, experiment_hostname)
 
     executor = Executor(ssh_host, user=ssh_user, app=app_identifier)
     executor.run("mkdir -p ~/dallinger/caddy.d")
@@ -1079,6 +1091,72 @@ It currently resolves to {ipaddr_experiment}."""
     }
 
 
+def experiment_image_from_compose(compose_yml: str) -> str | None:
+    """Return the image compose pins on the experiment ``web`` service."""
+    if not compose_yml:
+        return None
+    match = re.search(r"(?m)^  web:\n(?:    .*\n)*?    image: (\S+)", compose_yml)
+    if not match:
+        return None
+    return match.group(1).strip().strip("'\"") or None
+
+
+def read_remote_experiment_image(executor, app: str) -> str | None:
+    """Read the experiment image name from an app's remote compose file."""
+    raw = executor.run(
+        f"cat ~/dallinger/{app}/docker-compose.yml",
+        raise_=False,
+    )
+    return experiment_image_from_compose(raw or "")
+
+
+def apps_pinning_image(grep_paths: str, except_app: str) -> list[str]:
+    """Return app names whose compose files pin an image, excluding ``except_app``."""
+    apps = []
+    for line in (grep_paths or "").splitlines():
+        line = line.strip()
+        if not line.endswith("docker-compose.yml"):
+            continue
+        app_name = PurePosixPath(line).parent.name
+        if app_name and app_name != except_app:
+            apps.append(app_name)
+    return apps
+
+
+def image_pinned_by_other_apps(executor, image_name: str, except_app: str) -> bool:
+    """True if another app's compose file still pins this experiment image."""
+    needle = f"    image: {image_name}"
+    raw = executor.run(
+        f"grep -xF -l {quote(needle)} $HOME/dallinger/*/docker-compose.yml",
+        raise_=False,
+    )
+    return bool(apps_pinning_image(raw or "", except_app))
+
+
+def remove_experiment_image(executor, image_name: str | None) -> None:
+    """Remove a compose-pinned experiment image.
+
+    ``docker rmi`` without ``--force`` leaves the image if a container still
+    uses it.
+    """
+    if not image_name:
+        return
+    print(f"Removing experiment image {image_name}")
+    executor.run(f"docker rmi {quote(image_name)}", raise_=False)
+
+
+def remove_unshared_experiment_image(
+    executor, image_name: str | None, except_app: str
+) -> None:
+    """Remove an experiment image unless another app's compose still pins it."""
+    if not image_name:
+        return
+    if image_pinned_by_other_apps(executor, image_name, except_app):
+        print(f"Not removing image {image_name}: another app still pins it in compose")
+        return
+    remove_experiment_image(executor, image_name)
+
+
 def get_experiment_id_from_archive(archive_path):
     with zipfile.ZipFile(archive_path) as archive:
         with archive.open("experiment_id.md") as fh:
@@ -1294,6 +1372,10 @@ def destroy(server, app):
         print(f"App {app} is not deployed")
         raise click.Abort()
 
+    experiment_image = None
+    if docker_compose_exists:
+        experiment_image = read_remote_experiment_image(executor, app)
+
     # Inspect the active Caddyfile only after we know the app exists.
     caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
     uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
@@ -1320,6 +1402,7 @@ def destroy(server, app):
     executor.run(
         f"docker compose -f ~/dallinger/{app}/docker-compose.yml down", raise_=False
     )
+    remove_unshared_experiment_image(executor, experiment_image, except_app=app)
     executor.run(f"rm -rf ~/dallinger/{app}/")
     print(f"App {app} removed")
 
@@ -1599,6 +1682,61 @@ def get_retrying_http_client():
     http.mount("https://", adapter)
     http.mount("http://", adapter)
     return http
+
+
+def _first_ipv4(hostname):
+    """Return the first IPv4 address for hostname, or None if lookup fails."""
+    try:
+        return gethostbyname_ex(hostname)[2][0]
+    except (OSError, UnicodeError):
+        # UnicodeError comes from the idna codec for malformed names,
+        # for example a label longer than 63 characters.
+        return None
+
+
+def _check_experiment_hostname_dns(ssh_host, experiment_hostname):
+    """Abort unless the experiment hostname resolves to the SSH host IP."""
+    ipaddr_server = _first_ipv4(ssh_host)
+    ipaddr_experiment = _first_ipv4(experiment_hostname)
+    if ipaddr_server and ipaddr_experiment == ipaddr_server:
+        return
+
+    if ipaddr_experiment:
+        current_text = ipaddr_experiment
+    else:
+        current_text = "nothing (the name did not resolve)"
+
+    checker_url = f"https://dnschecker.org/#A/{experiment_hostname}"
+    print(f"{RED}DNS resolution error:{END}")
+    if ipaddr_server:
+        print(
+            f"  The experiment hostname ({experiment_hostname}) should resolve to {ipaddr_server}."
+        )
+        print(f"  It currently resolves to {current_text}.")
+        print("  Check that --dns-host is correct.")
+    else:
+        print(
+            f"  The server name ({ssh_host}) did not resolve to an IPv4 address, "
+            f"so the experiment hostname ({experiment_hostname}) cannot be checked against it."
+        )
+        print(f"  The experiment hostname currently resolves to {current_text}.")
+        print("  Check that the host configured for --server is correct.")
+    print(
+        f"  Confirm the A record globally at {checker_url} "
+        "(green ticks mean it is resolving correctly)."
+    )
+    if ipaddr_server and ipaddr_experiment:
+        print(
+            "  If you recently reused this DNS name for a new server, caches may "
+            "still point at the old IP. Dallinger Route 53 records use a 5-minute TTL, "
+            "so wait about 5 minutes and try again, or use a different --dns-host."
+        )
+    elif not ipaddr_experiment:
+        print(
+            "  If you just provisioned the server, wait until DNS has propagated "
+            "(up to about 5 minutes for Dallinger Route 53 records) and try again."
+        )
+    raise click.Abort()
 
 
 def get_dns_host(ssh_host):

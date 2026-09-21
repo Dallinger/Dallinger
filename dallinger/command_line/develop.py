@@ -9,6 +9,7 @@ from rq import Queue
 from dallinger.command_line.utils import (
     Output,
     error,
+    get_experiment_files,
     header,
     log,
     require_exp_directory,
@@ -16,7 +17,11 @@ from dallinger.command_line.utils import (
 from dallinger.config import get_config
 from dallinger.db import redis_conn
 from dallinger.deployment import DevelopmentDeployment, handle_launch_data
-from dallinger.utils import develop_target_path, open_browser, setup_warning_hooks
+from dallinger.utils import (
+    develop_target_path,
+    open_browser,
+    setup_warning_hooks,
+)
 
 setup_warning_hooks()
 
@@ -58,10 +63,14 @@ def develop():
 def debug(port, skip_flask):
     from dallinger.command_line.utils import verify_package
 
-    # We don't need to verify the experiment module here because we're
-    # going to run it in a moment anyway. Skipping this step saves
-    # time for large experiments.
-    if not verify_package(verify_experiment=False):
+    files = get_experiment_files()
+    # Skip deployable-package module verification so large experiments are not
+    # copied before staging. Config loading still imports the working tree,
+    # Flask imports the staged tree, and `dallinger verify` remains strict.
+    if not verify_package(
+        verify_experiment=False,
+        experiment_files=files,
+    ):
         # We could instead use the @require_exp_directory decorator,
         # but this doesn't print anything useful without the verbose flag.
         # To consider for later: improving this default behavior of @require_exp_directory?
@@ -70,7 +79,7 @@ def debug(port, skip_flask):
         )
         raise click.Abort
 
-    _bootstrap()
+    _bootstrap(experiment_files=files)
 
     q = Queue("default", connection=redis_conn)
     job = q.enqueue_call(launch_app_and_open_browser, kwargs={"port": port})
@@ -88,12 +97,16 @@ def debug(port, skip_flask):
 @develop.command()
 @require_exp_directory
 def bootstrap(exp_config=None):
-    _bootstrap(exp_config)
+    _bootstrap(exp_config, experiment_files=get_experiment_files())
 
 
-def _bootstrap(exp_config=None):
+def _bootstrap(exp_config=None, experiment_files=None):
     """Creates a directory which will be used to host the development version of the experiment."""
-    bootstrapper = DevelopmentDeployment(Output(), exp_config)
+    bootstrapper = DevelopmentDeployment(
+        Output(),
+        exp_config,
+        experiment_files=experiment_files,
+    )
     log(header, chevrons=False)
     bootstrapper.run()
 

@@ -33,7 +33,6 @@ src/*
 _build/*
 docs/build
 .DS_Store
-README.rst
 .netrc
 .vagrant/
 .venv*/
