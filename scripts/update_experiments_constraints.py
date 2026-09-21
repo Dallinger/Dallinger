@@ -40,6 +40,9 @@ import dallinger
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEMOS_DIR = REPO_ROOT / "demos" / "dlgr" / "demos"
+# The test experiment's constraints.txt is a committed fixture; regenerate it
+# alongside the demos so it does not drift from the released dependency pins.
+TEST_EXPERIMENT_DIR = REPO_ROOT / "tests" / "experiment"
 CONSTRAINTS_SCRIPT = REPO_ROOT / "dallinger" / "constraints.py"
 
 
@@ -89,9 +92,10 @@ def main():
     print(f"Dallinger version: {dallinger_version}")
     print(f"Using version tag: {version_tag}")
 
-    for demo_dir in DEMOS_DIR.iterdir():
-        if not demo_dir.is_dir():
-            continue
+    experiment_dirs = [
+        path for path in sorted(DEMOS_DIR.iterdir()) if path.is_dir()
+    ] + [TEST_EXPERIMENT_DIR]
+    for demo_dir in experiment_dirs:
         config_txt = demo_dir / "config.txt"
         requirements_txt = demo_dir / "requirements.txt"
         constraints_txt = demo_dir / "constraints.txt"
