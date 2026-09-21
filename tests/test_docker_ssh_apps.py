@@ -409,6 +409,11 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
     fake_tools.docker_tag_from_experiment_id = docker_tag_from_experiment_id
 
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"test-server": {"host": "host"}},
+    )
     with (
         mock.patch.object(
             docker_ssh_module, "get_experiment_files", return_value=source
