@@ -214,3 +214,340 @@ def test_deploy_image_tag_sanitizes_invalid_docker_characters():
     from dallinger.docker.tools import docker_tag_from_experiment_id
 
     assert docker_tag_from_experiment_id("exp=id:with/slash") == "exp-id-with-slash"
+
+
+def test_split_ssh_host_port():
+    from dallinger.command_line.docker_ssh import split_ssh_host_port
+
+    assert split_ssh_host_port("example.com") == ("example.com", 22)
+    assert split_ssh_host_port("localhost:2222") == ("localhost", 2222)
+    assert split_ssh_host_port("::1") == ("::1", 22)
+    assert split_ssh_host_port("[::1]:2200") == ("::1", 2200)
+    assert split_ssh_host_port("[::1]") == ("::1", 22)
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "",
+        ":2222",
+        "example.com:abc",
+        "example.com:70000",
+        "[::1]:abc",
+        "[::1]:70000",
+        "[::1",
+        "example.com:22:33",
+    ],
+)
+def test_split_ssh_host_port_rejects_invalid_host_formats(host):
+    import click
+
+    from dallinger.command_line.docker_ssh import split_ssh_host_port
+
+    with pytest.raises(click.UsageError):
+        split_ssh_host_port(host)
+
+
+def test_is_loopback_host():
+    from dallinger.command_line.docker_ssh import is_loopback_host
+
+    assert is_loopback_host("localhost")
+    assert is_loopback_host("127.0.0.1")
+    assert is_loopback_host("127.0.0.2")
+    assert not is_loopback_host("203.0.113.10")
+    assert not is_loopback_host("example.com")
+
+
+def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypatch):
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    key_path = tmp_path / "server.pem"
+    key_path.write_text("dummy")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: key_path)
+
+    class DummySpinner:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def ok(self, *_):
+            pass
+
+        def fail(self, *_):
+            pass
+
+        def stop(self):
+            pass
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(docker_ssh, "yaspin", lambda *args, **kwargs: DummySpinner())
+
+    class DummyClient:
+        def load_host_keys(self, filename):
+            if not Path(filename).exists():
+                raise IOError("missing")
+
+        def set_missing_host_key_policy(self, policy):
+            pass
+
+        def load_system_host_keys(self):
+            pass
+
+        def connect(self, **kwargs):
+            pass
+
+        def save_host_keys(self, filename):
+            assert Path(filename).exists()
+
+    monkeypatch.setattr(docker_ssh.paramiko, "SSHClient", DummyClient)
+
+    client = docker_ssh.get_connected_ssh_client("localhost:2222", user="root")
+    assert isinstance(client, DummyClient)
+    assert (tmp_path / ".ssh" / "known_hosts").exists()
+
+
+def test_option_update_parses_as_boolean():
+    import click
+    from click.testing import CliRunner
+
+    from dallinger.command_line.docker_ssh import option_update
+
+    @click.command()
+    @option_update
+    def cmd(update):
+        click.echo(f"{update!r}:{type(update).__name__}")
+
+    runner = CliRunner()
+    result_default = runner.invoke(cmd, [])
+    assert result_default.exit_code == 0
+    assert "False:bool" in result_default.output
+
+    result_update = runner.invoke(cmd, ["--update"])
+    assert result_update.exit_code == 0
+    assert "True:bool" in result_update.output
+
+
+def test_get_sftp_sets_working_directory_to_remote_home(monkeypatch):
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    class DummyStdout:
+        def read(self):
+            return b"/home/tester\n"
+
+    class DummySFTP:
+        changed_to = None
+
+        def chdir(self, path):
+            self.changed_to = path
+
+    class DummyClient:
+        def __init__(self):
+            self.sftp = DummySFTP()
+
+        def open_sftp(self):
+            return self.sftp
+
+        def exec_command(self, command):
+            assert command == 'printf %s "$HOME"'
+            return None, DummyStdout(), None
+
+    client = DummyClient()
+    monkeypatch.setattr(
+        docker_ssh, "get_connected_ssh_client", lambda host, user=None: client
+    )
+
+    sftp = docker_ssh.get_sftp("localhost")
+    assert sftp is client.sftp
+    assert sftp.changed_to == "/home/tester"
+
+
+def test_get_sftp_propagates_exec_command_failure(monkeypatch):
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    class DummyClient:
+        def open_sftp(self):
+            return object()
+
+        def exec_command(self, command):
+            raise OSError("channel closed")
+
+    monkeypatch.setattr(
+        docker_ssh, "get_connected_ssh_client", lambda host, user=None: DummyClient()
+    )
+
+    with pytest.raises(OSError, match="channel closed"):
+        docker_ssh.get_sftp("localhost")
+
+
+def test_set_dozzle_password_skips_restart_when_not_running():
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    executor = mock.Mock()
+
+    def run_side_effect(command, raise_=True):
+        if "test -f ~/dallinger/.env.json" in command:
+            return ""
+        if "docker ps --filter name=^dozzle$" in command:
+            return ""
+        return ""
+
+    executor.run.side_effect = run_side_effect
+    sftp = mock.Mock()
+
+    docker_ssh.set_dozzle_password(executor, sftp, "secret-password")
+
+    assert sftp.putfo.call_count == 2
+    executor.restart_dozzle.assert_not_called()
+
+
+def test_ensure_postgres_schema_permissions_grants_create():
+    import importlib
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    executor = mock.Mock()
+
+    docker_ssh.ensure_postgres_schema_permissions(executor, "dlgr-abcdef12")
+
+    assert executor.run.call_count == 1
+    command = executor.run.call_args[0][0]
+    assert 'psql -U dallinger -d "dlgr-abcdef12"' in command
+    assert "GRANT USAGE, CREATE ON SCHEMA public TO" in command
+
+
+def test_is_remote_disk_full_error_detects_common_markers():
+    from dallinger.command_line.docker_ssh import _is_remote_disk_full_error
+
+    assert _is_remote_disk_full_error("no space left on device")
+    assert _is_remote_disk_full_error("psycopg2.errors.DiskFull")
+    assert _is_remote_disk_full_error("Error response from daemon: disk full")
+    assert not _is_remote_disk_full_error("authentication failed")
+
+
+def test_get_remote_disk_full_guidance_recommends_safe_cleanup_only():
+    from dallinger.command_line.docker_ssh import get_remote_disk_full_guidance
+
+    guidance = get_remote_disk_full_guidance("example.org")
+    assert (
+        "Remote Docker host 'example.org' appears to be out of disk space." in guidance
+    )
+    assert "docker image prune -af" in guidance
+    assert "docker container prune -f" in guidance
+    assert "do not auto-prune volumes" in guidance
+    assert "docker system prune -af --volumes" not in guidance
+
+
+def test_docker_ssh_fixture_precondition_uses_pytest_fail():
+    from dallinger.pytest_docker_ssh import _skip_or_fail
+
+    with pytest.raises(pytest.fail.Exception):
+        _skip_or_fail("missing dependency")
+
+
+def test_executor_drain_channel_reads_stdout_and_stderr_concurrently():
+    """_drain_channel must drain both streams before calling recv_exit_status.
+
+    FakeChannel simulates the SSH deadlock: recv_exit_status() blocks until
+    stderr has been read (because the remote process is stuck writing to a full
+    buffer). A sequential implementation that calls recv_exit_status() first
+    would deadlock; _drain_channel must drain both streams concurrently first.
+    """
+    import threading
+
+    from dallinger.command_line.docker_ssh import Executor
+
+    stderr_drained = threading.Event()
+
+    class FakeChannel:
+        def recv(self, _size):
+            return b""
+
+        def recv_stderr(self, _size):
+            if not stderr_drained.is_set():
+                stderr_drained.set()
+                return b"big stderr output"
+            return b""
+
+        def recv_exit_status(self):
+            if not stderr_drained.wait(timeout=1.0):
+                raise TimeoutError(
+                    "deadlock: recv_exit_status called before stderr was drained"
+                )
+            return 0
+
+    status, stdout, stderr = Executor._drain_channel(FakeChannel())
+    assert status == 0
+    assert stderr == "big stderr output"
+
+
+def test_get_required_dallinger_version_prerelease_falls_back_to_latest(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("dallinger==12.2.0a1\n")
+
+    assert get_required_dallinger_version(str(tmp_path)) == ""
+
+
+def test_push_image_retries_connection_error_and_succeeds():
+    import requests
+
+    from dallinger.command_line.docker import DOCKER_PUSH_TIMEOUT, push_image
+
+    fake_digest = "sha256:abc123"
+    call_count = 0
+
+    def fake_push(image, stream=False, decode=False):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise requests.exceptions.ConnectionError("connection reset")
+        return iter([{"status": "Pushing"}, {"aux": {"Digest": fake_digest}}])
+
+    fake_image = mock.Mock()
+    fake_image.attrs = {"RepoDigests": [f"registry/exp@{fake_digest}"]}
+    fake_client = mock.Mock()
+    fake_client.images.push.side_effect = fake_push
+    fake_client.images.get.return_value = fake_image
+
+    with (
+        mock.patch("docker.client.from_env", return_value=fake_client) as from_env,
+        mock.patch("time.sleep"),
+    ):
+        result = push_image("registry/exp:tag")
+
+    from_env.assert_called_once_with(timeout=DOCKER_PUSH_TIMEOUT)
+    assert fake_client.images.push.call_count == 2
+    assert result == f"registry/exp@{fake_digest}"
+
+
+def test_push_image_does_not_retry_click_abort():
+    import click
+
+    from dallinger.command_line.docker import push_image
+
+    def fake_push(image, stream=False, decode=False):
+        return iter([{"error": "denied: permission denied"}])
+
+    fake_client = mock.Mock()
+    fake_client.images.push.side_effect = fake_push
+
+    with (
+        mock.patch("docker.client.from_env", return_value=fake_client),
+        mock.patch("time.sleep"),
+    ):
+        with pytest.raises(click.exceptions.Abort):
+            push_image("registry/exp:tag")
+
+    assert fake_client.images.push.call_count == 1
