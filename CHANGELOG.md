@@ -1,5 +1,7 @@
 # Changelog
 
+## [Unreleased]
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added
