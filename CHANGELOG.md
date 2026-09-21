@@ -23,6 +23,8 @@
 - Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
   docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
   This is the canary path for unreleased docker-ssh features.
+- Experiments serve ``GET /health`` as JSON so docker-ssh awaken can tell
+  the web process is up. Richer experiment health payloads can replace it.
 
 ### Fixed
 
@@ -35,9 +37,10 @@
   creation. Disk-full errors on the remote host are detected and offer guided
   safe cleanup. Pre-release Dallinger versions fall back to the ``latest`` base
   image tag. The ``auto_recruit`` config key no longer crashes when Redis is
-  unavailable. A new ``docker-ssh-smoke`` CI job runs five end-to-end smoke
+  unavailable. A new ``docker-ssh-smoke`` CI job runs end-to-end smoke
   tests on every PR covering deploy/destroy, app listing, server listing,
-  missing-app error handling, and the ``--update`` refresh flow.
+  missing-app error handling, the ``--update`` refresh flow, and classic
+  hibernate/awaken (``/health`` stays up without starting ``web``).
 - docker-ssh hibernation now waits until web ``/health`` succeeds before
   treating an app as awake, lists sleeping apps as ``hibernating`` rather
   than ``running``, and gives the controller the Docker socket group so it

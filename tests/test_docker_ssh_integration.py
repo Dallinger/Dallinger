@@ -1,7 +1,10 @@
+import json
 import shutil
 import time
 
 import pytest
+
+_SECRET_KEY_PARTS = ("token", "password", "secret", "credential")
 
 
 @pytest.mark.docker
@@ -139,3 +142,95 @@ def test_docker_ssh_update_refreshes_served_template(fresh_docker_ssh_server, tm
         if app_id is not None:
             fresh_docker_ssh_server.destroy_app(app_id)
         fresh_docker_ssh_server.experiment_dir = original_experiment_dir
+
+
+def _manifest_keys(value):
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield str(key)
+            yield from _manifest_keys(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _manifest_keys(item)
+
+
+def _assert_web_stopped(server, app_id):
+    result = server.run_ssh(
+        f"docker ps -q --filter status=running --filter name=^{app_id}[-_]web[-_]",
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert not result.stdout.strip(), result.stdout
+
+
+def _parked_health(server, app_id):
+    deadline = time.time() + 30
+    response = None
+    while time.time() < deadline:
+        response = server.fetch_experiment_page(app_id, "/health")
+        if response.status_code == 200:
+            payload = response.json()
+            if payload.get("status") == "hibernating":
+                return payload
+        time.sleep(1)
+    status = getattr(response, "status_code", None)
+    body = getattr(response, "text", "")
+    raise AssertionError(f"/health did not report hibernating ({status}): {body}")
+
+
+@pytest.mark.docker
+@pytest.mark.slow
+@pytest.mark.docker_ssh_smoke
+def test_docker_ssh_hibernate_keeps_health_without_waking_web(fresh_docker_ssh_server):
+    """Classic deploy writes a manifest, and /health does not wake a parked app."""
+    server = fresh_docker_ssh_server
+    app_id = None
+    try:
+        app_id = server.deploy_sandbox()
+        manifest_raw = server.run_ssh(f"cat ~/dallinger/{app_id}/deployment.json")
+        manifest = json.loads(manifest_raw.stdout)
+        assert manifest["ingress"] == "classic"
+        assert manifest["public_origin"].startswith("https://")
+        assert app_id in manifest["public_origin"]
+        lowered_keys = [key.lower() for key in _manifest_keys(manifest)]
+        assert not any(
+            part in key for key in lowered_keys for part in _SECRET_KEY_PARTS
+        )
+
+        server.run_dallinger(
+            ["docker-ssh", "hibernate", "--server", server.server, "--app", app_id],
+            timeout=180,
+        )
+        first = _parked_health(server, app_id)
+        second = server.fetch_experiment_page(app_id, "/health")
+        assert second.status_code == 200
+        assert second.json().get("status") == "hibernating"
+        assert first["status"] == "hibernating"
+        _assert_web_stopped(server, app_id)
+
+        server.run_dallinger(
+            ["docker-ssh", "awaken", "--server", server.server, "--app", app_id],
+            timeout=300,
+        )
+        query = {
+            "recruiter": "hotair",
+            "assignmentId": "A1",
+            "hitId": "H1",
+            "workerId": "W1",
+            "mode": "debug",
+        }
+        deadline = time.time() + 60
+        instructions = None
+        while time.time() < deadline:
+            instructions = server.fetch_experiment_page(
+                app_id, "/instructions/instruct-ready", query=query
+            )
+            if instructions.status_code == 200 and "Instructions" in instructions.text:
+                break
+            time.sleep(2)
+        assert instructions is not None
+        assert instructions.status_code == 200
+        assert "Instructions" in instructions.text
+    finally:
+        if app_id is not None:
+            server.destroy_app(app_id)
