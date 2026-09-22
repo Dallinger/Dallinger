@@ -47,20 +47,58 @@ SPINNER_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="refresh" content="2">
   <title>Getting ready...</title>
+  <noscript><meta http-equiv="refresh" content="3"></noscript>
   <style>
-    body { font-family: sans-serif; display: grid; place-items: center; min-height: 100vh; }
+    body { font-family: sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; }
     .spinner { width: 2rem; height: 2rem; border: 3px solid #ccc; border-top-color: #333;
                border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
-<body>
+<body id="hibernation-wait">
   <div>
     <div class="spinner"></div>
     <p>Getting ready, please wait...</p>
   </div>
+  <script>
+    (function () {
+      var reloading = false;
+      var ticks = 0;
+      function tick() {
+        if (reloading) {
+          return;
+        }
+        ticks += 1;
+        fetch("/health", {cache: "no-store"})
+          .then(function (response) { return response.json(); })
+          .then(function (data) {
+            var status = data && data.status;
+            if (status === "hibernating" && ticks % 5 === 0) {
+              return fetch(location.href, {cache: "no-store"});
+            }
+            if (!status || status === "hibernating" || status === "waking") {
+              return;
+            }
+            return fetch(location.href, {cache: "no-store"})
+              .then(function (response) { return response.text(); })
+              .then(function (text) {
+                if (text.indexOf('id="hibernation-wait"') === -1) {
+                  reloading = true;
+                  location.reload();
+                }
+              });
+          })
+          .catch(function () {})
+          .then(function () {
+            if (!reloading) {
+              setTimeout(tick, 1000);
+            }
+          });
+      }
+      setTimeout(tick, 1000);
+    })();
+  </script>
 </body>
 </html>
 """

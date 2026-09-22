@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from dallinger.hibernation import (
+    SPINNER_HTML,
     DockerEngine,
     HibernationController,
     idle_loop,
@@ -14,6 +15,14 @@ from dallinger.hibernation import (
     select_project_containers,
     start_priority,
 )
+
+
+def test_wait_page_keeps_the_spinner_until_the_app_is_ready():
+    assert "Getting ready, please wait..." in SPINNER_HTML
+    assert 'id="hibernation-wait"' in SPINNER_HTML
+    assert 'fetch("/health"' in SPINNER_HTML
+    head, _, _rest = SPINNER_HTML.partition("<noscript>")
+    assert 'http-equiv="refresh"' not in head
 
 
 class FakeDocker:

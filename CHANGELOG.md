@@ -29,6 +29,7 @@
 ### Changed
 
 - The hibernation wait page says "Getting ready, please wait...".
+  It keeps that spinner in place and reloads once the app is ready.
 
 ### Fixed
 
