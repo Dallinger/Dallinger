@@ -315,6 +315,28 @@ def docker_tag_from_experiment_id(experiment_id: str) -> str:
     return tag[:128]
 
 
+# The SSH account is chosen when the container starts, after this image is built.
+# Write permission on these directories lets that account create server.log and
+# the static/assets link. Shipped source files stay owned by root.
+_EXPERIMENT_WORKDIR_WRITABLE = """\
+RUN mkdir -p /experiment/static \\
+ && chmod a+rwx /experiment /experiment/static
+"""
+
+
+def ensure_experiment_workdir_writable(dockerfile_text):
+    """Let the runtime user create files in /experiment and /experiment/static.
+
+    Docker-ssh runs the experiment as the SSH user. That uid is not known
+    while the image is built, so the directories need to be writable by any
+    user. Existing files are left unchanged.
+    """
+    marker = "chmod a+rwx /experiment /experiment/static"
+    if marker in dockerfile_text:
+        return dockerfile_text
+    return dockerfile_text.rstrip() + "\n\n" + _EXPERIMENT_WORKDIR_WRITABLE
+
+
 def build_image(
     tmp_dir,
     base_image_name,
@@ -374,6 +396,12 @@ def build_image(
                 "Dockerfile does not force-reinstall dallinger-*.whl after "
                 "COPY with --no-deps."
             )
+        dockerfile_path.write_text(
+            ensure_experiment_workdir_writable(
+                dockerfile_path.read_text(encoding="utf-8")
+            ),
+            encoding="utf-8",
+        )
     else:
         dockerfile_text = rf"""# syntax=docker/dockerfile:1
         FROM {base_image_name}
@@ -423,7 +451,7 @@ def build_image(
         ENV PORT=5000
         CMD dallinger_heroku_web
         """
-        dockerfile_path.write_text(dockerfile_text)
+        dockerfile_path.write_text(ensure_experiment_workdir_writable(dockerfile_text))
     try:
         check_output(docker_build_invocation, env=env)
     except CalledProcessError:

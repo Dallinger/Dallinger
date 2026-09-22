@@ -33,6 +33,10 @@
 
 ### Fixed
 
+- docker-ssh experiment images make ``/experiment`` and ``/experiment/static``
+  writable by the SSH user that runs the container, so launch can create
+  ``server.log`` and the ``static/assets`` link. Shipped source files stay
+  owned by root.
 - docker-ssh deploy now correctly handles SSH hosts specified as ``host:port``.
   The ``--update`` flag now yields a boolean instead of the
   string ``"update"``. TLS certificate verification is skipped for loopback
