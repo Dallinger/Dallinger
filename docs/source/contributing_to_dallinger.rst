@@ -1,6 +1,16 @@
 Releasing a new version of Dallinger
 ====================================
 
+Cursor
+------
+
+In Cursor, run ``/release``. That applies
+``.cursor/skills/release/SKILL.md``, which is the release process
+(version bump, demo and test-experiment constraints, merge, tag, PyPI
+and ghcr, GitHub Release, and the post-release alpha bump).
+
+The numbered steps below are the manual release process.
+
 1. After you've merged the changes you want into the ``master`` branch, start a new branch on
 which to run the release version upgrade, e.g. ``release-9.8.1``. Update the CHANGE LOG if that hasn't
 been done as part of feature branch work. The entry should link to the new version's
@@ -46,7 +56,7 @@ files in the demos and commit the changes with::
 
 5. Merge this release with the commit "Release version MAJOR.MINOR.PATCH."
 
-6. After that's merged, you'll want to tag the merge commit with ``git tag vMAJOR.MINOR.PATCH`` and do ``git push origin --tags``. PyPI releases versions based on the tags via `.travis.yml`.
+6. After that's merged, you'll want to tag the merge commit with ``git tag vMAJOR.MINOR.PATCH`` and do ``git push origin vMAJOR.MINOR.PATCH``. Pushing that tag runs ``.github/workflows/deploy.yml``, which publishes the package to PyPI and the images to ghcr.
 
 7. At this point, **WAIT** to make sure the release is successful. If you prematurely
    increment versions again (see next step) and the release has problems, you'll
