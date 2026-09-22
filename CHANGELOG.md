@@ -41,6 +41,8 @@
   tests on every PR covering deploy/destroy, app listing, server listing,
   missing-app error handling, the ``--update`` refresh flow, and classic
   hibernate/awaken (``/health`` stays up without starting ``web``).
+- Docker image pushes retry when the daemon read times out, including the
+  urllib3 timeout docker-py raises directly.
 - ``--update`` of a hibernating or waking app parks it again even if the
   controller clears a ``waking`` marker while Compose starts. If the
   controller is not answering, Dallinger stops the expensive services
