@@ -229,8 +229,11 @@ that was running, and an explicit hibernate stays stopped.
 ``dallinger docker-ssh awaken`` restarts the idle quiet period, and that
 timestamp is kept across a controller restart, so a just-woken app is not
 parked again on the next check. ``docker compose up`` during ``--update``
-starts stopped containers; if the app was hibernating, Dallinger stops
-those expensive services again so the front door and the containers agree.
+starts stopped containers. If the app was hibernating or still waking,
+Dallinger stops those expensive services again so the front door and the
+containers agree. That decision uses the markers from before Compose
+starts, and if the controller is not answering yet Dallinger stops the
+services directly.
 ``/health`` returns
 HTTP 503 while the backend is down. After a host reboot the front door and
 controller come back; if the ``web`` backend is still down the controller

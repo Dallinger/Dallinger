@@ -2917,6 +2917,10 @@ def _bring_up_app_containers(
     """
     if restore and archive_path is not None:
         _restore_experiment_archive(server_info, experiment_id, archive_path)
+    # Read markers before ``up -d``. The new controller can clear a leftover
+    # ``waking`` marker once web is running, and a check after that would
+    # leave the expensive services up.
+    was_parked = _app_was_parked(executor, experiment_id)
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
     )
@@ -2928,7 +2932,8 @@ def _bring_up_app_containers(
             "exec -T web dallinger-housekeeper initdb"
         )
         print("Database initialized.")
-    _repark_if_hibernating(executor, experiment_id)
+    if was_parked:
+        _repark_parked_app(executor, experiment_id)
 
 
 def _restore_experiment_archive(server_info, experiment_id, archive_path):
@@ -2949,38 +2954,85 @@ def _restore_experiment_archive(server_info, experiment_id, archive_path):
             )
 
 
-def _repark_if_hibernating(executor, experiment_id):
-    """Stop expensive services again when an update wakes a parked app.
+_REMOTE_OK = "__DALLINGER_OK__"
+_REPARK_ATTEMPTS = 5
 
-    ``docker compose up -d`` starts stopped containers. The hibernating
-    marker would otherwise keep the front door parked while web is running.
-    """
+
+def _app_was_parked(executor, experiment_id):
+    """Return whether hibernating or waking markers exist before Compose starts."""
     state_dir = f"~/dallinger/{experiment_id}/state"
     parked = executor.run(
         f"test -e {state_dir}/hibernating -o -e {state_dir}/waking && echo Yes",
         raise_=False,
     )
-    if not parked:
-        return
-    print(
-        f"App {experiment_id} was hibernating. "
-        "Stopping expensive services again after the Compose update."
+    return "Yes" in (parked or "")
+
+
+def _remote_succeeded(executor, command):
+    """Run a remote command without the failure log dump.
+
+    A non-zero status from ``Executor.run`` prints Compose logs and may
+    offer disk cleanup. Retries while the controller is still starting
+    must stay quiet.
+    """
+    completed = executor.run(
+        f"{{ {command}; }} && echo {_REMOTE_OK}",
+        raise_=False,
     )
+    return _REMOTE_OK in (completed or "")
+
+
+def _hibernate_via_controller(experiment_id):
     compose = f"~/dallinger/{experiment_id}/docker-compose.yml"
-    command = (
+    return (
         f"docker compose -f {compose} exec -T controller "
         "dallinger_hibernation client hibernate"
     )
-    # The controller container is created by the Compose update that just
-    # finished, so its HTTP server may not be listening yet.
-    for attempt in range(5):
-        try:
-            executor.run(command)
+
+
+def _direct_repark_shell(experiment_id):
+    """Stop expensive services and write the hibernating marker.
+
+    Used when the controller HTTP server is not accepting the hibernate
+    client yet. Front door, controller, and cloudflared stay up.
+    """
+    compose = f"~/dallinger/{experiment_id}/docker-compose.yml"
+    state_dir = f"~/dallinger/{experiment_id}/state"
+    return (
+        f"mkdir -p {state_dir}"
+        f" && rm -f {state_dir}/waking"
+        f" && touch {state_dir}/hibernating"
+        f" && services=$(docker compose -f {compose} config --services)"
+        " && to_stop=$(printf '%s\\n' \"$services\" | "
+        "grep -E '^(web|redis|pgbouncer|postgresql|clock|worker_.+)$' || true)"
+        ' && if [ -n "$to_stop" ]; then '
+        f"docker compose -f {compose} stop $to_stop; fi"
+        f" && rm -f {state_dir}/waking"
+        f" && touch {state_dir}/hibernating"
+    )
+
+
+def _repark_parked_app(executor, experiment_id):
+    """Stop expensive services again after Compose starts a parked app."""
+    print(
+        f"App {experiment_id} was parked. "
+        "Stopping expensive services again after the Compose update."
+    )
+    command = _hibernate_via_controller(experiment_id)
+    for attempt in range(_REPARK_ATTEMPTS):
+        if _remote_succeeded(executor, command):
             return
-        except ExecuteException:
-            if attempt == 4:
-                raise
+        if attempt < _REPARK_ATTEMPTS - 1:
             time.sleep(1)
+    print(
+        f"Could not ask the controller to hibernate {experiment_id}. "
+        "Stopping expensive services directly."
+    )
+    if not _remote_succeeded(executor, _direct_repark_shell(experiment_id)):
+        print(
+            f"Could not stop expensive services for {experiment_id} after update. "
+            "Check the app before sending participants to it."
+        )
 
 
 def _selective_stopped_container_cleanup():

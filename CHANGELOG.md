@@ -41,6 +41,10 @@
   tests on every PR covering deploy/destroy, app listing, server listing,
   missing-app error handling, the ``--update`` refresh flow, and classic
   hibernate/awaken (``/health`` stays up without starting ``web``).
+- ``--update`` of a hibernating or waking app parks it again even if the
+  controller clears a ``waking`` marker while Compose starts. If the
+  controller is not answering, Dallinger stops the expensive services
+  directly instead of aborting the update.
 - A Cloudflare ``--archive`` restore loads the database before
   ``compose up`` starts web. ``--update`` of a hibernated app stops the
   expensive services again after Compose starts them. The idle quiet period

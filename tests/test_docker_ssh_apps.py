@@ -572,7 +572,7 @@ def test_cloudflare_restore_runs_before_compose_up(monkeypatch):
     )
     monkeypatch.setattr(
         docker_ssh_module,
-        "_repark_if_hibernating",
+        "_repark_parked_app",
         lambda *_args: order.append("repark"),
     )
     docker_ssh_module._bring_up_app_containers(
@@ -586,7 +586,7 @@ def test_cloudflare_restore_runs_before_compose_up(monkeypatch):
     restore_at = order.index("restore")
     up_at = next(index for index, item in enumerate(order) if "up -d" in item)
     assert restore_at < up_at
-    assert order[-1] == "repark"
+    assert "repark" not in order
 
 
 def test_classic_bring_up_does_not_restore_twice(monkeypatch):
@@ -597,9 +597,7 @@ def test_classic_bring_up_does_not_restore_twice(monkeypatch):
         "_restore_experiment_archive",
         mock.Mock(side_effect=AssertionError("classic already restored")),
     )
-    monkeypatch.setattr(
-        docker_ssh_module, "_repark_if_hibernating", lambda *_args: None
-    )
+    monkeypatch.setattr(docker_ssh_module, "_repark_parked_app", lambda *_args: None)
     docker_ssh_module._bring_up_app_containers(
         executor,
         {},
@@ -613,23 +611,101 @@ def test_classic_bring_up_does_not_restore_twice(monkeypatch):
     assert not any("initdb" in command for command in commands)
 
 
-def test_repark_stops_expensive_services_when_marker_exists():
+def test_bring_up_snapshots_parked_state_before_compose_up(monkeypatch):
+    order = []
     executor = mock.Mock()
-    executor.run.side_effect = lambda cmd, raise_=True: (
-        "Yes" if cmd.startswith("test -e") else ""
+
+    def run(cmd, raise_=True):
+        order.append(cmd)
+        if cmd.startswith("test -e"):
+            return "Yes"
+        return ""
+
+    executor.run.side_effect = run
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_repark_parked_app",
+        lambda *_args: order.append("repark"),
     )
-    docker_ssh_module._repark_if_hibernating(executor, "dlgr-abcd1234")
-    hibernate = executor.run.call_args_list[-1].args[0]
-    assert "dallinger_hibernation client hibernate" in hibernate
-    assert "dlgr-abcd1234" in hibernate
+    docker_ssh_module._bring_up_app_containers(
+        executor,
+        {},
+        "dlgr-abcd1234",
+        None,
+        True,
+        restore=False,
+    )
+    probe_at = next(
+        index for index, item in enumerate(order) if item.startswith("test -e")
+    )
+    up_at = next(index for index, item in enumerate(order) if "up -d" in item)
+    assert probe_at < up_at
+    assert order[-1] == "repark"
 
 
-def test_repark_leaves_an_awake_app_running():
+def test_bring_up_leaves_an_awake_app_running(monkeypatch):
+    reparked = []
     executor = mock.Mock()
     executor.run.return_value = ""
-    docker_ssh_module._repark_if_hibernating(executor, "dlgr-abcd1234")
-    executor.run.assert_called_once()
-    assert executor.run.call_args.args[0].startswith("test -e")
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_repark_parked_app",
+        lambda *_args: reparked.append(True),
+    )
+    docker_ssh_module._bring_up_app_containers(
+        executor,
+        {},
+        "dlgr-abcd1234",
+        None,
+        True,
+        restore=False,
+    )
+    assert reparked == []
+
+
+def test_repark_uses_the_controller_without_dumping_logs():
+    executor = mock.Mock()
+
+    def run(cmd, raise_=True):
+        assert raise_ is False
+        if "client hibernate" in cmd:
+            return docker_ssh_module._REMOTE_OK
+        return ""
+
+    executor.run.side_effect = run
+    docker_ssh_module._repark_parked_app(executor, "dlgr-abcd1234")
+    commands = [call.args[0] for call in executor.run.call_args_list]
+    assert len(commands) == 1
+    assert "dallinger_hibernation client hibernate" in commands[0]
+    assert "compose stop" not in commands[0]
+
+
+def test_repark_stops_services_when_controller_stays_down(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(
+        docker_ssh_module.time, "sleep", lambda seconds: sleeps.append(seconds)
+    )
+    executor = mock.Mock()
+
+    def run(cmd, raise_=True):
+        assert raise_ is False
+        return ""
+
+    executor.run.side_effect = run
+    docker_ssh_module._repark_parked_app(executor, "dlgr-abcd1234")
+    commands = [call.args[0] for call in executor.run.call_args_list]
+    assert sleeps == [1, 1, 1, 1]
+    assert sum("client hibernate" in command for command in commands) == 5
+    fallback = commands[-1]
+    assert (
+        "docker compose -f ~/dallinger/dlgr-abcd1234/docker-compose.yml stop"
+        in fallback
+    )
+    assert "touch ~/dallinger/dlgr-abcd1234/state/hibernating" in fallback
+    assert "rm -f ~/dallinger/dlgr-abcd1234/state/waking" in fallback
+    assert "worker_" in fallback
+    assert "frontdoor" not in fallback
+    assert "cloudflared" not in fallback
 
 
 def test_cloudflare_deploy_skips_root_domain_preflight(monkeypatch):
