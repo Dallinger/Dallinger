@@ -70,6 +70,8 @@ class FakeCloudflareAPI:
         if method == "GET" and route.endswith("/token"):
             tunnel_id = route.split("/")[-2]
             return f"connector-{tunnel_id}"
+        if method == "DELETE" and route.endswith("/connections"):
+            return {"success": True}
         if method == "DELETE" and "/dns_records/" in route:
             record_id = route.rsplit("/", 1)[-1]
             if not any(item["id"] == record_id for item in self.dns):
@@ -172,7 +174,7 @@ def test_delete_experiment_tunnel_is_idempotent():
         api_token="tok",
         request_func=api,
     )
-    cf.delete_experiment_tunnel(
+    removed = cf.delete_experiment_tunnel(
         account_id="acct",
         zone_id="zone",
         app="consonance",
@@ -182,6 +184,17 @@ def test_delete_experiment_tunnel_is_idempotent():
         api_token="tok",
         request_func=api,
     )
+    assert removed is True
+    deletes = [path for method, path, _payload in api.calls if method == "DELETE"]
+    connection_delete = next(
+        index for index, path in enumerate(deletes) if path.endswith("/connections")
+    )
+    tunnel_delete = next(
+        index
+        for index, path in enumerate(deletes)
+        if path.endswith("/" + created["tunnel_id"])
+    )
+    assert connection_delete < tunnel_delete
     assert api.dns == []
     cf.delete_experiment_tunnel(
         account_id="acct",
@@ -279,7 +292,7 @@ def test_delete_experiment_tunnel_logs_dns_failures(caplog):
     )
     api.fail_paths.add("/zones/zone/dns_records/dns1")
     with caplog.at_level("WARNING"):
-        cf.delete_experiment_tunnel(
+        removed = cf.delete_experiment_tunnel(
             account_id="acct",
             zone_id="zone",
             app="consonance",
@@ -288,6 +301,7 @@ def test_delete_experiment_tunnel_logs_dns_failures(caplog):
             api_token="tok",
             request_func=api,
         )
+    assert removed is False
     assert "Could not delete Cloudflare DNS record dns1" in caplog.text
     assert "Leaving Cloudflare tunnel tid in place" in caplog.text
     assert api.dns[0]["id"] == "dns1"
@@ -301,7 +315,7 @@ def test_delete_experiment_tunnel_logs_tunnel_failures(caplog):
     )
     api.fail_paths.add("/accounts/acct/cfd_tunnel/tid")
     with caplog.at_level("WARNING"):
-        cf.delete_experiment_tunnel(
+        removed = cf.delete_experiment_tunnel(
             account_id="acct",
             zone_id="zone",
             app="consonance",
@@ -310,6 +324,7 @@ def test_delete_experiment_tunnel_logs_tunnel_failures(caplog):
             api_token="tok",
             request_func=api,
         )
+    assert removed is False
     assert "Could not delete Cloudflare tunnel tid" in caplog.text
     assert not api.tunnels[0].get("deleted")
 

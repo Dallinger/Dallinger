@@ -2196,6 +2196,8 @@ def destroy(server, app):
         experiment_image = read_remote_experiment_image(executor, app)
 
     if ingress == INGRESS_CLOUDFLARE:
+        if docker_compose_exists:
+            _stop_cloudflare_connector(executor, app)
         _destroy_cloudflare_resources(app, server_info, manifest)
         executor.run(
             f"docker compose -f ~/dallinger/{app}/docker-compose.yml down -v",
@@ -2230,6 +2232,14 @@ def destroy(server, app):
     print(f"App {app} removed")
 
 
+def _stop_cloudflare_connector(executor, app):
+    """Stop the tunnel connector so Cloudflare will accept tunnel deletion."""
+    executor.run(
+        f"docker compose -f ~/dallinger/{app}/docker-compose.yml stop cloudflared",
+        raise_=False,
+    )
+
+
 def _destroy_cloudflare_resources(app, server_info, manifest=None):
     """Delete the experiment CNAME and named tunnel. Warn if the API is unavailable."""
     config = get_config(load=True)
@@ -2248,21 +2258,21 @@ def _destroy_cloudflare_resources(app, server_info, manifest=None):
         )
         return
     cloudflare = dict(manifest.cloudflare or {}) if manifest else {}
-    try:
-        delete_experiment_tunnel(
-            account_id=settings["account_id"],
-            zone_id=settings["zone_id"],
-            app=app,
-            dns_zone=cloudflare.get("dns_zone") or settings["dns_zone"],
-            hostname=cloudflare.get("hostname"),
-            tunnel_id=cloudflare.get("tunnel_id"),
-            dns_record_id=cloudflare.get("dns_record_id"),
-            api_token=api_token,
-        )
-    except CloudflareError as exc:
+    removed = delete_experiment_tunnel(
+        account_id=settings["account_id"],
+        zone_id=settings["zone_id"],
+        app=app,
+        dns_zone=cloudflare.get("dns_zone") or settings["dns_zone"],
+        hostname=cloudflare.get("hostname"),
+        tunnel_id=cloudflare.get("tunnel_id"),
+        dns_record_id=cloudflare.get("dns_record_id"),
+        api_token=api_token,
+    )
+    if removed is False:
         print(
-            f"{RED}Cloudflare cleanup failed:{END} {exc}\n"
-            "Local compose teardown will continue; retry destroy or gc."
+            f"{RED}Cloudflare cleanup failed.{END}\n"
+            "The local app will still be removed. Retry destroy or "
+            "`dallinger docker-ssh gc`."
         )
 
 
@@ -2330,7 +2340,7 @@ def gc(server, apply, confirm_no_other_hosts):
         raise click.Abort
     for app, tunnel in orphans:
         print_bold(f"Deleting Cloudflare resources for {app}")
-        try:
+        if (
             delete_experiment_tunnel(
                 account_id=settings["account_id"],
                 zone_id=settings["zone_id"],
@@ -2339,8 +2349,12 @@ def gc(server, apply, confirm_no_other_hosts):
                 tunnel_id=tunnel.get("id"),
                 api_token=api_token,
             )
-        except CloudflareError as exc:
-            print(f"{RED}Failed to delete {app}:{END} {exc}")
+            is False
+        ):
+            print(
+                f"{RED}Failed to delete {app}.{END} "
+                "The tunnel may still exist; retry gc."
+            )
     return [app for app, _tunnel in orphans]
 
 

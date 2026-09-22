@@ -33,6 +33,9 @@
 
 ### Fixed
 
+- docker-ssh destroy stops the Cloudflare connector before deleting the
+  tunnel, and says so when DNS or tunnel cleanup fails. The local app is
+  still removed.
 - docker-ssh experiment images make ``/experiment`` and ``/experiment/static``
   writable by the SSH user that runs the container, so launch can create
   ``server.log`` and the ``static/assets`` link. Shipped source files stay

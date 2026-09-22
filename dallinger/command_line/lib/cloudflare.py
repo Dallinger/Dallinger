@@ -349,12 +349,18 @@ def delete_experiment_tunnel(
     dns_record_id: str | None = None,
     api_token: str,
     request_func: RequestFunc = request,
-) -> None:
+) -> bool:
     """Delete the experiment CNAME then the named tunnel. Idempotent if already gone.
 
     Only deletes a CNAME that still points at this app's tunnel. If the tunnel
     is already gone, still remove a leftover ``*.cfargotunnel.com`` CNAME at
     this hostname. Unrelated A, AAAA, or CNAME records are left alone.
+
+    Returns
+    -------
+    bool
+        True when the tunnel is gone or was already absent. False when DNS or
+        tunnel deletion failed and the named tunnel may still exist.
     """
     host = hostname or (public_hostname(app, dns_zone) if dns_zone else None)
     name = tunnel_name_for_app(app)
@@ -395,8 +401,21 @@ def delete_experiment_tunnel(
                 tunnel_id,
                 host,
             )
-            return
+            return False
     if tunnel_id:
+        try:
+            request_func(
+                "DELETE",
+                f"/accounts/{account_id}/cfd_tunnel/{tunnel_id}/connections",
+                api_token,
+                None,
+            )
+        except CloudflareError as exc:
+            logger.warning(
+                "Could not clear Cloudflare tunnel connections for %s: %s",
+                tunnel_id,
+                exc,
+            )
         try:
             request_func(
                 "DELETE",
@@ -411,7 +430,8 @@ def delete_experiment_tunnel(
                 host,
                 exc,
             )
-            return
+            return False
+    return True
 
 
 def list_prefixed_tunnels(

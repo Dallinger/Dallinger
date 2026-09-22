@@ -762,6 +762,7 @@ def test_destroy_cloudflare_skips_caddy_and_removes_volumes(monkeypatch):
         ingress="cloudflare",
     )
     commands = []
+    order = []
 
     def run(cmd, raise_=True):
         commands.append(cmd)
@@ -773,6 +774,10 @@ def test_destroy_cloudflare_skips_caddy_and_removes_volumes(monkeypatch):
             return dump
         if cmd == "cat ~/dallinger/myapp/docker-compose.yml":
             return compose_yml
+        if "stop cloudflared" in cmd:
+            order.append("stop")
+        if cmd.endswith("down -v"):
+            order.append("down")
         if cmd.startswith("grep -xF -l"):
             return "/home/ubuntu/dallinger/myapp/docker-compose.yml\n"
         return ""
@@ -791,7 +796,11 @@ def test_destroy_cloudflare_skips_caddy_and_removes_volumes(monkeypatch):
             }
         },
     )
-    deleted = mock.Mock()
+
+    def deleted(**kwargs):
+        order.append("delete")
+        return True
+
     monkeypatch.setattr(docker_ssh_module, "delete_experiment_tunnel", deleted)
     monkeypatch.setattr(docker_ssh_module, "load_api_token", lambda config: "tok")
     monkeypatch.setattr(docker_ssh_module, "get_config", lambda load=False: mock.Mock())
@@ -800,10 +809,28 @@ def test_destroy_cloudflare_skips_caddy_and_removes_volumes(monkeypatch):
 
     executor.reload_caddy.assert_not_called()
     assert not any(cmd == "cat ~/dallinger/Caddyfile" for cmd in commands)
-    assert any(cmd.endswith("down -v") for cmd in commands)
-    deleted.assert_called_once()
-    assert deleted.call_args.kwargs["app"] == "myapp"
-    assert deleted.call_args.kwargs["tunnel_id"] == "tun"
+    assert order == ["stop", "delete", "down"]
+
+
+def test_destroy_prints_when_cloudflare_cleanup_fails(monkeypatch, capsys):
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_cloudflare_settings",
+        lambda *args, **kwargs: {
+            "account_id": "acct",
+            "zone_id": "zone",
+            "dns_zone": "science-of-music.org",
+        },
+    )
+    monkeypatch.setattr(docker_ssh_module, "load_api_token", lambda config: "tok")
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load=False: mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module, "delete_experiment_tunnel", lambda **kwargs: False
+    )
+
+    docker_ssh_module._destroy_cloudflare_resources("myapp", {"host": "example.com"})
+
+    assert "Cloudflare cleanup failed" in capsys.readouterr().out
 
 
 def test_gc_lists_orphan_tunnels_without_deleting(monkeypatch, capsys):
