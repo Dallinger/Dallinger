@@ -556,6 +556,82 @@ def test_resolve_ingress_uses_server_default():
     assert docker_ssh_module._resolve_ingress({}) == "classic"
 
 
+def test_cloudflare_restore_runs_before_compose_up(monkeypatch):
+    order = []
+    executor = mock.Mock()
+
+    def run(cmd, raise_=True):
+        order.append(cmd)
+        return ""
+
+    executor.run.side_effect = run
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_restore_experiment_archive",
+        lambda *_args: order.append("restore"),
+    )
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_repark_if_hibernating",
+        lambda *_args: order.append("repark"),
+    )
+    docker_ssh_module._bring_up_app_containers(
+        executor,
+        {},
+        "dlgr-abcd1234",
+        "/tmp/export.zip",
+        True,
+        restore=True,
+    )
+    restore_at = order.index("restore")
+    up_at = next(index for index, item in enumerate(order) if "up -d" in item)
+    assert restore_at < up_at
+    assert order[-1] == "repark"
+
+
+def test_classic_bring_up_does_not_restore_twice(monkeypatch):
+    executor = mock.Mock()
+    executor.run.return_value = ""
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_restore_experiment_archive",
+        mock.Mock(side_effect=AssertionError("classic already restored")),
+    )
+    monkeypatch.setattr(
+        docker_ssh_module, "_repark_if_hibernating", lambda *_args: None
+    )
+    docker_ssh_module._bring_up_app_containers(
+        executor,
+        {},
+        "dlgr-abcd1234",
+        "/tmp/export.zip",
+        True,
+        restore=False,
+    )
+    commands = [call.args[0] for call in executor.run.call_args_list]
+    assert any("up -d" in command for command in commands)
+    assert not any("initdb" in command for command in commands)
+
+
+def test_repark_stops_expensive_services_when_marker_exists():
+    executor = mock.Mock()
+    executor.run.side_effect = lambda cmd, raise_=True: (
+        "Yes" if cmd.startswith("test -e") else ""
+    )
+    docker_ssh_module._repark_if_hibernating(executor, "dlgr-abcd1234")
+    hibernate = executor.run.call_args_list[-1].args[0]
+    assert "dallinger_hibernation client hibernate" in hibernate
+    assert "dlgr-abcd1234" in hibernate
+
+
+def test_repark_leaves_an_awake_app_running():
+    executor = mock.Mock()
+    executor.run.return_value = ""
+    docker_ssh_module._repark_if_hibernating(executor, "dlgr-abcd1234")
+    executor.run.assert_called_once()
+    assert executor.run.call_args.args[0].startswith("test -e")
+
+
 def test_cloudflare_deploy_skips_root_domain_preflight(monkeypatch):
     monkeypatch.setattr(
         docker_ssh_module,

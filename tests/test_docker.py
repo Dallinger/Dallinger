@@ -517,7 +517,8 @@ def test_disk_cleanup_keeps_stopped_containers_for_deployed_apps():
     commands = [command for _description, command in _safe_disk_cleanup_steps()]
     assert commands[0] == "docker image prune -af"
     assert "docker container prune" not in commands[1]
-    assert "dallinger/$project/docker-compose.yml" in commands[1]
+    assert "project.working_dir" in commands[1]
+    assert '-iname "$project"' in commands[1]
 
 
 def test_get_remote_disk_full_guidance_recommends_safe_cleanup_only():

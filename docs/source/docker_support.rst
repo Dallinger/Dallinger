@@ -226,8 +226,12 @@ Do not turn on idle sleep while recruitment is running, or for experiments
 that keep WebSocket or other in-memory participant state. Expensive
 services use ``restart: unless-stopped``: a host reboot brings back an app
 that was running, and an explicit hibernate stays stopped.
-``dallinger docker-ssh awaken`` restarts the idle quiet period so a
-just-woken app is not parked again on the next check. ``/health`` returns
+``dallinger docker-ssh awaken`` restarts the idle quiet period, and that
+timestamp is kept across a controller restart, so a just-woken app is not
+parked again on the next check. ``docker compose up`` during ``--update``
+starts stopped containers; if the app was hibernating, Dallinger stops
+those expensive services again so the front door and the containers agree.
+``/health`` returns
 HTTP 503 while the backend is down. After a host reboot the front door and
 controller come back; if the ``web`` backend is still down the controller
 records hibernation so a visitor or ``dallinger docker-ssh awaken`` starts

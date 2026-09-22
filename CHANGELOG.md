@@ -41,6 +41,12 @@
   tests on every PR covering deploy/destroy, app listing, server listing,
   missing-app error handling, the ``--update`` refresh flow, and classic
   hibernate/awaken (``/health`` stays up without starting ``web``).
+- A Cloudflare ``--archive`` restore loads the database before
+  ``compose up`` starts web. ``--update`` of a hibernated app stops the
+  expensive services again after Compose starts them. The idle quiet period
+  started by ``awaken`` survives a controller restart. Disk-full cleanup
+  keeps a hibernated app even when its directory name and Compose project
+  label differ in case.
 - ``docker-ssh awaken`` restarts the idle quiet period, so an idle-enabled
   app is not parked again immediately after a command-line wake. Cloudflare
   deploys no longer offer to destroy every app on the host when ``--app``

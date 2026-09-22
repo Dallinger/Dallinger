@@ -626,7 +626,10 @@ Docker Deployment Configuration
     is a Docker stop, so those containers stay stopped across reboot and
     ``/health`` keeps reporting hibernating until a visitor or
     ``dallinger docker-ssh awaken``. ``awaken`` restarts the idle quiet
-    period, including when the operator wakes the app from the command line.
+    period, including when the operator wakes the app from the command line,
+    and stores that timestamp so a controller restart does not sleep the
+    app again immediately. ``--update`` starts stopped containers and then
+    hibernates them again when the app was already parked.
     The front door and controller stay up. Docker may restart a crashed
     container; ``/health`` returns HTTP 503 while the backend is actually down.
 

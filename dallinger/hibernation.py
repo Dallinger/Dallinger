@@ -25,6 +25,7 @@ HEALTH_PATH = "/health"
 MARKER_HIBERNATING = "hibernating"
 MARKER_WAKING = "waking"
 HEALTH_CACHE_NAME = "health.json"
+ACTIVITY_NAME = "last-activity"
 ACCESS_LOG_NAME = "access.log"
 STOPPABLE_SERVICES = frozenset({"web", "redis", "pgbouncer", "postgresql", "clock"})
 STOPPABLE_PREFIXES = ("worker_",)
@@ -281,6 +282,7 @@ class HibernationController:
         self._log_buf = ""
         self._latest_activity: float | None = None
         self.state_dir.mkdir(parents=True, exist_ok=True)
+        self._latest_activity = self._read_activity()
         if self._marker(MARKER_WAKING).exists():
             # A controller restart left a wake in progress. Visitors can retry
             # from hibernating, or we mark awake if the backend is already up.
@@ -323,8 +325,9 @@ class HibernationController:
                     self._write_state(STATE_AWAKE)
                     # Restart the quiet period. The access log still shows
                     # the old request that caused the sleep, and a CLI awaken
-                    # does not add a new one.
-                    self._latest_activity = self.clock()
+                    # does not add a new one. Persist it so a controller
+                    # restart does not treat that old request as current.
+                    self._remember_activity(self.clock())
                 except Exception:
                     self._write_state(STATE_HIBERNATING)
                     raise
@@ -400,6 +403,24 @@ class HibernationController:
             return False
         self.hibernate()
         return True
+
+    def _activity_path(self) -> Path:
+        return self.state_dir / ACTIVITY_NAME
+
+    def _read_activity(self) -> float | None:
+        """Return the persisted quiet-period start, if any."""
+        try:
+            return float(self._activity_path().read_text().strip())
+        except (OSError, ValueError):
+            return None
+
+    def _remember_activity(self, timestamp: float) -> None:
+        """Record activity in memory and on disk."""
+        self._latest_activity = timestamp
+        try:
+            self._activity_path().write_text(f"{timestamp}\n")
+        except OSError as exc:
+            logger.warning("Could not store hibernation activity time: %s", exc)
 
     def last_activity(self, now: float | None = None) -> float:
         """Latest non-health access-log timestamp, else controller start mtime."""

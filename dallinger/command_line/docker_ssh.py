@@ -11,6 +11,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 import warnings
 import zipfile
 from contextlib import contextmanager, redirect_stdout
@@ -1490,16 +1491,16 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     )
     ensure_postgres_schema_permissions(executor, experiment_id)
 
-    executor.run(
-        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
+    # Classic already restored any archive above. ``restore=False`` keeps
+    # that work from running a second time.
+    _bring_up_app_containers(
+        executor,
+        server_info,
+        experiment_id,
+        archive_path,
+        update,
+        restore=False,
     )
-    if archive_path is None and not update:
-        print(f"Experiment {experiment_id} started.")
-        print("Initializing database...")
-        executor.run(
-            f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
-        )
-        print("Database initialized.")
 
     if use_subdomain:
         # We give caddy the alias for the service. If we scale up the service container caddy will
@@ -1699,30 +1700,14 @@ def _deploy_cloudflare_in_mode(
             raise_=False,
         )
 
-    executor.run(
-        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
+    _bring_up_app_containers(
+        executor,
+        server_info,
+        experiment_id,
+        archive_path,
+        update,
+        restore=True,
     )
-    grant_roles_script = (
-        f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
-    )
-    if archive_path is not None:
-        print(f"Loading database data from {archive_path}")
-        with remote_postgres(server_info, experiment_id) as db_uri:
-            engine = create_db_engine(db_uri)
-            bootstrap_db_from_zip(archive_path, engine)
-            with engine.connect() as conn:
-                conn.execute(grant_roles_script)
-                conn.execute(f'GRANT USAGE ON SCHEMA public TO "{experiment_id}"')
-                conn.execute(
-                    f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA PUBLIC TO "{experiment_id}"'
-                )
-    elif not update:
-        print(f"Experiment {experiment_id} started.")
-        print("Initializing database...")
-        executor.run(
-            f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
-        )
-        print("Database initialized.")
 
     if update:
         print("Skipping experiment launch logic because we are in update mode.")
@@ -2916,6 +2901,88 @@ def _is_remote_disk_full_error(*outputs):
     )
 
 
+def _bring_up_app_containers(
+    executor,
+    server_info,
+    experiment_id,
+    archive_path,
+    update,
+    *,
+    restore,
+):
+    """Start Compose, then stop expensive services again if the app was parked.
+
+    Cloudflare sets ``restore`` so the archive is loaded before ``compose up``
+    starts web. Classic restores earlier against the shared Postgres service.
+    """
+    if restore and archive_path is not None:
+        _restore_experiment_archive(server_info, experiment_id, archive_path)
+    executor.run(
+        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
+    )
+    if archive_path is None and not update:
+        print(f"Experiment {experiment_id} started.")
+        print("Initializing database...")
+        executor.run(
+            f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml "
+            "exec -T web dallinger-housekeeper initdb"
+        )
+        print("Database initialized.")
+    _repark_if_hibernating(executor, experiment_id)
+
+
+def _restore_experiment_archive(server_info, experiment_id, archive_path):
+    """Load an export into the app database before web starts."""
+    print(f"Loading database data from {archive_path}")
+    grant_roles_script = (
+        f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
+    )
+    with remote_postgres(server_info, experiment_id) as db_uri:
+        engine = create_db_engine(db_uri)
+        bootstrap_db_from_zip(archive_path, engine)
+        with engine.connect() as conn:
+            conn.execute(grant_roles_script)
+            conn.execute(f'GRANT USAGE ON SCHEMA public TO "{experiment_id}"')
+            conn.execute(
+                "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES "
+                f'IN SCHEMA PUBLIC TO "{experiment_id}"'
+            )
+
+
+def _repark_if_hibernating(executor, experiment_id):
+    """Stop expensive services again when an update wakes a parked app.
+
+    ``docker compose up -d`` starts stopped containers. The hibernating
+    marker would otherwise keep the front door parked while web is running.
+    """
+    state_dir = f"~/dallinger/{experiment_id}/state"
+    parked = executor.run(
+        f"test -e {state_dir}/hibernating -o -e {state_dir}/waking && echo Yes",
+        raise_=False,
+    )
+    if not parked:
+        return
+    print(
+        f"App {experiment_id} was hibernating. "
+        "Stopping expensive services again after the Compose update."
+    )
+    compose = f"~/dallinger/{experiment_id}/docker-compose.yml"
+    command = (
+        f"docker compose -f {compose} exec -T controller "
+        "dallinger_hibernation client hibernate"
+    )
+    # The controller container is created by the Compose update that just
+    # finished, so its HTTP server may not be listening yet.
+    for attempt in range(5):
+        try:
+            executor.run(command)
+            return
+        except ExecuteException:
+            if attempt == 4:
+                raise
+            time.sleep(1)
+
+
 def _selective_stopped_container_cleanup():
     """Remove stopped containers that are not a deployed Dallinger app.
 
@@ -2926,10 +2993,15 @@ def _selective_stopped_container_cleanup():
     return (
         "docker ps -aq --filter status=exited --filter status=created "
         "--filter status=dead "
-        "--format '{{.ID}} {{.Label \"com.docker.compose.project\"}}' | "
-        "while read -r id project; do "
-        'if [ -n "$project" ] && '
-        '[ -f "$HOME/dallinger/$project/docker-compose.yml" ]; then continue; fi; '
+        '--format \'{{.ID}}\t{{.Label "com.docker.compose.project"}}\t'
+        '{{.Label "com.docker.compose.project.working_dir"}}\' | '
+        "while IFS='\t' read -r id project workdir; do "
+        'if [ -n "$workdir" ] && [ -f "$workdir/docker-compose.yml" ]; then continue; fi; '
+        'if [ -n "$project" ]; then '
+        'match=$(find "$HOME/dallinger" -mindepth 1 -maxdepth 1 -type d '
+        '-iname "$project" -print -quit); '
+        'if [ -n "$match" ] && [ -f "$match/docker-compose.yml" ]; then continue; fi; '
+        "fi; "
         'docker rm "$id" >/dev/null; done'
     )
 
