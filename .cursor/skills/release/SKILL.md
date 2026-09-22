@@ -216,7 +216,13 @@ This must happen **before** the next step so
 
 ## 6. Regenerate demo constraints
 
+The committed `.python-version` files request Python 3.13. The script
+rewrites each of those files to the minor version of the interpreter
+that runs it, then compiles `constraints.txt`. Run it with that same
+3.13 interpreter.
+
 ```bash
+python3 -c 'import sys; assert sys.version_info[:2] == (3, 13), sys.version'
 python3 scripts/update_experiments_constraints.py
 ```
 
@@ -229,7 +235,14 @@ The script reads `dallinger.version.__version__` and regenerates
 grep -h "^dallinger==" demos/dlgr/demos/*/constraints.txt \
     tests/experiment/constraints.txt | sort -u
 # should print a single line: dallinger==X.Y.Z
+git status --short
 ```
+
+`git status --short` must list only `constraints.txt` under
+`demos/dlgr/demos/` and `tests/experiment/`. If `.python-version` or
+`requirements.txt` is dirty, stop. The pins were compiled for the wrong
+Python, or the script did not restore `requirements.txt`. Do not commit
+those files.
 
 ```bash
 git add demos/dlgr/demos/*/constraints.txt tests/experiment/constraints.txt
@@ -452,11 +465,20 @@ Restore `## [Unreleased]` at the top of `CHANGELOG.md`:
 git add .bumpversion.cfg CHANGELOG.md dallinger/version.py \
         demos/requirements.txt demos/pyproject.toml pyproject.toml
 git commit -m "Bump version on master branch post-release"
-git push --force-with-lease --set-upstream origin increment-master-version
+git fetch origin increment-master-version \
+&& tip="$(git rev-parse origin/increment-master-version)" \
+&& git log -1 --oneline "$tip" \
+&& test "$(git log -1 --format='%s' "$tip")" = "Bump version on master branch post-release" \
+&& git merge-base --is-ancestor "$tip" master \
+&& git push --force-with-lease="refs/heads/increment-master-version:${tip}" \
+    --set-upstream origin increment-master-version
 ```
 
-`--force-with-lease` is expected: the remote branch still points at the
-previous cycle's post-bump commit.
+Fetch immediately before the push. `$tip` must be the previous cycle's
+post-bump commit, and that commit must already be on `master`. The
+`test` and ancestor check enforce both. The push leases that exact
+SHA, so a newer remote update after the fetch is rejected. If either
+check fails, stop. Do not force-push over other work on that branch.
 
 ```bash
 gh pr create --base master --head increment-master-version \
@@ -506,8 +528,9 @@ see `[Unreleased]` and the alpha version.
 - **PyPI "File already exists"**: that version is already on PyPI. Yank if
   needed and cut `X.Y.Z+1`.
 - **`gh auth status` shows token invalid**: `gh auth login -h github.com`.
-- **Stale `increment-master-version`**: delete it locally; remote is
-  overwritten by `--force-with-lease`.
+- **Stale `increment-master-version`**: delete it locally. Fetch the
+  remote branch and confirm it is still the previous post-bump commit
+  before `--force-with-lease`.
 - **`the base branch policy prohibits the merge`**: `master` requires
   one review. After CI is green, `gh pr merge <pr-number> --merge --admin`.
   Do not squash. If the tool runner blocks `--admin`, retry that same
