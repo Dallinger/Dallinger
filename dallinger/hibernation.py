@@ -48,7 +48,7 @@ SPINNER_HTML = """<!DOCTYPE html>
 <head>
   <meta charset="utf-8">
   <meta http-equiv="refresh" content="2">
-  <title>Starting experiment</title>
+  <title>Getting ready...</title>
   <style>
     body { font-family: sans-serif; display: grid; place-items: center; min-height: 100vh; }
     .spinner { width: 2rem; height: 2rem; border: 3px solid #ccc; border-top-color: #333;
@@ -59,7 +59,7 @@ SPINNER_HTML = """<!DOCTYPE html>
 <body>
   <div>
     <div class="spinner"></div>
-    <p>This experiment is starting. The page will refresh automatically.</p>
+    <p>Getting ready, please wait...</p>
   </div>
 </body>
 </html>

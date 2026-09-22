@@ -26,6 +26,10 @@
 - Experiments serve ``GET /health`` as JSON so docker-ssh awaken can tell
   the web process is up. Richer experiment health payloads can replace it.
 
+### Changed
+
+- The hibernation wait page says "Getting ready, please wait...".
+
 ### Fixed
 
 - docker-ssh deploy now correctly handles SSH hosts specified as ``host:port``.
