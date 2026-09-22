@@ -598,8 +598,16 @@ def known_hosts_target(host, port):
 
 
 def docker_host_uri(host, user=None, port=22):
+    """Return a DOCKER_HOST SSH URL for the remote Docker daemon.
+
+    docker-py splits this URL on ``@`` and cannot parse a username that
+    itself contains ``@``, such as a Cambridge CRSid login. Those users are
+    left out of the URL so OpenSSH applies ``~/.ssh/config``.
+    """
     if ":" in host and not host.startswith("["):
         host = f"[{host}]"
+    if user and "@" in user:
+        user = None
     user_part = f"{user}@" if user else ""
     port_part = f":{port}" if port != 22 else ""
     return f"ssh://{user_part}{host}{port_part}"
