@@ -1,6 +1,7 @@
 import datetime
 import os
 import signal
+import sys
 import time
 from unittest import mock
 
@@ -709,7 +710,7 @@ class TestLocalProcfileWrapper:
             heroku._boot()
         heroku._process = None
         command = popen.call_args.args[0]
-        assert command[:2] == ["honcho", "start"]
+        assert command[:4] == [sys.executable, "-m", "honcho", "start"]
         assert command[command.index("-c") + 1].startswith("web=2,worker=")
         assert command[-len(processes) :] == processes
 
@@ -724,12 +725,17 @@ class TestLocalProcfileWrapper:
         )
 
     def test_start_when_shell_command_fails(self, heroku):
-        heroku.shell_command = "nonsense"
+        heroku.shell_command = ("nonsense",)
         with pytest.raises(OSError):
             heroku.start()
-            heroku.out.error.assert_called_with(
-                "Couldn't start honcho for local debugging."
-            )
+        heroku.out.error.assert_called_with(
+            "Couldn't start honcho for local debugging."
+        )
+
+    def test_old_name_is_an_alias(self):
+        from dallinger.heroku.tools import HerokuLocalWrapper, LocalProcfileWrapper
+
+        assert HerokuLocalWrapper is LocalProcfileWrapper
 
     def test_stop_before_start_is_noop(self, heroku):
         heroku.stop()

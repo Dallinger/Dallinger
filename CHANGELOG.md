@@ -7,8 +7,9 @@
 - `dallinger debug` (and other `HerokuLocalWrapper` users) now start the
   Procfile processes with [honcho](https://github.com/nickstenning/honcho)
   instead of `heroku local`, so local debugging no longer needs the Heroku
-  CLI. The web process still runs gunicorn with the configured number of
-  workers. Stopping the local server now waits for the Procfile processes to
+  CLI. honcho and the Procfile commands are run from the current Python
+  environment, so this also works when the virtualenv is not activated. The
+  web process still runs gunicorn with the configured number of workers. Stopping the local server now waits for the Procfile processes to
   exit and force-kills any that remain, instead of leaving gunicorn processes
   running after `heroku local` exited. The wrapper is now called
   `LocalProcfileWrapper` (`HerokuLocalWrapper` remains as an alias), and its

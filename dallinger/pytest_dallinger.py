@@ -65,7 +65,7 @@ def clear_workers():
     import subprocess
 
     def _zap():
-        kills = [["pkill", "-f", "heroku"]]
+        kills = [["pkill", "-f", "honcho start"], ["pkill", "-f", "heroku"]]
         for kill in kills:
             try:
                 subprocess.check_call(kill)

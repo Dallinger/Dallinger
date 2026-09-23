@@ -7,10 +7,12 @@ import re
 import signal
 import subprocess
 import sys
+import threading
 import time
 import traceback
 from functools import cached_property
 from shlex import quote
+from signal import SIGKILL
 
 import psutil
 
@@ -425,7 +427,9 @@ class LocalProcfileWrapper:
     strings as arguments.
     """
 
-    shell_command = "honcho"
+    # Run honcho with this interpreter so it is found even when the
+    # virtualenv's bin directory is not on PATH.
+    shell_command = (sys.executable, "-m", "honcho")
     # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
     int_signal = getattr(signal, "CTRL_C_EVENT", signal.SIGINT)
     stop_timeout_secs = 15
@@ -448,6 +452,7 @@ class LocalProcfileWrapper:
         self.env = env if env is not None else os.environ.copy()
         self._record = []
         self._process = None
+        self._stop_lock = threading.Lock()
         # needs_chrome, tmp_dir and experiment_name are here just for simmetry with the Docker wrapper
         self.needs_chrome = needs_chrome
         self.experiment_name = experiment_name
@@ -497,28 +502,41 @@ class LocalProcfileWrapper:
         """Stop the Procfile runner subprocess and all of its children."""
         signal = signal or self.int_signal
         self.out.log("Cleaning up local server processes...")
-        # Detach first so a concurrent stop() (e.g. from a monitoring thread)
-        # sees nothing to do instead of racing on the same process.
-        process, self._process = self._process, None
+        # Detach under a lock so a concurrent stop() (e.g. from a monitoring
+        # thread) sees nothing to do instead of racing on the same process.
+        with self._stop_lock:
+            process, self._process = self._process, None
         if process is None:
             self.out.log("No local server process was running.")
             return
 
         # honcho starts each Procfile process in its own session, so signalling
         # honcho's process group does not reach them if honcho dies first.
+        # Remember their process groups too, to catch processes forked later
+        # (e.g. respawned gunicorn workers).
         try:
             descendants = psutil.Process(process.pid).children(recursive=True)
         except psutil.Error:
             descendants = []
+        own_pgid = None
+        child_pgids = set()
+        for child in descendants:
+            try:
+                child_pgids.add(os.getpgid(child.pid))
+            except OSError:
+                pass
 
+        already_terminated = False
         try:
-            os.killpg(os.getpgid(process.pid), signal)
-            self.out.log("Local server processes terminated.")
+            own_pgid = os.getpgid(process.pid)
+            os.killpg(own_pgid, signal)
         except OSError:
+            already_terminated = True
             self.out.log("Local server was already terminated.")
         except Exception:
             self.out.log("Unexpected error while terminating the local server.")
             self.out.log(traceback.format_exc())
+        child_pgids.discard(own_pgid)
 
         # honcho waits for its children to exit (gunicorn's shutdown can take
         # several seconds) and force-kills stragglers after its own timeout.
@@ -538,7 +556,14 @@ class LocalProcfileWrapper:
                 child.kill()
             except psutil.Error:
                 pass
+        for pgid in child_pgids:
+            try:
+                os.killpg(pgid, SIGKILL)
+            except OSError:
+                pass
         psutil.wait_procs(alive, timeout=5)
+        if not already_terminated:
+            self.out.log("Local server processes terminated.")
 
         # Close stdout to avoid ResourceWarning
         try:
@@ -615,7 +640,7 @@ class LocalProcfileWrapper:
         clock_dyno = self.config.get("clock_on")
         processes = ["web", "worker"] + (["clock"] if clock_dyno else [])
         commands = [
-            self.shell_command,
+            *self.shell_command,
             "start",
             "--no-colour",
             "-p",
@@ -628,15 +653,28 @@ class LocalProcfileWrapper:
             options = {
                 "stdout": subprocess.PIPE,
                 "stderr": subprocess.STDOUT,
-                # honcho is a Python program, so without this its output to the
-                # pipe is block-buffered and startup/monitor lines arrive late.
-                "env": {**self.env, "PYTHONUNBUFFERED": "1"},
+                "env": self._runner_env(),
                 "preexec_fn": os.setsid,
             }
             self._process = subprocess.Popen(commands, **options)
         except OSError:
             self.out.error("Couldn't start honcho for local debugging.")
             raise
+
+    def _runner_env(self):
+        """Environment for honcho and the Procfile processes it starts."""
+        env = dict(self.env)
+        # honcho is a Python program, so without this its output to the pipe
+        # is block-buffered and startup/monitor lines arrive late.
+        env["PYTHONUNBUFFERED"] = "1"
+        # The Procfile commands (dallinger_heroku_web etc.) are console scripts
+        # installed next to this interpreter, which may not be on PATH when the
+        # virtualenv is not activated.
+        bin_dir = os.path.dirname(sys.executable)
+        path = env.get("PATH", "")
+        if bin_dir not in path.split(os.pathsep):
+            env["PATH"] = os.pathsep.join(filter(None, [bin_dir, path]))
+        return env
 
     def _stream(self):
         for line in iter(self._process.stdout.readline, self.STREAM_SENTINEL):
