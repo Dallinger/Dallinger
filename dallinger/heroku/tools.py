@@ -7,9 +7,7 @@ import re
 import signal
 import subprocess
 import sys
-import threading
 import time
-import traceback
 from functools import cached_property
 from shlex import quote
 
@@ -430,8 +428,8 @@ class LocalProcfileWrapper:
     # virtualenv's bin directory is not on PATH.
     shell_command = (sys.executable, "-m", "honcho")
     # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
-    int_signal = getattr(signal, "CTRL_C_EVENT", signal.SIGINT)
-    stop_timeout_secs = 15
+    stop_signal = signal.SIGINT
+    stop_grace_secs = 5
     MONITOR_STOP = object()
     STREAM_SENTINEL = ""
 
@@ -451,7 +449,6 @@ class LocalProcfileWrapper:
         self.env = env if env is not None else os.environ.copy()
         self._record = []
         self._process = None
-        self._stop_lock = threading.Lock()
         # needs_chrome, tmp_dir and experiment_name are here just for simmetry with the Docker wrapper
         self.needs_chrome = needs_chrome
         self.experiment_name = experiment_name
@@ -480,14 +477,14 @@ class LocalProcfileWrapper:
         try:
             success = self._verify_startup()
         except HerokuTimeoutError:
-            self.stop(signal.SIGKILL)
+            self.stop()
             raise
         finally:
             signal.alarm(0)
 
         if not success:
             self._log_failure()
-            self.stop(signal.SIGKILL)
+            self.stop()
             raise HerokuStartupError(
                 "Failed to start for unknown reason: {}".format("".join(self._record))
             )
@@ -498,69 +495,68 @@ class LocalProcfileWrapper:
         return self._process is not None
 
     def stop(self, signal=None):
-        """Stop the Procfile runner subprocess and all of its children."""
-        signal = signal or self.int_signal
+        """Stop the Procfile runner and all of its descendant processes.
+
+        honcho and each Procfile process get ``signal`` (SIGINT by default,
+        which makes gunicorn shut down quickly); Procfile processes shut down
+        their own workers. Anything still alive after ``stop_grace_secs`` is
+        killed.
+        """
+        signal = signal or self.stop_signal
         self.out.log("Cleaning up local server processes...")
-        # Detach under a lock so a concurrent stop() (e.g. from a monitoring
-        # thread) sees nothing to do instead of racing on the same process.
-        with self._stop_lock:
-            process, self._process = self._process, None
+        process, self._process = self._process, None
         if process is None:
             self.out.log("No local server process was running.")
             return
 
-        # honcho starts each Procfile process in its own session, so signalling
-        # honcho's process group does not reach them if honcho dies first.
-        # Snapshot them now; psutil's kill() is safe against PID reuse.
         try:
-            descendants = psutil.Process(process.pid).children(recursive=True)
-        except psutil.Error:
-            descendants = []
-
-        already_terminated = False
-        try:
-            # honcho was started with setsid, so its process group ID is its PID.
-            os.killpg(process.pid, signal)
-        except OSError:
-            already_terminated = True
+            runner = psutil.Process(process.pid)
+            descendants = runner.children(recursive=True)
+        except psutil.NoSuchProcess:
             self.out.log("Local server was already terminated.")
-        except Exception:
-            self.out.log("Unexpected error while terminating the local server.")
-            self.out.log(traceback.format_exc())
+            runner, descendants = None, []
 
-        # honcho waits for its children to exit (gunicorn's shutdown can take
-        # several seconds) and force-kills stragglers after its own timeout.
-        try:
-            process.wait(timeout=self.stop_timeout_secs)
-        except subprocess.TimeoutExpired:
-            self.out.log("Process did not terminate within timeout; killing it.")
-            process.kill()
+        # honcho starts each Procfile process as a session leader; their own
+        # children (e.g. gunicorn workers) are left for them to stop.
+        targets = [runner] if runner else []
+        for child in descendants:
             try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.out.log("Process could not be killed.")
+                if os.getsid(child.pid) == child.pid:
+                    targets.append(child)
+            except OSError:
+                pass
+        for target in targets:
+            try:
+                target.send_signal(signal)
+            except psutil.Error:
+                pass
 
-        _, alive = psutil.wait_procs(descendants, timeout=1)
+        _, alive = psutil.wait_procs(descendants, timeout=self.stop_grace_secs)
         for child in alive:
             try:
                 child.kill()
             except psutil.Error:
                 pass
+
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+        process.stdout.close()
+
+        # Killed processes can linger briefly as zombies until reaped.
         _, survivors = psutil.wait_procs(alive, timeout=5)
+        survivors = [child for child in survivors if _is_running(child)]
+
         if survivors:
             self.out.log(
                 "Some local server processes could not be stopped: {}".format(
                     [child.pid for child in survivors]
                 )
             )
-        elif not already_terminated:
+        elif runner:
             self.out.log("Local server processes terminated.")
-
-        # Close stdout to avoid ResourceWarning
-        try:
-            process.stdout.close()
-        except Exception:
-            pass
 
     def monitor(self, listener):
         """Relay the stream to listener until told to stop."""
@@ -722,6 +718,14 @@ class LocalProcfileWrapper:
             )
 
         return "<{} pid='{}', children: {}>".format(classname, self._process.pid, reprs)
+
+
+def _is_running(process):
+    """Whether a psutil process is still running (zombies count as stopped)."""
+    try:
+        return process.status() != psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return False
 
 
 # Backwards-compatible name from when this wrapped ``heroku local``.

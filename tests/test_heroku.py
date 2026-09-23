@@ -584,7 +584,8 @@ class TestLocalProcfileWrapper:
 
         wrapper = LocalProcfileWrapper(config, output, env=env)
         yield wrapper
-        wrapper.stop()
+        if not isinstance(wrapper._process, mock.Mock):  # don't signal a fake PID
+            wrapper.stop()
 
     def test_start(self, heroku):
         assert heroku.start()
