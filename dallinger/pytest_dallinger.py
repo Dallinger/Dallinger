@@ -468,7 +468,7 @@ def debug_experiment(request, env, clear_workers):
         yield p
         if request.node.rep_setup.passed and request.node.rep_call.passed:
             p.expect_exact("Experiment completed", timeout=timeout)
-            p.expect_exact("Local Heroku process terminated", timeout=timeout)
+            p.expect_exact("Local server processes terminated", timeout=timeout)
     finally:
         try:
             flush_output(p, timeout=0.1)

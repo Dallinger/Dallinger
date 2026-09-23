@@ -405,7 +405,7 @@ class HerokuTimeoutError(HerokuStartupError):
     """
 
 
-class HerokuLocalWrapper:
+class LocalProcfileWrapper:
     """Wrapper around a local Procfile runner subprocess.
 
     The experiment's Procfile processes (gunicorn web workers, the rq worker,
@@ -418,7 +418,7 @@ class HerokuLocalWrapper:
 
     Implements a context manager pattern:
 
-        with HerokuLocalWrapper(config, output) as heroku:
+        with LocalProcfileWrapper(config, output) as heroku:
             heroku.monitor(my_callback)
 
     Arg 'output' should implement log(), error() and blather() methods taking
@@ -467,7 +467,7 @@ class HerokuLocalWrapper:
             )
 
         if self.is_running:
-            self.out.log("Local Heroku is already running.")
+            self.out.log("Local server is already running.")
             return
 
         signal.signal(signal.SIGALRM, _handle_timeout)
@@ -496,12 +496,12 @@ class HerokuLocalWrapper:
     def stop(self, signal=None):
         """Stop the Procfile runner subprocess and all of its children."""
         signal = signal or self.int_signal
-        self.out.log("Cleaning up local Heroku process...")
+        self.out.log("Cleaning up local server processes...")
         # Detach first so a concurrent stop() (e.g. from a monitoring thread)
         # sees nothing to do instead of racing on the same process.
         process, self._process = self._process, None
         if process is None:
-            self.out.log("No local Heroku process was running.")
+            self.out.log("No local server process was running.")
             return
 
         # honcho starts each Procfile process in its own session, so signalling
@@ -513,11 +513,11 @@ class HerokuLocalWrapper:
 
         try:
             os.killpg(os.getpgid(process.pid), signal)
-            self.out.log("Local Heroku process terminated.")
+            self.out.log("Local server processes terminated.")
         except OSError:
-            self.out.log("Local Heroku was already terminated.")
+            self.out.log("Local server was already terminated.")
         except Exception:
-            self.out.log("Unexpected error while terminating local Heroku.")
+            self.out.log("Unexpected error while terminating the local server.")
             self.out.log(traceback.format_exc())
 
         # honcho waits for its children to exit (gunicorn's shutdown can take
@@ -635,7 +635,7 @@ class HerokuLocalWrapper:
             }
             self._process = subprocess.Popen(commands, **options)
         except OSError:
-            self.out.error("Couldn't start Heroku for local debugging.")
+            self.out.error("Couldn't start honcho for local debugging.")
             raise
 
     def _stream(self):
@@ -689,6 +689,10 @@ class HerokuLocalWrapper:
             )
 
         return "<{} pid='{}', children: {}>".format(classname, self._process.pid, reprs)
+
+
+# Backwards-compatible name from when this wrapped ``heroku local``.
+HerokuLocalWrapper = LocalProcfileWrapper
 
 
 def sanity_check(config):

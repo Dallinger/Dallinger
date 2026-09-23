@@ -10,7 +10,11 @@
   CLI. The web process still runs gunicorn with the configured number of
   workers. Stopping the local server now waits for the Procfile processes to
   exit and force-kills any that remain, instead of leaving gunicorn processes
-  running after `heroku local` exited.
+  running after `heroku local` exited. The wrapper is now called
+  `LocalProcfileWrapper` (`HerokuLocalWrapper` remains as an alias), and its
+  log messages say "local server" instead of "local Heroku": for example
+  "Local server processes terminated." replaces "Local Heroku process
+  terminated.", so update any scripts that wait for the old text.
 
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 

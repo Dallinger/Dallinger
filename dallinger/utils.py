@@ -645,7 +645,7 @@ def assemble_experiment_temp_dir(log, config, for_remote=False, experiment_files
     If for_remote is set to True the preparation includes bundling
     the local dallinger version if it was installed in editable mode.
     This is always needed for docker debug and deployment, but not needed for
-    local Heroku debugging.
+    local (honcho) debugging.
 
     The new directory will include:
     - Copies of custom experiment files which don't match the exclusion policy

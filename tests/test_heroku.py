@@ -553,7 +553,7 @@ class TestHerokuApp:
 
 @pytest.mark.usefixtures("bartlett_dir")
 @pytest.mark.slow
-class TestHerokuLocalWrapper:
+class TestLocalProcfileWrapper:
     @pytest.fixture
     def config(self):
         from dallinger.deployment import setup_experiment
@@ -579,9 +579,9 @@ class TestHerokuLocalWrapper:
 
     @pytest.fixture
     def heroku(self, config, env, output, clear_workers):
-        from dallinger.heroku.tools import HerokuLocalWrapper
+        from dallinger.heroku.tools import LocalProcfileWrapper
 
-        wrapper = HerokuLocalWrapper(config, output, env=env)
+        wrapper = LocalProcfileWrapper(config, output, env=env)
         yield wrapper
         wrapper.stop()
 
@@ -684,7 +684,7 @@ class TestHerokuLocalWrapper:
     def test_stop(self, heroku):
         heroku.start()
         heroku.stop(signal.SIGKILL)
-        heroku.out.log.assert_called_with("Local Heroku process terminated.")
+        heroku.out.log.assert_called_with("Local server processes terminated.")
 
     @pytest.mark.parametrize("stop_signal", [None, signal.SIGKILL])
     def test_stop_leaves_no_child_processes(self, heroku, stop_signal):
@@ -719,8 +719,8 @@ class TestHerokuLocalWrapper:
         heroku.stop()
         log_calls = [call.args[0] for call in heroku.out.log.mock_calls]
         assert (
-            "Local Heroku was already terminated." in log_calls
-            or "Local Heroku process terminated." in log_calls
+            "Local server was already terminated." in log_calls
+            or "Local server processes terminated." in log_calls
         )
 
     def test_start_when_shell_command_fails(self, heroku):
@@ -728,17 +728,17 @@ class TestHerokuLocalWrapper:
         with pytest.raises(OSError):
             heroku.start()
             heroku.out.error.assert_called_with(
-                "Couldn't start Heroku for local debugging."
+                "Couldn't start honcho for local debugging."
             )
 
     def test_stop_before_start_is_noop(self, heroku):
         heroku.stop()
-        heroku.out.log.assert_called_with("No local Heroku process was running.")
+        heroku.out.log.assert_called_with("No local server process was running.")
 
     def test_start_when_already_started_is_noop(self, heroku):
         heroku.start()
         heroku.start()
-        heroku.out.log.assert_called_with("Local Heroku is already running.")
+        heroku.out.log.assert_called_with("Local server is already running.")
 
     def test_monitor(self, heroku):
         heroku._stream = mock.Mock(return_value=["apple", "orange"])
@@ -754,9 +754,9 @@ class TestHerokuLocalWrapper:
         listener.assert_has_calls([mock.call("apple")])
 
     def test_as_context_manager(self, config, env, output, clear_workers):
-        from dallinger.heroku.tools import HerokuLocalWrapper
+        from dallinger.heroku.tools import LocalProcfileWrapper
 
-        with HerokuLocalWrapper(config, output, env=env) as heroku:
+        with LocalProcfileWrapper(config, output, env=env) as heroku:
             assert heroku.is_running
         assert not heroku.is_running
 
