@@ -686,6 +686,15 @@ class TestHerokuLocalWrapper:
         heroku.stop(signal.SIGKILL)
         heroku.out.log.assert_called_with("Local Heroku process terminated.")
 
+    def test_stop_leaves_no_child_processes(self, heroku):
+        import psutil
+
+        heroku.start()
+        children = psutil.Process(heroku._process.pid).children(recursive=True)
+        heroku.stop()
+        _, alive = psutil.wait_procs(children, timeout=0)
+        assert alive == []
+
     def test_stop_on_killed_process_no_error(self, heroku):
         heroku.start()
         heroku._process.terminate()

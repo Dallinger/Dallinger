@@ -8,7 +8,9 @@
   Procfile processes with [honcho](https://github.com/nickstenning/honcho)
   instead of `heroku local`, so local debugging no longer needs the Heroku
   CLI. The web process still runs gunicorn with the configured number of
-  workers.
+  workers. Stopping the local server now waits for the Procfile processes to
+  exit and force-kills any that remain, instead of leaving gunicorn processes
+  running after `heroku local` exited.
 
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 

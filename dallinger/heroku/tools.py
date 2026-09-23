@@ -427,6 +427,8 @@ class HerokuLocalWrapper:
     shell_command = "honcho"
     # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
     int_signal = getattr(signal, "CTRL_C_EVENT", signal.SIGINT)
+    kill_signal = getattr(signal, "SIGKILL", signal.SIGTERM)
+    stop_timeout_secs = 15
     MONITOR_STOP = object()
     STREAM_SENTINEL = ""
 
@@ -497,9 +499,11 @@ class HerokuLocalWrapper:
             return
 
         try:
+            pgid = None
             # Try to kill the process group if still running
             try:
-                os.killpg(os.getpgid(self._process.pid), signal)
+                pgid = os.getpgid(self._process.pid)
+                os.killpg(pgid, signal)
                 self.out.log("Local Heroku process terminated.")
             except OSError:
                 self.out.log("Local Heroku was already terminated.")
@@ -507,12 +511,19 @@ class HerokuLocalWrapper:
                 self.out.log("Unexpected error while terminating local Heroku.")
                 self.out.log(traceback.format_exc())
 
-            # Ensure the process is fully cleaned up by calling wait(), even if
-            # it has already terminated.
+            # honcho waits for its children to exit (gunicorn's shutdown can take
+            # several seconds) and force-kills stragglers after its own timeout,
+            # so allow for that before force-killing the group ourselves.
             try:
+                self._process.wait(timeout=self.stop_timeout_secs)
+            except subprocess.TimeoutExpired:
+                self.out.log("Process did not terminate within timeout; killing it.")
+                if pgid is not None:
+                    try:
+                        os.killpg(pgid, self.kill_signal)
+                    except OSError:
+                        pass
                 self._process.wait(timeout=5)
-            except Exception:
-                self.out.log("Process did not terminate within timeout.")
 
             # Close stdout to avoid ResourceWarning
             try:
