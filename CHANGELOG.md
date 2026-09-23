@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- `dallinger debug` (and other `HerokuLocalWrapper` users) now start the
+  Procfile processes with [honcho](https://github.com/nickstenning/honcho)
+  instead of `heroku local`, so local debugging no longer needs the Heroku
+  CLI. The web process still runs gunicorn with the configured number of
+  workers.
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added

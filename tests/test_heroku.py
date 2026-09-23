@@ -610,7 +610,9 @@ class TestHerokuLocalWrapper:
         from dallinger.heroku.tools import HerokuStartupError
 
         heroku.verbose = False  # more coverage
-        heroku._stream = mock.Mock(return_value=["[DONE] Killing all processes"])
+        heroku._stream = mock.Mock(
+            return_value=["12:00:00 system   | web.1 stopped (rc=1)"]
+        )
         with mock.patch.object(heroku, "_up_and_running", return_value=False):
             with pytest.raises(HerokuStartupError):
                 heroku.start()

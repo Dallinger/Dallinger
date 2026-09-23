@@ -406,7 +406,11 @@ class HerokuTimeoutError(HerokuStartupError):
 
 
 class HerokuLocalWrapper:
-    """Wrapper around a heroku local subprocess.
+    """Wrapper around a local Procfile runner subprocess.
+
+    The experiment's Procfile processes (gunicorn web workers, the rq worker,
+    and optionally the clock) are started with honcho, a Python port of
+    foreman, so local debugging does not need the Heroku CLI.
 
     Provides for verified startup and shutdown, and allows observers to register
     to recieve subprocess output via 'monitor()'.
@@ -420,7 +424,7 @@ class HerokuLocalWrapper:
     strings as arguments.
     """
 
-    shell_command = "heroku"
+    shell_command = "honcho"
     # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
     int_signal = getattr(signal, "CTRL_C_EVENT", signal.SIGINT)
     MONITOR_STOP = object()
@@ -448,7 +452,7 @@ class HerokuLocalWrapper:
         self.tmp_dir = tmp_dir
 
     def start(self, timeout_secs=60):
-        """Start the heroku local subprocess group and verify that
+        """Start the Procfile runner subprocess group and verify that
         it has started successfully by polling the relevant port.
 
         If the port is not available after 'timeout_secs',
@@ -485,7 +489,7 @@ class HerokuLocalWrapper:
         return self._process is not None
 
     def stop(self, signal=None):
-        """Stop the heroku local subprocess and all of its children."""
+        """Stop the Procfile runner subprocess and all of its children."""
         signal = signal or self.int_signal
         self.out.log("Cleaning up local Heroku process...")
         if self._process is None:
@@ -586,21 +590,24 @@ class HerokuLocalWrapper:
         web_dynos = self.config.get("num_dynos_web")
         worker_dynos = self.config.get("num_dynos_worker")
         clock_dyno = self.config.get("clock_on")
-        dyno_options = "web={},worker={}{}".format(
-            web_dynos, worker_dynos, ",clock" if clock_dyno else ""
-        )
+        processes = ["web", "worker"] + (["clock"] if clock_dyno else [])
         commands = [
             self.shell_command,
-            "local",
+            "start",
+            "--no-colour",
             "-p",
             str(port),
-            dyno_options,
+            "-c",
+            "web={},worker={}".format(web_dynos, worker_dynos),
+            *processes,
         ]
         try:
             options = {
                 "stdout": subprocess.PIPE,
                 "stderr": subprocess.STDOUT,
-                "env": self.env,
+                # honcho is a Python program, so without this its output to the
+                # pipe is block-buffered and startup/monitor lines arrive late.
+                "env": {**self.env, "PYTHONUNBUFFERED": "1"},
                 "preexec_fn": os.setsid,
             }
             self._process = subprocess.Popen(commands, **options)
@@ -631,7 +638,7 @@ class HerokuLocalWrapper:
     def _startup_error(self, line):
         if isinstance(line, bytes):
             line = line.decode("utf-8")
-        return re.match(r"\[DONE\] Killing all processes", line)
+        return re.match(r"^.*? system\s+\| \S+ stopped \(rc=", line)
 
     def __enter__(self):
         self.start()

@@ -154,6 +154,8 @@ h11==0.16.0
     #   wsproto
 heroku3==5.2.1
     # via dallinger
+honcho==2.0.0
+    # via dallinger
 httpcore==1.0.9
     # via httpx
 httpx==0.28.1
