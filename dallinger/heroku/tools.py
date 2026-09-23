@@ -410,7 +410,8 @@ class HerokuLocalWrapper:
 
     The experiment's Procfile processes (gunicorn web workers, the rq worker,
     and optionally the clock) are started with honcho, a Python port of
-    foreman, so local debugging does not need the Heroku CLI.
+    foreman, so local debugging does not need the Heroku CLI. POSIX only:
+    process management relies on process groups and SIGALRM.
 
     Provides for verified startup and shutdown, and allows observers to register
     to recieve subprocess output via 'monitor()'.
@@ -427,7 +428,6 @@ class HerokuLocalWrapper:
     shell_command = "honcho"
     # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
     int_signal = getattr(signal, "CTRL_C_EVENT", signal.SIGINT)
-    kill_signal = getattr(signal, "SIGKILL", signal.SIGTERM)
     stop_timeout_secs = 15
     MONITOR_STOP = object()
     STREAM_SENTINEL = ""
@@ -475,6 +475,9 @@ class HerokuLocalWrapper:
         self._boot()
         try:
             success = self._verify_startup()
+        except HerokuTimeoutError:
+            self.stop(signal.SIGKILL)
+            raise
         finally:
             signal.alarm(0)
 
@@ -494,45 +497,54 @@ class HerokuLocalWrapper:
         """Stop the Procfile runner subprocess and all of its children."""
         signal = signal or self.int_signal
         self.out.log("Cleaning up local Heroku process...")
-        if self._process is None:
+        # Detach first so a concurrent stop() (e.g. from a monitoring thread)
+        # sees nothing to do instead of racing on the same process.
+        process, self._process = self._process, None
+        if process is None:
             self.out.log("No local Heroku process was running.")
             return
 
+        # honcho starts each Procfile process in its own session, so signalling
+        # honcho's process group does not reach them if honcho dies first.
         try:
-            pgid = None
-            # Try to kill the process group if still running
-            try:
-                pgid = os.getpgid(self._process.pid)
-                os.killpg(pgid, signal)
-                self.out.log("Local Heroku process terminated.")
-            except OSError:
-                self.out.log("Local Heroku was already terminated.")
-            except Exception:
-                self.out.log("Unexpected error while terminating local Heroku.")
-                self.out.log(traceback.format_exc())
+            descendants = psutil.Process(process.pid).children(recursive=True)
+        except psutil.Error:
+            descendants = []
 
-            # honcho waits for its children to exit (gunicorn's shutdown can take
-            # several seconds) and force-kills stragglers after its own timeout,
-            # so allow for that before force-killing the group ourselves.
+        try:
+            os.killpg(os.getpgid(process.pid), signal)
+            self.out.log("Local Heroku process terminated.")
+        except OSError:
+            self.out.log("Local Heroku was already terminated.")
+        except Exception:
+            self.out.log("Unexpected error while terminating local Heroku.")
+            self.out.log(traceback.format_exc())
+
+        # honcho waits for its children to exit (gunicorn's shutdown can take
+        # several seconds) and force-kills stragglers after its own timeout.
+        try:
+            process.wait(timeout=self.stop_timeout_secs)
+        except subprocess.TimeoutExpired:
+            self.out.log("Process did not terminate within timeout; killing it.")
+            process.kill()
             try:
-                self._process.wait(timeout=self.stop_timeout_secs)
+                process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                self.out.log("Process did not terminate within timeout; killing it.")
-                if pgid is not None:
-                    try:
-                        os.killpg(pgid, self.kill_signal)
-                    except OSError:
-                        pass
-                self._process.wait(timeout=5)
+                self.out.log("Process could not be killed.")
 
-            # Close stdout to avoid ResourceWarning
+        _, alive = psutil.wait_procs(descendants, timeout=1)
+        for child in alive:
             try:
-                self._process.stdout.close()
-            except Exception:
+                child.kill()
+            except psutil.Error:
                 pass
+        psutil.wait_procs(alive, timeout=5)
 
-        finally:
-            self._process = None
+        # Close stdout to avoid ResourceWarning
+        try:
+            process.stdout.close()
+        except Exception:
+            pass
 
     def monitor(self, listener):
         """Relay the stream to listener until told to stop."""

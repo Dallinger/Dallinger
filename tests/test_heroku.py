@@ -686,14 +686,32 @@ class TestHerokuLocalWrapper:
         heroku.stop(signal.SIGKILL)
         heroku.out.log.assert_called_with("Local Heroku process terminated.")
 
-    def test_stop_leaves_no_child_processes(self, heroku):
+    @pytest.mark.parametrize("stop_signal", [None, signal.SIGKILL])
+    def test_stop_leaves_no_child_processes(self, heroku, stop_signal):
         import psutil
 
         heroku.start()
+        time.sleep(2)  # let gunicorn boot its worker processes
         children = psutil.Process(heroku._process.pid).children(recursive=True)
-        heroku.stop()
-        _, alive = psutil.wait_procs(children, timeout=0)
+        heroku.stop(stop_signal)
+        _, alive = psutil.wait_procs(children, timeout=2)
         assert alive == []
+
+    @pytest.mark.parametrize(
+        "clock_on, processes",
+        [(False, ["web", "worker"]), (True, ["web", "worker", "clock"])],
+    )
+    def test_boot_runs_procfile_processes_with_honcho(
+        self, heroku, clock_on, processes
+    ):
+        heroku.config.extend({"clock_on": clock_on, "num_dynos_web": 2})
+        with mock.patch("dallinger.heroku.tools.subprocess.Popen") as popen:
+            heroku._boot()
+        heroku._process = None
+        command = popen.call_args.args[0]
+        assert command[:2] == ["honcho", "start"]
+        assert command[command.index("-c") + 1].startswith("web=2,worker=")
+        assert command[-len(processes) :] == processes
 
     def test_stop_on_killed_process_no_error(self, heroku):
         heroku.start()
