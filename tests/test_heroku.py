@@ -732,6 +732,30 @@ class TestLocalProcfileWrapper:
             "Couldn't start honcho for local debugging."
         )
 
+    def test_runner_env_puts_interpreter_bin_first(self, heroku):
+        bin_dir = os.path.dirname(sys.executable)
+        heroku.env = {"HOME": "/tmp", "PATH": os.pathsep.join(["/usr/bin", bin_dir])}
+        env = heroku._runner_env()
+        assert env["PATH"].split(os.pathsep) == [bin_dir, "/usr/bin"]
+        assert env["PYTHONUNBUFFERED"] == "1"
+
+    def test_startup_timeout_leaves_no_child_processes(self, heroku):
+        import psutil
+
+        from dallinger.heroku.tools import HerokuTimeoutError
+
+        children = []
+
+        def never_up(port):
+            children[:] = psutil.Process(heroku._process.pid).children(recursive=True)
+            return False
+
+        with mock.patch.object(heroku, "_up_and_running", side_effect=never_up):
+            with pytest.raises(HerokuTimeoutError):
+                heroku.start(timeout_secs=3)
+        _, alive = psutil.wait_procs(children, timeout=2)
+        assert children and alive == []
+
     def test_old_name_is_an_alias(self):
         from dallinger.heroku.tools import HerokuLocalWrapper, LocalProcfileWrapper
 

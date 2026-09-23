@@ -12,7 +12,6 @@ import time
 import traceback
 from functools import cached_property
 from shlex import quote
-from signal import SIGKILL
 
 import psutil
 
@@ -512,31 +511,22 @@ class LocalProcfileWrapper:
 
         # honcho starts each Procfile process in its own session, so signalling
         # honcho's process group does not reach them if honcho dies first.
-        # Remember their process groups too, to catch processes forked later
-        # (e.g. respawned gunicorn workers).
+        # Snapshot them now; psutil's kill() is safe against PID reuse.
         try:
             descendants = psutil.Process(process.pid).children(recursive=True)
         except psutil.Error:
             descendants = []
-        own_pgid = None
-        child_pgids = set()
-        for child in descendants:
-            try:
-                child_pgids.add(os.getpgid(child.pid))
-            except OSError:
-                pass
 
         already_terminated = False
         try:
-            own_pgid = os.getpgid(process.pid)
-            os.killpg(own_pgid, signal)
+            # honcho was started with setsid, so its process group ID is its PID.
+            os.killpg(process.pid, signal)
         except OSError:
             already_terminated = True
             self.out.log("Local server was already terminated.")
         except Exception:
             self.out.log("Unexpected error while terminating the local server.")
             self.out.log(traceback.format_exc())
-        child_pgids.discard(own_pgid)
 
         # honcho waits for its children to exit (gunicorn's shutdown can take
         # several seconds) and force-kills stragglers after its own timeout.
@@ -556,13 +546,14 @@ class LocalProcfileWrapper:
                 child.kill()
             except psutil.Error:
                 pass
-        for pgid in child_pgids:
-            try:
-                os.killpg(pgid, SIGKILL)
-            except OSError:
-                pass
-        psutil.wait_procs(alive, timeout=5)
-        if not already_terminated:
+        _, survivors = psutil.wait_procs(alive, timeout=5)
+        if survivors:
+            self.out.log(
+                "Some local server processes could not be stopped: {}".format(
+                    [child.pid for child in survivors]
+                )
+            )
+        elif not already_terminated:
             self.out.log("Local server processes terminated.")
 
         # Close stdout to avoid ResourceWarning
@@ -634,6 +625,11 @@ class LocalProcfileWrapper:
         if not self.env.get("HOME", False):
             raise HerokuStartupError('"HOME" environment not set... aborting.')
 
+        if not sys.executable:
+            raise HerokuStartupError(
+                "Cannot locate the Python interpreter to run honcho."
+            )
+
         port = self.config.get("base_port")
         web_dynos = self.config.get("num_dynos_web")
         worker_dynos = self.config.get("num_dynos_worker")
@@ -671,9 +667,8 @@ class LocalProcfileWrapper:
         # installed next to this interpreter, which may not be on PATH when the
         # virtualenv is not activated.
         bin_dir = os.path.dirname(sys.executable)
-        path = env.get("PATH", "")
-        if bin_dir not in path.split(os.pathsep):
-            env["PATH"] = os.pathsep.join(filter(None, [bin_dir, path]))
+        rest = [d for d in env.get("PATH", "").split(os.pathsep) if d and d != bin_dir]
+        env["PATH"] = os.pathsep.join([bin_dir, *rest])
         return env
 
     def _stream(self):
