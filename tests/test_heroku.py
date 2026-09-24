@@ -584,8 +584,7 @@ class TestLocalProcfileWrapper:
 
         wrapper = LocalProcfileWrapper(config, output, env=env)
         yield wrapper
-        if not isinstance(wrapper._process, mock.Mock):  # don't signal a fake PID
-            wrapper.stop()
+        wrapper.stop()
 
     def test_start(self, heroku):
         assert heroku.start()
@@ -699,6 +698,24 @@ class TestLocalProcfileWrapper:
         _, alive = psutil.wait_procs(children, timeout=2)
         assert alive == []
 
+    def test_stop_after_runner_is_killed_leaves_no_processes(self, heroku):
+        import psutil
+
+        heroku.start()
+        time.sleep(2)  # let gunicorn boot its worker processes
+        children = psutil.Process(heroku._process.pid).children(recursive=True)
+        heroku._process.kill()
+        heroku._process.wait()
+        heroku.stop()
+        _, alive = psutil.wait_procs(children, timeout=2)
+        assert alive == []
+
+    def test_default_stop_finishes_within_grace_period(self, heroku):
+        heroku.start()
+        started = time.time()
+        heroku.stop()
+        assert time.time() - started < heroku.stop_grace_secs
+
     @pytest.mark.parametrize(
         "clock_on, processes",
         [(False, ["web", "worker"]), (True, ["web", "worker", "clock"])],
@@ -708,8 +725,9 @@ class TestLocalProcfileWrapper:
     ):
         heroku.config.extend({"clock_on": clock_on, "num_dynos_web": 2})
         with mock.patch("dallinger.heroku.tools.subprocess.Popen") as popen:
-            heroku._boot()
-        heroku._process = None
+            with mock.patch("dallinger.heroku.tools.psutil.Process"):
+                heroku._boot()
+        heroku._process = heroku._runner = None
         command = popen.call_args.args[0]
         assert command[:4] == [sys.executable, "-m", "honcho", "start"]
         assert command[command.index("-c") + 1].startswith("web=2,worker=")

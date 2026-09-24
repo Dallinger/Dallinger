@@ -427,8 +427,9 @@ class LocalProcfileWrapper:
     # Run honcho with this interpreter so it is found even when the
     # virtualenv's bin directory is not on PATH.
     shell_command = (sys.executable, "-m", "honcho")
-    # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
-    stop_signal = signal.SIGINT
+    # Not SIGTERM: that starts gunicorn's graceful shutdown (up to its 30 s
+    # graceful_timeout), which overruns stop_grace_secs and ends in SIGKILL.
+    int_signal = signal.SIGINT
     stop_grace_secs = 5
     MONITOR_STOP = object()
     STREAM_SENTINEL = ""
@@ -449,6 +450,8 @@ class LocalProcfileWrapper:
         self.env = env if env is not None else os.environ.copy()
         self._record = []
         self._process = None
+        self._runner = None
+        self._leaders = []
         # needs_chrome, tmp_dir and experiment_name are here just for simmetry with the Docker wrapper
         self.needs_chrome = needs_chrome
         self.experiment_name = experiment_name
@@ -482,7 +485,11 @@ class LocalProcfileWrapper:
         finally:
             signal.alarm(0)
 
-        if not success:
+        if success:
+            # Remember the Procfile processes so stop() can reach them even if
+            # honcho dies first (its children are then reparented).
+            self._leaders = _session_leaders(self._runner.children(recursive=True))
+        else:
             self._log_failure()
             self.stop()
             raise HerokuStartupError(
@@ -497,37 +504,43 @@ class LocalProcfileWrapper:
     def stop(self, signal=None):
         """Stop the Procfile runner and all of its descendant processes.
 
-        honcho and each Procfile process get ``signal`` (SIGINT by default,
-        which makes gunicorn shut down quickly); Procfile processes shut down
-        their own workers. Anything still alive after ``stop_grace_secs`` is
-        killed.
+        Each Procfile process group, then honcho, gets ``signal`` (SIGINT by
+        default, which makes gunicorn shut down quickly). Anything still alive
+        after ``stop_grace_secs`` is killed.
         """
-        signal = signal or self.stop_signal
+        signal = signal or self.int_signal
         self.out.log("Cleaning up local server processes...")
         process, self._process = self._process, None
+        runner, self._runner = self._runner, None
+        leaders, self._leaders = self._leaders, []
         if process is None:
             self.out.log("No local server process was running.")
             return
 
-        try:
-            runner = psutil.Process(process.pid)
-            descendants = runner.children(recursive=True)
-        except psutil.NoSuchProcess:
-            self.out.log("Local server was already terminated.")
-            runner, descendants = None, []
+        # psutil handles taken at startup stay valid (and safe against PID
+        # reuse) even if honcho has died and its children were reparented.
+        procs = {}
+        for proc in [runner, *leaders]:
+            if proc is not None and _is_running(proc):
+                procs[proc] = None
+                for child in _children(proc):
+                    procs[child] = None
+        descendants = [proc for proc in procs if proc != runner]
+        leaders = _session_leaders(descendants)
 
-        # honcho starts each Procfile process as a session leader; their own
-        # children (e.g. gunicorn workers) are left for them to stop.
-        targets = [runner] if runner else []
-        for child in descendants:
+        if not procs:
+            self.out.log("Local server was already terminated.")
+        # honcho starts each Procfile process as a session and process-group
+        # leader. Signal those groups first so honcho's own SIGTERM (which
+        # triggers gunicorn's slower graceful shutdown) doesn't arrive first.
+        for leader in leaders:
             try:
-                if os.getsid(child.pid) == child.pid:
-                    targets.append(child)
+                os.killpg(leader.pid, signal)
             except OSError:
                 pass
-        for target in targets:
+        if runner is not None and _is_running(runner):
             try:
-                target.send_signal(signal)
+                runner.send_signal(signal)
             except psutil.Error:
                 pass
 
@@ -550,12 +563,12 @@ class LocalProcfileWrapper:
         survivors = [child for child in survivors if _is_running(child)]
 
         if survivors:
-            self.out.log(
+            self.out.error(
                 "Some local server processes could not be stopped: {}".format(
                     [child.pid for child in survivors]
                 )
             )
-        elif runner:
+        elif procs:
             self.out.log("Local server processes terminated.")
 
     def monitor(self, listener):
@@ -649,6 +662,7 @@ class LocalProcfileWrapper:
                 "preexec_fn": os.setsid,
             }
             self._process = subprocess.Popen(commands, **options)
+            self._runner = psutil.Process(self._process.pid)
         except OSError:
             self.out.error("Couldn't start honcho for local debugging.")
             raise
@@ -723,9 +737,28 @@ class LocalProcfileWrapper:
 def _is_running(process):
     """Whether a psutil process is still running (zombies count as stopped)."""
     try:
-        return process.status() != psutil.STATUS_ZOMBIE
+        return process.is_running() and process.status() != psutil.STATUS_ZOMBIE
     except psutil.NoSuchProcess:
         return False
+
+
+def _children(process):
+    try:
+        return process.children(recursive=True)
+    except psutil.NoSuchProcess:
+        return []
+
+
+def _session_leaders(processes):
+    """The processes that lead their own session (honcho's Procfile processes)."""
+    leaders = []
+    for process in processes:
+        try:
+            if os.getsid(process.pid) == process.pid:
+                leaders.append(process)
+        except OSError:
+            pass
+    return leaders
 
 
 # Backwards-compatible name from when this wrapped ``heroku local``.
