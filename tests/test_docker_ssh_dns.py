@@ -100,3 +100,37 @@ def test_dns_check_treats_malformed_hostname_as_unresolved(capsys):
             )
 
     assert "nothing (the name did not resolve)" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "server_info, dns_host, expected",
+    [
+        ({"host": "lab.example.org"}, None, "lab.example.org"),
+        ({"host": "1.2.3.4"}, None, None),
+        ({"host": "1.2.3.4", "dns_host": "lab.example.org"}, None, "lab.example.org"),
+        (
+            {"host": "lab.example.org", "dns_host": "saved.example.org"},
+            "explicit.example.org",
+            "explicit.example.org",
+        ),
+    ],
+)
+def test_resolve_dns_host(server_info, dns_host, expected):
+    assert docker_ssh_module.resolve_dns_host(server_info, dns_host) == expected
+
+
+def test_servers_add_saves_dns_host():
+    from click.testing import CliRunner
+
+    with (
+        mock.patch.object(docker_ssh_module, "prepare_server"),
+        mock.patch.object(docker_ssh_module, "store_host") as store_host,
+    ):
+        result = CliRunner().invoke(
+            docker_ssh_module.servers,
+            ["add", "--host", "1.2.3.4", "--dns-host", "lab.example.org"],
+        )
+    assert result.exit_code == 0, result.output
+    store_host.assert_called_once_with(
+        {"host": "1.2.3.4", "user": None, "dns_host": "lab.example.org"}
+    )

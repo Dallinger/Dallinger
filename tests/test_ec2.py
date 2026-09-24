@@ -376,3 +376,28 @@ class TestRegisterKeyPair:
             register_key_pair(mock_ec2, "test-key")
 
         assert "Unable to load key" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "dns_host, registered",
+    [("alice.example.org", "alice.example.org"), (None, "ec2-1-2-3-4.example.com")],
+)
+def test_provision_registers_one_server(dns_host, registered):
+    from dallinger.command_line.lib import ec2
+
+    config = mock.Mock()
+    config.get.return_value = "set"
+    with (
+        mock.patch("dallinger.config.get_config", return_value=config),
+        mock.patch.object(ec2, "dallinger_prepare_server"),
+        mock.patch.object(ec2, "create_dns_records"),
+        mock.patch.object(ec2, "dallinger_store_host") as store_host,
+    ):
+        ec2.prepare_docker_experiment_setup(
+            "ec2-1-2-3-4.example.com",
+            "ubuntu",
+            "1.2.3.4",
+            mock.Mock(),
+            dns_host=dns_host,
+        )
+    store_host.assert_called_once_with({"host": registered, "user": "ubuntu"})

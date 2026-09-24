@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Changed
+
+- `dallinger ec2 provision --dns-host <name>` now registers the server once,
+  under its DNS name, instead of also registering the instance's public AWS
+  hostname. Deployments therefore no longer ask which of the two entries to
+  use, and infer the DNS host from the server. `ec2 teardown` still removes
+  AWS-hostname entries created by earlier versions.
+- `dallinger docker-ssh servers add` accepts `--dns-host` and saves it with
+  the server, so servers added by IP address don't need `--dns-host` on every
+  deployment. `docker-ssh deploy`, `sandbox` and `destroy` use an explicit
+  `--dns-host`, then the saved DNS host, then the server's own name.
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added

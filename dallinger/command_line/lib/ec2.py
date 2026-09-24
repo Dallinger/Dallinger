@@ -25,6 +25,7 @@ from tenacity import (
 )
 from yaspin import yaspin
 
+from ..config import get_configured_hosts
 from ..config import remove_host as dallinger_remove_host
 from ..config import store_host as dallinger_store_host
 from ..docker_ssh import Executor
@@ -942,9 +943,9 @@ def prepare_docker_experiment_setup(
     create_dns_records(dns_host, user, host)
 
     with yaspin(text="Registering host in Dallinger...", color="green") as sp:
-        dallinger_store_host(dict(host=host, user=user))
-        if dns_host:
-            dallinger_store_host(dict(host=dns_host, user=user))
+        # One entry per server: its DNS name if it has one, so deployments
+        # infer the DNS host and there is no second entry to choose between.
+        dallinger_store_host(dict(host=dns_host or host, user=user))
         sp.ok("✔")
 
 
@@ -1081,6 +1082,7 @@ def stop(region_name, instance_id):
 def teardown(region_name, instance_id, public_dns_name, dns_host):
     logger.info(f"Terminating {instance_id} ({public_dns_name})...")
     get_ec2_client(region_name).terminate_instances(InstanceIds=[instance_id])
-    dallinger_remove_host(public_dns_name)
+    if public_dns_name in get_configured_hosts():  # registered by older versions
+        dallinger_remove_host(public_dns_name)
     remove_dns_record(dns_host, remove_dallinger_host=True)
     logger.info(f"Termination of {instance_id} complete!")
