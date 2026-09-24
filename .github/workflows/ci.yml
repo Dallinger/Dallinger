@@ -91,8 +91,6 @@ jobs:
         run: |
           google-chrome --version
           chromedriver --version
-      - name: Install snap packages
-        run: curl https://cli-assets.heroku.com/install.sh | sh
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:

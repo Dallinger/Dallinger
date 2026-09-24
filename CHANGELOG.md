@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Local debugging (`dallinger debug`, `LoaderDeployment`, and the
+  `pytest_dallinger` debug fixtures) now starts the Procfile processes with
+  [honcho](https://github.com/nickstenning/honcho) instead of `heroku local`,
+  so it no longer needs the Heroku CLI. `honcho` is a new Dallinger
+  dependency. honcho and the Procfile commands run from the current Python
+  environment, so this also works when the virtualenv is not activated. The
+  web process still runs gunicorn with the configured number of workers.
+- Stopping the local server now waits for the Procfile processes to exit and
+  kills any that remain. Previously `heroku local` exited straight away and
+  left gunicorn processes running.
+- Migration notes for code that builds on local debugging:
+  - The wrapper class is now `LocalProcfileWrapper`. `HerokuLocalWrapper`
+    remains as an alias.
+  - Its `shell_command` attribute is now a sequence of arguments
+    (`(sys.executable, "-m", "honcho")`) instead of a string.
+  - Log messages say "local server" instead of "local Heroku". For example,
+    "Local server processes terminated." replaces "Local Heroku process
+    terminated.", and "Starting up the honcho Local server..." replaces
+    "Starting up the Heroku Local server...". Update any scripts that wait
+    for the old text.
+  - The Procfile processes run with `PYTHONUNBUFFERED=1`.
+  - The `clear_workers` pytest fixture also kills `honcho start` processes.
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added

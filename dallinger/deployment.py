@@ -22,7 +22,7 @@ from rich.progress import (
 
 from dallinger import data, db, heroku, recruiters, registration
 from dallinger.config import get_config
-from dallinger.heroku.tools import HerokuApp, HerokuLocalWrapper
+from dallinger.heroku.tools import HerokuApp, LocalProcfileWrapper
 from dallinger.redis_utils import connect_to_redis
 from dallinger.utils import (
     ExperimentFileSource,
@@ -461,8 +461,8 @@ class HerokuLocalDeployment:
     environ = None
     bot = False
     experiment_files = None
-    DEPLOY_NAME = "Heroku"
-    WRAPPER_CLASS = HerokuLocalWrapper
+    DEPLOY_NAME = "honcho"
+    WRAPPER_CLASS = LocalProcfileWrapper
     DO_INIT_DB = True
 
     def configure(self):
@@ -478,7 +478,7 @@ class HerokuLocalDeployment:
 
     def update_dir(self):
         # FIXME: this call is used for implicit communication between classes in this file
-        # and service wrappers (HerokuLocalWrapper, DockerComposeWrapper).
+        # and service wrappers (LocalProcfileWrapper, DockerComposeWrapper).
         # This communication should be made explicit, passing this path around instead of
         # changing a global state.
         os.chdir(self.tmp_dir)
@@ -604,12 +604,12 @@ class DebugDeployment(HerokuLocalDeployment):
 
                 self.heroku = heroku
                 self.out.log(
-                    "Monitoring the Heroku Local server for recruitment or completion..."
+                    f"Monitoring the {self.DEPLOY_NAME} Local server for recruitment or completion..."
                 )
                 heroku.monitor(listener=self.notify)
 
     def launch_request_complete(self, match):
-        return HerokuLocalWrapper.MONITOR_STOP
+        return LocalProcfileWrapper.MONITOR_STOP
 
     def cleanup(self):
         self.out.log("Completed debugging of experiment with id " + self.exp_id)
@@ -695,7 +695,7 @@ class DebugDeployment(HerokuLocalDeployment):
         has determined that the experiment is complete.
         """
         if self.complete:
-            return HerokuLocalWrapper.MONITOR_STOP
+            return LocalProcfileWrapper.MONITOR_STOP
         return super(DebugDeployment, self).notify(message)
 
 

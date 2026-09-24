@@ -1,6 +1,7 @@
 import datetime
 import os
 import signal
+import sys
 import time
 from unittest import mock
 
@@ -553,7 +554,7 @@ class TestHerokuApp:
 
 @pytest.mark.usefixtures("bartlett_dir")
 @pytest.mark.slow
-class TestHerokuLocalWrapper:
+class TestLocalProcfileWrapper:
     @pytest.fixture
     def config(self):
         from dallinger.deployment import setup_experiment
@@ -579,9 +580,9 @@ class TestHerokuLocalWrapper:
 
     @pytest.fixture
     def heroku(self, config, env, output, clear_workers):
-        from dallinger.heroku.tools import HerokuLocalWrapper
+        from dallinger.heroku.tools import LocalProcfileWrapper
 
-        wrapper = HerokuLocalWrapper(config, output, env=env)
+        wrapper = LocalProcfileWrapper(config, output, env=env)
         yield wrapper
         wrapper.stop()
 
@@ -610,7 +611,9 @@ class TestHerokuLocalWrapper:
         from dallinger.heroku.tools import HerokuStartupError
 
         heroku.verbose = False  # more coverage
-        heroku._stream = mock.Mock(return_value=["[DONE] Killing all processes"])
+        heroku._stream = mock.Mock(
+            return_value=["12:00:00 system   | web.1 stopped (rc=1)"]
+        )
         with mock.patch.object(heroku, "_up_and_running", return_value=False):
             with pytest.raises(HerokuStartupError):
                 heroku.start()
@@ -682,7 +685,53 @@ class TestHerokuLocalWrapper:
     def test_stop(self, heroku):
         heroku.start()
         heroku.stop(signal.SIGKILL)
-        heroku.out.log.assert_called_with("Local Heroku process terminated.")
+        heroku.out.log.assert_called_with("Local server processes terminated.")
+
+    @pytest.mark.parametrize("stop_signal", [None, signal.SIGKILL])
+    def test_stop_leaves_no_child_processes(self, heroku, stop_signal):
+        import psutil
+
+        heroku.start()
+        time.sleep(2)  # let gunicorn boot its worker processes
+        children = psutil.Process(heroku._process.pid).children(recursive=True)
+        heroku.stop(stop_signal)
+        _, alive = psutil.wait_procs(children, timeout=2)
+        assert alive == []
+
+    def test_stop_after_runner_is_killed_leaves_no_processes(self, heroku):
+        import psutil
+
+        heroku.start()
+        time.sleep(2)  # let gunicorn boot its worker processes
+        children = psutil.Process(heroku._process.pid).children(recursive=True)
+        heroku._process.kill()
+        heroku._process.wait()
+        heroku.stop()
+        _, alive = psutil.wait_procs(children, timeout=2)
+        assert alive == []
+
+    def test_default_stop_finishes_within_grace_period(self, heroku):
+        heroku.start()
+        started = time.time()
+        heroku.stop()
+        assert time.time() - started < heroku.stop_grace_secs
+
+    @pytest.mark.parametrize(
+        "clock_on, processes",
+        [(False, ["web", "worker"]), (True, ["web", "worker", "clock"])],
+    )
+    def test_boot_runs_procfile_processes_with_honcho(
+        self, heroku, clock_on, processes
+    ):
+        heroku.config.extend({"clock_on": clock_on, "num_dynos_web": 2})
+        with mock.patch("dallinger.heroku.tools.subprocess.Popen") as popen:
+            with mock.patch("dallinger.heroku.tools.psutil.Process"):
+                heroku._boot()
+        heroku._process = heroku._runner = None
+        command = popen.call_args.args[0]
+        assert command[:4] == [sys.executable, "-m", "honcho", "start"]
+        assert command[command.index("-c") + 1].startswith("web=2,worker=")
+        assert command[-len(processes) :] == processes
 
     def test_stop_on_killed_process_no_error(self, heroku):
         heroku.start()
@@ -690,26 +739,55 @@ class TestHerokuLocalWrapper:
         heroku.stop()
         log_calls = [call.args[0] for call in heroku.out.log.mock_calls]
         assert (
-            "Local Heroku was already terminated." in log_calls
-            or "Local Heroku process terminated." in log_calls
+            "Local server was already terminated." in log_calls
+            or "Local server processes terminated." in log_calls
         )
 
     def test_start_when_shell_command_fails(self, heroku):
-        heroku.shell_command = "nonsense"
+        heroku.shell_command = ("nonsense",)
         with pytest.raises(OSError):
             heroku.start()
-            heroku.out.error.assert_called_with(
-                "Couldn't start Heroku for local debugging."
-            )
+        heroku.out.error.assert_called_with(
+            "Couldn't start honcho for local debugging."
+        )
+
+    def test_runner_env_puts_interpreter_bin_first(self, heroku):
+        bin_dir = os.path.dirname(sys.executable)
+        heroku.env = {"HOME": "/tmp", "PATH": os.pathsep.join(["/usr/bin", bin_dir])}
+        env = heroku._runner_env()
+        assert env["PATH"].split(os.pathsep) == [bin_dir, "/usr/bin"]
+        assert env["PYTHONUNBUFFERED"] == "1"
+
+    def test_startup_timeout_leaves_no_child_processes(self, heroku):
+        import psutil
+
+        from dallinger.heroku.tools import HerokuTimeoutError
+
+        children = []
+
+        def never_up(port):
+            children[:] = psutil.Process(heroku._process.pid).children(recursive=True)
+            return False
+
+        with mock.patch.object(heroku, "_up_and_running", side_effect=never_up):
+            with pytest.raises(HerokuTimeoutError):
+                heroku.start(timeout_secs=3)
+        _, alive = psutil.wait_procs(children, timeout=2)
+        assert children and alive == []
+
+    def test_old_name_is_an_alias(self):
+        from dallinger.heroku.tools import HerokuLocalWrapper, LocalProcfileWrapper
+
+        assert HerokuLocalWrapper is LocalProcfileWrapper
 
     def test_stop_before_start_is_noop(self, heroku):
         heroku.stop()
-        heroku.out.log.assert_called_with("No local Heroku process was running.")
+        heroku.out.log.assert_called_with("No local server process was running.")
 
     def test_start_when_already_started_is_noop(self, heroku):
         heroku.start()
         heroku.start()
-        heroku.out.log.assert_called_with("Local Heroku is already running.")
+        heroku.out.log.assert_called_with("Local server is already running.")
 
     def test_monitor(self, heroku):
         heroku._stream = mock.Mock(return_value=["apple", "orange"])
@@ -725,9 +803,9 @@ class TestHerokuLocalWrapper:
         listener.assert_has_calls([mock.call("apple")])
 
     def test_as_context_manager(self, config, env, output, clear_workers):
-        from dallinger.heroku.tools import HerokuLocalWrapper
+        from dallinger.heroku.tools import LocalProcfileWrapper
 
-        with HerokuLocalWrapper(config, output, env=env) as heroku:
+        with LocalProcfileWrapper(config, output, env=env) as heroku:
             assert heroku.is_running
         assert not heroku.is_running
 
