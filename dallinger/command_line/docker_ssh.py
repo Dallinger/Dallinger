@@ -162,7 +162,13 @@ def list_servers():
     "--host", required=True, help="IP address or dns name of the remote server"
 )
 @click.option("--user", help="User to use when connecting to remote host")
-def add(host, user):
+@click.option(
+    "--dns-host",
+    help="DNS name that experiments on this server are served under. "
+    "Saved with the server so deployments don't need --dns-host; "
+    "needed when --host is an IP address.",
+)
+def add(host, user, dns_host):
     """Add a server to deploy experiments through ssh using docker.
     The server needs `docker` and `docker compose` usable by the current user.
     Port 80 and 443 must be free for dallinger to use.
@@ -176,7 +182,10 @@ def add(host, user):
     server_pem = ~/.ssh/your-key.pem
     """
     prepare_server(host, user)
-    store_host(dict(host=host, user=user))
+    server_info = dict(host=host, user=user)
+    if dns_host:
+        server_info["dns_host"] = dns_host
+    store_host(server_info)
 
 
 @servers.command()
@@ -808,18 +817,12 @@ def _deploy_in_mode(
 
     app_identifier = app_name or experiment_id
 
-    # Check if server is an IP address
-    try:
-        socket.inet_aton(ssh_host)
-        is_ip = True
-    except socket.error:
-        is_ip = False
-
+    dns_host = resolve_dns_host(server_info, dns_host)
     if not dns_host:
-        if is_ip:
-            print(
-                f"""{RED}Error: When using an IP address as server ({ssh_host}), you must specify a DNS host.{END}
-You have two options:
+        user_opt = f"--user {ssh_user} " if ssh_user else ""
+        print(
+            f"""{RED}Error: When using an IP address as server ({ssh_host}), you must specify a DNS host.{END}
+You have three options:
 1. Use nip.io:
    --dns-host nip.io
    {RED}Using nip.io as part of the hostname might cause problems:{END}
@@ -828,12 +831,11 @@ You have two options:
    Create a DNS A record pointing to {GREEN}{ssh_host}{END}
    and use option --dns-host to deploy the experiment.
    {BLUE}For instance to use the name experiment1.my-custom-domain.example.com
-   you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}"""
-            )
-            raise click.Abort()
-        else:
-            # Not an IP address, use the server value as DNS host
-            dns_host = ssh_host
+   you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}
+3. Save the DNS host with the server so you don't need to pass it again:
+   dallinger docker-ssh servers add {user_opt}--host {ssh_host} --dns-host my-custom-domain.example.com"""
+        )
+        raise click.Abort()
 
     # Check if we're using nip.io (either provided or generated)
     if dns_host == "nip.io":
@@ -1379,7 +1381,7 @@ def destroy(server, app):
     # Inspect the active Caddyfile only after we know the app exists.
     caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
     uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
-    dns_host = server_info["host"]
+    dns_host = resolve_dns_host(server_info) or ssh_host
 
     # Remove the caddy configuration file and reload caddy config
     executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
@@ -1737,6 +1739,26 @@ def _check_experiment_hostname_dns(ssh_host, experiment_hostname):
             "(up to about 5 minutes for Dallinger Route 53 records) and try again."
         )
     raise click.Abort()
+
+
+def resolve_dns_host(server_info, dns_host=None):
+    """Return the DNS name that experiments on a configured server are served under.
+
+    An explicit ``dns_host`` wins, then the DNS host saved with the server,
+    then the server's own name if it is a hostname rather than an IP address.
+    Returns ``None`` for servers registered by IP address without a saved
+    DNS host.
+    """
+    if dns_host:
+        return dns_host
+    if server_info.get("dns_host"):
+        return server_info["dns_host"]
+    host = server_info["host"]
+    try:
+        socket.inet_aton(host)
+    except OSError:
+        return host
+    return None
 
 
 def get_dns_host(ssh_host):

@@ -235,6 +235,12 @@ Given an IP address or a DNS name of the server and a username, add the host to 
 
     dallinger docker-ssh servers add --user $SERVER_USER --host $SERVER_HOSTNAME_OR_IP
 
+Experiments are served at subdomains of a DNS name. If you add the server by its
+DNS name, deployments use that name. If you add it by IP address, also pass
+``--dns-host <your-domain>`` so the DNS name is saved with the server; otherwise
+every deployment needs ``--dns-host``. An explicit ``--dns-host`` on
+``docker-ssh deploy`` or ``sandbox`` always takes precedence.
+
 The ``server_pem`` configuration will be used automatically for SSH authentication when connecting to the server.
 
 Server information is stored in ``~/.dallinger/docker-ssh/hosts``. For backward compatibility,

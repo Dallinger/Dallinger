@@ -345,13 +345,13 @@ def test_remove_unshared_skips_rmi_when_another_app_pins_the_image():
     assert not any(cmd.startswith("docker rmi") for cmd in commands)
 
 
-def _patch_destroy_executor(monkeypatch, run):
+def _patch_destroy_executor(monkeypatch, run, server_info=None):
     executor = mock.Mock()
     executor.run.side_effect = run
     monkeypatch.setattr(
         docker_ssh_module,
         "CONFIGURED_HOSTS",
-        {"test-server": {"host": "example.com", "user": "ubuntu"}},
+        {"test-server": server_info or {"host": "example.com", "user": "ubuntu"}},
     )
     monkeypatch.setattr(docker_ssh_module, "Executor", lambda *args, **kwargs: executor)
     return executor
@@ -397,6 +397,40 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
         "amir20/dozzle",
     ):
         assert not any(forbidden in cmd for cmd in rmi_commands)
+
+
+def test_destroy_restores_caddyfile_using_saved_dns_host(monkeypatch):
+    uploaded = []
+
+    def run(cmd, raise_=True):
+        if cmd.startswith("test -f") and "caddy.d" in cmd:
+            return "Yes"
+        if cmd.startswith("test -f") and "docker-compose.yml" in cmd:
+            return ""
+        if cmd == "cat ~/dallinger/Caddyfile":
+            return "https://1.2.3.4 {\n    reverse_proxy myapp_web:5000\n}\n"
+        return ""
+
+    _patch_destroy_executor(
+        monkeypatch,
+        run,
+        {"host": "1.2.3.4", "user": "ubuntu", "dns_host": "lab.example.org"},
+    )
+    sftp = mock.Mock()
+    sftp.putfo.side_effect = lambda buf, path: uploaded.append((buf.getvalue(), path))
+    monkeypatch.setattr(docker_ssh_module, "get_sftp", lambda *a, **k: sftp)
+    config = mock.Mock()
+    config.get.return_value = "ops@example.org"
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load=True: config)
+
+    docker_ssh_module.destroy.callback(server="test-server", app="myapp")
+
+    assert len(uploaded) == 1
+    restored, path = uploaded[0]
+    assert path == "dallinger/Caddyfile"
+    text = restored.decode()
+    assert "lab.example.org" in text
+    assert "1.2.3.4" not in text
 
 
 class _LocalDockerExecutor:

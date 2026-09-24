@@ -132,6 +132,10 @@ To provision an on-demand EC2 instance::
 
     dallinger ec2 provision --name <server_name> --region <region> --dns-host <subdomain>.my-experiments.org --type <type> --security_group_name <security_group>
 
+The server is registered under its ``--dns-host`` name, so later deployments
+can select it with ``--server <subdomain>.my-experiments.org`` (or omit
+``--server`` if it is your only server) without passing ``--dns-host`` again.
+
 Pick an instance name which is easy to recognize, for example
 `tapping-deployment-batch-2` is good but `melody123` would be bad::
 
