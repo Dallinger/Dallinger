@@ -401,3 +401,30 @@ def test_provision_registers_one_server(dns_host, registered):
             dns_host=dns_host,
         )
     store_host.assert_called_once_with({"host": registered, "user": "ubuntu"})
+
+
+def test_teardown_skips_remove_host_when_aws_hostname_not_configured():
+    from dallinger.command_line.lib import ec2
+
+    with (
+        mock.patch.object(ec2, "get_ec2_client") as get_ec2_client,
+        mock.patch.object(
+            ec2,
+            "get_configured_hosts",
+            return_value={"alice.example.org": {"host": "alice.example.org"}},
+        ),
+        mock.patch.object(ec2, "dallinger_remove_host") as remove_host,
+        mock.patch.object(ec2, "remove_dns_record") as remove_dns,
+    ):
+        ec2.teardown(
+            "eu-west-1",
+            "i-123",
+            "ec2-1-2-3-4.compute.amazonaws.com",
+            "alice.example.org",
+        )
+
+    get_ec2_client.return_value.terminate_instances.assert_called_once_with(
+        InstanceIds=["i-123"]
+    )
+    remove_host.assert_not_called()
+    remove_dns.assert_called_once_with("alice.example.org", remove_dallinger_host=True)

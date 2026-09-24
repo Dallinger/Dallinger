@@ -110,6 +110,11 @@ def test_dns_check_treats_malformed_hostname_as_unresolved(capsys):
         ({"host": "1.2.3.4", "dns_host": "lab.example.org"}, None, "lab.example.org"),
         (
             {"host": "lab.example.org", "dns_host": "saved.example.org"},
+            None,
+            "saved.example.org",
+        ),
+        (
+            {"host": "lab.example.org", "dns_host": "saved.example.org"},
             "explicit.example.org",
             "explicit.example.org",
         ),

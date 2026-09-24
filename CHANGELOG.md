@@ -8,11 +8,13 @@
   under its DNS name, instead of also registering the instance's public AWS
   hostname. Deployments therefore no longer ask which of the two entries to
   use, and infer the DNS host from the server. `ec2 teardown` still removes
-  AWS-hostname entries created by earlier versions.
+  an AWS-hostname entry if the instance's current public DNS is still
+  configured.
 - `dallinger docker-ssh servers add` accepts `--dns-host` and saves it with
   the server, so servers added by IP address don't need `--dns-host` on every
-  deployment. `docker-ssh deploy`, `sandbox` and `destroy` use an explicit
-  `--dns-host`, then the saved DNS host, then the server's own name.
+  deployment. `docker-ssh deploy` and `sandbox` use an explicit `--dns-host`,
+  then the saved DNS host, then the server's own name. `destroy` infers the
+  DNS host the same way, but has no `--dns-host` option.
 
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 

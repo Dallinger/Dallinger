@@ -819,6 +819,7 @@ def _deploy_in_mode(
 
     dns_host = resolve_dns_host(server_info, dns_host)
     if not dns_host:
+        user_opt = f"--user {ssh_user} " if ssh_user else ""
         print(
             f"""{RED}Error: When using an IP address as server ({ssh_host}), you must specify a DNS host.{END}
 You have three options:
@@ -832,7 +833,7 @@ You have three options:
    {BLUE}For instance to use the name experiment1.my-custom-domain.example.com
    you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}
 3. Save the DNS host with the server so you don't need to pass it again:
-   dallinger docker-ssh servers add --host {ssh_host} --dns-host my-custom-domain.example.com"""
+   dallinger docker-ssh servers add {user_opt}--host {ssh_host} --dns-host my-custom-domain.example.com"""
         )
         raise click.Abort()
 
