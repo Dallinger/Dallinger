@@ -48,6 +48,17 @@ Base = declarative_base()
 Base.query = session.query_property()
 redis_conn = connect_to_redis()
 
+CONTROL_CHANNEL = "dallinger_control"
+
+#: Carries directed sends between processes, and prefixes the frame one arrives
+#: in at the browser. The two are different shapes: an envelope naming
+#: recipients over redis, and the payload alone on the wire to the browser.
+DIRECT_CHANNEL = "dallinger_direct"
+
+#: Channels Dallinger owns. A client may neither subscribe to one nor address
+#: a frame to it.
+RESERVED_CHANNELS = frozenset({CONTROL_CHANNEL, DIRECT_CHANNEL})
+
 db_user_warning = """
 *********************************************************
 *********************************************************
