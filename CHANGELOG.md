@@ -4,6 +4,13 @@
 
 ### Added
 
+- docker-ssh experiment containers built from now on run as the SSH user
+  instead of root; images built earlier keep running as root until rebuilt.
+  Every directory under ``/experiment`` is writable in the image, so the app
+  can create files anywhere in its tree, and deploy chowns the app's data
+  directory and writable bind mounts under ``$HOME``. Files shipped in the
+  image cannot be edited in place, and paths outside ``/experiment`` stay
+  read-only for the app.
 - docker-ssh writes a non-secret ``~/dallinger/<app>/deployment.json`` on
   deploy and ``apps`` shows the recorded ingress and origin.
   New ``docker_ssh_monitoring_kind`` and ``docker_ssh_monitoring_path``

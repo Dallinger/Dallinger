@@ -39,7 +39,9 @@ services:
   web:
     restart: unless-stopped
     image: {{ experiment_image }}
+{%- if run_as_ssh_user %}
     user: "${UID}:${GID}"
+{%- endif %}
     command: dallinger_heroku_web
     depends_on: &commondepends
       redis:
@@ -90,7 +92,9 @@ services:
     cpu_shares: {{ config["docker_worker_cpu_shares"] }}
     depends_on:
       <<: *commondepends
+{%- if run_as_ssh_user %}
     user: "${UID}:${GID}"
+{%- endif %}
     environment:
       <<: *commonenv
     networks:
@@ -142,7 +146,9 @@ services:
   clock:
     restart: unless-stopped
     image: {{ experiment_image }}
+{%- if run_as_ssh_user %}
     user: "${UID}:${GID}"
+{%- endif %}
     command: dallinger_heroku_clock
     depends_on:
       <<: *commondepends
