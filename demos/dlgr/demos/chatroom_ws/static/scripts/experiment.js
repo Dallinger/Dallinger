@@ -80,7 +80,8 @@ var leave_chatroom = function() {
     'sender': dallinger.identity.participantId,
     'node_id': my_node_id,
   });
-  // Wait for the goodbye to reach the server before leaving the page
+  // Let the goodbye reach the server before leaving. If the connection is
+  // down, close() drops it rather than make the participant wait.
   chatroom_socket.close().always(function () {
     dallinger.goToPage("questionnaire");
   });
