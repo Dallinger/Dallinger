@@ -4,13 +4,20 @@
 
 ### Added
 
+- docker-ssh can hibernate an app behind an unprivileged front door. Idle
+  sleep is off unless ``docker_ssh_idle_hibernate`` is set. ``/health``
+  reports state and does not wake the app or count as traffic. Updating a
+  hibernating app wakes it. Cloudflare tunnels now reach the app through the
+  front door. The experiment server has a stock ``GET /health``.
 - docker-ssh experiment containers built from now on run as the SSH user
   instead of root; images built earlier keep running as root until rebuilt.
   Every directory under ``/experiment`` is writable in the image, so the app
-  can create files anywhere in its tree, and deploy chowns the app's data
-  directory and writable bind mounts under ``$HOME``. Files shipped in the
-  image cannot be edited in place, and paths outside ``/experiment`` stay
-  read-only for the app.
+  can create files anywhere in its tree, and deploy chowns the app's data and
+  state directories and writable bind mounts under ``$HOME``. Files shipped
+  in the image cannot be edited in place, and paths outside ``/experiment``
+  stay read-only for the app.
+- docker-ssh disk cleanup prunes only stopped containers outside Compose
+  projects, and the host Caddy image is pinned to ``caddy:2.10.2``.
 - docker-ssh writes a non-secret ``~/dallinger/<app>/deployment.json`` on
   deploy and ``apps`` shows the recorded ingress and origin.
   New ``docker_ssh_monitoring_kind`` and ``docker_ssh_monitoring_path``

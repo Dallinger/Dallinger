@@ -163,43 +163,80 @@ experiments deployed this way can be found under the `dallinger docker-ssh` comm
       deploy                Deploy a dallinger experiment docker image to a server using ssh.
       destroy               Tear down an experiment run on a server you control via ssh.
       export                Export database to a local file.
+      hibernate             Stop expensive services while keeping the app front door awake.
+      awaken                Start a hibernated app without re-launching recruitment.
       servers               Manage remote servers where experiments can be deployed
       set-dozzle-password
       stats                 Get resource usage stats from remote server.
 
 Each ``docker-ssh`` deploy writes ``~/dallinger/<app>/deployment.json`` on the
 server. The file records non-secret metadata: the public HTTPS origin, the
-ingress mode, and the monitoring kind and path. ``apps`` shows the recorded ingress
-and origin. Host records reject fields whose names look like tokens or
-passwords.
+ingress mode, and the monitoring kind and path. ``apps`` shows the recorded
+ingress and origin. Host records reject fields whose names look like tokens
+or passwords.
 
 The app's Postgres password lives in ``~/dallinger/<app>/.env`` (mode ``0600``),
 which Compose reads, rather than in the Compose file. ``--update`` keeps it.
 
-``--ingress classic`` keeps host Caddy and the shared server Postgres.
-``--ingress cloudflare`` starts an isolated Compose stack and a per-app
-tunnel. The tunnel proxies to the experiment web service. Set the non-secret
-``cloudflare_account_id``, ``cloudflare_zone_id``, and ``cloudflare_dns_zone``
-in Dallinger config. The API token is read from ``CLOUDFLARE_API_TOKEN``, then
-Dallinger config, then the macOS Keychain item
-``dallinger-cloudflare-api-token``. It is never written to host records, the
-manifest, or the app's Compose file. Tunnel names do not include the server,
-so a deploy refuses an app name whose tunnel already exists, unless it is the
-tunnel this server recorded for that app (in its manifest, or next to the
-connector token from an earlier attempt). Destroy stops the connector, then deletes the DNS record and
-tunnel, but never a same-named tunnel with a different id. If that cleanup fails, destroy leaves the app's files in place so it
-can be run again.
+Classic Caddy apps share the host Postgres instance and are reached on
+``{app}.{dns-host}`` via ports 80/443. Cloudflare apps use an isolated
+Compose stack (app-local Postgres, no published ports) and a first-level
+name such as ``consonance.science-of-music.org``. Both kinds can run on the
+same server. Select ingress per deploy with ``--ingress classic|cloudflare``.
+Set the non-secret ``cloudflare_account_id``, ``cloudflare_zone_id``, and
+``cloudflare_dns_zone`` in Dallinger config. The API token is read from
+``CLOUDFLARE_API_TOKEN``, then Dallinger config, then the macOS Keychain item
+``dallinger-cloudflare-api-token``. It is never written to host records,
+manifests, logs, or the app's Compose file. Only the per-app connector token
+is installed remotely at mode ``0600``. Tunnel names do not include the
+server, so a deploy refuses an app name whose tunnel already exists, unless it
+is the tunnel this server recorded for that app (in its manifest, or next to
+the connector token from an earlier attempt). Destroy stops the connector,
+then deletes the DNS record and tunnel, but never a same-named tunnel with a
+different id. If that cleanup fails, destroy leaves the app's files in place
+so it can be run again.
+
+Each app also gets an unprivileged Caddy front door (WebSockets, no Docker
+socket) and a private controller that can stop only that Compose project's
+expensive services. The controller is a standard-library script run from
+``python:3.12-alpine``, not the experiment image. Only ``docker compose exec``
+inside the controller can explicitly hibernate or wake the app; any visitor
+also wakes it. While it sleeps, page loads get a wait page and other requests
+get HTTP 503 with ``Retry-After``. Set ``docker_ssh_idle_hibernate = true`` to sleep after
+idle traffic; ``/health`` probes do not count. Leave idle sleep off for first
+canary deploys. Manual control::
+
+    dallinger docker-ssh hibernate --app $APP --server $SERVER
+    dallinger docker-ssh awaken --app $APP --server $SERVER
+
+``dallinger docker-ssh apps`` reports ``hibernating`` or ``waking`` when the
+front door is up but expensive services are stopped. ``dallinger docker-ssh
+export`` awakens the app and waits until Postgres and web health succeed.
 
 Experiment containers run as the SSH user (``UID``/``GID`` in the per-app
 ``.env``) when their image was built by this version of Dallinger; older
 images keep running as root until rebuilt. Every directory under
 ``/experiment`` is writable in the image, so the app can create files there;
-files shipped in the image cannot be edited in place. Deploy also chowns
-``~/dallinger-data/<app>`` and writable host bind mounts under the home
-directory in ``docker_volumes`` (PsyNet defaults include
-``~/psynet-data/assets``) so files left as root by older deploys stay
-writable. If a plain chown fails, deploy retries in a root ``alpine:3.20``
-container, and warns if that fails.
+files shipped in the image cannot be edited in place. Deploy also chowns ``~/dallinger-data/<app>``, the front-door
+state directory, and writable host bind mounts under the home directory in
+``docker_volumes`` (PsyNet defaults include ``~/psynet-data/assets``) so
+files left as root by older deploys stay writable. If a plain chown fails,
+deploy retries in a root ``alpine:3.20`` container, and warns if that fails.
+
+Do not turn on idle sleep while recruitment is running, or for experiments
+that keep WebSocket or other in-memory participant state. Expensive
+services use ``restart: unless-stopped``: a host reboot brings back an app
+that was running, and an explicit hibernate stays stopped.
+The idle quiet period restarts when the app wakes and when its controller
+starts, so a just-woken or just-updated app gets a full quiet period.
+``--update`` wakes a hibernating app; it
+sleeps again only if idle sleep is on. An app is hibernating only after
+``hibernate`` or idle sleep. If ``web`` is down for any other reason, the
+front door returns HTTP 503 and ``/health`` reports ``unavailable``. A
+wake interrupted by a controller restart goes back to hibernating, and the
+next visitor or ``awaken`` retries it. Isolated Cloudflare Postgres uses a
+pinned ``{app}_postgresql`` container name so export does not fall back to
+the shared host database.
 
 To bake an unreleased Dallinger checkout into the experiment image, set
 ``DALLINGER_SOURCE`` to that tree (PsyNet ``--use-local-dallinger`` does
@@ -238,7 +275,9 @@ Server Prerequisites
 
 Your deployment server must meet these requirements:
 
-    * Ports 80 and 443 should be free (Dallinger will install a web server and take care of getting SSL certificates for you)
+    * Ports 80 and 443 should be free if you use classic Caddy ingress
+      (Dallinger will install a web server and take care of getting SSL
+      certificates for you). Cloudflare tunnel apps do not publish those ports.
     * SSH should be configured with public key authentication
     * Your server's ``~/.ssh/authorized_keys`` file must contain the public key corresponding to your ``server_pem`` private key
     * The user on the server needs passwordless sudo
@@ -344,6 +383,17 @@ If you need to run an experiment on Amazon Mechanical Turk in sandbox mode you c
 .. code-block:: shell
 
     dallinger docker-ssh deploy --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5 -c mode sandbox
+
+To publish an experiment on a first-level Cloudflare hostname instead of host
+Caddy, pass ``--ingress cloudflare`` on that deploy. Do not set
+``--default-ingress cloudflare`` until canaries succeed. The app name becomes
+the DNS label:
+
+.. code-block:: shell
+
+    CLOUDFLARE_API_TOKEN=... dallinger docker-ssh deploy \
+        --app consonance --ingress cloudflare \
+        --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5
 
 
 To export the data from an experiment running on a server, run:

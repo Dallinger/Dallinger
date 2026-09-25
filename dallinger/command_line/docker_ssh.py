@@ -30,7 +30,7 @@ from uuid import uuid4
 import click
 import paramiko
 import requests
-from jinja2 import Template
+from jinja2 import Environment, FileSystemLoader, Template
 from requests.adapters import HTTPAdapter
 from rich.text import Text
 from urllib3.util.retry import Retry
@@ -47,6 +47,8 @@ from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import handle_launch_data, setup_experiment
+from dallinger.hibernation import STATE_HIBERNATING as HIBERNATING
+from dallinger.hibernation import STATE_WAKING as WAKING
 from dallinger.utils import (
     BLUE,
     END,
@@ -77,6 +79,9 @@ from .lib.cloudflare import (
 from .lib.cloudflare import public_hostname as cloudflare_public_hostname
 from .utils import get_server_pem_path
 
+# Hibernated apps keep stopped Compose containers that ``awaken`` restarts.
+CONTAINER_PRUNE = "docker container prune -f --filter label!=com.docker.compose.project"
+
 
 @dataclass(frozen=True)
 class App:
@@ -86,17 +91,16 @@ class App:
     ----------
     name : str
         App/project name on the remote server.
-    state : Literal["running", "inactive"]
+    state : Literal["running", "inactive", "hibernating", "waking"]
         Runtime state label used by CLI output and app selection logic.
     ingress : str
-        ``classic`` host Caddy. Cloudflare is recorded when a manifest says so,
-        but this release still deploys only classic ingress.
+        ``classic`` host Caddy or ``cloudflare`` per-app tunnel.
     public_origin : str or None
         HTTPS origin when known from a deployment manifest.
     """
 
     name: str
-    state: Literal["running", "inactive"]
+    state: Literal["running", "inactive", "hibernating", "waking"]
     ingress: str = "classic"
     public_origin: str | None = None
 
@@ -114,11 +118,25 @@ DOCKER_COMPOSE_SERVER_TPL = Template(
     ).read_text()
 )
 
-DOCKER_COMPOSE_EXP_TPL = Template(
-    abspath_from_egg(
-        "dallinger", "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2"
-    ).read_text()
+_SSH_TEMPLATE_ENV = Environment(
+    loader=FileSystemLoader(
+        abspath_from_egg(
+            "dallinger",
+            "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2",
+        ).parent
+    ),
+    autoescape=False,
 )
+DOCKER_COMPOSE_EXP_TPL = _SSH_TEMPLATE_ENV.get_template(
+    "docker-compose-experiment.yml.j2"
+)
+
+FRONTDOOR_CADDYFILE = abspath_from_egg(
+    "dallinger", "dallinger/docker/ssh_templates/Caddyfile.frontdoor"
+).read_text()
+HIBERNATION_CONTROLLER = abspath_from_egg(
+    "dallinger", "dallinger/hibernation.py"
+).read_text()
 
 
 CADDYFILE_SUBDOMAIN = """
@@ -686,6 +704,20 @@ def _cloudflare_settings(config, dns_zone=None):
     }
 
 
+def _idle_settings(config_map):
+    """Return idle hibernation flag and minutes from a compose/config mapping."""
+    enabled = str(config_map.get("docker_ssh_idle_hibernate", False)).lower() in {
+        "true",
+        "1",
+        "yes",
+    }
+    try:
+        minutes = int(config_map.get("docker_ssh_idle_hibernate_minutes") or 60)
+    except (TypeError, ValueError):
+        minutes = 60
+    return enabled, max(minutes, 1)
+
+
 def _existing_app_secret(executor, app, key):
     """Return ``key`` from the app's ``.env``, where deploy keeps its secrets."""
     env = executor.run(f"cat ~/dallinger/{app}/.env", raise_=False) or ""
@@ -694,6 +726,18 @@ def _existing_app_secret(executor, app, key):
         if name == key and value:
             return value
     return None
+
+
+def _upload_frontdoor_caddyfile(sftp, executor, app):
+    """Install the front-door Caddyfile, the controller script, and the state dir."""
+    executor.run(f"mkdir -p ~/dallinger/{app}/state")
+    sftp.putfo(
+        BytesIO(FRONTDOOR_CADDYFILE.encode()),
+        f"dallinger/{app}/Caddyfile.frontdoor",
+    )
+    sftp.putfo(
+        BytesIO(HIBERNATION_CONTROLLER.encode()), f"dallinger/{app}/hibernation.py"
+    )
 
 
 def _check_app_slot(executor, app, update, ingress):
@@ -765,6 +809,7 @@ def _upload_app_stack(
     executor.run(f"umask 077 && : > {env_path} && chmod 600 {env_path}")
     sftp.putfo(BytesIO(env.encode()), env_path)
     _write_experiment_compose_env(executor, app, cfg.get("docker_volumes", ""))
+    _upload_frontdoor_caddyfile(sftp, executor, app)
     monitoring_kind, monitoring_path = _monitoring_settings(cfg)
     _upload_app_manifest(
         sftp,
@@ -1426,16 +1471,16 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     )
     ensure_postgres_schema_permissions(executor, experiment_id)
 
-    executor.run(
-        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
+    # Classic already restored any archive above. ``restore=False`` keeps
+    # that work from running a second time.
+    _bring_up_app_containers(
+        executor,
+        server_info,
+        experiment_id,
+        archive_path,
+        update,
+        restore=False,
     )
-    if archive_path is None and not update:
-        print(f"Experiment {experiment_id} started.")
-        print("Initializing database...")
-        executor.run(
-            f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T web dallinger-housekeeper initdb"
-        )
-        print("Database initialized.")
 
     if use_subdomain:
         # We give caddy the alias for the service. If we scale up the service container caddy will
@@ -1529,11 +1574,7 @@ def _deploy_cloudflare_in_mode(
     server_info,
     update,
 ):
-    """Deploy an isolated Cloudflare-tunnel experiment on a docker-ssh host.
-
-    The tunnel proxies to the web service. The front door and idle sleep
-    are added later.
-    """
+    """Deploy an isolated Cloudflare-tunnel experiment on a docker-ssh host."""
     try:
         validate_app_dns_label(experiment_id)
     except CloudflareError as exc:
@@ -1774,20 +1815,23 @@ def get_apps(server):
     app_names = _discover_server_apps(executor)
     running_projects = _get_running_app_names(executor)
     manifests = _load_remote_manifests(executor, app_names)
+    parked = _remote_hibernation_states(executor)
 
     apps = []
     for app_name in app_names:
         manifest = manifests.get(app_name)
+        if app_name in parked:
+            state = parked[app_name]
+        elif app_name in running_projects:
+            state = "running"
+        else:
+            state = "inactive"
         apps.append(
             App(
                 name=app_name,
-                state="running" if app_name in running_projects else "inactive",
+                state=state,
                 ingress=manifest.ingress if manifest else "classic",
-                public_origin=(
-                    manifest.public_origin
-                    if manifest and manifest.public_origin
-                    else None
-                ),
+                public_origin=(manifest.public_origin or None) if manifest else None,
             )
         )
     return apps
@@ -1811,7 +1855,12 @@ def apps(server):
 
     rows = []
     for app in visible_apps:
-        style = "green" if app.state == "running" else "red"
+        if app.state == "running":
+            style = "green"
+        elif app.state in {HIBERNATING, WAKING}:
+            style = "yellow"
+        else:
+            style = "red"
         rows.append(
             [
                 app.name,
@@ -1866,6 +1915,7 @@ def export(app, local, no_scrub, server):
         except ValueError as exc:
             raise click.UsageError(str(exc)) from exc
         click.echo(f"Exporting data from app '{app}'.")
+    awaken_app(server, app, required=False)
     with remote_postgres(server_info, app) as db_uri:
         export_db_uri(
             app,
@@ -1893,7 +1943,9 @@ def select_running_app(server):
         If zero or multiple apps are found running on the server.
     """
     apps = get_apps(server)
-    running = [app.name for app in apps if app.state == "running"]
+    running = [
+        app.name for app in apps if app.state in {"running", HIBERNATING, WAKING}
+    ]
     if len(running) == 1:
         return running[0]
     if len(running) > 1:
@@ -1911,6 +1963,21 @@ def _get_running_app_names(executor):
         raise_=False,
     )
     return {entry.strip() for entry in result.splitlines() if entry.strip()}
+
+
+def _remote_hibernation_states(executor):
+    """Return ``{app: "hibernating" | "waking"}`` from the apps' marker files."""
+    listing = executor.run(
+        f"ls -1 ~/dallinger/*/state/{HIBERNATING} ~/dallinger/*/state/{WAKING} "
+        "2>/dev/null || true",
+        raise_=False,
+    )
+    states = {}
+    for line in (listing or "").splitlines():
+        path = PurePosixPath(line.strip())
+        if path.name in (HIBERNATING, WAKING) and path.parent.name == "state":
+            states[path.parent.parent.name] = path.name
+    return states
 
 
 @contextmanager
@@ -1969,7 +2036,7 @@ def _resolve_remote_postgres(executor, app):
     if _container_exists(executor, name):
         raise ExecuteException(
             f"Postgres container {name} exists but is not running. "
-            "Start the app before export."
+            "Awaken the app before export."
         )
     shared = "dallinger-postgresql-1"
     ip = _inspect_container_ip(executor, shared)
@@ -2134,6 +2201,68 @@ def _destroy_cloudflare_resources(app, manifest=None, own_tunnel_id=None):
     if not removed:
         print(f"{RED}Cloudflare cleanup failed.{END} See the warnings above.")
     return removed
+
+
+@docker_ssh.command()
+@click.option("--app", required=True, help="Name of the experiment app to hibernate")
+@option_server
+def hibernate(server, app):
+    """Stop expensive services for an app while keeping its front door awake."""
+    _run_hibernation_action(server, app, "hibernate")
+
+
+@docker_ssh.command()
+@click.option("--app", required=True, help="Name of the experiment app to awaken")
+@option_server
+def awaken(server, app):
+    """Start a hibernated app without re-launching recruitment."""
+    awaken_app(server, app)
+
+
+def awaken_app(server, app, required=True):
+    """Wake a docker-ssh app, waiting until Postgres and web are ready."""
+    return _run_hibernation_action(server, app, "awaken", required=required)
+
+
+def _run_hibernation_action(server, app, action, required=True):
+    if not APP_NAME_PATTERN.fullmatch(app):
+        raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
+    server_info = CONFIGURED_HOSTS[server]
+    ssh_address = server_info["host"]
+    ssh_user = server_info.get("user")
+    executor = Executor(ssh_address, user=ssh_user, app=app)
+    compose = f"~/dallinger/{app}/docker-compose.yml"
+    if not executor.run(f"test -f {compose} && echo Yes", raise_=False):
+        print(f"App {app} is not deployed")
+        if required:
+            raise click.Abort()
+        return False
+    if action == "awaken" and app not in _remote_hibernation_states(executor):
+        print(f"App {app} is awake")
+        return True
+    services = executor.run(
+        f"docker compose -f {compose} config --services", raise_=False
+    )
+    if "controller" not in (services or "").split():
+        print(
+            f"{RED}App {app} was deployed before the front door existed; "
+            f"redeploy it with --update to {action} it.{END}"
+        )
+        if required:
+            raise click.Abort()
+        return False
+    try:
+        result = executor.run(
+            f"docker compose -f {compose} exec -T controller "
+            f"python /app/hibernation.py {action}"
+        )
+    except ExecuteException:
+        print(f"{RED}Could not {action} app {app}; see the error above.{END}")
+        if required:
+            raise
+        return False
+    print(result.strip() or f"App {app} {action} requested")
+    return True
 
 
 def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
@@ -2360,14 +2489,14 @@ class Executor:
             return
         if not click.confirm(
             "Run safe Docker cleanup now on the remote host? "
-            "(unused images + stopped containers)",
+            "(unused images + stopped containers outside Compose projects)",
             default=False,
         ):
             return
         print("Running safe cleanup steps on the remote host:")
         for description, command in (
             ("Remove unused images", "docker image prune -af"),
-            ("Remove stopped containers", "docker container prune -f"),
+            ("Remove stopped containers", CONTAINER_PRUNE),
         ):
             print(f"- {description}: {command}")
             status, stdout, stderr = self._run_with_status(command)
@@ -2457,13 +2586,17 @@ def get_docker_compose_yml(
         else:
             docker_volumes = new_volume
     config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
-
+    idle_enabled, idle_minutes = _idle_settings(config)
     return DOCKER_COMPOSE_EXP_TPL.render(
         ingress=ingress,
         experiment_id=experiment_id,
         experiment_image=experiment_image,
         config=config_str,
         docker_volumes=docker_volumes,
+        idle_enabled=str(idle_enabled).lower(),
+        idle_minutes=idle_minutes,
+        # Compose's own project-name normalization, which its labels use.
+        compose_project=re.sub(r"[^a-z0-9_-]", "", experiment_id.lower()),
         run_as_ssh_user=run_as_ssh_user,
     )
 
@@ -2477,16 +2610,32 @@ def _bring_up_app_containers(
     *,
     restore,
 ):
-    """Start the app Compose stack.
+    """Start Compose. An update of a hibernating app wakes it.
 
-    Cloudflare sets ``restore`` so an archive is loaded after Postgres is up
-    and before web stays running.
+    Cloudflare sets ``restore`` so the archive is loaded before ``compose up``
+    starts web. Classic restores earlier against the shared Postgres service.
     """
     if restore and archive_path is not None:
         _restore_experiment_archive(server_info, experiment_id, archive_path)
-    executor.run(
-        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml up -d"
-    )
+    state_dir = f"~/dallinger/{experiment_id}/state"
+    markers = f"{state_dir}/{HIBERNATING} {state_dir}/{WAKING}"
+    compose = f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml"
+    steps = [f"for f in {markers}; do [ -e $f ] && echo was-hibernating; done; true"]
+    if update:
+        # Replace the controller first, so a hibernation it was running stops
+        # before the markers go. Its bind-mounted script, and the front door's
+        # Caddyfile, may also have changed without Compose noticing.
+        steps.append(f"{compose} up -d --no-deps --force-recreate controller")
+    # Touching the access log restarts the idle quiet period.
+    steps += [
+        f"touch {state_dir}/access.log 2>/dev/null; rm -f {markers}",
+        f"{compose} up -d",
+    ]
+    if update:
+        steps.append(f"{compose} up -d --no-deps --force-recreate frontdoor")
+    output = executor.run(" && ".join(steps))
+    if update and "was-hibernating" in (output or ""):
+        print(f"App {experiment_id} was hibernating. The update woke it.")
     if archive_path is None and not update:
         print(f"Experiment {experiment_id} started.")
         print("Initializing database...")
@@ -2498,7 +2647,7 @@ def _bring_up_app_containers(
 
 
 def _restore_experiment_archive(server_info, experiment_id, archive_path):
-    """Load an export into the app database before web stays up."""
+    """Load an export into the app database before web starts."""
     print(f"Loading database data from {archive_path}")
     grant_roles_script = (
         f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
@@ -2518,10 +2667,11 @@ def _restore_experiment_archive(server_info, experiment_id, archive_path):
 def _remote_bind_mount_dirs(docker_volumes, experiment_id):
     """Return quoted remote dirs to mkdir/chown for an app's bind mounts.
 
-    Only the app data dir and writable bind mounts strictly under ``$HOME``
-    qualify, so a mount such as ``/etc/ssl`` is never chowned.
+    Only the app data dir, the front-door state dir, and writable bind mounts
+    strictly under ``$HOME`` qualify, so a mount such as ``/etc/ssl`` is
+    never chowned.
     """
-    dirs = ['"$HOME/dallinger-data/$app"']
+    dirs = ['"$HOME/dallinger-data/$app"', '"$HOME/dallinger/$app/state"']
     for spec in str(docker_volumes or "").split(","):
         parts = spec.strip().split(":")
         if len(parts) > 2 and "ro" in parts[2].split(","):
@@ -2548,8 +2698,11 @@ def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
     dirs = " ".join(_remote_bind_mount_dirs(docker_volumes, experiment_id))
     executor.run(
         "uid=$(id -u); gid=$(id -g); "
+        "docker_gid=$(stat -c %g /var/run/docker.sock) || "
+        "{ echo 'No Docker socket at /var/run/docker.sock.' >&2; exit 1; }; "
         f"app={app}; "
-        'printf "UID=%s\\nGID=%s\\n" "$uid" "$gid" >> "$HOME/dallinger/$app/.env"; '
+        'printf "UID=%s\\nGID=%s\\nDOCKER_GID=%s\\n" '
+        '"$uid" "$gid" "$docker_gid" >> "$HOME/dallinger/$app/.env"; '
         f"for d in {dirs}; do "
         '  mkdir -p "$d"; '
         '  if chown -R "$uid:$gid" "$d" 2>/dev/null; then '
@@ -2661,7 +2814,7 @@ def get_remote_disk_full_guidance(host):
         f"Remote Docker host '{host}' appears to be out of disk space.",
         "Safe cleanup steps (low-risk) are:",
         "  docker image prune -af",
-        "  docker container prune -f",
+        f"  {CONTAINER_PRUNE}",
         "",
         "Dallinger can run these safe steps for you automatically.",
         "We intentionally do not auto-prune volumes here, to avoid data loss.",

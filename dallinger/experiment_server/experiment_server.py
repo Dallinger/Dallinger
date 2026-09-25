@@ -273,6 +273,12 @@ def static_favicon():
     return send_from_directory("static", "favicon.ico", mimetype="image/x-icon")
 
 
+@app.route("/health", methods=["GET"])
+def health():
+    """Return JSON so docker-ssh awaken can tell the web process is up."""
+    return Response('{"status":"ok"}\n', mimetype="application/json")
+
+
 @app.errorhandler(ExperimentError)
 def handle_exp_error(exception):
     """Handle errors by sending an error page."""
