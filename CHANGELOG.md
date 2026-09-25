@@ -4,6 +4,12 @@
 
 ### Added
 
+- docker-ssh writes a non-secret ``~/dallinger/<app>/deployment.json`` on
+  deploy and ``apps`` shows the recorded ingress and origin. Classic host
+  Caddy remains the only implemented ingress.
+  New ``docker_ssh_monitoring_kind`` and ``docker_ssh_monitoring_path``
+  config keys set the manifest's monitoring fields. ``servers add`` now
+  refuses host record fields whose names look like tokens or passwords.
 - Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
   docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
   A custom experiment Dockerfile gets a final step that installs that wheel.

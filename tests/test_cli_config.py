@@ -3,6 +3,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import click
 import pytest
 
 
@@ -91,6 +92,15 @@ def test_store_host(tmp_dirs):
     store_host(host1)
     store_host(host2)
     assert get_configured_hosts() == {"test_host_1": host1, "test_host_2": host2}
+
+
+def test_store_host_rejects_credential_fields(tmp_dirs):
+    from dallinger.command_line.config import store_host
+
+    with pytest.raises(click.UsageError, match="must not contain credentials"):
+        store_host(
+            dict(host="lab.example", user="ubuntu", cloudflare_api_token="secret")
+        )
 
 
 @pytest.fixture(autouse=True)

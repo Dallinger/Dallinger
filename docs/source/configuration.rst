@@ -593,6 +593,13 @@ Docker Deployment Configuration
 
     Defaults to ``1024``, lower this value to limit worker containers CPU usage when CPU cycles are constrained.
 
+``docker_ssh_monitoring_kind`` *unicode*
+    Generic monitoring kind written into the docker-ssh deployment manifest.
+    Default ``experiment``. PsyNet sets this to ``psynet``.
+
+``docker_ssh_monitoring_path`` *unicode*
+    Availability path recorded in the deployment manifest. Default ``/health``.
+
 ``server_pem`` *unicode*
     **Required for SSH-based deployments** (``dallinger docker-ssh`` and ``dallinger ec2``).
 

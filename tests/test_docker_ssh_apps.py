@@ -25,13 +25,110 @@ def test_docker_host_uri_omits_at_sign_usernames(capsys):
     )
 
 
-def _mock_executor():
-    executor = mock.Mock()
-    executor.run.side_effect = [
-        "alpha\n/home/test/dallinger/beta/docker-compose.yml\n",
-        "beta\n",
-    ]
-    return executor
+class FakeExecutor:
+    """Answer remote commands by the first matching substring, in any order."""
+
+    def __init__(self, replies):
+        self.replies = replies
+        self.commands = []
+
+    def run(self, cmd, raise_=True):
+        self.commands.append(cmd)
+        for pattern, reply in self.replies.items():
+            if pattern in cmd:
+                return reply
+        return ""
+
+
+class LocalExecutor:
+    """Run remote shell snippets with bash, using ``home`` as ``$HOME``."""
+
+    def __init__(self, home):
+        self.home = home
+
+    def run(self, cmd, raise_=True):
+        result = subprocess.run(
+            ["bash", "-c", cmd],
+            capture_output=True,
+            text=True,
+            env={"HOME": str(self.home), "PATH": "/usr/bin:/bin"},
+        )
+        if raise_ and result.returncode:
+            raise docker_ssh_module.ExecuteException(result.stderr)
+        return result.stdout
+
+
+def _mock_executor(manifest_lines=""):
+    return FakeExecutor(
+        {
+            "caddy.d": "alpha\n/home/test/dallinger/beta/docker-compose.yml\n",
+            "docker ps": "beta\n",
+            "deployment.json": manifest_lines,
+        }
+    )
+
+
+def test_load_remote_manifests_reads_existing_files(tmp_path):
+    manifest = docker_ssh_module.DeploymentManifest(
+        app="beta",
+        server="lab",
+        public_origin="https://beta.example",
+        ingress="cloudflare",
+    )
+    (tmp_path / "dallinger" / "beta").mkdir(parents=True)
+    (tmp_path / "dallinger" / "beta" / "deployment.json").write_text(manifest.to_json())
+    loaded = docker_ssh_module._load_remote_manifests(
+        LocalExecutor(tmp_path), ["alpha", "beta", "beta~", "has space"]
+    )
+    assert loaded == {"beta": manifest}
+
+
+def test_monitoring_settings_default_and_override():
+    assert docker_ssh_module._monitoring_settings({}) == ("experiment", "/health")
+    assert docker_ssh_module._monitoring_settings(
+        {
+            "docker_ssh_monitoring_kind": "psynet",
+            "docker_ssh_monitoring_path": "/health",
+        }
+    ) == ("psynet", "/health")
+
+
+def test_upload_app_manifest_writes_deployment_json():
+    sftp = mock.Mock()
+    manifest = docker_ssh_module.DeploymentManifest(
+        app="consonance",
+        server="musix",
+        public_origin="https://consonance.science-of-music.org",
+    )
+    docker_ssh_module._upload_app_manifest(sftp, manifest)
+    assert sftp.putfo.call_args.args[1] == "dallinger/consonance/deployment.json"
+    uploaded = sftp.putfo.call_args.args[0].getvalue().decode()
+    assert '"token"' not in uploaded
+    assert "consonance.science-of-music.org" in uploaded
+
+
+def test_get_apps_uses_manifest_ingress_and_origin():
+    manifest = docker_ssh_module.DeploymentManifest(
+        app="beta",
+        server="lab",
+        public_origin="https://beta.example.org",
+        ingress="cloudflare",
+    )
+    executor = _mock_executor("beta\t" + manifest.to_json().replace("\n", "") + "\n")
+    server_info = {"host": "example.com", "user": "ubuntu"}
+    with (
+        mock.patch.object(
+            docker_ssh_module, "_resolve_server_info", return_value=server_info
+        ),
+        mock.patch.object(docker_ssh_module, "_build_executor", return_value=executor),
+    ):
+        apps = docker_ssh_module.get_apps("irrelevant")
+
+    by_name = {app.name: app for app in apps}
+    assert by_name["alpha"].ingress == "classic"
+    assert by_name["alpha"].public_origin is None
+    assert by_name["beta"].ingress == "cloudflare"
+    assert by_name["beta"].public_origin == "https://beta.example.org"
 
 
 def test_get_apps_maps_running_and_inactive():
@@ -121,6 +218,7 @@ def test_apps_outputs_table_for_all_apps(monkeypatch, capsys):
     output_lines = capsys.readouterr().out.strip().splitlines()
     assert listed == ["beta", "alpha"]
     assert any("app" in line and "state" in line for line in output_lines)
+    assert any("ingress" in line and "origin" in line for line in output_lines)
     assert any("beta" in line and "running" in line for line in output_lines)
     assert any("alpha" in line and "inactive" in line for line in output_lines)
     assert "\x1b[" not in "\n".join(output_lines)

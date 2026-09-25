@@ -56,6 +56,13 @@ from dallinger.utils import (
     print_bold,
 )
 
+from .lib.app_manifest import (
+    APP_NAME_PATTERN,
+    INGRESS_CLASSIC,
+    DeploymentManifest,
+    public_origin_for_hostname,
+    remote_manifest_path,
+)
 from .utils import get_server_pem_path
 
 
@@ -69,10 +76,17 @@ class App:
         App/project name on the remote server.
     state : Literal["running", "inactive"]
         Runtime state label used by CLI output and app selection logic.
+    ingress : str
+        ``classic`` host Caddy. Cloudflare is recorded when a manifest says so,
+        but this release still deploys only classic ingress.
+    public_origin : str or None
+        HTTPS origin when known from a deployment manifest.
     """
 
     name: str
     state: Literal["running", "inactive"]
+    ingress: str = "classic"
+    public_origin: str | None = None
 
 
 # Find an identifier for the current user to use as CREATOR of the experiment
@@ -542,6 +556,44 @@ def _discover_server_apps(executor):
     return sorted(existing)
 
 
+def _load_remote_manifests(executor, app_names):
+    """Read ``deployment.json`` for the given apps in one SSH call.
+
+    Each file is printed as one ``<app><TAB><json>`` line. Names that are not
+    valid app names (for example stray files) are skipped, not sent to the shell.
+    """
+    app_names = [name for name in app_names if APP_NAME_PATTERN.fullmatch(name)]
+    if not app_names:
+        return {}
+    raw = executor.run(
+        f"for app in {' '.join(app_names)}; do f=~/dallinger/$app/deployment.json; "
+        '[ -f "$f" ] && printf "%s\\t" "$app" && tr -d "\\n" < "$f" && echo; done; true',
+        raise_=False,
+    )
+    manifests = {}
+    for line in (raw or "").splitlines():
+        name, _, text = line.partition("\t")
+        manifest = DeploymentManifest.from_json(text)
+        if name in app_names and manifest is not None:
+            manifests[name] = manifest
+    return manifests
+
+
+def _upload_app_manifest(sftp, manifest: DeploymentManifest) -> None:
+    """Write ``deployment.json`` next to the app Compose file. Never logs secrets."""
+    sftp.putfo(
+        BytesIO(manifest.to_json().encode()),
+        remote_manifest_path(manifest.app),
+    )
+
+
+def _monitoring_settings(config_map):
+    """Return generic monitoring kind and path for a deployment manifest."""
+    kind = str(config_map.get("docker_ssh_monitoring_kind") or "experiment").strip()
+    path = str(config_map.get("docker_ssh_monitoring_path") or "/health").strip()
+    return kind or "experiment", path or "/health"
+
+
 def ensure_root_domain_ready(server, update):
     if update:
         return True
@@ -925,6 +977,8 @@ def _deploy_in_mode(
         experiment_id = get_experiment_id_from_archive(archive_path)
     else:
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
+    if not APP_NAME_PATTERN.fullmatch(experiment_id):
+        raise click.UsageError(f"Invalid docker-ssh app name {experiment_id!r}.")
 
     app_identifier = app_name or experiment_id
 
@@ -1206,11 +1260,28 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         for line in deployment_infos:
             f.write(f"{line}\n")
 
+    public_origin = public_origin_for_hostname(experiment_hostname)
+    monitoring_kind, monitoring_path = _monitoring_settings(cfg)
+    _upload_app_manifest(
+        sftp,
+        DeploymentManifest(
+            app=experiment_id,
+            server=server,
+            public_origin=public_origin,
+            monitoring_kind=monitoring_kind,
+            monitoring_path=monitoring_path,
+        ),
+    )
+
     return {
         "dashboard_user": dashboard_user,
         "dashboard_password": dashboard_password,
         "dashboard_link": dashboard_link,
         "log_command": log_command,
+        "app": experiment_id,
+        "server": server,
+        "ingress": INGRESS_CLASSIC,
+        "public_origin": public_origin,
     }
 
 
@@ -1320,14 +1391,24 @@ def get_apps(server):
 
     app_names = _discover_server_apps(executor)
     running_projects = _get_running_app_names(executor)
+    manifests = _load_remote_manifests(executor, app_names)
 
-    return [
-        App(
-            name=app_name,
-            state="running" if app_name in running_projects else "inactive",
+    apps = []
+    for app_name in app_names:
+        manifest = manifests.get(app_name)
+        apps.append(
+            App(
+                name=app_name,
+                state="running" if app_name in running_projects else "inactive",
+                ingress=manifest.ingress if manifest else "classic",
+                public_origin=(
+                    manifest.public_origin
+                    if manifest and manifest.public_origin
+                    else None
+                ),
+            )
         )
-        for app_name in app_names
-    ]
+    return apps
 
 
 @docker_ssh.command()
@@ -1349,8 +1430,15 @@ def apps(server):
     rows = []
     for app in visible_apps:
         style = "green" if app.state == "running" else "red"
-        rows.append([app.name, Text(app.state, style=style)])
-    print(render_rich_table(rows, headers=["app", "state"]))
+        rows.append(
+            [
+                app.name,
+                Text(app.state, style=style),
+                app.ingress,
+                app.public_origin or "",
+            ]
+        )
+    print(render_rich_table(rows, headers=["app", "state", "ingress", "origin"]))
     return [app.name for app in visible_apps]
 
 
