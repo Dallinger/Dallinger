@@ -517,6 +517,10 @@ def launch():
     # redis communication channel:
     if exp.channel is not None:
         try:
+            # Neither subscription is waited on. Until a participant
+            # connects, the only publishes Dallinger makes on these channels
+            # are the "subscribed" control events these two calls announce
+            # about the experiment itself.
             sockets.chat_backend.subscribe(exp, exp.channel)
             # Additionally subscribe the experiment to the Dallinger Control
             # channel for messages about websocket

@@ -1,6 +1,7 @@
 import json
 import numbers
 import socket
+import time
 from datetime import datetime
 from decimal import Decimal
 from unittest.mock import Mock, patch
@@ -10,9 +11,21 @@ import pytest
 from gevent.event import Event
 from simple_websocket import ConnectionClosed
 
+#: The frame redis sends to confirm a subscription, before any traffic.
+#: ``Channel.listen`` never reads the channel name, because a channel owns a
+#: pubsub with one subscription on it.
+SUBSCRIBE_CONFIRMATION = {
+    "type": "subscribe",
+    "pattern": None,
+    "channel": b"",
+    "data": 1,
+}
+
 
 def parking_listen():
-    """A pubsub stream that blocks forever, as a real socket read does."""
+    """A pubsub stream that confirms the subscription and then blocks forever,
+    as a real socket read does."""
+    yield SUBSCRIBE_CONFIRMATION
     Event().wait()
     yield {}
 
@@ -20,7 +33,7 @@ def parking_listen():
 @pytest.fixture
 def pubsub():
     pubsub = Mock()
-    pubsub.listen.return_value = []
+    pubsub.listen.return_value = [SUBSCRIBE_CONFIRMATION]
     return pubsub
 
 
@@ -753,7 +766,8 @@ class TestClient:
 
 
 class TestChatEndpoint:
-    def test_chat_subscribes_to_requested_channel(self, sockets, mocksocket):
+    def test_chat_subscribes_to_requested_channel(self, sockets, pubsub, mocksocket):
+        pubsub.listen.side_effect = parking_listen
         ws = mocksocket
         subscribed = []
 
@@ -1949,3 +1963,154 @@ class TestReservedChannels:
         sockets.Client(mocksocket).publish()
 
         assert published_envelopes(sockets) == []
+
+
+class TestSubscriptionHandshake:
+    """A connection relays only once redis has confirmed its subscription."""
+
+    def connect(self, sockets, ws, **args):
+        with patch.object(sockets, "request", Mock(args=args)):
+            sockets.chat(ws)
+
+    @pytest.mark.timeout(10)
+    def test_reading_waits_for_the_confirmation(self, sockets, pubsub, scripted_socket):
+        confirm = Event()
+
+        def withheld_listen():
+            confirm.wait()
+            yield SUBSCRIBE_CONFIRMATION
+            Event().wait()
+            yield {}
+
+        pubsub.listen.side_effect = withheld_listen
+        ws = scripted_socket("special:payload")
+
+        with patch.object(sockets, "SUBSCRIPTION_TIMEOUT_SECS", 30):
+            serving = gevent.spawn(self.connect, sockets, ws, channel="special")
+            gevent.sleep(0.05)
+
+            # Publishing now would reach every other subscriber and not this
+            # connection, so nothing is read from it yet.
+            assert ws.receive.call_count == 0
+
+            confirm.set()
+            serving.join(timeout=5)
+
+        assert ws.receive.call_count > 0
+
+    @pytest.mark.timeout(10)
+    def test_an_addressable_connection_waits_for_the_direct_listener(
+        self, sockets, pubsub, scripted_socket
+    ):
+        confirm = Event()
+
+        def withheld_listen():
+            confirm.wait()
+            yield SUBSCRIBE_CONFIRMATION
+            Event().wait()
+            yield {}
+
+        pubsub.listen.side_effect = withheld_listen
+        ws = scripted_socket("game:payload")
+
+        with patch.object(sockets, "SUBSCRIPTION_TIMEOUT_SECS", 30):
+            serving = gevent.spawn(self.connect, sockets, ws, participant_id="42")
+            gevent.sleep(0.05)
+
+            # A directed send published now would find no listener here.
+            assert ws.receive.call_count == 0
+
+            confirm.set()
+            serving.join(timeout=5)
+
+        assert ws.receive.call_count > 0
+
+    @pytest.mark.timeout(10)
+    def test_the_wait_is_bounded(self, sockets, pubsub, scripted_socket):
+        def silent_listen():
+            Event().wait()
+            yield {}
+
+        pubsub.listen.side_effect = silent_listen
+        ws = scripted_socket("special:payload")
+        timeout = 0.5
+
+        logger = sockets.app.logger
+        with (
+            patch.object(sockets, "SUBSCRIPTION_TIMEOUT_SECS", timeout),
+            patch.object(logger, "warning") as warning,
+        ):
+            started = time.monotonic()
+            self.connect(sockets, ws, channel="special", participant_id="42")
+            elapsed = time.monotonic() - started
+
+        # A subscription that never confirms delays the connection rather than
+        # holding it open until redis recovers. The channel and the direct
+        # listener share one budget instead of taking one each.
+        assert ws.receive.call_count > 0
+        assert elapsed < 1.5 * timeout
+        warned = [call.args[0] for call in warning.call_args_list]
+        assert any("special" in message for message in warned)
+        assert any(sockets.DIRECT_CHANNEL in message for message in warned)
+
+    @pytest.mark.timeout(10)
+    def test_a_lost_connection_clears_the_confirmation(self, sockets, pubsub):
+        def confirm_then_drop():
+            yield SUBSCRIBE_CONFIRMATION
+            raise sockets.ConnectionError("dropped")
+
+        pubsub.listen.side_effect = [confirm_then_drop(), iter([])]
+        channel = sockets.Channel("custom")
+
+        with patch.object(sockets.gevent, "sleep"):
+            channel.listen()
+
+        # redis-py resubscribes on the next connection, so nothing is arriving
+        # on this channel until a fresh confirmation says so.
+        assert not channel.listening.is_set()
+
+    @pytest.mark.timeout(10)
+    def test_a_connection_killed_while_waiting_is_torn_down(
+        self, sockets, pubsub, scripted_socket
+    ):
+        def silent_listen():
+            Event().wait()
+            yield {}
+
+        pubsub.listen.side_effect = silent_listen
+        ws = scripted_socket("special:payload")
+
+        with patch.object(sockets, "SUBSCRIPTION_TIMEOUT_SECS", 30):
+            serving = gevent.spawn(self.connect, sockets, ws, channel="special")
+            gevent.sleep(0.05)
+            serving.kill()
+
+        # The wait hands control to the hub, so the client is subscribed while
+        # a kill can reach it.
+        assert "special" not in sockets.chat_backend.channels
+
+    @pytest.mark.timeout(10)
+    def test_a_rebuilt_subscription_confirms_again(self, sockets, redis):
+        from redis.exceptions import ResponseError
+
+        def confirm_then_fail():
+            yield SUBSCRIBE_CONFIRMATION
+            raise ResponseError("bad reply")
+
+        first = Mock()
+        first.listen.side_effect = confirm_then_fail
+        second = Mock()
+        second.listen.side_effect = lambda: iter([SUBSCRIBE_CONFIRMATION])
+        redis.pubsub.side_effect = [first, second]
+        channel = sockets.Channel("custom")
+
+        with (
+            patch.object(sockets.Channel, "rebuilds_on_protocol_error", True),
+            patch.object(sockets.gevent, "sleep"),
+        ):
+            channel.listen()
+
+        # A rebuild subscribes the replacement pubsub, whose own confirmation
+        # is what makes the channel relayable again.
+        second.subscribe.assert_called_once_with([b"custom"])
+        assert channel.listening.is_set()

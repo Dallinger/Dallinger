@@ -4,12 +4,14 @@ import json
 import numbers
 import os
 import socket
+import time
 import uuid
 from datetime import datetime
 
 import gevent
 from flask import request
 from flask_sock import Sock
+from gevent.event import Event
 from gevent.lock import Semaphore
 from redis import ConnectionError, RedisError
 from redis import TimeoutError as RedisTimeoutError
@@ -35,6 +37,11 @@ app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
 
 #: Every field an envelope carries. ``deliver_direct`` indexes all four.
 ENVELOPE_FIELDS = frozenset({"participant_ids", "scope", "origin", "payload"})
+
+#: Seconds a connection waits for redis to confirm its subscriptions before it
+#: starts relaying. Only an outage reaches it; a healthy subscription is
+#: confirmed in well under a millisecond.
+SUBSCRIPTION_TIMEOUT_SECS = 2.0
 
 _process_token = None
 _process_token_pid = None
@@ -147,6 +154,11 @@ class Channel:
         self.name = name
         self.clients = []
         self.greenlet = None
+        #: Set once redis has confirmed the subscription. A connection waits
+        #: for this before it relays anything, because redis does not order a
+        #: publish arriving on one connection behind a SUBSCRIBE it has not
+        #: read yet on another.
+        self.listening = Event()
 
     def subscribe(self, client):
         """Subscribe a client to the channel."""
@@ -240,6 +252,8 @@ class Channel:
                             # is still flapping. Only traffic proves recovery.
                             delay = self.RECONNECT_DELAY_SECS
                             reported = False
+                        elif message["type"] == "subscribe":
+                            self.listening.set()
                         # ``relay`` only spawns senders, and messages already
                         # in the socket buffer are read without blocking, so
                         # nothing else here hands the hub back.
@@ -258,6 +272,10 @@ class Channel:
                         if subscribed
                         else "Could not subscribe to channel {}, retrying in {}s."
                     )
+                    # A read that failed proves nothing is arriving. redis-py
+                    # replays the SUBSCRIBE on reconnect, so the confirmation
+                    # it reads back sets this again.
+                    self.listening.clear()
                     if not retryable:
                         # ``close()`` disconnects, so the new pubsub starts on
                         # a fresh stream.
@@ -372,12 +390,18 @@ class ChatBackend:
         self.direct_channel = None
 
     def subscribe(self, client, channel_name):
-        """Register a new client to receive messages on a channel."""
+        """Register a new client to receive messages on a channel.
+
+        Returns the channel, so that a caller can wait for redis to confirm
+        its subscription.
+        """
         if channel_name not in self.channels:
             self.channels[channel_name] = channel = Channel(channel_name)
             channel.start()
 
-        self.channels[channel_name].subscribe(client)
+        channel = self.channels[channel_name]
+        channel.subscribe(client)
+        return channel
 
     def unsubscribe(self, client):
         """Unsubscribe a client from all channels and stop addressing it.
@@ -398,14 +422,17 @@ class ChatBackend:
 
         A connection that named no usable id is left unaddressable rather
         than refused: it can still subscribe, send, and receive broadcasts.
+        Returns the listener for directed sends, or ``None`` for a connection
+        which is not addressable.
         """
         addressable_id = getattr(client, "addressable_id", None)
         if addressable_id is None:
-            return
+            return None
         self.clients_by_participant.setdefault(addressable_id, set()).add(client)
         if self.direct_channel is None:
             self.direct_channel = DirectChannel(self)
             self.direct_channel.start()
+        return self.direct_channel
 
     def deregister(self, client):
         """Stop addressing a client.
@@ -517,9 +544,11 @@ class Client:
         and only sends. Subscribing to the empty name would build a channel
         redis refuses to subscribe to. A name in ``RESERVED_CHANNELS`` is
         refused.
+
+        Returns the channel subscribed to, or ``None``.
         """
         if not channel:
-            return
+            return None
         if channel in RESERVED_CHANNELS:
             log(
                 "Client {} may not subscribe to the reserved channel {}.".format(
@@ -527,8 +556,8 @@ class Client:
                 ),
                 level="warning",
             )
-            return
-        chat_backend.subscribe(self, channel)
+            return None
+        return chat_backend.subscribe(self, channel)
 
     def publish(self):
         """Read messages from the client until the connection closes."""
@@ -736,6 +765,28 @@ def resolve_participant_id(participant_id):
     return normalized if found else None
 
 
+def wait_until_listening(*channels):
+    """Wait for redis to confirm the subscription of each channel.
+
+    A client which publishes as soon as its socket opens would otherwise race
+    its own subscription. The publish travels on a different redis connection,
+    and redis does not order it behind a SUBSCRIBE it has not read yet, so the
+    message reaches every other subscriber and not the sender. The wait is
+    bounded: a channel which cannot subscribe delays a connection rather than
+    holding it open until redis recovers.
+    """
+    deadline = time.monotonic() + SUBSCRIPTION_TIMEOUT_SECS
+    for channel in channels:
+        if channel is None:
+            continue
+        if not channel.listening.wait(max(0.0, deadline - time.monotonic())):
+            log(
+                "Relaying for channel {} before redis confirmed its "
+                "subscription.".format(channel.name),
+                level="warning",
+            )
+
+
 def _serve(ws, participant_id=None, experiment=None):
     """Subscribe a connection to its channel and relay until it closes."""
     client = Client(
@@ -745,9 +796,17 @@ def _serve(ws, participant_id=None, experiment=None):
         scope=request.args.get("scope"),
         experiment=experiment,
     )
-    client.subscribe(request.args.get("channel"))
-    chat_backend.register(client)
-    client.publish()
+    subscribed = client.subscribe(request.args.get("channel"))
+    direct = chat_backend.register(client)
+    try:
+        wait_until_listening(subscribed, direct)
+        client.publish()
+    finally:
+        # The client is registered by the two calls above, and the wait hands
+        # control to the hub, so a greenlet killed during it would leave the
+        # registrations behind. ``unsubscribe`` also runs in ``publish``, and
+        # tolerates being called twice.
+        chat_backend.unsubscribe(client)
 
 
 def chat(ws):
