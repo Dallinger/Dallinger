@@ -27,8 +27,8 @@ channel subscribers (generally either participants or the experiment itself).
 When a client makes a WebSocket connection to the `/chat?channel=<channel>`
 route (see :doc:`The Web API <web_api>`) it opens a persistent connection to the
 experiment over which it can send messages (to any channel except the reserved
-`"dallinger_control"` channel) and will receive all messages published to the
-`channel` named in the initial request.
+`"dallinger_control"` and `"dallinger_direct"` channels) and will receive all
+messages published to the `channel` named in the initial request.
 
 Additionally, Experiment classes can provide a
 :attr:`~dallinger.experiment.Experiment.channel` attribute which will
@@ -229,7 +229,7 @@ to happen immediately and queueing the rest::
     ):
         data = json.loads(message)
         if data["type"] == "move":
-            participant = Participant.query.get(int(participant_id))
+            participant = db.session.get(Participant, int(participant_id))
             # Assign a new dict rather than mutating the existing one
             participant.details = dict(
                 participant.details,
@@ -368,7 +368,7 @@ tab open on an earlier page untouched.
 
 That value should not be passed on when addressing a different participant.
 Their connections will have supplied a scope of their own, and a payload scoped
-to the sender's page will silently reach none of them. Supply a scope when
+to the sender's page won't be sent to them. Supply a scope when
 addressing the same participant, and omit it otherwise, unless the experiment
 has defined scope as a value which both participants share.
 

@@ -56,9 +56,7 @@ CONTROL_CHANNEL = "dallinger_control"
 DIRECT_CHANNEL = "dallinger_direct"
 
 #: Channels Dallinger owns. A client may neither subscribe to one nor address
-#: a frame to it. Both carry frames shaped like the ones a client is meant to
-#: receive: the experiment acts on whatever reaches the control channel as
-#: genuine, and a direct envelope names every recipient of a directed send.
+#: a frame to it.
 RESERVED_CHANNELS = frozenset({CONTROL_CHANNEL, DIRECT_CHANNEL})
 
 db_user_warning = """

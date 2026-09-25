@@ -348,6 +348,13 @@ class TestExperimentBaseClass:
             exp.publish_to_subscribers("A plain message!", "surprise")
             mock_redis.publish.assert_called_once_with("surprise", "A plain message!")
 
+    @pytest.mark.parametrize("channel", sorted(db.RESERVED_CHANNELS))
+    def test_publish_to_subscribers_cannot_target_reserved_channel(self, exp, channel):
+        with mock.patch("dallinger.db.redis_conn") as mock_redis:
+            with pytest.raises(ValueError, match=channel):
+                exp.publish_to_subscribers("data", channel)
+        mock_redis.publish.assert_not_called()
+
     def test_publish_to_subscribers_no_channel_name(self, exp):
         with mock.patch("dallinger.db.redis_conn") as mock_redis:
             exp.channel = "exp_default"

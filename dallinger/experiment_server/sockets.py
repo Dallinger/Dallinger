@@ -330,10 +330,10 @@ def parsed_envelope(data):
     """The directed send ``data`` carries, or ``None`` if it carries no envelope.
 
     Every field ``deliver_direct`` reads is checked here, because this is where
-    an envelope enters the process. Clients cannot publish to the channel, but
-    :func:`~dallinger.experiment.Experiment.publish_to_subscribers` names
-    whichever channel it is given and anything else holding the redis
-    credentials can publish too. An exception raised in a relay unwinds
+    an envelope enters the process. Neither clients nor
+    :func:`~dallinger.experiment.Experiment.publish_to_subscribers` can publish
+    to the channel, but anything else holding the redis credentials can. An
+    exception raised in a relay unwinds
     ``Channel.listen``, which catches redis errors only, and the process is
     then left with no listener until its next addressable connection.
 
