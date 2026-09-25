@@ -5,11 +5,22 @@
 ### Added
 
 - docker-ssh writes a non-secret ``~/dallinger/<app>/deployment.json`` on
-  deploy and ``apps`` shows the recorded ingress and origin. Classic host
-  Caddy remains the only implemented ingress.
+  deploy and ``apps`` shows the recorded ingress and origin.
   New ``docker_ssh_monitoring_kind`` and ``docker_ssh_monitoring_path``
   config keys set the manifest's monitoring fields. ``servers add`` now
   refuses host record fields whose names look like tokens or passwords.
+- docker-ssh can deploy with ``--ingress cloudflare``. Each app gets an
+  isolated Postgres and a Cloudflare tunnel that proxies to the web service.
+  Cloudflare account and zone come from the new ``cloudflare_account_id``,
+  ``cloudflare_zone_id`` and ``cloudflare_dns_zone`` config keys, and
+  ``servers add --default-ingress`` sets a server's default. A fresh deploy
+  refuses an app name whose tunnel already exists. Destroy stops the
+  connector before deleting the DNS record and tunnel, and can be re-run if
+  that cleanup fails.
+- docker-ssh keeps each app's Postgres password in ``~/dallinger/<app>/.env``
+  (mode ``0600``) instead of ``docker-compose.yml``, and ``--update`` keeps it.
+  ``get_docker_compose_yml`` no longer takes ``postgresql_password`` or
+  ``executor``.
 - Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
   docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
   A custom experiment Dockerfile gets a final step that installs that wheel.
