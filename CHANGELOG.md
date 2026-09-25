@@ -4,6 +4,11 @@
 
 ### Added
 
+- Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
+  docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
+  A custom experiment Dockerfile gets a final step that installs that wheel.
+  Dallinger pins given as Git URLs are replaced by the local wheel as well
+  (extras such as ``[docker]`` are dropped from the rewritten line).
 - Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
   (``paths``, ``names``, ``suffixes``) plus the deterministic
   experiment-root deployment plan model, with development bulk directory
@@ -24,6 +29,11 @@
 
 ### Fixed
 
+- Docker image pushes retry when the daemon read times out, including the
+  urllib3 timeout docker-py raises directly.
+- Remote Docker builds work when the SSH username contains ``@``.
+- docker-ssh deploys no longer write the dashboard or Dozzle password into
+  ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.
 - docker-ssh deploy now correctly handles SSH hosts specified as ``host:port``.
   The ``--update`` flag now yields a boolean instead of the
   string ``"update"``. TLS certificate verification is skipped for loopback

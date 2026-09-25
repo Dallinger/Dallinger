@@ -200,6 +200,27 @@ def test_deps_image_tag_changes_when_prepare_script_changes(tmp_path):
     assert get_experiment_image_tag(str(exp_dir)) != tag_before
 
 
+def test_custom_dockerfile_reinstalls_a_staged_local_wheel(tmp_path):
+    import docker
+
+    from dallinger.docker import tools
+
+    (tmp_path / "Dockerfile").write_text("FROM python:3.12\nCOPY . /experiment\n")
+    (tmp_path / "requirements.txt").write_text("dallinger==12.0.0\n")
+    (tmp_path / "dallinger-1-py3-none-any.whl").write_bytes(b"wheel")
+    client = mock.Mock()
+    client.api.inspect_image.side_effect = docker.errors.ImageNotFound("missing")
+    with (
+        mock.patch("docker.client.from_env", return_value=client),
+        mock.patch.object(tools, "get_base_image", return_value="base"),
+        mock.patch.object(tools, "check_output"),
+    ):
+        tools.build_image(tmp_path, "exp", mock.Mock(), image_tag="t")
+    dockerfile = (tmp_path / "Dockerfile").read_text()
+    assert dockerfile.endswith(tools.LOCAL_DALLINGER_WHEEL_SNIPPET)
+    assert "--force-reinstall --no-deps" in tools.LOCAL_DALLINGER_WHEEL_SNIPPET
+
+
 def test_deploy_image_tag_is_unique_per_launch():
     """Copied-in deploys must not share a tag across launches."""
     from dallinger.docker.tools import docker_tag_from_experiment_id
@@ -528,6 +549,37 @@ def test_push_image_retries_connection_error_and_succeeds():
         result = push_image("registry/exp:tag")
 
     from_env.assert_called_once_with(timeout=DOCKER_PUSH_TIMEOUT)
+    assert fake_client.images.push.call_count == 2
+    assert result == f"registry/exp@{fake_digest}"
+
+
+def test_push_image_retries_urllib3_read_timeout():
+    import urllib3
+
+    from dallinger.command_line.docker import push_image
+
+    fake_digest = "sha256:abc123"
+    call_count = 0
+
+    def fake_push(image, stream=False, decode=False):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise urllib3.exceptions.ReadTimeoutError(None, None, "Read timed out.")
+        return iter([{"status": "Pushing"}, {"aux": {"Digest": fake_digest}}])
+
+    fake_image = mock.Mock()
+    fake_image.attrs = {"RepoDigests": [f"registry/exp@{fake_digest}"]}
+    fake_client = mock.Mock()
+    fake_client.images.push.side_effect = fake_push
+    fake_client.images.get.return_value = fake_image
+
+    with (
+        mock.patch("docker.client.from_env", return_value=fake_client),
+        mock.patch("time.sleep"),
+    ):
+        result = push_image("registry/exp:tag")
+
     assert fake_client.images.push.call_count == 2
     assert result == f"registry/exp@{fake_digest}"
 

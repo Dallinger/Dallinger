@@ -167,6 +167,11 @@ experiments deployed this way can be found under the `dallinger docker-ssh` comm
       set-dozzle-password
       stats                 Get resource usage stats from remote server.
 
+To bake an unreleased Dallinger checkout into the experiment image, set
+``DALLINGER_SOURCE`` to that tree (PsyNet ``--use-local-dallinger`` does
+this). PYTHONPATH alone is not enough: the image still pip-installs the
+experiment's Dallinger pin.
+
 .. note::
 
       The intended use case is a server that you provisioned exclusively for use with Dallnger.

@@ -483,8 +483,21 @@ def known_hosts_target(host, port):
 
 
 def docker_host_uri(host, user=None, port=22):
+    """Return a DOCKER_HOST SSH URL for the remote Docker daemon.
+
+    docker-py splits this URL on ``@`` and cannot parse a username that
+    itself contains ``@``, such as a Cambridge CRSid login. Those users are
+    left out of the URL, so the SSH client takes the user from
+    ``~/.ssh/config``.
+    """
     if ":" in host and not host.startswith("["):
         host = f"[{host}]"
+    if user and "@" in user:
+        print(
+            f"SSH user {user!r} contains '@', so Docker connects without it. "
+            f"Set `User {user}` for {host} in ~/.ssh/config."
+        )
+        user = None
     user_part = f"{user}@" if user else ""
     port_part = f":{port}" if port != 22 else ""
     return f"ssh://{user_part}{host}{port_part}"
@@ -1164,9 +1177,8 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         )
         print(launch_data.get("recruitment_msg"))
 
-    dashboard_link = (
-        f"https://{dashboard_user}:{dashboard_password}@{experiment_hostname}/dashboard"
-    )
+    # deploy_logs/ persists these lines, so they carry no passwords.
+    dashboard_link = f"https://{experiment_hostname}/dashboard"
     pem_path = get_server_pem_path()
     ssh_port_part = f"-p {ssh_port} " if ssh_port != 22 else ""
     log_command = (
@@ -1181,11 +1193,12 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     deployment_infos += [
         "To display the logs for this experiment you can run:",
         log_command,
-        f"Or you can head to {logs_url} (user = dallinger, password = {dozzle_password})",
-        f"You can now log in to the console at {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
+        f"Or you can head to {logs_url} (user = dallinger)",
+        f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
     ]
     for line in deployment_infos:
         print_bold(line)
+    print_bold(f"Dashboard password: {dashboard_password}")
 
     deploy_log_path = Path("deploy_logs") / f"{experiment_id}.txt"
     deploy_log_path.parent.mkdir(exist_ok=True)
