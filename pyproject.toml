@@ -121,6 +121,8 @@ Repository = "https://github.com/Dallinger/Dallinger"
 "dallinger/docker/docker-compose.yml.j2" = "dallinger/docker/docker-compose.yml.j2"
 "dallinger/docker/heroku.yml" = "dallinger/docker/heroku.yml"
 "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2" = "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2"
+"dallinger/docker/ssh_templates/Caddyfile.frontdoor" = "dallinger/docker/ssh_templates/Caddyfile.frontdoor"
+"dallinger/docker/ssh_templates/front-door-services.yml.j2" = "dallinger/docker/ssh_templates/front-door-services.yml.j2"
 "dallinger/docker/ssh_templates/docker-compose-server.yml.j2" = "dallinger/docker/ssh_templates/docker-compose-server.yml.j2"
 
 [tool.hatch.build.targets.wheel]

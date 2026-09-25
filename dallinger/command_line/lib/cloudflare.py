@@ -22,7 +22,7 @@ from typing import Any, Callable, Mapping
 API_BASE = "https://api.cloudflare.com/client/v4"
 TUNNEL_NAME_PREFIX = "dallinger-"
 KEYCHAIN_SERVICE = "dallinger-cloudflare-api-token"
-TUNNEL_SERVICE = "http://web:5000"
+TUNNEL_SERVICE = "http://frontdoor:5000"
 WEB_RECORD_TYPES = {"A", "AAAA", "CNAME"}
 DNS_LABEL_PATTERN = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
 PUBLIC_RESOURCE_KEYS = (

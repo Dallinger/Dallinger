@@ -1,0 +1,53 @@
+{
+	admin off
+	# Only host Caddy or cloudflared reach this port, over private Docker
+	# networks. Trust their X-Forwarded-* headers so the app still sees https
+	# and the participant's address.
+	servers {
+		trusted_proxies static private_ranges
+		# Take the right-most untrusted address, not a participant-supplied one.
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
+	}
+}
+
+:5000 {
+	@parked {
+		file {
+			root /state
+			try_files hibernating waking
+		}
+	}
+
+	# Health probes are not activity: the controller measures idle time from
+	# when this access log was last written.
+	@health path /health /health/
+	log_skip @health
+
+	handle @parked {
+		reverse_proxy controller:8080
+	}
+
+	handle {
+		reverse_proxy experiment-backend:5000 {
+			header_up X-Forwarded-For {client_ip}
+			flush_interval -1
+			transport http {
+				dial_timeout 3s
+			}
+		}
+	}
+
+	handle_errors {
+		header Content-Type application/json
+		respond `{"status":"unavailable"}` 503
+	}
+
+	log {
+		output file /state/access.log {
+			roll_size 10MiB
+			roll_keep 2
+		}
+		format json
+	}
+}

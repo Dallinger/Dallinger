@@ -632,6 +632,12 @@ class TestSimpleGETRoutes:
         assert b"User-agent" in resp.data
         resp.close()
 
+    def test_health_returns_json(self, webapp):
+        resp = webapp.get("/health")
+        assert resp.status_code == 200
+        assert resp.json == {"status": "ok"}
+        resp.close()
+
     def test_consent(self, webapp):
         resp = webapp.get(
             "/consent",

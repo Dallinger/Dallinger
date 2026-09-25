@@ -809,14 +809,95 @@ def test_remote_postgres_does_not_fall_back_when_app_db_is_stopped(monkeypatch):
             pass
 
 
+def test_select_running_app_returns_lone_hibernating_app(monkeypatch):
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "get_apps",
+        lambda *args, **kwargs: [
+            docker_ssh_module.App(name="asleep", state="hibernating")
+        ],
+    )
+
+    assert docker_ssh_module.select_running_app("irrelevant") == "asleep"
+
+
+def test_cloudflare_restore_runs_before_compose_up(monkeypatch):
+    order = []
+    executor = mock.Mock()
+
+    def run(cmd, raise_=True):
+        order.append(cmd)
+        return ""
+
+    executor.run.side_effect = run
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_restore_experiment_archive",
+        lambda *_args: order.append("restore"),
+    )
+    docker_ssh_module._bring_up_app_containers(
+        executor,
+        {},
+        "dlgr-abcd1234",
+        "/tmp/export.zip",
+        True,
+        restore=True,
+    )
+    restore_at = order.index("restore")
+    up_at = next(index for index, item in enumerate(order) if "up -d" in item)
+    assert restore_at < up_at
+
+
 def _fake_bin(tmp_path):
-    """Fake ``docker``, which logs its arguments."""
+    """Fake ``docker`` (logs its arguments) and ``stat`` (a docker.sock group)."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    for name, body in (("docker", 'echo "$@" >> "$HOME/docker.log"'),):
+    for name, body in (
+        ("docker", 'echo "$@" >> "$HOME/docker.log"'),
+        ("stat", "echo 999"),
+    ):
         (bin_dir / name).write_text(f"#!/bin/bash\n{body}\n")
         (bin_dir / name).chmod(0o755)
     return bin_dir
+
+
+def test_update_wakes_a_hibernating_app(tmp_path, capsys):
+    state = tmp_path / "dallinger" / "demo" / "state"
+    state.mkdir(parents=True)
+    (state / "hibernating").write_text("")
+    executor = LocalExecutor(tmp_path, _fake_bin(tmp_path))
+    docker_ssh_module._bring_up_app_containers(
+        executor, {}, "demo", None, True, restore=False
+    )
+    assert not (state / "hibernating").exists()
+    assert (state / "access.log").exists()
+    log = (tmp_path / "docker.log").read_text()
+    assert "demo/docker-compose.yml up -d" in log
+    recreate_controller = log.index("--force-recreate controller")
+    assert recreate_controller < log.index("demo/docker-compose.yml up -d\n")
+    assert "--force-recreate frontdoor" in log
+    assert "was hibernating. The update woke it." in capsys.readouterr().out
+
+
+def test_classic_bring_up_does_not_restore_twice(monkeypatch):
+    executor = mock.Mock()
+    executor.run.return_value = ""
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_restore_experiment_archive",
+        mock.Mock(side_effect=AssertionError("classic already restored")),
+    )
+    docker_ssh_module._bring_up_app_containers(
+        executor,
+        {},
+        "dlgr-abcd1234",
+        "/tmp/export.zip",
+        True,
+        restore=False,
+    )
+    commands = [call.args[0] for call in executor.run.call_args_list]
+    assert any("up -d" in command for command in commands)
+    assert not any("initdb" in command for command in commands)
 
 
 def test_write_experiment_compose_env_appends_ids_and_creates_home_dirs(tmp_path):
@@ -830,8 +911,8 @@ def test_write_experiment_compose_env_appends_ids_and_creates_home_dirs(tmp_path
     )
     env = (app_dir / ".env").read_text()
     assert env.startswith("POSTGRES_PASSWORD=pw\n")
-    assert f"UID={os.getuid()}\nGID={os.getgid()}\n" in env
-    for sub in ("dallinger-data/demo", "psynet-data/assets"):
+    assert f"UID={os.getuid()}\nGID={os.getgid()}\nDOCKER_GID=999\n" in env
+    for sub in ("dallinger-data/demo", "dallinger/demo/state", "psynet-data/assets"):
         assert (tmp_path / sub).is_dir()
     assert not (tmp_path / "docker.log").exists()
 
@@ -843,7 +924,101 @@ def test_remote_bind_mount_dirs_only_chowns_writable_home_subdirs():
         "/etc/ssl:/certs:ro,/srv/data:/data,~:/home,~/configs:/configs:ro",
         "consonance",
     )
-    assert dirs == ['"$HOME/dallinger-data/$app"', '"$HOME/psynet-data/assets"']
+    assert dirs == [
+        '"$HOME/dallinger-data/$app"',
+        '"$HOME/dallinger/$app/state"',
+        '"$HOME/psynet-data/assets"',
+    ]
+
+
+def test_awaken_app_optional_when_compose_missing(monkeypatch):
+    executor = mock.Mock()
+    executor.run.return_value = ""
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"s": {"host": "example.com", "user": "ubuntu"}},
+    )
+    monkeypatch.setattr(docker_ssh_module, "Executor", lambda *a, **k: executor)
+    assert docker_ssh_module.awaken_app("s", "demo", required=False) is False
+    with pytest.raises(click.Abort):
+        docker_ssh_module.awaken_app("s", "demo", required=True)
+
+
+def test_awaken_app_optional_when_controller_exec_fails(monkeypatch):
+    executor = mock.Mock()
+
+    def run(cmd, raise_=True):
+        if "test -f" in cmd:
+            return "Yes"
+        if "state/hibernating" in cmd:
+            return "/home/u/dallinger/demo/state/hibernating\n"
+        if "config --services" in cmd:
+            return "web\ncontroller\n"
+        if raise_:
+            raise docker_ssh_module.ExecuteException("exec failed")
+        return ""
+
+    executor.run.side_effect = run
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"s": {"host": "example.com", "user": "ubuntu"}},
+    )
+    monkeypatch.setattr(docker_ssh_module, "Executor", lambda *a, **k: executor)
+    assert docker_ssh_module.awaken_app("s", "demo", required=False) is False
+
+
+def test_hibernate_explains_apps_without_a_front_door(monkeypatch, capsys):
+    executor = FakeExecutor({"test -f": "Yes", "config --services": "web\nredis\n"})
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"s": {"host": "example.com"}}
+    )
+    monkeypatch.setattr(docker_ssh_module, "Executor", lambda *a, **k: executor)
+    with pytest.raises(click.Abort):
+        docker_ssh_module._run_hibernation_action("s", "demo", "hibernate")
+    assert "redeploy it with --update" in capsys.readouterr().out
+    assert not any("exec" in cmd for cmd in executor.commands)
+
+
+def test_awaken_skips_an_app_that_is_already_awake(monkeypatch):
+    executor = FakeExecutor({"test -f": "Yes"})
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"s": {"host": "example.com"}}
+    )
+    monkeypatch.setattr(docker_ssh_module, "Executor", lambda *a, **k: executor)
+    assert docker_ssh_module.awaken_app("s", "demo", required=False) is True
+    assert not any("exec" in cmd for cmd in executor.commands)
+
+
+def test_get_apps_reports_hibernation_from_markers():
+    executor = FakeExecutor(
+        {
+            "caddy.d": "alpha\nbeta\n",
+            "state/hibernating": "/home/test/dallinger/alpha/state/hibernating\n",
+        }
+    )
+    with (
+        mock.patch.object(docker_ssh_module, "_resolve_server_info", return_value={}),
+        mock.patch.object(docker_ssh_module, "_build_executor", return_value=executor),
+    ):
+        apps = docker_ssh_module.get_apps("irrelevant")
+    assert [(app.name, app.state) for app in apps] == [
+        ("alpha", "hibernating"),
+        ("beta", "inactive"),
+    ]
+
+
+def test_remote_hibernation_states_reads_marker_files(tmp_path):
+    for app, marker in (("a", "hibernating"), ("b", "waking"), ("c", None)):
+        state = tmp_path / "dallinger" / app / "state"
+        state.mkdir(parents=True)
+        if marker:
+            (state / marker).write_text("")
+    assert docker_ssh_module._remote_hibernation_states(LocalExecutor(tmp_path)) == {
+        "a": "hibernating",
+        "b": "waking",
+    }
 
 
 @pytest.mark.parametrize("label, expected", [("1\n", True), ("\n", False)])
