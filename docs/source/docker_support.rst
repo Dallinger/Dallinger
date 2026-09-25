@@ -190,6 +190,17 @@ connector token from an earlier attempt). Destroy stops the connector, then dele
 tunnel, but never a same-named tunnel with a different id. If that cleanup fails, destroy leaves the app's files in place so it
 can be run again.
 
+Experiment containers run as the SSH user (``UID``/``GID`` in the per-app
+``.env``) when their image was built by this version of Dallinger; older
+images keep running as root until rebuilt. Every directory under
+``/experiment`` is writable in the image, so the app can create files there;
+files shipped in the image cannot be edited in place. Deploy also chowns
+``~/dallinger-data/<app>`` and writable host bind mounts under the home
+directory in ``docker_volumes`` (PsyNet defaults include
+``~/psynet-data/assets``) so files left as root by older deploys stay
+writable. If a plain chown fails, deploy retries in a root ``alpine:3.20``
+container, and warns if that fails.
+
 To bake an unreleased Dallinger checkout into the experiment image, set
 ``DALLINGER_SOURCE`` to that tree (PsyNet ``--use-local-dallinger`` does
 this). PYTHONPATH alone is not enough: the image still pip-installs the

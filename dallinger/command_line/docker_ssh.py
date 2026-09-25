@@ -750,8 +750,13 @@ def _upload_app_stack(
     """
     # The JSON log is bind-mounted as a file, so it must exist before Compose starts.
     executor.run(f"mkdir -p dallinger/{app} && touch dallinger/{app}/{JSON_LOGFILE}")
+    run_as_ssh_user = _image_runs_as_ssh_user(executor, image_name)
     sftp.putfo(
-        BytesIO(get_docker_compose_yml(cfg, app, image_name, ingress).encode()),
+        BytesIO(
+            get_docker_compose_yml(
+                cfg, app, image_name, ingress, run_as_ssh_user=run_as_ssh_user
+            ).encode()
+        ),
         f"dallinger/{app}/docker-compose.yml",
     )
     env_path = f"dallinger/{app}/.env"
@@ -759,6 +764,7 @@ def _upload_app_stack(
     # Create the file private before any secret is written to it.
     executor.run(f"umask 077 && : > {env_path} && chmod 600 {env_path}")
     sftp.putfo(BytesIO(env.encode()), env_path)
+    _write_experiment_compose_env(executor, app, cfg.get("docker_volumes", ""))
     monitoring_kind, monitoring_path = _monitoring_settings(cfg)
     _upload_app_manifest(
         sftp,
@@ -772,6 +778,29 @@ def _upload_app_stack(
             cloudflare=cloudflare or {},
         ),
     )
+
+
+def _image_runs_as_ssh_user(executor, image_name):
+    """Return whether the image was built to run as the SSH user.
+
+    Images built before that change have a root-owned ``/experiment`` that
+    the SSH user cannot write, so they keep running as root.
+    """
+    from dallinger.docker.tools import RUNS_AS_SSH_USER_LABEL
+
+    image = quote(image_name)
+    label = executor.run(
+        f"docker pull -q {image} >/dev/null 2>&1; docker image inspect -f "
+        f"'{{{{index .Config.Labels \"{RUNS_AS_SSH_USER_LABEL}\"}}}}' {image}",
+        raise_=False,
+    )
+    if (label or "").strip() == "1":
+        return True
+    print(
+        f"Image {image_name} predates running apps as the SSH user, so its "
+        "containers run as root. Rebuild the image to run as the SSH user."
+    )
+    return False
 
 
 def _log_command(ssh_host, ssh_port, ssh_user, app):
@@ -2416,6 +2445,7 @@ def get_docker_compose_yml(
     experiment_id: str,
     experiment_image: str,
     ingress: str = INGRESS_CLASSIC,
+    run_as_ssh_user: bool = True,
 ) -> str:
     """Render an app's docker-compose.yml. Secrets come from the app's ``.env``."""
     docker_volumes = config.get("docker_volumes", "")
@@ -2434,6 +2464,7 @@ def get_docker_compose_yml(
         experiment_image=experiment_image,
         config=config_str,
         docker_volumes=docker_volumes,
+        run_as_ssh_user=run_as_ssh_user,
     )
 
 
@@ -2482,6 +2513,56 @@ def _restore_experiment_archive(server_info, experiment_id, archive_path):
                 "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES "
                 f'IN SCHEMA PUBLIC TO "{experiment_id}"'
             )
+
+
+def _remote_bind_mount_dirs(docker_volumes, experiment_id):
+    """Return quoted remote dirs to mkdir/chown for an app's bind mounts.
+
+    Only the app data dir and writable bind mounts strictly under ``$HOME``
+    qualify, so a mount such as ``/etc/ssl`` is never chowned.
+    """
+    dirs = ['"$HOME/dallinger-data/$app"']
+    for spec in str(docker_volumes or "").split(","):
+        parts = spec.strip().split(":")
+        if len(parts) > 2 and "ro" in parts[2].split(","):
+            continue
+        host = parts[0].strip().replace("{{ experiment_id }}", experiment_id)
+        for prefix in ("${HOME}/", "$HOME/", "~/"):
+            rest = host[len(prefix) :].strip("/") if host.startswith(prefix) else ""
+            if re.fullmatch(r"[A-Za-z0-9._/-]+", rest) and ".." not in rest.split("/"):
+                snippet = f'"$HOME/{rest}"'
+                if snippet not in dirs:
+                    dirs.append(snippet)
+    return dirs
+
+
+def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
+    """Append UID/GID to the app's ``.env`` so its containers run as the SSH user.
+
+    Older docker-ssh deploys left data dirs owned by root, so each dir from
+    ``_remote_bind_mount_dirs`` is chowned recursively, falling back to a root
+    ``alpine:3.20`` container. If that fails too, warn rather than abort: a
+    fresh dir is still created as the SSH user.
+    """
+    app = quote(experiment_id)
+    dirs = " ".join(_remote_bind_mount_dirs(docker_volumes, experiment_id))
+    executor.run(
+        "uid=$(id -u); gid=$(id -g); "
+        f"app={app}; "
+        'printf "UID=%s\\nGID=%s\\n" "$uid" "$gid" >> "$HOME/dallinger/$app/.env"; '
+        f"for d in {dirs}; do "
+        '  mkdir -p "$d"; '
+        '  if chown -R "$uid:$gid" "$d" 2>/dev/null; then '
+        "    :; "
+        '  elif docker run --rm -v "$d:$d" '
+        'alpine:3.20 chown -R "$uid:$gid" "$d"; then '
+        "    :; "
+        "  else "
+        '    echo "Warning: could not chown $d for $app; '
+        'root-owned files from older deploys may be unwritable."; '
+        "  fi; "
+        "done"
+    )
 
 
 def get_retrying_http_client():

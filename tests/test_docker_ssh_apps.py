@@ -1,4 +1,5 @@
 import importlib
+import os
 import subprocess
 import sys
 import uuid
@@ -40,18 +41,26 @@ class FakeExecutor:
         return ""
 
 
-class LocalExecutor:
-    """Run remote shell snippets with bash, using ``home`` as ``$HOME``."""
+# ``chown`` is in /usr/sbin on macOS.
+BASE_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
 
-    def __init__(self, home):
+
+class LocalExecutor:
+    """Run remote shell snippets with bash, using ``home`` as ``$HOME``.
+
+    ``bin_dir`` goes first on ``PATH``, for fake ``docker`` or ``stat``.
+    """
+
+    def __init__(self, home, bin_dir=None):
         self.home = home
+        self.path = f"{bin_dir}:{BASE_PATH}" if bin_dir else BASE_PATH
 
     def run(self, cmd, raise_=True):
         result = subprocess.run(
             ["bash", "-c", cmd],
             capture_output=True,
             text=True,
-            env={"HOME": str(self.home), "PATH": "/usr/bin:/bin"},
+            env={"HOME": str(self.home), "PATH": self.path},
         )
         if raise_ and result.returncode:
             raise docker_ssh_module.ExecuteException(result.stderr)
@@ -798,3 +807,47 @@ def test_remote_postgres_does_not_fall_back_when_app_db_is_stopped(monkeypatch):
             {"host": "example.com", "user": "ubuntu"}, "myapp"
         ):
             pass
+
+
+def _fake_bin(tmp_path):
+    """Fake ``docker``, which logs its arguments."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name, body in (("docker", 'echo "$@" >> "$HOME/docker.log"'),):
+        (bin_dir / name).write_text(f"#!/bin/bash\n{body}\n")
+        (bin_dir / name).chmod(0o755)
+    return bin_dir
+
+
+def test_write_experiment_compose_env_appends_ids_and_creates_home_dirs(tmp_path):
+    app_dir = tmp_path / "dallinger" / "demo"
+    app_dir.mkdir(parents=True)
+    (app_dir / ".env").write_text("POSTGRES_PASSWORD=pw\n")
+    docker_ssh_module._write_experiment_compose_env(
+        LocalExecutor(tmp_path, _fake_bin(tmp_path)),
+        "demo",
+        "${HOME}/psynet-data/assets:/psynet-data/assets,/etc/ssl:/certs:ro",
+    )
+    env = (app_dir / ".env").read_text()
+    assert env.startswith("POSTGRES_PASSWORD=pw\n")
+    assert f"UID={os.getuid()}\nGID={os.getgid()}\n" in env
+    for sub in ("dallinger-data/demo", "psynet-data/assets"):
+        assert (tmp_path / sub).is_dir()
+    assert not (tmp_path / "docker.log").exists()
+
+
+def test_remote_bind_mount_dirs_only_chowns_writable_home_subdirs():
+    dirs = docker_ssh_module._remote_bind_mount_dirs(
+        "./dallinger.log:/experiment/dallinger.log,"
+        "${HOME}/psynet-data/assets:/psynet-data/assets,"
+        "/etc/ssl:/certs:ro,/srv/data:/data,~:/home,~/configs:/configs:ro",
+        "consonance",
+    )
+    assert dirs == ['"$HOME/dallinger-data/$app"', '"$HOME/psynet-data/assets"']
+
+
+@pytest.mark.parametrize("label, expected", [("1\n", True), ("\n", False)])
+def test_only_labelled_images_run_as_the_ssh_user(label, expected, capsys):
+    executor = FakeExecutor({"image inspect": label})
+    assert docker_ssh_module._image_runs_as_ssh_user(executor, "img:tag") is expected
+    assert ("run as root" in capsys.readouterr().out) is not expected

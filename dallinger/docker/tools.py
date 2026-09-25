@@ -319,6 +319,33 @@ def docker_tag_from_experiment_id(experiment_id: str) -> str:
     return tag[:128]
 
 
+# Images built with a writable /experiment carry this label. docker-ssh runs
+# only these as the SSH user; older images keep running as root.
+RUNS_AS_SSH_USER_LABEL = "org.dallinger.runs-as-ssh-user"
+
+# The SSH account is chosen when the container starts, after this image is built.
+# Write permission on these directories lets that account create server.log and
+# the static/assets link. Shipped source files stay owned by root.
+_EXPERIMENT_WORKDIR_WRITABLE = """\
+RUN mkdir -p /experiment/static \\
+ && find /experiment -type d -exec chmod a+rwx {} +
+"""
+
+
+def ensure_experiment_workdir_writable(dockerfile_text):
+    """Let the runtime user create files in every directory under /experiment.
+
+    Docker-ssh runs the experiment as the SSH user. That uid is not known
+    while the image is built, so the directories need to be writable by any
+    user. Only directories change, which keeps the extra image layer small;
+    shipped files stay owned by root.
+    """
+    marker = "find /experiment -type d -exec chmod a+rwx"
+    if marker in dockerfile_text:
+        return dockerfile_text
+    return dockerfile_text.rstrip() + "\n\n" + _EXPERIMENT_WORKDIR_WRITABLE
+
+
 def build_image(
     tmp_dir,
     base_image_name,
@@ -363,15 +390,19 @@ def build_image(
             str(tmp_dir),
         ]
 
+    docker_build_invocation += ["--label", f"{RUNS_AS_SSH_USER_LABEL}=1"]
     docker_build_invocation += ["-t", image_name]
     dockerfile_path = Path(tmp_dir) / "Dockerfile"
     if dockerfile_path.exists():
         out.blather(
             "Found a custom Dockerfile in the experiment directory, will use this for deployment."
         )
+        dockerfile_text = dockerfile_path.read_text(encoding="utf-8")
         if list(Path(tmp_dir).glob("dallinger-*.whl")):
-            with dockerfile_path.open("a") as dockerfile:
-                dockerfile.write(LOCAL_DALLINGER_WHEEL_SNIPPET)
+            dockerfile_text += LOCAL_DALLINGER_WHEEL_SNIPPET
+        dockerfile_path.write_text(
+            ensure_experiment_workdir_writable(dockerfile_text), encoding="utf-8"
+        )
     else:
         dockerfile_text = rf"""# syntax=docker/dockerfile:1
         FROM {base_image_name}
@@ -418,7 +449,7 @@ def build_image(
         ENV PORT=5000
         CMD dallinger_heroku_web
         """
-        dockerfile_path.write_text(dockerfile_text)
+        dockerfile_path.write_text(ensure_experiment_workdir_writable(dockerfile_text))
     try:
         check_output(docker_build_invocation, env=env)
     except CalledProcessError:

@@ -232,11 +232,13 @@ def test_custom_dockerfile_reinstalls_a_staged_local_wheel(tmp_path):
     with (
         mock.patch("docker.client.from_env", return_value=client),
         mock.patch.object(tools, "get_base_image", return_value="base"),
-        mock.patch.object(tools, "check_output"),
+        mock.patch.object(tools, "check_output") as check_output,
     ):
         tools.build_image(tmp_path, "exp", mock.Mock(), image_tag="t")
+    build_args = check_output.call_args.args[0]
+    assert f"{tools.RUNS_AS_SSH_USER_LABEL}=1" in build_args
     dockerfile = (tmp_path / "Dockerfile").read_text()
-    assert dockerfile.endswith(tools.LOCAL_DALLINGER_WHEEL_SNIPPET)
+    assert tools.LOCAL_DALLINGER_WHEEL_SNIPPET in dockerfile
     assert "--force-reinstall --no-deps" in tools.LOCAL_DALLINGER_WHEEL_SNIPPET
 
 
