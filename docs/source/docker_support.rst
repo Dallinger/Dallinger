@@ -167,6 +167,14 @@ experiments deployed this way can be found under the `dallinger docker-ssh` comm
       set-dozzle-password
       stats                 Get resource usage stats from remote server.
 
+Each ``docker-ssh`` deploy writes ``~/dallinger/<app>/deployment.json`` on the
+server. The file records non-secret metadata: the public HTTPS origin, the
+ingress mode, and the monitoring kind and path. This release still deploys classic
+host Caddy with the shared server Postgres. Apps without a manifest are
+discovered from Compose and Caddy and treated the same way. ``apps`` shows
+the recorded ingress and origin. Host records reject fields whose names look
+like tokens or passwords.
+
 To bake an unreleased Dallinger checkout into the experiment image, set
 ``DALLINGER_SOURCE`` to that tree (PsyNet ``--use-local-dallinger`` does
 this). PYTHONPATH alone is not enough: the image still pip-installs the

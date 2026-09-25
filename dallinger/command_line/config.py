@@ -10,6 +10,8 @@ from typing import Dict
 import click
 import platformdirs
 
+from dallinger.command_line.lib.app_manifest import SECRET_KEY_PARTS
+
 APPDIRS = platformdirs.PlatformDirs("dallinger", "dallinger")
 
 # TODO: This NEW_HOSTS/OLD_HOSTS code dates from January 2026,
@@ -55,7 +57,17 @@ def get_configured_hosts():
 
 
 def store_host(host: Dict[str, str]):
-    """Store the given ssh host info in the local user config."""
+    """Store the given ssh host info in the local user config.
+
+    Host records are not a secret store: API tokens and passwords are rejected.
+    """
+    for key in host:
+        lowered = str(key).lower()
+        if any(part in lowered for part in SECRET_KEY_PARTS):
+            raise click.UsageError(
+                "Docker-ssh host records must not contain credentials. "
+                f"Refusing to store field {key!r}."
+            )
     hosts_dir = NEW_HOSTS_DIR
     if not hosts_dir.is_dir():
         hosts_dir.mkdir(parents=True)
