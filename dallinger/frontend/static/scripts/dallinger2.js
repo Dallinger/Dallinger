@@ -713,9 +713,9 @@ var dallinger = (function () {
   };
 
   /**
-   * The close code Dallinger uses to refuse a websocket connection, such as
-   * one whose `participant_id` names no participant. RFC 6455 policy
-   * violation.
+   * The close code Dallinger sends when it refuses a connection outright,
+   * for example, when the participant_id is invalid.
+   * The browser's ReconnectingWebSocket should not retry on this code.
    */
   dlgr.WEBSOCKET_REFUSED = 1008;
 
@@ -738,9 +738,11 @@ var dallinger = (function () {
   dlgr.stopReconnectingIfRefused = function (socket, callback) {
     socket.addEventListener("connecting", function (event) {
       if (event.code !== dlgr.WEBSOCKET_REFUSED) { return; }
-      // The reconnect timer scheduled by this close calls open() on this
-      // instance, and open() is an own property, so replacing it cancels the
-      // retry.
+      // ReconnectingWebSocket schedules a reconnect timer on every close, and
+      // exposes no public API to cancel it. The timer calls this.open() when it
+      // fires. Replacing open() with a no-op on this instance is the only way to
+      // cancel the retry from outside, and since open() is an "own property" it applies
+      // only to this socket instance.
       socket.open = function () {};
       socket.close();
       // `close()` reaches CLOSED only through a live socket's onclose, and

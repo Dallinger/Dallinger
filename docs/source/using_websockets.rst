@@ -13,6 +13,13 @@ and create channels. The second, `/experiment-socket`, hands each incoming
 message to the experiment on the web process holding the connection instead of
 publishing it, and is described in its own section below.
 
+Websocket messages are strings consisting of a channel name followed by a `:`
+and then a message payload. The message payload is usually a string representing
+a JSON object.
+
+Chat
+----
+
 The channel backend publishes all incoming messages to a redis queue. It also
 looks for new messages on the queue and relays channel specific messages to all
 channel subscribers (generally either participants or the experiment itself).
@@ -51,10 +58,6 @@ An experiment can create and subscribe to channels after launch, but would need
 to be careful to ensure each channel is only ever subscribed once per experiment
 run. This is likely to be difficult because the experiment potentially has many
 instances running concurrently across multiple processes and servers.
-
-Websocket messages are strings consisting of a channel name followed by a `:`
-and then a message payload. The message payload is usually a string representing
-a JSON object.
 
 Messages are handled asynchronously by the
 :func:`~dallinger.experiment.Experiment.receive_message` method of the

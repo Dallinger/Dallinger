@@ -765,7 +765,6 @@ class TestChatEndpoint:
         assert relayed == [("special", "incoming message!")]
 
 
-@pytest.mark.slow
 class TestExperimentSocket:
     def sync_client(self, sockets, ws, experiment, **kwargs):
         return sockets.Client(ws, experiment=experiment, **kwargs)
@@ -919,7 +918,6 @@ class TestExperimentSocket:
         assert sockets.redis_conn.publish.mock_calls[-1].args == ("game", "payload")
 
 
-@pytest.mark.slow
 class TestClientInfo:
     def test_reports_the_connection_scope(self, sockets):
         client = sockets.Client(
@@ -960,7 +958,6 @@ def channel_events(sockets):
     ]
 
 
-@pytest.mark.slow
 class TestChannellessConnection:
     """A connection that names no channel sends without receiving."""
 
@@ -990,7 +987,6 @@ class TestChannellessConnection:
         assert relayed == [("game", "payload")]
 
 
-@pytest.mark.slow
 class TestExperimentSocketConnection:
     def connect(self, sockets, ws, **args):
         with patch.object(sockets, "request", Mock(args=args)):
@@ -1216,7 +1212,6 @@ class TestNormalizedParticipantId:
         assert sockets.normalized_participant_id(Counted()) == "42"
 
 
-@pytest.mark.slow
 class TestResolveParticipantId:
     def test_a_number_that_is_not_an_integer_is_not_a_lookup(self, sockets):
         with patch.object(sockets, "session") as session:
@@ -1250,7 +1245,6 @@ class TestResolveParticipantId:
         session.remove.assert_called_once_with()
 
 
-@pytest.mark.slow
 class TestResolveParticipantIdAgainstTheDatabase:
     """The lookup against a real participant table, not a mocked session."""
 

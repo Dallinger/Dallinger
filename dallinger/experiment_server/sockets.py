@@ -452,18 +452,26 @@ class Client:
 def normalized_participant_id(participant_id):
     """The string form of the participant id ``participant_id`` names, or ``None``.
 
-    The id comes back as a string, which is the form every other Dallinger
-    route carries it in. It is the parsed value rendered back rather than the
-    value passed in, because ``int()`` accepts more than the column does,
-    including surrounding whitespace, a leading sign, and non-ASCII decimal
-    digits. Passing the raw string on would let a lookup succeed and then raise
-    ``DataError`` on every later query.
+    Returns the participant id as a normalized string, or None if the value
+    is not a string or an integer, or cannot be parsed as a whole number.
 
-    Only text and whole numbers are parsed. ``int()`` would read ``12.7`` as
-    participant 12 and ``True`` as participant 1, so a value that is neither a
-    string nor an integer is refused rather than truncated. ``numbers.Integral``
-    rather than ``int`` so that a numpy integer, which a caller reading ids out
-    of a dataframe column has, is a whole number here too.
+    The id is parsed as an int and rendered back as a string rather than
+    returned as-is, because int() accepts values the database column does
+    not, such as non-ASCII decimal digits. Without the round-trip, a raw value
+    like "٤٢" would pass the existence check but raise DataError on any
+    subsequent query that uses it as a column value. The round-trip also gives
+    each id a single string form, so "42", " 42 ", "+42" and "042" all come
+    back as "42".
+
+    Values that are neither strings nor integers are refused rather than
+    truncated: int() would read 12.7 as participant 12.
+
+    bool is excluded explicitly: although it is an int subclass and int(True)
+    is 1, a boolean participant_id is almost certainly a bug in the caller.
+
+    numbers.Integral is used instead of int so that numpy integers are
+    accepted (a caller reading participant ids out of a dataframe column
+    gets a numpy integer, not a plain int).
     """
     if isinstance(participant_id, bool) or not isinstance(
         participant_id, (str, bytes, numbers.Integral)
@@ -485,10 +493,9 @@ def resolve_participant_id(participant_id):
     if normalized is None:
         return None
     try:
-        found = (
-            session.query(models.Participant.id).filter_by(id=int(normalized)).scalar()
-            is not None
-        )
+        found = session.query(
+            session.query(models.Participant).filter_by(id=int(normalized)).exists()
+        ).scalar()
     finally:
         session.remove()
     return normalized if found else None
