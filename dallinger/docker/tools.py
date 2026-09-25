@@ -23,6 +23,14 @@ docker_compose_template = Template(
     abspath_from_egg("dallinger", "dallinger/docker/docker-compose.yml.j2").read_text()
 )
 
+# Appended to custom Dockerfiles when a local Dallinger wheel is staged, so the
+# image runs that tree even if the Dockerfile installed a pinned Dallinger.
+LOCAL_DALLINGER_WHEEL_SNIPPET = """
+# Added by Dallinger: install the local Dallinger wheel staged for this build.
+COPY dallinger-*.whl /tmp/dallinger-wheel/
+RUN python -m pip install --no-cache-dir --force-reinstall --no-deps /tmp/dallinger-wheel/dallinger-*.whl
+"""
+
 
 class DockerComposeWrapper:
     """Wrapper around a docker compose local daemon, modeled after HerokuLocalWrapper.
@@ -361,6 +369,9 @@ def build_image(
         out.blather(
             "Found a custom Dockerfile in the experiment directory, will use this for deployment."
         )
+        if list(Path(tmp_dir).glob("dallinger-*.whl")):
+            with dockerfile_path.open("a") as dockerfile:
+                dockerfile.write(LOCAL_DALLINGER_WHEEL_SNIPPET)
     else:
         dockerfile_text = rf"""# syntax=docker/dockerfile:1
         FROM {base_image_name}
@@ -400,6 +411,10 @@ def build_image(
         RUN {ssh_mount} grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
             python3 -m pip install -r /tmp/requirements_no_dallinger.txt || true
         COPY . /experiment
+        # Reinstall a staged local wheel last, so it wins over a Dallinger pin
+        # that another requirement (such as psynet) pulled in above.
+        RUN set -- /experiment/dallinger-*.whl; \
+            if [ -f "$1" ]; then pip install --force-reinstall --no-deps "$1"; fi
         ENV PORT=5000
         CMD dallinger_heroku_web
         """

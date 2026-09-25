@@ -14,6 +14,7 @@ from shlex import quote
 import click
 import requests
 import tenacity
+import urllib3
 from heroku3.core import Heroku as Heroku3Client
 
 from dallinger import heroku, registration
@@ -183,7 +184,13 @@ def push_image(image_name_with_tag: str) -> str:
     docker_client = client.from_env(timeout=DOCKER_PUSH_TIMEOUT)
     for attempt in tenacity.Retrying(
         retry=tenacity.retry_if_exception_type(
-            (requests.exceptions.ReadTimeout, requests.exceptions.ConnectionError)
+            (
+                requests.exceptions.ReadTimeout,
+                requests.exceptions.ConnectionError,
+                # docker-py can surface a stalled push stream as urllib3's
+                # error directly, which is not a requests.ReadTimeout.
+                urllib3.exceptions.ReadTimeoutError,
+            )
         ),
         stop=tenacity.stop_after_attempt(DOCKER_PUSH_MAX_ATTEMPTS),
         wait=tenacity.wait_fixed(5),

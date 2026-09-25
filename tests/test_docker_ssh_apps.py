@@ -13,6 +13,18 @@ from dallinger.docker.tools import docker_tag_from_experiment_id
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
 
 
+def test_docker_host_uri_omits_at_sign_usernames(capsys):
+    assert (
+        docker_ssh_module.docker_host_uri("rr-pc01.example", user="pmch2@cam.ac.uk")
+        == "ssh://rr-pc01.example"
+    )
+    assert "User pmch2@cam.ac.uk" in capsys.readouterr().out
+    assert (
+        docker_ssh_module.docker_host_uri("musix.example", user="pmch2", port=2222)
+        == "ssh://pmch2@musix.example:2222"
+    )
+
+
 def _mock_executor():
     executor = mock.Mock()
     executor.run.side_effect = [

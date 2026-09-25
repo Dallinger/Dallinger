@@ -17,7 +17,6 @@ import webbrowser
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import distribution as get_distribution
-from importlib.metadata import files as files_metadata
 from importlib.util import find_spec
 from pathlib import Path
 from unicodedata import normalize
@@ -421,24 +420,17 @@ def struct_to_html(data):
 
 
 def abspath_from_egg(egg, path):
-    """Given a path relative to the egg root, find the absolute
-    filesystem path for that resource.
-    For instance this file's absolute path can be found invoking
-    `abspath_from_egg("dallinger", "dallinger/utils.py")`.
+    """Find the absolute path of a file shipped with Dallinger.
+
+    ``path`` is relative to the directory that contains the ``dallinger``
+    package, for example ``abspath_from_egg("dallinger", "dallinger/utils.py")``.
+    Only Dallinger's own files are found; ``egg`` is kept for compatibility.
     Returns a `pathlib.Path` object or None if the path was not found.
     """
-    for file in files_metadata(egg) or ():
-        if str(file) != path:
-            continue
-        located = file.locate()
-        if located is not None and Path(located).is_file():
-            return Path(located)
-        break
-    # Editable installs may omit package data from importlib.metadata.
+    # Use the imported package tree so a PYTHONPATH/worktree checkout wins
+    # over an older installed copy's package data.
     candidate = Path(__file__).resolve().parent.parent / path
-    if candidate.is_file():
-        return candidate
-    return None
+    return candidate if candidate.is_file() else None
 
 
 def get_editable_dallinger_path():
@@ -715,26 +707,47 @@ def assemble_experiment_temp_dir(log, config, for_remote=False, experiment_files
             _stage_compiled_requirements(Path(os.getcwd()), Path(dst))
         requirements_path = Path(dst) / "requirements.txt"
         if for_remote:
-            dallinger_path = get_editable_dallinger_path()
-            if dallinger_path and not os.environ.get("DALLINGER_NO_EGG_BUILD"):
-                log(
-                    "Dallinger is installed as an editable package, "
-                    "and so will be copied and deployed in its current state, "
-                    "ignoring the dallinger version specified in your experiment's "
-                    "requirements.txt file!\n"
-                    "If you don't need this you can speed up startup time by setting "
-                    "the environment variable DALLINGER_NO_EGG_BUILD:\n"
-                    "    export DALLINGER_NO_EGG_BUILD=1\n"
-                    "or you can install dallinger without the editable (-e) flag."
-                )
+            source = os.environ.get("DALLINGER_SOURCE", "").strip()
+            if source:
+                source = str(Path(source).expanduser().resolve())
+                if not Path(source, "dallinger", "__init__.py").is_file():
+                    raise ValueError(
+                        f"DALLINGER_SOURCE={source} is not a Dallinger checkout."
+                    )
+            dallinger_path = source or (
+                None
+                if os.environ.get("DALLINGER_NO_EGG_BUILD")
+                else get_editable_dallinger_path()
+            )
+            if dallinger_path:
+                if source:
+                    log(
+                        f"DALLINGER_SOURCE is set, so the Dallinger tree at {source} "
+                        "will be deployed in its current state, ignoring the "
+                        "dallinger version specified in your experiment's "
+                        "requirements.txt file."
+                    )
+                else:
+                    log(
+                        "Dallinger is installed as an editable package, "
+                        "and so will be copied and deployed in its current state, "
+                        "ignoring the dallinger version specified in your experiment's "
+                        "requirements.txt file!\n"
+                        "If you don't need this you can speed up startup time by setting "
+                        "the environment variable DALLINGER_NO_EGG_BUILD:\n"
+                        "    export DALLINGER_NO_EGG_BUILD=1\n"
+                        "or you can install dallinger without the editable (-e) flag."
+                    )
                 egg_name = build_and_place(dallinger_path, dst)
-                # Replace the line about dallinger in requirements.txt so that
-                # it refers to the just generated package
-                constraints_text = requirements_path.read_text()
-                new_constraints_text = re.sub(
-                    "dallinger==.*", f"file:{egg_name}", constraints_text
-                )
-                requirements_path.write_text(new_constraints_text)
+                # A custom Dockerfile (e.g. PsyNet's) installs requirements
+                # before ``COPY .``, so the pin stays; build_image appends a
+                # reinstall of the staged wheel instead.
+                if not (Path(os.getcwd()) / "Dockerfile").is_file():
+                    requirements_path.write_text(
+                        replace_dallinger_requirement(
+                            requirements_path.read_text(), egg_name
+                        )
+                    )
     except BaseException:
         shutil.rmtree(private_tree, ignore_errors=True)
         raise
@@ -742,6 +755,19 @@ def assemble_experiment_temp_dir(log, config, for_remote=False, experiment_files
 
 
 _AUTHORED_ROOT_INPUTS = ("requirements.txt",)
+_DALLINGER_REQUIREMENT_LINE = re.compile(
+    r"^(?P<indent>[ \t]*)(?:-e[ \t]+)?dallinger(?:\[[^\]]+\])?(?:[ \t]*@[ \t]*\S+|==\S*).*$",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+
+def replace_dallinger_requirement(text: str, egg_name: str) -> str:
+    """Point every Dallinger pin at a locally built wheel, including Git URLs.
+
+    Extras such as ``dallinger[docker]`` are dropped; compiled requirements
+    already list the packages those extras bring in.
+    """
+    return _DALLINGER_REQUIREMENT_LINE.sub(rf"\g<indent>file:{egg_name}", text)
 
 
 def _restore_authored_root_inputs(experiment_root, destination, copy_func):
@@ -1202,22 +1228,14 @@ def exclusion_policy():
 
 
 def build_and_place(source: str, destination: str) -> str:
-    """Builds a python egg with the source found at `source` and places it in
-    `destination`.
-    Only works if dallinger is currently installed in editable mode.
-
-    Returns the full path of the newly created distribution file.
-    """
-    old_dir = os.getcwd()
-    try:
-        os.chdir(source)
-        check_output(["python", "-m", "build"])
-        # The built package is the last addition to the `dist` directory
-        package_path = max(Path(source).glob("dist/*"), key=os.path.getctime)
-        shutil.copy(package_path, destination)
-    finally:
-        os.chdir(old_dir)
-    return package_path.name
+    """Build a wheel from ``source`` into ``destination`` and return its name."""
+    with tempfile.TemporaryDirectory() as outdir:
+        check_output(
+            ["python", "-m", "build", "--wheel", "--outdir", outdir], cwd=source
+        )
+        (wheel,) = Path(outdir).glob("*.whl")
+        shutil.copy(wheel, destination)
+        return wheel.name
 
 
 def route_name_from_func_name(func_name: str) -> str:
