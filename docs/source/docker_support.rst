@@ -169,11 +169,26 @@ experiments deployed this way can be found under the `dallinger docker-ssh` comm
 
 Each ``docker-ssh`` deploy writes ``~/dallinger/<app>/deployment.json`` on the
 server. The file records non-secret metadata: the public HTTPS origin, the
-ingress mode, and the monitoring kind and path. This release still deploys classic
-host Caddy with the shared server Postgres. Apps without a manifest are
-discovered from Compose and Caddy and treated the same way. ``apps`` shows
-the recorded ingress and origin. Host records reject fields whose names look
-like tokens or passwords.
+ingress mode, and the monitoring kind and path. ``apps`` shows the recorded ingress
+and origin. Host records reject fields whose names look like tokens or
+passwords.
+
+The app's Postgres password lives in ``~/dallinger/<app>/.env`` (mode ``0600``),
+which Compose reads, rather than in the Compose file. ``--update`` keeps it.
+
+``--ingress classic`` keeps host Caddy and the shared server Postgres.
+``--ingress cloudflare`` starts an isolated Compose stack and a per-app
+tunnel. The tunnel proxies to the experiment web service. Set the non-secret
+``cloudflare_account_id``, ``cloudflare_zone_id``, and ``cloudflare_dns_zone``
+in Dallinger config. The API token is read from ``CLOUDFLARE_API_TOKEN``, then
+Dallinger config, then the macOS Keychain item
+``dallinger-cloudflare-api-token``. It is never written to host records, the
+manifest, or the app's Compose file. Tunnel names do not include the server,
+so a deploy refuses an app name whose tunnel already exists, unless it is the
+tunnel this server recorded for that app (in its manifest, or next to the
+connector token from an earlier attempt). Destroy stops the connector, then deletes the DNS record and
+tunnel, but never a same-named tunnel with a different id. If that cleanup fails, destroy leaves the app's files in place so it
+can be run again.
 
 To bake an unreleased Dallinger checkout into the experiment image, set
 ``DALLINGER_SOURCE`` to that tree (PsyNet ``--use-local-dallinger`` does

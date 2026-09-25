@@ -139,13 +139,32 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
     push_image.assert_called_once_with("registry/exp:tag")
 
 
-def get_yaml(config):
+def get_yaml(config, **kwargs):
     from dallinger.command_line.docker_ssh import get_docker_compose_yml
 
     yaml_contents = get_docker_compose_yml(
-        config, "dlgr-8c43a887", "ghcr.io/dallinger/dallinger/bartlett1932", "foobar"
+        config,
+        "dlgr-8c43a887",
+        "ghcr.io/dallinger/dallinger/bartlett1932",
+        **kwargs,
     )
     return yaml.safe_load(yaml_contents)
+
+
+def test_tunnel_compose_proxies_to_web_without_a_front_door():
+    result = get_yaml({}, ingress="cloudflare")
+    services = result["services"]
+    dumped = yaml.safe_dump(result)
+
+    assert "postgresql" in services
+    assert "cloudflared" in services
+    assert "frontdoor" not in services
+    assert "controller" not in services
+    assert "ports:" not in dumped
+    assert services["cloudflared"]["depends_on"]["web"]["condition"] == (
+        "service_started"
+    )
+    assert result["networks"]["app"]["name"] == "dlgr-8c43a887_app"
 
 
 def test_num_dynos():

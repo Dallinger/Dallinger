@@ -1,4 +1,26 @@
+{%- set tunnel = ingress == "cloudflare" %}
 services:
+{%- if tunnel %}
+  postgresql:
+    restart: unless-stopped
+    image: postgres:12
+    container_name: {{ experiment_id }}_postgresql
+    environment:
+      POSTGRES_USER: {{ experiment_id }}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: {{ experiment_id }}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ experiment_id }}"]
+      interval: 2s
+      timeout: 5s
+    networks:
+      app:
+        aliases:
+          - postgresql
+{%- endif %}
+
   redis:
     restart: unless-stopped
     image: redis
@@ -22,11 +44,18 @@ services:
     depends_on: &commondepends
       redis:
         condition: service_healthy
+{%- if tunnel %}
+      postgresql:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+{%- else %}
       pgbouncer:
         condition: service_started
+{%- endif %}
     environment: &commonenv
       REDIS_URL: redis://{{ experiment_id }}_redis:6379
-      DATABASE_URL: postgresql://{{ experiment_id }}:{{ postgresql_password }}@{{ experiment_id }}_pgbouncer/{{ experiment_id }}
+      DATABASE_URL: postgresql://{{ experiment_id }}:${POSTGRES_PASSWORD}@{{ experiment_id }}_pgbouncer/{{ experiment_id }}
       HOME: /tmp
       HOST: 0.0.0.0
       PORT: 5000
@@ -34,10 +63,16 @@ services:
       {{ key }}: {{ value | string() | tojson }}
     {%- endfor %}
     networks:
+{%- if tunnel %}
+      app:
+        aliases:
+          - experiment-backend
+{%- else %}
       app:
       dallinger:
         aliases:
           - {{ experiment_id }}_web
+{%- endif %}
     volumes:
       - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
     {%- if docker_volumes | length > 0 %}
@@ -73,18 +108,30 @@ services:
     restart: unless-stopped
     image: docker.io/bitnamilegacy/pgbouncer:1.24.1
     container_name: {{ experiment_id }}_pgbouncer
+{%- if tunnel %}
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/5432'"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+{%- endif %}
     networks:
       app:
         aliases:
           - {{ experiment_id }}_pgbouncer
+{%- if not tunnel %}
       dallinger:
+{%- endif %}
     environment:
       - POSTGRESQL_HOST=postgresql
       - PGBOUNCER_AUTH_TYPE=md5
       - PGBOUNCER_SET_DATABASE_USER=yes
       - PGBOUNCER_SET_DATABASE_PASSWORD=yes
       - POSTGRESQL_USERNAME={{ experiment_id }}
-      - POSTGRESQL_PASSWORD={{ postgresql_password }}
+      - POSTGRESQL_PASSWORD=${POSTGRES_PASSWORD}
       - PGBOUNCER_PORT=5432
       - PGBOUNCER_DATABASE={{ experiment_id }}
       - PGBOUNCER_POOL_MODE=transaction
@@ -107,12 +154,34 @@ services:
     volumes:
       - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
 {%- endif %}
+{%- if tunnel %}
+
+  cloudflared:
+    restart: unless-stopped
+    image: cloudflare/cloudflared:2026.9.1
+    user: "${UID}:${GID}"
+    command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/secrets/cloudflare-tunnel-token"]
+    environment:
+      HOME: /tmp
+    depends_on:
+      web:
+        condition: service_started
+    volumes:
+      - ./secrets/cloudflare-tunnel-token:/run/secrets/cloudflare-tunnel-token:ro
+    networks:
+      - app
+{%- endif %}
 
 volumes:
   redis_data:
+{%- if tunnel %}
+  postgres_data:
+{%- endif %}
 
 networks:
   app:
     name: {{ experiment_id }}_app
+{%- if not tunnel %}
   dallinger:
     name: dallinger
+{%- endif %}

@@ -83,6 +83,97 @@ def test_load_remote_manifests_reads_existing_files(tmp_path):
     assert loaded == {"beta": manifest}
 
 
+def test_resolve_ingress_uses_server_default():
+    assert (
+        docker_ssh_module._resolve_ingress({"default_ingress": "cloudflare"})
+        == "cloudflare"
+    )
+    assert docker_ssh_module._resolve_ingress({}, ingress="classic") == "classic"
+    assert docker_ssh_module._resolve_ingress({}) == "classic"
+
+
+def test_cloudflare_deploy_skips_root_domain_preflight(monkeypatch):
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"lab": {"host": "lab.example", "default_ingress": "cloudflare"}},
+    )
+    assert not docker_ssh_module._root_domain_preflight_required(
+        "lab", None, None, None
+    )
+    assert docker_ssh_module._root_domain_preflight_required(
+        "lab", None, None, "classic"
+    )
+    assert not docker_ssh_module._root_domain_preflight_required(
+        "lab", "dlgr-abcd1234", None, "classic"
+    )
+
+
+def _cloudflare_destroy(monkeypatch, removed, cloudflare=None):
+    manifest = docker_ssh_module.DeploymentManifest(
+        app="myapp",
+        server="test-server",
+        public_origin="https://myapp.science-of-music.org",
+        ingress="cloudflare",
+        cloudflare=cloudflare
+        or {"tunnel_id": "tun", "dns_zone": "science-of-music.org"},
+    )
+    order = []
+
+    def run(cmd, raise_=True):
+        if cmd.startswith("test -f") and "docker-compose.yml" in cmd:
+            return "Yes"
+        if cmd.startswith("for app in"):
+            return "myapp\t" + manifest.to_json().replace("\n", "") + "\n"
+        for marker, name in (
+            ("stop cloudflared", "stop"),
+            ("down -v", "down"),
+            ("rm -rf", "rm"),
+        ):
+            if marker in cmd:
+                order.append(name)
+        return ""
+
+    def delete(**kwargs):
+        order.append(("delete", kwargs["app"], kwargs["account_id"]))
+        order.append(("own", kwargs["own_tunnel_id"]))
+        return removed
+
+    _patch_destroy_executor(monkeypatch, run)
+    monkeypatch.setattr(docker_ssh_module, "delete_experiment_tunnel", delete)
+    monkeypatch.setattr(docker_ssh_module, "load_api_token", lambda config: "token")
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "get_config",
+        lambda **kwargs: {"cloudflare_account_id": "acct", "cloudflare_zone_id": "z"},
+    )
+    return order
+
+
+def test_destroy_cloudflare_stops_connector_before_deleting_the_tunnel(monkeypatch):
+    order = _cloudflare_destroy(monkeypatch, removed=True)
+    docker_ssh_module.destroy.callback(server="test-server", app="myapp")
+    assert order == ["stop", ("delete", "myapp", "acct"), ("own", "tun"), "down", "rm"]
+
+
+def test_destroy_uses_the_cloudflare_ids_recorded_at_deploy(monkeypatch):
+    recorded = {
+        "account_id": "deploy-acct",
+        "zone_id": "deploy-zone",
+        "dns_zone": "x.org",
+    }
+    order = _cloudflare_destroy(monkeypatch, removed=True, cloudflare=recorded)
+    docker_ssh_module.destroy.callback(server="test-server", app="myapp")
+    assert ("delete", "myapp", "deploy-acct") in order
+
+
+def test_destroy_keeps_the_app_when_cloudflare_cleanup_fails(monkeypatch):
+    order = _cloudflare_destroy(monkeypatch, removed=False)
+    with pytest.raises(click.Abort):
+        docker_ssh_module.destroy.callback(server="test-server", app="myapp")
+    assert order == ["stop", ("delete", "myapp", "acct"), ("own", "tun")]
+
+
 def test_monitoring_settings_default_and_override():
     assert docker_ssh_module._monitoring_settings({}) == ("experiment", "/health")
     assert docker_ssh_module._monitoring_settings(
@@ -422,7 +513,6 @@ def test_experiment_image_from_compose_reads_web_not_infra_images():
         },
         "my-app",
         "ghcr.io/org/exp:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-        "pw",
     )
     parsed = docker_ssh_module.experiment_image_from_compose(yml)
     assert parsed == "ghcr.io/org/exp:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
@@ -472,7 +562,6 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
         {},
         "myapp",
         "registry/exp:old-uid",
-        "pw",
     )
     commands = []
 
@@ -577,3 +666,135 @@ def test_real_docker_rmi_removes_unused_tag_and_keeps_in_use_and_prefix_tags():
             subprocess.run(
                 ["docker", "rmi", "-f", tag], capture_output=True, check=False
             )
+
+
+def test_update_refuses_to_switch_ingress():
+    manifest = docker_ssh_module.DeploymentManifest(
+        app="myapp",
+        server="s",
+        public_origin="https://myapp.example",
+        ingress="cloudflare",
+    )
+    executor = mock.Mock()
+    executor.run.side_effect = lambda cmd, raise_=True: (
+        "myapp\t" + manifest.to_json().replace("\n", "")
+        if cmd.startswith("for app in")
+        else "docker-compose.yml"
+    )
+    with pytest.raises(click.Abort):
+        docker_ssh_module._check_app_slot(executor, "myapp", True, "classic")
+    docker_ssh_module._check_app_slot(executor, "myapp", True, "cloudflare")
+
+
+def test_app_stack_keeps_secrets_out_of_the_compose_file():
+    sftp = mock.Mock()
+    stack_executor = FakeExecutor({})
+    docker_ssh_module._upload_app_stack(
+        sftp,
+        stack_executor,
+        {},
+        app="myapp",
+        server="s",
+        public_origin="https://myapp.example",
+        image_name="img",
+        ingress="cloudflare",
+        secrets={"POSTGRES_PASSWORD": "s3cret"},
+    )
+    uploads = {
+        call.args[1]: call.args[0].getvalue().decode()
+        for call in sftp.putfo.call_args_list
+    }
+    assert "s3cret" not in uploads["dallinger/myapp/docker-compose.yml"]
+    assert "${POSTGRES_PASSWORD}" in uploads["dallinger/myapp/docker-compose.yml"]
+    assert uploads["dallinger/myapp/.env"] == "POSTGRES_PASSWORD=s3cret\n"
+    assert any(
+        "umask 077" in cmd and "dallinger/myapp/.env" in cmd
+        for cmd in stack_executor.commands
+    )
+    executor = mock.Mock()
+    executor.run.return_value = "UID=1\nPOSTGRES_PASSWORD=s3cret\n"
+    assert (
+        docker_ssh_module._existing_app_secret(executor, "myapp", "POSTGRES_PASSWORD")
+        == "s3cret"
+    )
+
+
+def test_compose_environment_strips_cloudflare_api_token():
+    class Config:
+        def as_dict(self, include_sensitive=False):
+            return {
+                "aws_access_key_id": "id",
+                "aws_secret_access_key": "secret",
+                "cloudflare_api_token": "must-not-leak",
+                "host": "0.0.0.0",
+                "aws_region": "us-east-1",
+                "auto_recruit": False,
+            }
+
+        def get(self, key, default=None):
+            return None
+
+        def __getitem__(self, key):
+            return self.as_dict()[key]
+
+    env = docker_ssh_module._compose_environment(
+        Config(),
+        {"cloudflare_api_token": "from-cli", "host": "smuggled"},
+        "live",
+        "uuid",
+        "image:tag",
+    )
+    assert "cloudflare_api_token" not in env
+    assert "from-cli" not in env.values()
+    assert env["AWS_ACCESS_KEY_ID"] == "id"
+    assert "host" not in env
+
+
+def test_remote_postgres_prefers_pinned_container_name(monkeypatch):
+    executor = mock.Mock()
+
+    def run(cmd, raise_=True):
+        if "myapp_postgresql" in cmd and "IPAddress" in cmd:
+            return "10.0.0.8\n"
+        if "myapp_postgresql" in cmd and "Env" in cmd:
+            return "POSTGRES_USER=myapp\nPOSTGRES_PASSWORD=s3cret\nPOSTGRES_DB=myapp\n"
+        if "dallinger-postgresql-1" in cmd:
+            raise AssertionError(f"unexpected fallback: {cmd}")
+        return ""
+
+    executor.run.side_effect = run
+    tunnel = mock.Mock(local_bind_port=65432)
+    monkeypatch.setattr(docker_ssh_module, "Executor", lambda *a, **k: executor)
+    monkeypatch.setattr(
+        docker_ssh_module, "get_server_pem_path", lambda: "/tmp/key.pem"
+    )
+    fake_sshtunnel = mock.Mock()
+    fake_sshtunnel.SSHTunnelForwarder.return_value = tunnel
+    monkeypatch.setitem(sys.modules, "sshtunnel", fake_sshtunnel)
+
+    with docker_ssh_module.remote_postgres(
+        {"host": "example.com", "user": "ubuntu"}, "myapp"
+    ) as uri:
+        assert uri == "postgresql://myapp:s3cret@localhost:65432/myapp"
+
+
+def test_remote_postgres_does_not_fall_back_when_app_db_is_stopped(monkeypatch):
+    executor = mock.Mock()
+
+    def run(cmd, raise_=True):
+        if "myapp_postgresql" in cmd and ".Id" in cmd:
+            return "abc123\n"
+        if "dallinger-postgresql-1" in cmd and "IPAddress" in cmd:
+            return "10.0.0.1\n"
+        return ""
+
+    executor.run.side_effect = run
+    monkeypatch.setattr(docker_ssh_module, "Executor", lambda *a, **k: executor)
+    monkeypatch.setattr(
+        docker_ssh_module, "get_server_pem_path", lambda: "/tmp/key.pem"
+    )
+    with pytest.raises(docker_ssh_module.ExecuteException, match="not running"):
+        with docker_ssh_module.remote_postgres(
+            {"host": "example.com", "user": "ubuntu"}, "myapp"
+        ):
+            pass
