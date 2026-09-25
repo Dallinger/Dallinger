@@ -102,6 +102,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: get_network_for_participant
 
+  .. automethod:: handle_websocket_message
+
   .. automethod:: info_get_request
 
   .. automethod:: info_post_request

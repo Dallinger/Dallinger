@@ -713,6 +713,49 @@ var dallinger = (function () {
   };
 
   /**
+   * The close code Dallinger sends when it refuses a connection outright,
+   * for example, when the participant_id is invalid.
+   * The browser's ReconnectingWebSocket should not retry on this code.
+   */
+  dlgr.WEBSOCKET_REFUSED = 1008;
+
+  /**
+   * Stop a ReconnectingWebSocket retrying a connection the server refused.
+   *
+   * `ReconnectingWebSocket` reconnects after every close and reports the close
+   * code on its `connecting` event rather than on `close`, so a refusal is
+   * otherwise indistinguishable from a dropped network connection and repeats
+   * forever.
+   *
+   * The socket is left in the `CLOSED` state, so code that polls
+   * `readyState` can tell a refusal from a reconnect in progress.
+   *
+   * @param {ReconnectingWebSocket} socket the socket to watch
+   * @param {function} [callback] called with the close code and reason when
+   *   the connection is refused
+   * @returns {ReconnectingWebSocket} the socket that was passed in
+   */
+  dlgr.stopReconnectingIfRefused = function (socket, callback) {
+    socket.addEventListener("connecting", function (event) {
+      if (event.code !== dlgr.WEBSOCKET_REFUSED) { return; }
+      // ReconnectingWebSocket schedules a reconnect timer on every close, and
+      // exposes no public API to cancel it. The timer calls this.open() when it
+      // fires. Replacing open() with a no-op on this instance is the only way to
+      // cancel the retry from outside, and since open() is an "own property" it applies
+      // only to this socket instance.
+      socket.open = function () {};
+      socket.close();
+      // `close()` reaches CLOSED only through a live socket's onclose, and
+      // ReconnectingWebSocket has already dropped its reference to that socket
+      // before it fires `connecting`. Without this the socket would report
+      // CONNECTING forever.
+      socket.readyState = WebSocket.CLOSED;
+      if (callback) { callback(event.code, event.reason); }
+    });
+    return socket;
+  };
+
+  /**
    * Waits for a WebSocket message indicating that quorum has been reached.
    *
    * This method is called automatically within `createParticipant()` and the

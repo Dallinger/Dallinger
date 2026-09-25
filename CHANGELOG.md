@@ -4,6 +4,33 @@
 
 ### Added
 
+- A new `/experiment-socket` route hands each inbound frame to the experiment's new
+  `handle_websocket_message` method on the web process that owns the socket,
+  instead of publishing it to redis for a worker to pick up later. The default
+  implementation reproduces the asynchronous behavior of `/chat`, so opening
+  one without overriding the hook changes nothing. Dallinger removes the
+  database session after every frame: handlers get a fresh identity map, hold no
+  transaction open between frames, and commit their own writes. The frame does
+  not reach the channel, so a handler that also wants subscribers to see it
+  calls `publish_to_subscribers` itself, naming a channel the experiment does
+  not subscribe to. A experiment socket must name a participant that exists, or the
+  server closes it with code `1008`. An optional `scope` parameter is passed to
+  the hook without being interpreted.
+  One experiment instance is built per web process and shared by that
+  process's experiment sockets, matching how the launched experiment is already held
+  for the lifetime of the process that served `/launch`.
+
+- `/chat` control-channel events now report a connection's `scope`, the
+  `channel` parameter is optional rather than building a channel redis refuses
+  to subscribe to, and a binary frame closes the connection with code `1003`
+  instead of raising out of the receive loop.
+
+- `dallinger.stopReconnectingIfRefused(socket, callback)` stops a
+  `ReconnectingWebSocket` retrying a connection the server closed with code
+  `1008`, which the library otherwise reports only on its `connecting` event
+  and retries forever. The socket is left in the `CLOSED` state rather than
+  reporting `CONNECTING` indefinitely.
+
 - Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
   (``paths``, ``names``, ``suffixes``) plus the deterministic
   experiment-root deployment plan model, with development bulk directory
