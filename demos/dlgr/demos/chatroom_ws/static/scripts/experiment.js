@@ -28,23 +28,19 @@ var create_agent = function() {
 };
 
 var open_chatroom = function () {
-  var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
-  // Setup a websocket connection to the "chatroom", passing our worker_id and participant_id
-  chatroom_socket = new ReconnectingWebSocket(
-    ws_scheme + location.host + "/chat?channel=chatroom&worker_id=" + dallinger.identity.workerId + '&participant_id=' + dallinger.identity.participantId
-  );
-  chatroom_socket.onopen(function () {
-    chatroom_socket.send('chatroom:' + JSON.stringify({
+  // Subscribe to the "chatroom" channel
+  chatroom_socket = dallinger.openChatSocket({channel: 'chatroom'});
+  chatroom_socket.onOpen(function (event) {
+    // Announce ourselves once, not again after a reconnect
+    if (event.isReconnect) { return; }
+    chatroom_socket.send('chatroom', {
       'type': 'log',
-      'content': dallinger.identity.participantId + ' has joined the chat.',
+      'content': 'Participant ' + dallinger.identity.participantId + ' has joined the chat.',
       'sender': dallinger.identity.participantId,
       'node_id': my_node_id,
-    }));
+    });
   });
-  chatroom_socket.onmessage = function (msg) {
-    // Ignore messages not from the chatroom
-    if (msg.data.indexOf('chatroom:') !== 0) { return; }
-    var data = JSON.parse(msg.data.substring(9));
+  chatroom_socket.onBroadcast(function (data) {
     var type = data.type;
     var content = data.content;
     var sender = data.sender;
@@ -56,45 +52,44 @@ var open_chatroom = function () {
         $("#send-message, #reproduction").prop('disabled', true);
       }
     }
-  };
+  });
   return chatroom_socket;
 };
 
 var add_message = function(content, sender) {
-  $("#story").append("<p><strong>Participant " + sender + ":</strong> " + content + "</p>");
+  $("#story").append(
+    $("<p>").append($("<strong>").text("Participant " + sender + ": ")).append($("<span>").text(content))
+  );
 };
 
 var send_message = function() {
-  response = $("#reproduction").val();
-  chatroom_socket.send('chatroom:' + JSON.stringify({
+  var response = $("#reproduction").val();
+  chatroom_socket.send('chatroom', {
     'type': 'message',
     'content': response,
     'sender': dallinger.identity.participantId,
     'node_id': my_node_id,
-  }));
-  response = $("#reproduction").val('');
+  });
+  $("#reproduction").val('');
 };
 
 var leave_chatroom = function() {
-  chatroom_socket.send('chatroom:' + JSON.stringify({
+  chatroom_socket.send('chatroom', {
     'type': 'log',
     'content': 'Participant ' + dallinger.identity.participantId + ' has left the chat.',
     'sender': dallinger.identity.participantId,
     'node_id': my_node_id,
-  }));
-  chatroom_socket.onclose = function () {
+  });
+  // Let the goodbye reach the server before leaving. If the connection is
+  // down, close() drops it rather than make the participant wait.
+  chatroom_socket.close().always(function () {
     dallinger.goToPage("questionnaire");
-  };
-  try {
-    chatroom_socket.close();
-  } catch(err) {
-    dallinger.goToPage("questionnaire");
-  }
+  });
 };
 
 var add_log = function (content) {
   var $log = $("#log");
-  $log.append("<p>" + content + "</p>");
+  $log.append($("<p>").text(content));
   $log.scrollTop($log.height());
 }
 

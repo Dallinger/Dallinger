@@ -105,6 +105,7 @@ class TestEntryPointImport:
             "FunctionLearning",
             "IteratedDrawing",
             "MCMCP",
+            "PartnerEcho",
             "RogersExperiment",
             "SheepMarket",
             "SnakeGame",

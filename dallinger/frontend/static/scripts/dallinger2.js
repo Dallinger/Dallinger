@@ -756,6 +756,302 @@ var dallinger = (function () {
   };
 
   /**
+   * The channel on which directed messages, sent with the experiment's
+   * ``publish_to_participants`` method, arrive. It is reserved for
+   * Dallinger's own use, so a client may neither subscribe nor send to it.
+   */
+  dlgr.DIRECT_CHANNEL = "dallinger_direct";
+
+  var RESERVED_CHANNELS = ["dallinger_control", dlgr.DIRECT_CHANNEL];
+
+  /**
+   * A value identifying this page load. Sockets opened with
+   * ``dallinger.openChatSocket`` or ``dallinger.openExperimentSocket`` send it
+   * as their ``scope`` unless they are given another, so an experiment which
+   * replies with the ``scope`` its handler was given reaches the page that
+   * sent the message, and not an earlier page whose socket is still open.
+   */
+  dlgr.pageScope = Math.random().toString(36).substring(2) + Date.now().toString(36);
+
+  var socketUrl = function (route, params) {
+    var scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
+    var query = new URLSearchParams();
+    Object.keys(params).forEach(function (name) {
+      var value = params[name];
+      if (value !== undefined && value !== null && value !== '') {
+        query.append(name, value);
+      }
+    });
+    var search = query.toString();
+    return scheme + location.host + route + (search ? '?' + search : '');
+  };
+
+  var parsePayload = function (payload) {
+    try {
+      return JSON.parse(payload);
+    } catch (err) {
+      return payload;
+    }
+  };
+
+  /**
+   * A connection to one of the experiment server's WebSocket routes, created
+   * with ``dallinger.openChatSocket`` or ``dallinger.openExperimentSocket``.
+   *
+   * The connection is a ``ReconnectingWebSocket``, available as the ``raw``
+   * property, which reconnects with a growing delay whenever it is dropped.
+   * A connection the server refuses is not retried.
+   *
+   * @constructor
+   * @param {string} route - Path of the WebSocket route
+   * @param {Object} [options] - See ``dallinger.openChatSocket``
+   */
+  dlgr.Socket = function (route, options) {
+    var self = this;
+    options = options || {};
+    this.channel = options.channel || null;
+    if (RESERVED_CHANNELS.indexOf(this.channel) !== -1) {
+      throw new Error('The "' + this.channel + '" channel is reserved for Dallinger\'s own use.');
+    }
+    this.participantId = dlgr.identity.participantId;
+    this.scope = options.scope === undefined ? dlgr.pageScope : options.scope;
+    this._pending = [];
+    this._closed = false;
+    this._callbacks = {broadcast: [], direct: [], open: [], refused: []};
+    this.raw = new ReconnectingWebSocket(socketUrl(route, {
+      channel: this.channel,
+      worker_id: dlgr.identity.workerId,
+      participant_id: this.participantId,
+      scope: this.scope
+    }));
+    this.raw.addEventListener("open", function (event) {
+      var pending = self._pending;
+      self._pending = [];
+      pending.forEach(function (frame) { self.raw.send(frame); });
+      self._notify("open", [event]);
+    });
+    this.raw.addEventListener("message", function (event) {
+      self._receive(event.data);
+    });
+    dlgr.stopReconnectingIfRefused(this.raw, function (code, reason) {
+      self._closed = true;
+      self._pending = [];
+      if (!self._callbacks.refused.length) {
+        console.error("The server refused a WebSocket connection to " + route + ": " + reason);
+      }
+      self._notify("refused", [code, reason]);
+    });
+  };
+
+  dlgr.Socket.prototype._notify = function (kind, args) {
+    this._callbacks[kind].forEach(function (callback) {
+      callback.apply(null, args);
+    });
+  };
+
+  dlgr.Socket.prototype._receive = function (frame) {
+    var prefix, kind;
+    // The subscribed channel is matched first and in full, so that a channel
+    // name containing a colon is not mistaken for a shorter one.
+    if (this.channel !== null && frame.indexOf(this.channel + ':') === 0) {
+      prefix = this.channel + ':';
+      kind = "broadcast";
+    } else if (frame.indexOf(dlgr.DIRECT_CHANNEL + ':') === 0) {
+      prefix = dlgr.DIRECT_CHANNEL + ':';
+      kind = "direct";
+    } else {
+      return;
+    }
+    var payload = frame.substring(prefix.length);
+    this._notify(kind, [parsePayload(payload), payload]);
+  };
+
+  /**
+   * Send a message to ``channel``. The ``/chat`` route publishes it to that
+   * channel's subscribers, and the ``/experiment-socket`` route passes it to
+   * the experiment's ``handle_websocket_message`` method, with ``channel`` as
+   * the ``channel_name``.
+   *
+   * A message sent while the connection is down is held, and sent in order
+   * once the connection reopens. Held messages are discarded if the socket is
+   * closed or refused first, as is anything sent after that.
+   *
+   * @param {string} channel - Name of the channel to send to
+   * @param {Object|string} payload - Message to send, encoded as JSON unless
+   *   it is already a string
+   * @alias dallinger.Socket#send
+   */
+  dlgr.Socket.prototype.send = function (channel, payload) {
+    // The server splits each message at its first colon to find the channel.
+    if (typeof channel !== 'string' || !channel || channel.indexOf(':') !== -1) {
+      throw new Error("A channel name must be a non-empty string without a colon, not " + JSON.stringify(channel) + ".");
+    }
+    if (RESERVED_CHANNELS.indexOf(channel) !== -1) {
+      throw new Error('The "' + channel + '" channel is reserved for Dallinger\'s own use.');
+    }
+    if (this._closed) { return; }
+    var frame = channel + ':' + (typeof payload === 'string' ? payload : JSON.stringify(payload));
+    if (this.raw.readyState === WebSocket.OPEN) {
+      this.raw.send(frame);
+    } else {
+      this._pending.push(frame);
+    }
+  };
+
+  /**
+   * Call ``callback`` with each message published to this socket's channel,
+   * whether it was sent by the experiment or by another client.
+   *
+   * The callback is passed the payload parsed as JSON, or the payload string
+   * itself if it is not JSON, followed by the payload string.
+   *
+   * @param {function} callback - Called with each message
+   * @returns {dallinger.Socket} This socket
+   * @alias dallinger.Socket#onBroadcast
+   */
+  dlgr.Socket.prototype.onBroadcast = function (callback) {
+    if (this.channel === null) {
+      throw new Error("This socket was opened without a channel, so it receives no broadcasts.");
+    }
+    this._callbacks.broadcast.push(callback);
+    return this;
+  };
+
+  /**
+   * Call ``callback`` with each message sent to this participant with the
+   * experiment's ``publish_to_participants`` method. The callback is passed
+   * the same arguments as an ``onBroadcast`` callback.
+   *
+   * @param {function} callback - Called with each message
+   * @returns {dallinger.Socket} This socket
+   * @alias dallinger.Socket#onDirect
+   */
+  dlgr.Socket.prototype.onDirect = function (callback) {
+    if (this.participantId == null) {
+      throw new Error("This socket was opened without a participant id, so it cannot be sent directed messages.");
+    }
+    this._callbacks.direct.push(callback);
+    return this;
+  };
+
+  /**
+   * Call ``callback`` each time the connection opens, including after a
+   * reconnect. Messages published while the connection was down are not
+   * replayed, so this is where a page should fetch anything it may have
+   * missed. Messages held by ``send`` have already been sent when the
+   * callback runs.
+   *
+   * The callback is passed the ``open`` event, whose ``isReconnect`` property
+   * is ``false`` the first time the connection opens.
+   *
+   * @param {function} callback - Called with the ``open`` event
+   * @returns {dallinger.Socket} This socket
+   * @alias dallinger.Socket#onOpen
+   */
+  dlgr.Socket.prototype.onOpen = function (callback) {
+    this._callbacks.open.push(callback);
+    return this;
+  };
+
+  /**
+   * Call ``callback`` with the close code and reason if the server refuses the
+   * connection, as the ``/experiment-socket`` route does for an unknown
+   * participant. The connection is not retried either way, and without a
+   * callback the refusal is logged to the console.
+   *
+   * @param {function} callback - Called with the close code and reason
+   * @returns {dallinger.Socket} This socket
+   * @alias dallinger.Socket#onRefused
+   */
+  dlgr.Socket.prototype.onRefused = function (callback) {
+    this._callbacks.refused.push(callback);
+    return this;
+  };
+
+  /**
+   * Close the connection for good, discarding any messages held by ``send``.
+   *
+   * The returned ``Deferred`` resolves once the connection has closed, so
+   * that a page can let messages it has already sent reach the server before
+   * it navigates away.
+   *
+   * @example
+   * socket.send('chatroom', {type: 'log', content: 'Goodbye.'});
+   * socket.close().always(function () {
+   *   dallinger.goToPage('questionnaire');
+   * });
+   *
+   * @returns {jQuery.Deferred} See :ref:`deferreds-label`
+   * @alias dallinger.Socket#close
+   */
+  dlgr.Socket.prototype.close = function () {
+    var deferred = $.Deferred();
+    var raw = this.raw;
+    this._closed = true;
+    this._pending = [];
+    // ReconnectingWebSocket's close() leaves an already scheduled reconnect in
+    // place, and its timer calls open() on this instance.
+    raw.open = function () {};
+    if (raw.readyState === WebSocket.OPEN) {
+      raw.addEventListener("close", function () { deferred.resolve(); });
+    } else {
+      // Between retries there is no underlying socket to fire a close event,
+      // and nothing has been sent that could still be in flight.
+      deferred.resolve();
+    }
+    raw.close();
+    return deferred;
+  };
+
+  /**
+   * Open a WebSocket connection to the ``/chat`` route, which publishes each
+   * message it is sent to the channel the message names.
+   *
+   * The connection identifies the participant from ``dallinger.identity``.
+   *
+   * @example
+   * var chatroom = dallinger.openChatSocket({channel: 'chatroom'});
+   * chatroom.onBroadcast(function (data) {
+   *   if (data.type === 'message') { ... }
+   * });
+   * chatroom.send('chatroom', {type: 'message', content: 'Hello'});
+   *
+   * @param {Object} [options]
+   * @param {string} [options.channel] - Channel to subscribe to, whose
+   *   messages are passed to ``onBroadcast`` callbacks
+   * @param {string} [options.scope=dallinger.pageScope] - Scope of the
+   *   connection; ``null`` sends none
+   * @returns {dallinger.Socket} The new connection
+   */
+  dlgr.openChatSocket = function (options) {
+    return new dlgr.Socket("/chat", options);
+  };
+
+  /**
+   * Open a WebSocket connection to the ``/experiment-socket`` route, which
+   * passes each message it is sent to the experiment's
+   * ``handle_websocket_message`` method on the web process holding the
+   * connection.
+   *
+   * The connection identifies the participant from ``dallinger.identity``,
+   * and the server refuses it if that participant does not exist.
+   *
+   * @example
+   * var socket = dallinger.openExperimentSocket();
+   * socket.onDirect(function (data) {
+   *   if (data.type === 'move_accepted') { ... }
+   * });
+   * socket.send('moves', {type: 'move', action: 'rock'});
+   *
+   * @param {Object} [options] - The same options as
+   *   ``dallinger.openChatSocket``
+   * @returns {dallinger.Socket} The new connection
+   */
+  dlgr.openExperimentSocket = function (options) {
+    return new dlgr.Socket("/experiment-socket", options);
+  };
+
+  /**
    * Waits for a WebSocket message indicating that quorum has been reached.
    *
    * This method is called automatically within `createParticipant()` and the
@@ -764,19 +1060,13 @@ var dallinger = (function () {
    * @returns {jQuery.Deferred} See :ref:`deferreds-label`
    */
   dlgr.waitForQuorum = function () {
-    var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
-    var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat?channel=quorum&worker_id=" + dlgr.identity.workerId + '&participant_id=' + dlgr.identity.participantId);
     var deferred = $.Deferred();
-    socket.onmessage = function (msg) {
-      if (msg.data.indexOf('quorum:') !== 0) { return; }
-      var data = JSON.parse(msg.data.substring(7));
-      var n = data.n;
-      var quorum = data.q;
-      dlgr.updateProgressBar(n, quorum);
-      if (n === quorum) {
+    dlgr.openChatSocket({channel: "quorum"}).onBroadcast(function (data) {
+      dlgr.updateProgressBar(data.n, data.q);
+      if (data.n === data.q) {
         deferred.resolve();
       }
-    };
+    });
     return deferred;
   };
 
