@@ -1,20 +1,19 @@
 # Partner echo
 
-Two participants are paired. Whatever one of them sends is delivered to the
+Two participants are paired. Each message one of them sends is delivered to the
 other, and the sender is told which participant it was forwarded to.
 
-The demo is the smallest thing that exercises the two websocket features
-Dallinger added for low-latency experiments. Each browser opens an
-`/experiment-socket` connection with `dallinger.openExperimentSocket()` and
-subscribes to no channel at all, so an incoming message runs
-`handle_websocket_message` on the web process holding the socket rather than
-travelling through redis to a worker. The experiment then answers with
-`publish_to_participants`, which addresses the partner by participant id
-instead of broadcasting to a channel both of them watch, and the browser
-receives the answer through the socket's `onDirect` callback.
+Each browser opens an `/experiment-socket` connection with no channel subscription.
+An incoming message runs `handle_websocket_message` directly on the web process
+holding the socket, rather than travelling through Redis first. The experiment
+responds via `publish_to_participants`, which addresses the partner by participant
+ID rather than broadcasting to a channel they both watch.
 
-The acknowledgment to the sender carries the connection's `scope`, so it
-reaches only the page that sent the message. A socket opened with
-`dallinger.openExperimentSocket()` sends a scope identifying the page load
-unless it is given another. The message to the partner carries no scope, so it
-reaches every connection they hold.
+The acknowledgment to the sender is addressed to the sender's participant ID *and*
+to the specific page load that sent the message. `dallinger.openExperimentSocket()`
+tags each connection with `dallinger.pageScope`, a random value generated once when
+the page loads. The server passes that value to the experiment with every message
+the socket sends, and the experiment echoes it back as the `scope` of the
+acknowledgment — so only the tab that sent the message receives it. A stale tab
+from an earlier attempt has a different `pageScope` and is skipped. The message to
+the partner carries no scope, so it reaches every tab the partner has open.

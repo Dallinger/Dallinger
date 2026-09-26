@@ -927,7 +927,7 @@ var dallinger = (function () {
    * @alias dallinger.Socket#onDirect
    */
   dlgr.Socket.prototype.onDirect = function (callback) {
-    if (!this.participantId) {
+    if (this.participantId == null) {
       throw new Error("This socket was opened without a participant id, so it cannot be sent directed messages.");
     }
     this._callbacks.direct.push(callback);

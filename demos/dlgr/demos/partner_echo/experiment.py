@@ -3,9 +3,8 @@
 import json
 import logging
 
-from dallinger import networks
+from dallinger import db, networks
 from dallinger.config import get_config
-from dallinger.db import session
 from dallinger.experiment import Experiment
 from dallinger.models import Info, Participant
 from dallinger.nodes import Agent
@@ -51,7 +50,7 @@ class PartnerEcho(Experiment):
         if data.get("type") != "message":
             return
 
-        participant = Participant.query.get(int(participant_id))
+        participant = db.session.get(Participant, int(participant_id))
         nodes = participant.nodes()
         if not nodes:
             logger.info("Participant %s has no node yet.", participant_id)
@@ -59,7 +58,7 @@ class PartnerEcho(Experiment):
         node = nodes[-1]
         info = Info(origin=node, contents=data.get("content", ""))
         info.creation_time = receive_time
-        session.commit()
+        db.session.commit()
 
         partner_ids = [agent.participant_id for agent in node.neighbors()]
         self.publish_to_participants(
