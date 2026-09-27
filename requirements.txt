@@ -202,7 +202,7 @@ uv==0.12.17
     # via dallinger
 websocket-client==1.9.2
     # via selenium
-werkzeug==3.1.8
+werkzeug==3.1.9
     # via
     #   flask
     #   flask-login
