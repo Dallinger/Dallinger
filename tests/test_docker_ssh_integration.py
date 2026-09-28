@@ -2,6 +2,7 @@ import shutil
 import time
 
 import pytest
+import requests
 
 
 @pytest.mark.docker
@@ -119,19 +120,26 @@ def test_docker_ssh_update_refreshes_served_template(fresh_docker_ssh_server, tm
 
         deadline = time.time() + 90
         response_after = None
+        last_error = None
         while time.time() < deadline:
-            response_after = fresh_docker_ssh_server.fetch_experiment_page(
-                app_id, "/instructions/instruct-ready", query=query
-            )
-            if (
-                response_after.status_code == 200
-                and marker_after in response_after.text
-                and marker_before not in response_after.text
-            ):
-                break
+            try:
+                response_after = fresh_docker_ssh_server.fetch_experiment_page(
+                    app_id, "/instructions/instruct-ready", query=query
+                )
+                if (
+                    response_after.status_code == 200
+                    and marker_after in response_after.text
+                    and marker_before not in response_after.text
+                ):
+                    break
+            except (requests.ConnectionError, requests.Timeout) as exc:
+                last_error = exc
+                response_after = None
             time.sleep(2)
 
-        assert response_after is not None
+        assert response_after is not None, (
+            f"Timed out waiting for updated template; last error: {last_error}"
+        )
         assert response_after.status_code == 200
         assert marker_after in response_after.text
         assert marker_before not in response_after.text
