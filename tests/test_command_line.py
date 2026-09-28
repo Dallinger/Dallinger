@@ -427,16 +427,17 @@ class TestDevelopCommand:
 
         assert result.exit_code == 0, result.output
 
-    def test_debug_no_browsers_skips_browser_enqueue_payload(self, develop):
+    @pytest.mark.parametrize(
+        "args, no_browsers", [([], False), (["--no-browsers"], True)]
+    )
+    def test_debug_forwards_no_browsers_to_job(self, develop, args, no_browsers):
         with mock.patch("dallinger.command_line.develop.Queue") as queue:
-            result = CliRunner().invoke(
-                develop, ["debug", "--skip-flask", "--no-browsers"]
-            )
+            result = CliRunner().invoke(develop, ["debug", "--skip-flask", *args])
 
         assert result.exit_code == 0, result.output
         assert queue.return_value.enqueue_call.call_args.kwargs["kwargs"] == {
             "port": 5000,
-            "no_browsers": True,
+            "no_browsers": no_browsers,
         }
 
     def test_launch_app_and_open_browser_skips_browsers_when_requested(self):
