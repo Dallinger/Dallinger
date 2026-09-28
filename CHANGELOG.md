@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added ``--no-browsers`` to ``dallinger develop debug`` to skip opening the
+  dashboard and ad (participant) browser windows.
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added

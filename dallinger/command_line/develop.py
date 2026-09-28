@@ -60,7 +60,14 @@ def develop():
     is_flag=True,
     help="Skip launching Flask, so that Flask can be managed externally",
 )
-def debug(port, skip_flask):
+@click.option(
+    "--no-browsers",
+    is_flag=True,
+    flag_value=True,
+    default=False,
+    help="Skip opening browsers",
+)
+def debug(port, skip_flask, no_browsers):
     from dallinger.command_line.utils import verify_package
 
     files = get_experiment_files()
@@ -82,7 +89,10 @@ def debug(port, skip_flask):
     _bootstrap(experiment_files=files)
 
     q = Queue("default", connection=redis_conn)
-    job = q.enqueue_call(launch_app_and_open_browser, kwargs={"port": port})
+    job = q.enqueue_call(
+        launch_app_and_open_browser,
+        kwargs={"port": port, "no_browsers": no_browsers},
+    )
 
     if not skip_flask:
         config = get_config()
@@ -111,8 +121,10 @@ def _bootstrap(exp_config=None, experiment_files=None):
     bootstrapper.run()
 
 
-def launch_app_and_open_browser(port):
+def launch_app_and_open_browser(port, no_browsers=False):
     _launch_app(port)
+    if no_browsers:
+        return
     _async_browser("dashboard", port)
     time.sleep(0.1)  # A little delay to ensure they always open in the same order
     _async_browser("ad", port)
