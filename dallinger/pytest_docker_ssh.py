@@ -487,5 +487,8 @@ def fresh_docker_ssh_server(docker_ssh_server):
     docker_ssh_server.ensure_remote_docker_ready()
     docker_ssh_server.reset_remote_state()
     yield docker_ssh_server
-    docker_ssh_server.ensure_remote_docker_ready()
+    try:
+        docker_ssh_server.ensure_remote_docker_ready()
+    except Exception:
+        pass
     docker_ssh_server.reset_remote_state()
