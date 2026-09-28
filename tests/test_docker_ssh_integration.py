@@ -14,6 +14,7 @@ def test_docker_ssh_fixture_sandbox_deploy_destroy(fresh_docker_ssh_server):
     assert app_id.startswith("dlgr-")
 
     fresh_docker_ssh_server.destroy_app(app_id)
+    assert app_id not in fresh_docker_ssh_server.list_apps()
 
 
 @pytest.mark.docker
@@ -111,6 +112,9 @@ def test_docker_ssh_update_refreshes_served_template(fresh_docker_ssh_server, tm
         )
         assert after_template != original_template
         template_path.write_text(after_template)
+        pg_id_before = fresh_docker_ssh_server.run_ssh(
+            "docker ps -q --filter name=dallinger-postgresql-1", check=False
+        ).stdout.strip()
         update_result = fresh_docker_ssh_server.update_sandbox(app_id)
         update_output = f"{update_result.stdout}\n{update_result.stderr}"
         assert (
@@ -143,6 +147,12 @@ def test_docker_ssh_update_refreshes_served_template(fresh_docker_ssh_server, tm
         assert response_after.status_code == 200
         assert marker_after in response_after.text
         assert marker_before not in response_after.text
+        pg_id_after = fresh_docker_ssh_server.run_ssh(
+            "docker ps -q --filter name=dallinger-postgresql-1", check=False
+        ).stdout.strip()
+        assert pg_id_before and pg_id_before == pg_id_after, (
+            "Postgres container was replaced during update; existing data would be lost"
+        )
     finally:
         if app_id is not None:
             fresh_docker_ssh_server.destroy_app(app_id)
