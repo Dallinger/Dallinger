@@ -485,12 +485,21 @@ def test_executor_drain_channel_reads_stdout_and_stderr_concurrently():
 
 
 def test_get_required_dallinger_version_prerelease_falls_back_to_latest(tmp_path):
-    from dallinger.docker.tools import get_required_dallinger_version
+    from dallinger.docker.tools import LATEST_VERSION, get_required_dallinger_version
 
     requirements = tmp_path / "requirements.txt"
     requirements.write_text("dallinger==12.2.0a1\n")
 
-    assert get_required_dallinger_version(str(tmp_path)) == ""
+    assert get_required_dallinger_version(str(tmp_path)) == LATEST_VERSION
+
+
+def test_get_required_dallinger_version_dev_release_falls_back_to_latest(tmp_path):
+    from dallinger.docker.tools import LATEST_VERSION, get_required_dallinger_version
+
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("dallinger==12.2.0.dev1\n")
+
+    assert get_required_dallinger_version(str(tmp_path)) == LATEST_VERSION
 
 
 def test_push_image_retries_connection_error_and_succeeds():

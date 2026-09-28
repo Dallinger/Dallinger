@@ -19,6 +19,8 @@ from dallinger.utils import (
     get_editable_dallinger_path,
 )
 
+LATEST_VERSION = ""  # use :latest image tag
+
 docker_compose_template = Template(
     abspath_from_egg("dallinger", "dallinger/docker/docker-compose.yml.j2").read_text()
 )
@@ -250,19 +252,19 @@ def get_required_dallinger_version(experiment_tmp_path: str) -> str:
     ]
     if not dallinger_requirements:
         print("Could not determine Dallinger version. Using latest")
-        return ""
+        return LATEST_VERSION
 
     def _normalize_version(version_text: str) -> str:
         try:
             parsed_version = Version(version_text)
         except InvalidVersion:
             return version_text
-        if parsed_version.is_prerelease or parsed_version.is_devrelease:
+        if parsed_version.is_prerelease:
             print(
                 f"Dallinger version {parsed_version} is not guaranteed to have a published base image tag. "
                 "Using latest"
             )
-            return ""
+            return LATEST_VERSION
         return version_text
 
     # The constraints generator should have created a single spec in the form "dallinger==7.2.0"
