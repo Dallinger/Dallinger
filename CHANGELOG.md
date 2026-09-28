@@ -28,6 +28,8 @@
   (mode ``0600``) instead of ``docker-compose.yml``, and ``--update`` keeps it.
   ``get_docker_compose_yml`` no longer takes ``postgresql_password`` or
   ``executor``.
+  The experiment server has a stock ``GET /health``, the manifest's default
+  monitoring path.
 - Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
   docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
   A custom experiment Dockerfile gets a final step that installs that wheel.
