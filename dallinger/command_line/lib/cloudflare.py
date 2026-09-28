@@ -395,6 +395,8 @@ def delete_experiment_tunnel(
             host,
         )
         return False
+    # Delete only a tunnel the name lookup still finds, so re-running destroy
+    # after the tunnel is gone succeeds instead of failing on a 404.
     tunnel_id = named_id
     if tunnel_id:
         try:
