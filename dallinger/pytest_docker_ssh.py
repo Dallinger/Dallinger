@@ -48,7 +48,6 @@ def _next_open_port():
 
 @dataclass
 class DockerSSHServer:
-    container_name: str
     ssh_host: str
     ssh_port: int
     ssh_user: str
@@ -448,7 +447,6 @@ def docker_ssh_server():
         )
 
         server = DockerSSHServer(
-            container_name=container_name,
             ssh_host=SSH_HOST,
             ssh_port=ssh_port,
             ssh_user=SSH_USER,
