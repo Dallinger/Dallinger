@@ -10,6 +10,8 @@
   New ``docker_ssh_monitoring_kind`` and ``docker_ssh_monitoring_path``
   config keys set the manifest's monitoring fields. ``servers add`` now
   refuses host record fields whose names look like tokens or passwords.
+  The experiment server has a stock ``GET /health``, the manifest's default
+  monitoring path.
 - Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
   docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
   A custom experiment Dockerfile gets a final step that installs that wheel.
