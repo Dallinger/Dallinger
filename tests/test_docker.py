@@ -588,3 +588,39 @@ def test_push_image_does_not_retry_click_abort():
             push_image("registry/exp:tag")
 
     assert fake_client.images.push.call_count == 1
+
+
+def test_docker_ssh_server_teardown_runs_local_cleanup_after_ssh_timeout():
+    import subprocess
+    from pathlib import Path
+
+    from dallinger.pytest_docker_ssh import _teardown_docker_ssh_server
+
+    container_name = "dallinger-ssh-target-pytest-test"
+    docker_data_volume = f"{container_name}-docker-data"
+    tmp_root = Path("/tmp/fake-teardown-test")
+
+    server = mock.Mock()
+    server.reset_remote_state.side_effect = subprocess.TimeoutExpired(["ssh"], 120)
+
+    run_command_calls = []
+
+    def fake_run_command(cmd, **kwargs):
+        run_command_calls.append(list(cmd))
+        result = mock.Mock()
+        result.returncode = 0
+        return result
+
+    with (
+        mock.patch(
+            "dallinger.pytest_docker_ssh._run_command", side_effect=fake_run_command
+        ),
+        mock.patch("shutil.rmtree"),
+    ):
+        _teardown_docker_ssh_server(
+            server, container_name, docker_data_volume, tmp_root
+        )
+
+    assert ["docker", "rm", "-f", container_name] in run_command_calls
+    assert ["docker", "volume", "rm", "-f", docker_data_volume] in run_command_calls
+    server.remove_server.assert_called_once()

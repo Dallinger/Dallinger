@@ -292,6 +292,21 @@ class DockerSSHServer:
             raise RuntimeError(f"{exc}\n\nRemote diagnostics:\n{diagnostics}") from exc
 
 
+def _teardown_docker_ssh_server(server, container_name, docker_data_volume, tmp_root):
+    if server is not None:
+        try:
+            server.reset_remote_state()
+        except Exception:
+            pass
+        try:
+            server.remove_server()
+        except Exception:
+            pass
+    _run_command(["docker", "rm", "-f", container_name], check=False)
+    _run_command(["docker", "volume", "rm", "-f", docker_data_volume], check=False)
+    shutil.rmtree(tmp_root, ignore_errors=True)
+
+
 @pytest.fixture(scope="session")
 def docker_ssh_server():
     if shutil.which("docker") is None:
@@ -463,12 +478,9 @@ def docker_ssh_server():
         server.add_server()
         yield server
     finally:
-        if server is not None:
-            server.reset_remote_state()
-            server.remove_server()
-        _run_command(["docker", "rm", "-f", container_name], check=False)
-        _run_command(["docker", "volume", "rm", "-f", docker_data_volume], check=False)
-        shutil.rmtree(tmp_root, ignore_errors=True)
+        _teardown_docker_ssh_server(
+            server, container_name, docker_data_volume, tmp_root
+        )
 
 
 @pytest.fixture
