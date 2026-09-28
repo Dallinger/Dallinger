@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- ``dallinger develop debug --no-browsers`` skips opening the dashboard and
+  recruiter browser windows.
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added

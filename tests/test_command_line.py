@@ -427,6 +427,33 @@ class TestDevelopCommand:
 
         assert result.exit_code == 0, result.output
 
+    def test_debug_no_browsers_skips_browser_enqueue_payload(self, develop):
+        with mock.patch("dallinger.command_line.develop.Queue") as queue:
+            result = CliRunner().invoke(
+                develop, ["debug", "--skip-flask", "--no-browsers"]
+            )
+
+        assert result.exit_code == 0, result.output
+        assert queue.return_value.enqueue_call.call_args.kwargs["kwargs"] == {
+            "port": 5000,
+            "no_browsers": True,
+        }
+
+    def test_launch_app_and_open_browser_skips_browsers_when_requested(self):
+        import sys
+
+        from dallinger.command_line.develop import launch_app_and_open_browser
+
+        develop_module = sys.modules["dallinger.command_line.develop"]
+        with (
+            mock.patch.object(develop_module, "_launch_app") as launch,
+            mock.patch.object(develop_module, "_async_browser") as open_browser,
+        ):
+            launch_app_and_open_browser(5000, no_browsers=True)
+
+        launch.assert_called_once_with(5000)
+        open_browser.assert_not_called()
+
     def test_debug_surfaces_invalid_policy(self, develop, tmp_path, monkeypatch):
         (tmp_path / "deploy.toml").write_text("version = 2\nexclude = []\n")
         monkeypatch.chdir(tmp_path)
