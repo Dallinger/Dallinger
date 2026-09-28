@@ -532,6 +532,43 @@ def test_push_image_retries_connection_error_and_succeeds():
     assert result == f"registry/exp@{fake_digest}"
 
 
+def test_push_image_retries_urllib3_read_timeout_and_succeeds():
+    import urllib3.exceptions
+
+    from dallinger.command_line.docker import DOCKER_PUSH_TIMEOUT, push_image
+
+    fake_digest = "sha256:abc123"
+    call_count = 0
+
+    def fake_push(image, stream=False, decode=False):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+
+            def failing_stream():
+                yield {"status": "Pushing"}
+                raise urllib3.exceptions.ReadTimeoutError(None, None, "timed out")
+
+            return failing_stream()
+        return iter([{"status": "Pushing"}, {"aux": {"Digest": fake_digest}}])
+
+    fake_image = mock.Mock()
+    fake_image.attrs = {"RepoDigests": [f"registry/exp@{fake_digest}"]}
+    fake_client = mock.Mock()
+    fake_client.images.push.side_effect = fake_push
+    fake_client.images.get.return_value = fake_image
+
+    with (
+        mock.patch("docker.client.from_env", return_value=fake_client) as from_env,
+        mock.patch("time.sleep"),
+    ):
+        result = push_image("registry/exp:tag")
+
+    from_env.assert_called_once_with(timeout=DOCKER_PUSH_TIMEOUT)
+    assert fake_client.images.push.call_count == 2
+    assert result == f"registry/exp@{fake_digest}"
+
+
 def test_push_image_does_not_retry_click_abort():
     import click
 
