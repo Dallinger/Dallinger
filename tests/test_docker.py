@@ -448,13 +448,6 @@ def test_get_remote_disk_full_guidance_recommends_safe_cleanup_only():
     assert "docker system prune -af --volumes" not in guidance
 
 
-def test_docker_ssh_fixture_precondition_uses_pytest_fail():
-    from dallinger.pytest_docker_ssh import _skip_or_fail
-
-    with pytest.raises(pytest.fail.Exception):
-        _skip_or_fail("missing dependency")
-
-
 def test_executor_drain_channel_reads_stdout_and_stderr_concurrently():
     """_drain_channel must drain both streams before calling recv_exit_status.
 

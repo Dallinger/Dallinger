@@ -21,10 +21,6 @@ SSH_WAIT_SECONDS = 30
 DOCKER_WAIT_SECONDS = 60
 
 
-def _skip_or_fail(message):
-    pytest.fail(message, pytrace=False)
-
-
 def _run_command(command, *, check=True, env=None, cwd=None, timeout=300):
     completed = subprocess.run(
         command,
@@ -310,22 +306,24 @@ def _teardown_docker_ssh_server(server, container_name, docker_data_volume, tmp_
 @pytest.fixture(scope="session")
 def docker_ssh_server():
     if shutil.which("docker") is None:
-        _skip_or_fail("docker executable not available")
+        pytest.fail("docker executable not available", pytrace=False)
     if not sys.executable:
-        _skip_or_fail("python executable not available")
+        pytest.fail("python executable not available", pytrace=False)
     if shutil.which("ssh") is None:
-        _skip_or_fail("ssh executable not available")
+        pytest.fail("ssh executable not available", pytrace=False)
     if shutil.which("ssh-keygen") is None:
-        _skip_or_fail("ssh-keygen executable not available")
+        pytest.fail("ssh-keygen executable not available", pytrace=False)
 
     docker_info = _run_command(["docker", "info"], check=False)
     if docker_info.returncode != 0:
-        _skip_or_fail("docker daemon not available")
+        pytest.fail("docker daemon not available", pytrace=False)
 
     repo_root = Path(__file__).resolve().parents[1]
     source_experiment_dir = repo_root / "demos" / "dlgr" / "demos" / "bartlett1932"
     if not source_experiment_dir.exists():
-        _skip_or_fail(f"Experiment directory not found: {source_experiment_dir}")
+        pytest.fail(
+            f"Experiment directory not found: {source_experiment_dir}", pytrace=False
+        )
 
     pytest_workspace = repo_root / ".pytest-docker-ssh"
     pytest_workspace.mkdir(exist_ok=True)
@@ -382,7 +380,10 @@ def docker_ssh_server():
                 "address already in use"
                 in f"{run_target.stdout}\n{run_target.stderr}".lower()
             ):
-                _skip_or_fail("docker-ssh fixture requires free local ports 80 and 443")
+                pytest.fail(
+                    "docker-ssh fixture requires free local ports 80 and 443",
+                    pytrace=False,
+                )
             raise RuntimeError(
                 "Failed to start docker-ssh target container.\n"
                 f"STDOUT:\n{run_target.stdout}\nSTDERR:\n{run_target.stderr}"
