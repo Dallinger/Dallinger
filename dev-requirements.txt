@@ -171,7 +171,7 @@ imagesize==2.0.1
     # via sphinx
 iniconfig==2.3.0
     # via pytest
-ipykernel==7.3.0
+ipykernel==7.4.0
     # via
     #   jupyter
     #   jupyter-console
