@@ -1101,6 +1101,10 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         f"To view the logs for this experiment go to {logs_url} (user = dallinger, password = {dozzle_password})"
     )
     cfg = config.as_dict(include_sensitive=True)
+    # Keeping the key on update keeps participants' sessions valid.
+    flask_secret_key = (
+        update and _existing_app_secret(executor, experiment_id, "FLASK_SECRET_KEY")
+    ) or token_urlsafe(16)
 
     # AWS credential keys need to be converted to upper case
     for key in "aws_access_key_id", "aws_secret_access_key":
@@ -1112,7 +1116,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
 
     cfg.update(
         {
-            "FLASK_SECRET_KEY": token_urlsafe(16),
+            "FLASK_SECRET_KEY": flask_secret_key,
             "AWS_DEFAULT_REGION": config["aws_region"],
             "smtp_username": config.get("smtp_username"),
             "auto_recruit": config["auto_recruit"],
@@ -1143,7 +1147,15 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     # Other config values in the Compose file, such as the dashboard
     # password, are still sensitive.
     sftp.chmod(f"dallinger/{experiment_id}/docker-compose.yml", 0o600)
-    _write_app_env(sftp, executor, experiment_id, postgresql_password)
+    _write_app_env(
+        sftp,
+        executor,
+        experiment_id,
+        {
+            "POSTGRES_PASSWORD": postgresql_password,
+            "FLASK_SECRET_KEY": flask_secret_key,
+        },
+    )
     _write_experiment_compose_env(
         executor, experiment_id, cfg.get("docker_volumes", "")
     )
@@ -1969,12 +1981,23 @@ def get_docker_compose_yml(
     )
 
 
-def _write_app_env(sftp, executor, app, postgresql_password):
+def _existing_app_secret(executor, app, key):
+    """Return ``key`` from the app's ``.env``, where deploy keeps its secrets."""
+    env = executor.run(f"cat ~/dallinger/{app}/.env", raise_=False) or ""
+    for line in env.splitlines():
+        name, _, value = line.partition("=")
+        if name == key and value:
+            return value
+    return None
+
+
+def _write_app_env(sftp, executor, app, secrets):
     """Write the app's private ``.env``, which Compose reads for its secrets."""
     env_path = f"dallinger/{app}/.env"
     # Create the file private before any secret is written to it.
     executor.run(f"umask 077 && : > {env_path} && chmod 600 {env_path}")
-    sftp.putfo(BytesIO(f"POSTGRES_PASSWORD={postgresql_password}\n".encode()), env_path)
+    content = "".join(f"{key}={value}\n" for key, value in secrets.items())
+    sftp.putfo(BytesIO(content.encode()), env_path)
 
 
 def _image_runs_as_ssh_user(executor, image_name):
