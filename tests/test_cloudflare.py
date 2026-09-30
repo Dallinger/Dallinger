@@ -134,7 +134,7 @@ def test_ensure_experiment_tunnel_creates_and_reuses(monkeypatch):
     assert puts
     ingress = puts[-1][2]["config"]["ingress"]
     assert ingress[0]["hostname"] == "consonance.science-of-music.org"
-    assert ingress[0]["service"] == "http://web:5000"
+    assert ingress[0]["service"] == "http://frontdoor:5000"
     assert ingress[-1]["service"] == "http_status:404"
 
 

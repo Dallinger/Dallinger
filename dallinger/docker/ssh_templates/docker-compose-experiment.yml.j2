@@ -49,12 +49,9 @@ services:
 {%- if tunnel %}
       postgresql:
         condition: service_healthy
+{%- endif %}
       pgbouncer:
         condition: service_healthy
-{%- else %}
-      pgbouncer:
-        condition: service_started
-{%- endif %}
     environment: &commonenv
       REDIS_URL: redis://{{ experiment_id }}_redis:6379
       DATABASE_URL: postgresql://{{ experiment_id }}:${POSTGRES_PASSWORD}@{{ experiment_id }}_pgbouncer/{{ experiment_id }}
@@ -65,16 +62,9 @@ services:
       {{ key }}: {{ value | string() | tojson }}
     {%- endfor %}
     networks:
-{%- if tunnel %}
       app:
         aliases:
           - experiment-backend
-{%- else %}
-      app:
-      dallinger:
-        aliases:
-          - {{ experiment_id }}_web
-{%- endif %}
     volumes:
       - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
     {%- if docker_volumes | length > 0 %}
@@ -116,12 +106,12 @@ services:
     depends_on:
       postgresql:
         condition: service_healthy
+{%- endif %}
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/5432'"]
       interval: 2s
       timeout: 5s
       retries: 15
-{%- endif %}
     networks:
       app:
         aliases:
@@ -170,13 +160,15 @@ services:
     environment:
       HOME: /tmp
     depends_on:
-      web:
+      frontdoor:
         condition: service_started
     volumes:
       - ./secrets/cloudflare-tunnel-token:/run/secrets/cloudflare-tunnel-token:ro
     networks:
       - app
 {%- endif %}
+
+{% include "front-door-services.yml.j2" %}
 
 volumes:
   redis_data:

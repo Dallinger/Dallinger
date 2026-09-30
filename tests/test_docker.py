@@ -35,12 +35,75 @@ def test_get_docker_compose_yml_uses_app_scoped_redis():
     assert services["redis"]["networks"] == {
         "app": {"aliases": ["dlgr-8c43a887_redis"]}
     }
-    assert services["web"]["networks"]["app"] is None
+    assert services["web"]["networks"] == {"app": {"aliases": ["experiment-backend"]}}
     assert services["worker_1"]["networks"] == ["app"]
     assert services["pgbouncer"]["networks"]["app"]["aliases"] == [
         "dlgr-8c43a887_pgbouncer"
     ]
     assert result["networks"]["app"]["name"] == "dlgr-8c43a887_app"
+    assert "frontdoor" in services
+    assert "controller" in services
+    assert services["frontdoor"]["networks"]["dallinger"]["aliases"] == [
+        "dlgr-8c43a887_web"
+    ]
+    assert "/var/run/docker.sock" not in str(services["frontdoor"])
+    assert services["controller"]["group_add"] == ["${DOCKER_GID}"]
+    assert services["controller"]["user"] == "${UID}:${GID}"
+    assert services["web"]["restart"] == "unless-stopped"
+    assert services["frontdoor"]["restart"] == "unless-stopped"
+    assert services["frontdoor"]["user"] == "${UID}:${GID}"
+    assert services["frontdoor"]["environment"]["XDG_DATA_HOME"] == "/state/caddy-data"
+    assert services["controller"]["image"].startswith("python:3.12-alpine@sha256:")
+    assert services["controller"]["command"] == [
+        "python",
+        "/app/hibernation.py",
+        "serve",
+    ]
+    assert (
+        "./hibernation.py:/app/hibernation.py:ro" in services["controller"]["volumes"]
+    )
+    assert services["pgbouncer"]["healthcheck"]["test"][0] == "CMD-SHELL"
+
+
+def test_compose_reads_the_postgres_password_from_the_app_env():
+    for ingress in ("classic", "cloudflare"):
+        services = get_yaml({}, ingress=ingress)["services"]
+        assert "${POSTGRES_PASSWORD}" in services["web"]["environment"]["DATABASE_URL"]
+
+
+def test_tunnel_compose_has_isolated_postgres_and_no_published_ports():
+    result = get_yaml({}, ingress="cloudflare")
+    services = result["services"]
+    dumped = yaml.safe_dump(result)
+
+    assert services["postgresql"]["container_name"] == "dlgr-8c43a887_postgresql"
+    assert "postgresql" in services
+    assert "cloudflared" in services
+    assert "frontdoor" in services
+    assert "controller" in services
+    assert services["frontdoor"]["networks"]["app"]["aliases"] == [
+        "dlgr-8c43a887_frontdoor",
+        "dlgr-8c43a887_web",
+    ]
+    assert "dallinger" not in result.get("networks", {})
+    assert "ports:" not in dumped
+    assert services["web"]["networks"] == {"app": {"aliases": ["experiment-backend"]}}
+    assert "/var/run/docker.sock" not in str(services["frontdoor"])
+    assert any(
+        "/var/run/docker.sock" in str(volume)
+        for volume in services["controller"]["volumes"]
+    )
+    assert result["networks"]["app"]["name"] == "dlgr-8c43a887_app"
+    assert services["controller"]["group_add"] == ["${DOCKER_GID}"]
+    assert services["web"]["restart"] == "unless-stopped"
+    assert services["cloudflared"]["restart"] == "unless-stopped"
+    assert services["frontdoor"]["user"] == "${UID}:${GID}"
+    assert services["frontdoor"]["environment"]["XDG_DATA_HOME"] == "/state/caddy-data"
+    assert services["cloudflared"]["environment"]["HOME"] == "/tmp"
+    assert services["pgbouncer"]["healthcheck"]["test"][0] == "CMD-SHELL"
+    assert services["pgbouncer"]["depends_on"]["postgresql"]["condition"] == (
+        "service_healthy"
+    )
 
 
 def test_get_docker_compose_yml_env_vars_always_strings():
@@ -139,14 +202,14 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
     push_image.assert_called_once_with("registry/exp:tag")
 
 
-def get_yaml(config, **kwargs):
+def get_yaml(config, ingress="classic"):
     from dallinger.command_line.docker_ssh import get_docker_compose_yml
 
     yaml_contents = get_docker_compose_yml(
         config,
         "dlgr-8c43a887",
         "ghcr.io/dallinger/dallinger/bartlett1932",
-        **kwargs,
+        ingress=ingress,
     )
     return yaml.safe_load(yaml_contents)
 
@@ -159,22 +222,6 @@ def test_compose_reads_the_database_password_from_the_app_env():
         "POSTGRESQL_PASSWORD=${POSTGRES_PASSWORD}"
         in (result["services"]["pgbouncer"]["environment"])
     )
-
-
-def test_tunnel_compose_proxies_to_web_without_a_front_door():
-    result = get_yaml({}, ingress="cloudflare")
-    services = result["services"]
-    dumped = yaml.safe_dump(result)
-
-    assert "postgresql" in services
-    assert "cloudflared" in services
-    assert "frontdoor" not in services
-    assert "controller" not in services
-    assert "ports:" not in dumped
-    assert services["cloudflared"]["depends_on"]["web"]["condition"] == (
-        "service_started"
-    )
-    assert result["networks"]["app"]["name"] == "dlgr-8c43a887_app"
 
 
 def test_num_dynos():
@@ -495,7 +542,9 @@ def test_get_remote_disk_full_guidance_recommends_safe_cleanup_only():
         "Remote Docker host 'example.org' appears to be out of disk space." in guidance
     )
     assert "docker image prune -af" in guidance
-    assert "docker container prune -f" in guidance
+    assert "docker container prune -f --filter label!=com.docker.compose.project" in (
+        guidance
+    )
     assert "do not auto-prune volumes" in guidance
     assert "docker system prune -af --volumes" not in guidance
 
