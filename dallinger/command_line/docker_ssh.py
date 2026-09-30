@@ -1140,6 +1140,9 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         ),
         f"dallinger/{experiment_id}/docker-compose.yml",
     )
+    # Other config values in the Compose file, such as the dashboard
+    # password, are still sensitive.
+    sftp.chmod(f"dallinger/{experiment_id}/docker-compose.yml", 0o600)
     _write_app_env(sftp, executor, experiment_id, postgresql_password)
     _write_experiment_compose_env(
         executor, experiment_id, cfg.get("docker_volumes", "")
@@ -1940,6 +1943,7 @@ def get_docker_compose_yml(
     experiment_id: str,
     experiment_image: str,
     executor: Executor = None,
+    *,
     run_as_ssh_user: bool = True,
 ) -> str:
     """Render an app's docker-compose.yml. Secrets come from the app's ``.env``."""
@@ -2027,7 +2031,7 @@ def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
     """
     app = quote(experiment_id)
     dirs = " ".join(_remote_bind_mount_dirs(docker_volumes, experiment_id))
-    executor.run(
+    output = executor.run(
         "uid=$(id -u); gid=$(id -g); "
         f"app={app}; "
         'printf "UID=%s\\nGID=%s\\n" "$uid" "$gid" >> "$HOME/dallinger/$app/.env"; '
@@ -2044,6 +2048,9 @@ def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
         "  fi; "
         "done"
     )
+    for line in (output or "").splitlines():
+        if line.startswith("Warning:"):
+            print(line)
 
 
 def get_retrying_http_client():

@@ -176,7 +176,9 @@ the recorded ingress and origin. Host records reject fields whose names look
 like tokens or passwords.
 
 The app's database password lives in ``~/dallinger/<app>/.env`` (mode
-``0600``), which Compose reads, so ``docker-compose.yml`` holds no secrets.
+``0600``), which Compose reads, so ``docker-compose.yml`` no longer holds it.
+``docker-compose.yml`` still holds other config values, such as the
+dashboard password, so it is private (mode ``0600``) too.
 
 Experiment containers run as the SSH user (``UID``/``GID`` in the per-app
 ``.env``) when their image was built by this version of Dallinger; older

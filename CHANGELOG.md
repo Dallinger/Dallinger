@@ -12,7 +12,8 @@
   image cannot be edited in place, and paths outside ``/experiment`` stay
   read-only for the app.
 - docker-ssh keeps each app's database password in a private
-  ``~/dallinger/<app>/.env`` instead of its ``docker-compose.yml``.
+  ``~/dallinger/<app>/.env`` instead of its ``docker-compose.yml``, and makes
+  both files private (mode 0600).
   ``get_docker_compose_yml`` no longer takes ``postgresql_password``.
 - docker-ssh writes a non-secret ``~/dallinger/<app>/deployment.json`` on
   deploy and ``apps`` shows the recorded ingress and origin. Classic host
