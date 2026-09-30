@@ -167,6 +167,33 @@ experiments deployed this way can be found under the `dallinger docker-ssh` comm
       set-dozzle-password
       stats                 Get resource usage stats from remote server.
 
+Each ``docker-ssh`` deploy writes ``~/dallinger/<app>/deployment.json`` on the
+server. The file records non-secret metadata: the public HTTPS origin, the
+ingress mode, and the monitoring kind and path. This release still deploys classic
+host Caddy with the shared server Postgres. Apps without a manifest are
+discovered from Compose and Caddy and treated the same way. ``apps`` shows
+the recorded ingress and origin. Host records reject fields whose names look
+like tokens or passwords.
+
+The app's database password lives in ``~/dallinger/<app>/.env`` (mode
+``0600``), which Compose reads, so ``docker-compose.yml`` holds no secrets.
+
+Experiment containers run as the SSH user (``UID``/``GID`` in the per-app
+``.env``) when their image was built by this version of Dallinger; older
+images keep running as root until rebuilt. Every directory under
+``/experiment`` is writable in the image, so the app can create files there;
+files shipped in the image cannot be edited in place. Deploy also chowns
+``~/dallinger-data/<app>`` and writable host bind mounts under the home
+directory in ``docker_volumes`` (PsyNet defaults include
+``~/psynet-data/assets``) so files left as root by older deploys stay
+writable. If a plain chown fails, deploy retries in a root ``alpine:3.20``
+container, and warns if that fails.
+
+To bake an unreleased Dallinger checkout into the experiment image, set
+``DALLINGER_SOURCE`` to that tree (PsyNet ``--use-local-dallinger`` does
+this). PYTHONPATH alone is not enough: the image still pip-installs the
+experiment's Dallinger pin.
+
 .. note::
 
       The intended use case is a server that you provisioned exclusively for use with Dallnger.

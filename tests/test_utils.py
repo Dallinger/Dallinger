@@ -4,6 +4,7 @@ import os
 import socket
 import tempfile
 from datetime import datetime, timedelta
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import mock
 
@@ -377,18 +378,43 @@ class TestIsBrokenSymlink:
         assert not utils.is_broken_symlink(path)
 
 
-@pytest.mark.parametrize("metadata", [[], None])
-def test_abspath_from_egg_falls_back_to_source_tree(metadata):
-    with mock.patch("dallinger.utils.files_metadata", return_value=metadata):
-        path = utils.abspath_from_egg("dallinger", "dallinger/utils.py")
-
-    assert path.is_file()
-    assert path.name == "utils.py"
+def test_abspath_from_egg_uses_the_imported_tree():
+    path = utils.abspath_from_egg("dallinger", "dallinger/utils.py")
+    assert path == Path(utils.__file__).resolve()
+    assert utils.abspath_from_egg("dallinger", "dallinger/missing.txt") is None
 
 
-def test_abspath_from_egg_returns_none_when_missing():
-    with mock.patch("dallinger.utils.files_metadata", return_value=[]):
-        assert utils.abspath_from_egg("dallinger", "dallinger/missing.txt") is None
+def test_build_and_place_copies_the_built_wheel(tmp_path, monkeypatch):
+    def fake_build(cmd, cwd):
+        outdir = Path(cmd[cmd.index("--outdir") + 1])
+        (outdir / "dallinger-1-py3-none-any.whl").write_bytes(b"wheel")
+        return b""
+
+    monkeypatch.setattr("dallinger.utils.check_output", fake_build)
+    name = utils.build_and_place(str(tmp_path), str(tmp_path))
+    assert (tmp_path / name).read_bytes() == b"wheel"
+
+
+def test_replace_dallinger_requirement_handles_git_and_equality_pins():
+    text = (
+        "psynet==13.4.0\n"
+        "dallinger[docker] @ git+https://github.com/Dallinger/Dallinger.git@9e51dae\n"
+        "pandas\n"
+    )
+    out = utils.replace_dallinger_requirement(text, "dallinger-local.whl")
+    assert "file:dallinger-local.whl" in out
+    assert "9e51dae" not in out
+    assert "psynet==13.4.0" in out
+    compact = utils.replace_dallinger_requirement(
+        "dallinger[docker]@git+https://github.com/Dallinger/Dallinger.git@abc123\n",
+        "dallinger-local.whl",
+    )
+    assert compact == "file:dallinger-local.whl\n"
+    assert "abc123" not in compact
+    unpinned = "psynet\n"
+    assert (
+        utils.replace_dallinger_requirement(unpinned, "dallinger-local.whl") == unpinned
+    )
 
 
 def test_check_experiment_dependencies_successful():
