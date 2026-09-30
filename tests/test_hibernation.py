@@ -131,6 +131,7 @@ def test_web_without_a_health_route_counts_as_ready(status, ready):
                 _fetch_health(url)
     finally:
         server.shutdown()
+        server.server_close()
 
 
 def test_hibernate_stops_only_expensive_services(tmp_path):
