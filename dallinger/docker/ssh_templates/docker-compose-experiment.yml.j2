@@ -67,8 +67,6 @@ services:
     networks:
 {%- if tunnel %}
       app:
-        aliases:
-          - experiment-backend
 {%- else %}
       app:
       dallinger:

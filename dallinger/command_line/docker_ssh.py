@@ -589,6 +589,17 @@ def _discover_server_apps(executor):
     return sorted(existing)
 
 
+def _host_caddy_apps(executor):
+    """Apps behind host Caddy; Cloudflare apps don't compete for the root domain."""
+    apps = _discover_server_apps(executor)
+    manifests = _load_remote_manifests(executor, apps)
+    return [
+        app
+        for app in apps
+        if app not in manifests or manifests[app].ingress != INGRESS_CLOUDFLARE
+    ]
+
+
 def _load_remote_manifests(executor, app_names):
     """Read ``deployment.json`` for the given apps in one SSH call.
 
@@ -839,14 +850,14 @@ def _install_tunnel_token(executor, sftp, app, connector_token, tunnel_id):
     """
     executor.run(f"mkdir -p -m 700 ~/dallinger/{app}/secrets")
     sftp.putfo(
+        BytesIO(f"{tunnel_id}\n".encode()),
+        f"dallinger/{app}/secrets/cloudflare-tunnel-id",
+    )
+    sftp.putfo(
         BytesIO((connector_token + "\n").encode()),
         f"dallinger/{app}/secrets/cloudflare-tunnel-token",
     )
     executor.run(f"chmod 600 ~/dallinger/{app}/secrets/cloudflare-tunnel-token")
-    sftp.putfo(
-        BytesIO(f"{tunnel_id}\n".encode()),
-        f"dallinger/{app}/secrets/cloudflare-tunnel-id",
-    )
 
 
 def _abort_cloudflare(exc):
@@ -859,7 +870,7 @@ def ensure_root_domain_ready(server, update):
         return True
 
     executor = _executor_for_server(server)
-    conflicts = _discover_server_apps(executor)
+    conflicts = _host_caddy_apps(executor)
     if not conflicts:
         return True
 
@@ -889,7 +900,7 @@ def ensure_root_domain_ready(server, update):
         destroy.callback(server=server, app=name)
 
     executor = _executor_for_server(server)
-    remaining = _discover_server_apps(executor)
+    remaining = _host_caddy_apps(executor)
     if remaining:
         print(
             f"{RED}Some experiments are still present: {', '.join(remaining)}. Aborting.{END}"
@@ -1534,8 +1545,7 @@ def _deploy_cloudflare_in_mode(
 ):
     """Deploy an isolated Cloudflare-tunnel experiment on a docker-ssh host.
 
-    The tunnel proxies to the web service. The front door and idle sleep
-    are added later.
+    The tunnel proxies to the web service.
     """
     try:
         validate_app_dns_label(experiment_id)
@@ -1571,6 +1581,7 @@ def _deploy_cloudflare_in_mode(
     if not own_tunnel_id and update:
         manifest = _load_remote_manifests(executor, [experiment_id]).get(experiment_id)
         own_tunnel_id = (manifest.cloudflare.get("tunnel_id") if manifest else "") or ""
+    sftp = get_sftp(ssh_address, user=ssh_user)
     try:
         api_token = load_api_token(config)
         tunnel = ensure_experiment_tunnel(
@@ -1584,10 +1595,28 @@ def _deploy_cloudflare_in_mode(
     except CloudflareError as exc:
         _abort_cloudflare(exc)
 
-    sftp = get_sftp(ssh_address, user=ssh_user)
-    _install_tunnel_token(
-        executor, sftp, experiment_id, tunnel["connector_token"], tunnel["tunnel_id"]
-    )
+    try:
+        _install_tunnel_token(
+            executor,
+            sftp,
+            experiment_id,
+            tunnel["connector_token"],
+            tunnel["tunnel_id"],
+        )
+    except Exception:
+        if tunnel["tunnel_id"] != own_tunnel_id:
+            # Nothing on the server records this new tunnel, so no later
+            # deploy or destroy could find it.
+            print("Deleting the new Cloudflare tunnel, which could not be recorded.")
+            delete_experiment_tunnel(
+                account_id=settings["account_id"],
+                zone_id=settings["zone_id"],
+                app=experiment_id,
+                dns_zone=settings["dns_zone"],
+                api_token=api_token,
+                own_tunnel_id=tunnel["tunnel_id"],
+            )
+        raise
     cfg = _compose_environment(
         config, config_options, mode, experiment_uuid, image_name
     )

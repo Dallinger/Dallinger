@@ -181,7 +181,8 @@ password.
 
 ``--ingress classic`` keeps host Caddy and the shared server Postgres.
 ``--ingress cloudflare`` starts an isolated Compose stack and a per-app
-tunnel. The tunnel proxies to the experiment web service. Set the non-secret
+tunnel; ``servers add --default-ingress cloudflare`` makes it a server's
+default. Cloudflare apps don't block a classic root-domain deploy. The tunnel proxies to the experiment web service. Set the non-secret
 ``cloudflare_account_id``, ``cloudflare_zone_id``, and ``cloudflare_dns_zone``
 in Dallinger config. The API token is read from ``CLOUDFLARE_API_TOKEN``, then
 Dallinger config, then the macOS Keychain item

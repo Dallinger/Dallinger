@@ -37,7 +37,8 @@ from dallinger.utils import (
 DEFAULT_DELAY = 1
 BACKOFF_FACTOR = 2
 MAX_ATTEMPTS = 6
-STARTUP_STATUS_CODES = frozenset({502, 503, 504})
+# 530 is Cloudflare's answer while a new tunnel's connector registers.
+STARTUP_STATUS_CODES = frozenset({502, 503, 504, 530})
 HTTPS_WAIT_MESSAGE = "Waiting for the experiment URL to become reachable"
 # Status, not an error: write to stdout. Only the bar is restyled; Rich's
 # default complete/pulse color is magenta-red.

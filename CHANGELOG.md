@@ -29,7 +29,8 @@
   ``servers add --default-ingress`` sets a server's default. A fresh deploy
   refuses an app name whose tunnel already exists. Destroy stops the
   connector before deleting the DNS record and tunnel, and can be re-run if
-  that cleanup fails. ``get_docker_compose_yml`` no longer takes
+  that cleanup fails. A deploy that cannot record a new tunnel on the
+  server deletes it again. ``get_docker_compose_yml`` no longer takes
   ``executor``.
 - Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
   docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
