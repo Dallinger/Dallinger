@@ -855,8 +855,6 @@ def _eventually(get, path, predicate):
 
 
 def test_frontdoor_routes_awake_parked_and_missing_backend(frontdoor):
-    import time
-
     get, state, names = frontdoor
     # cloudflared appends the real address to whatever the participant sent.
     status, body = get(
