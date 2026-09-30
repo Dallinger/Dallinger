@@ -725,6 +725,17 @@ def _existing_app_secret(executor, app, key):
     return None
 
 
+def _app_secrets(executor, app, update):
+    """Return the secrets for the app's ``.env``, keeping existing ones on update.
+
+    Keeping ``FLASK_SECRET_KEY`` keeps participants' sessions valid.
+    """
+    return {
+        key: (update and _existing_app_secret(executor, app, key)) or token_urlsafe(16)
+        for key in ("POSTGRES_PASSWORD", "FLASK_SECRET_KEY")
+    }
+
+
 def _upload_frontdoor_caddyfile(sftp, executor, app):
     """Install the front-door Caddyfile, the controller script, and the state dir."""
     executor.run(f"mkdir -p ~/dallinger/{app}/state")
@@ -803,11 +814,7 @@ def _upload_app_stack(
     # Other config values in the Compose file, such as the dashboard
     # password, are still sensitive.
     sftp.chmod(f"dallinger/{app}/docker-compose.yml", 0o600)
-    env_path = f"dallinger/{app}/.env"
-    env = "".join(f"{key}={value}\n" for key, value in secrets.items())
-    # Create the file private before any secret is written to it.
-    executor.run(f"umask 077 && : > {env_path} && chmod 600 {env_path}")
-    sftp.putfo(BytesIO(env.encode()), env_path)
+    _write_app_env(sftp, executor, app, secrets)
     _write_experiment_compose_env(executor, app, cfg.get("docker_volumes", ""))
     _upload_frontdoor_caddyfile(sftp, executor, app)
     monitoring_kind, monitoring_path = _monitoring_settings(cfg)
@@ -1394,12 +1401,16 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     print_bold(
         f"To view the logs for this experiment go to {logs_url} (user = dallinger, password = {dozzle_password})"
     )
+    app_secrets = _app_secrets(executor, experiment_id, update)
+    postgresql_password = app_secrets["POSTGRES_PASSWORD"]
     cfg = _compose_environment(
-        config, config_options, mode, experiment_uuid, image_name
+        config,
+        config_options,
+        mode,
+        experiment_uuid,
+        image_name,
+        app_secrets["FLASK_SECRET_KEY"],
     )
-    postgresql_password = (
-        update and _existing_app_secret(executor, experiment_id, "POSTGRES_PASSWORD")
-    ) or token_urlsafe(16)
     public_origin = public_origin_for_hostname(experiment_hostname)
     _upload_app_stack(
         sftp,
@@ -1410,7 +1421,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         public_origin=public_origin,
         image_name=image_name,
         ingress=INGRESS_CLASSIC,
-        secrets={"POSTGRES_PASSWORD": postgresql_password},
+        secrets=app_secrets,
     )
     # We invoke the "ls" command in the context of the `web` container.
     # `docker compose` will honour `web`'s dependencies and block
@@ -1533,14 +1544,16 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     }
 
 
-def _compose_environment(config, config_options, mode, experiment_uuid, image_name):
+def _compose_environment(
+    config, config_options, mode, experiment_uuid, image_name, flask_secret_key
+):
     """Build the Compose environment map shared by classic and tunnel stacks."""
     cfg = config.as_dict(include_sensitive=True)
     for key in "aws_access_key_id", "aws_secret_access_key":
         cfg[key.upper()] = cfg.pop(key, None)
     cfg.update(
         {
-            "FLASK_SECRET_KEY": token_urlsafe(16),
+            "FLASK_SECRET_KEY": flask_secret_key,
             "AWS_DEFAULT_REGION": config["aws_region"],
             "smtp_username": config.get("smtp_username"),
             "auto_recruit": config["auto_recruit"],
@@ -1593,9 +1606,7 @@ def _deploy_cloudflare_in_mode(
         print("Removing any pre-existing Redis and Postgres volumes.")
         remove_named_volume(f"{experiment_id}_redis_data", executor)
         remove_named_volume(f"{experiment_id}_postgres_data", executor)
-    postgresql_password = (
-        update and _existing_app_secret(executor, experiment_id, "POSTGRES_PASSWORD")
-    ) or token_urlsafe(16)
+    app_secrets = _app_secrets(executor, experiment_id, update)
 
     # This server's own tunnel, recorded when its connector token was
     # installed (also after a deploy that failed later), or in the manifest.
@@ -1646,7 +1657,12 @@ def _deploy_cloudflare_in_mode(
             )
         raise
     cfg = _compose_environment(
-        config, config_options, mode, experiment_uuid, image_name
+        config,
+        config_options,
+        mode,
+        experiment_uuid,
+        image_name,
+        app_secrets["FLASK_SECRET_KEY"],
     )
     _upload_app_stack(
         sftp,
@@ -1657,7 +1673,7 @@ def _deploy_cloudflare_in_mode(
         public_origin=public_origin,
         image_name=image_name,
         ingress=INGRESS_CLOUDFLARE,
-        secrets={"POSTGRES_PASSWORD": postgresql_password},
+        secrets=app_secrets,
         cloudflare=public_resource_ids(tunnel),
     )
 
@@ -1672,7 +1688,7 @@ def _deploy_cloudflare_in_mode(
     if update:
         # Re-applies the password, so an app whose ``.env`` was lost or
         # recreated still matches its database.
-        change_password_script = f"""ALTER USER "{experiment_id}" WITH ENCRYPTED PASSWORD '{postgresql_password}'"""
+        change_password_script = f"""ALTER USER "{experiment_id}" WITH ENCRYPTED PASSWORD '{app_secrets["POSTGRES_PASSWORD"]}'"""
         executor.run(
             f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml exec -T postgresql psql -U {quote(experiment_id)} -c {quote(change_password_script)}",
             raise_=False,
@@ -2616,6 +2632,15 @@ def get_docker_compose_yml(
         compose_project=re.sub(r"[^a-z0-9_-]", "", experiment_id.lower()),
         run_as_ssh_user=run_as_ssh_user,
     )
+
+
+def _write_app_env(sftp, executor, app, secrets):
+    """Write the app's private ``.env``, which Compose reads for its secrets."""
+    env_path = f"dallinger/{app}/.env"
+    # Create the file private before any secret is written to it.
+    executor.run(f"umask 077 && : > {env_path} && chmod 600 {env_path}")
+    content = "".join(f"{key}={value}\n" for key, value in secrets.items())
+    sftp.putfo(BytesIO(content.encode()), env_path)
 
 
 def _bring_up_app_containers(
