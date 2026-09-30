@@ -593,6 +593,22 @@ Docker Deployment Configuration
 
     Defaults to ``1024``, lower this value to limit worker containers CPU usage when CPU cycles are constrained.
 
+``cloudflare_api_token`` *unicode*
+    API token used by ``dallinger docker-ssh`` Cloudflare tunnel deploys.
+    Prefer ``CLOUDFLARE_API_TOKEN`` in the environment, or the macOS Keychain
+    item ``dallinger-cloudflare-api-token``, over writing this value to disk.
+    It is never stored in docker-ssh host records or ``deployment.json``.
+
+``cloudflare_account_id`` *unicode*
+    Cloudflare account id for named ``dallinger-{app}`` tunnels.
+
+``cloudflare_zone_id`` *unicode*
+    Cloudflare DNS zone id that will hold first-level experiment CNAMEs.
+
+``cloudflare_dns_zone`` *unicode*
+    DNS zone for experiment hostnames, for example ``science-of-music.org``.
+    Distinct from classic Caddy ``--dns-host``.
+
 ``docker_ssh_monitoring_kind`` *unicode*
     Generic monitoring kind written into the docker-ssh deployment manifest.
     Default ``experiment``. PsyNet sets this to ``psynet``.
