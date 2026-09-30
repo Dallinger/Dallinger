@@ -759,6 +759,9 @@ def _upload_app_stack(
         ),
         f"dallinger/{app}/docker-compose.yml",
     )
+    # Other config values in the Compose file, such as the dashboard
+    # password, are still sensitive.
+    sftp.chmod(f"dallinger/{app}/docker-compose.yml", 0o600)
     env_path = f"dallinger/{app}/.env"
     env = "".join(f"{key}={value}\n" for key, value in secrets.items())
     # Create the file private before any secret is written to it.
@@ -2445,6 +2448,7 @@ def get_docker_compose_yml(
     experiment_id: str,
     experiment_image: str,
     ingress: str = INGRESS_CLASSIC,
+    *,
     run_as_ssh_user: bool = True,
 ) -> str:
     """Render an app's docker-compose.yml. Secrets come from the app's ``.env``."""
@@ -2546,7 +2550,7 @@ def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
     """
     app = quote(experiment_id)
     dirs = " ".join(_remote_bind_mount_dirs(docker_volumes, experiment_id))
-    executor.run(
+    output = executor.run(
         "uid=$(id -u); gid=$(id -g); "
         f"app={app}; "
         'printf "UID=%s\\nGID=%s\\n" "$uid" "$gid" >> "$HOME/dallinger/$app/.env"; '
@@ -2563,6 +2567,9 @@ def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
         "  fi; "
         "done"
     )
+    for line in (output or "").splitlines():
+        if line.startswith("Warning:"):
+            print(line)
 
 
 def get_retrying_http_client():

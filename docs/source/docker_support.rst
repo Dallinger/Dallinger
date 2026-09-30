@@ -173,8 +173,11 @@ ingress mode, and the monitoring kind and path. ``apps`` shows the recorded ingr
 and origin. Host records reject fields whose names look like tokens or
 passwords.
 
-The app's Postgres password lives in ``~/dallinger/<app>/.env`` (mode ``0600``),
-which Compose reads, rather than in the Compose file. ``--update`` keeps it.
+The app's database password lives in ``~/dallinger/<app>/.env`` (mode
+``0600``), which Compose reads, so ``docker-compose.yml`` no longer holds it.
+``docker-compose.yml`` still holds other config values, such as the
+dashboard password, so it is private (mode ``0600``) too. ``--update`` keeps the
+password.
 
 ``--ingress classic`` keeps host Caddy and the shared server Postgres.
 ``--ingress cloudflare`` starts an isolated Compose stack and a per-app

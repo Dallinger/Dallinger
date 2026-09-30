@@ -836,6 +836,18 @@ def test_write_experiment_compose_env_appends_ids_and_creates_home_dirs(tmp_path
     assert not (tmp_path / "docker.log").exists()
 
 
+def test_write_experiment_compose_env_reports_a_failed_chown(tmp_path, capsys):
+    (tmp_path / "dallinger" / "demo").mkdir(parents=True)
+    bin_dir = _fake_bin(tmp_path)
+    for name in ("chown", "docker"):
+        (bin_dir / name).write_text("#!/bin/bash\nexit 1\n")
+        (bin_dir / name).chmod(0o755)
+    docker_ssh_module._write_experiment_compose_env(
+        LocalExecutor(tmp_path, bin_dir), "demo"
+    )
+    assert "Warning: could not chown" in capsys.readouterr().out
+
+
 def test_remote_bind_mount_dirs_only_chowns_writable_home_subdirs():
     dirs = docker_ssh_module._remote_bind_mount_dirs(
         "./dallinger.log:/experiment/dallinger.log,"
