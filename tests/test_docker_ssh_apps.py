@@ -819,7 +819,9 @@ def test_compose_environment_strips_cloudflare_api_token():
         "live",
         "uuid",
         "image:tag",
+        "flask-key",
     )
+    assert env["FLASK_SECRET_KEY"] == "flask-key"
     assert "cloudflare_api_token" not in env
     assert "from-cli" not in env.values()
     assert env["AWS_ACCESS_KEY_ID"] == "id"
@@ -913,6 +915,24 @@ def test_write_experiment_compose_env_reports_a_failed_chown(tmp_path, capsys):
         LocalExecutor(tmp_path, bin_dir), "demo"
     )
     assert "Warning: could not chown" in capsys.readouterr().out
+
+
+def test_update_reads_back_the_secrets_deploy_wrote(tmp_path, monkeypatch):
+    (tmp_path / "dallinger" / "demo").mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
+    executor = LocalExecutor(tmp_path)
+    sftp = mock.Mock()
+    sftp.putfo.side_effect = lambda data, path: (tmp_path / path).write_bytes(
+        data.getvalue()
+    )
+    docker_ssh_module._write_app_env(
+        sftp, executor, "demo", {"POSTGRES_PASSWORD": "pw", "FLASK_SECRET_KEY": "k"}
+    )
+    assert (tmp_path / "dallinger/demo/.env").stat().st_mode & 0o777 == 0o600
+    read = docker_ssh_module._existing_app_secret
+    assert read(executor, "demo", "FLASK_SECRET_KEY") == "k"
+    assert read(executor, "demo", "POSTGRES_PASSWORD") == "pw"
+    assert read(executor, "missing", "FLASK_SECRET_KEY") is None
 
 
 def test_remote_bind_mount_dirs_only_chowns_writable_home_subdirs():
