@@ -1,4 +1,4 @@
-"""Per-app hibernation for docker-ssh experiments.
+"""Per-app idle hibernation for docker-ssh experiments.
 
 The public Caddy front door never receives the Docker socket. This module is
 the private controller: it may start and stop only the expensive services in
@@ -6,7 +6,9 @@ its own Compose project, and it serves the wait page and parked ``/health``.
 
 State lives in two marker files in the state directory, ``hibernating`` and
 ``waking``; the front door routes to this controller while either exists. An
-app is hibernating only after an explicit ``hibernate``.
+app is hibernating only after ``hibernate`` or idle sleep. Idle time is
+measured from when the front door last wrote its access log, which skips
+``/health``.
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ STATE_AWAKE = "awake"
 STATE_HIBERNATING = "hibernating"
 STATE_WAKING = "waking"
 HEALTH_PATH = "/health"
+ACCESS_LOG_NAME = "access.log"
 STOPPABLE_SERVICES = frozenset({"web", "redis", "pgbouncer", "postgresql", "clock"})
 STOPPABLE_PREFIXES = ("worker_",)
 PROTECTED_SERVICES = frozenset({"frontdoor", "controller", "cloudflared"})
@@ -231,6 +234,9 @@ class HibernationController:
         state_dir: Path,
         docker: Any,
         web_origin: str = "http://experiment-backend:5000",
+        idle_enabled: bool = False,
+        idle_minutes: int = 60,
+        clock: Callable[[], float] = time.time,
         fetch_health: Callable[[str], dict[str, Any]] | None = None,
         ready_timeout: float = DEFAULT_READY_TIMEOUT,
         poll_interval: float = 1.0,
@@ -239,6 +245,9 @@ class HibernationController:
         self.state_dir = Path(state_dir)
         self.docker = docker
         self.web_origin = web_origin.rstrip("/")
+        self.idle_enabled = idle_enabled
+        self.idle_minutes = max(int(idle_minutes), 1)
+        self.clock = clock
         self.fetch_health = fetch_health or _fetch_health
         self.ready_timeout = max(float(ready_timeout), 0.0)
         self.poll_interval = max(float(poll_interval), 0.0)
@@ -246,6 +255,9 @@ class HibernationController:
         self._wake_guard = threading.Lock()
         self._wake_thread: threading.Thread | None = None
         self.state_dir.mkdir(parents=True, exist_ok=True)
+        # The quiet period restarts when the controller starts and when the
+        # app wakes, so an update or reboot never sleeps an app at once.
+        self._quiet_since = self.clock()
         if self._marker(STATE_WAKING).exists():
             # The wake that wrote this marker died with the old controller.
             # The next visitor or ``awaken`` retries it.
@@ -279,6 +291,7 @@ class HibernationController:
                         self._write_state(STATE_HIBERNATING)
                     raise
                 self._write_state(STATE_AWAKE)
+                self._quiet_since = self.clock()
             return {"status": STATE_AWAKE}
 
     def handle_public_request(
@@ -322,6 +335,26 @@ class HibernationController:
         except Exception:
             return 503, "application/json", b'{"status":"unavailable"}'
         return 200, "application/json", json.dumps(payload).encode()
+
+    def maybe_idle_hibernate(self) -> bool:
+        """Hibernate when idle sleep is enabled and the quiet period elapsed."""
+        if not self.idle_enabled:
+            return False
+        with self.lock:
+            if self.current_state() != STATE_AWAKE:
+                return False
+            if (self.clock() - self.last_activity()) / 60.0 < self.idle_minutes:
+                return False
+            self.hibernate()
+            return True
+
+    def last_activity(self) -> float:
+        """Latest non-health request seen by the front door, or quiet-period start."""
+        try:
+            logged = (self.state_dir / ACCESS_LOG_NAME).stat().st_mtime
+        except OSError:
+            logged = 0.0
+        return max(logged, self._quiet_since)
 
     def _project_containers(self) -> list[Mapping[str, Any]]:
         return select_project_containers(self.docker.containers(), self.project)
@@ -378,6 +411,20 @@ def is_loopback(host: str) -> bool:
     return host in {"127.0.0.1", "::1"}
 
 
+def idle_loop(
+    controller: HibernationController,
+    interval: float = 30.0,
+    stop: threading.Event | None = None,
+) -> None:
+    """Poll idle timing until ``stop`` is set."""
+    halt = stop or threading.Event()
+    while not halt.wait(interval):
+        try:
+            controller.maybe_idle_hibernate()
+        except Exception:
+            logger.exception("Idle hibernation check failed")
+
+
 def make_handler(controller: HibernationController):
     """Return a BaseHTTPRequestHandler bound to ``controller``."""
 
@@ -393,7 +440,21 @@ def make_handler(controller: HibernationController):
         def log_message(self, format, *args):
             return
 
+        def _discard_body(self):
+            # Answering before an upload is read makes the client see a
+            # connection reset instead of the retryable 503.
+            try:
+                remaining = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                remaining = 0
+            while remaining > 0:
+                chunk = self.rfile.read(min(remaining, 65536))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+
         def _handle(self):
+            self._discard_body()
             path = self.path.split("?", 1)[0].rstrip("/") or "/"
             if path in ADMIN_PATHS:
                 if self.command != "POST" or not is_loopback(self.client_address[0]):
@@ -427,6 +488,8 @@ def make_handler(controller: HibernationController):
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
+            if status == 503:
+                self.send_header("Retry-After", "5")
             self.end_headers()
             self.wfile.write(body)
 
@@ -439,6 +502,8 @@ def controller_from_env() -> HibernationController:
         project=os.environ["COMPOSE_PROJECT_NAME"],
         state_dir=Path("/state"),
         docker=DockerEngine(),
+        idle_enabled=os.environ.get("IDLE_ENABLED", "").lower() == "true",
+        idle_minutes=int(os.environ.get("IDLE_MINUTES") or 60),
     )
 
 
@@ -450,11 +515,16 @@ def serve_from_env() -> None:
 def serve_controller(
     controller: HibernationController, host: str = "0.0.0.0", port: int = 8080
 ):
-    """Run the controller HTTP server."""
+    """Run the controller HTTP server and idle loop."""
+    stop = threading.Event()
+    threading.Thread(
+        target=idle_loop, args=(controller, 30.0, stop), daemon=True
+    ).start()
     server = ThreadingHTTPServer((host, port), make_handler(controller))
     try:
         server.serve_forever()
     finally:
+        stop.set()
         server.server_close()
 
 

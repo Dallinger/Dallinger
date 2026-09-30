@@ -35,6 +35,8 @@
     command: ["python", "/app/hibernation.py", "serve"]
     environment:
       COMPOSE_PROJECT_NAME: {{ compose_project }}
+      IDLE_ENABLED: "{{ idle_enabled }}"
+      IDLE_MINUTES: "{{ idle_minutes }}"
     volumes:
       - ./state:/state
       - ./hibernation.py:/app/hibernation.py:ro

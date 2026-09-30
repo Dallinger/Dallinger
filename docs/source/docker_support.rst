@@ -207,9 +207,33 @@ the app is ready, and other requests get HTTP 503. Manual control::
     dallinger docker-ssh hibernate --app $APP --server $SERVER
     dallinger docker-ssh awaken --app $APP --server $SERVER
 
-Hibernate only apps that are not recruiting or serving participants. A
-request sent while the app sleeps (a form submission, for example) is not
-retried.
+Set ``docker_ssh_idle_hibernate = true`` to sleep an app automatically after
+``docker_ssh_idle_hibernate_minutes`` without traffic; ``/health`` probes do
+not count. With idle sleep on, pages built on Dallinger's base layout ping
+``/presence`` while someone is using them, so an app does not sleep under a
+participant, even on a quiet or WebSocket-only page. Interaction, audible
+non-looping media, or ``dallingerPresence.setWaiting(true)`` (for pages that
+wait, for example for a partner) keeps a page in use; an abandoned tab stops
+pinging one idle window after its last interaction, and pings at once when
+someone returns. A page that polls the server itself (for example PsyNet's
+waiting pages) keeps the app awake for as long as it stays open. A page that
+does not use that layout, or a WebSocket server outside Dallinger's
+``/chat`` route, must make its own requests to count as activity.
+
+A non-page request to a sleeping app gets HTTP 503 with ``Retry-After: 5``
+and a JSON body ``{"status": "hibernating"}`` or ``{"status": "waking"}``.
+The controller reads the whole request body first, so a large upload gets
+that response rather than a dropped connection. Clients that resend on this
+response (PsyNet does, for submissions) do not lose work when an app falls
+asleep under them.
+
+Idle sleep suits experiments with a bounded recruitment window: recruit,
+run the session, then let the app sleep until you export. Leave it off for
+experiments that recruit replacements or otherwise recruit throughout their
+life. Sleep stops the clock process and recruiter callbacks during the quiet
+gaps between participants, which is exactly when those experiments detect
+failures and recruit replacements. Leave idle sleep off for first canary
+deploys too.
 
 ``dallinger docker-ssh apps`` reports ``hibernating`` or ``waking`` when the
 front door is up but expensive services are stopped. ``dallinger docker-ssh
@@ -227,8 +251,10 @@ deploy retries in a root ``alpine:3.20`` container, and warns if that fails.
 
 Expensive services use ``restart: unless-stopped``: a host reboot brings
 back an app that was running, and an explicit hibernate stays stopped.
-``--update`` wakes a hibernating app. An app is hibernating only after
-``hibernate``. If ``web`` is down for any other reason, the front door
+The idle quiet period restarts when the app wakes and when its controller
+starts, so a just-woken or just-updated app gets a full quiet period.
+``--update`` wakes a hibernating app; it sleeps again only if idle sleep is
+on. An app is hibernating only after ``hibernate`` or idle sleep. If ``web`` is down for any other reason, the front door
 returns HTTP 503 and ``/health`` reports ``unavailable``. A wake interrupted
 by a controller restart goes back to hibernating, and the next visitor or
 ``awaken`` retries it. Isolated Cloudflare Postgres uses a pinned

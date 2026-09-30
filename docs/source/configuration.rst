@@ -609,6 +609,43 @@ Docker Deployment Configuration
     DNS zone for experiment hostnames, for example ``science-of-music.org``.
     Distinct from classic Caddy ``--dns-host``.
 
+``docker_ssh_idle_hibernate`` *boolean*
+    Opt-in automatic sleep for docker-ssh experiments. Default ``False``.
+    After ``docker_ssh_idle_hibernate_minutes`` with no participant/dashboard
+    traffic, expensive containers stop. ``/health`` probes are ignored and
+    do not reset the idle timer. While this flag is on, every page built on
+    Dallinger's base layout (including PsyNet pages) POSTs ``/presence``
+    at a third of the idle window while it is in use: someone interacted
+    with it within the idle window, audible non-looping audio or video is
+    playing, or the page called ``dallingerPresence.setWaiting(true)``. A
+    page in use counts as traffic even when it is quiet or talks only over
+    a WebSocket, and an abandoned tab stops pinging one idle window after
+    its last interaction. A page that polls the server itself (for example
+    PsyNet's waiting pages) keeps the app awake for as long as it stays
+    open. Manual
+    ``dallinger docker-ssh hibernate`` and ``awaken`` work even when this
+    flag is false.
+
+    Leave idle sleep off for experiments that recruit replacements or
+    otherwise recruit throughout their life: sleep pauses the clock process
+    and recruiter callbacks during the gaps between participants.
+
+    Do not enable idle sleep on an experiment that is still recruiting:
+    sleep stops web, workers, the clock, Redis, and (for Cloudflare apps)
+    Postgres. A later visit starts a spinner until those services are
+    healthy again. Expensive services use Compose ``restart: unless-stopped``.
+    A host reboot brings back an app that was running. An explicit hibernate
+    is a Docker stop, so those containers stay stopped across reboot and
+    ``/health`` keeps reporting hibernating until a visitor or
+    ``dallinger docker-ssh awaken``. The idle quiet period restarts when
+    the app wakes and when its controller starts (for example after an
+    update or reboot). ``--update`` wakes a hibernating app.
+    The front door and controller stay up. Docker may restart a crashed
+    container; ``/health`` returns HTTP 503 while the backend is actually down.
+
+``docker_ssh_idle_hibernate_minutes`` *int*
+    Quiet period before automatic hibernation. Default ``60``.
+
 ``docker_ssh_monitoring_kind`` *unicode*
     Generic monitoring kind written into the docker-ssh deployment manifest.
     Default ``experiment``. PsyNet sets this to ``psynet``.

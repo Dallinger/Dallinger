@@ -870,6 +870,7 @@ def test_update_wakes_a_hibernating_app(tmp_path, capsys):
         executor, {}, "demo", None, True, restore=False
     )
     assert not (state / "hibernating").exists()
+    assert (state / "access.log").exists()
     log = (tmp_path / "docker.log").read_text()
     assert "demo/docker-compose.yml up -d" in log
     recreate_controller = log.index("--force-recreate controller")

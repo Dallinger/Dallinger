@@ -19,6 +19,11 @@
 		}
 	}
 
+	# Health probes are not activity: the controller measures idle time from
+	# when this access log was last written.
+	@health path /health /health/
+	log_skip @health
+
 	handle @parked {
 		reverse_proxy controller:8080
 	}
@@ -36,5 +41,13 @@
 	handle_errors {
 		header Content-Type application/json
 		respond `{"status":"unavailable"}` 503
+	}
+
+	log {
+		output file /state/access.log {
+			roll_size 10MiB
+			roll_keep 2
+		}
+		format json
 	}
 }

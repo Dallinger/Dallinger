@@ -1,5 +1,7 @@
 import json
+import os
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -10,6 +12,7 @@ from dallinger.hibernation import (
     STATE_WAKING,
     DockerEngine,
     HibernationController,
+    idle_loop,
     is_loopback,
     is_stoppable_service,
     make_handler,
@@ -67,6 +70,9 @@ def _controller(tmp_path, docker, **overrides):
         project="demo",
         state_dir=tmp_path,
         docker=docker,
+        idle_enabled=True,
+        idle_minutes=1,
+        clock=lambda: 1_700_000_000,
         fetch_health=lambda url: {"status": "ok"},
     )
     settings.update(overrides)
@@ -112,6 +118,34 @@ def test_hibernate_stops_only_expensive_services(tmp_path):
     assert status == 200
     assert content_type == "application/json"
     assert json.loads(body) == {"status": "hibernating"}
+
+
+def test_idle_sleep_follows_the_access_log(tmp_path):
+    docker = FakeDocker([_container("web")])
+    now = [1_700_000_000]
+    controller = _controller(tmp_path, docker, clock=lambda: now[0], idle_minutes=1)
+    log = tmp_path / "access.log"
+    log.write_text("{}\n")
+    os.utime(log, (now[0] + 30, now[0] + 30))
+    now[0] += 80
+    assert controller.maybe_idle_hibernate() is False
+    now[0] += 20
+    assert controller.maybe_idle_hibernate() is True
+    assert controller.current_state() == "hibernating"
+
+
+def test_start_and_awaken_restart_the_quiet_period(tmp_path):
+    docker = FakeDocker([_container("web")])
+    now = [1_700_000_000]
+    log = tmp_path / "access.log"
+    log.write_text("{}\n")
+    os.utime(log, (now[0] - 3600, now[0] - 3600))
+    controller = _controller(tmp_path, docker, clock=lambda: now[0], idle_minutes=1)
+    assert controller.maybe_idle_hibernate() is False
+    now[0] += 61
+    assert controller.maybe_idle_hibernate() is True
+    controller.awaken()
+    assert controller.maybe_idle_hibernate() is False
 
 
 def test_intentional_sleep_wakes_on_visit(tmp_path):
@@ -232,14 +266,16 @@ def test_select_project_containers_matches_compose_lowercase_project():
     assert [item["id"] for item in selected] == ["id-web"]
 
 
-def test_caddyfile_excludes_docker_socket_and_sends_parked_requests_to_controller():
+def test_caddyfile_excludes_docker_socket_and_sends_health_to_controller():
     caddy = Path("dallinger/docker/ssh_templates/Caddyfile.frontdoor").read_text()
     assert "docker.sock" not in caddy
+    assert "/health" in caddy
     assert "controller:8080" in caddy
     assert "experiment-backend:5000" in caddy
     assert "reverse_proxy web:5000" not in caddy
     assert "flush_interval -1" in caddy
     assert caddy.count("@parked") == 2
+    assert "log_skip @health" in caddy
     assert f"try_files {STATE_HIBERNATING} {STATE_WAKING}" in caddy
     assert "handle_errors {" in caddy
     assert caddy.find("handle_errors") > caddy.find("flush_interval")
@@ -279,6 +315,26 @@ def test_leftover_waking_marker_becomes_hibernating(tmp_path):
     assert controller.current_state() == "hibernating"
 
 
+def test_idle_loop_keeps_running_after_check_failure():
+    calls = {"n": 0}
+
+    class Boom:
+        def maybe_idle_hibernate(self):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("docker blip")
+
+    stop = threading.Event()
+    thread = threading.Thread(target=idle_loop, args=(Boom(), 0.01, stop), daemon=True)
+    thread.start()
+    deadline = time.time() + 2
+    while calls["n"] < 2 and time.time() < deadline:
+        time.sleep(0.01)
+    stop.set()
+    thread.join(1)
+    assert calls["n"] >= 2
+
+
 def test_only_loopback_callers_are_admins():
     assert is_loopback("127.0.0.1")
     assert is_loopback("::1")
@@ -315,7 +371,7 @@ def test_admin_routes_need_post_public_routes_do_not(tmp_path):
         with pytest.raises(HTTPError) as err:
             urlopen(Request(f"{origin}/response", data=b"{}", method="POST"), timeout=2)
         assert err.value.code == 503
-        assert "Retry-After" not in err.value.headers
+        assert err.value.headers["Retry-After"] == "5"
         assert json.loads(err.value.read())["status"] == "hibernating"
         controller._wake_thread.join(2)
         controller.hibernate()
@@ -326,6 +382,27 @@ def test_admin_routes_need_post_public_routes_do_not(tmp_path):
         )
         with urlopen(request, timeout=2) as response:
             assert json.loads(response.read())["status"] == "awake"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_large_upload_to_a_sleeping_app_gets_the_retryable_503(tmp_path):
+    from http.client import HTTPConnection
+    from http.server import ThreadingHTTPServer
+
+    controller = _controller(tmp_path, FakeDocker([_container("web")]))
+    controller.hibernate()
+    controller._wake_in_background = lambda: None
+    server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(controller))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        connection = HTTPConnection(*server.server_address, timeout=5)
+        connection.request("POST", "/response", body=b"x" * (5 * 1024 * 1024))
+        response = connection.getresponse()
+        assert response.status == 503
+        assert json.loads(response.read())["status"] == "hibernating"
+        connection.close()
     finally:
         server.shutdown()
         server.server_close()
