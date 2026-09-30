@@ -10,6 +10,8 @@
   on, pages ping ``POST /presence`` while someone is using them (recent
   interaction, audible media, or ``dallingerPresence.setWaiting``), so an
   app never sleeps under a participant but an abandoned tab stops pinging.
+  Dallinger's quorum waiting room counts as waiting, and a WebSocket
+  reconnect does not wake a sleeping app.
   Non-page requests to a sleeping app get HTTP 503 with ``Retry-After`` and
   a JSON status, after the controller reads the whole request body, so
   clients can resend them safely.
