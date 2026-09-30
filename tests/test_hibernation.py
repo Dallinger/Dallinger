@@ -12,6 +12,7 @@ from dallinger.hibernation import (
     STATE_WAKING,
     DockerEngine,
     HibernationController,
+    _fetch_health,
     idle_loop,
     is_loopback,
     is_stoppable_service,
@@ -97,6 +98,39 @@ def test_select_project_containers_ignores_other_compose_projects():
     ]
     selected = select_project_containers(containers, "demo")
     assert {item["id"] for item in selected} == {"id-web", "id-worker_1"}
+
+
+def test_select_project_containers_skips_one_off_run_containers():
+    one_off = _container("web", cid="run")
+    one_off["labels"]["com.docker.compose.oneoff"] = "True"
+    selected = select_project_containers([_container("web"), one_off], "demo")
+    assert [item["id"] for item in selected] == ["id-web"]
+
+
+@pytest.mark.parametrize("status, ready", [(404, True), (500, False)])
+def test_web_without_a_health_route_counts_as_ready(status, ready):
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class Web(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            self.send_response(status)
+            self.end_headers()
+            self.wfile.write(b"<html>Not found</html>")
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Web)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/health"
+        if ready:
+            assert _fetch_health(url) == {"status": "ok"}
+        else:
+            with pytest.raises(Exception):
+                _fetch_health(url)
+    finally:
+        server.shutdown()
 
 
 def test_hibernate_stops_only_expensive_services(tmp_path):

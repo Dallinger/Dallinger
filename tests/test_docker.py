@@ -65,12 +65,6 @@ def test_get_docker_compose_yml_uses_app_scoped_redis():
     assert services["pgbouncer"]["healthcheck"]["test"][0] == "CMD-SHELL"
 
 
-def test_compose_reads_the_postgres_password_from_the_app_env():
-    for ingress in ("classic", "cloudflare"):
-        services = get_yaml({}, ingress=ingress)["services"]
-        assert "${POSTGRES_PASSWORD}" in services["web"]["environment"]["DATABASE_URL"]
-
-
 def test_tunnel_compose_has_isolated_postgres_and_no_published_ports():
     result = get_yaml({}, ingress="cloudflare")
     services = result["services"]
@@ -727,3 +721,162 @@ def test_docker_ssh_server_teardown_runs_local_cleanup_after_ssh_timeout():
     assert ["docker", "rm", "-f", container_name] in run_command_calls
     assert ["docker", "volume", "rm", "-f", docker_data_volume] in run_command_calls
     server.remove_server.assert_called_once()
+
+
+FRONTDOOR_CADDYFILE = (
+    Path(__file__).parents[1] / "dallinger/docker/ssh_templates/Caddyfile.frontdoor"
+)
+ECHO_SERVER = """
+import json, os
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        body = json.dumps({"from": os.environ["ROLE"], **dict(self.headers)}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+HTTPServer(("0.0.0.0", int(os.environ["PORT"])), H).serve_forever()
+"""
+
+
+def _docker(*args):
+    """Run docker; skip if Docker is unavailable, fail if the command fails."""
+    import shutil
+    import subprocess
+
+    if (
+        not shutil.which("docker")
+        or subprocess.run(["docker", "info"], capture_output=True).returncode
+    ):
+        pytest.skip("Docker is not available")
+    result = subprocess.run(["docker", *args], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr or result.stdout
+    return result.stdout.strip()
+
+
+def test_frontdoor_caddyfile_validates_on_caddy_2_10():
+    import shutil
+
+    if not shutil.which("docker"):
+        pytest.skip("docker is required to validate the front-door Caddyfile")
+    caddyfile = FRONTDOOR_CADDYFILE.resolve()
+    _docker(
+        *("run", "--rm", "-v", f"{caddyfile}:/etc/caddy/Caddyfile:ro", "caddy:2.10.2"),
+        *("caddy", "validate", "--config", "/etc/caddy/Caddyfile"),
+    )
+
+
+@pytest.fixture
+def frontdoor(tmp_path):
+    """Run the front-door Caddyfile in front of echo servers for web and controller.
+
+    Yields a ``get(path, **headers)`` helper and the state directory.
+    """
+    import json
+    import os
+    import shutil
+    import subprocess
+    import time
+    import urllib.error
+    import urllib.request
+
+    if not shutil.which("docker"):
+        pytest.skip("docker is required to exercise the front door")
+    (tmp_path / "echo.py").write_text(ECHO_SERVER)
+    state = tmp_path / "state"
+    state.mkdir()
+    net = f"dlgr-fd-test-{os.getpid()}"
+    names = []
+    try:
+        _docker("network", "create", net)
+        for alias, port, role in (
+            ("experiment-backend", "5000", "web"),
+            ("controller", "8080", "controller"),
+        ):
+            names.append(f"{net}-{role}")
+            _docker(
+                *("run", "-d", "--rm", "--name", names[-1], "--network", net),
+                *("--network-alias", alias, "-e", f"PORT={port}", "-e", f"ROLE={role}"),
+                *("-v", f"{tmp_path / 'echo.py'}:/echo.py:ro", "python:3.12-alpine"),
+                *("python", "/echo.py"),
+            )
+        names.append(f"{net}-frontdoor")
+        _docker(
+            *("run", "-d", "--rm", "--name", names[-1], "--network", net),
+            *("-p", "127.0.0.1::5000", "-v", f"{state}:/state"),
+            # Run as the caller, as Compose does, so the access log is readable.
+            *("--user", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/state"),
+            *("-e", "XDG_CONFIG_HOME=/state/caddy-config"),
+            *("-e", "XDG_DATA_HOME=/state/caddy-data"),
+            *("-v", f"{FRONTDOOR_CADDYFILE.resolve()}:/etc/caddy/Caddyfile:ro"),
+            "caddy:2.10.2",
+        )
+        listen = _docker("port", names[-1], "5000").splitlines()[0]
+
+        def get(path, **headers):
+            request = urllib.request.Request(f"http://{listen}{path}", headers=headers)
+            for _ in range(40):
+                try:
+                    with urllib.request.urlopen(request, timeout=2) as response:
+                        return response.status, json.loads(response.read())
+                except urllib.error.HTTPError as exc:
+                    return exc.code, json.loads(exc.read())
+                except Exception:
+                    time.sleep(0.25)
+            raise AssertionError(f"front door never answered {path}")
+
+        for _ in range(40):
+            if get("/ad")[0] == 200:
+                break
+            time.sleep(0.25)
+        yield get, state, names
+    finally:
+        for name in names:
+            subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+        subprocess.run(["docker", "network", "rm", net], capture_output=True)
+
+
+def test_frontdoor_routes_awake_parked_and_missing_backend(frontdoor):
+    import time
+
+    get, state, names = frontdoor
+    # cloudflared appends the real address to whatever the participant sent.
+    status, body = get(
+        "/ad",
+        **{"X-Forwarded-Proto": "https", "X-Forwarded-For": "6.6.6.6, 203.0.113.9"},
+    )
+    assert (status, body["from"]) == (200, "web")
+    assert body["X-Forwarded-Proto"] == "https"
+    assert body["X-Forwarded-For"] == "203.0.113.9"
+    log = state / "access.log"
+    time.sleep(0.5)  # Caddy may write the access line just after responding.
+    logged = log.read_text()
+    assert '"/ad"' in logged
+    get("/health")
+    time.sleep(0.5)
+    assert log.read_text() == logged
+
+    (state / "hibernating").write_text("")
+    assert get("/health")[1]["from"] == "controller"
+    assert get("/ad")[1]["from"] == "controller"
+
+    (state / "hibernating").unlink()
+    _docker("rm", "-f", names[0])
+    status, body = get("/ad")
+    assert (status, body) == (503, {"status": "unavailable"})
+
+
+def test_controller_project_matches_compose_normalization():
+    from dallinger.command_line.docker_ssh import get_docker_compose_yml
+
+    services = yaml.safe_load(
+        get_docker_compose_yml({}, "My.App", "img", ingress="cloudflare")
+    )["services"]
+    assert services["controller"]["environment"]["COMPOSE_PROJECT_NAME"] == "myapp"

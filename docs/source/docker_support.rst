@@ -175,30 +175,33 @@ ingress mode, and the monitoring kind and path. ``apps`` shows the recorded
 ingress and origin. Host records reject fields whose names look like tokens
 or passwords.
 
-The app's Postgres password lives in ``~/dallinger/<app>/.env`` (mode ``0600``),
-which Compose reads, rather than in the Compose file. ``--update`` keeps it.
+The app's database password lives in ``~/dallinger/<app>/.env`` (mode
+``0600``), which Compose reads, so ``docker-compose.yml`` no longer holds it.
+``docker-compose.yml`` still holds other config values, such as the
+dashboard password, so it is private (mode ``0600``) too. ``--update`` keeps the
+password.
 
-Classic Caddy apps share the host Postgres instance and are reached on
-``{app}.{dns-host}`` via ports 80/443. Cloudflare apps use an isolated
-Compose stack (app-local Postgres, no published ports) and a first-level
-name such as ``consonance.science-of-music.org``. Both kinds can run on the
-same server. Select ingress per deploy with ``--ingress classic|cloudflare``.
-Set the non-secret ``cloudflare_account_id``, ``cloudflare_zone_id``, and
-``cloudflare_dns_zone`` in Dallinger config. The API token is read from
-``CLOUDFLARE_API_TOKEN``, then Dallinger config, then the macOS Keychain item
-``dallinger-cloudflare-api-token``. It is never written to host records,
-manifests, logs, or the app's Compose file. Only the per-app connector token
-is installed remotely at mode ``0600``. Tunnel names do not include the
-server, so a deploy refuses an app name whose tunnel already exists, unless it
-is the tunnel this server recorded for that app (in its manifest, or next to
-the connector token from an earlier attempt). Destroy stops the connector,
-then deletes the DNS record and tunnel, but never a same-named tunnel with a
-different id. If that cleanup fails, destroy leaves the app's files in place
-so it can be run again.
+``--ingress classic`` keeps host Caddy and the shared server Postgres.
+``--ingress cloudflare`` starts an isolated Compose stack and a per-app
+tunnel; ``servers add --default-ingress cloudflare`` makes it a server's
+default. Cloudflare apps don't block a classic root-domain deploy.
+The tunnel proxies to the experiment web service. Set the non-secret
+``cloudflare_account_id``, ``cloudflare_zone_id``, and ``cloudflare_dns_zone``
+in Dallinger config. The API token is read from ``CLOUDFLARE_API_TOKEN``, then
+Dallinger config, then the macOS Keychain item
+``dallinger-cloudflare-api-token``. It is never written to host records, the
+manifest, or the app's Compose file. Tunnel names do not include the server,
+so a deploy refuses an app name whose tunnel already exists, unless it is the
+tunnel this server recorded for that app (in its manifest, or next to the
+connector token from an earlier attempt). Destroy stops the connector, then deletes the DNS record and
+tunnel, but never a same-named tunnel with a different id. If that cleanup fails, destroy leaves the app's files in place so it
+can be run again.
 
 Each app also gets an unprivileged Caddy front door (WebSockets, no Docker
-socket) and a private controller that can stop only that Compose project's
-expensive services. The controller is a standard-library script run from
+socket), which host Caddy or the tunnel now reach instead of web, and a
+private controller. The controller holds the Docker socket, which is
+root-equivalent on the host; its code stops and starts only that Compose
+project's expensive services. The controller is a standard-library script run from
 ``python:3.12-alpine``, not the experiment image. Only ``docker compose exec``
 inside the controller can explicitly hibernate or wake the app; any visitor
 also wakes it. While it sleeps, page loads get a wait page that reloads once
@@ -235,8 +238,8 @@ gaps between participants, which is exactly when those experiments detect
 failures and recruit replacements. Leave idle sleep off for first canary
 deploys too.
 
-``dallinger docker-ssh apps`` reports ``hibernating`` or ``waking`` when the
-front door is up but expensive services are stopped. ``dallinger docker-ssh
+``dallinger docker-ssh apps`` reports ``hibernating`` or ``waking`` from the
+app's sleep markers. ``dallinger docker-ssh
 export`` awakens the app and waits until Postgres and web health succeed.
 
 Experiment containers run as the SSH user (``UID``/``GID`` in the per-app

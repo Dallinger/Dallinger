@@ -607,6 +607,17 @@ def _discover_server_apps(executor):
     return sorted(existing)
 
 
+def _host_caddy_apps(executor):
+    """Apps behind host Caddy; Cloudflare apps don't compete for the root domain."""
+    apps = _discover_server_apps(executor)
+    manifests = _load_remote_manifests(executor, apps)
+    return [
+        app
+        for app in apps
+        if app not in manifests or manifests[app].ingress != INGRESS_CLOUDFLARE
+    ]
+
+
 def _load_remote_manifests(executor, app_names):
     """Read ``deployment.json`` for the given apps in one SSH call.
 
@@ -803,6 +814,9 @@ def _upload_app_stack(
         ),
         f"dallinger/{app}/docker-compose.yml",
     )
+    # Other config values in the Compose file, such as the dashboard
+    # password, are still sensitive.
+    sftp.chmod(f"dallinger/{app}/docker-compose.yml", 0o600)
     env_path = f"dallinger/{app}/.env"
     env = "".join(f"{key}={value}\n" for key, value in secrets.items())
     # Create the file private before any secret is written to it.
@@ -881,14 +895,14 @@ def _install_tunnel_token(executor, sftp, app, connector_token, tunnel_id):
     """
     executor.run(f"mkdir -p -m 700 ~/dallinger/{app}/secrets")
     sftp.putfo(
+        BytesIO(f"{tunnel_id}\n".encode()),
+        f"dallinger/{app}/secrets/cloudflare-tunnel-id",
+    )
+    sftp.putfo(
         BytesIO((connector_token + "\n").encode()),
         f"dallinger/{app}/secrets/cloudflare-tunnel-token",
     )
     executor.run(f"chmod 600 ~/dallinger/{app}/secrets/cloudflare-tunnel-token")
-    sftp.putfo(
-        BytesIO(f"{tunnel_id}\n".encode()),
-        f"dallinger/{app}/secrets/cloudflare-tunnel-id",
-    )
 
 
 def _abort_cloudflare(exc):
@@ -901,7 +915,7 @@ def ensure_root_domain_ready(server, update):
         return True
 
     executor = _executor_for_server(server)
-    conflicts = _discover_server_apps(executor)
+    conflicts = _host_caddy_apps(executor)
     if not conflicts:
         return True
 
@@ -931,7 +945,7 @@ def ensure_root_domain_ready(server, update):
         destroy.callback(server=server, app=name)
 
     executor = _executor_for_server(server)
-    remaining = _discover_server_apps(executor)
+    remaining = _host_caddy_apps(executor)
     if remaining:
         print(
             f"{RED}Some experiments are still present: {', '.join(remaining)}. Aborting.{END}"
@@ -1609,6 +1623,7 @@ def _deploy_cloudflare_in_mode(
     if not own_tunnel_id and update:
         manifest = _load_remote_manifests(executor, [experiment_id]).get(experiment_id)
         own_tunnel_id = (manifest.cloudflare.get("tunnel_id") if manifest else "") or ""
+    sftp = get_sftp(ssh_address, user=ssh_user)
     try:
         api_token = load_api_token(config)
         tunnel = ensure_experiment_tunnel(
@@ -1622,10 +1637,28 @@ def _deploy_cloudflare_in_mode(
     except CloudflareError as exc:
         _abort_cloudflare(exc)
 
-    sftp = get_sftp(ssh_address, user=ssh_user)
-    _install_tunnel_token(
-        executor, sftp, experiment_id, tunnel["connector_token"], tunnel["tunnel_id"]
-    )
+    try:
+        _install_tunnel_token(
+            executor,
+            sftp,
+            experiment_id,
+            tunnel["connector_token"],
+            tunnel["tunnel_id"],
+        )
+    except Exception:
+        if tunnel["tunnel_id"] != own_tunnel_id:
+            # Nothing on the server records this new tunnel, so no later
+            # deploy or destroy could find it.
+            print("Deleting the new Cloudflare tunnel, which could not be recorded.")
+            delete_experiment_tunnel(
+                account_id=settings["account_id"],
+                zone_id=settings["zone_id"],
+                app=experiment_id,
+                dns_zone=settings["dns_zone"],
+                api_token=api_token,
+                own_tunnel_id=tunnel["tunnel_id"],
+            )
+        raise
     cfg = _compose_environment(
         config, config_options, mode, experiment_uuid, image_name
     )
@@ -2574,6 +2607,7 @@ def get_docker_compose_yml(
     experiment_id: str,
     experiment_image: str,
     ingress: str = INGRESS_CLASSIC,
+    *,
     run_as_ssh_user: bool = True,
 ) -> str:
     """Render an app's docker-compose.yml. Secrets come from the app's ``.env``."""
@@ -2696,7 +2730,7 @@ def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
     """
     app = quote(experiment_id)
     dirs = " ".join(_remote_bind_mount_dirs(docker_volumes, experiment_id))
-    executor.run(
+    output = executor.run(
         "uid=$(id -u); gid=$(id -g); "
         "docker_gid=$(stat -c %g /var/run/docker.sock) || "
         "{ echo 'No Docker socket at /var/run/docker.sock.' >&2; exit 1; }; "
@@ -2716,6 +2750,9 @@ def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
         "  fi; "
         "done"
     )
+    for line in (output or "").splitlines():
+        if line.startswith("Warning:"):
+            print(line)
 
 
 def get_retrying_http_client():
