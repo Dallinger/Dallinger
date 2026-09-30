@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `DevProlificRecruiter` no longer reports "Study created on Prolific" when
+  opening recruitment in debug mode; it says the study is simulated and that
+  nothing was created on Prolific.
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added

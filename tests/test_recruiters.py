@@ -463,6 +463,21 @@ class TestProlificRecruiter:
         assert kwargs.get("publish_experiment") is True
         assert result["message"] == "Study created on Prolific"
 
+    def test_dev_recruiter_open_recruitment_says_study_is_simulated(
+        self, prolificservice, hit_id_store, active_config
+    ):
+        from dallinger.recruiters import DevProlificRecruiter
+
+        with mock.patch(
+            "dallinger.recruiters.get_base_url", return_value="http://fake-domain"
+        ):
+            recruiter = DevProlificRecruiter(store=hit_id_store)
+        recruiter.prolificservice = prolificservice
+
+        result = recruiter.open_recruitment(n=5)
+
+        assert "nothing was created on Prolific" in result["message"]
+
     def test_open_recruitment_with_publication_suppressed(self, recruiter):
         recruiter.config["publish_experiment"] = False
         recruiter.open_recruitment(n=5)
