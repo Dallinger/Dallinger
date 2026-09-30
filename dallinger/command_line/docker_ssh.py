@@ -1130,7 +1130,9 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     cfg.update(config_options)
     del cfg["host"]  # The uppercase variable will be used instead
     executor.run(f"mkdir -p dallinger/{experiment_id}")
-    postgresql_password = token_urlsafe(16)
+    postgresql_password = (
+        update and _existing_app_secret(executor, experiment_id, "POSTGRES_PASSWORD")
+    ) or token_urlsafe(16)
     run_as_ssh_user = _image_runs_as_ssh_user(executor, image_name)
     sftp.putfo(
         BytesIO(
