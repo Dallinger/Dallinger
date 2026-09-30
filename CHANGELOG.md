@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `dallinger debug` no longer spins at full CPU after `heroku local` exits:
+  the output monitor now stops at end of output and logs the exit code.
+  `heroku local` also gets `/dev/null` as stdin instead of inheriting the
+  caller's, which it never reads.
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added

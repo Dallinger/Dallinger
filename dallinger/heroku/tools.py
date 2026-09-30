@@ -424,7 +424,8 @@ class HerokuLocalWrapper:
     # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
     int_signal = getattr(signal, "CTRL_C_EVENT", signal.SIGINT)
     MONITOR_STOP = object()
-    STREAM_SENTINEL = ""
+    # The subprocess stdout is a binary pipe, so readline() returns b"" at EOF.
+    STREAM_SENTINEL = b""
 
     def __init__(
         self,
@@ -527,6 +528,11 @@ class HerokuLocalWrapper:
                 self.out.blather(line)
             if listener(line) is self.MONITOR_STOP:
                 return
+        self.out.error(
+            "Local Heroku stopped producing output (exit code: {}).".format(
+                self._process.poll()
+            )
+        )
 
     def _verify_startup(self):
         port = self.config.get("base_port")
@@ -598,6 +604,7 @@ class HerokuLocalWrapper:
         ]
         try:
             options = {
+                "stdin": subprocess.DEVNULL,
                 "stdout": subprocess.PIPE,
                 "stderr": subprocess.STDOUT,
                 "env": self.env,

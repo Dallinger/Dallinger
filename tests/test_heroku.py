@@ -551,6 +551,37 @@ class TestHerokuApp:
         app.set("auto_recruit", True)
 
 
+def test_heroku_local_monitor_stops_when_output_ends():
+    import io
+
+    from dallinger.heroku.tools import HerokuLocalWrapper
+
+    wrapper = HerokuLocalWrapper(mock.Mock(), mock.Mock(), env={"HOME": "/tmp"})
+    wrapper._process = mock.Mock(stdout=io.BytesIO(b"web.1 | up\n"))
+    wrapper._process.poll.return_value = 1
+    listener = mock.Mock(return_value=None)
+
+    wrapper.monitor(listener)
+
+    listener.assert_called_once_with("web.1 | up\n")
+    assert "exit code: 1" in wrapper.out.error.call_args.args[0]
+
+
+def test_heroku_local_does_not_inherit_stdin():
+    """A closed or hung-up parent stdin must not reach heroku local."""
+    import subprocess
+
+    from dallinger.heroku.tools import HerokuLocalWrapper
+
+    settings = {"base_port": 5000, "num_dynos_web": 1, "num_dynos_worker": 1}
+    config = mock.Mock(get=settings.get)
+    wrapper = HerokuLocalWrapper(config, mock.Mock(), env={"HOME": "/tmp"})
+    with mock.patch("dallinger.heroku.tools.subprocess.Popen") as popen:
+        wrapper._boot()
+
+    assert popen.call_args.kwargs["stdin"] is subprocess.DEVNULL
+
+
 @pytest.mark.usefixtures("bartlett_dir")
 @pytest.mark.slow
 class TestHerokuLocalWrapper:
