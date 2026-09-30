@@ -836,6 +836,13 @@ def frontdoor(tmp_path):
             if get("/ad")[0] == 200:
                 break
             time.sleep(0.25)
+        # The controller may start after web; wait until parked routing works.
+        (state / "hibernating").write_text("")
+        for _ in range(40):
+            if get("/ad")[1].get("from") == "controller":
+                break
+            time.sleep(0.25)
+        (state / "hibernating").unlink()
         yield get, state, names
     finally:
         for name in names:

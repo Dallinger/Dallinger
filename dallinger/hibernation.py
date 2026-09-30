@@ -381,6 +381,7 @@ def _fetch_health(url: str) -> dict[str, Any]:
         with urlopen(Request(url, method="GET"), timeout=5) as response:
             raw = response.read().decode("utf-8")
     except HTTPError as exc:
+        exc.close()
         if exc.code >= 500:
             raise
         return {"status": "ok"}
