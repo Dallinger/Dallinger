@@ -1,5 +1,6 @@
 import importlib
 import sys
+import time
 from pathlib import Path
 from unittest import mock
 
@@ -783,7 +784,6 @@ def frontdoor(tmp_path):
     import os
     import shutil
     import subprocess
-    import time
     import urllib.error
     import urllib.request
 
@@ -832,22 +832,26 @@ def frontdoor(tmp_path):
                     time.sleep(0.25)
             raise AssertionError(f"front door never answered {path}")
 
-        for _ in range(40):
-            if get("/ad")[0] == 200:
-                break
-            time.sleep(0.25)
+        _eventually(get, "/ad", lambda result: result[0] == 200)
         # The controller may start after web; wait until parked routing works.
         (state / "hibernating").write_text("")
-        for _ in range(40):
-            if get("/ad")[1].get("from") == "controller":
-                break
-            time.sleep(0.25)
+        _eventually(get, "/ad", lambda result: result[1].get("from") == "controller")
         (state / "hibernating").unlink()
         yield get, state, names
     finally:
         for name in names:
             subprocess.run(["docker", "rm", "-f", name], capture_output=True)
         subprocess.run(["docker", "network", "rm", net], capture_output=True)
+
+
+def _eventually(get, path, predicate):
+    """Return ``get(path)`` once ``predicate`` holds; bind mounts can lag file changes."""
+    for _ in range(40):
+        result = get(path)
+        if predicate(result):
+            break
+        time.sleep(0.25)
+    return result
 
 
 def test_frontdoor_routes_awake_parked_and_missing_backend(frontdoor):
@@ -862,13 +866,16 @@ def test_frontdoor_routes_awake_parked_and_missing_backend(frontdoor):
     assert body["X-Forwarded-For"] == "203.0.113.9"
 
     (state / "hibernating").write_text("")
-    assert get("/health")[1]["from"] == "controller"
+    status, body = _eventually(
+        get, "/health", lambda result: result[1].get("from") == "controller"
+    )
+    assert body["from"] == "controller"
     assert get("/ad")[1]["from"] == "controller"
 
     (state / "hibernating").unlink()
     _docker("rm", "-f", names[0])
-    status, body = get("/ad")
-    assert (status, body) == (503, {"status": "unavailable"})
+    unavailable = (503, {"status": "unavailable"})
+    assert _eventually(get, "/ad", lambda result: result == unavailable) == unavailable
 
 
 def test_controller_project_matches_compose_normalization():
