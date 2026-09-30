@@ -626,13 +626,12 @@ Docker Deployment Configuration
     ``dallinger docker-ssh hibernate`` and ``awaken`` work even when this
     flag is false.
 
-    Leave idle sleep off for experiments that recruit replacements or
-    otherwise recruit throughout their life: sleep pauses the clock process
-    and recruiter callbacks during the gaps between participants.
-
-    Do not enable idle sleep on an experiment that is still recruiting:
-    sleep stops web, workers, the clock, Redis, and (for Cloudflare apps)
-    Postgres. A later visit starts a spinner until those services are
+    Idle sleep suits a bounded recruitment window: recruit, run the
+    session, then let the app sleep until you export. Leave it off for
+    experiments that recruit replacements or otherwise recruit throughout
+    their life: sleep stops web, workers, the clock, Redis, and (for
+    Cloudflare apps) Postgres, pausing recruiter callbacks during the gaps
+    between participants. A later visit starts a spinner until those services are
     healthy again. Expensive services use Compose ``restart: unless-stopped``.
     A host reboot brings back an app that was running. An explicit hibernate
     is a Docker stop, so those containers stay stopped across reboot and

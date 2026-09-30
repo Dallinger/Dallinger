@@ -218,10 +218,14 @@ participant, even on a quiet or WebSocket-only page. Interaction, audible
 non-looping media, or ``dallingerPresence.setWaiting(true)`` (for pages that
 wait, for example for a partner) keeps a page in use; an abandoned tab stops
 pinging one idle window after its last interaction, and pings at once when
-someone returns. A page that polls the server itself (for example PsyNet's
-waiting pages) keeps the app awake for as long as it stays open. A page that
-does not use that layout, or a WebSocket server outside Dallinger's
-``/chat`` route, must make its own requests to count as activity.
+someone returns. Dallinger's quorum waiting room marks itself as waiting.
+A page that polls the server itself (for example PsyNet's waiting pages)
+keeps the app awake for as long as it stays open. WebSocket traffic never
+counts as activity, and a WebSocket reconnect does not wake a sleeping app.
+A page that does not use the base layout must make its own requests to
+count, and the dashboard doesn't keep an app awake. Call ``setWaiting`` as
+``window.dallingerPresence && dallingerPresence.setWaiting(true)``: the
+script is loaded only while idle sleep is on.
 
 A non-page request to a sleeping app gets HTTP 503 with ``Retry-After: 5``
 and a JSON body ``{"status": "hibernating"}`` or ``{"status": "waking"}``.

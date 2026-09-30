@@ -442,6 +442,15 @@ def test_large_upload_to_a_sleeping_app_gets_the_retryable_503(tmp_path):
         server.server_close()
 
 
+def test_websocket_reconnect_does_not_wake_a_sleeping_app(tmp_path):
+    controller = _controller(tmp_path, FakeDocker([_container("web")]))
+    controller.hibernate()
+    woken = []
+    controller._wake_in_background = lambda: woken.append(True)
+    status, _, body = controller.handle_public_request("GET", "", websocket=True)
+    assert (status, json.loads(body)["status"], woken) == (503, "hibernating", [])
+
+
 def test_failed_admin_action_returns_json_error(tmp_path):
     from http.server import ThreadingHTTPServer
     from urllib.error import HTTPError

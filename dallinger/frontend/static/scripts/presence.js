@@ -21,7 +21,9 @@
   var waiting = false;
 
   function defaultSend() {
-    fetch("/presence", { method: "POST" }).catch(function () {});
+    if (typeof fetch === "function") {
+      fetch("/presence", { method: "POST" }).catch(function () {});
+    }
   }
 
   /**
@@ -91,19 +93,20 @@
       }
     }, options.intervalMs);
 
-    running = {
+    var pinger = {
       stop: function () {
         root.clearInterval(timer);
         ACTIVITY_EVENTS.forEach(function (name) {
           doc.removeEventListener(name, onActivity, { capture: true });
         });
         doc.removeEventListener("visibilitychange", onVisibilityChange);
-        if (running === this) {
+        if (running === pinger) {
           running = null;
         }
       },
     };
-    return running;
+    running = pinger;
+    return pinger;
   }
 
   root.dallingerPresence = {

@@ -306,17 +306,19 @@ class HibernationController:
             return {"status": STATE_AWAKE}
 
     def handle_public_request(
-        self, method: str = "GET", accept: str = "text/html"
+        self, method: str = "GET", accept: str = "text/html", websocket: bool = False
     ) -> tuple[int, str, bytes]:
         """Answer a visitor the front door routed here while the app is parked.
 
         Page loads get the wait page. Other requests (API calls, form posts)
         get a JSON 503, so clients do not mistake the wait page for data.
+        WebSocket reconnects from abandoned tabs do not wake the app, or it
+        would never stay asleep.
         """
         state = self.current_state()
         if state == STATE_AWAKE:
             return 503, "application/json", b'{"status":"unavailable"}'
-        if state == STATE_HIBERNATING:
+        if state == STATE_HIBERNATING and not websocket:
             self._wake_in_background()
         if method == "GET" and "text/html" in accept:
             return 200, "text/html; charset=utf-8", SPINNER_HTML.encode()
@@ -452,6 +454,9 @@ def make_handler(controller: HibernationController):
     """Return a BaseHTTPRequestHandler bound to ``controller``."""
 
     class Handler(BaseHTTPRequestHandler):
+        # A stalled client must not hold a controller thread forever.
+        timeout = 60
+
         def do_GET(self):  # noqa: N802
             self._handle()
 
@@ -477,8 +482,18 @@ def make_handler(controller: HibernationController):
                 remaining -= len(chunk)
 
         def _handle(self):
-            self._discard_body()
             path = self.path.split("?", 1)[0].rstrip("/") or "/"
+            if path not in ADMIN_PATHS and path != HEALTH_PATH:
+                # Decide, and start any wake, before reading a slow upload.
+                response = controller.handle_public_request(
+                    self.command,
+                    self.headers.get("Accept", ""),
+                    websocket=self.headers.get("Upgrade", "").lower() == "websocket",
+                )
+                self._discard_body()
+                self._write(*response)
+                return
+            self._discard_body()
             if path in ADMIN_PATHS:
                 if self.command != "POST" or not is_loopback(self.client_address[0]):
                     self._write(403, "application/json", b'{"error":"forbidden"}')
@@ -497,14 +512,8 @@ def make_handler(controller: HibernationController):
                     )
                     return
                 self._write(200, "application/json", json.dumps(payload).encode())
-            elif path == HEALTH_PATH:
-                self._write(*controller.health_response())
             else:
-                self._write(
-                    *controller.handle_public_request(
-                        self.command, self.headers.get("Accept", "")
-                    )
-                )
+                self._write(*controller.health_response())
 
         def _write(self, status, content_type, body):
             self.send_response(status)

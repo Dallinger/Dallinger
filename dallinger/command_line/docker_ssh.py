@@ -2662,7 +2662,8 @@ def _bring_up_app_containers(
         steps.append(f"{compose} up -d --no-deps --force-recreate controller")
     # Touching the access log restarts the idle quiet period.
     steps += [
-        f"touch {state_dir}/access.log 2>/dev/null; rm -f {markers}",
+        f"{{ touch {state_dir}/access.log 2>/dev/null || true; }}",
+        f"rm -f {markers}",
         f"{compose} up -d",
     ]
     if update:
