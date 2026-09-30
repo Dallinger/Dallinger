@@ -25,8 +25,6 @@
   image cannot be edited in place, and paths outside ``/experiment`` stay
   read-only for the app.
 - docker-ssh keeps each app's database password in a private
-  ``~/dallinger/<app>/.env`` instead of its ``docker-compose.yml``, makes
-  both files private (mode 0600), and ``--update`` keeps the password.
   ``~/dallinger/<app>/.env`` instead of its ``docker-compose.yml``, and makes
   both files private (mode 0600). ``--update`` keeps the database password
   and the Flask secret key, so participants' sessions survive an update.
