@@ -22,6 +22,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 STATE_AWAKE = "awake"
@@ -72,7 +73,10 @@ SPINNER_HTML = """<!DOCTYPE html>
         }
         ticks += 1;
         fetch("/health", {cache: "no-store"})
-          .then(function (response) { return response.json(); })
+          .then(function (response) {
+            // An experiment without its own /health answers with HTML.
+            return response.json().catch(function () { return {status: "ok"}; });
+          })
           .then(function (data) {
             var status = data && data.status;
             if (status === "hibernating" && ticks % 5 === 0) {
@@ -134,6 +138,10 @@ def select_project_containers(
         compose_project = str(labels.get("com.docker.compose.project") or "")
         if compose_project.lower() != str(project).lower():
             continue
+        # Leftover ``docker compose run`` containers exit at once and would
+        # make every wake time out.
+        if str(labels.get("com.docker.compose.oneoff") or "").lower() == "true":
+            continue
         service = labels.get("com.docker.compose.service") or ""
         if is_stoppable_service(service):
             selected.append(container)
@@ -149,6 +157,9 @@ class _UnixHTTPConnection(http.client.HTTPConnection):
 
     def connect(self):
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        # Longer than the 30 s stop grace period, so a hung daemon cannot
+        # hold the controller lock forever.
+        self.sock.settimeout(60)
         self.sock.connect(self.socket_path)
 
 
@@ -362,9 +373,21 @@ class HibernationController:
 
 
 def _fetch_health(url: str) -> dict[str, Any]:
-    with urlopen(Request(url, method="GET"), timeout=5) as response:
-        raw = response.read().decode("utf-8")
-    data = json.loads(raw) if raw else {}
+    """Return web's health, treating any answer below 500 as ready.
+
+    Experiment images built before Dallinger had ``/health`` answer 404.
+    """
+    try:
+        with urlopen(Request(url, method="GET"), timeout=5) as response:
+            raw = response.read().decode("utf-8")
+    except HTTPError as exc:
+        if exc.code >= 500:
+            raise
+        return {"status": "ok"}
+    try:
+        data = json.loads(raw) if raw else {}
+    except ValueError:
+        return {"status": "ok"}
     return data if isinstance(data, dict) else {"status": "ok"}
 
 
@@ -388,7 +411,7 @@ def make_handler(controller: HibernationController):
         def do_POST(self):  # noqa: N802
             self._handle()
 
-        do_PUT = do_PATCH = do_DELETE = do_POST
+        do_PUT = do_PATCH = do_DELETE = do_OPTIONS = do_POST
 
         def log_message(self, format, *args):
             return

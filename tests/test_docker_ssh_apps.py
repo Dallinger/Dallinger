@@ -118,6 +118,73 @@ def test_cloudflare_deploy_skips_root_domain_preflight(monkeypatch):
     )
 
 
+def test_root_domain_conflicts_ignore_cloudflare_apps():
+    cloudflare = docker_ssh_module.DeploymentManifest(
+        app="cf", server="lab", public_origin="https://cf.x.org", ingress="cloudflare"
+    )
+
+    class Executor:
+        def run(self, cmd, raise_=True):
+            if cmd.startswith("ls"):
+                return "classic\n/h/dallinger/cf/docker-compose.yml\n"
+            return "cf\t" + cloudflare.to_json().replace("\n", "") + "\n"
+
+    assert docker_ssh_module._host_caddy_apps(Executor()) == ["classic"]
+
+
+def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch):
+    class Executor:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def run(self, cmd, raise_=True):
+            return ""
+
+    deleted = []
+    monkeypatch.setattr(docker_ssh_module, "Executor", Executor)
+    monkeypatch.setattr(docker_ssh_module, "_check_app_slot", lambda *args: None)
+    monkeypatch.setattr(docker_ssh_module, "remove_named_volume", lambda *args: None)
+    monkeypatch.setattr(docker_ssh_module, "get_sftp", lambda *args, **kwargs: None)
+    monkeypatch.setattr(docker_ssh_module, "load_api_token", lambda config: "token")
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "ensure_experiment_tunnel",
+        lambda **kwargs: {"tunnel_id": "new", "connector_token": "secret"},
+    )
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_install_tunnel_token",
+        mock.Mock(side_effect=OSError("sftp failed")),
+    )
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "delete_experiment_tunnel",
+        lambda **kwargs: deleted.append(kwargs["own_tunnel_id"]),
+    )
+    config = {
+        "cloudflare_account_id": "acct",
+        "cloudflare_zone_id": "zone",
+        "cloudflare_dns_zone": "x.org",
+    }
+    with pytest.raises(OSError):
+        docker_ssh_module._deploy_cloudflare_in_mode(
+            archive_path=None,
+            config=config,
+            config_options={},
+            dashboard_password="pw",
+            dashboard_user="admin",
+            experiment_id="myapp",
+            experiment_uuid="uuid",
+            image_name="image",
+            mode="sandbox",
+            push_build=False,
+            server="lab",
+            server_info={"host": "lab.example"},
+            update=False,
+        )
+    assert deleted == ["new"]
+
+
 def _cloudflare_destroy(monkeypatch, removed, cloudflare=None):
     manifest = docker_ssh_module.DeploymentManifest(
         app="myapp",
@@ -418,7 +485,7 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
         ),
         mock.patch.object(
             docker_ssh_module,
-            "_discover_server_apps",
+            "_host_caddy_apps",
             side_effect=discover_apps,
         ),
         mock.patch.object(docker_ssh_module.click, "confirm", return_value=True),
@@ -914,6 +981,18 @@ def test_write_experiment_compose_env_appends_ids_and_creates_home_dirs(tmp_path
     for sub in ("dallinger-data/demo", "dallinger/demo/state", "psynet-data/assets"):
         assert (tmp_path / sub).is_dir()
     assert not (tmp_path / "docker.log").exists()
+
+
+def test_write_experiment_compose_env_reports_a_failed_chown(tmp_path, capsys):
+    (tmp_path / "dallinger" / "demo").mkdir(parents=True)
+    bin_dir = _fake_bin(tmp_path)
+    for name in ("chown", "docker"):
+        (bin_dir / name).write_text("#!/bin/bash\nexit 1\n")
+        (bin_dir / name).chmod(0o755)
+    docker_ssh_module._write_experiment_compose_env(
+        LocalExecutor(tmp_path, bin_dir), "demo"
+    )
+    assert "Warning: could not chown" in capsys.readouterr().out
 
 
 def test_remote_bind_mount_dirs_only_chowns_writable_home_subdirs():

@@ -10,8 +10,11 @@
   requests get HTTP 503. ``apps`` reports ``hibernating`` or ``waking``,
   ``export`` wakes the app first, and ``--update`` wakes a hibernating app.
   ``/health`` reports the sleep state without waking the app. Cloudflare
-  tunnels now reach the app through the front door. Deploy also chowns the
-  front door's state directory.
+  tunnels now reach the app through the front door, and for classic apps
+  ``<app>_web`` on the shared network now names the front door; web and
+  workers also wait for pgbouncer's health check. Waking treats an older
+  experiment image without ``/health`` as ready once web answers. Deploy
+  also chowns the front door's state directory.
 - docker-ssh disk cleanup prunes only stopped containers outside Compose
   projects, and the host Caddy image is pinned to ``caddy:2.10.2``.
 - docker-ssh experiment containers built from now on run as the SSH user
@@ -22,9 +25,9 @@
   image cannot be edited in place, and paths outside ``/experiment`` stay
   read-only for the app.
 - docker-ssh keeps each app's database password in a private
-  ``~/dallinger/<app>/.env`` instead of its ``docker-compose.yml``, and
-  ``--update`` keeps it. ``get_docker_compose_yml`` no longer takes
-  ``postgresql_password``.
+  ``~/dallinger/<app>/.env`` instead of its ``docker-compose.yml``, makes
+  both files private (mode 0600), and ``--update`` keeps the password.
+  ``get_docker_compose_yml`` no longer takes ``postgresql_password``.
 - docker-ssh writes a non-secret ``~/dallinger/<app>/deployment.json`` on
   deploy and ``apps`` shows the recorded ingress and origin.
   New ``docker_ssh_monitoring_kind`` and ``docker_ssh_monitoring_path``
@@ -39,7 +42,8 @@
   ``servers add --default-ingress`` sets a server's default. A fresh deploy
   refuses an app name whose tunnel already exists. Destroy stops the
   connector before deleting the DNS record and tunnel, and can be re-run if
-  that cleanup fails. ``get_docker_compose_yml`` no longer takes
+  that cleanup fails. A deploy that cannot record a new tunnel on the
+  server deletes it again. ``get_docker_compose_yml`` no longer takes
   ``executor``.
 - Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
   docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
