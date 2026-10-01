@@ -200,7 +200,7 @@ class TestSignupRace:
 
         def signup(worker_id):
             try:
-                barrier.wait()
+                barrier.wait(timeout=5)
                 statuses.append(_signup_direct(worker_id))
             except Exception as exc:
                 errors.append(exc)
@@ -282,7 +282,7 @@ class TestSignupRetryBackoff:
         def signup(idx):
             try:
                 client = app.test_client()
-                barrier.wait()
+                barrier.wait(timeout=5)
                 resp = client.post(f"/participant/worker{idx}/hit1/assign{idx}/debug")
                 results.append((resp.status_code, resp.get_json()))
             except Exception as exc:
@@ -392,6 +392,42 @@ class TestSignupRetryBackoff:
 # ---------------------------------------------------------------------------
 
 
+def run_concurrent_requests(app, urls, timeout=15):
+    """Send one POST request per URL to the app, all starting simultaneously.
+
+    Each URL gets its own HTTP client. All threads wait at a barrier until
+    every one is ready, then fire together. Returns a list of
+    (status_code, json_body) tuples in completion order.
+
+    Asserts that all threads finish (no deadlock) and that no thread raised
+    an exception.
+    """
+    barrier = threading.Barrier(len(urls))
+    results = []
+    errors = []
+
+    def post(url):
+        try:
+            client = app.test_client()
+            barrier.wait()
+            response = client.post(url)
+            results.append((response.status_code, response.get_json()))
+        except Exception as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=post, args=(url,)) for url in urls]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=timeout)
+
+    assert not any(thread.is_alive() for thread in threads), "Signup threads deadlocked"
+    assert not errors, f"Signups raised: {errors}"
+    assert len(results) == len(urls)
+
+    return results
+
+
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
 class TestSignupBehavioralInvariants:
@@ -425,8 +461,9 @@ class TestSignupBehavioralInvariants:
         This is the core problem with LOCK TABLE IN EXCLUSIVE MODE. Any open
         transaction that has written to the participant table — including a
         routine status update on an already-submitted participant — holds a
-        ROW EXCLUSIVE lock that conflicts with signup's EXCLUSIVE lock. The two operations have nothing to do
-        with each other, but one is forced to wait for the other.
+        ROW EXCLUSIVE lock that conflicts with signup's EXCLUSIVE lock. The
+        two operations have nothing to do with each other, but one is forced
+        to wait for the other.
 
         After the fix, signup acquires only a narrow occupancy lock. An
         unrelated participant update does not hold that lock, so signup
@@ -532,33 +569,15 @@ class TestSignupBehavioralInvariants:
         correct result. It exists so that future changes (including removing
         the backoff mechanism) do not accidentally break this invariant.
         """
-        n = 2
-        barrier = threading.Barrier(n)
-        results = []
-        errors = []
+        results = run_concurrent_requests(
+            slow_app,
+            [f"/participant/worker{i}/hit1/assign{i}/debug" for i in range(2)],
+            timeout=30,
+        )
 
-        def signup(idx):
-            try:
-                client = slow_app.test_client()
-                barrier.wait()
-                resp = client.post(f"/participant/worker{idx}/hit1/assign{idx}/debug")
-                results.append((resp.status_code, resp.get_json()))
-            except Exception as exc:
-                errors.append(exc)
-
-        threads = [threading.Thread(target=signup, args=(i,)) for i in range(n)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join(timeout=30)
-
-        assert not any(t.is_alive() for t in threads), "Signup threads deadlocked"
-        assert not errors, f"Signups raised: {errors}"
-        assert len(results) == n
         assert all(s == 200 for s, _ in results), (
             f"Expected HTTP 200 from all signups, got {[s for s, _ in results]}"
         )
-
         statuses = sorted(d["participant"]["status"] for _, d in results)
         assert statuses == ["overrecruited", "working"], (
             f"Expected one 'working' + one 'overrecruited', got {statuses!r}"
@@ -567,7 +586,8 @@ class TestSignupBehavioralInvariants:
     def test_concurrent_signups_at_quorum_produce_correct_result_psynet_config(
         self, slow_app, active_config
     ):
-        """Same as the test above, but with the table lock turned off.
+        """Same invariant as test_concurrent_signups_at_quorum_produce_correct_result,
+        but with the table lock disabled.
 
         PsyNet disables the table lock. This test confirms that concurrent
         signups still produce the correct result under that configuration —
@@ -575,33 +595,15 @@ class TestSignupBehavioralInvariants:
         """
         active_config.set("lock_table_when_creating_participant", False)
 
-        n = 2
-        barrier = threading.Barrier(n)
-        results = []
-        errors = []
+        results = run_concurrent_requests(
+            slow_app,
+            [f"/participant/worker{i}/hit1/assign{i}/debug" for i in range(2)],
+            timeout=30,
+        )
 
-        def signup(idx):
-            try:
-                client = slow_app.test_client()
-                barrier.wait()
-                resp = client.post(f"/participant/worker{idx}/hit1/assign{idx}/debug")
-                results.append((resp.status_code, resp.get_json()))
-            except Exception as exc:
-                errors.append(exc)
-
-        threads = [threading.Thread(target=signup, args=(i,)) for i in range(n)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join(timeout=30)
-
-        assert not any(t.is_alive() for t in threads), "Signup threads deadlocked"
-        assert not errors, f"Signups raised: {errors}"
-        assert len(results) == n
         assert all(s == 200 for s, _ in results), (
             f"Expected HTTP 200 from all signups, got {[s for s, _ in results]}"
         )
-
         statuses = sorted(d["participant"]["status"] for _, d in results)
         assert statuses == ["overrecruited", "working"], (
             f"Expected one 'working' + one 'overrecruited', got {statuses!r}"
@@ -621,29 +623,10 @@ class TestSignupBehavioralInvariants:
         The test uses slow_app (50ms sleep in create_participant) to make the
         overlap between the two threads reliable.
         """
-        n = 2
-        barrier = threading.Barrier(n)
-        results = []
-        errors = []
-
-        def signup(idx):
-            try:
-                client = slow_app.test_client()
-                barrier.wait()
-                resp = client.post(f"/participant/same-worker/hit1/assign{idx}/debug")
-                results.append((resp.status_code, resp.get_json()))
-            except Exception as exc:
-                errors.append(exc)
-
-        threads = [threading.Thread(target=signup, args=(i,)) for i in range(n)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join(timeout=15)
-
-        assert not any(t.is_alive() for t in threads), "Signup threads deadlocked"
-        assert not errors, f"Signups raised: {errors}"
-        assert len(results) == n
+        results = run_concurrent_requests(
+            slow_app,
+            [f"/participant/same-worker/hit1/assign{i}/debug" for i in range(2)],
+        )
 
         status_codes = sorted(s for s, _ in results)
         assert status_codes == [200, 403], (
@@ -656,4 +639,79 @@ class TestSignupBehavioralInvariants:
             )
         assert count == 1, (
             f"Expected one participant row for 'same-worker', got {count}."
+        )
+
+    def test_repeat_worker_id_allowed_concurrent_signups_serialized_correctly(
+        self, slow_app, active_config
+    ):
+        """When allow_repeat_worker_ids=True, two concurrent signups from the
+        same worker with different assignment IDs should both be accepted and
+        occupancy should still be serialized correctly.
+
+        This test passes today. It exists to ensure that any future change to
+        the serialization mechanism preserves both rules simultaneously:
+        repeated worker IDs are accepted when configured, but occupancy is
+        still enforced — exactly one participant is "working" and the rest are
+        "overrecruited".
+        """
+        active_config.set("allow_repeat_worker_ids", True)
+
+        results = run_concurrent_requests(
+            slow_app,
+            [f"/participant/repeat-worker/hit1/assign{i}/debug" for i in range(2)],
+        )
+
+        assert all(s == 200 for s, _ in results), (
+            f"Expected HTTP 200 from both signups, got {[s for s, _ in results]}"
+        )
+
+        with db.sessions_scope() as s:
+            count = (
+                s.query(models.Participant).filter_by(worker_id="repeat-worker").count()
+            )
+        assert count == 2, (
+            f"Expected two participant rows for 'repeat-worker', got {count}."
+        )
+
+        statuses = sorted(d["participant"]["status"] for _, d in results)
+        assert statuses == ["overrecruited", "working"], (
+            f"Expected one 'working' + one 'overrecruited' even with repeated "
+            f"worker IDs, got {statuses!r}"
+        )
+
+    def test_concurrent_reused_assignment_id_triggers_reassignment(
+        self, slow_app, active_config
+    ):
+        """When two concurrent requests arrive with different worker IDs but
+        the same assignment ID, the second serialized request should detect
+        the first participant and enqueue an AssignmentReassigned event.
+
+        This test passes today. It exists to ensure the fix does not break
+        the existing assignment-replacement behavior — regardless of how the
+        serialization mechanism is implemented, the second request must still
+        detect the already-working assignment and trigger reassignment.
+
+        The q.enqueue mock is not tied to the locking mechanism: it tests an
+        externally meaningful side effect of assignment reuse, not how the
+        serialization is achieved.
+        """
+        from dallinger.experiment_server.experiment_server import worker_function
+
+        with mock.patch("dallinger.experiment_server.experiment_server.q") as mock_q:
+            results = run_concurrent_requests(
+                slow_app,
+                [f"/participant/worker{i}/hit1/shared-assign/debug" for i in range(2)],
+            )
+
+        assert all(s == 200 for s, _ in results), (
+            f"Expected HTTP 200 from both signups, got {[s for s, _ in results]}"
+        )
+
+        # The second serialized request must detect the first participant's
+        # working assignment and enqueue exactly one AssignmentReassigned event.
+        mock_q.enqueue.assert_called_once_with(
+            worker_function,
+            "AssignmentReassigned",
+            None,
+            mock.ANY,  # the first participant's ID
         )
