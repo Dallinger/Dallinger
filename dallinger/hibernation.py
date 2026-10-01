@@ -367,6 +367,7 @@ class HibernationController:
                 return False
             if self._reason_to_stay_awake():
                 return False
+            logger.info("Idle sleep: hibernating %s", self.project)
             self.hibernate()
             return True
 
@@ -581,6 +582,7 @@ def controller_from_env() -> HibernationController:
 
 def serve_from_env() -> None:
     """Serve the controller configured from the process environment."""
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     serve_controller(controller_from_env())
 
 
