@@ -2,13 +2,17 @@ import os
 import subprocess
 import sys
 import time
+from unittest import mock
 
+import psutil
 import pytest
 
 from dallinger.db import corrected_db_url, db_url_default
 from dallinger.pytest_dallinger import (
     _heroku_processes_for_current_database,
     _is_heroku_process,
+    _uses_current_database,
+    clear_workers,
 )
 
 
@@ -34,6 +38,45 @@ from dallinger.pytest_dallinger import (
 )
 def test_is_heroku_process(cmdline, expected):
     assert _is_heroku_process(cmdline) is expected
+
+
+def test_missing_database_url_means_default_database(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    process = mock.Mock()
+    process.environ.return_value = {}
+
+    assert _uses_current_database(process)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        psutil.NoSuchProcess(123),
+        psutil.AccessDenied(123),
+        psutil.ZombieProcess(123),
+    ],
+)
+def test_unreadable_process_environment_does_not_match(error):
+    process = mock.Mock()
+    process.environ.side_effect = error
+
+    assert not _uses_current_database(process)
+
+
+def test_clear_workers_ignores_access_denied():
+    process = mock.Mock(pid=os.getpid() + 1)
+    process.terminate.side_effect = psutil.AccessDenied(process.pid)
+
+    with mock.patch(
+        "dallinger.pytest_dallinger._heroku_processes_for_current_database",
+        return_value=[process],
+    ):
+        fixture = clear_workers.__wrapped__()
+        next(fixture)
+        with pytest.raises(StopIteration):
+            next(fixture)
+
+    assert process.terminate.call_count == 2
 
 
 def _start_fake_heroku(tmp_path, database_url):

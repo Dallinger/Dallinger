@@ -123,7 +123,7 @@ def clear_workers():
             try:
                 # SIGTERM lets heroku local stop the processes it supervises.
                 process.terminate()
-            except psutil.NoSuchProcess:
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 pass
 
     _zap()
