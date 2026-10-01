@@ -641,6 +641,21 @@ class TestSimpleGETRoutes:
     def test_presence_returns_no_content(self, webapp):
         assert webapp.post("/presence").status_code == 204
 
+    def test_idle_hibernation_waits_for_recruitment_and_participants(
+        self, a, webapp, active_config
+    ):
+        def answer():
+            data = webapp.get("/idle-hibernation").json
+            return data["stay_awake"], data["reason"]
+
+        active_config.extend({"auto_recruit": False})
+        assert answer() == (False, None)
+        participant = a.participant()
+        assert answer() == (True, "participants are still working")
+        participant.status = "approved"
+        active_config.extend({"auto_recruit": True})
+        assert answer() == (True, "auto_recruit is on")
+
     @pytest.mark.parametrize(
         "settings, timings",
         [

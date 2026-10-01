@@ -307,6 +307,13 @@ def presence():
     return Response(status=204)
 
 
+@app.route("/idle-hibernation", methods=["GET"])
+def idle_hibernation():
+    """Tell the docker-ssh controller whether idle sleep may stop the app now."""
+    reason = Experiment().reason_to_stay_awake()
+    return success_response(stay_awake=reason is not None, reason=reason)
+
+
 @app.errorhandler(ExperimentError)
 def handle_exp_error(exception):
     """Handle errors by sending an error page."""

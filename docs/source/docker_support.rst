@@ -234,13 +234,8 @@ that response rather than a dropped connection. Clients that resend on this
 response (PsyNet does, for submissions) do not lose work when an app falls
 asleep under them.
 
-Idle sleep suits experiments with a bounded recruitment window: recruit,
-run the session, then let the app sleep until you export. Leave it off for
-experiments that recruit replacements or otherwise recruit throughout their
-life. Sleep stops the clock process and recruiter callbacks during the quiet
-gaps between participants, which is exactly when those experiments detect
-failures and recruit replacements. Leave idle sleep off for first canary
-deploys too.
+Before you enable idle sleep, read
+:ref:`idle-hibernation-rolling-recruitment`.
 
 ``dallinger docker-ssh apps`` reports ``hibernating`` or ``waking`` from the
 app's sleep markers. ``dallinger docker-ssh
@@ -277,8 +272,41 @@ experiment's Dallinger pin.
 
       The intended use case is a server that you provisioned exclusively for use with Dallnger.
 
+.. _idle-hibernation-rolling-recruitment:
+
+Idle hibernation and rolling recruitment
+----------------------------------------
+
+.. warning::
+
+   Do not enable idle hibernation for experiments that replace failed
+   participants or otherwise recruit reactively throughout their lifetime.
+
+   While the app sleeps, the clock process and recruiter callbacks are
+   suspended. For rolling-recruitment experiments, the quiet gaps *between*
+   participants are when the system does critical work: detecting timeouts,
+   triggering replacements, and preparing for the next arrival. Sleeping
+   during those gaps means that work never happens.
+
+   This restriction applies for the **entire lifetime** of a
+   rolling-recruitment experiment, not only during active recruitment waves.
+
+Idle hibernation suits experiments with a clearly bounded recruitment window:
+recruit N participants, run the session, recruitment ends. Once the session
+is complete the app can safely sleep until the researcher exports the data.
+Leave idle sleep off for first canary deploys too.
+
+As a backstop, the controller asks the app before each idle sleep. The app
+stays awake while ``auto_recruit`` is on, including after it is switched on
+from the dashboard, and while any participant is still ``working``, until
+the clock times out abandoned participants. The controller logs the reason,
+and deploy prints a notice when idle sleep and ``auto_recruit`` are both on.
+An experiment that recruits in other ways can add its own conditions by
+overriding ``Experiment.reason_to_stay_awake``. Images built before this
+check sleep after the quiet period regardless.
+
 SSH Authentication Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+--------------------------------
 
 **Before deploying to a server**, you must configure SSH authentication using a PEM key file.
 This is **required** for all ``dallinger docker-ssh`` commands.
@@ -301,7 +329,7 @@ Set the ``server_pem`` configuration variable in your experiment's ``config.txt`
 * Best practice: Store PEM files in ``~/.ssh/`` directory (the standard location for SSH keys)
 
 Server Prerequisites
-~~~~~~~~~~~~~~~~~~~~
+--------------------
 
 Your deployment server must meet these requirements:
 
@@ -313,7 +341,7 @@ Your deployment server must meet these requirements:
     * The user on the server needs passwordless sudo
 
 Verifying SSH Access
-~~~~~~~~~~~~~~~~~~~~~
+--------------------
 
 Before deploying, verify that you can connect to your server with your PEM key:
 
@@ -335,7 +363,7 @@ Type ``yes`` to accept and add the server to your known hosts. If you can connec
 your SSH key authentication is set up correctly and you're ready to deploy with Dallinger.
 
 Adding a Server
-~~~~~~~~~~~~~~~
+---------------
 
 Given an IP address or a DNS name of the server and a username, add the host to the list of known dallinger servers:
 

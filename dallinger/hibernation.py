@@ -8,7 +8,9 @@ State lives in two marker files in the state directory, ``hibernating`` and
 ``waking``; the front door routes to this controller while either exists. An
 app is hibernating only after ``hibernate`` or idle sleep. Idle time is
 measured from when the front door last wrote its access log, which skips
-``/health``.
+``/health``. Before an idle sleep the controller asks the app, which stays
+awake while it has work to do with nobody visiting, such as recruiting
+replacements.
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ STATE_AWAKE = "awake"
 STATE_HIBERNATING = "hibernating"
 STATE_WAKING = "waking"
 HEALTH_PATH = "/health"
+STAY_AWAKE_PATH = "/idle-hibernation"
 ACCESS_LOG_NAME = "access.log"
 STOPPABLE_SERVICES = frozenset({"web", "redis", "pgbouncer", "postgresql", "clock"})
 STOPPABLE_PREFIXES = ("worker_",)
@@ -249,6 +252,7 @@ class HibernationController:
         idle_minutes: int = 60,
         clock: Callable[[], float] = time.time,
         fetch_health: Callable[[str], dict[str, Any]] | None = None,
+        fetch_stay_awake: Callable[[str], str | None] | None = None,
         ready_timeout: float = DEFAULT_READY_TIMEOUT,
         poll_interval: float = 1.0,
     ):
@@ -260,6 +264,8 @@ class HibernationController:
         self.idle_minutes = max(int(idle_minutes), 1)
         self.clock = clock
         self.fetch_health = fetch_health or _fetch_health
+        self.fetch_stay_awake = fetch_stay_awake or _fetch_stay_awake
+        self._stay_awake_reason: str | None = None
         self.ready_timeout = max(float(ready_timeout), 0.0)
         self.poll_interval = max(float(poll_interval), 0.0)
         self.lock = threading.RLock()
@@ -350,7 +356,8 @@ class HibernationController:
         return 200, "application/json", json.dumps(payload).encode()
 
     def maybe_idle_hibernate(self) -> bool:
-        """Hibernate when idle sleep is enabled and the quiet period elapsed."""
+        """Hibernate when idle sleep is enabled, the quiet period elapsed, and
+        the app has no reason to stay awake."""
         if not self.idle_enabled:
             return False
         with self.lock:
@@ -358,8 +365,21 @@ class HibernationController:
                 return False
             if (self.clock() - self.last_activity()) / 60.0 < self.idle_minutes:
                 return False
+            if self._reason_to_stay_awake():
+                return False
             self.hibernate()
             return True
+
+    def _reason_to_stay_awake(self) -> str | None:
+        """Ask the app whether it may sleep, logging each new reason once."""
+        try:
+            reason = self.fetch_stay_awake(f"{self.web_origin}{STAY_AWAKE_PATH}")
+        except Exception as exc:
+            reason = f"the app did not answer ({exc})"
+        if reason and reason != self._stay_awake_reason:
+            logger.info("Idle sleep deferred for %s: %s", self.project, reason)
+        self._stay_awake_reason = reason
+        return reason
 
     def last_activity(self) -> float:
         """Latest non-health request seen by the front door, or quiet-period start."""
@@ -425,6 +445,25 @@ def _fetch_health(url: str) -> dict[str, Any]:
     except ValueError:
         return {"status": "ok"}
     return data if isinstance(data, dict) else {"status": "ok"}
+
+
+def _fetch_stay_awake(url: str) -> str | None:
+    """Return the app's reason to stay awake, or ``None`` if it may sleep.
+
+    Experiment images built before Dallinger had this route answer 404 and
+    keep the older behaviour of sleeping after the quiet period.
+    """
+    try:
+        with urlopen(Request(url, method="GET"), timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8") or "{}")
+    except HTTPError as exc:
+        exc.close()
+        if exc.code == 404:
+            return None
+        raise
+    if not data.get("stay_awake"):
+        return None
+    return str(data.get("reason") or "the app asked to stay awake")
 
 
 def is_loopback(host: str) -> bool:

@@ -715,13 +715,14 @@ def _cloudflare_settings(config, dns_zone=None):
     }
 
 
+def _is_true(value):
+    """Return whether a config value, possibly a CLI string, is true."""
+    return str(value).lower() in {"true", "1", "yes"}
+
+
 def _idle_settings(config_map):
     """Return idle hibernation flag and minutes from a compose/config mapping."""
-    enabled = str(config_map.get("docker_ssh_idle_hibernate", False)).lower() in {
-        "true",
-        "1",
-        "yes",
-    }
+    enabled = _is_true(config_map.get("docker_ssh_idle_hibernate", False))
     try:
         minutes = int(config_map.get("docker_ssh_idle_hibernate_minutes") or 60)
     except (TypeError, ValueError):
@@ -1582,6 +1583,11 @@ def _compose_environment(
     # ``HOST`` is set by the template; the rest are secrets the app must not get.
     for key in "host", "database_url", "heroku_auth_token", "cloudflare_api_token":
         cfg.pop(key, None)
+    if _idle_settings(cfg)[0] and _is_true(cfg.get("auto_recruit")):
+        print(
+            "Idle sleep stays off while auto_recruit is on, so the app can "
+            "replace participants who drop out."
+        )
     return cfg
 
 

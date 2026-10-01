@@ -15,6 +15,10 @@
   Non-page requests to a sleeping app get HTTP 503 with ``Retry-After`` and
   a JSON status, after the controller reads the whole request body, so
   clients can resend them safely.
+  Idle sleep is not for experiments that recruit throughout their lifetime.
+  As a backstop, the app stays awake while ``auto_recruit`` is on or any
+  participant is still working; experiments can add conditions by
+  overriding ``Experiment.reason_to_stay_awake``.
 - ``dallinger docker-ssh hibernate`` and ``awaken`` stop and restart an
   app's expensive services behind a new per-app front door and controller.
   A visitor to a hibernating app gets a wait page and wakes it; other

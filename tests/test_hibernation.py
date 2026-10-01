@@ -13,6 +13,7 @@ from dallinger.hibernation import (
     DockerEngine,
     HibernationController,
     _fetch_health,
+    _fetch_stay_awake,
     idle_loop,
     is_loopback,
     is_stoppable_service,
@@ -75,6 +76,7 @@ def _controller(tmp_path, docker, **overrides):
         idle_minutes=1,
         clock=lambda: 1_700_000_000,
         fetch_health=lambda url: {"status": "ok"},
+        fetch_stay_awake=lambda url: None,
     )
     settings.update(overrides)
     return HibernationController(**settings)
@@ -167,6 +169,65 @@ def test_idle_sleep_follows_the_access_log(tmp_path):
     now[0] += 20
     assert controller.maybe_idle_hibernate() is True
     assert controller.current_state() == "hibernating"
+
+
+def test_idle_sleep_waits_while_the_app_has_a_reason_to_stay_awake(tmp_path, caplog):
+    reasons = ["auto_recruit is on", RuntimeError("refused"), None]
+
+    def fetch(url):
+        reason = reasons[0]
+        if isinstance(reason, Exception):
+            raise reason
+        return reason
+
+    now = [1_700_000_000]
+    controller = _controller(
+        tmp_path, FakeDocker([_container("web")]), clock=lambda: now[0]
+    )
+    controller.fetch_stay_awake = fetch
+    now[0] += 61
+    with caplog.at_level("INFO", logger="dallinger.hibernation"):
+        assert controller.maybe_idle_hibernate() is False
+        assert controller.maybe_idle_hibernate() is False
+    assert caplog.text.count("auto_recruit is on") == 1
+    reasons.pop(0)
+    assert controller.maybe_idle_hibernate() is False
+    reasons.pop(0)
+    assert controller.maybe_idle_hibernate() is True
+
+
+@pytest.mark.parametrize(
+    "status, body, reason",
+    [
+        (
+            200,
+            b'{"stay_awake": true, "reason": "auto_recruit is on"}',
+            "auto_recruit is on",
+        ),
+        (200, b'{"stay_awake": false, "reason": null}', None),
+        (404, b"<html>Not found</html>", None),
+    ],
+)
+def test_fetch_stay_awake_reads_the_app_answer(status, body, reason):
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class Web(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            self.send_response(status)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Web)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/idle-hibernation"
+        assert _fetch_stay_awake(url) == reason
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def test_start_and_awaken_restart_the_quiet_period(tmp_path):
