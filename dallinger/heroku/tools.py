@@ -467,8 +467,8 @@ class HerokuLocalWrapper:
 
         signal.signal(signal.SIGALRM, _handle_timeout)
         signal.alarm(timeout_secs)
-        self._boot()
         try:
+            self._boot()
             success = self._verify_startup()
         finally:
             signal.alarm(0)

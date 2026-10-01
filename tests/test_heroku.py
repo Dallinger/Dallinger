@@ -561,10 +561,30 @@ def test_heroku_local_monitor_stops_when_output_ends():
     wrapper._process.poll.return_value = 1
     listener = mock.Mock(return_value=None)
 
+    stream = wrapper._stream()
+    assert next(stream) == "web.1 | up\n"
+    assert next(stream, None) is None
+
+    wrapper._process.stdout = io.BytesIO(b"web.1 | up\n")
     wrapper.monitor(listener)
 
     listener.assert_called_once_with("web.1 | up\n")
     assert "exit code: 1" in wrapper.out.error.call_args.args[0]
+
+
+def test_heroku_local_cancels_timeout_when_boot_fails():
+    from dallinger.heroku.tools import HerokuLocalWrapper
+
+    wrapper = HerokuLocalWrapper(mock.Mock(), mock.Mock(), env={"HOME": "/tmp"})
+    with (
+        mock.patch("dallinger.heroku.tools.signal.signal"),
+        mock.patch("dallinger.heroku.tools.signal.alarm") as alarm,
+        mock.patch.object(wrapper, "_boot", side_effect=OSError),
+        pytest.raises(OSError),
+    ):
+        wrapper.start(timeout_secs=12)
+
+    assert alarm.call_args_list == [mock.call(12), mock.call(0)]
 
 
 def test_heroku_local_does_not_inherit_stdin():
