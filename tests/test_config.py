@@ -291,6 +291,7 @@ class TestConfigurationIntegrationTests:
 
     def test_failed_reload_keeps_previous_config(self, loaded_config, monkeypatch):
         config = loaded_config
+        layer_count = len(config.data)
         resolved = config.as_dict()
 
         def fail():
@@ -299,6 +300,7 @@ class TestConfigurationIntegrationTests:
         monkeypatch.setattr(config, "load_from_environment", fail)
         with pytest.raises(ValueError):
             config.load()
+        assert len(config.data) == layer_count
         assert config.as_dict() == resolved
 
     def test_load_nested_inside_load_gives_a_complete_config(
@@ -319,10 +321,12 @@ class TestConfigurationIntegrationTests:
 
         monkeypatch.setattr(config, "load_defaults", load_defaults_after_a_nested_load)
         config.load()
-
         assert nested
-        assert len(config.data) == layer_count
         assert config.as_dict() == resolved
+
+        # Every layer of the outer load counts as loaded, so a reload replaces it.
+        config.load()
+        assert len(config.data) == layer_count
 
     def test_reload_drops_values_removed_from_a_source(
         self, loaded_config, monkeypatch

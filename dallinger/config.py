@@ -447,7 +447,7 @@ class Configuration:
         # Importing the experiment during a first load can call load() again
         # before this one finishes, so restore the outer load's list afterwards.
         outer_loading = self._loading
-        self._loading = []
+        loading = self._loading = []
         try:
             self.load_defaults(strict)
 
@@ -468,7 +468,7 @@ class Configuration:
                 )
 
             self.load_from_environment()
-            self._loaded = self._loading
+            self._loaded = loading
         finally:
             self._loading = outer_loading
         self.ready = True
