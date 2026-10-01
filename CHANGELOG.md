@@ -8,6 +8,12 @@
   Prolific when opening recruitment in debug mode; its launch message and log
   say the study is simulated and that nothing was created on Prolific.
 
+### Changed
+
+- Skipped the live MTurk integration tests, because Amazon has discontinued
+  Mechanical Turk and every call now fails with `AccessDeniedException`.
+  Mocked MTurk tests still run.
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added
