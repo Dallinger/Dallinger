@@ -48,6 +48,24 @@ class TestExperiment(Experiment):
         return "A custom dashboard for {}.".format(cls.__name__)
 
 
+class ZSlowTestExperiment(TestExperiment):
+    """TestExperiment with a deliberate 50ms pause during participant creation.
+
+    Used by concurrency tests to guarantee that both threads complete their
+    participant count before either one writes a new row, making the race
+    trigger reliably. Load with EXPERIMENT_CLASS_NAME=ZSlowTestExperiment.
+
+    The Z prefix keeps it sorted after TestExperiment so the auto-selection
+    logic in experiment.load() still picks TestExperiment for all other tests.
+    """
+
+    def create_participant(self, **kwargs):  # type: ignore[override]
+        import time
+
+        time.sleep(0.05)
+        return super().create_participant(**kwargs)
+
+
 class ZSubclassThatSortsLower(TestExperiment):
     @classmethod
     def extra_files(cls):
