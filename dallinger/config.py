@@ -31,6 +31,7 @@ import os
 import sys
 import threading
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -214,6 +215,9 @@ class Configuration:
 
     def __init__(self):
         self._load_lock = threading.RLock()
+        self._loading_layers = ContextVar(
+            f"configuration_loading_layers_{id(self)}", default=None
+        )
         self._reset()
 
     def set(self, key, value):
@@ -222,7 +226,7 @@ class Configuration:
     def clear(self):
         self._loaded = []
         self._added = []
-        self._loading = None
+        self._loading_layers.set(None)
         self.ready = False
 
     @property
@@ -288,7 +292,8 @@ class Configuration:
                     raise e
             normalized_mapping[key] = value
         layer = ConfigLayer(normalized_mapping, source)
-        target = self._added if self._loading is None else self._loading
+        loading = self._loading_layers.get()
+        target = self._added if loading is None else loading
         target.append(layer)
         return layer
 
@@ -306,7 +311,15 @@ class Configuration:
         try:
             yield self
         finally:
-            self._added = [added for added in self._added if added is not layer]
+            for layers in (
+                self._loading_layers.get(),
+                self._added,
+                self._loaded,
+            ):
+                if layers is not None:
+                    layers[:] = [
+                        candidate for candidate in layers if candidate is not layer
+                    ]
 
     changeable_params = ["auto_recruit"]
 
@@ -446,12 +459,11 @@ class Configuration:
         as runtime writes, are kept. If loading fails, the previous loaded
         layers stay in place.
         """
-        # Re-entrant: importing the experiment during a first load can call
-        # load() again before this one finishes, so the outer load's list is
-        # restored afterwards.
+        # The context-local list keeps a nested load separate while preventing
+        # writes from another thread or greenlet from becoming loaded layers.
         with self._load_lock:
-            outer_loading = self._loading
-            loading = self._loading = []
+            loading = []
+            token = self._loading_layers.set(loading)
             try:
                 self.load_defaults(strict)
 
@@ -474,7 +486,7 @@ class Configuration:
                 self.load_from_environment()
                 self._loaded = loading
             finally:
-                self._loading = outer_loading
+                self._loading_layers.reset(token)
             self.ready = True
 
     def register_extra_parameters(self):
