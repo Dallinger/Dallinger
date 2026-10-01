@@ -15,11 +15,20 @@ from dallinger.pytest_dallinger import (
 @pytest.mark.parametrize(
     "cmdline, expected",
     [
-        (["/usr/local/lib/heroku/bin/node", "/usr/local/lib/heroku/bin/run"], True),
+        (
+            [
+                "/usr/local/lib/heroku/bin/node",
+                "/usr/local/lib/heroku/bin/run",
+                "local",
+            ],
+            True,
+        ),
         (["heroku", "local", "-p", "5000"], True),
         (["/bin/sh", "-c", "dallinger_heroku_web"], True),
         (["/venv/bin/python", "/venv/bin/dallinger_heroku_worker"], True),
         (["python", "-m", "pytest", "tests/test_heroku.py"], False),
+        (["git", "push", "heroku", "main"], False),
+        (["heroku", "logs", "--tail"], False),
         ([], False),
     ],
 )
