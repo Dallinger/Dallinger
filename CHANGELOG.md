@@ -17,6 +17,11 @@
   also no longer reloads an already loaded configuration.
   `Configuration.data` is now a read-only tuple of layers, newest first; use
   `extend()`, `set()` or `override()` to change the configuration.
+### Changed
+
+- Skipped the live MTurk integration tests, because Amazon has discontinued
+  Mechanical Turk and every call now fails with `AccessDeniedException`.
+  Mocked MTurk tests still run.
 
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
