@@ -66,7 +66,8 @@ PARTICIPANT_SIGNUP_LOCK_KEY = 7759314749901988
 
 # Maximum time to wait for the signup advisory lock before giving up.
 # Protection against a wedged holder blocking all signups indefinitely.
-# Transaction-local; does not affect other statements or connections.
+# Transaction-local; applies to lock waits for the remainder of this
+# signup transaction, but does not affect other connections.
 PARTICIPANT_SIGNUP_LOCK_TIMEOUT = "30s"
 
 

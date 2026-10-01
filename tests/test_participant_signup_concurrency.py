@@ -43,6 +43,7 @@ from unittest import mock
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 
 from dallinger import db, models
 
@@ -239,22 +240,24 @@ class TestSignupBehavioralInvariants:
         holder.start()
         assert lock_acquired.wait(timeout=5), "Lock-holder thread did not start"
 
-        timed_out = False
-        with mock.patch.object(server_mod, "PARTICIPANT_SIGNUP_LOCK_TIMEOUT", "200ms"):
-            with db.engine.connect() as conn:
-                try:
-                    with conn.begin():
-                        server_mod.acquire_participant_signup_lock(conn)
-                except Exception:
-                    timed_out = True
+        try:
+            with mock.patch.object(
+                server_mod, "PARTICIPANT_SIGNUP_LOCK_TIMEOUT", "200ms"
+            ):
+                with pytest.raises(OperationalError) as exc_info:
+                    with db.engine.connect() as conn:
+                        with conn.begin():
+                            server_mod.acquire_participant_signup_lock(conn)
 
-        release_lock.set()
-        holder.join(timeout=5)
+            assert getattr(exc_info.value.orig, "pgcode", None) == "55P03", (
+                "Expected PostgreSQL lock_not_available (55P03), "
+                f"got {getattr(exc_info.value.orig, 'pgcode', None)!r}"
+            )
+        finally:
+            release_lock.set()
+            holder.join(timeout=5)
 
-        assert timed_out, (
-            "acquire_participant_signup_lock did not time out while the lock was "
-            "held. A wedged holder can block all signups indefinitely."
-        )
+        assert not holder.is_alive(), "Lock-holder thread did not terminate"
 
     def test_concurrent_signups_at_quorum_produce_correct_result(self, slow_app):
         """Two concurrent signups at quorum=1 produce exactly one 'working'
