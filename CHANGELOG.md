@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added a `jquery` block inside the `libs` block of `base/layout.html`.
+  Templates that already load jQuery in `<head>` can override it with an
+  empty block instead of loading jQuery a second time, which replaced the
+  first copy and dropped the jQuery plugins registered on it.
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added
