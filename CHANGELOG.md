@@ -9,8 +9,12 @@
   time, and each `Configuration.load()` added config layers that every later
   lookup had to sort. `load()` is now idempotent: calling it again replaces
   the layers from the previous load, so values removed from a config file or
-  the environment no longer linger. `ProlificRecruiter` also no longer
-  reloads an already loaded configuration.
+  the environment no longer linger, while values added with `extend()`,
+  `set()` or `override()` are kept. A `load()` that fails leaves the previous
+  configuration in place. `ProlificRecruiter` also no longer reloads an
+  already loaded configuration. `Configuration.data` is now a read-only list
+  of layers, newest first; changing that list no longer changes the
+  configuration, so use `extend()`, `set()` or `override()` instead.
 
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
