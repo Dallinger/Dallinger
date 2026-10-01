@@ -1434,18 +1434,18 @@ class TestSetupExperimentAdditional:
             _, _ = setup_experiment(log=mock.Mock())
 
         assert len(warn.mock_calls) >= 1
-        e = warn.mock_calls[0][1][0]
-        assert "EXPERIMENT_CLASS_NAME" in str(e)
-        assert (
-            "Picking TestExperiment from ['TestExperiment', 'ZSubclassThatSortsLower']"
-            in str(e)
-        )
+        message = str(warn.mock_calls[0][1][0])
+
+        assert "EXPERIMENT_CLASS_NAME" in message
+        assert "More than one potential experiment class found" in message
+        assert "Picking TestExperiment" in message
+        assert "ZSubclassThatSortsLower" in message
 
         # No warning raised if we set the variable
         try:
             os.environ["EXPERIMENT_CLASS_NAME"] = "ZSubclassThatSortsLower"
             with mock.patch("warnings.warn") as warn:
-                exp_id, dst = setup_experiment(log=mock.Mock())
+                _, _ = setup_experiment(log=mock.Mock())
             assert len(warn.mock_calls) == 0
         finally:
             del os.environ["EXPERIMENT_CLASS_NAME"]
