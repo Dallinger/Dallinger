@@ -12,8 +12,9 @@
   fix replaces both the table lock and `@db.serialized` on this route with a
   PostgreSQL transaction-level advisory lock (`pg_advisory_xact_lock`) that
   serializes signup decisions without interfering with unrelated participant
-  writes. The `lock_table_when_creating_participant` configuration option is
-  now ignored; the advisory lock is always used.
+  writes. A 30-second `lock_timeout` prevents a wedged holder from blocking
+  all signups indefinitely. The `lock_table_when_creating_participant`
+  configuration option is now ignored; the advisory lock is always used.
 
 ### Changed
 

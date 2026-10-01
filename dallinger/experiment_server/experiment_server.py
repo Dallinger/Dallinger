@@ -64,6 +64,11 @@ WAITING_ROOM_CHANNEL = "quorum"
 # The lock is automatically released when the transaction commits or rolls back.
 PARTICIPANT_SIGNUP_LOCK_KEY = 7759314749901988
 
+# Maximum time to wait for the signup advisory lock before giving up.
+# Protection against a wedged holder blocking all signups indefinitely.
+# Transaction-local; does not affect other statements or connections.
+PARTICIPANT_SIGNUP_LOCK_TIMEOUT = "30s"
+
 
 def acquire_participant_signup_lock(connection):
     """Block until this transaction owns participant-signup decisions.
@@ -71,7 +76,13 @@ def acquire_participant_signup_lock(connection):
     Uses a PostgreSQL transaction-level advisory lock, which is automatically
     released when the surrounding transaction commits or rolls back. Blocking
     (not NOWAIT) so concurrent signups queue rather than fail.
+
+    Raises if the lock cannot be acquired within PARTICIPANT_SIGNUP_LOCK_TIMEOUT,
+    preventing a wedged holder from blocking all signups indefinitely.
     """
+    connection.execute(
+        text(f"SET LOCAL lock_timeout = '{PARTICIPANT_SIGNUP_LOCK_TIMEOUT}'")
+    )
     connection.execute(
         text("SELECT pg_advisory_xact_lock(:key)"),
         {"key": PARTICIPANT_SIGNUP_LOCK_KEY},
@@ -920,6 +931,8 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
     # assignment checks, occupancy count, and insert) through one advisory lock.
     # Under READ COMMITTED, a request that waits here sees earlier signups'
     # committed changes in the queries it executes after acquiring the lock.
+    # The critical section intentionally includes exp.create_participant() so
+    # that subclass overrides operate on consistent participant state.
     acquire_participant_signup_lock(connection)
 
     if (
