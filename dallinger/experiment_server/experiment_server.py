@@ -64,6 +64,20 @@ WAITING_ROOM_CHANNEL = "quorum"
 # The lock is automatically released when the transaction commits or rolls back.
 PARTICIPANT_SIGNUP_LOCK_KEY = 7759314749901988
 
+
+def acquire_participant_signup_lock(connection):
+    """Block until this transaction owns participant-signup decisions.
+
+    Uses a PostgreSQL transaction-level advisory lock, which is automatically
+    released when the surrounding transaction commits or rolls back. Blocking
+    (not NOWAIT) so concurrent signups queue rather than fail.
+    """
+    connection.execute(
+        text("SELECT pg_advisory_xact_lock(:key)"),
+        {"key": PARTICIPANT_SIGNUP_LOCK_KEY},
+    )
+
+
 app = Flask("Experiment_Server")
 
 
@@ -895,16 +909,18 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         msg = "/participant POST: required values were 'undefined'"
         return error_response(error_type=msg, status=403)
 
+    session.remove()
+    connection = session.connection(
+        execution_options={"isolation_level": "READ COMMITTED"}
+    )
+
     exp = Experiment()
 
-    # Serialize all participant-creation decisions (worker check, occupancy count,
-    # insert) through a single advisory lock. READ COMMITTED isolation means each
-    # statement sees rows committed before it began, so the second signup correctly
-    # observes the first signup's committed INSERT when it runs its COUNT.
-    session.execute(
-        text("SELECT pg_advisory_xact_lock(:key)"),
-        {"key": PARTICIPANT_SIGNUP_LOCK_KEY},
-    )
+    # Serialize all participant-state decisions involved in signup (worker and
+    # assignment checks, occupancy count, and insert) through one advisory lock.
+    # Under READ COMMITTED, a request that waits here sees earlier signups'
+    # committed changes in the queries it executes after acquiring the lock.
+    acquire_participant_signup_lock(connection)
 
     if (
         fingerprint_hash
