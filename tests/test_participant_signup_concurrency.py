@@ -1,5 +1,4 @@
-"""Tests for the two problems with how Dallinger currently handles two
-people signing up at the same time.
+"""Tests for concurrency problems in Dallinger participant signup.
 
 Test structure
 --------------
@@ -26,6 +25,41 @@ Permanent behavioral regression suite (keep forever):
     These tests do not care whether the eventual fix uses a mutex row,
     advisory locks, SELECT FOR UPDATE, or something else. They should
     remain green after any future refactoring of the serialization strategy.
+
+The two problems
+----------------
+
+Write-skew — both threads read occupancy before either writes:
+
+  Thread A                   Thread B              DB rows
+  ──────────────────────────────────────────────────────────
+  COUNT → 0; nonfailed = 1
+                             COUNT → 0; nonfailed = 1
+  sleep(50ms)                sleep(50ms)
+  INSERT participant A
+                             INSERT participant B
+  is_overrecruited(1)? No → "working"               1 row
+                             is_overrecruited(1)? No → "working"
+  COMMIT                                            2 rows  ← bug
+                             COMMIT
+
+  Fix: hold a narrow occupancy lock across the read→write. Thread B
+  waits to acquire it; once Thread A commits and releases the lock,
+  Thread B acquires it, its COUNT sees the new row, gets nonfailed = 2,
+  and is correctly marked "overrecruited".
+
+Unrelated-write interference — LOCK TABLE EXCLUSIVE blocks all writes:
+
+  Thread A (status update)   Thread B (POST /participant)
+  ──────────────────────────────────────────────────────────
+  UPDATE row; flush → ROW EXCLUSIVE held
+                             LOCK TABLE EXCLUSIVE NOWAIT → fails
+  [waiting]                    → sleep ~2s; retry → fails; retry ...
+  rollback (lock released)
+                             retry eventually succeeds (slowly)
+
+  Fix: signup acquires only a narrow occupancy lock, compatible with
+  Thread A's row-level lock.
 """
 
 import os
@@ -92,7 +126,7 @@ def _signup_direct(worker_id):
 
     Note: this is a reproducer. It does not include the route's "has this
     worker already participated?" check. For tests that exercise the full
-    production path, see TestSignupTiming.
+    production path, see TestSignupBehavioralInvariants.
     """
     session = db.session
     try:
@@ -144,7 +178,7 @@ class TestSignupRace:
     This is a reproducer. It demonstrates that the occupancy logic is unsafe
     without a mutex, but it does not verify that Dallinger's signup route
     actually uses one. For regression tests that exercise the full route, see
-    TestSignupTiming.
+    TestSignupBehavioralInvariants.
     """
 
     def test_concurrent_signups_at_quorum_produce_one_working_one_overrecruited(
@@ -233,7 +267,7 @@ class TestSignupRetryBackoff:
 
     def _run_concurrent_signups(self, app, n=2):
         """Send n signup requests to the server at the same time and return
-        how long it took, what each request returned, and any errors.
+        what each request returned and any errors.
 
         Each thread gets its own HTTP client so their internal state does not
         interfere with each other. All threads wait at a barrier until every
@@ -254,17 +288,15 @@ class TestSignupRetryBackoff:
             except Exception as exc:
                 errors.append(exc)
 
-        start = time.perf_counter()
         threads = [threading.Thread(target=signup, args=(i,)) for i in range(n)]
         for t in threads:
             t.start()
         for t in threads:
             t.join(timeout=15)
-        elapsed = time.perf_counter() - start
 
         assert not any(t.is_alive() for t in threads), "Signup threads deadlocked"
 
-        return elapsed, results, errors
+        return results, errors
 
     def test_contended_signups_complete_without_retry_backoff(
         self, slow_app, active_config
@@ -290,7 +322,7 @@ class TestSignupRetryBackoff:
         """
         n = 5
         with mock.patch("dallinger.db.random.expovariate", return_value=0) as backoff:
-            elapsed, results, errors = self._run_concurrent_signups(slow_app, n=n)
+            results, errors = self._run_concurrent_signups(slow_app, n=n)
 
         assert not errors, f"Signups raised: {errors}"
         assert len(results) == n
@@ -315,20 +347,17 @@ class TestSignupRetryBackoff:
 
         PsyNet (a system built on top of Dallinger) disables the table lock
         because it caused deadlocks in their setup. With the table lock off,
-        Dallinger falls back to relying entirely on Postgres's SERIALIZABLE
-        isolation mode to detect collisions. That detection is also unreliable
-        here, and the same retry-and-backoff path is still present, so this
-        test fails today for the same reason as the default configuration.
+        Dallinger relies on SERIALIZABLE conflicts to abort and retry
+        overlapping signups. The conflict detection works, but using
+        transaction abort/retry as the normal serialization mechanism is what
+        makes this test fail today: the retry-and-backoff path is still
+        triggered.
 
-        This variant uses 5 threads instead of 2. With 2 threads, Python's
-        GIL (the internal lock that only lets one thread run Python code at a
-        time) sometimes lets one thread complete its entire signup (read the
-        participant count, sleep 50ms, insert, commit) before the other
-        thread has even read the count. That natural sequencing avoids the
-        collision and makes the test pass by luck. With 5 threads all sleeping
-        simultaneously after their count reads, it is essentially guaranteed
-        that multiple threads overlap and collide, triggering retries and the
-        backoff.
+        This variant uses 5 threads instead of 2. With only 2 threads,
+        scheduling can sometimes allow one signup to complete before the other
+        reaches the conflicting database operation. No collision is detected
+        and no retry is triggered. With 5 threads all starting together,
+        collisions are essentially guaranteed.
 
         After the fix, all 5 threads queue up on the occupancy row lock and
         proceed one at a time. Each holds the lock for roughly 50ms (the
@@ -339,7 +368,7 @@ class TestSignupRetryBackoff:
 
         n = 5
         with mock.patch("dallinger.db.random.expovariate", return_value=0) as backoff:
-            elapsed, results, errors = self._run_concurrent_signups(slow_app, n=n)
+            results, errors = self._run_concurrent_signups(slow_app, n=n)
 
         assert not errors, f"Signups raised: {errors}"
         assert len(results) == n
@@ -355,58 +384,6 @@ class TestSignupRetryBackoff:
         assert backoff.call_count == 0, (
             f"expovariate was called {backoff.call_count} time(s) (PsyNet config). "
             f"Signups are still going through the retry/backoff path."
-        )
-
-    def test_concurrent_signups_same_worker_id_rejected(self, slow_app, active_config):
-        """When the same worker signs up twice at the same moment, exactly one
-        should succeed (HTTP 200) and the other should be turned away (HTTP
-        403), with only one participant row in the database.
-
-        Unlike the backoff tests above, this one passes today. Dallinger's
-        retry path already produces the right answer: the second thread sees
-        the first thread's committed row on retry and returns 403. The test
-        exists to make sure the fix does not accidentally break this behavior —
-        specifically, that the already_participated check still fires correctly
-        when the second thread proceeds after waiting on the occupancy lock.
-
-        The test uses slow_app (50ms sleep in create_participant) to make the
-        overlap between the two threads reliable.
-        """
-        n = 2
-        barrier = threading.Barrier(n)
-        results = []
-        errors = []
-
-        def signup(idx):
-            try:
-                client = slow_app.test_client()
-                barrier.wait()
-                resp = client.post(f"/participant/same-worker/hit1/assign{idx}/debug")
-                results.append((resp.status_code, resp.get_json()))
-            except Exception as exc:
-                errors.append(exc)
-
-        threads = [threading.Thread(target=signup, args=(i,)) for i in range(n)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join(timeout=15)
-
-        assert not any(t.is_alive() for t in threads), "Signup threads deadlocked"
-        assert not errors, f"Signups raised: {errors}"
-        assert len(results) == n
-
-        status_codes = sorted(s for s, _ in results)
-        assert status_codes == [200, 403], (
-            f"Expected one 200 and one 403, got {status_codes!r}."
-        )
-
-        with db.sessions_scope() as s:
-            count = (
-                s.query(models.Participant).filter_by(worker_id="same-worker").count()
-            )
-        assert count == 1, (
-            f"Expected one participant row for 'same-worker', got {count}."
         )
 
 
@@ -433,10 +410,10 @@ class TestSignupBehavioralInvariants:
     correctness coverage.
 
     The exception is test_signup_not_blocked_by_unrelated_participant_update,
-    which fails today: LOCK TABLE IN EXCLUSIVE MODE blocks ALL activity on the
-    participant table, including writes from unrelated operations. An update to
-    a submitted participant's status should not prevent a new person from
-    signing up.
+    which fails today: LOCK TABLE IN EXCLUSIVE MODE blocks concurrent writes
+    on the participant table, including writes from unrelated operations. An
+    update to a submitted participant's status should not prevent a new person
+    from signing up.
     """
 
     def test_signup_not_blocked_by_unrelated_participant_update(
@@ -446,14 +423,25 @@ class TestSignupBehavioralInvariants:
         has a participant row locked.
 
         This is the core problem with LOCK TABLE IN EXCLUSIVE MODE. Any open
-        transaction that has touched the participant table — including a routine
-        status update on an already-submitted participant — holds a table-level
-        lock that blocks the next signup. The two operations have nothing to do
+        transaction that has written to the participant table — including a
+        routine status update on an already-submitted participant — holds a
+        ROW EXCLUSIVE lock that conflicts with signup's EXCLUSIVE lock. The two operations have nothing to do
         with each other, but one is forced to wait for the other.
 
         After the fix, signup acquires only a narrow occupancy lock. An
         unrelated participant update does not hold that lock, so signup
         proceeds without waiting.
+
+        Today (LOCK TABLE IN EXCLUSIVE MODE):
+          Thread A: UPDATE existing row, flush → holds ROW EXCLUSIVE
+          Thread B: LOCK TABLE EXCLUSIVE NOWAIT → fails ✗
+                    → sleep ~2s, retry, fail ✗, sleep, retry ...
+                    (blocked until Thread A's transaction ends)
+
+        After fix (narrow occupancy lock):
+          Thread A: UPDATE existing row, flush → holds ROW EXCLUSIVE
+          Thread B: occupancy lock ✓ → INSERT → COMMIT
+                    (Thread A's row lock does not conflict)
 
         The assertion here is causal, not timing: signup_done is an event that
         is only set when the signup thread finishes. We assert that it fires
@@ -522,6 +510,8 @@ class TestSignupBehavioralInvariants:
         ta.join(timeout=5)
         tb.join(timeout=5)
 
+        assert not ta.is_alive(), "Blocking transaction thread did not terminate"
+        assert not tb.is_alive(), "Signup thread did not terminate"
         assert not blocker_error, f"Hold-transaction thread failed: {blocker_error}"
         assert not signup_error, f"Signup raised: {signup_error}"
         assert completed, (
@@ -615,4 +605,55 @@ class TestSignupBehavioralInvariants:
         statuses = sorted(d["participant"]["status"] for _, d in results)
         assert statuses == ["overrecruited", "working"], (
             f"Expected one 'working' + one 'overrecruited', got {statuses!r}"
+        )
+
+    def test_concurrent_signups_same_worker_id_rejected(self, slow_app, active_config):
+        """When the same worker signs up twice at the same moment, exactly one
+        should succeed (HTTP 200) and the other should be turned away (HTTP
+        403), with only one participant row in the database.
+
+        This test passes today: Dallinger's retry path produces the right
+        answer. The test exists to ensure that any future change to the
+        serialization mechanism does not break this invariant — regardless of
+        how the second request is held back, the duplicate check must still
+        reject it.
+
+        The test uses slow_app (50ms sleep in create_participant) to make the
+        overlap between the two threads reliable.
+        """
+        n = 2
+        barrier = threading.Barrier(n)
+        results = []
+        errors = []
+
+        def signup(idx):
+            try:
+                client = slow_app.test_client()
+                barrier.wait()
+                resp = client.post(f"/participant/same-worker/hit1/assign{idx}/debug")
+                results.append((resp.status_code, resp.get_json()))
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=signup, args=(i,)) for i in range(n)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=15)
+
+        assert not any(t.is_alive() for t in threads), "Signup threads deadlocked"
+        assert not errors, f"Signups raised: {errors}"
+        assert len(results) == n
+
+        status_codes = sorted(s for s, _ in results)
+        assert status_codes == [200, 403], (
+            f"Expected one 200 and one 403, got {status_codes!r}."
+        )
+
+        with db.sessions_scope() as s:
+            count = (
+                s.query(models.Participant).filter_by(worker_id="same-worker").count()
+            )
+        assert count == 1, (
+            f"Expected one participant row for 'same-worker', got {count}."
         )
