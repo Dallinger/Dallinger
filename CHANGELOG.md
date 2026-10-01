@@ -6,7 +6,11 @@
 
 - Fixed Prolific experiments slowing down as a server handles more
   requests. Creating a `ProlificRecruiter` reloaded the configuration each
-  time, adding config layers that every later lookup had to sort.
+  time, and each `Configuration.load()` added config layers that every later
+  lookup had to sort. `load()` is now idempotent: calling it again replaces
+  the layers from the previous load, so values removed from a config file or
+  the environment no longer linger. `ProlificRecruiter` also no longer
+  reloads an already loaded configuration.
 
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 

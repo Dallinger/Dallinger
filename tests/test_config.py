@@ -268,6 +268,51 @@ class TestConfigurationIntegrationTests:
         config.register_extra_parameters()
         config.load_from_file(LOCAL_CONFIG)
 
+    @pytest.fixture
+    def loaded_config(self, monkeypatch):
+        """A real, loaded global config in place of the stubbed one."""
+        import dallinger.config
+
+        monkeypatch.setattr(dallinger.config, "config", None)
+        return get_config(load=True)
+
+    def test_repeated_load_does_not_accumulate_layers(self, loaded_config):
+        config = loaded_config
+        layer_count = len(config.data)
+        resolved = config.as_dict()
+
+        with config.override({"title": "overridden"}):
+            for _ in range(50):
+                config.load()
+            assert config.get("title") == "overridden"
+
+        assert len(config.data) == layer_count
+        assert config.as_dict() == resolved
+
+    def test_failed_reload_keeps_previous_config(self, loaded_config, monkeypatch):
+        config = loaded_config
+        resolved = config.as_dict()
+
+        def fail():
+            raise ValueError("unreadable source")
+
+        monkeypatch.setattr(config, "load_from_environment", fail)
+        with pytest.raises(ValueError):
+            config.load()
+        assert config.as_dict() == resolved
+
+    def test_reload_drops_values_removed_from_a_source(
+        self, loaded_config, monkeypatch
+    ):
+        config = loaded_config
+        monkeypatch.setenv("title", "from_environment")
+        config.load()
+        assert config.get("title") == "from_environment"
+
+        monkeypatch.delenv("title")
+        config.load()
+        assert config.get("title") != "from_environment"
+
     def test_write_omits_sensitive_keys_if_filter_sensitive(self, in_tempdir):
         config = get_config()
         config.set("aws_region", "some region")

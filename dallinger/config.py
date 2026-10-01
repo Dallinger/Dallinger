@@ -11,6 +11,10 @@ lowest to highest:
 6. Environment variables
 7. Runtime writes (``config.set()``, ``config.extend()``, ``config.override()``)
 
+Each call to :meth:`Configuration.load` re-reads sources 1 to 6 and replaces
+what the previous call loaded. Values added with ``extend()``, ``set()`` or
+``override()`` are kept across reloads.
+
 After an experiment package has been initialized (see
 :func:`initialize_experiment_package`), its directory is used when the
 process changes into a non-experiment directory. A current working
@@ -25,7 +29,6 @@ import json
 import logging
 import os
 import sys
-from collections import deque
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -192,6 +195,18 @@ class ConfigLayer(dict):
 
 
 class Configuration:
+    """Experiment configuration, resolved from layers tagged with their source.
+
+    Layers come in two groups. :meth:`load` builds the *loaded* layers from
+    defaults, config files and the environment, and replaces the previous
+    loaded layers in one step, so calling it again is idempotent and a load
+    that fails leaves the previous configuration in place. Layers added any
+    other way (:meth:`extend`, :meth:`set`, :meth:`override`, or
+    :meth:`load_from_file` called directly) are *added* layers: they survive
+    reloads and count as newer than loaded layers of the same source.
+    :meth:`get` resolves a key across both groups by source priority.
+    """
+
     SUPPORTED_TYPES = {bytes, str, int, float, bool}
     _experiment_params_loaded = False
     _module_params_loaded = False
@@ -203,8 +218,15 @@ class Configuration:
         return self.extend({key: value})
 
     def clear(self):
-        self.data = deque()
+        self._loaded = []
+        self._added = []
+        self._loading = None
         self.ready = False
+
+    @property
+    def data(self):
+        """All layers, newest first."""
+        return list(reversed(self._loaded + self._added))
 
     def _reset(self, register_defaults=False):
         self.clear()
@@ -263,7 +285,10 @@ class Configuration:
                     e.dallinger_config_value = value
                     raise e
             normalized_mapping[key] = value
-        self.data.extendleft([ConfigLayer(normalized_mapping, source)])
+        layer = ConfigLayer(normalized_mapping, source)
+        target = self._added if self._loading is None else self._loading
+        target.append(layer)
+        return layer
 
     def _layers_by_priority(self):
         """Return layers ordered highest-priority first.
@@ -275,9 +300,11 @@ class Configuration:
 
     @contextmanager
     def override(self, *args, **kwargs):
-        self.extend(*args, **kwargs)
-        yield self
-        self.data.popleft()
+        layer = self.extend(*args, **kwargs)
+        try:
+            yield self
+        finally:
+            self._added = [added for added in self._added if added is not layer]
 
     changeable_params = ["auto_recruit"]
 
@@ -409,23 +436,39 @@ class Configuration:
         self.load_from_file(global_config, strict, source=ConfigSource.USER_CONFIG)
 
     def load(self, strict=True):
-        self.load_defaults(strict)
+        """Load configuration from defaults, config files and the environment.
 
-        if experiment_available():
-            self.load_experiment_config_settings()
+        Calling ``load()`` again re-reads these sources and replaces the
+        previously loaded layers, so repeated loads neither accumulate layers
+        nor keep values that were removed from a source. Added layers, such
+        as runtime writes, are kept. If loading fails, the previous loaded
+        layers stay in place.
+        """
+        outer_loading = self._loading
+        self._loading = []
+        try:
+            self.load_defaults(strict)
 
-        # Load config.txt from the experiment's directory, so processes
-        # that changed their working directory still resolve the same
-        # configuration (and unrelated config.txt files in the current
-        # directory cannot shadow the experiment's). Outside an experiment,
-        # fall back to the current directory.
-        local_config = os.path.join(experiment_directory() or os.getcwd(), LOCAL_CONFIG)
-        if os.path.exists(local_config):
-            self.load_from_file(
-                local_config, strict, source=ConfigSource.EXPERIMENT_CONFIG
+            if experiment_available():
+                self.load_experiment_config_settings()
+
+            # Load config.txt from the experiment's directory, so processes
+            # that changed their working directory still resolve the same
+            # configuration (and unrelated config.txt files in the current
+            # directory cannot shadow the experiment's). Outside an experiment,
+            # fall back to the current directory.
+            local_config = os.path.join(
+                experiment_directory() or os.getcwd(), LOCAL_CONFIG
             )
+            if os.path.exists(local_config):
+                self.load_from_file(
+                    local_config, strict, source=ConfigSource.EXPERIMENT_CONFIG
+                )
 
-        self.load_from_environment()
+            self.load_from_environment()
+            self._loaded = self._loading
+        finally:
+            self._loading = outer_loading
         self.ready = True
 
     def register_extra_parameters(self):

@@ -1024,7 +1024,7 @@ def prolific_service_from_config(strict=False):  #
     from dallinger.prolific import ProlificService
 
     config = get_config()
-    # Recruiters are built per request; reloading would stack config layers.
+    # Recruiters are built per request; don't re-read config files each time.
     if not config.ready:
         config.load(strict=strict)
     return ProlificService(
