@@ -464,7 +464,7 @@ class TestProlificRecruiter:
         assert result["message"] == "Study created on Prolific"
 
     def test_dev_recruiter_open_recruitment_says_study_is_simulated(
-        self, prolificservice, hit_id_store, active_config
+        self, hit_id_store, active_config, caplog
     ):
         from dallinger.recruiters import DevProlificRecruiter
 
@@ -472,11 +472,16 @@ class TestProlificRecruiter:
             "dallinger.recruiters.get_base_url", return_value="http://fake-domain"
         ):
             recruiter = DevProlificRecruiter(store=hit_id_store)
-        recruiter.prolificservice = prolificservice
 
-        result = recruiter.open_recruitment(n=5)
+        with caplog.at_level("INFO", logger="dallinger.prolific"):
+            result = recruiter.open_recruitment(n=5)
 
-        assert "nothing was created on Prolific" in result["message"]
+        expected = (
+            "Prolific study simulated in debug mode; nothing was created on Prolific"
+        )
+        assert result["message"] == expected
+        assert f"{expected}." in caplog.messages
+        assert "Created unpublished draft study" not in caplog.text
 
     def test_open_recruitment_with_publication_suppressed(self, recruiter):
         recruiter.config["publish_experiment"] = False
