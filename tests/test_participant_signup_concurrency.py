@@ -42,6 +42,7 @@ import threading
 from unittest import mock
 
 import pytest
+from sqlalchemy import text
 
 from dallinger import db, models
 
@@ -216,6 +217,44 @@ class TestSignupBehavioralInvariants:
             "should not block signup."
         )
         assert signup_result.get("status_code") == 200
+
+    def test_advisory_lock_times_out_if_holder_hangs(self):
+        """A blocked advisory lock times out instead of waiting indefinitely."""
+        import dallinger.experiment_server.experiment_server as server_mod
+
+        lock_acquired = threading.Event()
+        release_lock = threading.Event()
+
+        def hold_lock():
+            with db.engine.connect() as conn:
+                with conn.begin():
+                    conn.execute(
+                        text("SELECT pg_advisory_xact_lock(:key)"),
+                        {"key": server_mod.PARTICIPANT_SIGNUP_LOCK_KEY},
+                    )
+                    lock_acquired.set()
+                    release_lock.wait(timeout=10)
+
+        holder = threading.Thread(target=hold_lock, daemon=True)
+        holder.start()
+        assert lock_acquired.wait(timeout=5), "Lock-holder thread did not start"
+
+        timed_out = False
+        with mock.patch.object(server_mod, "PARTICIPANT_SIGNUP_LOCK_TIMEOUT", "200ms"):
+            with db.engine.connect() as conn:
+                try:
+                    with conn.begin():
+                        server_mod.acquire_participant_signup_lock(conn)
+                except Exception:
+                    timed_out = True
+
+        release_lock.set()
+        holder.join(timeout=5)
+
+        assert timed_out, (
+            "acquire_participant_signup_lock did not time out while the lock was "
+            "held. A wedged holder can block all signups indefinitely."
+        )
 
     def test_concurrent_signups_at_quorum_produce_correct_result(self, slow_app):
         """Two concurrent signups at quorum=1 produce exactly one 'working'

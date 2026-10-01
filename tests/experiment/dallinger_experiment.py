@@ -1,4 +1,5 @@
 import os.path
+import time
 
 from dallinger.config import get_config
 from dallinger.experiment import Experiment, experiment_route
@@ -61,8 +62,6 @@ class ZSlowTestExperiment(TestExperiment):
     """
 
     def create_participant(self, **kwargs):  # type: ignore[override]
-        import time
-
         time.sleep(0.05)
         return super().create_participant(**kwargs)
 
