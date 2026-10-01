@@ -11,10 +11,11 @@
   the layers from the previous load, so values removed from a config file or
   the environment no longer linger, while values added with `extend()`,
   `set()` or `override()` are kept. A `load()` that fails leaves the previous
-  configuration in place. `ProlificRecruiter` also no longer reloads an
-  already loaded configuration. `Configuration.data` is now a read-only list
-  of layers, newest first; changing that list no longer changes the
-  configuration, so use `extend()`, `set()` or `override()` instead.
+  configuration in place, and loads that overlap in different threads run
+  one at a time. `ProlificRecruiter` also no longer reloads an already loaded
+  configuration. `Configuration.data` is now a read-only tuple of layers,
+  newest first; use `extend()`, `set()` or `override()` to change the
+  configuration.
 
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 

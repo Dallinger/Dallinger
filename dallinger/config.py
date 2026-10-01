@@ -29,6 +29,7 @@ import json
 import logging
 import os
 import sys
+import threading
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -212,6 +213,7 @@ class Configuration:
     _module_params_loaded = False
 
     def __init__(self):
+        self._load_lock = threading.RLock()
         self._reset()
 
     def set(self, key, value):
@@ -225,8 +227,8 @@ class Configuration:
 
     @property
     def data(self):
-        """All layers, newest first."""
-        return list(reversed(self._loaded + self._added))
+        """All layers, newest first, as a read-only tuple."""
+        return tuple(reversed(self._loaded + self._added))
 
     def _reset(self, register_defaults=False):
         self.clear()
@@ -444,34 +446,36 @@ class Configuration:
         as runtime writes, are kept. If loading fails, the previous loaded
         layers stay in place.
         """
-        # Importing the experiment during a first load can call load() again
-        # before this one finishes, so restore the outer load's list afterwards.
-        outer_loading = self._loading
-        loading = self._loading = []
-        try:
-            self.load_defaults(strict)
+        # Re-entrant: importing the experiment during a first load can call
+        # load() again before this one finishes, so the outer load's list is
+        # restored afterwards.
+        with self._load_lock:
+            outer_loading = self._loading
+            loading = self._loading = []
+            try:
+                self.load_defaults(strict)
 
-            if experiment_available():
-                self.load_experiment_config_settings()
+                if experiment_available():
+                    self.load_experiment_config_settings()
 
-            # Load config.txt from the experiment's directory, so processes
-            # that changed their working directory still resolve the same
-            # configuration (and unrelated config.txt files in the current
-            # directory cannot shadow the experiment's). Outside an experiment,
-            # fall back to the current directory.
-            local_config = os.path.join(
-                experiment_directory() or os.getcwd(), LOCAL_CONFIG
-            )
-            if os.path.exists(local_config):
-                self.load_from_file(
-                    local_config, strict, source=ConfigSource.EXPERIMENT_CONFIG
+                # Load config.txt from the experiment's directory, so processes
+                # that changed their working directory still resolve the same
+                # configuration (and unrelated config.txt files in the current
+                # directory cannot shadow the experiment's). Outside an
+                # experiment, fall back to the current directory.
+                local_config = os.path.join(
+                    experiment_directory() or os.getcwd(), LOCAL_CONFIG
                 )
+                if os.path.exists(local_config):
+                    self.load_from_file(
+                        local_config, strict, source=ConfigSource.EXPERIMENT_CONFIG
+                    )
 
-            self.load_from_environment()
-            self._loaded = loading
-        finally:
-            self._loading = outer_loading
-        self.ready = True
+                self.load_from_environment()
+                self._loaded = loading
+            finally:
+                self._loading = outer_loading
+            self.ready = True
 
     def register_extra_parameters(self):
         initialize_experiment_package(experiment_directory() or os.getcwd())

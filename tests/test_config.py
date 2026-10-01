@@ -6,6 +6,11 @@ import pytest
 from dallinger.config import LOCAL_CONFIG, Configuration, get_config
 
 
+def _layer_count(config):
+    """Count config layers as a plain int, so a failing assert can't print secrets."""
+    return len(config.data)
+
+
 class TestConfigurationUnitTests:
     def test_register_new_variable(self):
         config = Configuration()
@@ -278,7 +283,7 @@ class TestConfigurationIntegrationTests:
 
     def test_repeated_load_does_not_accumulate_layers(self, loaded_config):
         config = loaded_config
-        layer_count = len(config.data)
+        layer_count = _layer_count(config)
         resolved = config.as_dict()
 
         with config.override({"title": "overridden"}):
@@ -286,12 +291,12 @@ class TestConfigurationIntegrationTests:
                 config.load()
             assert config.get("title") == "overridden"
 
-        assert len(config.data) == layer_count
+        assert _layer_count(config) == layer_count
         assert config.as_dict() == resolved
 
     def test_failed_reload_keeps_previous_config(self, loaded_config, monkeypatch):
         config = loaded_config
-        layer_count = len(config.data)
+        layer_count = _layer_count(config)
         resolved = config.as_dict()
 
         def fail():
@@ -300,14 +305,14 @@ class TestConfigurationIntegrationTests:
         monkeypatch.setattr(config, "load_from_environment", fail)
         with pytest.raises(ValueError):
             config.load()
-        assert len(config.data) == layer_count
+        assert _layer_count(config) == layer_count
         assert config.as_dict() == resolved
 
     def test_load_nested_inside_load_gives_a_complete_config(
         self, loaded_config, monkeypatch
     ):
         config = loaded_config
-        layer_count = len(config.data)
+        layer_count = _layer_count(config)
         resolved = config.as_dict()
         load_defaults = config.load_defaults
         nested = []
@@ -326,7 +331,31 @@ class TestConfigurationIntegrationTests:
 
         # Every layer of the outer load counts as loaded, so a reload replaces it.
         config.load()
-        assert len(config.data) == layer_count
+        assert _layer_count(config) == layer_count
+
+    def test_overlapping_loads_in_two_threads(self, loaded_config, monkeypatch):
+        import threading
+        import time
+
+        config = loaded_config
+        layer_count = _layer_count(config)
+        load_defaults = config.load_defaults
+        first_load_started = threading.Event()
+
+        def slow_load_defaults(strict=True):
+            first_load_started.set()
+            time.sleep(0.1)
+            load_defaults(strict)
+
+        monkeypatch.setattr(config, "load_defaults", slow_load_defaults)
+        threads = [threading.Thread(target=config.load) for _ in range(2)]
+        threads[0].start()
+        first_load_started.wait()
+        threads[1].start()
+        for thread in threads:
+            thread.join()
+
+        assert _layer_count(config) == layer_count
 
     def test_reload_drops_values_removed_from_a_source(
         self, loaded_config, monkeypatch
