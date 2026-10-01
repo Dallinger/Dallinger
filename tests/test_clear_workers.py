@@ -3,8 +3,28 @@ import subprocess
 import sys
 import time
 
+import pytest
+
 from dallinger.db import corrected_db_url, db_url_default
-from dallinger.pytest_dallinger import _heroku_processes_for_current_database
+from dallinger.pytest_dallinger import (
+    _heroku_processes_for_current_database,
+    _is_heroku_process,
+)
+
+
+@pytest.mark.parametrize(
+    "cmdline, expected",
+    [
+        (["/usr/local/lib/heroku/bin/node", "/usr/local/lib/heroku/bin/run"], True),
+        (["heroku", "local", "-p", "5000"], True),
+        (["/bin/sh", "-c", "dallinger_heroku_web"], True),
+        (["/venv/bin/python", "/venv/bin/dallinger_heroku_worker"], True),
+        (["python", "-m", "pytest", "tests/test_heroku.py"], False),
+        ([], False),
+    ],
+)
+def test_is_heroku_process(cmdline, expected):
+    assert _is_heroku_process(cmdline) is expected
 
 
 def _start_fake_heroku(tmp_path, database_url):

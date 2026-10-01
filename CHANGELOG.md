@@ -5,10 +5,9 @@
 ### Fixed
 
 - The `clear_workers` test fixture now stops only the local Heroku processes
-  that use the test run's `DATABASE_URL`, sending SIGTERM so `heroku local` can
-  shut down its children. It used to run `pkill -f heroku`, which killed every
-  Heroku CLI process on the machine, including those in other checkouts or
-  terminals.
+  that use the test run's `DATABASE_URL`. It used to run `pkill -f heroku`,
+  which stopped every process whose command line mentioned "heroku", including
+  Heroku CLI sessions in other checkouts or terminals.
 
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 

@@ -78,6 +78,7 @@ def _uses_current_database(process):
 
 
 def _heroku_processes_for_current_database():
+    """Return the running Heroku CLI processes that use this shell's database."""
     import psutil
 
     processes = []
