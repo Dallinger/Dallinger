@@ -10,6 +10,12 @@
   caller's, which it never reads. Startup failures also cancel the timeout
   alarm instead of leaving it armed after the original error.
 
+### Changed
+
+- Skipped the live MTurk integration tests, because Amazon has discontinued
+  Mechanical Turk and every call now fails with `AccessDeniedException`.
+  Mocked MTurk tests still run.
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added
