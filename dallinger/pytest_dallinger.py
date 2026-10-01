@@ -100,6 +100,8 @@ def _is_heroku_process(cmdline):
     command line, which would also match commands like
     ``pytest tests/test_heroku.py``. Heroku CLI processes must also have a
     ``local`` argument, so that ``git push heroku`` or ``heroku logs`` survive.
+    The CLI's ``run-foreman`` child has no ``local`` argument and is not
+    matched; when one of its processes exits, it stops the others.
     """
     is_local = "local" in cmdline
     for part in cmdline:
