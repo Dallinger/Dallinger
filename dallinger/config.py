@@ -444,6 +444,8 @@ class Configuration:
         as runtime writes, are kept. If loading fails, the previous loaded
         layers stay in place.
         """
+        # Importing the experiment during a first load can call load() again
+        # before this one finishes, so restore the outer load's list afterwards.
         outer_loading = self._loading
         self._loading = []
         try:

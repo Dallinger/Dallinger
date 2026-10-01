@@ -301,6 +301,29 @@ class TestConfigurationIntegrationTests:
             config.load()
         assert config.as_dict() == resolved
 
+    def test_load_nested_inside_load_gives_a_complete_config(
+        self, loaded_config, monkeypatch
+    ):
+        config = loaded_config
+        layer_count = len(config.data)
+        resolved = config.as_dict()
+        load_defaults = config.load_defaults
+        nested = []
+
+        def load_defaults_after_a_nested_load(strict=True):
+            # As when importing the experiment calls load() again.
+            if not nested:
+                nested.append(True)
+                config.load()
+            load_defaults(strict)
+
+        monkeypatch.setattr(config, "load_defaults", load_defaults_after_a_nested_load)
+        config.load()
+
+        assert nested
+        assert len(config.data) == layer_count
+        assert config.as_dict() == resolved
+
     def test_reload_drops_values_removed_from_a_source(
         self, loaded_config, monkeypatch
     ):
