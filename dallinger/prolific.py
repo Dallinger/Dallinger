@@ -67,6 +67,10 @@ class ProlificService:
         referer_header: Referer header to help Prolific identify our requests when troubleshooting
     """
 
+    _unpublished_study_log_message = (
+        "Created unpublished draft study {study_id} on Prolific."
+    )
+
     def __init__(self, api_token: str, api_version: str, referer_header: str):
         self.api_token = api_token
         # For error logging:
@@ -432,7 +436,7 @@ class ProlificService:
             logger.info(f"Publishing study {study_id} on Prolific...")
             return self.publish_study(study_id)
         else:
-            logger.info(f"Created unpublished draft study {study_id} on Prolific.")
+            logger.info(self._unpublished_study_log_message.format(study_id=study_id))
             return draft
 
     def get_hits(self):
@@ -687,6 +691,10 @@ def _translate_submission_from_get_submissions(prolific_assignment_info, study_i
 
 class DevProlificService(ProlificService):
     """Wrapper that mocks the Prolific REST API and instead of making requests it writes to the log."""
+
+    _unpublished_study_log_message = (
+        "Prolific study simulated in debug mode; nothing was created on Prolific."
+    )
 
     def __init__(self, *args, **kwargs):
         self.owner_id = "60a42f4c693c29420793cb73"
