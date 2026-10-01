@@ -661,6 +661,53 @@ class HerokuLocalWrapper:
         return "<{} pid='{}', children: {}>".format(classname, self._process.pid, reprs)
 
 
+def local_worker_processes(database_url=None):
+    """Return running local ``dallinger_heroku_*`` processes for one database.
+
+    Parameters
+    ----------
+    database_url : str, optional
+        Database the processes must use. Defaults to this process's
+        ``DATABASE_URL``, or Dallinger's default database if it is unset.
+
+    Returns
+    -------
+    list of psutil.Process
+        Web and worker processes started by ``heroku local`` whose
+        ``DATABASE_URL`` matches. Processes whose details can't be read are
+        treated as someone else's and left out.
+    """
+    from dallinger.db import corrected_db_url, db_url_default
+
+    if database_url is None:
+        database_url = os.environ.get("DATABASE_URL", db_url_default)
+    database_url = corrected_db_url(database_url)
+
+    processes = []
+    for process in psutil.process_iter():
+        try:
+            if not _is_local_worker_process(process):
+                continue
+            url = process.environ().get("DATABASE_URL", db_url_default)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+        if corrected_db_url(url) == database_url:
+            processes.append(process)
+    return processes
+
+
+def _is_local_worker_process(process):
+    name = process.name()
+    # Linux names the process after its truncated entry-point script.
+    if name.startswith("dallinger_herok"):
+        return True
+    # macOS names it after the Python interpreter running the script.
+    return "python" in name.lower() and any(
+        os.path.basename(argument).startswith("dallinger_heroku_")
+        for argument in process.cmdline()[:2]
+    )
+
+
 def sanity_check(config):
     # check if dyno size is compatible with team configuration.
     sizes = {

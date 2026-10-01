@@ -60,70 +60,19 @@ def reset_sys_modules():
         del sys.modules[key]
 
 
-def _uses_current_database(process):
-    """Return whether ``process`` was started with this shell's ``DATABASE_URL``.
-
-    Processes whose environment can't be read are treated as someone else's.
-    """
-    import psutil
-
-    from dallinger.db import corrected_db_url, db_url_default
-
-    current = corrected_db_url(os.environ.get("DATABASE_URL", db_url_default))
-    try:
-        url = process.environ().get("DATABASE_URL", db_url_default)
-    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-        return False
-    return corrected_db_url(url) == current
-
-
-def _heroku_processes_for_current_database():
-    """Return the running Heroku CLI processes that use this shell's database."""
-    import psutil
-
-    processes = []
-    for process in psutil.process_iter():
-        try:
-            cmdline = process.cmdline()
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            continue
-        if _is_heroku_process(cmdline) and _uses_current_database(process):
-            processes.append(process)
-    return processes
-
-
-def _is_heroku_process(cmdline):
-    """Match the Heroku CLI (``heroku local``) and ``dallinger_heroku_*`` workers.
-
-    The CLI runs as shell wrappers and ``node`` processes whose paths contain a
-    ``heroku`` directory, so match path components rather than the whole
-    command line, which would also match commands like
-    ``pytest tests/test_heroku.py``. Heroku CLI processes must also have a
-    ``local`` argument, so that ``git push heroku`` or ``heroku logs`` survive.
-    The CLI's ``run-foreman`` child has no ``local`` argument and is not
-    matched; when one of its processes exits, it stops the others.
-    """
-    is_local = "local" in cmdline
-    for part in cmdline:
-        components = part.split(os.sep)
-        if is_local and "heroku" in components:
-            return True
-        if components[-1].startswith("dallinger_heroku_"):
-            return True
-    return False
-
-
 @pytest.fixture
 def clear_workers():
-    """Stop leftover local Heroku processes that use this test run's database."""
+    """Stop leftover local Dallinger processes that use this test run's database."""
     import psutil
 
+    from dallinger.heroku.tools import local_worker_processes
+
     def _zap():
-        for process in _heroku_processes_for_current_database():
+        for process in local_worker_processes():
             if process.pid == os.getpid():
                 continue
             try:
-                # SIGTERM lets heroku local stop the processes it supervises.
+                # When one of its processes exits, heroku local stops the rest.
                 process.terminate()
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 pass
