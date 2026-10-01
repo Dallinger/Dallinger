@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Skipped the live MTurk integration tests, because Amazon has discontinued
+  Mechanical Turk and every call now fails with `AccessDeniedException`.
+  Mocked MTurk tests still run.
+
 ### Fixed
 
 - Fixed Prolific experiments slowing down as a server handles more
@@ -15,14 +21,9 @@
   one at a time. Values added from another thread while a load is running
   remain runtime additions and survive later reloads. `ProlificRecruiter`
   also no longer reloads an already loaded configuration.
-  `Configuration.data` is now a read-only tuple of layers, newest first; use
-  `extend()`, `set()` or `override()` to change the configuration.
-
-### Changed
-
-- Skipped the live MTurk integration tests, because Amazon has discontinued
-  Mechanical Turk and every call now fails with `AccessDeniedException`.
-  Mocked MTurk tests still run.
+  `Configuration.data` is now a read-only tuple: added layers first, then
+  loaded layers, each newest first. Use `extend()`, `set()` or `override()`
+  to change the configuration.
 
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
