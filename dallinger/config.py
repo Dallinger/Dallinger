@@ -184,8 +184,8 @@ class ConfigLayer(dict):
     """A mapping of config values tagged with the source that provided them.
 
     Subclassing dict preserves structural compatibility for callers that
-    inspect ``Configuration.data``. Raw layer iteration still follows load
-    order; callers needing resolved values should use
+    inspect ``Configuration.data``. Raw layer iteration does not follow
+    resolution priority; callers needing resolved values should use
     :meth:`Configuration.get` or :meth:`Configuration.as_dict`.
     """
 
@@ -231,7 +231,7 @@ class Configuration:
 
     @property
     def data(self):
-        """All layers, newest first, as a read-only tuple."""
+        """All layers as a read-only tuple: added, then loaded, each newest first."""
         return tuple(reversed(self._loaded + self._added))
 
     def _reset(self, register_defaults=False):
@@ -300,8 +300,8 @@ class Configuration:
     def _layers_by_priority(self):
         """Return layers ordered highest-priority first.
 
-        ``self.data`` is newest-first; the stable sort preserves that order
-        within a source, so the newest layer of a source wins.
+        The stable sort keeps the order of ``self.data`` within a source, so
+        added layers beat loaded layers, and otherwise the newest layer wins.
         """
         return sorted(self.data, key=lambda layer: -layer.source)
 
@@ -405,7 +405,7 @@ class Configuration:
     def write(self, filter_sensitive=False, directory=None):
         parser = configparser.ConfigParser()
         parser.add_section("Parameters")
-        # Lowest priority first (oldest first within a source), so later
+        # Lowest priority first (reverse resolution order), so later
         # parser.set calls overwrite earlier ones and the written file
         # reflects the resolved configuration.
         for layer in reversed(self._layers_by_priority()):

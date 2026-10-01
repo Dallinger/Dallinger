@@ -17,6 +17,7 @@
   also no longer reloads an already loaded configuration.
   `Configuration.data` is now a read-only tuple of layers, newest first; use
   `extend()`, `set()` or `override()` to change the configuration.
+
 ### Changed
 
 - Skipped the live MTurk integration tests, because Amazon has discontinued
