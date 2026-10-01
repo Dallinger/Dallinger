@@ -551,6 +551,57 @@ class TestHerokuApp:
         app.set("auto_recruit", True)
 
 
+def test_heroku_local_monitor_stops_when_output_ends():
+    import io
+
+    from dallinger.heroku.tools import HerokuLocalWrapper
+
+    wrapper = HerokuLocalWrapper(mock.Mock(), mock.Mock(), env={"HOME": "/tmp"})
+    wrapper._process = mock.Mock(stdout=io.BytesIO(b"web.1 | up\n"))
+    wrapper._process.poll.return_value = 1
+    listener = mock.Mock(return_value=None)
+
+    stream = wrapper._stream()
+    assert next(stream) == "web.1 | up\n"
+    assert next(stream, None) is None
+
+    wrapper._process.stdout = io.BytesIO(b"web.1 | up\n")
+    wrapper.monitor(listener)
+
+    listener.assert_called_once_with("web.1 | up\n")
+    assert "exit code: 1" in wrapper.out.error.call_args.args[0]
+
+
+def test_heroku_local_cancels_timeout_when_boot_fails():
+    from dallinger.heroku.tools import HerokuLocalWrapper
+
+    wrapper = HerokuLocalWrapper(mock.Mock(), mock.Mock(), env={"HOME": "/tmp"})
+    with (
+        mock.patch("dallinger.heroku.tools.signal.signal"),
+        mock.patch("dallinger.heroku.tools.signal.alarm") as alarm,
+        mock.patch.object(wrapper, "_boot", side_effect=OSError),
+        pytest.raises(OSError),
+    ):
+        wrapper.start(timeout_secs=12)
+
+    assert alarm.call_args_list == [mock.call(12), mock.call(0)]
+
+
+def test_heroku_local_does_not_inherit_stdin():
+    """A closed or hung-up parent stdin must not reach heroku local."""
+    import subprocess
+
+    from dallinger.heroku.tools import HerokuLocalWrapper
+
+    settings = {"base_port": 5000, "num_dynos_web": 1, "num_dynos_worker": 1}
+    config = mock.Mock(get=settings.get)
+    wrapper = HerokuLocalWrapper(config, mock.Mock(), env={"HOME": "/tmp"})
+    with mock.patch("dallinger.heroku.tools.subprocess.Popen") as popen:
+        wrapper._boot()
+
+    assert popen.call_args.kwargs["stdin"] is subprocess.DEVNULL
+
+
 @pytest.mark.usefixtures("bartlett_dir")
 @pytest.mark.slow
 class TestHerokuLocalWrapper:
@@ -618,9 +669,7 @@ class TestHerokuLocalWrapper:
     def test_start_fails_if_port_never_opens(self, heroku):
         from dallinger.heroku.tools import HerokuStartupError
 
-        heroku._stream = mock.Mock(
-            return_value=["apple", "orange", heroku.STREAM_SENTINEL]
-        )
+        heroku._stream = mock.Mock(return_value=["apple", "orange"])
         with mock.patch.object(heroku, "_up_and_running", return_value=False):
             with pytest.raises(HerokuStartupError):
                 heroku.start()
@@ -629,9 +678,7 @@ class TestHerokuLocalWrapper:
     def test_error_flushes_logs(self, heroku):
         from dallinger.heroku.tools import HerokuStartupError
 
-        heroku._stream = mock.Mock(
-            return_value=["apple", "orange", heroku.STREAM_SENTINEL]
-        )
+        heroku._stream = mock.Mock(return_value=["apple", "orange"])
         heroku._log_failure = mock.Mock()
         with mock.patch.object(heroku, "_up_and_running", return_value=False):
             with pytest.raises(HerokuStartupError):
@@ -639,9 +686,7 @@ class TestHerokuLocalWrapper:
         heroku._log_failure.assert_called_once()
 
     def test_failure_logs_until_process_end(self, heroku):
-        heroku._stream = mock.Mock(
-            return_value=["real", "stopped", heroku.STREAM_SENTINEL]
-        )
+        heroku._stream = mock.Mock(return_value=["real", "stopped"])
         heroku._process = mock.Mock(pid=12345)
         heroku._process.poll = mock.Mock(return_value=1)
         heroku._log_failure()
@@ -655,7 +700,6 @@ class TestHerokuLocalWrapper:
                 "more",
                 "[] web.1  |  [ERROR] Random",
                 "remainder",
-                heroku.STREAM_SENTINEL,
             ]
         )
         heroku._process = mock.Mock(pid=12345)
@@ -669,7 +713,6 @@ class TestHerokuLocalWrapper:
             yield "second"
             time.sleep(10)
             yield "after"
-            yield heroku.STREAM_SENTINEL
 
         heroku._stream = mock.Mock(return_value=timeout_stream())
         heroku._process = mock.Mock(pid=12345)
