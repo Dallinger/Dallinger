@@ -649,9 +649,7 @@ class TestHerokuLocalWrapper:
     def test_start_fails_if_port_never_opens(self, heroku):
         from dallinger.heroku.tools import HerokuStartupError
 
-        heroku._stream = mock.Mock(
-            return_value=["apple", "orange", heroku.STREAM_SENTINEL]
-        )
+        heroku._stream = mock.Mock(return_value=["apple", "orange"])
         with mock.patch.object(heroku, "_up_and_running", return_value=False):
             with pytest.raises(HerokuStartupError):
                 heroku.start()
@@ -660,9 +658,7 @@ class TestHerokuLocalWrapper:
     def test_error_flushes_logs(self, heroku):
         from dallinger.heroku.tools import HerokuStartupError
 
-        heroku._stream = mock.Mock(
-            return_value=["apple", "orange", heroku.STREAM_SENTINEL]
-        )
+        heroku._stream = mock.Mock(return_value=["apple", "orange"])
         heroku._log_failure = mock.Mock()
         with mock.patch.object(heroku, "_up_and_running", return_value=False):
             with pytest.raises(HerokuStartupError):
@@ -670,9 +666,7 @@ class TestHerokuLocalWrapper:
         heroku._log_failure.assert_called_once()
 
     def test_failure_logs_until_process_end(self, heroku):
-        heroku._stream = mock.Mock(
-            return_value=["real", "stopped", heroku.STREAM_SENTINEL]
-        )
+        heroku._stream = mock.Mock(return_value=["real", "stopped"])
         heroku._process = mock.Mock(pid=12345)
         heroku._process.poll = mock.Mock(return_value=1)
         heroku._log_failure()
@@ -686,7 +680,6 @@ class TestHerokuLocalWrapper:
                 "more",
                 "[] web.1  |  [ERROR] Random",
                 "remainder",
-                heroku.STREAM_SENTINEL,
             ]
         )
         heroku._process = mock.Mock(pid=12345)
@@ -700,7 +693,6 @@ class TestHerokuLocalWrapper:
             yield "second"
             time.sleep(10)
             yield "after"
-            yield heroku.STREAM_SENTINEL
 
         heroku._stream = mock.Mock(return_value=timeout_stream())
         heroku._process = mock.Mock(pid=12345)

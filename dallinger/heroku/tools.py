@@ -528,10 +528,10 @@ class HerokuLocalWrapper:
                 self.out.blather(line)
             if listener(line) is self.MONITOR_STOP:
                 return
+        process = self._process
+        exit_code = process.poll() if process is not None else None
         self.out.error(
-            "Local Heroku stopped producing output (exit code: {}).".format(
-                self._process.poll()
-            )
+            "Local Heroku stopped producing output (exit code: {}).".format(exit_code)
         )
 
     def _verify_startup(self):
