@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `--no-browsers` to `dallinger develop debug`. Instead of opening the
+  dashboard and participant browsers, it logs the recruitment message, the
+  dashboard URL and the dashboard login, like `dallinger debug --no-browsers`.
+
 ### Changed
 
 - Skipped the live MTurk integration tests, because Amazon has discontinued
