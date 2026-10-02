@@ -276,7 +276,7 @@ markdown-it-py==4.2.0
     #   mdit-py-plugins
     #   myst-parser
     #   rich
-markupsafe==3.0.3
+markupsafe==3.0.4
     # via
     #   flask
     #   jinja2

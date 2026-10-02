@@ -89,7 +89,7 @@ jmespath==1.1.0
     #   botocore
 markdown-it-py==4.2.0
     # via rich
-markupsafe==3.0.3
+markupsafe==3.0.4
     # via
     #   flask
     #   jinja2
