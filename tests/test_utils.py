@@ -409,12 +409,32 @@ def test_replace_dallinger_requirement_handles_git_and_equality_pins():
         "dallinger[docker]@git+https://github.com/Dallinger/Dallinger.git@abc123\n",
         "dallinger-local.whl",
     )
-    assert compact == "file:dallinger-local.whl\n"
+    assert compact == "dallinger[docker] @ file:dallinger-local.whl\n"
     assert "abc123" not in compact
     unpinned = "psynet\n"
     assert (
         utils.replace_dallinger_requirement(unpinned, "dallinger-local.whl") == unpinned
     )
+
+
+def test_replace_dallinger_requirement_preserves_extras():
+    out = utils.replace_dallinger_requirement(
+        "dallinger[docker] @ git+https://github.com/Dallinger/Dallinger.git@abc123\n",
+        "dallinger-local.whl",
+    )
+    assert out == "dallinger[docker] @ file:dallinger-local.whl\n"
+
+    out_multi = utils.replace_dallinger_requirement(
+        "dallinger[docker,test] @ git+https://github.com/Dallinger/Dallinger.git@abc123\n",
+        "dallinger-local.whl",
+    )
+    assert out_multi == "dallinger[docker,test] @ file:dallinger-local.whl\n"
+
+    out_no_extras = utils.replace_dallinger_requirement(
+        "dallinger @ git+https://github.com/Dallinger/Dallinger.git@abc123\n",
+        "dallinger-local.whl",
+    )
+    assert out_no_extras == "file:dallinger-local.whl\n"
 
 
 def test_check_experiment_dependencies_successful():
