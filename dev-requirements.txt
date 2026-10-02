@@ -616,7 +616,7 @@ tzlocal==5.4.4
     #   dallinger
 ua-parser==1.0.2
     # via user-agents
-ua-parser-builtins==202606
+ua-parser-builtins==202610
     # via ua-parser
 uri-template==1.3.0
     # via jsonschema
