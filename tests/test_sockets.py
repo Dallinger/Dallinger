@@ -104,6 +104,27 @@ class TestChannel:
 
         mockclient.send.assert_called_once_with("quorum:Calloo! Callay!")
 
+    def test_listen_tolerates_client_that_disconnected(
+        self, sockets, mockclient, monkeypatch
+    ):
+        errors = []
+        monkeypatch.setattr(
+            gevent.get_hub(), "handle_error", lambda *args: errors.append(args)
+        )
+        sockets.redis_conn.pubsub.return_value = pubsub = Mock()
+        pubsub.listen.return_value = [
+            {"type": "message", "channel": b"quorum", "data": b"Calloo! Callay!"}
+        ]
+        mockclient.send.side_effect = ConnectionClosed(1000, "")
+
+        channel = sockets.Channel("custom")
+        channel.subscribe(mockclient)
+        channel.start()
+        gevent.wait()
+
+        mockclient.send.assert_called_once_with("quorum:Calloo! Callay!")
+        assert errors == []
+
     def test_stop(self, channel):
         channel.start()
         channel.stop()
@@ -149,6 +170,17 @@ class TestChatBackend:
 
     def test_unsubscribe(self, chat, mockclient):
         chat.subscribe(mockclient, "quorum")
+        chat.unsubscribe(mockclient)
+        assert mockclient not in chat.channels["quorum"].clients
+
+    def test_unsubscribe_tolerates_channel_added_meanwhile(
+        self, sockets, chat, mockclient
+    ):
+        chat.subscribe(mockclient, "quorum")
+        # Publishing yields to other greenlets, which may open new channels.
+        sockets.redis_conn.publish.side_effect = lambda *args: chat.channels.setdefault(
+            "late", sockets.Channel("late")
+        )
         chat.unsubscribe(mockclient)
         assert mockclient not in chat.channels["quorum"].clients
 

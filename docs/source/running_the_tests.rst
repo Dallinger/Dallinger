@@ -29,6 +29,13 @@ have not installed the ``dlgr.demos`` sub-package. See the
 Amazon Mechanical Turk Integration Tests
 ----------------------------------------
 
+.. note::
+
+   Amazon has discontinued Mechanical Turk, so the tests that call the live
+   MTurk API are skipped and the MTurk accounts below are no longer needed.
+   With ``--mturkfull``, only the live Amazon SNS tests run in addition to
+   the mocked tests.
+
 You can also run all these tests locally, with some additional requirements:
 
 * The Amazon Web Services credentials set in .dallingerconfig must correspond

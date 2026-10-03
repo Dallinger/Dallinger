@@ -66,23 +66,17 @@
   A custom experiment Dockerfile gets a final step that installs that wheel.
   Dallinger pins given as Git URLs are replaced by the local wheel as well
   (extras such as ``[docker]`` are dropped from the rewritten line).
-- Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
-  (``paths``, ``names``, ``suffixes``) plus the deterministic
-  experiment-root deployment plan model, with development bulk directory
-  links and ordinary copied materialization for remote staging. Starter
-  ``dallinger deployment-files init`` writes root-relative prefixes in
-  ``paths``, nested junk names such as ``__pycache__`` in ``names``, and
-  ``.db`` / ``.dmg`` in ``suffixes``.
-- Added `dallinger deployment-files list` and `init` for inspecting and creating
-  starter policies.
-- Added opt-in `deploy.toml` experiment-file membership to verification,
-  development staging, copied Docker/classic staging, and Heroku assembly
-  through `ExperimentFileSource`. Experiments without a policy retain legacy
-  selection and Git staging behavior as a compatibility fallback while
-  PsyNet trials `deploy.toml`; Git-based membership may later be
-  deprecated (warning, then removal). Git remains for provenance. Plan
-  traversal uses ordinary POSIX `lstat`/`scandir` containment (rejecting
-  symlinks and special files).
+
+### Changed
+
+- Skipped the live MTurk integration tests, because Amazon has discontinued
+  Mechanical Turk and every call now fails with `AccessDeniedException`.
+  Mocked MTurk tests still run.
+- Modern (PEP 660) editable installs of Dallinger are now detected, not only
+  legacy ``egg-link`` installs. Heroku and SSH deploys from such an install
+  build and ship your local Dallinger checkout instead of the version in
+  ``requirements.txt``, and ``docker debug`` mounts it into the container.
+  Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 
 ### Fixed
 
@@ -101,6 +95,43 @@
   unavailable. A new ``docker-ssh-smoke`` CI job runs five end-to-end smoke
   tests on every PR covering deploy/destroy, app listing, server listing,
   missing-app error handling, and the ``--update`` refresh flow.
+- WebSocket relays no longer log a `ConnectionClosed` traceback when a message
+  reaches a client that has just disconnected; the client was already
+  unsubscribed.
+- Fixed a `RuntimeError: dictionary changed size during iteration` when a
+  WebSocket client disconnected while another connection opened a new channel.
+
+## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
+
+### Added
+
+- Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
+  (``paths``, ``names``, ``suffixes``) plus the deterministic
+  experiment-root deployment plan model, with development bulk directory
+  links and ordinary copied materialization for remote staging. Starter
+  ``dallinger deployment-files init`` writes root-relative prefixes in
+  ``paths``, nested junk names such as ``__pycache__`` in ``names``, and
+  ``.db`` / ``.dmg`` in ``suffixes``.
+- Added `dallinger deployment-files list` and `init` for inspecting and creating
+  starter policies.
+- Added opt-in `deploy.toml` experiment-file membership to verification,
+  development staging, copied Docker/classic staging, and Heroku assembly
+  through `ExperimentFileSource`. Experiments without a policy retain legacy
+  selection and Git staging behavior as a compatibility fallback while
+  PsyNet trials `deploy.toml`; Git-based membership may later be
+  deprecated (warning, then removal). Git remains for provenance. Plan
+  traversal uses ordinary POSIX `lstat`/`scandir` containment (rejecting
+  symlinks and special files).
+
+### Changed
+
+- ``ProlificService.get_participant_submission`` accepts ``translate=False``
+  to return the Prolific payload (including ``bonus_payments``) or ``None``
+  on a miss, instead of translating fields and raising a recruitment
+  error. ``_req`` takes ``raise_on_error`` (default ``True``).
+
+### Fixed
+
 - SSH and Heroku-docker deploys now tag the experiment image with the
   per-launch experiment UID instead of a hash of ``requirements.txt`` and
   ``prepare_docker_image.sh``. Those files do not identify the copied
@@ -146,6 +177,15 @@
 
 ### Updated
 
+- Updated JavaScript development dependencies (``jest``,
+  ``jest-environment-jsdom``, ``webpack``, ``webpack-cli``) and npm
+  overrides for patched ``js-yaml``, ``fast-uri``, ``engine.io``,
+  ``browserslist``, and ``baseline-browser-mapping``. Left
+  ``test-exclude`` on minimatch 10 (required by Jest 30.5) while
+  ``resp-modifier`` still pins callable minimatch 3.x.
+- Updated Python dependencies (regenerated ``requirements.txt``,
+  ``dev-requirements.txt``, and ``constraints.txt``; bumped the ruff
+  pre-commit hook).
 - Documented ``deploy.toml`` for experiment authors, including format,
   the nested ``[exclude]`` table, auto-omitted paths,
   ``dallinger deployment-files list`` / ``init``, and that Git-based
@@ -153,13 +193,11 @@
   after PsyNet production use.
 - Matched the documented ``dallinger deployment-files init`` starter
   ``paths``, ``names``, and ``suffixes`` lists to the CLI.
-
-### Changed
-
-- ``ProlificService.get_participant_submission`` accepts ``translate=False``
-  to return the Prolific payload (including ``bonus_payments``) or ``None``
-  on a miss, instead of translating fields and raising a recruitment
-  error. ``_req`` takes ``raise_on_error`` (default ``True``).
+- Regenerated the committed ``tests/experiment/constraints.txt`` fixture
+  against the released v12.3.0 pins (dropping the removed ``chardet``
+  dependency, which the stale v12.2.1-based file still carried) and added
+  ``tests/experiment`` to ``scripts/update_experiments_constraints.py`` so
+  the fixture is refreshed with each release like the demo constraints.
 
 ## [v12.3.0](https://github.com/dallinger/dallinger/tree/v12.3.0) (2026-08-22)
 
