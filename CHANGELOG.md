@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Skipped the live MTurk integration tests, because Amazon has discontinued
+  Mechanical Turk and every call now fails with `AccessDeniedException`.
+  Mocked MTurk tests still run.
+
+### Fixed
+
+- WebSocket relays no longer log a `ConnectionClosed` traceback when a message
+  reaches a client that has just disconnected; the client was already
+  unsubscribed.
+- Fixed a `RuntimeError: dictionary changed size during iteration` when a
+  WebSocket client disconnected while another connection opened a new channel.
+
+## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
+
 ### Added
 
 - Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
@@ -21,6 +37,13 @@
   deprecated (warning, then removal). Git remains for provenance. Plan
   traversal uses ordinary POSIX `lstat`/`scandir` containment (rejecting
   symlinks and special files).
+
+### Changed
+
+- ``ProlificService.get_participant_submission`` accepts ``translate=False``
+  to return the Prolific payload (including ``bonus_payments``) or ``None``
+  on a miss, instead of translating fields and raising a recruitment
+  error. ``_req`` takes ``raise_on_error`` (default ``True``).
 
 ### Fixed
 
@@ -81,6 +104,15 @@
 
 ### Updated
 
+- Updated JavaScript development dependencies (``jest``,
+  ``jest-environment-jsdom``, ``webpack``, ``webpack-cli``) and npm
+  overrides for patched ``js-yaml``, ``fast-uri``, ``engine.io``,
+  ``browserslist``, and ``baseline-browser-mapping``. Left
+  ``test-exclude`` on minimatch 10 (required by Jest 30.5) while
+  ``resp-modifier`` still pins callable minimatch 3.x.
+- Updated Python dependencies (regenerated ``requirements.txt``,
+  ``dev-requirements.txt``, and ``constraints.txt``; bumped the ruff
+  pre-commit hook).
 - Documented ``deploy.toml`` for experiment authors, including format,
   the nested ``[exclude]`` table, auto-omitted paths,
   ``dallinger deployment-files list`` / ``init``, and that Git-based
@@ -88,13 +120,11 @@
   after PsyNet production use.
 - Matched the documented ``dallinger deployment-files init`` starter
   ``paths``, ``names``, and ``suffixes`` lists to the CLI.
-
-### Changed
-
-- ``ProlificService.get_participant_submission`` accepts ``translate=False``
-  to return the Prolific payload (including ``bonus_payments``) or ``None``
-  on a miss, instead of translating fields and raising a recruitment
-  error. ``_req`` takes ``raise_on_error`` (default ``True``).
+- Regenerated the committed ``tests/experiment/constraints.txt`` fixture
+  against the released v12.3.0 pins (dropping the removed ``chardet``
+  dependency, which the stale v12.2.1-based file still carried) and added
+  ``tests/experiment`` to ``scripts/update_experiments_constraints.py`` so
+  the fixture is refreshed with each release like the demo constraints.
 
 ## [v12.3.0](https://github.com/dallinger/dallinger/tree/v12.3.0) (2026-08-22)
 
