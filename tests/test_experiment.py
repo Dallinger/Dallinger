@@ -177,6 +177,28 @@ class TestExperimentBaseClass:
 
         assert participant.bonus is None
 
+    def test_on_recruiter_submission_complete__bots_follow_shared_completion_path(
+        self, a, active_config, exp
+    ):
+        participant = a.participant(recruiter_id="bots")
+        participant.status = "submitted"
+        exp.bonus = mock.Mock(return_value=0.01)
+        end_time = datetime(2000, 1, 1)
+
+        exp.on_recruiter_submission_complete(
+            participant=participant,
+            event={
+                "event_type": "RecruiterSubmissionComplete",
+                "participant_id": participant.id,
+                "assignment_id": participant.assignment_id,
+                "timestamp": end_time,
+            },
+        )
+
+        assert participant.base_pay == active_config.get("base_payment")
+        assert participant.status == "approved"
+        assert participant.bonus == 0.01
+
     def test_on_recruiter_submission_complete__sets_end_time_if_not_set(self, a, exp):
         participant = a.participant()
         participant.status = "submitted"
