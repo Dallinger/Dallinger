@@ -1,4 +1,5 @@
 import importlib
+import os
 import subprocess
 import sys
 import uuid
@@ -13,13 +14,130 @@ from dallinger.docker.tools import docker_tag_from_experiment_id
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
 
 
-def _mock_executor():
-    executor = mock.Mock()
-    executor.run.side_effect = [
-        "alpha\n/home/test/dallinger/beta/docker-compose.yml\n",
-        "beta\n",
-    ]
-    return executor
+def test_docker_host_uri_omits_at_sign_usernames(capsys):
+    assert (
+        docker_ssh_module.docker_host_uri("rr-pc01.example", user="pmch2@cam.ac.uk")
+        == "ssh://rr-pc01.example"
+    )
+    assert "User pmch2@cam.ac.uk" in capsys.readouterr().out
+    assert (
+        docker_ssh_module.docker_host_uri("musix.example", user="pmch2", port=2222)
+        == "ssh://pmch2@musix.example:2222"
+    )
+
+
+class FakeExecutor:
+    """Answer remote commands by the first matching substring, in any order."""
+
+    def __init__(self, replies):
+        self.replies = replies
+        self.commands = []
+
+    def run(self, cmd, raise_=True):
+        self.commands.append(cmd)
+        for pattern, reply in self.replies.items():
+            if pattern in cmd:
+                return reply
+        return ""
+
+
+# ``chown`` is in /usr/sbin on macOS.
+BASE_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
+
+
+class LocalExecutor:
+    """Run remote shell snippets with bash, using ``home`` as ``$HOME``.
+
+    ``bin_dir`` goes first on ``PATH``, for fake ``docker`` or ``stat``.
+    """
+
+    def __init__(self, home, bin_dir=None):
+        self.home = home
+        self.path = f"{bin_dir}:{BASE_PATH}" if bin_dir else BASE_PATH
+
+    def run(self, cmd, raise_=True):
+        result = subprocess.run(
+            ["bash", "-c", cmd],
+            capture_output=True,
+            text=True,
+            env={"HOME": str(self.home), "PATH": self.path},
+        )
+        if raise_ and result.returncode:
+            raise docker_ssh_module.ExecuteException(result.stderr)
+        return result.stdout
+
+
+def _mock_executor(manifest_lines=""):
+    return FakeExecutor(
+        {
+            "caddy.d": "alpha\n/home/test/dallinger/beta/docker-compose.yml\n",
+            "docker ps": "beta\n",
+            "deployment.json": manifest_lines,
+        }
+    )
+
+
+def test_load_remote_manifests_reads_existing_files(tmp_path):
+    manifest = docker_ssh_module.DeploymentManifest(
+        app="beta",
+        server="lab",
+        public_origin="https://beta.example",
+        ingress="cloudflare",
+    )
+    (tmp_path / "dallinger" / "beta").mkdir(parents=True)
+    (tmp_path / "dallinger" / "beta" / "deployment.json").write_text(manifest.to_json())
+    loaded = docker_ssh_module._load_remote_manifests(
+        LocalExecutor(tmp_path), ["alpha", "beta", "beta~", "has space"]
+    )
+    assert loaded == {"beta": manifest}
+
+
+def test_monitoring_settings_default_and_override():
+    assert docker_ssh_module._monitoring_settings({}) == ("experiment", "/health")
+    assert docker_ssh_module._monitoring_settings(
+        {
+            "docker_ssh_monitoring_kind": "psynet",
+            "docker_ssh_monitoring_path": "/health",
+        }
+    ) == ("psynet", "/health")
+
+
+def test_upload_app_manifest_writes_deployment_json():
+    sftp = mock.Mock()
+    manifest = docker_ssh_module.DeploymentManifest(
+        app="consonance",
+        server="musix",
+        public_origin="https://consonance.science-of-music.org",
+    )
+    docker_ssh_module._upload_app_manifest(sftp, manifest)
+    assert sftp.putfo.call_args.args[1] == "dallinger/consonance/deployment.json"
+    uploaded = sftp.putfo.call_args.args[0].getvalue().decode()
+    assert '"token"' not in uploaded
+    assert "consonance.science-of-music.org" in uploaded
+
+
+def test_get_apps_uses_manifest_ingress_and_origin():
+    manifest = docker_ssh_module.DeploymentManifest(
+        app="beta",
+        server="lab",
+        public_origin="https://beta.example.org",
+        ingress="cloudflare",
+    )
+    executor = _mock_executor("beta\t" + manifest.to_json().replace("\n", "") + "\n")
+    server_info = {"host": "example.com", "user": "ubuntu"}
+    with (
+        mock.patch.object(
+            docker_ssh_module, "_resolve_server_info", return_value=server_info
+        ),
+        mock.patch.object(docker_ssh_module, "_build_executor", return_value=executor),
+    ):
+        apps = docker_ssh_module.get_apps("irrelevant")
+
+    by_name = {app.name: app for app in apps}
+    assert by_name["alpha"].ingress == "classic"
+    assert by_name["alpha"].public_origin is None
+    assert by_name["beta"].ingress == "cloudflare"
+    assert by_name["beta"].public_origin == "https://beta.example.org"
 
 
 def test_get_apps_maps_running_and_inactive():
@@ -109,6 +227,7 @@ def test_apps_outputs_table_for_all_apps(monkeypatch, capsys):
     output_lines = capsys.readouterr().out.strip().splitlines()
     assert listed == ["beta", "alpha"]
     assert any("app" in line and "state" in line for line in output_lines)
+    assert any("ingress" in line and "origin" in line for line in output_lines)
     assert any("beta" in line and "running" in line for line in output_lines)
     assert any("alpha" in line and "inactive" in line for line in output_lines)
     assert "\x1b[" not in "\n".join(output_lines)
@@ -312,7 +431,6 @@ def test_experiment_image_from_compose_reads_web_not_infra_images():
         },
         "my-app",
         "ghcr.io/org/exp:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-        "pw",
     )
     parsed = docker_ssh_module.experiment_image_from_compose(yml)
     assert parsed == "ghcr.io/org/exp:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
@@ -362,7 +480,6 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
         {},
         "myapp",
         "registry/exp:old-uid",
-        "pw",
     )
     commands = []
 
@@ -467,3 +584,77 @@ def test_real_docker_rmi_removes_unused_tag_and_keeps_in_use_and_prefix_tags():
             subprocess.run(
                 ["docker", "rmi", "-f", tag], capture_output=True, check=False
             )
+
+
+def _fake_bin(tmp_path):
+    """Fake ``docker``, which logs its arguments."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name, body in (("docker", 'echo "$@" >> "$HOME/docker.log"'),):
+        (bin_dir / name).write_text(f"#!/bin/bash\n{body}\n")
+        (bin_dir / name).chmod(0o755)
+    return bin_dir
+
+
+def test_write_experiment_compose_env_appends_ids_and_creates_home_dirs(tmp_path):
+    app_dir = tmp_path / "dallinger" / "demo"
+    app_dir.mkdir(parents=True)
+    (app_dir / ".env").write_text("POSTGRES_PASSWORD=pw\n")
+    docker_ssh_module._write_experiment_compose_env(
+        LocalExecutor(tmp_path, _fake_bin(tmp_path)),
+        "demo",
+        "${HOME}/psynet-data/assets:/psynet-data/assets,/etc/ssl:/certs:ro",
+    )
+    env = (app_dir / ".env").read_text()
+    assert env.startswith("POSTGRES_PASSWORD=pw\n")
+    assert f"UID={os.getuid()}\nGID={os.getgid()}\n" in env
+    for sub in ("dallinger-data/demo", "psynet-data/assets"):
+        assert (tmp_path / sub).is_dir()
+    assert not (tmp_path / "docker.log").exists()
+
+
+def test_write_experiment_compose_env_reports_a_failed_chown(tmp_path, capsys):
+    (tmp_path / "dallinger" / "demo").mkdir(parents=True)
+    bin_dir = _fake_bin(tmp_path)
+    for name in ("chown", "docker"):
+        (bin_dir / name).write_text("#!/bin/bash\nexit 1\n")
+        (bin_dir / name).chmod(0o755)
+    docker_ssh_module._write_experiment_compose_env(
+        LocalExecutor(tmp_path, bin_dir), "demo"
+    )
+    assert "Warning: could not chown" in capsys.readouterr().out
+
+
+def test_update_reads_back_the_secrets_deploy_wrote(tmp_path, monkeypatch):
+    (tmp_path / "dallinger" / "demo").mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
+    executor = LocalExecutor(tmp_path)
+    sftp = mock.Mock()
+    sftp.putfo.side_effect = lambda data, path: (tmp_path / path).write_bytes(
+        data.getvalue()
+    )
+    docker_ssh_module._write_app_env(
+        sftp, executor, "demo", {"POSTGRES_PASSWORD": "pw", "FLASK_SECRET_KEY": "k"}
+    )
+    assert (tmp_path / "dallinger/demo/.env").stat().st_mode & 0o777 == 0o600
+    read = docker_ssh_module._existing_app_secret
+    assert read(executor, "demo", "FLASK_SECRET_KEY") == "k"
+    assert read(executor, "demo", "POSTGRES_PASSWORD") == "pw"
+    assert read(executor, "missing", "FLASK_SECRET_KEY") is None
+
+
+def test_remote_bind_mount_dirs_only_chowns_writable_home_subdirs():
+    dirs = docker_ssh_module._remote_bind_mount_dirs(
+        "./dallinger.log:/experiment/dallinger.log,"
+        "${HOME}/psynet-data/assets:/psynet-data/assets,"
+        "/etc/ssl:/certs:ro,/srv/data:/data,~:/home,~/configs:/configs:ro",
+        "consonance",
+    )
+    assert dirs == ['"$HOME/dallinger-data/$app"', '"$HOME/psynet-data/assets"']
+
+
+@pytest.mark.parametrize("label, expected", [("1\n", True), ("\n", False)])
+def test_only_labelled_images_run_as_the_ssh_user(label, expected, capsys):
+    executor = FakeExecutor({"image inspect": label})
+    assert docker_ssh_module._image_runs_as_ssh_user(executor, "img:tag") is expected
+    assert ("run as root" in capsys.readouterr().out) is not expected

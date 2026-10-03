@@ -143,9 +143,19 @@ def get_yaml(config):
     from dallinger.command_line.docker_ssh import get_docker_compose_yml
 
     yaml_contents = get_docker_compose_yml(
-        config, "dlgr-8c43a887", "ghcr.io/dallinger/dallinger/bartlett1932", "foobar"
+        config, "dlgr-8c43a887", "ghcr.io/dallinger/dallinger/bartlett1932"
     )
     return yaml.safe_load(yaml_contents)
+
+
+def test_compose_reads_the_database_password_from_the_app_env():
+    result = get_yaml({})
+    database_url = result["services"]["web"]["environment"]["DATABASE_URL"]
+    assert "${POSTGRES_PASSWORD}" in database_url
+    assert (
+        "POSTGRESQL_PASSWORD=${POSTGRES_PASSWORD}"
+        in (result["services"]["pgbouncer"]["environment"])
+    )
 
 
 def test_num_dynos():
@@ -198,6 +208,29 @@ def test_deps_image_tag_changes_when_prepare_script_changes(tmp_path):
     tag_before = get_experiment_image_tag(str(exp_dir))
     (exp_dir / "prepare_docker_image.sh").write_text("#!/bin/sh\necho other\n")
     assert get_experiment_image_tag(str(exp_dir)) != tag_before
+
+
+def test_custom_dockerfile_reinstalls_a_staged_local_wheel(tmp_path):
+    import docker
+
+    from dallinger.docker import tools
+
+    (tmp_path / "Dockerfile").write_text("FROM python:3.12\nCOPY . /experiment\n")
+    (tmp_path / "requirements.txt").write_text("dallinger==12.0.0\n")
+    (tmp_path / "dallinger-1-py3-none-any.whl").write_bytes(b"wheel")
+    client = mock.Mock()
+    client.api.inspect_image.side_effect = docker.errors.ImageNotFound("missing")
+    with (
+        mock.patch("docker.client.from_env", return_value=client),
+        mock.patch.object(tools, "get_base_image", return_value="base"),
+        mock.patch.object(tools, "check_output") as check_output,
+    ):
+        tools.build_image(tmp_path, "exp", mock.Mock(), image_tag="t")
+    build_args = check_output.call_args.args[0]
+    assert f"{tools.RUNS_AS_SSH_USER_LABEL}=1" in build_args
+    dockerfile = (tmp_path / "Dockerfile").read_text()
+    assert tools.LOCAL_DALLINGER_WHEEL_SNIPPET in dockerfile
+    assert "--force-reinstall --no-deps" in tools.LOCAL_DALLINGER_WHEEL_SNIPPET
 
 
 def test_deploy_image_tag_is_unique_per_launch():

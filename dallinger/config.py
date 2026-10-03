@@ -159,6 +159,8 @@ default_keys = (
     ("docker_image_name", str, [], ""),
     ("docker_volumes", str, [], ""),
     ("docker_worker_cpu_shares", int, [], ""),
+    ("docker_ssh_monitoring_kind", str, []),
+    ("docker_ssh_monitoring_path", str, []),
     ("server_pem", str, []),
 )
 

@@ -56,6 +56,13 @@ from dallinger.utils import (
     print_bold,
 )
 
+from .lib.app_manifest import (
+    APP_NAME_PATTERN,
+    INGRESS_CLASSIC,
+    DeploymentManifest,
+    public_origin_for_hostname,
+    remote_manifest_path,
+)
 from .utils import get_server_pem_path
 
 
@@ -69,10 +76,17 @@ class App:
         App/project name on the remote server.
     state : Literal["running", "inactive"]
         Runtime state label used by CLI output and app selection logic.
+    ingress : str
+        ``classic`` host Caddy. Cloudflare is recorded when a manifest says so,
+        but this release still deploys only classic ingress.
+    public_origin : str or None
+        HTTPS origin when known from a deployment manifest.
     """
 
     name: str
     state: Literal["running", "inactive"]
+    ingress: str = "classic"
+    public_origin: str | None = None
 
 
 # Find an identifier for the current user to use as CREATOR of the experiment
@@ -483,8 +497,21 @@ def known_hosts_target(host, port):
 
 
 def docker_host_uri(host, user=None, port=22):
+    """Return a DOCKER_HOST SSH URL for the remote Docker daemon.
+
+    docker-py splits this URL on ``@`` and cannot parse a username that
+    itself contains ``@``, such as a Cambridge CRSid login. Those users are
+    left out of the URL, so the SSH client takes the user from
+    ``~/.ssh/config``.
+    """
     if ":" in host and not host.startswith("["):
         host = f"[{host}]"
+    if user and "@" in user:
+        print(
+            f"SSH user {user!r} contains '@', so Docker connects without it. "
+            f"Set `User {user}` for {host} in ~/.ssh/config."
+        )
+        user = None
     user_part = f"{user}@" if user else ""
     port_part = f":{port}" if port != 22 else ""
     return f"ssh://{user_part}{host}{port_part}"
@@ -527,6 +554,44 @@ def _discover_server_apps(executor):
             existing.add(entry)
 
     return sorted(existing)
+
+
+def _load_remote_manifests(executor, app_names):
+    """Read ``deployment.json`` for the given apps in one SSH call.
+
+    Each file is printed as one ``<app><TAB><json>`` line. Names that are not
+    valid app names (for example stray files) are skipped, not sent to the shell.
+    """
+    app_names = [name for name in app_names if APP_NAME_PATTERN.fullmatch(name)]
+    if not app_names:
+        return {}
+    raw = executor.run(
+        f"for app in {' '.join(app_names)}; do f=~/dallinger/$app/deployment.json; "
+        '[ -f "$f" ] && printf "%s\\t" "$app" && tr -d "\\n" < "$f" && echo; done; true',
+        raise_=False,
+    )
+    manifests = {}
+    for line in (raw or "").splitlines():
+        name, _, text = line.partition("\t")
+        manifest = DeploymentManifest.from_json(text)
+        if name in app_names and manifest is not None:
+            manifests[name] = manifest
+    return manifests
+
+
+def _upload_app_manifest(sftp, manifest: DeploymentManifest) -> None:
+    """Write ``deployment.json`` next to the app Compose file. Never logs secrets."""
+    sftp.putfo(
+        BytesIO(manifest.to_json().encode()),
+        remote_manifest_path(manifest.app),
+    )
+
+
+def _monitoring_settings(config_map):
+    """Return generic monitoring kind and path for a deployment manifest."""
+    kind = str(config_map.get("docker_ssh_monitoring_kind") or "experiment").strip()
+    path = str(config_map.get("docker_ssh_monitoring_path") or "/health").strip()
+    return kind or "experiment", path or "/health"
 
 
 def ensure_root_domain_ready(server, update):
@@ -912,6 +977,8 @@ def _deploy_in_mode(
         experiment_id = get_experiment_id_from_archive(archive_path)
     else:
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
+    if not APP_NAME_PATTERN.fullmatch(experiment_id):
+        raise click.UsageError(f"Invalid docker-ssh app name {experiment_id!r}.")
 
     app_identifier = app_name or experiment_id
 
@@ -1034,6 +1101,10 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         f"To view the logs for this experiment go to {logs_url} (user = dallinger, password = {dozzle_password})"
     )
     cfg = config.as_dict(include_sensitive=True)
+    # Keeping the key on update keeps participants' sessions valid.
+    flask_secret_key = (
+        update and _existing_app_secret(executor, experiment_id, "FLASK_SECRET_KEY")
+    ) or token_urlsafe(16)
 
     # AWS credential keys need to be converted to upper case
     for key in "aws_access_key_id", "aws_secret_access_key":
@@ -1045,7 +1116,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
 
     cfg.update(
         {
-            "FLASK_SECRET_KEY": token_urlsafe(16),
+            "FLASK_SECRET_KEY": flask_secret_key,
             "AWS_DEFAULT_REGION": config["aws_region"],
             "smtp_username": config.get("smtp_username"),
             "auto_recruit": config["auto_recruit"],
@@ -1059,14 +1130,36 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     cfg.update(config_options)
     del cfg["host"]  # The uppercase variable will be used instead
     executor.run(f"mkdir -p dallinger/{experiment_id}")
-    postgresql_password = token_urlsafe(16)
+    postgresql_password = (
+        update and _existing_app_secret(executor, experiment_id, "POSTGRES_PASSWORD")
+    ) or token_urlsafe(16)
+    run_as_ssh_user = _image_runs_as_ssh_user(executor, image_name)
     sftp.putfo(
         BytesIO(
             get_docker_compose_yml(
-                cfg, experiment_id, image_name, postgresql_password, executor
+                cfg,
+                experiment_id,
+                image_name,
+                executor,
+                run_as_ssh_user=run_as_ssh_user,
             ).encode()
         ),
         f"dallinger/{experiment_id}/docker-compose.yml",
+    )
+    # Other config values in the Compose file, such as the dashboard
+    # password, are still sensitive.
+    sftp.chmod(f"dallinger/{experiment_id}/docker-compose.yml", 0o600)
+    _write_app_env(
+        sftp,
+        executor,
+        experiment_id,
+        {
+            "POSTGRES_PASSWORD": postgresql_password,
+            "FLASK_SECRET_KEY": flask_secret_key,
+        },
+    )
+    _write_experiment_compose_env(
+        executor, experiment_id, cfg.get("docker_volumes", "")
     )
     # We invoke the "ls" command in the context of the `web` container.
     # `docker compose` will honour `web`'s dependencies and block
@@ -1164,9 +1257,8 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         )
         print(launch_data.get("recruitment_msg"))
 
-    dashboard_link = (
-        f"https://{dashboard_user}:{dashboard_password}@{experiment_hostname}/dashboard"
-    )
+    # deploy_logs/ persists these lines, so they carry no passwords.
+    dashboard_link = f"https://{experiment_hostname}/dashboard"
     pem_path = get_server_pem_path()
     ssh_port_part = f"-p {ssh_port} " if ssh_port != 22 else ""
     log_command = (
@@ -1181,11 +1273,12 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     deployment_infos += [
         "To display the logs for this experiment you can run:",
         log_command,
-        f"Or you can head to {logs_url} (user = dallinger, password = {dozzle_password})",
-        f"You can now log in to the console at {dashboard_link} (user = {dashboard_user}, password = {dashboard_password})",
+        f"Or you can head to {logs_url} (user = dallinger)",
+        f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
     ]
     for line in deployment_infos:
         print_bold(line)
+    print_bold(f"Dashboard password: {dashboard_password}")
 
     deploy_log_path = Path("deploy_logs") / f"{experiment_id}.txt"
     deploy_log_path.parent.mkdir(exist_ok=True)
@@ -1193,11 +1286,28 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         for line in deployment_infos:
             f.write(f"{line}\n")
 
+    public_origin = public_origin_for_hostname(experiment_hostname)
+    monitoring_kind, monitoring_path = _monitoring_settings(cfg)
+    _upload_app_manifest(
+        sftp,
+        DeploymentManifest(
+            app=experiment_id,
+            server=server,
+            public_origin=public_origin,
+            monitoring_kind=monitoring_kind,
+            monitoring_path=monitoring_path,
+        ),
+    )
+
     return {
         "dashboard_user": dashboard_user,
         "dashboard_password": dashboard_password,
         "dashboard_link": dashboard_link,
         "log_command": log_command,
+        "app": experiment_id,
+        "server": server,
+        "ingress": INGRESS_CLASSIC,
+        "public_origin": public_origin,
     }
 
 
@@ -1307,14 +1417,24 @@ def get_apps(server):
 
     app_names = _discover_server_apps(executor)
     running_projects = _get_running_app_names(executor)
+    manifests = _load_remote_manifests(executor, app_names)
 
-    return [
-        App(
-            name=app_name,
-            state="running" if app_name in running_projects else "inactive",
+    apps = []
+    for app_name in app_names:
+        manifest = manifests.get(app_name)
+        apps.append(
+            App(
+                name=app_name,
+                state="running" if app_name in running_projects else "inactive",
+                ingress=manifest.ingress if manifest else "classic",
+                public_origin=(
+                    manifest.public_origin
+                    if manifest and manifest.public_origin
+                    else None
+                ),
+            )
         )
-        for app_name in app_names
-    ]
+    return apps
 
 
 @docker_ssh.command()
@@ -1336,8 +1456,15 @@ def apps(server):
     rows = []
     for app in visible_apps:
         style = "green" if app.state == "running" else "red"
-        rows.append([app.name, Text(app.state, style=style)])
-    print(render_rich_table(rows, headers=["app", "state"]))
+        rows.append(
+            [
+                app.name,
+                Text(app.state, style=style),
+                app.ingress,
+                app.public_origin or "",
+            ]
+        )
+    print(render_rich_table(rows, headers=["app", "state", "ingress", "origin"]))
     return [app.name for app in visible_apps]
 
 
@@ -1829,10 +1956,11 @@ def get_docker_compose_yml(
     config: Dict[str, str],
     experiment_id: str,
     experiment_image: str,
-    postgresql_password: str,
     executor: Executor = None,
+    *,
+    run_as_ssh_user: bool = True,
 ) -> str:
-    """Generate a docker-compose.yml file based on the given"""
+    """Render an app's docker-compose.yml. Secrets come from the app's ``.env``."""
     docker_volumes = config.get("docker_volumes", "")
     logger_filename = JSON_LOGFILE
     if logger_filename:
@@ -1851,8 +1979,103 @@ def get_docker_compose_yml(
         experiment_image=experiment_image,
         config=config_str,
         docker_volumes=docker_volumes,
-        postgresql_password=postgresql_password,
+        run_as_ssh_user=run_as_ssh_user,
     )
+
+
+def _existing_app_secret(executor, app, key):
+    """Return ``key`` from the app's ``.env``, where deploy keeps its secrets."""
+    env = executor.run(f"cat ~/dallinger/{app}/.env", raise_=False) or ""
+    for line in env.splitlines():
+        name, _, value = line.partition("=")
+        if name == key and value:
+            return value
+    return None
+
+
+def _write_app_env(sftp, executor, app, secrets):
+    """Write the app's private ``.env``, which Compose reads for its secrets."""
+    env_path = f"dallinger/{app}/.env"
+    # Create the file private before any secret is written to it.
+    executor.run(f"umask 077 && : > {env_path} && chmod 600 {env_path}")
+    content = "".join(f"{key}={value}\n" for key, value in secrets.items())
+    sftp.putfo(BytesIO(content.encode()), env_path)
+
+
+def _image_runs_as_ssh_user(executor, image_name):
+    """Return whether the image was built to run as the SSH user.
+
+    Images built before that change have a root-owned ``/experiment`` that
+    the SSH user cannot write, so they keep running as root.
+    """
+    from dallinger.docker.tools import RUNS_AS_SSH_USER_LABEL
+
+    image = quote(image_name)
+    label = executor.run(
+        f"docker pull -q {image} >/dev/null 2>&1; docker image inspect -f "
+        f"'{{{{index .Config.Labels \"{RUNS_AS_SSH_USER_LABEL}\"}}}}' {image}",
+        raise_=False,
+    )
+    if (label or "").strip() == "1":
+        return True
+    print(
+        f"Image {image_name} predates running apps as the SSH user, so its "
+        "containers run as root. Rebuild the image to run as the SSH user."
+    )
+    return False
+
+
+def _remote_bind_mount_dirs(docker_volumes, experiment_id):
+    """Return quoted remote dirs to mkdir/chown for an app's bind mounts.
+
+    Only the app data dir and writable bind mounts strictly under ``$HOME``
+    qualify, so a mount such as ``/etc/ssl`` is never chowned.
+    """
+    dirs = ['"$HOME/dallinger-data/$app"']
+    for spec in str(docker_volumes or "").split(","):
+        parts = spec.strip().split(":")
+        if len(parts) > 2 and "ro" in parts[2].split(","):
+            continue
+        host = parts[0].strip().replace("{{ experiment_id }}", experiment_id)
+        for prefix in ("${HOME}/", "$HOME/", "~/"):
+            rest = host[len(prefix) :].strip("/") if host.startswith(prefix) else ""
+            if re.fullmatch(r"[A-Za-z0-9._/-]+", rest) and ".." not in rest.split("/"):
+                snippet = f'"$HOME/{rest}"'
+                if snippet not in dirs:
+                    dirs.append(snippet)
+    return dirs
+
+
+def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
+    """Append UID/GID to the app's ``.env`` so its containers run as the SSH user.
+
+    Older docker-ssh deploys left data dirs owned by root, so each dir from
+    ``_remote_bind_mount_dirs`` is chowned recursively, falling back to a root
+    ``alpine:3.20`` container. If that fails too, warn rather than abort: a
+    fresh dir is still created as the SSH user.
+    """
+    app = quote(experiment_id)
+    dirs = " ".join(_remote_bind_mount_dirs(docker_volumes, experiment_id))
+    output = executor.run(
+        "uid=$(id -u); gid=$(id -g); "
+        f"app={app}; "
+        'printf "UID=%s\\nGID=%s\\n" "$uid" "$gid" >> "$HOME/dallinger/$app/.env"; '
+        f"for d in {dirs}; do "
+        '  mkdir -p "$d"; '
+        '  if chown -R "$uid:$gid" "$d" 2>/dev/null; then '
+        "    :; "
+        '  elif docker run --rm -v "$d:$d" '
+        'alpine:3.20 chown -R "$uid:$gid" "$d"; then '
+        "    :; "
+        "  else "
+        '    echo "Warning: could not chown $d for $app; '
+        'root-owned files from older deploys may be unwritable."; '
+        "  fi; "
+        "done"
+    )
+    for line in (output or "").splitlines():
+        if line.startswith("Warning:"):
+            print(line)
 
 
 def get_retrying_http_client():
