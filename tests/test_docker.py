@@ -811,7 +811,7 @@ def frontdoor(tmp_path):
         _docker(
             *("run", "-d", "--rm", "--name", names[-1], "--network", net),
             *("-p", "127.0.0.1::5000", "-v", f"{state}:/state"),
-            # Run as the caller, as Compose does.
+            # Run as the caller, as Compose does, so the access log is readable.
             *("--user", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/state"),
             *("-e", "XDG_CONFIG_HOME=/state/caddy-config"),
             *("-e", "XDG_DATA_HOME=/state/caddy-data"),
@@ -864,6 +864,13 @@ def test_frontdoor_routes_awake_parked_and_missing_backend(frontdoor):
     assert (status, body["from"]) == (200, "web")
     assert body["X-Forwarded-Proto"] == "https"
     assert body["X-Forwarded-For"] == "203.0.113.9"
+    log = state / "access.log"
+    time.sleep(0.5)  # Caddy may write the access line just after responding.
+    logged = log.read_text()
+    assert '"/ad"' in logged
+    get("/health")
+    time.sleep(0.5)
+    assert log.read_text() == logged
 
     (state / "hibernating").write_text("")
     status, body = _eventually(

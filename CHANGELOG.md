@@ -4,6 +4,21 @@
 
 ### Added
 
+- docker-ssh apps can hibernate automatically after a quiet period when
+  ``docker_ssh_idle_hibernate`` is set (``docker_ssh_idle_hibernate_minutes``,
+  default 60). ``/health`` probes do not count as traffic. With idle sleep
+  on, pages ping ``POST /presence`` while someone is using them (recent
+  interaction, audible media, or ``dallingerPresence.setWaiting``), so an
+  app never sleeps under a participant but an abandoned tab stops pinging.
+  Dallinger's quorum waiting room counts as waiting, and a WebSocket
+  reconnect does not wake a sleeping app.
+  Non-page requests to a sleeping app get HTTP 503 with ``Retry-After`` and
+  a JSON status, after the controller reads the whole request body, so
+  clients can resend them safely.
+  Idle sleep is not for experiments that recruit throughout their lifetime.
+  As a backstop, the app stays awake while ``auto_recruit`` is on or any
+  participant is still working; experiments can add conditions by
+  overriding ``Experiment.reason_to_stay_awake``.
 - ``dallinger docker-ssh hibernate`` and ``awaken`` stop and restart an
   app's expensive services behind a new per-app front door and controller.
   A visitor to a hibernating app gets a wait page and wakes it; other

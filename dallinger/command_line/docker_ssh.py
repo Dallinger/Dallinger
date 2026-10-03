@@ -715,6 +715,21 @@ def _cloudflare_settings(config, dns_zone=None):
     }
 
 
+def _is_true(value):
+    """Return whether a config value, possibly a CLI string, is true."""
+    return str(value).lower() in {"true", "1", "yes"}
+
+
+def _idle_settings(config_map):
+    """Return idle hibernation flag and minutes from a compose/config mapping."""
+    enabled = _is_true(config_map.get("docker_ssh_idle_hibernate", False))
+    try:
+        minutes = int(config_map.get("docker_ssh_idle_hibernate_minutes") or 60)
+    except (TypeError, ValueError):
+        minutes = 60
+    return enabled, max(minutes, 1)
+
+
 def _existing_app_secret(executor, app, key):
     """Return ``key`` from the app's ``.env``, where deploy keeps its secrets."""
     env = executor.run(f"cat ~/dallinger/{app}/.env", raise_=False) or ""
@@ -1568,6 +1583,11 @@ def _compose_environment(
     # ``HOST`` is set by the template; the rest are secrets the app must not get.
     for key in "host", "database_url", "heroku_auth_token", "cloudflare_api_token":
         cfg.pop(key, None)
+    if _idle_settings(cfg)[0] and _is_true(cfg.get("auto_recruit")):
+        print(
+            "Idle sleep stays off while auto_recruit is on, so the app can "
+            "replace participants who drop out."
+        )
     return cfg
 
 
@@ -2622,12 +2642,15 @@ def get_docker_compose_yml(
         else:
             docker_volumes = new_volume
     config_str = {key: re.sub("\\$", "$$", str(value)) for key, value in config.items()}
+    idle_enabled, idle_minutes = _idle_settings(config)
     return DOCKER_COMPOSE_EXP_TPL.render(
         ingress=ingress,
         experiment_id=experiment_id,
         experiment_image=experiment_image,
         config=config_str,
         docker_volumes=docker_volumes,
+        idle_enabled=str(idle_enabled).lower(),
+        idle_minutes=idle_minutes,
         # Compose's own project-name normalization, which its labels use.
         compose_project=re.sub(r"[^a-z0-9_-]", "", experiment_id.lower()),
         run_as_ssh_user=run_as_ssh_user,
@@ -2668,7 +2691,12 @@ def _bring_up_app_containers(
         # before the markers go. Its bind-mounted script, and the front door's
         # Caddyfile, may also have changed without Compose noticing.
         steps.append(f"{compose} up -d --no-deps --force-recreate controller")
-    steps += [f"rm -f {markers}", f"{compose} up -d"]
+    # Touching the access log restarts the idle quiet period.
+    steps += [
+        f"{{ touch {state_dir}/access.log 2>/dev/null || true; }}",
+        f"rm -f {markers}",
+        f"{compose} up -d",
+    ]
     if update:
         steps.append(f"{compose} up -d --no-deps --force-recreate frontdoor")
     output = executor.run(" && ".join(steps))
