@@ -30,6 +30,9 @@ STANDARD_WAIT_SECS = 15
 MAX_MTURK_RERUNS = 1
 if os.environ.get("CI"):
     MAX_MTURK_RERUNS = 3
+skip_live_mturk = pytest.mark.skip(
+    reason="Amazon has discontinued Mechanical Turk, so live MTurk calls fail."
+)
 
 
 class FixtureConfigurationError(Exception):
@@ -411,6 +414,7 @@ class TestSNSServiceIsolation:
         )
 
 
+@skip_live_mturk
 @pytest.mark.mturk
 @pytest.mark.mturkworker
 @pytest.mark.slow
@@ -471,6 +475,7 @@ class TestMTurkServiceIntegrationSmokeTest:
         )
 
 
+@skip_live_mturk
 @pytest.mark.mturk
 @pytest.mark.usefixtures("check_mturkfull")
 class TestMTurkService:
@@ -649,6 +654,7 @@ class TestMTurkService:
         with_cleanup.dispose_qualification_type(qtype2["id"])
 
 
+@skip_live_mturk
 @pytest.mark.mturk
 @pytest.mark.mturkworker
 @pytest.mark.usefixtures("check_mturkfull")
@@ -765,6 +771,7 @@ class TestMTurkServiceWithRequesterAndWorker:
             with_cleanup.increment_named_qualification_score("NONEXISTENT", worker_id)
 
 
+@skip_live_mturk
 @pytest.mark.mturk
 @pytest.mark.mturkworker
 @pytest.mark.usefixtures("check_manual")

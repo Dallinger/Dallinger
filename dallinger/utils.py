@@ -756,18 +756,22 @@ def assemble_experiment_temp_dir(log, config, for_remote=False, experiment_files
 
 _AUTHORED_ROOT_INPUTS = ("requirements.txt",)
 _DALLINGER_REQUIREMENT_LINE = re.compile(
-    r"^(?P<indent>[ \t]*)(?:-e[ \t]+)?dallinger(?:\[[^\]]+\])?(?:[ \t]*@[ \t]*\S+|==\S*).*$",
+    r"^(?P<indent>[ \t]*)(?:-e[ \t]+)?dallinger(?P<extras>\[[^\]]+\])?(?:[ \t]*@[ \t]*\S+|==\S*).*$",
     re.MULTILINE | re.IGNORECASE,
 )
 
 
 def replace_dallinger_requirement(text: str, egg_name: str) -> str:
-    """Point every Dallinger pin at a locally built wheel, including Git URLs.
+    """Point every Dallinger pin at a locally built wheel, including Git URLs."""
 
-    Extras such as ``dallinger[docker]`` are dropped; compiled requirements
-    already list the packages those extras bring in.
-    """
-    return _DALLINGER_REQUIREMENT_LINE.sub(rf"\g<indent>file:{egg_name}", text)
+    def _sub(m: re.Match) -> str:
+        indent = m.group("indent")
+        extras = m.group("extras") or ""
+        if extras:
+            return f"{indent}dallinger{extras} @ file:{egg_name}"
+        return f"{indent}file:{egg_name}"
+
+    return _DALLINGER_REQUIREMENT_LINE.sub(_sub, text)
 
 
 def _restore_authored_root_inputs(experiment_root, destination, copy_func):
