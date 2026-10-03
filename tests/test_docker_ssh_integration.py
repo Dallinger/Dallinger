@@ -5,6 +5,23 @@ import pytest
 import requests
 
 
+def _app_psql(server, app_id, sql):
+    return server.run_ssh(
+        "docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql "
+        f'psql -U dallinger -d {app_id} -tAc "{sql}"'
+    ).stdout.strip()
+
+
+def _web_container(server, app_id):
+    return server.run_ssh(
+        f"docker compose -f ~/dallinger/{app_id}/docker-compose.yml ps -q web"
+    ).stdout.strip()
+
+
+def _web_log(server, container_id):
+    return server.run_ssh(f"docker logs {container_id} 2>&1").stdout
+
+
 @pytest.mark.docker
 @pytest.mark.slow
 @pytest.mark.docker_ssh_smoke
@@ -14,7 +31,13 @@ def test_docker_ssh_fixture_sandbox_deploy_destroy(fresh_docker_ssh_server):
     assert app_id.startswith("dlgr-")
 
     fresh_docker_ssh_server.destroy_app(app_id)
-    assert app_id not in fresh_docker_ssh_server.list_apps()
+    apps = fresh_docker_ssh_server.run_apps_command(check=True)
+    assert app_id not in f"{apps.stdout}\n{apps.stderr}"
+    leftovers = fresh_docker_ssh_server.run_ssh(
+        f"docker ps -a --format '{{{{.Names}}}}' | grep '^{app_id}' || true; "
+        f"ls -d ~/dallinger/{app_id} ~/dallinger/caddy.d/{app_id} 2>/dev/null || true"
+    ).stdout.strip()
+    assert leftovers == "", f"destroy left these behind:\n{leftovers}"
 
 
 @pytest.mark.docker
@@ -105,6 +128,18 @@ def test_docker_ssh_update_refreshes_served_template(fresh_docker_ssh_server, tm
         assert marker_before in response_before.text
         assert marker_after not in response_before.text
 
+        created = requests.post(
+            f"{fresh_docker_ssh_server.experiment_base_url(app_id)}"
+            "/participant/W1/H1/A1/debug",
+            params={"recruiter": "hotair"},
+            timeout=30,
+            verify=False,
+        )
+        assert created.status_code == 200, created.text
+        participant_id = created.json()["participant"]["id"]
+        web_before = _web_container(fresh_docker_ssh_server, app_id)
+        assert "/launch" in _web_log(fresh_docker_ssh_server, web_before)
+
         after_template = original_template.replace(
             "<h1>Instructions</h1>",
             f"<h1>Instructions {marker_after}</h1>",
@@ -112,9 +147,6 @@ def test_docker_ssh_update_refreshes_served_template(fresh_docker_ssh_server, tm
         )
         assert after_template != original_template
         template_path.write_text(after_template)
-        pg_id_before = fresh_docker_ssh_server.run_ssh(
-            "docker ps -q --filter name=dallinger-postgresql-1", check=False
-        ).stdout.strip()
         update_result = fresh_docker_ssh_server.update_sandbox(app_id)
         update_output = f"{update_result.stdout}\n{update_result.stderr}"
         assert (
@@ -147,11 +179,19 @@ def test_docker_ssh_update_refreshes_served_template(fresh_docker_ssh_server, tm
         assert response_after.status_code == 200
         assert marker_after in response_after.text
         assert marker_before not in response_after.text
-        pg_id_after = fresh_docker_ssh_server.run_ssh(
-            "docker ps -q --filter name=dallinger-postgresql-1", check=False
-        ).stdout.strip()
-        assert pg_id_before and pg_id_before == pg_id_after, (
-            "Postgres container was replaced during update; existing data would be lost"
+
+        assert (
+            _app_psql(
+                fresh_docker_ssh_server,
+                app_id,
+                f"SELECT worker_id FROM participant WHERE id = {participant_id}",
+            )
+            == "W1"
+        ), "the participant created before the update is gone"
+        web_after = _web_container(fresh_docker_ssh_server, app_id)
+        assert web_after and web_after != web_before
+        assert "/launch" not in _web_log(fresh_docker_ssh_server, web_after), (
+            "the updated app was launched again"
         )
     finally:
         if app_id is not None:
