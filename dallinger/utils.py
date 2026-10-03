@@ -1,5 +1,6 @@
 import functools
 import io
+import json
 import locale
 import logging
 import os
@@ -20,6 +21,7 @@ from importlib.metadata import files as files_metadata
 from importlib.util import find_spec
 from pathlib import Path
 from unicodedata import normalize
+from urllib.parse import unquote, urlparse
 
 import redis
 from faker import Faker
@@ -448,7 +450,29 @@ def get_editable_dallinger_path():
         egg_link = os.path.join(path_item, "dallinger.egg-link")
         if os.path.isfile(egg_link):
             return open(egg_link).readlines()[0].strip()
-    return None
+
+    # PEP 660 editable installs do not create egg-link files.
+    try:
+        dist = get_distribution("dallinger")
+    except PackageNotFoundError:
+        return None
+    raw = dist.read_text("direct_url.json")
+    if raw is None:
+        return None
+    try:
+        metadata = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not metadata.get("dir_info", {}).get("editable"):
+        return None
+    url = metadata.get("url")
+    if not url:
+        return None
+    parsed = urlparse(url)
+    if parsed.scheme != "file":
+        return None
+    editable_path = Path(unquote(parsed.path))
+    return str(editable_path.resolve()) if editable_path.exists() else None
 
 
 def check_local_db_connection(log):
