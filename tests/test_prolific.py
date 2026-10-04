@@ -553,6 +553,19 @@ def test_get_participant_submission_without_translate_returns_payload(subject):
     )
 
 
+def test_requests_time_out_by_default(subject):
+    from dallinger.prolific import REQUEST_TIMEOUT
+
+    response = mock.MagicMock()
+    response.ok = True
+    response.json.return_value = {"id": "sub-1"}
+    with mock.patch(
+        "dallinger.prolific.requests.request", return_value=response
+    ) as req:
+        subject.get_participant_submission("sub-1", translate=False)
+    assert req.call_args.kwargs["timeout"] == REQUEST_TIMEOUT
+
+
 def test_get_participant_submission_without_translate_returns_none_on_http_error(
     subject,
 ):

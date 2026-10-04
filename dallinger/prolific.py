@@ -56,6 +56,10 @@ AVAILABLE_STATES = [
     "SCHEDULED",
 ]
 
+# (connect, read) seconds. Without a timeout a stalled Prolific request
+# blocks its web or worker process indefinitely.
+REQUEST_TIMEOUT = (10, 30)
+
 
 class ProlificService:
     """
@@ -603,7 +607,9 @@ class ProlificService:
         }
         logger.warning(f"Prolific API request: {json.dumps(summary)}")
         try:
-            response = requests.request(method, url, headers=headers, **kw)
+            response = requests.request(
+                method, url, headers=headers, **{"timeout": REQUEST_TIMEOUT, **kw}
+            )
         except requests.RequestException:
             if not raise_on_error:
                 return None
