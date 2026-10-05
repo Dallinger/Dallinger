@@ -12,6 +12,8 @@
   build and ship your local Dallinger checkout instead of the version in
   ``requirements.txt``, and ``docker debug`` mounts it into the container.
   Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
+- The ``deployment-files`` CLI tests no longer use Click's deprecated
+  ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
 
 ### Fixed
 
