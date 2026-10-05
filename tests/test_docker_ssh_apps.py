@@ -795,6 +795,24 @@ def test_app_stack_keeps_secrets_out_of_the_compose_file():
     )
 
 
+@pytest.mark.parametrize("auto_recruit, noticed", [("true", True), ("false", False)])
+def test_compose_environment_notes_idle_sleep_waits_for_auto_recruit(
+    capsys, auto_recruit, noticed
+):
+    config = mock.MagicMock()
+    config.as_dict.return_value = {}
+    config.__getitem__.side_effect = {"aws_region": "x", "auto_recruit": False}.get
+    docker_ssh_module._compose_environment(
+        config,
+        {"docker_ssh_idle_hibernate": "true", "auto_recruit": auto_recruit},
+        "live",
+        "uuid",
+        "image:tag",
+        "flask-key",
+    )
+    assert ("Idle sleep stays off" in capsys.readouterr().out) is noticed
+
+
 def test_compose_environment_strips_cloudflare_api_token():
     class Config:
         def as_dict(self, include_sensitive=False):
@@ -939,6 +957,7 @@ def test_update_wakes_a_hibernating_app(tmp_path, capsys):
         executor, {}, "demo", None, True, restore=False
     )
     assert not (state / "hibernating").exists()
+    assert (state / "access.log").exists()
     log = (tmp_path / "docker.log").read_text()
     assert "demo/docker-compose.yml up -d" in log
     recreate_controller = log.index("--force-recreate controller")

@@ -248,7 +248,29 @@ login.user_loader(dashboard.load_user)
 login.unauthorized_handler(dashboard.unauthorized)
 app.config["dashboard_tabs"] = dashboard.dashboard_tabs
 
-app.jinja_env.globals.update(get_from_config=get_from_config)
+
+def presence_settings():
+    """Return ``presence.js`` timings for pages, or None without idle sleep.
+
+    docker-ssh idle sleep counts only requests that reach its front door, so
+    an open page that is quiet, or talks only over a WebSocket, would
+    otherwise look idle. Engaged pages ping at a third of the idle window,
+    between 20 seconds and 5 minutes. An interaction keeps a page engaged
+    for one idle window.
+    """
+    config = get_config()
+    if not config.get("docker_ssh_idle_hibernate", False):
+        return None
+    minutes = int(config.get("docker_ssh_idle_hibernate_minutes", 60) or 60)
+    return {
+        "interval_ms": min(max(minutes * 20_000, 20_000), 300_000),
+        "active_window_ms": max(minutes, 1) * 60_000,
+    }
+
+
+app.jinja_env.globals.update(
+    get_from_config=get_from_config, presence_settings=presence_settings
+)
 
 """Basic routes."""
 
@@ -277,6 +299,19 @@ def static_favicon():
 def health():
     """Return JSON so monitors and docker-ssh can tell the web process is up."""
     return Response('{"status":"ok"}\n', mimetype="application/json")
+
+
+@app.route("/presence", methods=["POST"])
+def presence():
+    """Accept a ping from an open page; the request itself is the activity."""
+    return Response(status=204)
+
+
+@app.route("/idle-hibernation", methods=["GET"])
+def idle_hibernation():
+    """Tell the docker-ssh controller whether idle sleep may stop the app now."""
+    reason = Experiment().reason_to_stay_awake()
+    return success_response(stay_awake=reason is not None, reason=reason)
 
 
 @app.errorhandler(ExperimentError)

@@ -210,9 +210,32 @@ the app is ready, and other requests get HTTP 503. Manual control::
     dallinger docker-ssh hibernate --app $APP --server $SERVER
     dallinger docker-ssh awaken --app $APP --server $SERVER
 
-Hibernate only apps that are not recruiting or serving participants. A
-request sent while the app sleeps (a form submission, for example) is not
-retried.
+Set ``docker_ssh_idle_hibernate = true`` to sleep an app automatically after
+``docker_ssh_idle_hibernate_minutes`` without traffic; ``/health`` probes do
+not count. With idle sleep on, pages built on Dallinger's base layout ping
+``/presence`` while someone is using them, so an app does not sleep under a
+participant, even on a quiet or WebSocket-only page. Interaction, audible
+non-looping media, or ``dallingerPresence.setWaiting(true)`` (for pages that
+wait, for example for a partner) keeps a page in use; an abandoned tab stops
+pinging one idle window after its last interaction, and pings at once when
+someone returns. Dallinger's quorum waiting room marks itself as waiting.
+A page that polls the server itself (for example PsyNet's waiting pages)
+keeps the app awake for as long as it stays open. WebSocket traffic never
+counts as activity, and a WebSocket reconnect does not wake a sleeping app.
+A page that does not use the base layout must make its own requests to
+count, and the dashboard doesn't keep an app awake. Call ``setWaiting`` as
+``window.dallingerPresence && dallingerPresence.setWaiting(true)``: the
+script is loaded only while idle sleep is on.
+
+A non-page request to a sleeping app gets HTTP 503 with ``Retry-After: 5``
+and a JSON body ``{"status": "hibernating"}`` or ``{"status": "waking"}``.
+The controller reads the whole request body first, so a large upload gets
+that response rather than a dropped connection. Clients that resend on this
+response (PsyNet does, for submissions) do not lose work when an app falls
+asleep under them.
+
+Before you enable idle sleep, read
+:ref:`idle-hibernation-rolling-recruitment`.
 
 ``dallinger docker-ssh apps`` reports ``hibernating`` or ``waking`` from the
 app's sleep markers. ``dallinger docker-ssh
@@ -230,8 +253,10 @@ deploy retries in a root ``alpine:3.20`` container, and warns if that fails.
 
 Expensive services use ``restart: unless-stopped``: a host reboot brings
 back an app that was running, and an explicit hibernate stays stopped.
-``--update`` wakes a hibernating app. An app is hibernating only after
-``hibernate``. If ``web`` is down for any other reason, the front door
+The idle quiet period restarts when the app wakes and when its controller
+starts, so a just-woken or just-updated app gets a full quiet period.
+``--update`` wakes a hibernating app; it sleeps again only if idle sleep is
+on. An app is hibernating only after ``hibernate`` or idle sleep. If ``web`` is down for any other reason, the front door
 returns HTTP 503 and ``/health`` reports ``unavailable``. A wake interrupted
 by a controller restart goes back to hibernating, and the next visitor or
 ``awaken`` retries it. Isolated Cloudflare Postgres uses a pinned
@@ -247,8 +272,41 @@ experiment's Dallinger pin.
 
       The intended use case is a server that you provisioned exclusively for use with Dallnger.
 
+.. _idle-hibernation-rolling-recruitment:
+
+Idle hibernation and rolling recruitment
+----------------------------------------
+
+.. warning::
+
+   Do not enable idle hibernation for experiments that replace failed
+   participants or otherwise recruit reactively throughout their lifetime.
+
+   While the app sleeps, the clock process and recruiter callbacks are
+   suspended. For rolling-recruitment experiments, the quiet gaps *between*
+   participants are when the system does critical work: detecting timeouts,
+   triggering replacements, and preparing for the next arrival. Sleeping
+   during those gaps means that work never happens.
+
+   This restriction applies for the **entire lifetime** of a
+   rolling-recruitment experiment, not only during active recruitment waves.
+
+Idle hibernation suits experiments with a clearly bounded recruitment window:
+recruit N participants, run the session, recruitment ends. Once the session
+is complete the app can safely sleep until the researcher exports the data.
+Leave idle sleep off for first canary deploys too.
+
+As a backstop, the controller asks the app before each idle sleep. The app
+stays awake while ``auto_recruit`` is on, including after it is switched on
+from the dashboard, and while any participant is still ``working``, until
+the clock times out abandoned participants. The controller logs the reason,
+and deploy prints a notice when idle sleep and ``auto_recruit`` are both on.
+An experiment that recruits in other ways can add its own conditions by
+overriding ``Experiment.reason_to_stay_awake``. Images built before this
+check sleep after the quiet period regardless.
+
 SSH Authentication Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+--------------------------------
 
 **Before deploying to a server**, you must configure SSH authentication using a PEM key file.
 This is **required** for all ``dallinger docker-ssh`` commands.
@@ -271,7 +329,7 @@ Set the ``server_pem`` configuration variable in your experiment's ``config.txt`
 * Best practice: Store PEM files in ``~/.ssh/`` directory (the standard location for SSH keys)
 
 Server Prerequisites
-~~~~~~~~~~~~~~~~~~~~
+--------------------
 
 Your deployment server must meet these requirements:
 
@@ -283,7 +341,7 @@ Your deployment server must meet these requirements:
     * The user on the server needs passwordless sudo
 
 Verifying SSH Access
-~~~~~~~~~~~~~~~~~~~~~
+--------------------
 
 Before deploying, verify that you can connect to your server with your PEM key:
 
@@ -305,7 +363,7 @@ Type ``yes`` to accept and add the server to your known hosts. If you can connec
 your SSH key authentication is set up correctly and you're ready to deploy with Dallinger.
 
 Adding a Server
-~~~~~~~~~~~~~~~
+---------------
 
 Given an IP address or a DNS name of the server and a username, add the host to the list of known dallinger servers:
 
