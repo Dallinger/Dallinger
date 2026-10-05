@@ -582,7 +582,13 @@ class ProlificService:
         return self._req(method="GET", endpoint="/users/me/")
 
     def _req(
-        self, method: str, endpoint: str, *, raise_on_error: bool = True, **kw
+        self,
+        method: str,
+        endpoint: str,
+        *,
+        raise_on_error: bool = True,
+        timeout=REQUEST_TIMEOUT,
+        **kw,
     ) -> Optional[dict]:
         """Runs the actual request/response cycle:
         * Adds Authorization header
@@ -594,7 +600,8 @@ class ProlificService:
           and timeouts as ``ProlificServiceException``
 
         When ``raise_on_error`` is false, a miss returns ``None`` instead of a
-        recruitment error.
+        recruitment error. ``timeout`` is passed to ``requests``; it defaults
+        to ``REQUEST_TIMEOUT``, and ``None`` waits indefinitely.
         """
         from dallinger.recruiters import handle_and_raise_recruitment_error
 
@@ -611,7 +618,7 @@ class ProlificService:
         logger.warning(f"Prolific API request: {json.dumps(summary)}")
         try:
             response = requests.request(
-                method, url, headers=headers, **{"timeout": REQUEST_TIMEOUT, **kw}
+                method, url, headers=headers, timeout=timeout, **kw
             )
         except requests.RequestException as err:
             if not raise_on_error:
