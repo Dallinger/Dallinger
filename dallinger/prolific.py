@@ -108,12 +108,14 @@ class ProlificService:
         the study on Prolific. If we get there first, there will be an error
         because the submission hasn't happened yet.
         """
-        status = self.get_participant_submission(submission_id)["status"]
+        submission = self.get_participant_submission(submission_id)
+        status = submission["status"]
         if status == "APPROVED":
             logger.info(
                 "Participant submission is already approved, no need to approve again."
             )
-        elif status != "AWAITING REVIEW":
+            return submission
+        if status != "AWAITING REVIEW":
             # This will trigger a retry from the decorator
             raise ProlificServiceException(
                 f"Prolific session not yet submitted (current status is '{status}')."
@@ -588,7 +590,8 @@ class ProlificService:
           when troubleshooting
         * Logs all requests (we might want to stop doing this when we're
           out of our "beta" period with Prolific)
-        * Parses response and does error handling
+        * Parses response and does error handling, raising connection errors
+          and timeouts as ``ProlificServiceException``
 
         When ``raise_on_error`` is false, a miss returns ``None`` instead of a
         recruitment error.
@@ -610,10 +613,19 @@ class ProlificService:
             response = requests.request(
                 method, url, headers=headers, **{"timeout": REQUEST_TIMEOUT, **kw}
             )
-        except requests.RequestException:
+        except requests.RequestException as err:
             if not raise_on_error:
                 return None
-            raise
+            error = {
+                "method": method,
+                "token": self.api_token_fragment,
+                "URL": url,
+                "args": kw,
+                "error": repr(err),
+            }
+            handle_and_raise_recruitment_error(
+                ProlificServiceException(json.dumps(error))
+            )
 
         if method == "DELETE" and response.ok:
             return {"status_code": response.status_code}

@@ -14,6 +14,15 @@
   30 seconds without receiving data, so a stalled request no longer blocks
   its web or worker process indefinitely.
 
+- Prolific connection errors and timeouts now raise `ProlificServiceException`
+  and are reported as recruitment errors, like other Prolific API failures.
+  Before, they escaped as `requests` exceptions, so a failed approval or bonus
+  payment stopped the rest of submission handling.
+
+- Approving a Prolific submission that is already approved no longer sends a
+  second approval, which Prolific rejected and which caused the call to retry
+  until it gave up.
+
 - WebSocket relays no longer log a `ConnectionClosed` traceback when a message
   reaches a client that has just disconnected; the client was already
   unsubscribed.
