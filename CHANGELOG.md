@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+### Added
+
+- docker-ssh experiment containers built from now on run as the SSH user
+  instead of root; images built earlier keep running as root until rebuilt.
+  Every directory under ``/experiment`` is writable in the image, so the app
+  can create files anywhere in its tree, and deploy chowns the app's data
+  directory and writable bind mounts under ``$HOME``. Files shipped in the
+  image cannot be edited in place, and paths outside ``/experiment`` stay
+  read-only for the app.
+- docker-ssh keeps each app's database password in a private
+  ``~/dallinger/<app>/.env`` instead of its ``docker-compose.yml``, and makes
+  both files private (mode 0600). ``--update`` keeps the database password
+  and the Flask secret key, so participants' sessions survive an update.
+  ``get_docker_compose_yml`` no longer takes ``postgresql_password``.
+- docker-ssh writes a non-secret ``~/dallinger/<app>/deployment.json`` on
+  deploy and ``apps`` shows the recorded ingress and origin. Classic host
+  Caddy remains the only implemented ingress.
+  New ``docker_ssh_monitoring_kind`` and ``docker_ssh_monitoring_path``
+  config keys set the manifest's monitoring fields. ``servers add`` now
+  refuses host record fields whose names look like tokens or passwords.
+  The experiment server has a stock ``GET /health``, the manifest's default
+  monitoring path.
+- Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
+  docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
+  A custom experiment Dockerfile gets a final step that installs that wheel.
+  Dallinger pins given as Git URLs are replaced by the local wheel as well
+  (extras such as ``[docker]`` are dropped from the rewritten line).
+
 ### Changed
 
 - Skipped the live MTurk integration tests, because Amazon has discontinued
@@ -15,6 +43,9 @@
 
 ### Fixed
 
+- Remote Docker builds work when the SSH username contains ``@``.
+- docker-ssh deploys no longer write the dashboard or Dozzle password into
+  ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.
 - docker-ssh deploy now correctly handles SSH hosts specified as ``host:port``.
   The ``--update`` flag now yields a boolean instead of the
   string ``"update"``. TLS certificate verification is skipped for loopback
