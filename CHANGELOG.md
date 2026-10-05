@@ -10,9 +10,9 @@
 
 ### Fixed
 
-- Prolific API requests now time out (10 seconds to connect, 30 seconds to
-  read), so a stalled request no longer blocks its web or worker process
-  indefinitely. Callers can still pass their own `timeout`.
+- Prolific API requests now time out after 10 seconds without connecting or
+  30 seconds without receiving data, so a stalled request no longer blocks
+  its web or worker process indefinitely.
 
 - WebSocket relays no longer log a `ConnectionClosed` traceback when a message
   reaches a client that has just disconnected; the client was already
