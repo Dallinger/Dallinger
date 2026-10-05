@@ -456,6 +456,9 @@ class TestProlificRecruiter:
 
             return r
 
+    def test_init_does_not_reload_loaded_config(self, recruiter, active_config):
+        active_config.load.assert_not_called()
+
     def test_open_recruitment_with_valid_request(self, recruiter):
         result = recruiter.open_recruitment(n=5)
 
