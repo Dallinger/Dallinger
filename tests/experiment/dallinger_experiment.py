@@ -1,4 +1,5 @@
 import os.path
+import time
 
 from dallinger.config import get_config
 from dallinger.experiment import Experiment, experiment_route
@@ -46,6 +47,23 @@ class TestExperiment(Experiment):
     @classmethod
     def custom_dashboard(cls):
         return "A custom dashboard for {}.".format(cls.__name__)
+
+
+class ZSlowTestExperiment(TestExperiment):
+    """TestExperiment with a deliberate 50ms pause during participant creation.
+
+    Used by concurrency tests to widen the race window — the pause makes
+    it much more likely that two concurrent requests will overlap at the
+    critical count→insert interval. Load with
+    EXPERIMENT_CLASS_NAME=ZSlowTestExperiment.
+
+    The Z prefix keeps it sorted after TestExperiment so the auto-selection
+    logic in experiment.load() still picks TestExperiment for all other tests.
+    """
+
+    def create_participant(self, **kwargs):  # type: ignore[override]
+        time.sleep(0.05)
+        return super().create_participant(**kwargs)
 
 
 class ZSubclassThatSortsLower(TestExperiment):
