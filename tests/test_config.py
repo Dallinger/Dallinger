@@ -1,9 +1,16 @@
 import os
 from tempfile import NamedTemporaryFile
+from unittest import mock
 
 import pytest
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 from dallinger.config import LOCAL_CONFIG, Configuration, get_config
+
+
+def _layer_count(config):
+    """Count config layers as a plain int, so a failing assert can't print secrets."""
+    return len(config.data)
 
 
 class TestConfigurationUnitTests:
@@ -75,6 +82,12 @@ class TestConfigurationUnitTests:
         assert config.get("num_participants", 1) == 1
         config.extend({"num_participants": 2})
         assert config.get("num_participants", 1) == 2
+
+    def test_data_is_a_read_only_sequence(self):
+        config = Configuration()
+        assert isinstance(config.data, tuple)
+        with pytest.raises(AttributeError):
+            config.data.append({})
 
     def test_source_priority_beats_load_order(self):
         from dallinger.config import ConfigSource
@@ -244,6 +257,15 @@ worldwide = false
         redis_conn.set("auto_recruit", 1)
         assert active_config.get("auto_recruit") is True
 
+    def test_auto_recruit_falls_back_when_redis_unavailable(self, active_config):
+        active_config.set("auto_recruit", False)
+
+        with mock.patch(
+            "dallinger.db.redis_conn.get",
+            side_effect=RedisConnectionError("redis unavailable"),
+        ):
+            assert active_config.get("auto_recruit") is False
+
 
 @pytest.mark.usefixtures("experiment_dir_merged")
 class TestConfigurationIntegrationTests:
@@ -267,6 +289,186 @@ class TestConfigurationIntegrationTests:
         config._reset(register_defaults=True)
         config.register_extra_parameters()
         config.load_from_file(LOCAL_CONFIG)
+
+    @pytest.fixture
+    def loaded_config(self, monkeypatch):
+        """A real, loaded global config in place of the stubbed one."""
+        import dallinger.config
+
+        monkeypatch.setattr(dallinger.config, "config", None)
+        return get_config(load=True)
+
+    def test_repeated_load_does_not_accumulate_layers(self, loaded_config):
+        config = loaded_config
+        layer_count = _layer_count(config)
+        resolved = config.as_dict()
+
+        with config.override({"title": "overridden"}):
+            for _ in range(50):
+                config.load()
+            assert config.get("title") == "overridden"
+
+        assert _layer_count(config) == layer_count
+        assert config.as_dict() == resolved
+
+    def test_failed_reload_keeps_previous_config(self, loaded_config, monkeypatch):
+        config = loaded_config
+        layer_count = _layer_count(config)
+        resolved = config.as_dict()
+
+        def fail():
+            raise ValueError("unreadable source")
+
+        monkeypatch.setattr(config, "load_from_environment", fail)
+        with pytest.raises(ValueError):
+            config.load()
+        assert _layer_count(config) == layer_count
+        assert config.as_dict() == resolved
+
+    def test_load_nested_inside_load_gives_a_complete_config(
+        self, loaded_config, monkeypatch
+    ):
+        config = loaded_config
+        layer_count = _layer_count(config)
+        resolved = config.as_dict()
+        load_defaults = config.load_defaults
+        nested = []
+
+        def load_defaults_after_a_nested_load(strict=True):
+            # As when importing the experiment calls load() again.
+            if not nested:
+                nested.append(True)
+                config.load()
+            load_defaults(strict)
+
+        monkeypatch.setattr(config, "load_defaults", load_defaults_after_a_nested_load)
+        config.load()
+        assert nested
+        assert config.as_dict() == resolved
+
+        # Every layer of the outer load counts as loaded, so a reload replaces it.
+        config.load()
+        assert _layer_count(config) == layer_count
+
+    def test_overlapping_loads_in_two_threads(self, loaded_config, monkeypatch):
+        import threading
+
+        config = loaded_config
+        layer_count = _layer_count(config)
+        load_defaults = config.load_defaults
+        first_load_started = threading.Event()
+        second_load_waiting = threading.Event()
+        release_first_load = threading.Event()
+        real_lock = config._load_lock
+
+        class SignalingLock:
+            def __enter__(self):
+                if first_load_started.is_set():
+                    second_load_waiting.set()
+                return real_lock.__enter__()
+
+            def __exit__(self, *args):
+                return real_lock.__exit__(*args)
+
+        def slow_load_defaults(strict=True):
+            if not first_load_started.is_set():
+                first_load_started.set()
+                release_first_load.wait()
+            load_defaults(strict)
+
+        config._load_lock = SignalingLock()
+        monkeypatch.setattr(config, "load_defaults", slow_load_defaults)
+        threads = [threading.Thread(target=config.load) for _ in range(2)]
+        threads[0].start()
+        assert first_load_started.wait(timeout=2)
+        threads[1].start()
+        try:
+            assert second_load_waiting.wait(timeout=2)
+        finally:
+            release_first_load.set()
+        for thread in threads:
+            thread.join(timeout=2)
+            assert not thread.is_alive()
+
+        assert _layer_count(config) == layer_count
+
+    def test_get_and_extend_in_another_thread_during_load(
+        self, loaded_config, monkeypatch
+    ):
+        import threading
+
+        config = loaded_config
+        committed_title = config.get("title")
+        load_defaults = config.load_defaults
+        load_started = threading.Event()
+        release_load = threading.Event()
+        should_block = True
+
+        def blocking_load_defaults(strict=True):
+            if should_block:
+                load_started.set()
+                release_load.wait()
+            load_defaults(strict)
+
+        monkeypatch.setattr(config, "load_defaults", blocking_load_defaults)
+        load_thread = threading.Thread(target=config.load)
+        load_thread.start()
+        try:
+            assert load_started.wait(timeout=2)
+            assert config.get("title") == committed_title
+
+            extend_thread = threading.Thread(
+                target=config.extend, args=({"title": "added concurrently"},)
+            )
+            extend_thread.start()
+            extend_thread.join(timeout=2)
+            assert not extend_thread.is_alive()
+        finally:
+            release_load.set()
+            load_thread.join(timeout=2)
+        assert not load_thread.is_alive()
+        assert config.get("title") == "added concurrently"
+
+        should_block = False
+        config.load()
+        assert config.get("title") == "added concurrently"
+
+    def test_override_during_load_removes_its_layer(self, loaded_config, monkeypatch):
+        config = loaded_config
+        load_defaults = config.load_defaults
+
+        def load_defaults_with_override(strict=True):
+            with config.override({"title": "temporary override"}):
+                load_defaults(strict)
+
+        monkeypatch.setattr(config, "load_defaults", load_defaults_with_override)
+        config.load()
+        assert config.get("title") != "temporary override"
+
+    def test_added_layer_beats_later_loaded_layer_from_same_source(
+        self, loaded_config, monkeypatch
+    ):
+        from dallinger.config import ConfigSource
+
+        config = loaded_config
+        config.extend({"title": "added"}, source=ConfigSource.ENVIRONMENT)
+        monkeypatch.setenv("title", "loaded later")
+
+        config.load()
+
+        assert config.get("title") == "added"
+
+    def test_reload_drops_values_removed_from_a_source(
+        self, loaded_config, monkeypatch
+    ):
+        config = loaded_config
+        monkeypatch.setenv("title", "from_environment")
+        config.load()
+        assert config.get("title") == "from_environment"
+
+        monkeypatch.delenv("title")
+        config.load()
+        assert config.get("title") != "from_environment"
 
     def test_write_omits_sensitive_keys_if_filter_sensitive(self, in_tempdir):
         config = get_config()

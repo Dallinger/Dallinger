@@ -724,6 +724,11 @@ var dallinger = (function () {
     var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
     var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat?channel=quorum&worker_id=" + dlgr.identity.workerId + '&participant_id=' + dlgr.identity.participantId);
     var deferred = $.Deferred();
+    // The quorum socket is not a request idle sleep can see.
+    if (window.dallingerPresence) {
+      window.dallingerPresence.setWaiting(true);
+      deferred.always(function () { window.dallingerPresence.setWaiting(false); });
+    }
     socket.onmessage = function (msg) {
       if (msg.data.indexOf('quorum:') !== 0) { return; }
       var data = JSON.parse(msg.data.substring(7));

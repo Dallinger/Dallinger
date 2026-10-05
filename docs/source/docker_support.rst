@@ -163,16 +163,150 @@ experiments deployed this way can be found under the `dallinger docker-ssh` comm
       deploy                Deploy a dallinger experiment docker image to a server using ssh.
       destroy               Tear down an experiment run on a server you control via ssh.
       export                Export database to a local file.
+      hibernate             Stop expensive services while keeping the app front door awake.
+      awaken                Start a hibernated app without re-launching recruitment.
       servers               Manage remote servers where experiments can be deployed
       set-dozzle-password
       stats                 Get resource usage stats from remote server.
+
+Each ``docker-ssh`` deploy writes ``~/dallinger/<app>/deployment.json`` on the
+server. The file records non-secret metadata: the public HTTPS origin, the
+ingress mode, and the monitoring kind and path. ``apps`` shows the recorded
+ingress and origin. Host records reject fields whose names look like tokens
+or passwords.
+
+The app's database password lives in ``~/dallinger/<app>/.env`` (mode
+``0600``), which Compose reads, so ``docker-compose.yml`` no longer holds it.
+``docker-compose.yml`` still holds other config values, such as the
+dashboard password, so it is private (mode ``0600``) too. ``--update`` keeps the
+password.
+
+``--ingress classic`` keeps host Caddy and the shared server Postgres.
+``--ingress cloudflare`` starts an isolated Compose stack and a per-app
+tunnel; ``servers add --default-ingress cloudflare`` makes it a server's
+default. Cloudflare apps don't block a classic root-domain deploy.
+The tunnel proxies to the experiment web service. Set the non-secret
+``cloudflare_account_id``, ``cloudflare_zone_id``, and ``cloudflare_dns_zone``
+in Dallinger config. The API token is read from ``CLOUDFLARE_API_TOKEN``, then
+Dallinger config, then the macOS Keychain item
+``dallinger-cloudflare-api-token``. It is never written to host records, the
+manifest, or the app's Compose file. Tunnel names do not include the server,
+so a deploy refuses an app name whose tunnel already exists, unless it is the
+tunnel this server recorded for that app (in its manifest, or next to the
+connector token from an earlier attempt). Destroy stops the connector, then deletes the DNS record and
+tunnel, but never a same-named tunnel with a different id. If that cleanup fails, destroy leaves the app's files in place so it
+can be run again.
+
+Each app also gets an unprivileged Caddy front door (WebSockets, no Docker
+socket), which host Caddy or the tunnel now reach instead of web, and a
+private controller. The controller holds the Docker socket, which is
+root-equivalent on the host; its code stops and starts only that Compose
+project's expensive services. The controller is a standard-library script run from
+``python:3.12-alpine``, not the experiment image. Only ``docker compose exec``
+inside the controller can explicitly hibernate or wake the app; any visitor
+also wakes it. While it sleeps, page loads get a wait page that reloads once
+the app is ready, and other requests get HTTP 503. Manual control::
+
+    dallinger docker-ssh hibernate --app $APP --server $SERVER
+    dallinger docker-ssh awaken --app $APP --server $SERVER
+
+Set ``docker_ssh_idle_hibernate = true`` to sleep an app automatically after
+``docker_ssh_idle_hibernate_minutes`` without traffic; ``/health`` probes do
+not count. With idle sleep on, pages built on Dallinger's base layout ping
+``/presence`` while someone is using them, so an app does not sleep under a
+participant, even on a quiet or WebSocket-only page. Interaction, audible
+non-looping media, or ``dallingerPresence.setWaiting(true)`` (for pages that
+wait, for example for a partner) keeps a page in use; an abandoned tab stops
+pinging one idle window after its last interaction, and pings at once when
+someone returns. Dallinger's quorum waiting room marks itself as waiting.
+A page that polls the server itself (for example PsyNet's waiting pages)
+keeps the app awake for as long as it stays open. WebSocket traffic never
+counts as activity, and a WebSocket reconnect does not wake a sleeping app.
+A page that does not use the base layout must make its own requests to
+count, and the dashboard doesn't keep an app awake. Call ``setWaiting`` as
+``window.dallingerPresence && dallingerPresence.setWaiting(true)``: the
+script is loaded only while idle sleep is on.
+
+A non-page request to a sleeping app gets HTTP 503 with ``Retry-After: 5``
+and a JSON body ``{"status": "hibernating"}`` or ``{"status": "waking"}``.
+The controller reads the whole request body first, so a large upload gets
+that response rather than a dropped connection. Clients that resend on this
+response (PsyNet does, for submissions) do not lose work when an app falls
+asleep under them.
+
+Before you enable idle sleep, read
+:ref:`idle-hibernation-rolling-recruitment`.
+
+``dallinger docker-ssh apps`` reports ``hibernating`` or ``waking`` from the
+app's sleep markers. ``dallinger docker-ssh
+export`` awakens the app and waits until Postgres and web health succeed.
+
+Experiment containers run as the SSH user (``UID``/``GID`` in the per-app
+``.env``) when their image was built by this version of Dallinger; older
+images keep running as root until rebuilt. Every directory under
+``/experiment`` is writable in the image, so the app can create files there;
+files shipped in the image cannot be edited in place. Deploy also chowns ``~/dallinger-data/<app>``, the front-door
+state directory, and writable host bind mounts under the home directory in
+``docker_volumes`` (PsyNet defaults include ``~/psynet-data/assets``) so
+files left as root by older deploys stay writable. If a plain chown fails,
+deploy retries in a root ``alpine:3.20`` container, and warns if that fails.
+
+Expensive services use ``restart: unless-stopped``: a host reboot brings
+back an app that was running, and an explicit hibernate stays stopped.
+The idle quiet period restarts when the app wakes and when its controller
+starts, so a just-woken or just-updated app gets a full quiet period.
+``--update`` wakes a hibernating app; it sleeps again only if idle sleep is
+on. An app is hibernating only after ``hibernate`` or idle sleep. If ``web`` is down for any other reason, the front door
+returns HTTP 503 and ``/health`` reports ``unavailable``. A wake interrupted
+by a controller restart goes back to hibernating, and the next visitor or
+``awaken`` retries it. Isolated Cloudflare Postgres uses a pinned
+``{app}_postgresql`` container name so export does not fall back to the
+shared host database.
+
+To bake an unreleased Dallinger checkout into the experiment image, set
+``DALLINGER_SOURCE`` to that tree (PsyNet ``--use-local-dallinger`` does
+this). PYTHONPATH alone is not enough: the image still pip-installs the
+experiment's Dallinger pin.
 
 .. note::
 
       The intended use case is a server that you provisioned exclusively for use with Dallnger.
 
+.. _idle-hibernation-rolling-recruitment:
+
+Idle hibernation and rolling recruitment
+----------------------------------------
+
+.. warning::
+
+   Do not enable idle hibernation for experiments that replace failed
+   participants or otherwise recruit reactively throughout their lifetime.
+
+   While the app sleeps, the clock process and recruiter callbacks are
+   suspended. For rolling-recruitment experiments, the quiet gaps *between*
+   participants are when the system does critical work: detecting timeouts,
+   triggering replacements, and preparing for the next arrival. Sleeping
+   during those gaps means that work never happens.
+
+   This restriction applies for the **entire lifetime** of a
+   rolling-recruitment experiment, not only during active recruitment waves.
+
+Idle hibernation suits experiments with a clearly bounded recruitment window:
+recruit N participants, run the session, recruitment ends. Once the session
+is complete the app can safely sleep until the researcher exports the data.
+Leave idle sleep off for first canary deploys too.
+
+As a backstop, the controller asks the app before each idle sleep. The app
+stays awake while ``auto_recruit`` is on, including after it is switched on
+from the dashboard, and while any participant is still ``working``, until
+the clock times out abandoned participants. The controller logs the reason,
+and deploy prints a notice when idle sleep and ``auto_recruit`` are both on.
+An experiment that recruits in other ways can add its own conditions by
+overriding ``Experiment.reason_to_stay_awake``. Images built before this
+check sleep after the quiet period regardless.
+
 SSH Authentication Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+--------------------------------
 
 **Before deploying to a server**, you must configure SSH authentication using a PEM key file.
 This is **required** for all ``dallinger docker-ssh`` commands.
@@ -195,17 +329,19 @@ Set the ``server_pem`` configuration variable in your experiment's ``config.txt`
 * Best practice: Store PEM files in ``~/.ssh/`` directory (the standard location for SSH keys)
 
 Server Prerequisites
-~~~~~~~~~~~~~~~~~~~~
+--------------------
 
 Your deployment server must meet these requirements:
 
-    * Ports 80 and 443 should be free (Dallinger will install a web server and take care of getting SSL certificates for you)
+    * Ports 80 and 443 should be free if you use classic Caddy ingress
+      (Dallinger will install a web server and take care of getting SSL
+      certificates for you). Cloudflare tunnel apps do not publish those ports.
     * SSH should be configured with public key authentication
     * Your server's ``~/.ssh/authorized_keys`` file must contain the public key corresponding to your ``server_pem`` private key
     * The user on the server needs passwordless sudo
 
 Verifying SSH Access
-~~~~~~~~~~~~~~~~~~~~~
+--------------------
 
 Before deploying, verify that you can connect to your server with your PEM key:
 
@@ -227,7 +363,7 @@ Type ``yes`` to accept and add the server to your known hosts. If you can connec
 your SSH key authentication is set up correctly and you're ready to deploy with Dallinger.
 
 Adding a Server
-~~~~~~~~~~~~~~~
+---------------
 
 Given an IP address or a DNS name of the server and a username, add the host to the list of known dallinger servers:
 
@@ -305,6 +441,17 @@ If you need to run an experiment on Amazon Mechanical Turk in sandbox mode you c
 .. code-block:: shell
 
     dallinger docker-ssh deploy --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5 -c mode sandbox
+
+To publish an experiment on a first-level Cloudflare hostname instead of host
+Caddy, pass ``--ingress cloudflare`` on that deploy. Do not set
+``--default-ingress cloudflare`` until canaries succeed. The app name becomes
+the DNS label:
+
+.. code-block:: shell
+
+    CLOUDFLARE_API_TOKEN=... dallinger docker-ssh deploy \
+        --app consonance --ingress cloudflare \
+        --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5
 
 
 To export the data from an experiment running on a server, run:

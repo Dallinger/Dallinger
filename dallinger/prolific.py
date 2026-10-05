@@ -1042,7 +1042,9 @@ def prolific_service_from_config(strict=False):  #
     from dallinger.prolific import ProlificService
 
     config = get_config()
-    config.load(strict=strict)
+    # Recruiters are built per request; don't re-read config files each time.
+    if not config.ready:
+        config.load(strict=strict)
     return ProlificService(
         api_token=config.get("prolific_api_token"),
         api_version=config.get("prolific_api_version"),

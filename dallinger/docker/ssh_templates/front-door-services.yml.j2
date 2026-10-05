@@ -1,0 +1,45 @@
+  frontdoor:
+    restart: unless-stopped
+    image: caddy:2.10.2
+    user: "${UID}:${GID}"
+    environment:
+      HOME: /state
+      XDG_CONFIG_HOME: /state/caddy-config
+      XDG_DATA_HOME: /state/caddy-data
+    volumes:
+      - ./Caddyfile.frontdoor:/etc/caddy/Caddyfile:ro
+      - ./state:/state
+    depends_on:
+      controller:
+        condition: service_started
+    networks:
+      app:
+        aliases:
+          - {{ experiment_id }}_frontdoor
+{%- if tunnel %}
+          - {{ experiment_id }}_web
+{%- else %}
+      dallinger:
+        aliases:
+          - {{ experiment_id }}_web
+{%- endif %}
+
+  controller:
+    restart: unless-stopped
+    # Not the experiment image: only this standard-library script sits next
+    # to the Docker socket.
+    image: python:3.12-alpine@sha256:c4634f578a412db396771b61b064c6e546c9d6414c7fb5b1b05d5871f1885f7b
+    user: "${UID}:${GID}"
+    group_add:
+      - "${DOCKER_GID}"
+    command: ["python", "/app/hibernation.py", "serve"]
+    environment:
+      COMPOSE_PROJECT_NAME: {{ compose_project }}
+      IDLE_ENABLED: "{{ idle_enabled }}"
+      IDLE_MINUTES: "{{ idle_minutes }}"
+    volumes:
+      - ./state:/state
+      - ./hibernation.py:/app/hibernation.py:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - app

@@ -2,32 +2,128 @@
 
 ## [Unreleased]
 
+### Added
+
+- docker-ssh apps can hibernate automatically after a quiet period when
+  ``docker_ssh_idle_hibernate`` is set (``docker_ssh_idle_hibernate_minutes``,
+  default 60). ``/health`` probes do not count as traffic. With idle sleep
+  on, pages ping ``POST /presence`` while someone is using them (recent
+  interaction, audible media, or ``dallingerPresence.setWaiting``), so an
+  app never sleeps under a participant but an abandoned tab stops pinging.
+  Dallinger's quorum waiting room counts as waiting, and a WebSocket
+  reconnect does not wake a sleeping app.
+  Non-page requests to a sleeping app get HTTP 503 with ``Retry-After`` and
+  a JSON status, after the controller reads the whole request body, so
+  clients can resend them safely.
+  Idle sleep is not for experiments that recruit throughout their lifetime.
+  As a backstop, the app stays awake while ``auto_recruit`` is on or any
+  participant is still working; experiments can add conditions by
+  overriding ``Experiment.reason_to_stay_awake``.
+- ``dallinger docker-ssh hibernate`` and ``awaken`` stop and restart an
+  app's expensive services behind a new per-app front door and controller.
+  A visitor to a hibernating app gets a wait page and wakes it; other
+  requests get HTTP 503. ``apps`` reports ``hibernating`` or ``waking``,
+  ``export`` wakes the app first, and ``--update`` wakes a hibernating app.
+  ``/health`` reports the sleep state without waking the app. Cloudflare
+  tunnels now reach the app through the front door, and for classic apps
+  ``<app>_web`` on the shared network now names the front door; web and
+  workers also wait for pgbouncer's health check. Waking treats an older
+  experiment image without ``/health`` as ready once web answers. Deploy
+  also chowns the front door's state directory.
+- docker-ssh disk cleanup prunes only stopped containers outside Compose
+  projects, and the host Caddy image is pinned to ``caddy:2.10.2``.
+- docker-ssh experiment containers built from now on run as the SSH user
+  instead of root; images built earlier keep running as root until rebuilt.
+  Every directory under ``/experiment`` is writable in the image, so the app
+  can create files anywhere in its tree, and deploy chowns the app's data
+  directory and writable bind mounts under ``$HOME``. Files shipped in the
+  image cannot be edited in place, and paths outside ``/experiment`` stay
+  read-only for the app.
+- docker-ssh keeps each app's database password in a private
+  ``~/dallinger/<app>/.env`` instead of its ``docker-compose.yml``, and makes
+  both files private (mode 0600). ``--update`` keeps the database password
+  and the Flask secret key, so participants' sessions survive an update.
+  ``get_docker_compose_yml`` no longer takes ``postgresql_password``.
+- docker-ssh writes a non-secret ``~/dallinger/<app>/deployment.json`` on
+  deploy and ``apps`` shows the recorded ingress and origin.
+  New ``docker_ssh_monitoring_kind`` and ``docker_ssh_monitoring_path``
+  config keys set the manifest's monitoring fields. ``servers add`` now
+  refuses host record fields whose names look like tokens or passwords.
+  The experiment server has a stock ``GET /health``, the manifest's default
+  monitoring path.
+- docker-ssh can deploy with ``--ingress cloudflare``. Each app gets an
+  isolated Postgres and a Cloudflare tunnel that proxies to the web service.
+  Cloudflare account and zone come from the new ``cloudflare_account_id``,
+  ``cloudflare_zone_id`` and ``cloudflare_dns_zone`` config keys, and
+  ``servers add --default-ingress`` sets a server's default. A fresh deploy
+  refuses an app name whose tunnel already exists. Destroy stops the
+  connector before deleting the DNS record and tunnel, and can be re-run if
+  that cleanup fails. A deploy that cannot record a new tunnel on the
+  server deletes it again. ``get_docker_compose_yml`` no longer takes
+  ``executor``.
+- Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
+  docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
+  A custom experiment Dockerfile gets a final step that installs that wheel.
+  Dallinger pins given as Git URLs are replaced by the local wheel as well
+  (extras such as ``[docker]`` are dropped from the rewritten line).
+
 ### Changed
 
 - Skipped the live MTurk integration tests, because Amazon has discontinued
   Mechanical Turk and every call now fails with `AccessDeniedException`.
   Mocked MTurk tests still run.
+- Modern (PEP 660) editable installs of Dallinger are now detected, not only
+  legacy ``egg-link`` installs. Heroku and SSH deploys from such an install
+  build and ship your local Dallinger checkout instead of the version in
+  ``requirements.txt``, and ``docker debug`` mounts it into the container.
+  Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 
 ### Fixed
 
-- Prolific API requests now time out after 10 seconds without connecting or
-  30 seconds without receiving data, so a stalled request no longer blocks
-  its web or worker process indefinitely.
-
-- Prolific connection errors and timeouts now raise `ProlificServiceException`
-  and are reported as recruitment errors, like other Prolific API failures.
-  Before, they escaped as `requests` exceptions, so a failed approval or bonus
-  payment stopped the rest of submission handling.
-
-- Approving a Prolific submission that is already approved no longer sends a
-  second approval, which Prolific rejected and which caused the call to retry
-  until it gave up.
-
+- Remote Docker builds work when the SSH username contains ``@``.
+- docker-ssh deploys no longer write the dashboard or Dozzle password into
+  ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.
+- docker-ssh deploy now correctly handles SSH hosts specified as ``host:port``.
+  The ``--update`` flag now yields a boolean instead of the
+  string ``"update"``. TLS certificate verification is skipped for loopback
+  deployments. SFTP operations now use the remote user's home directory as the
+  working directory. Dozzle is only restarted when it is already running.
+  PostgreSQL 15+ schema ``public`` permissions are granted after database
+  creation. Disk-full errors on the remote host are detected and offer guided
+  safe cleanup. Pre-release Dallinger versions fall back to the ``latest`` base
+  image tag. The ``auto_recruit`` config key no longer crashes when Redis is
+  unavailable. A new ``docker-ssh-smoke`` CI job runs five end-to-end smoke
+  tests on every PR covering deploy/destroy, app listing, server listing,
+  missing-app error handling, and the ``--update`` refresh flow.
 - WebSocket relays no longer log a `ConnectionClosed` traceback when a message
   reaches a client that has just disconnected; the client was already
   unsubscribed.
 - Fixed a `RuntimeError: dictionary changed size during iteration` when a
   WebSocket client disconnected while another connection opened a new channel.
+- Prolific API requests now time out after 10 seconds without connecting or
+  30 seconds without receiving data, so a stalled request no longer blocks
+  its web or worker process indefinitely.
+- Prolific connection errors and timeouts now raise `ProlificServiceException`
+  and are reported as recruitment errors, like other Prolific API failures.
+  Before, they escaped as `requests` exceptions, so a failed approval or bonus
+  payment stopped the rest of submission handling.
+- Approving a Prolific submission that is already approved no longer sends a
+  second approval, which Prolific rejected and which caused the call to retry
+  until it gave up.
+- Fixed Prolific experiments slowing down as a server handles more
+  requests. Creating a `ProlificRecruiter` reloaded the configuration each
+  time, and each `Configuration.load()` added config layers that every later
+  lookup had to sort. `load()` is now idempotent: calling it again replaces
+  the layers from the previous load, so values removed from a config file or
+  the environment no longer linger, while values added with `extend()`,
+  `set()` or `override()` are kept. A `load()` that fails leaves the previous
+  configuration in place, and loads that overlap in different threads run
+  one at a time. Values added from another thread while a load is running
+  remain runtime additions and survive later reloads. `ProlificRecruiter`
+  also no longer reloads an already loaded configuration.
+  `Configuration.data` is now a read-only tuple: added layers first, then
+  loaded layers, each newest first. Use `extend()`, `set()` or `override()`
+  to change the configuration.
 
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
