@@ -101,6 +101,23 @@
 - Fixed a `RuntimeError: dictionary changed size during iteration` when a
   WebSocket client disconnected while another connection opened a new channel.
 
+### Fixed
+
+- Fixed Prolific experiments slowing down as a server handles more
+  requests. Creating a `ProlificRecruiter` reloaded the configuration each
+  time, and each `Configuration.load()` added config layers that every later
+  lookup had to sort. `load()` is now idempotent: calling it again replaces
+  the layers from the previous load, so values removed from a config file or
+  the environment no longer linger, while values added with `extend()`,
+  `set()` or `override()` are kept. A `load()` that fails leaves the previous
+  configuration in place, and loads that overlap in different threads run
+  one at a time. Values added from another thread while a load is running
+  remain runtime additions and survive later reloads. `ProlificRecruiter`
+  also no longer reloads an already loaded configuration.
+  `Configuration.data` is now a read-only tuple: added layers first, then
+  loaded layers, each newest first. Use `extend()`, `set()` or `override()`
+  to change the configuration.
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added
