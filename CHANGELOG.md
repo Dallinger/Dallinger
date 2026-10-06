@@ -102,9 +102,16 @@
   unsubscribed.
 - Fixed a `RuntimeError: dictionary changed size during iteration` when a
   WebSocket client disconnected while another connection opened a new channel.
-
-### Fixed
-
+- Prolific API requests now time out after 10 seconds without connecting or
+  30 seconds without receiving data, so a stalled request no longer blocks
+  its web or worker process indefinitely.
+- Prolific connection errors and timeouts now raise `ProlificServiceException`
+  and are reported as recruitment errors, like other Prolific API failures.
+  Before, they escaped as `requests` exceptions, so a failed approval or bonus
+  payment stopped the rest of submission handling.
+- Approving a Prolific submission that is already approved no longer sends a
+  second approval, which Prolific rejected and which caused the call to retry
+  until it gave up.
 - Fixed Prolific experiments slowing down as a server handles more
   requests. Creating a `ProlificRecruiter` reloaded the configuration each
   time, and each `Configuration.load()` added config layers that every later
