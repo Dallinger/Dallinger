@@ -22,17 +22,12 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_list_emits_sorted_destinations_and_summary(tmp_path):
+def test_list_emits_sorted_destinations_and_summary(tmp_path, monkeypatch):
     write_deployment_policy(tmp_path, ["local"])
     write_files(tmp_path, {"a.txt": "a", "m/n.txt": "n", "local/x.txt": "x"})
-    runner = CliRunner()
+    monkeypatch.chdir(tmp_path)
 
-    with runner.isolated_filesystem(temp_dir=tmp_path):
-        # click isolated_filesystem uses a subdirectory; recreate fixtures there.
-        cwd = Path.cwd()
-        write_deployment_policy(cwd, ["local"])
-        write_files(cwd, {"a.txt": "a", "m/n.txt": "n", "local/x.txt": "x"})
-        result = runner.invoke(deployment_files, ["list"])
+    result = CliRunner().invoke(deployment_files, ["list"])
 
     assert result.exit_code == 0
     lines = result.output.strip().splitlines()
@@ -41,13 +36,12 @@ def test_list_emits_sorted_destinations_and_summary(tmp_path):
     assert "manifest" not in result.output
 
 
-def test_list_json_omits_manifest_digest(tmp_path):
-    runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path):
-        cwd = Path.cwd()
-        write_deployment_policy(cwd)
-        write_files(cwd, {"asset.txt": "x"})
-        result = runner.invoke(deployment_files, ["list", "--json"])
+def test_list_json_omits_manifest_digest(tmp_path, monkeypatch):
+    write_deployment_policy(tmp_path)
+    write_files(tmp_path, {"asset.txt": "x"})
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(deployment_files, ["list", "--json"])
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
@@ -67,12 +61,12 @@ def test_docs_starter_example_matches_cli_exclusions():
     assert suffixes == _STARTER_EXCLUDE_SUFFIXES
 
 
-def test_init_creates_starter_policy_once(tmp_path):
+def test_init_creates_starter_policy_once(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path):
-        first = runner.invoke(deployment_files, ["init"])
-        second = runner.invoke(deployment_files, ["init"])
-        policy = Path.cwd() / "deploy.toml"
+    first = runner.invoke(deployment_files, ["init"])
+    second = runner.invoke(deployment_files, ["init"])
+    policy = tmp_path / "deploy.toml"
 
     assert first.exit_code == 0
     assert policy.is_file()
@@ -86,20 +80,18 @@ def test_init_creates_starter_policy_once(tmp_path):
     assert "Refusing to overwrite" in second.output
 
 
-def test_list_fails_without_policy(tmp_path):
-    runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path):
-        result = runner.invoke(deployment_files, ["list"])
+def test_list_fails_without_policy(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(deployment_files, ["list"])
 
     assert result.exit_code == 2
     assert "deploy.toml" in result.output
 
 
-def test_list_invalid_policy_is_usage_error(tmp_path):
-    runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path):
-        Path.cwd().joinpath("deploy.toml").write_text("version = 2\nexclude = []\n")
-        result = runner.invoke(deployment_files, ["list"])
+def test_list_invalid_policy_is_usage_error(tmp_path, monkeypatch):
+    (tmp_path / "deploy.toml").write_text("version = 2\nexclude = []\n")
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(deployment_files, ["list"])
 
     assert result.exit_code == 2
     assert "version" in result.output
