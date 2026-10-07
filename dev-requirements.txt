@@ -552,7 +552,7 @@ tablib==3.10.0
     # via dallinger
 tabulate==0.10.0
     # via tablib
-tenacity==9.1.4
+tenacity==9.2.1
     # via dallinger
 termcolor==3.3.0
     # via yaspin
