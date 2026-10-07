@@ -133,6 +133,16 @@
   Prolific when opening recruitment in debug mode; its launch message and log
   say the study is simulated and that nothing was created on Prolific.
 
+### Fixed
+
+- The `clear_workers` test fixture now stops only the local
+  `dallinger_heroku_*` web and worker processes that use the test run's
+  `DATABASE_URL`; `heroku local` then shuts down the rest of that session. It
+  used to run `pkill -f heroku`, which stopped every process whose command
+  line mentioned "heroku", including Heroku CLI sessions in other checkouts or
+  terminals. The new `dallinger.heroku.tools.local_worker_processes()` returns
+  these processes for other tools, such as PsyNet, to reuse.
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added

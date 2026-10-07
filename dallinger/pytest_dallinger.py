@@ -62,16 +62,20 @@ def reset_sys_modules():
 
 @pytest.fixture
 def clear_workers():
-    import subprocess
+    """Stop leftover local Dallinger processes that use this test run's database."""
+    import psutil
+
+    from dallinger.heroku.tools import local_worker_processes
 
     def _zap():
-        kills = [["pkill", "-f", "heroku"]]
-        for kill in kills:
+        for process in local_worker_processes():
+            if process.pid == os.getpid():
+                continue
             try:
-                subprocess.check_call(kill)
-            except Exception as e:
-                if e.returncode != 1:
-                    raise
+                # When one of its processes exits, heroku local stops the rest.
+                process.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
 
     _zap()
     yield
