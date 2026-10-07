@@ -33,8 +33,39 @@ def corrected_db_url(db_url):
     return db_url
 
 
-def create_db_engine(db_url, pool_size=1000):
-    return create_engine(corrected_db_url(db_url), pool_size=pool_size)
+DEFAULT_POOL_SIZE = 5
+DEFAULT_MAX_OVERFLOW = 10
+DEFAULT_POOL_TIMEOUT = 30
+
+
+def _env_int(name, default):
+    value = os.environ.get(name)
+    return default if value in (None, "") else int(value)
+
+
+def create_db_engine(db_url, pool_size=None, max_overflow=None, pool_timeout=None):
+    """Create a SQLAlchemy engine with a bounded connection pool.
+
+    Each process keeps up to ``pool_size`` idle connections and opens at most
+    ``max_overflow`` more under load. Once both are in use, further requests
+    wait up to ``pool_timeout`` seconds for a connection instead of opening
+    one, so a busy gevent web worker cannot exhaust the database's (or
+    PgBouncer's) connection limit. Defaults come from the
+    ``DATABASE_POOL_SIZE``, ``DATABASE_MAX_OVERFLOW`` and
+    ``DATABASE_POOL_TIMEOUT`` environment variables.
+    """
+    if pool_size is None:
+        pool_size = _env_int("DATABASE_POOL_SIZE", DEFAULT_POOL_SIZE)
+    if max_overflow is None:
+        max_overflow = _env_int("DATABASE_MAX_OVERFLOW", DEFAULT_MAX_OVERFLOW)
+    if pool_timeout is None:
+        pool_timeout = _env_int("DATABASE_POOL_TIMEOUT", DEFAULT_POOL_TIMEOUT)
+    return create_engine(
+        corrected_db_url(db_url),
+        pool_size=pool_size,
+        max_overflow=max_overflow,
+        pool_timeout=pool_timeout,
+    )
 
 
 db_url_default = "postgresql://dallinger:dallinger@localhost/dallinger"
