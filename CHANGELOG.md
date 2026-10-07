@@ -11,7 +11,9 @@
 ### Fixed
 
 - `dallinger debug` no longer spins at full CPU after `heroku local` exits:
-  the output monitor now stops at end of output and logs the exit code.
+  the output monitor now stops at end of output and logs the exit code,
+  unless the exit followed a requested stop, such as when the experiment
+  completes.
   `heroku local` also gets `/dev/null` as stdin instead of inheriting the
   caller's, which it never reads. Startup failures also cancel the timeout
   alarm instead of leaving it armed after the original error.

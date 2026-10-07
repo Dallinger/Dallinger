@@ -443,6 +443,7 @@ class HerokuLocalWrapper:
         self.env = env if env is not None else os.environ.copy()
         self._record = []
         self._process = None
+        self._stop_requested = False
         # needs_chrome, tmp_dir and experiment_name are here just for simmetry with the Docker wrapper
         self.needs_chrome = needs_chrome
         self.experiment_name = experiment_name
@@ -465,6 +466,7 @@ class HerokuLocalWrapper:
             self.out.log("Local Heroku is already running.")
             return
 
+        self._stop_requested = False
         signal.signal(signal.SIGALRM, _handle_timeout)
         signal.alarm(timeout_secs)
         try:
@@ -487,6 +489,9 @@ class HerokuLocalWrapper:
 
     def stop(self, signal=None):
         """Stop the heroku local subprocess and all of its children."""
+        # Set before signalling, so a monitor() thread that sees the output end
+        # knows the exit was requested.
+        self._stop_requested = True
         signal = signal or self.int_signal
         self.out.log("Cleaning up local Heroku process...")
         if self._process is None:
@@ -528,6 +533,8 @@ class HerokuLocalWrapper:
                 self.out.blather(line)
             if listener(line) is self.MONITOR_STOP:
                 return
+        if self._stop_requested:
+            return
         process = self._process
         exit_code = process.poll() if process is not None else None
         self.out.error(

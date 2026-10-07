@@ -572,6 +572,33 @@ def test_heroku_local_monitor_stops_when_output_ends():
     assert "exit code: 1" in wrapper.out.error.call_args.args[0]
 
 
+def test_heroku_local_monitor_is_quiet_after_requested_stop():
+    import subprocess
+    import sys
+    import threading
+
+    from dallinger.heroku.tools import HerokuLocalWrapper
+
+    wrapper = HerokuLocalWrapper(mock.Mock(), mock.Mock(), env={"HOME": "/tmp"})
+    wrapper._process = subprocess.Popen(
+        [sys.executable, "-c", "import time; print('up', flush=True); time.sleep(30)"],
+        stdout=subprocess.PIPE,
+        start_new_session=True,
+    )
+    started = threading.Event()
+    monitor = threading.Thread(
+        target=wrapper.monitor, args=(lambda line: started.set(),)
+    )
+    monitor.start()
+    assert started.wait(10)
+
+    wrapper.stop()
+    monitor.join(10)
+
+    assert not monitor.is_alive()
+    wrapper.out.error.assert_not_called()
+
+
 def test_heroku_local_cancels_timeout_when_boot_fails():
     from dallinger.heroku.tools import HerokuLocalWrapper
 
