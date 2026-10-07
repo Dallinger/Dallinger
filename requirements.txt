@@ -166,7 +166,7 @@ soupsieve==2.9.2
     # via beautifulsoup4
 sqlalchemy==1.4.54
     # via dallinger
-tenacity==9.1.4
+tenacity==9.2.1
     # via dallinger
 termcolor==3.3.0
     # via yaspin
