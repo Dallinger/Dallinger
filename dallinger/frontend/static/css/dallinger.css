@@ -1,3 +1,9 @@
+/* Bootstrap 5 enables smooth scrolling, so WebDriver clicks on elements below
+   the fold land mid-scroll and are intercepted. */
+:root {
+    scroll-behavior: auto;
+}
+
 body {
     font-weight: 300;
     font-size: 13pt;

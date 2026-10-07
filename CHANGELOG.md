@@ -73,7 +73,8 @@
   dashboard. Dashboard widgets use Bootstrap 5 data attributes. The
   dashboard script is the bundle, which includes Popper, so the separate
   Popper file is gone. The database dashboard loads DataTables' Bootstrap 5
-  styling.
+  styling. Experiment pages turn off Bootstrap 5's smooth scrolling, so
+  Selenium bots can click buttons below the fold.
 - Skipped the live MTurk integration tests, because Amazon has discontinued
   Mechanical Turk and every call now fails with `AccessDeniedException`.
   Mocked MTurk tests still run.
