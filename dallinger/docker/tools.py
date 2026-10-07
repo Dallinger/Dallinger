@@ -8,6 +8,7 @@ from subprocess import CalledProcessError, check_output
 import click
 import docker
 from jinja2 import Template
+from packaging.version import InvalidVersion, Version
 from pip._internal.network.session import PipSession
 from pip._internal.req import parse_requirements
 
@@ -18,9 +19,19 @@ from dallinger.utils import (
     get_editable_dallinger_path,
 )
 
+LATEST_VERSION = ""  # use :latest image tag
+
 docker_compose_template = Template(
     abspath_from_egg("dallinger", "dallinger/docker/docker-compose.yml.j2").read_text()
 )
+
+# Appended to custom Dockerfiles when a local Dallinger wheel is staged, so the
+# image runs that tree even if the Dockerfile installed a pinned Dallinger.
+LOCAL_DALLINGER_WHEEL_SNIPPET = """
+# Added by Dallinger: install the local Dallinger wheel staged for this build.
+COPY dallinger-*.whl /tmp/dallinger-wheel/
+RUN python -m pip install --no-cache-dir --force-reinstall --no-deps /tmp/dallinger-wheel/dallinger-*.whl
+"""
 
 
 class DockerComposeWrapper:
@@ -249,12 +260,29 @@ def get_required_dallinger_version(experiment_tmp_path: str) -> str:
     ]
     if not dallinger_requirements:
         print("Could not determine Dallinger version. Using latest")
-        return ""
+        return LATEST_VERSION
+
+    def _normalize_version(version_text: str) -> str:
+        try:
+            parsed_version = Version(version_text)
+        except InvalidVersion:
+            return version_text
+        if parsed_version.is_prerelease:
+            print(
+                f"Dallinger version {parsed_version} is not guaranteed to have a published base image tag. "
+                "Using latest"
+            )
+            return LATEST_VERSION
+        return version_text
+
     # The constraints generator should have created a single spec in the form "dallinger==7.2.0"
     if "==" in dallinger_requirements[0]:
-        return dallinger_requirements[0].split("==")[1]
+        return _normalize_version(dallinger_requirements[0].split("==")[1])
     # Or we might have a requirement like `file:dallinger-7.2.0-py3-none-any.whl`
-    return parse_wheel_filename(dallinger_requirements[0][len("file:") :]).version
+    wheel_version = parse_wheel_filename(
+        dallinger_requirements[0][len("file:") :]
+    ).version
+    return _normalize_version(str(wheel_version))
 
 
 def get_experiment_image_tag(experiment_tmp_path: str) -> str:
@@ -291,6 +319,33 @@ def docker_tag_from_experiment_id(experiment_id: str) -> str:
     )
     tag = tag.lstrip(".-") or "latest"
     return tag[:128]
+
+
+# Images built with a writable /experiment carry this label. docker-ssh runs
+# only these as the SSH user; older images keep running as root.
+RUNS_AS_SSH_USER_LABEL = "org.dallinger.runs-as-ssh-user"
+
+# The SSH account is chosen when the container starts, after this image is built.
+# Write permission on these directories lets that account create server.log and
+# the static/assets link. Shipped source files stay owned by root.
+_EXPERIMENT_WORKDIR_WRITABLE = """\
+RUN mkdir -p /experiment/static \\
+ && find /experiment -type d -exec chmod a+rwx {} +
+"""
+
+
+def ensure_experiment_workdir_writable(dockerfile_text):
+    """Let the runtime user create files in every directory under /experiment.
+
+    Docker-ssh runs the experiment as the SSH user. That uid is not known
+    while the image is built, so the directories need to be writable by any
+    user. Only directories change, which keeps the extra image layer small;
+    shipped files stay owned by root.
+    """
+    marker = "find /experiment -type d -exec chmod a+rwx"
+    if marker in dockerfile_text:
+        return dockerfile_text
+    return dockerfile_text.rstrip() + "\n\n" + _EXPERIMENT_WORKDIR_WRITABLE
 
 
 def build_image(
@@ -337,11 +392,18 @@ def build_image(
             str(tmp_dir),
         ]
 
+    docker_build_invocation += ["--label", f"{RUNS_AS_SSH_USER_LABEL}=1"]
     docker_build_invocation += ["-t", image_name]
     dockerfile_path = Path(tmp_dir) / "Dockerfile"
     if dockerfile_path.exists():
         out.blather(
             "Found a custom Dockerfile in the experiment directory, will use this for deployment."
+        )
+        dockerfile_text = dockerfile_path.read_text(encoding="utf-8")
+        if list(Path(tmp_dir).glob("dallinger-*.whl")):
+            dockerfile_text += LOCAL_DALLINGER_WHEEL_SNIPPET
+        dockerfile_path.write_text(
+            ensure_experiment_workdir_writable(dockerfile_text), encoding="utf-8"
         )
     else:
         dockerfile_text = rf"""# syntax=docker/dockerfile:1
@@ -382,10 +444,14 @@ def build_image(
         RUN {ssh_mount} grep -v ^dallinger requirements.txt > /tmp/requirements_no_dallinger.txt && \
             python3 -m pip install -r /tmp/requirements_no_dallinger.txt || true
         COPY . /experiment
+        # Reinstall a staged local wheel last, so it wins over a Dallinger pin
+        # that another requirement (such as psynet) pulled in above.
+        RUN set -- /experiment/dallinger-*.whl; \
+            if [ -f "$1" ]; then pip install --force-reinstall --no-deps "$1"; fi
         ENV PORT=5000
         CMD dallinger_heroku_web
         """
-        dockerfile_path.write_text(dockerfile_text)
+        dockerfile_path.write_text(ensure_experiment_workdir_writable(dockerfile_text))
     try:
         check_output(docker_build_invocation, env=env)
     except CalledProcessError:

@@ -5,6 +5,7 @@ from unittest import mock
 from unittest.mock import patch
 
 import pytest
+import requests
 
 from dallinger.config import get_config
 from dallinger.prolific import (
@@ -551,6 +552,45 @@ def test_get_participant_submission_without_translate_returns_payload(subject):
         "GET",
         f"{subject.api_root}/submissions/sub-1/",
     )
+
+
+def test_requests_time_out_by_default(subject):
+    from dallinger.prolific import REQUEST_TIMEOUT
+
+    response = mock.MagicMock()
+    response.ok = True
+    response.json.return_value = {"id": "sub-1"}
+    with mock.patch(
+        "dallinger.prolific.requests.request", return_value=response
+    ) as req:
+        subject.get_participant_submission("sub-1", translate=False)
+    assert req.call_args.kwargs["timeout"] == REQUEST_TIMEOUT
+
+
+def test_transport_errors_raise_prolific_service_exception(subject):
+    with mock.patch(
+        "dallinger.prolific.requests.request", side_effect=requests.Timeout("slow")
+    ):
+        with pytest.raises(ProlificServiceException, match="slow"):
+            subject.get_participant_submission("sub-1")
+
+
+def test_approving_an_approved_submission_does_not_post(subject):
+    response = mock.MagicMock()
+    response.ok = True
+    response.json.return_value = {
+        "id": "sub-1",
+        "study_id": "study-1",
+        "participant": "worker-1",
+        "started_at": None,
+        "status": "APPROVED",
+    }
+    with mock.patch(
+        "dallinger.prolific.requests.request", return_value=response
+    ) as req:
+        result = subject.approve_participant_submission("sub-1")
+    assert result["status"] == "APPROVED"
+    assert [call.args[0] for call in req.call_args_list] == ["GET"]
 
 
 def test_get_participant_submission_without_translate_returns_none_on_http_error(
