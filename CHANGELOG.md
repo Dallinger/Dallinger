@@ -4,6 +4,9 @@
 
 ### Added
 
+- Added `--no-browsers` to `dallinger develop debug`. Instead of opening the
+  dashboard and participant browsers, it logs the recruitment message, the
+  dashboard URL and the dashboard login, like `dallinger debug --no-browsers`.
 - docker-ssh apps can hibernate automatically after a quiet period when
   ``docker_ssh_idle_hibernate`` is set (``docker_ssh_idle_hibernate_minutes``,
   default 60). ``/health`` probes do not count as traffic. With idle sleep
