@@ -1,5 +1,6 @@
 import os
 import sys
+from importlib.metadata import distribution
 
 import pytest
 
@@ -44,13 +45,7 @@ class TestDemos:
     def test_instantiation_via_entry_points(self):
         failures = []
 
-        group = "dallinger.experiments"
-        if sys.version_info >= (3, 10):
-            entry_points = experiments.entry_points(group=group)
-        else:
-            entry_points = experiments.entry_points().get(group)
-
-        for entry in entry_points:
+        for entry in experiments.entry_points(group="dallinger.experiments"):
             try:
                 klass = entry.load()
                 klass(no_configure=True)
@@ -100,3 +95,24 @@ class TestEntryPointImport:
         from dallinger.experiments import Bartlett1932
 
         assert Bartlett1932 is OrigExp
+
+    def test_registered_demo_entry_point_names(self):
+        expected = {
+            "Bartlett1932",
+            "TwentyFortyEight",
+            "CoordinationChatroom",
+            "ConcentrationGame",
+            "FunctionLearning",
+            "IteratedDrawing",
+            "MCMCP",
+            "RogersExperiment",
+            "SheepMarket",
+            "SnakeGame",
+            "VoxPopuli",
+        }
+        names = {
+            entry.name
+            for entry in distribution("dlgr.demos").entry_points
+            if entry.group == "dallinger.experiments"
+        }
+        assert names == expected

@@ -5,14 +5,18 @@ import re
 import sys
 import tempfile
 from functools import wraps
+from io import StringIO
+from pathlib import Path
 
 import click
+from rich import box
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
 
 from dallinger.config import get_config, initialize_experiment_package
-from dallinger.constraints import (
-    _get_requested_python_version,
-    _python_versions_consistent,
-)
+from dallinger.constraints import _get_requested_python_version
+from dallinger.deployment_plan import DeploymentPlanError, DeploymentPolicyError
 from dallinger.utils import ExperimentFileSource
 from dallinger.version import __version__
 
@@ -27,9 +31,7 @@ header = r"""
 
                 Laboratory automation for
        the behavioral and social sciences.
-""".format(
-    "v" + __version__
-)
+""".format("v" + __version__)
 
 
 def log(msg, chevrons=True, verbose=True, **kw):
@@ -61,6 +63,114 @@ class Output:
         self.blather = blather
 
 
+def render_rich_table(rows, headers=None, box_style=box.SQUARE, show_header=True):
+    """Render tabular data to a string using Rich.
+
+    Parameters
+    ----------
+    rows : Sequence[Sequence[Any]]
+        Row values to render. Values may be plain Python objects,
+        :class:`rich.text.Text`, or any Rich renderable object.
+    headers : Sequence[str] or None, optional
+        Column headers. If omitted and ``rows`` is non-empty, the table is
+        rendered without a header row.
+    box_style : rich.box.Box, optional
+        Rich box style used to draw table borders.
+    show_header : bool, optional
+        Whether to render the header row. This is automatically disabled when
+        ``headers`` is not provided.
+
+    Returns
+    -------
+    str
+        Rendered table text. ANSI color is only included in interactive
+        terminals (unless ``NO_COLOR`` is set).
+    """
+    if headers is None:
+        headers = []
+    if not headers and rows:
+        headers = ["" for _ in rows[0]]
+        show_header = False
+
+    table = Table(box=box_style, show_header=show_header)
+    for header in headers:
+        table.add_column(str(header))
+    for row in rows:
+        normalized_cells = []
+        for value in row:
+            if value is None:
+                normalized_cells.append(Text(""))
+            elif isinstance(value, Text):
+                normalized_cells.append(value)
+            elif hasattr(value, "__rich_console__"):
+                normalized_cells.append(value)
+            else:
+                normalized_cells.append(Text(str(value)))
+        table.add_row(*normalized_cells)
+
+    buffer = StringIO()
+    is_interactive = sys.stdout.isatty() and os.environ.get("TERM", "") != "dumb"
+    use_color = is_interactive and "NO_COLOR" not in os.environ
+    Console(
+        file=buffer,
+        force_terminal=is_interactive,
+        color_system="standard" if use_color else None,
+        no_color=not use_color,
+    ).print(table)
+    return buffer.getvalue().rstrip("\n")
+
+
+def get_server_pem_path() -> Path:
+    """Return the expanded Path to the configured server PEM file
+    (server_pem in config).
+
+    Raises FileNotFoundError with a helpful message if the config key is missing
+    or the file does not exist.
+    """
+    config = get_config(load=True)
+    path_string: str = str(config.get("server_pem", "") or "")
+    if not path_string:
+        raise FileNotFoundError(
+            "You have not configured the server_pem config variable!\n"
+            "Set it in your experiment's config.txt or ~/.dallingerconfig, for example:\n"
+            "server_pem = ~/.ssh/your-key.pem"
+        )
+    pem_path = Path(path_string).expanduser()
+    if not pem_path.is_file():
+        raise FileNotFoundError(
+            f"SSH key file not found: {pem_path}\n"
+            "Please check that the path in your config file is correct."
+        )
+    return pem_path
+
+
+_EXPERIMENT_FILES_META = "dallinger.experiment_files"
+
+
+def get_experiment_files(root="."):
+    """Return the command-scoped experiment files, building them if needed.
+
+    Policy errors become Click usage errors. Repeated calls in the same Click
+    command reuse one ``ExperimentFileSource`` when they resolve to the same
+    experiment root.
+    """
+    resolved = os.path.abspath(root)
+    ctx = click.get_current_context(silent=True)
+    cache = None
+    if ctx is not None:
+        cache = ctx.meta.setdefault(_EXPERIMENT_FILES_META, {})
+        existing = cache.get(resolved)
+        if existing is not None:
+            return existing
+    try:
+        source = ExperimentFileSource(resolved)
+    except (DeploymentPolicyError, DeploymentPlanError) as error:
+        raise click.UsageError(str(error)) from error
+    if cache is not None:
+        cache[resolved] = source
+    return source
+
+
 def require_exp_directory(f):
     """Decorator to verify that a command is run inside a valid Dallinger
     experiment directory.
@@ -71,7 +181,9 @@ def require_exp_directory(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         try:
-            if not verify_package(kwargs.get("verbose")):
+            if not verify_package(
+                kwargs.get("verbose"), experiment_files=get_experiment_files()
+            ):
                 raise click.UsageError(error_one)
         except ValueError:
             raise click.UsageError(error_two)
@@ -80,24 +192,34 @@ def require_exp_directory(f):
     return wrapper
 
 
-def verify_package(verbose=True):
+def verify_package(
+    verbose=True,
+    verify_experiment=True,
+    experiment_files=None,
+):
     """Perform a series of checks on the current directory to verify that
     it's a valid Dallinger experiment.
+
+    A command can pass one ``ExperimentFileSource`` here and to
+    ``setup_experiment`` so verification and assembly share one frozen plan.
     """
-    results = (
-        verify_directory(verbose),
-        verify_python_version(verbose),
-        verify_experiment_module(verbose),
-        verify_config(verbose),
-        verify_no_conflicts(verbose),
+    file_source = experiment_files or ExperimentFileSource(os.getcwd())
+    return all(
+        (
+            verify_directory(verbose, file_source),
+            verify_python_version(verbose),
+            (
+                verify_experiment_module(verbose, file_source)
+                if verify_experiment
+                else True
+            ),
+            verify_config(verbose),
+            verify_no_conflicts(verbose),
+        )
     )
 
-    ok = all(results)
 
-    return ok
-
-
-def verify_directory(verbose=True):
+def verify_directory(verbose=True, experiment_files=None):
     """Ensure that the current directory looks like a Dallinger experiment, and
     does not appear to have unintended contents that will be copied on
     deployment.
@@ -119,7 +241,7 @@ def verify_directory(verbose=True):
 
     # Check size
     max_size = exp_max_size_mb * mb_to_bytes
-    file_source = ExperimentFileSource(os.getcwd())
+    file_source = experiment_files or ExperimentFileSource(os.getcwd())
     size = file_source.size
     size_in_mb = round(size / mb_to_bytes)
     if size <= max_size:
@@ -169,26 +291,36 @@ def verify_python_version(verbose):
     return True
 
 
-def verify_experiment_module(verbose):
+def _python_versions_consistent(v1, v2):
+    for a, b in zip(v1.split("."), v2.split(".")):
+        if int(a) != int(b):
+            return False
+    return True
+
+
+def verify_experiment_module(verbose, experiment_files=None):
     """Perform basic sanity checks on experiment.py."""
     ok = True
     if not os.path.exists("experiment.py"):
         return False
 
-    # Bootstrap a package in a temp directory and make it importable:
+    # Bootstrap a package in a temp directory and make it importable.
     temp_package_name = "TEMP_VERIFICATION_PACKAGE"
     tmp = tempfile.mkdtemp()
     clone_dir = os.path.join(tmp, temp_package_name)
-    ExperimentFileSource(os.getcwd()).apply_to(clone_dir)
+    file_source = experiment_files or ExperimentFileSource(os.getcwd())
+    file_source.apply_to(clone_dir)
+
     initialize_experiment_package(clone_dir)
     from dallinger_experiment import experiment
 
-    if clone_dir not in experiment.__file__:
+    expected_directory = Path(os.path.abspath(clone_dir))
+    actual_directory = Path(os.path.abspath(experiment.__file__)).parent
+    if actual_directory != expected_directory:
         raise ImportError("Checking the wrong experiment.py... aborting.")
     classes = inspect.getmembers(experiment, inspect.isclass)
     exps = [c for c in classes if (c[1].__bases__[0].__name__ in "Experiment")]
 
-    # Clean up:
     for entry in [k for k in sys.modules if temp_package_name in k]:
         del sys.modules[entry]
 
@@ -333,8 +465,9 @@ def verify_id(ctx, param, app):
         raise click.BadParameter("Select an experiment using the --app parameter.")
     elif app[0:5] == "dlgr-":
         raise click.BadParameter(
-            "The --app parameter requires the full "
-            "UUID beginning with {}-...".format(app[5:23])
+            "The --app parameter requires the full UUID beginning with {}-...".format(
+                app[5:23]
+            )
         )
     check_valid_subdomain("app", app)
     return app

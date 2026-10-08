@@ -109,7 +109,7 @@ def sessions_scope(session_=session, commit=False):
     except Exception as e:
         # We log the exception before re-raising it, in case the rollback also
         # fails
-        logger.exception("Exception during scoped worker transaction, " "rolling back.")
+        logger.exception("Exception during scoped worker transaction, rolling back.")
         # This rollback is potentially redundant with the remove call below,
         # depending on how the scoped session is configured, but we'll be
         # explicit here.

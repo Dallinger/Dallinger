@@ -181,21 +181,48 @@ var dallinger = (function () {
     return BusyForm;
   }());
 
+  /**
+   * Information about a rejected ``dallinger.get`` / ``dallinger.post`` call.
+   *
+   * Properties:
+   *
+   * ``route``      - Requested experiment route
+   *
+   * ``method``     - HTTP method used for the request
+   *
+   * ``data``       - Data that was sent with the request
+   *
+   * ``error``      - Underlying transport error object
+   *
+   * ``status``     - HTTP status code from the failed request
+   *
+   * ``response``   - Parsed JSON object body from the server, ``{}`` when the
+   *                  body is missing, unparseable, or not a JSON object
+   *
+   * ``html``       - Rendered error HTML from the server response, if present
+   *
+   * ``errorCode``  - Optional machine-readable ``error_code`` from the server
+   *                  JSON body (for example ``participant_not_found`` or
+   *                  ``assignment_id_missing``)
+   *
+   * ``requestJSON`` - Serialized request details for error reporting
+   *
+   * @constructor
+   * @param {Object} options - Rejection details from the AJAX helper
+   */
   dlgr.AjaxRejection = (function () {
-    // Capture information related to a rejected dallinger.ajax() call.
-
-    var _responseHTML = function (response) {
+    var _responseData = function (response) {
       var parsed;
       try {
         parsed = JSON.parse(response);
       } catch (error) {
         console.log('Error response not parseable.');
-        parsed = {};
+        return {};
       }
-      if (parsed.hasOwnProperty('html')) {
-        return parsed.html;
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {};
       }
-      return '';
+      return parsed;
     };
 
     var AjaxRejection = function (options) {
@@ -208,7 +235,9 @@ var dallinger = (function () {
       this.data = options.data || {};
       this.error = options.error;
       this.status = options.error.status;
-      this.html = _responseHTML(this.error.response);
+      this.response = _responseData(this.error.response);
+      this.html = this.response.html || '';
+      this.errorCode = this.response.error_code;
       this.requestJSON = JSON.stringify({
         'route': this.route,
         'data': JSON.stringify(this.data),
@@ -465,12 +494,12 @@ var dallinger = (function () {
         $('.btn-success').prop('disabled', true);
         dlgr.post(url, data).done(function (resp) {
           console.log(resp);
-          $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
           dlgr.identity.assignmentId = resp.participant.assignment_id;
           dlgr.identity.uniqueId = resp.participant.unique_id;
           dlgr.identity.workerId = resp.participant.worker_id;
           dlgr.identity.hitId = resp.participant.hit_id;
+          $('.btn-success').prop('disabled', false);
           if (! resp.quorum) {  // We're not using a waiting room.
             deferred.resolve();
             return;
@@ -527,7 +556,6 @@ var dallinger = (function () {
         $('.btn-success').prop('disabled', true);
         dlgr.post(url, data).done(function (resp) {
           console.log(resp);
-          $('.btn-success').prop('disabled', false);
           dlgr.identity.participantId = resp.participant.id;
           dlgr.identity.recruiter = resp.participant.recruiter_id;
           dlgr.identity.hitId = resp.participant.hit_id;
@@ -535,6 +563,7 @@ var dallinger = (function () {
           dlgr.identity.assignmentId = resp.participant.assignment_id || data.assignment_id;
           dlgr.identity.mode = resp.participant.mode;
           dlgr.identity.fingerprintHash = resp.participant.fingerprint_hash;
+          $('.btn-success').prop('disabled', false);
           deferred.resolve();
         });
       });
@@ -695,6 +724,11 @@ var dallinger = (function () {
     var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
     var socket = new ReconnectingWebSocket(ws_scheme + location.host + "/chat?channel=quorum&worker_id=" + dlgr.identity.workerId + '&participant_id=' + dlgr.identity.participantId);
     var deferred = $.Deferred();
+    // The quorum socket is not a request idle sleep can see.
+    if (window.dallingerPresence) {
+      window.dallingerPresence.setWaiting(true);
+      deferred.always(function () { window.dallingerPresence.setWaiting(false); });
+    }
     socket.onmessage = function (msg) {
       if (msg.data.indexOf('quorum:') !== 0) { return; }
       var data = JSON.parse(msg.data.substring(7));

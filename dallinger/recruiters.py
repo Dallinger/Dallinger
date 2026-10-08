@@ -10,13 +10,13 @@ import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from statistics import median
+from typing import Optional
 
 import flask
 import requests
-import tabulate
 from sqlalchemy import func
 
-from dallinger.command_line.utils import Output
+from dallinger.command_line.utils import Output, render_rich_table
 from dallinger.config import get_config
 from dallinger.db import get_queue, redis_conn, scoped_session_decorator, session
 from dallinger.experiment_server.utils import crossdomain, success_response
@@ -166,6 +166,7 @@ class Recruiter:
     """The base recruiter."""
 
     nickname = None
+    entry_params = ("hitId", "assignmentId", "workerId")
     external_submission_url = None  # MTurkRecruiter, for one, overides this
     supports_delayed_publishing = False
 
@@ -319,7 +320,7 @@ class Recruiter:
         out = Output()
         out.log("Found {} hit[s]:".format(len(formatted_hit_list)))
         out.log(
-            tabulate.tabulate(
+            render_rich_table(
                 formatted_hit_list,
                 headers=[
                     "Hit ID",
@@ -400,7 +401,9 @@ class Recruiter:
         if not self.supports_delayed_publishing:
             assert self.config.get(
                 "publish_experiment", self.publish_experiment_default
-            ), f"{type(self).__name__} does not support delayed experiment publishing. Set `publish_experiment=true` in your experiment config!"
+            ), (
+                f"{type(self).__name__} does not support delayed experiment publishing. Set `publish_experiment=true` in your experiment config!"
+            )
 
 
 def alphanumeric_code(seed: str, length: int = 8):
@@ -488,7 +491,9 @@ class ProlificRecruiter(Recruiter):
     """A recruiter for [Prolific](https://app.prolific.com/)"""
 
     nickname = "prolific"
+    entry_params = ("PROLIFIC_PID", "STUDY_ID", "SESSION_ID")
     supports_delayed_publishing = True
+    default_code_type = "DEFAULT"
 
     def __init__(self, *args, **kwargs):
         super().__init__()
@@ -506,7 +511,6 @@ class ProlificRecruiter(Recruiter):
         durations = []
         total_reward_pounds = 0
         for submission in approved_submissions:
-
             time_taken = submission.get("time_taken", None)
             if time_taken:
                 durations.append(time_taken / 60)
@@ -528,10 +532,28 @@ class ProlificRecruiter(Recruiter):
         return pay_per_submission / (median_session_duration / 60)
 
     def get_status(self) -> ProlificRecruitmentStatus:
-        submissions = self.prolificservice.get_submissions(self.current_study_id)
+        study_id = self.current_study_id
+        if not study_id:
+            logger.info(
+                "Skipping Prolific status check because no current study ID is recorded."
+            )
+            return ProlificRecruitmentStatus(
+                recruiter_name=self.nickname,
+                participant_status_counts={},
+                study_id="",
+                study_status="",
+                study_cost=0,
+                currency="£",
+                internal_name=self.config.get("id"),
+                base_payment_cents=self.base_payment_cents,
+                median_session_duration_minutes=None,
+                real_wage_per_hour_excluding_bonuses=None,
+            )
+
+        submissions = self.prolificservice.get_submissions(study_id)
         submission_status_counts = dict(Counter([s["status"] for s in submissions]))
-        study = self.prolificservice.get_study(self.current_study_id)
-        total_cost = self.prolificservice.get_total_cost(self.current_study_id) / 100
+        study = self.prolificservice.get_study(study_id)
+        total_cost = self.prolificservice.get_total_cost(study_id) / 100
 
         durations_minutes, total_reward = self.get_durations_and_total_reward(
             submissions
@@ -554,8 +576,109 @@ class ProlificRecruiter(Recruiter):
         )
 
     @property
-    def completion_code(self):
-        return alphanumeric_code(self.config.get("id"))
+    def completion_codes_and_actions(self) -> list[dict]:
+        """Return a list of completion code/action dicts for Prolific.
+
+        Reads the 'prolific_completion_config' from experiment config, which should
+        be a JSON object mapping code types to their definitions (actions, etc).
+        Each entry is merged with a generated code and its type.
+
+        In addition to experimenter-defined codes, a code based exclusively
+        on the experiment ID, and associated with the code type "DEFAULT"
+        is always included.
+
+        Example config:
+            {
+                "FAILED_ATTENTION_CHECK": {
+                    "actions": [
+                        {
+                            "action": "REMOVE_FROM_PARTICIPANT_GROUP",
+                            "participant_group": "some group ID",
+                        },
+                        {
+                            "action": "MANUALLY_REVIEW",
+                        }
+                    ],
+                    "actor": "participant"
+                },
+                "COMPLETED": {
+                    "actions": [
+                        {
+                            "action": "AUTOMATICALLY_APPROVE"
+                        }
+                    ],
+                    "actor": "participant"
+                },
+            }
+
+        See "completion_codes" under https://docs.prolific.com/api-reference/studies/create-study
+
+        Returns:
+            List[dict]: Each dict contains:
+                - code: str, unique code for this type
+                - code_type: str, the type key from config
+                - ...any additional fields from the config definition
+
+        Example return value:
+            [
+                {
+                    "actions": [
+                        {
+                            "action": "REMOVE_FROM_PARTICIPANT_GROUP",
+                            "participant_group": "some group ID",
+                        },
+                        {"action": "MANUALLY_REVIEW"},
+                    ],
+                    "actor": "participant",
+                    "code": "QG8FB1SA",
+                    "code_type": "FAILED_ATTENTION_CHECK",
+                },
+                {
+                    "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
+                    "actor": "participant",
+                    "code": "6Q1UMKRE",
+                    "code_type": "COMPLETED",
+                },
+                {
+                    "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
+                    "actor": "participant",
+                    "code": "7R2GNIZF",
+                    "code_type": "DEFAULT",
+                },
+            ]
+        """
+        code_config = json.loads(self.config.get("prolific_completion_config"))
+        experiment_id = self.config.get("id")
+        # Default code always included
+        result = [
+            {
+                "code": alphanumeric_code(experiment_id),
+                "code_type": self.default_code_type,
+                "actor": "participant",
+                "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
+            }
+        ]
+        for code_type, definition in code_config.items():
+            result.append(
+                {
+                    "code": alphanumeric_code(code_type + experiment_id),
+                    "code_type": code_type,
+                    **definition,
+                }
+            )
+        return result
+
+    @property
+    def completion_code_map(self) -> dict[str, str]:
+        """Return a mapping of code_type to generated code for Prolific completion codes.
+
+        Useful for quickly looking up the code string for a given code_type, but
+        generally used only internally.
+        """
+        return {
+            item["code_type"]: item["code"]
+            for item in self.completion_codes_and_actions
+        }
 
     @property
     def base_payment_cents(self):
@@ -577,12 +700,12 @@ class ProlificRecruiter(Recruiter):
             )
 
         study_request = {
-            "completion_code": self.completion_code,
+            "completion_codes": self.completion_codes_and_actions,
             "completion_option": "url",
             "description": self.config.get("description"),
             # may be overriden in prolific_recruitment_config, but it's required
             # so we provide a default of "allow anyone":
-            "eligibility_requirements": [],
+            "filters": [],
             "estimated_completion_time": self.config.get(
                 "prolific_estimated_completion_minutes"
             ),
@@ -609,6 +732,10 @@ class ProlificRecruiter(Recruiter):
             explicit_config = json.loads(self.config.get("prolific_recruitment_config"))
             study_request.update(explicit_config)
 
+        # Store mapping of completion code types to codes
+        self.config.set(
+            "prolific_completion_codes", json.dumps(self.completion_code_map)
+        )
         study_info = self.prolificservice.create_study(**study_request)
         self._record_current_study_id(study_info["id"])
 
@@ -662,28 +789,44 @@ class ProlificRecruiter(Recruiter):
         """
         logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + self.nickname)
 
-    @property
-    def external_submission_url(self):
+    def external_submission_url(self, code_type: str) -> str:
         """On experiment completion, participants are returned to
         the Prolific site with a HIT (Study) specific link, which will
         trigger payment of their base pay.
-        """
-        return (
-            f"https://app.prolific.com/submissions/complete?cc={self.completion_code}"
-        )
 
-    def exit_response(self, experiment, participant):
+        The cc (Completion Code) query parameter is specific to a
+        combination of experiment ID and "code type". See further:
+        https://docs.prolific.com/api-reference/studies/create-study
+        """
+        code = self.completion_code_map.get(code_type)
+        if code is None:
+            logger.error(
+                f"No completion code found for code_type '{code_type}'. Using default."
+            )
+            code = self.completion_code_map.get(self.default_code_type)
+
+        return f"https://app.prolific.com/submissions/complete?cc={code}"
+
+    def exit_response(self, experiment, participant) -> str:
         """Return our custom particpant exit template.
 
         This includes the button which will:
             1. call our custom exit handler (/prolific-submission-listener)
             2. return the participant to Prolific to submit their assignment
         """
+        # TODO remove hasattr check if we're making a breaking release
+        if hasattr(experiment, "recruiter_exit_info"):
+            code_type = (
+                experiment.recruiter_exit_info(participant) or self.default_code_type
+            )
+        else:
+            code_type = self.default_code_type
+
         return flask.render_template(
             "exit_recruiter_prolific.html",
             assignment_id=participant.assignment_id,
             participant_id=participant.id,
-            external_submit_url=self.external_submission_url,
+            external_submit_url=self.external_submission_url(code_type=code_type),
         )
 
     def reward_bonus(self, participant, amount, reason):
@@ -737,14 +880,14 @@ class ProlificRecruiter(Recruiter):
                 )
 
     @property
-    def current_study_id(self):
+    def current_study_id(self) -> Optional[str]:
         """Return the ID of the Study associated with the active experiment ID
         if any such Study exists.
         """
         return self.store.get(self.study_id_storage_key)
 
     @property
-    def is_in_progress(self):
+    def is_in_progress(self) -> bool:
         """Does an Study for the current experiment ID already exist?"""
         return self.current_study_id is not None
 
@@ -872,14 +1015,14 @@ class ProlificRecruiter(Recruiter):
         """
         cleaned_requirements = [
             self.clean_qualification_requirement(requirement)
-            for requirement in experiment_details["eligibility_requirements"]
+            for requirement in experiment_details["filters"]
         ]
         cleaned_requirements = [
             requirement
             for requirement in cleaned_requirements
             if requirement is not None
         ]
-        experiment_details["eligibility_requirements"] = cleaned_requirements
+        experiment_details["filters"] = cleaned_requirements
         return experiment_details
 
     @property
@@ -890,7 +1033,7 @@ class ProlificRecruiter(Recruiter):
         details = self.hit_details(hit_id, sandbox)
         return {
             "device_compatibility": details["device_compatibility"],
-            "eligibility_requirements": details["eligibility_requirements"],
+            "filters": details["filters"],
             "peripheral_requirements": details["peripheral_requirements"],
         }
 
@@ -950,11 +1093,20 @@ class DevProlificRecruiter(DevRecruiter, ProlificRecruiter):
         super().__init__(*args, **kwargs)
         self.prolificservice = dev_prolific_service_from_config()
 
-    @property
-    def external_submission_url(self):
+    def open_recruitment(self, n: int = 1) -> dict:
+        """Create a simulated Study, saying that nothing was created on Prolific."""
+        response = super().open_recruitment(n)
+        response["message"] = (
+            "Prolific study simulated in debug mode; nothing was created on Prolific"
+        )
+        return response
+
+    def external_submission_url(self, code_type: str) -> str:
+        url = super().external_submission_url(code_type)
+
         self.prolificservice.log_request(
             "GET",
-            f"https://app.prolific.com/submissions/complete?cc={self.completion_code}",
+            url,
             message="Exiting by sending browser to dashboard on localhost (external submission URL).\n",
         )
         response = "http://127.0.0.1:5000/dashboard/develop"
@@ -2174,9 +2326,9 @@ class MultiRecruiter(Recruiter):
                 break
 
         logger.debug(
-            (
-                "Multi-recruited {} out of {} participants, " "using {} recruiters."
-            ).format(n - remaining, n, len(messages))
+            ("Multi-recruited {} out of {} participants, using {} recruiters.").format(
+                n - remaining, n, len(messages)
+            )
         )
 
         return {"items": recruitments, "message": "\n".join(messages.values())}
@@ -2208,7 +2360,7 @@ def for_experiment(experiment):
     return experiment.recruiter
 
 
-def from_config(config):
+def from_config(config) -> Recruiter:
     """Return a Recruiter instance based on the configuration.
 
     Default is HotAirRecruiter in debug mode (unless we're using

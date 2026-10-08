@@ -4,6 +4,7 @@ import logging
 import os
 import re
 from datetime import datetime
+from functools import wraps
 from json import dumps, loads
 
 import gevent
@@ -22,13 +23,12 @@ from jinja2 import TemplateNotFound
 from psycopg2.extensions import TransactionRollbackError
 from rq import Queue
 from sqlalchemy import exc, func
-from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
+from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.sql.expression import true
 
 from dallinger import db, experiment, models, recruiters
 from dallinger.config import get_config
 from dallinger.notifications import MessengerError, admin_notifier
-from dallinger.recruiters import ProlificRecruiter
 from dallinger.utils import (
     attach_json_logger,
     generate_random_id,
@@ -62,12 +62,39 @@ WAITING_ROOM_CHANNEL = "quorum"
 app = Flask("Experiment_Server")
 
 
+def launch_error_response(error_text):
+    """Return a JSON error for failures that happen before `/launch` runs."""
+    return error_response(error_text=error_text, status=500, simple=True)
+
+
+def launch_error_guard(error_prefix):
+    """Return simple JSON for exceptions raised while preparing `/launch`."""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as ex:
+                if request.path == "/launch":
+                    return launch_error_response("{}: {}".format(error_prefix, str(ex)))
+                raise
+
+        return wrapper
+
+    return decorator
+
+
 @app.before_request
+@launch_error_guard("Failed to load configuration before /launch")
 def _load_config():
     _config()
 
 
 @app.before_request
+@launch_error_guard(
+    "Failed to load experiment before /launch while checking protected routes"
+)
 def check_for_protected_routes():
     if current_user.is_authenticated:
         return
@@ -85,12 +112,15 @@ def check_for_protected_routes():
 
 
 def _config():
+    from .dashboard import should_auto_authenticate
+
     app.secret_key = app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
     config = get_config(load=True)
-    if config.get("dashboard_password", None):
+
+    if should_auto_authenticate() or config.get("dashboard_password", None):
         app.config["ADMIN_USER"] = dashboard.User(
             userid=config.get("dashboard_user", "admin"),
-            password=config.get("dashboard_password"),
+            password=config.get("dashboard_password", ""),
         )
 
     return config
@@ -134,6 +164,7 @@ except ImportError:
 
 
 @app.before_request
+@launch_error_guard("Experiment before_request failed before /launch")
 def before_request():
     if exp_klass is not None:
         return exp_klass.before_request()
@@ -217,7 +248,29 @@ login.user_loader(dashboard.load_user)
 login.unauthorized_handler(dashboard.unauthorized)
 app.config["dashboard_tabs"] = dashboard.dashboard_tabs
 
-app.jinja_env.globals.update(get_from_config=get_from_config)
+
+def presence_settings():
+    """Return ``presence.js`` timings for pages, or None without idle sleep.
+
+    docker-ssh idle sleep counts only requests that reach its front door, so
+    an open page that is quiet, or talks only over a WebSocket, would
+    otherwise look idle. Engaged pages ping at a third of the idle window,
+    between 20 seconds and 5 minutes. An interaction keeps a page engaged
+    for one idle window.
+    """
+    config = get_config()
+    if not config.get("docker_ssh_idle_hibernate", False):
+        return None
+    minutes = int(config.get("docker_ssh_idle_hibernate_minutes", 60) or 60)
+    return {
+        "interval_ms": min(max(minutes * 20_000, 20_000), 300_000),
+        "active_window_ms": max(minutes, 1) * 60_000,
+    }
+
+
+app.jinja_env.globals.update(
+    get_from_config=get_from_config, presence_settings=presence_settings
+)
 
 """Basic routes."""
 
@@ -240,6 +293,25 @@ def static_robots_txt():
 @app.route("/favicon.ico")
 def static_favicon():
     return send_from_directory("static", "favicon.ico", mimetype="image/x-icon")
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    """Return JSON so monitors and docker-ssh can tell the web process is up."""
+    return Response('{"status":"ok"}\n', mimetype="application/json")
+
+
+@app.route("/presence", methods=["POST"])
+def presence():
+    """Accept a ping from an open page; the request itself is the activity."""
+    return Response(status=204)
+
+
+@app.route("/idle-hibernation", methods=["GET"])
+def idle_hibernation():
+    """Tell the docker-ssh controller whether idle sleep may stop the app now."""
+    reason = Experiment().reason_to_stay_awake()
+    return success_response(stay_awake=reason is not None, reason=reason)
 
 
 @app.errorhandler(ExperimentError)
@@ -535,12 +607,7 @@ def prepare_advertisement():
         redirect_params = entry_information.copy()
         del redirect_params["generate_tokens"]
 
-        if isinstance(recruiter, ProlificRecruiter):
-            entry_params = ("PROLIFIC_PID", "STUDY_ID", "SESSION_ID")
-        else:
-            entry_params = ("hitId", "assignmentId", "workerId")
-
-        for entry_param in entry_params:
+        for entry_param in recruiter.entry_params:
             if not redirect_params.get(entry_param):
                 redirect_params[entry_param] = generate_random_id()
         return True, {"redirect": redirect(url_for("advertisement", **redirect_params))}
@@ -558,14 +625,13 @@ def prepare_advertisement():
 
     if worker_id is not None:
         # Check if this workerId has completed the task before
-        already_participated = (
+        already_participated = session.query(
             session.query(models.Participant)
             .filter(models.Participant.worker_id == worker_id)
-            .first()
-            is not None
-        )
+            .exists()
+        ).scalar()
 
-        if already_participated:
+        if already_participated and not config.get("allow_repeat_worker_ids", False):
             raise ExperimentError("already_did_exp_hit")
 
     kwargs = {
@@ -727,7 +793,10 @@ def get_page(page):
 @app.route("/<directory>/<page>", methods=["GET"])
 def get_page_from_directory(directory, page):
     """Get a page from a given directory."""
-    return render_template(directory + "/" + page + ".html")
+    try:
+        return render_template(directory + "/" + page + ".html")
+    except TemplateNotFound:
+        abort(404)
 
 
 @app.route("/consent")
@@ -878,18 +947,14 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
 
     exp = Experiment()
 
-    fingerprint_found = False
-    if fingerprint_hash:
-        try:
-            fingerprint_found = (
-                session.query(models.Participant)
-                .filter_by(fingerprint_hash=fingerprint_hash)
-                .one_or_none()
-            )
-        except MultipleResultsFound:
-            fingerprint_found = True
-
-    if fingerprint_hash and fingerprint_found:
+    if (
+        fingerprint_hash
+        and session.query(
+            session.query(models.Participant)
+            .filter_by(fingerprint_hash=fingerprint_hash)
+            .exists()
+        ).scalar()
+    ):
         db.logger.warning("Same browser fingerprint detected.")
 
         # if mode == "live":
@@ -903,15 +968,22 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         # If this proves to be a problem, we can make this configurable via a config parameter in the future.
         # For now we just log a warning.
 
-    already_participated = (
-        session.query(models.Participant).filter_by(worker_id=worker_id).one_or_none()
-    )
+    already_participated = session.query(
+        session.query(models.Participant).filter_by(worker_id=worker_id).exists()
+    ).scalar()
 
+    allow_repeat_worker_ids = config.get("allow_repeat_worker_ids", False)
     if already_participated:
-        db.logger.warning("Worker has already participated.")
-        return error_response(
-            error_type="/participant POST: worker has already participated.", status=403
-        )
+        if not allow_repeat_worker_ids:
+            db.logger.warning("Worker has already participated.")
+            return error_response(
+                error_type="/participant POST: worker has already participated.",
+                status=403,
+            )
+        else:
+            db.logger.info(
+                "Worker has already participated; allowing repeat due to config."
+            )
 
     duplicate = (
         session.query(models.Participant)
@@ -1027,12 +1099,16 @@ def load_participant():
     assignment_id = participant_info.get("assignment_id")
     if assignment_id is None:
         return error_response(
-            error_type="/load-participant POST: no participant found", status=403
+            error_type="/load-participant POST: no participant found",
+            error_code="assignment_id_missing",
+            status=403,
         )
     ppt = exp.load_participant(assignment_id)
     if ppt is None:
         return error_response(
-            error_type="/load-participant POST: no participant found", status=403
+            error_type="/load-participant POST: no participant found",
+            error_code="participant_not_found",
+            status=403,
         )
 
     # return the data
@@ -1643,8 +1719,7 @@ def transformation_get(node_id):
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(
-            error_type="/node/transformations, "
-            "node {} does not exist".format(node_id)
+            error_type="/node/transformations, node {} does not exist".format(node_id)
         )
 
     # execute the request
@@ -1686,7 +1761,7 @@ def transformation_post(node_id, info_in_id, info_out_id):
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(
-            error_type="/transformation POST, " "node {} does not exist".format(node_id)
+            error_type="/transformation POST, node {} does not exist".format(node_id)
         )
 
     info_in = models.Info.query.get(info_in_id)
@@ -1760,7 +1835,7 @@ def check_for_duplicate_assignments(participant):
         q.enqueue(worker_function, "AssignmentAbandoned", None, d.id)
 
 
-@app.route("/worker_complete", methods=["POST"])
+@app.route("/worker_complete", methods=["POST", "GET"])
 @db.scoped_session_decorator
 def worker_complete():
     """Called when a participant completes their task.

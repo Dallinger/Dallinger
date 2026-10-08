@@ -80,6 +80,7 @@ designing new experiments for others to use.
     developing_dallinger_setup_guide
     creating_an_experiment
     required_experiment_files
+    deploy_toml
     networks
     the_experiment_class
     classes

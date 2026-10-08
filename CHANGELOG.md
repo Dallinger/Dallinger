@@ -1,57 +1,641 @@
-# Change Log
+# Changelog
 
-#### Added
-- Fail CI if there is no CHANGELOG entry in a pull request
+## [Unreleased]
 
-#### Fixed
-- Temporarily skipped some constraints tests as they made the CI fail with "429: Too Many Requests" errors
-- Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`     
-- Fix markers configuration in pytest.ini files
+### Added
 
-#### Removed
+- Added a Cursor `/release` command and release skill for cutting
+  Dallinger releases to PyPI and ghcr.
+- Added `--no-browsers` to `dallinger develop debug`. Instead of opening the
+  dashboard and participant browsers, it logs the recruitment message, the
+  dashboard URL and the dashboard login, like `dallinger debug --no-browsers`.
+- docker-ssh apps can hibernate automatically after a quiet period when
+  ``docker_ssh_idle_hibernate`` is set (``docker_ssh_idle_hibernate_minutes``,
+  default 60). ``/health`` probes do not count as traffic. With idle sleep
+  on, pages ping ``POST /presence`` while someone is using them (recent
+  interaction, audible media, or ``dallingerPresence.setWaiting``), so an
+  app never sleeps under a participant but an abandoned tab stops pinging.
+  Dallinger's quorum waiting room counts as waiting, and a WebSocket
+  reconnect does not wake a sleeping app.
+  Non-page requests to a sleeping app get HTTP 503 with ``Retry-After`` and
+  a JSON status, after the controller reads the whole request body, so
+  clients can resend them safely.
+  Idle sleep is not for experiments that recruit throughout their lifetime.
+  As a backstop, the app stays awake while ``auto_recruit`` is on or any
+  participant is still working; experiments can add conditions by
+  overriding ``Experiment.reason_to_stay_awake``.
+- ``dallinger docker-ssh hibernate`` and ``awaken`` stop and restart an
+  app's expensive services behind a new per-app front door and controller.
+  A visitor to a hibernating app gets a wait page and wakes it; other
+  requests get HTTP 503. ``apps`` reports ``hibernating`` or ``waking``,
+  ``export`` wakes the app first, and ``--update`` wakes a hibernating app.
+  ``/health`` reports the sleep state without waking the app. Cloudflare
+  tunnels now reach the app through the front door, and for classic apps
+  ``<app>_web`` on the shared network now names the front door; web and
+  workers also wait for pgbouncer's health check. Waking treats an older
+  experiment image without ``/health`` as ready once web answers. Deploy
+  also chowns the front door's state directory.
+- docker-ssh disk cleanup prunes only stopped containers outside Compose
+  projects, and the host Caddy image is pinned to ``caddy:2.10.2``.
+- docker-ssh experiment containers built from now on run as the SSH user
+  instead of root; images built earlier keep running as root until rebuilt.
+  Every directory under ``/experiment`` is writable in the image, so the app
+  can create files anywhere in its tree, and deploy chowns the app's data
+  directory and writable bind mounts under ``$HOME``. Files shipped in the
+  image cannot be edited in place, and paths outside ``/experiment`` stay
+  read-only for the app.
+- docker-ssh keeps each app's database password in a private
+  ``~/dallinger/<app>/.env`` instead of its ``docker-compose.yml``, and makes
+  both files private (mode 0600). ``--update`` keeps the database password
+  and the Flask secret key, so participants' sessions survive an update.
+  ``get_docker_compose_yml`` no longer takes ``postgresql_password``.
+- docker-ssh writes a non-secret ``~/dallinger/<app>/deployment.json`` on
+  deploy and ``apps`` shows the recorded ingress and origin.
+  New ``docker_ssh_monitoring_kind`` and ``docker_ssh_monitoring_path``
+  config keys set the manifest's monitoring fields. ``servers add`` now
+  refuses host record fields whose names look like tokens or passwords.
+  The experiment server has a stock ``GET /health``, the manifest's default
+  monitoring path.
+- docker-ssh can deploy with ``--ingress cloudflare``. Each app gets an
+  isolated Postgres and a Cloudflare tunnel that proxies to the web service.
+  Cloudflare account and zone come from the new ``cloudflare_account_id``,
+  ``cloudflare_zone_id`` and ``cloudflare_dns_zone`` config keys, and
+  ``servers add --default-ingress`` sets a server's default. A fresh deploy
+  refuses an app name whose tunnel already exists. Destroy stops the
+  connector before deleting the DNS record and tunnel, and can be re-run if
+  that cleanup fails. A deploy that cannot record a new tunnel on the
+  server deletes it again. ``get_docker_compose_yml`` no longer takes
+  ``executor``.
+- Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
+  docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
+  A custom experiment Dockerfile gets a final step that installs that wheel.
+  Dallinger pins given as Git URLs are replaced by the local wheel as well
+  (extras such as ``[docker]`` are dropped from the rewritten line).
+
+### Changed
+
+- Skipped the live MTurk integration tests, because Amazon has discontinued
+  Mechanical Turk and every call now fails with `AccessDeniedException`.
+  Mocked MTurk tests still run.
+- Modern (PEP 660) editable installs of Dallinger are now detected, not only
+  legacy ``egg-link`` installs. Heroku and SSH deploys from such an install
+  build and ship your local Dallinger checkout instead of the version in
+  ``requirements.txt``, and ``docker debug`` mounts it into the container.
+  Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
+- The ``deployment-files`` CLI tests no longer use Click's deprecated
+  ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
+
+### Fixed
+
+- Remote Docker builds work when the SSH username contains ``@``.
+- docker-ssh deploys no longer write the dashboard or Dozzle password into
+  ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.
+- docker-ssh deploy now correctly handles SSH hosts specified as ``host:port``.
+  The ``--update`` flag now yields a boolean instead of the
+  string ``"update"``. TLS certificate verification is skipped for loopback
+  deployments. SFTP operations now use the remote user's home directory as the
+  working directory. Dozzle is only restarted when it is already running.
+  PostgreSQL 15+ schema ``public`` permissions are granted after database
+  creation. Disk-full errors on the remote host are detected and offer guided
+  safe cleanup. Pre-release Dallinger versions fall back to the ``latest`` base
+  image tag. The ``auto_recruit`` config key no longer crashes when Redis is
+  unavailable. A new ``docker-ssh-smoke`` CI job runs five end-to-end smoke
+  tests on every PR covering deploy/destroy, app listing, server listing,
+  missing-app error handling, and the ``--update`` refresh flow.
+- WebSocket relays no longer log a `ConnectionClosed` traceback when a message
+  reaches a client that has just disconnected; the client was already
+  unsubscribed.
+- Fixed a `RuntimeError: dictionary changed size during iteration` when a
+  WebSocket client disconnected while another connection opened a new channel.
+- Prolific API requests now time out after 10 seconds without connecting or
+  30 seconds without receiving data, so a stalled request no longer blocks
+  its web or worker process indefinitely.
+- Prolific connection errors and timeouts now raise `ProlificServiceException`
+  and are reported as recruitment errors, like other Prolific API failures.
+  Before, they escaped as `requests` exceptions, so a failed approval or bonus
+  payment stopped the rest of submission handling.
+- Approving a Prolific submission that is already approved no longer sends a
+  second approval, which Prolific rejected and which caused the call to retry
+  until it gave up.
+- Fixed Prolific experiments slowing down as a server handles more
+  requests. Creating a `ProlificRecruiter` reloaded the configuration each
+  time, and each `Configuration.load()` added config layers that every later
+  lookup had to sort. `load()` is now idempotent: calling it again replaces
+  the layers from the previous load, so values removed from a config file or
+  the environment no longer linger, while values added with `extend()`,
+  `set()` or `override()` are kept. A `load()` that fails leaves the previous
+  configuration in place, and loads that overlap in different threads run
+  one at a time. Values added from another thread while a load is running
+  remain runtime additions and survive later reloads. `ProlificRecruiter`
+  also no longer reloads an already loaded configuration.
+  `Configuration.data` is now a read-only tuple: added layers first, then
+  loaded layers, each newest first. Use `extend()`, `set()` or `override()`
+  to change the configuration.
+
+### Fixed
+
+- `DevProlificRecruiter` no longer reports or logs that a study was created on
+  Prolific when opening recruitment in debug mode; its launch message and log
+  say the study is simulated and that nothing was created on Prolific.
+
+### Fixed
+
+- The `clear_workers` test fixture now stops only the local
+  `dallinger_heroku_*` web and worker processes that use the test run's
+  `DATABASE_URL`; `heroku local` then shuts down the rest of that session. It
+  used to run `pkill -f heroku`, which stopped every process whose command
+  line mentioned "heroku", including Heroku CLI sessions in other checkouts or
+  terminals. The new `dallinger.heroku.tools.local_worker_processes()` returns
+  these processes for other tools, such as PsyNet, to reuse.
+
+### Fixed
+
+- `dallinger debug` no longer spins at full CPU after `heroku local` exits:
+  the output monitor now stops at end of output and logs the exit code,
+  unless the exit followed a requested stop, such as when the experiment
+  completes.
+  `heroku local` also gets `/dev/null` as stdin instead of inheriting the
+  caller's, which it never reads. Startup failures also cancel the timeout
+  alarm instead of leaving it armed after the original error.
+
+## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
+
+### Added
+
+- Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
+  (``paths``, ``names``, ``suffixes``) plus the deterministic
+  experiment-root deployment plan model, with development bulk directory
+  links and ordinary copied materialization for remote staging. Starter
+  ``dallinger deployment-files init`` writes root-relative prefixes in
+  ``paths``, nested junk names such as ``__pycache__`` in ``names``, and
+  ``.db`` / ``.dmg`` in ``suffixes``.
+- Added `dallinger deployment-files list` and `init` for inspecting and creating
+  starter policies.
+- Added opt-in `deploy.toml` experiment-file membership to verification,
+  development staging, copied Docker/classic staging, and Heroku assembly
+  through `ExperimentFileSource`. Experiments without a policy retain legacy
+  selection and Git staging behavior as a compatibility fallback while
+  PsyNet trials `deploy.toml`; Git-based membership may later be
+  deprecated (warning, then removal). Git remains for provenance. Plan
+  traversal uses ordinary POSIX `lstat`/`scandir` containment (rejecting
+  symlinks and special files).
+
+### Changed
+
+- ``ProlificService.get_participant_submission`` accepts ``translate=False``
+  to return the Prolific payload (including ``bonus_payments``) or ``None``
+  on a miss, instead of translating fields and raising a recruitment
+  error. ``_req`` takes ``raise_on_error`` (default ``True``).
+
+### Fixed
+
+- SSH and Heroku-docker deploys now tag the experiment image with the
+  per-launch experiment UID instead of a hash of ``requirements.txt`` and
+  ``prepare_docker_image.sh``. Those files do not identify the copied
+  experiment code, so two variants (for example PsyNet ``audio_gibbs``
+  Lucid vs Prolific) could share one tag, race each other's builds, and
+  one app could run the other variant's code. Local ``docker debug`` still
+  uses the dependency hash because it bind-mounts the experiment directory.
+  ``dallinger docker build`` / ``push --use-existing`` also still use that
+  hash. ``dallinger docker-ssh destroy`` removes the compose-pinned
+  experiment image after ``compose down``. The image is kept if another
+  app's compose still pins it, and ``docker rmi`` is not forced, so a
+  shared ``docker_image_name`` in use by a container is also kept.
+- Frozen-plan Heroku and docker-ssh assembly now compile ``constraints.txt``
+  in the staging directory instead of skipping generation. Experiments with
+  ``deploy.toml`` no longer need a pre-existing ``constraints.txt`` in the
+  experiment tree, and autogenerated pins are refreshed without mutating
+  the source experiment.
+- Invalid ``deploy.toml`` now surfaces as a Click usage error from
+  ``dallinger sandbox``, ``deploy``, ``verify``, ``develop debug``,
+  ``develop bootstrap``, ``load``, ``docker push``, docker-ssh image
+  build, and ``dallinger deployment-files list``, instead of a traceback
+  or a generic verify message. Commands that verify then assemble reuse
+  one ``ExperimentFileSource``.
+- Heroku Docker and docker-ssh image push reuse the just-built image instead of
+  assembling the experiment a second time.
+- Editable installs now fall back to the source tree when
+  ``importlib.metadata`` omits a file list or packaged Docker templates.
+- Experiment launch waits for the URL to become reachable (TLS, connection,
+  or gateway startup) with a pulsing progress bar instead of printing those
+  retries as launch failures. The last error is still reported if launch does
+  not succeed before the timeout, and a failed launch now ends with a short
+  ``Error: Experiment launch failed. ...`` diagnosis instead of a Python
+  traceback.
+- docker-ssh deploy and sandbox no longer carry on after the deploy fails when
+  ``docker_image_name`` is configured. The registry lookup wrapped the whole
+  deploy, so an abort (a failed DNS check, a missing contact email, a
+  root-domain conflict) was printed as ``Error checking remote image:`` and the
+  command went on to rebuild the image and deploy a second time.
+- docker-ssh deploy now reports the real experiment hostname and IP (or that
+  the name did not resolve) when DNS does not match the server, instead of
+  ``It currently resolves to True``. The error also points at ``--dns-host``,
+  dnschecker.org, and the 5-minute Route 53 TTL after reprovisioning.
+
+### Updated
+
+- Updated JavaScript development dependencies (``jest``,
+  ``jest-environment-jsdom``, ``webpack``, ``webpack-cli``) and npm
+  overrides for patched ``js-yaml``, ``fast-uri``, ``engine.io``,
+  ``browserslist``, and ``baseline-browser-mapping``. Left
+  ``test-exclude`` on minimatch 10 (required by Jest 30.5) while
+  ``resp-modifier`` still pins callable minimatch 3.x.
+- Updated Python dependencies (regenerated ``requirements.txt``,
+  ``dev-requirements.txt``, and ``constraints.txt``; bumped the ruff
+  pre-commit hook).
+- Documented ``deploy.toml`` for experiment authors, including format,
+  the nested ``[exclude]`` table, auto-omitted paths,
+  ``dallinger deployment-files list`` / ``init``, and that Git-based
+  membership is a compatibility fallback that may later be deprecated
+  after PsyNet production use.
+- Matched the documented ``dallinger deployment-files init`` starter
+  ``paths``, ``names``, and ``suffixes`` lists to the CLI.
+- Regenerated the committed ``tests/experiment/constraints.txt`` fixture
+  against the released v12.3.0 pins (dropping the removed ``chardet``
+  dependency, which the stale v12.2.1-based file still carried) and added
+  ``tests/experiment`` to ``scripts/update_experiments_constraints.py`` so
+  the fixture is refreshed with each release like the demo constraints.
+
+## [v12.3.0](https://github.com/dallinger/dallinger/tree/v12.3.0) (2026-08-22)
+
+### Migration Notes
+
+- The long-deprecated `dallinger.heroku.worker` compatibility shim is gone.
+  Import the Redis connection from `dallinger.db.redis_conn` instead.
+- Tagged configuration values are now resolved by source priority (package
+  defaults < experiment class defaults < `~/.dallingerconfig` <
+  `Experiment.config_settings()` < `config.txt` < environment variables <
+  runtime writes) instead of layer insertion order. Use
+  `Experiment.config_settings()` for values that must override
+  `~/.dallingerconfig`. Untagged `config.extend()` and
+  `config.load_from_file()` calls remain highest-priority runtime writes.
+- `dlgr.demos` is packaged with Hatchling via `demos/pyproject.toml`;
+  `demos/setup.py` has been removed.
+- Contributors building documentation or running JavaScript tests need
+  Node.js 20+ and npm. Yarn is no longer used.
+
+### Added
+
+- Added `Experiment.config_settings()` for authoritative experiment config
+  values set in code. Unlike `Experiment.config_defaults()`, these override
+  the user's `~/.dallingerconfig`, while still being overridden by the
+  experiment's `config.txt`.
+
+### Changed
+
+- Migrated `dlgr.demos` packaging from `setup.py` to Hatchling via
+  `demos/pyproject.toml`. See
+  [#9688](https://github.com/Dallinger/Dallinger/issues/9688).
+- Migrated JavaScript package management from Yarn 1 to npm: replaced
+  `yarn.lock` with a committed `package-lock.json`, translated the Yarn
+  `resolutions` field to npm `overrides`, and switched CI, deploy, and docs
+  tooling to `npm ci`. Bumped `jest` and `jest-environment-jsdom` to the
+  latest 30.x releases and refreshed in-range transitive dependencies in
+  `package-lock.json`. `resp-modifier` and `test-exclude` keep patched
+  `minimatch` 3.1.5 because minimatch 10 is not a callable CommonJS export.
+  Contributors now only need Node.js 20+/npm (no Yarn) to build
+  documentation and run the JavaScript tests. No production frontend
+  assets were changed.
+- Tagged configuration values are now resolved by source priority (package
+  defaults < experiment class defaults < `~/.dallingerconfig` <
+  `Experiment.config_settings()` < `config.txt` < environment variables <
+  runtime writes) instead of layer insertion order. Untagged
+  `config.extend()` and `config.load_from_file()` calls remain highest-priority
+  runtime writes.
+
+### Fixed
+
+- Silenced spurious ResourceWarnings emitted during Docker-over-SSH
+  deployments by docker-py's shell-out SSH transport, which does not close
+  its connections when the client is closed. The filters are installed
+  before the Docker client is created so mid-command garbage collection
+  cannot print them.
+- Fixed ``dallinger constraints generate`` so it upgrades Dallinger to the latest
+  compatible patch instead of keeping a stale pin from an existing
+  ``constraints.txt``.
+- Fixed repeat-worker recruitment after multiple prior participations and added
+  structured participant lookup errors for clients (`assignment_id_missing` /
+  `participant_not_found` via `error_code` / `AjaxRejection.errorCode`).
+- Fixed Prolific pagination so that fetching submissions and studies follows
+  the "next" link in Prolific's list responses instead of assuming that a
+  page shorter than the requested `page_size` is the final one. This fixes a
+  crash in participant status verification when a study's submission count
+  is an exact multiple of the page size (Prolific returns a 404 error for
+  page requests past the end), keeps pagination correct regardless of how
+  Prolific sizes served pages, and makes `get_studies` paginated for the
+  first time. See
+  [#9601](https://github.com/Dallinger/Dallinger/issues/9601).
+- Fixed config loading so the experiment's config layers (class defaults and
+  `config.txt`) are still applied after an initialized experiment process
+  changes into a non-experiment directory.
+- Fixed `get_config()` so calling it without `load=True` no longer eagerly
+  loads the configuration when an experiment is available.
+- Fixed the `config.txt` reload performed on `Experiment.run()` so it is
+  tagged with the experiment-config priority and no longer overrides
+  environment variables.
+
+### Removed
+
+- Removed the unused `demos/dev-requirements.txt` file and its obsolete
+  development dependency declarations.
+- Removed obsolete development-service configuration, unused test fixtures,
+  generated demo data artifacts, unreferenced frontend and demo assets, and
+  the leftover `demos/MANIFEST.in` copied from the old root package.
+- Removed `demos/setup.py`; demo package metadata and experiment entry
+  points now live in `demos/pyproject.toml`.
+- Removed the long-deprecated `dallinger.heroku.worker` compatibility shim;
+  import the Redis connection from `dallinger.db.redis_conn` instead.
+- Removed the redundant `demos/tox.ini` (the repository-level `tox.ini` style
+  environment already lints `demos`) and the unused `.jshintrc` in the
+  twentyfortyeight demo.
+- Removed unused bundled `markdown.min.js` copies and their script tags from
+  the MCMCP, iterated drawing, sheep market, and Vox Populi demos (the
+  Bartlett 1932 demo keeps its copy, which it actually uses).
+- Removed legacy release-workflow steps (pandoc README conversion, Node/Yarn
+  setup, and tox installation) that no longer feed the PyPI publish step.
+
+### Updated
+
+- Updated Python dependencies
+- Avoided a duplicate experiment-package copy during `dallinger develop debug`
+  by validating the working tree before development staging; strict packaged
+  validation remains available through `dallinger verify`.
+- Updated `.nvmrc` from the end-of-life Node 11 to Node 20, matching the
+  version used in CI.
+
+## [v12.2.1](https://github.com/dallinger/dallinger/tree/v12.2.1) (2026-07-02)
+
+### Changed
+
+- Updated the Dallinger pull request template, branch review command, and agent instructions to use a standardized pull request description and review workflow.
+### Added
+
+- Added support for Python 3.14.
+
+### Fixed
+
+- Fixed Docker SSH deployments so app containers use an app-scoped Redis
+  hostname and private app network, preventing concurrent deployments from
+  resolving another app's Redis service.
+- Fixed `dallinger debug` launch failures that happen before the `/launch` route
+  body so they return JSON error messages instead of only a generic HTML 500
+  response.
+- Fixed the GitHub Actions `pre-commit` job to avoid the deprecated Node.js 20
+  runtime by replacing `pre-commit/action` with explicit pre-commit installation
+  and execution.
+- Fixed Prolific status polling so it does not make unscoped submissions API requests when no current study ID is recorded.
+- Fixed Prolific submissions lookups so status checks retrieve all paginated
+  submissions instead of only the first page.
+- Fixed deprecated `Experiment.session` warnings in dashboard table queries.
+- Fixed Prolific draft study deletion to use the documented study endpoint and
+  accept documented successful delete responses.
+- Fixed GitHub Dependabot npm security alerts by bumping transitive JavaScript dependencies in `yarn.lock`: `follow-redirects` 1.15.9 → 1.16.0, `lodash` 4.17.23 → 4.18.1, and `picomatch` 2.3.1 → 2.3.2 / 4.0.3 → 4.0.4.
+- Fixed generated dependency pins so they remain installable on the lowest
+  supported Python version.
+- Fixed GitHub Dependabot npm security alerts by updating JavaScript build/test dependencies in `yarn.lock`, updating `webpack` and `webpack-cli`, and adding Yarn resolutions for patched `brace-expansion`, `fast-uri`, `immutable`, `js-yaml`, `linkify-it`, `minimatch`, `socket.io-parser`, `ws`, `engine.io`, `engine.io-client`, and `socket.io-adapter` versions.
+
+### Removed
+
+- Removed support for Python 3.10 and the dependency upper bounds that kept
+  `ipython`, `myst-parser`, `numpy`, `pandas`, `sphinx`, and `markdown-it-py`
+  on Python 3.10-compatible versions.
+- Removed the unused `chardet` dependency.
+- Removed the unused direct `markdown-it-py` dependency.
+- Removed redundant direct `numpy` declarations from the `data` and `ec2`
+  optional extras.
+- Removed the `pip-tools` dependency and legacy `pip-compile` fallback from
+  constraints generation.
+- Removed nanasess/setup-chromedriver action to instead use the GitHub-hosted runner's preinstalled Chrome and ChromeDriver versions.
+
+### Updated
+
+- Updated Python dependencies; pinned rpds-py < 2026.5.1
+
+## [v12.2.0](https://github.com/dallinger/dallinger/tree/v12.2.0) (2026-04-20)
+
+### Migration Notes
+
+- `numpy` moved from core dependencies to the `data` and `ec2` optional extras. Experiments that relied on numpy being installed transitively must now either install `dallinger[data]` (or `dallinger[ec2]`) or declare numpy in their own requirements.
+- `ipython` moved from core dependencies to the `jupyter` optional extra. Install with `pip install dallinger[jupyter]` if you need IPython.
+- The `constraints-cli` console-script alias has been removed; use `dallinger constraints` instead.
+- Linting/formatting migrated from `black`, `flake8`, and `isort` to Ruff (`ruff check` + `ruff format`) across pre-commit, tox style checks, and developer docs while preserving existing style settings. Contributors must run `pre-commit install --install-hooks` to refresh local hook environments.
+
+### Added
+
+- Added `allow_repeat_worker_ids` config option to allow recruiters to accept multiple submissions from the same worker ID.
+- Added `get_running_app` helper for selecting a default `docker-ssh` app programmatically.
+- Added repeatable `--extra` support to the constraints generator (`dallinger constraints generate/check/ensure`). Extras influence the constraints signature (md5), are passed to the resolver (uv pip compile), and require pyproject.toml when specified. When both pyproject.toml and requirements.txt exist and extras are provided, pyproject.toml is preferred.
+
+### Changed
+
+- The "Could not import EC2 support" warning is no longer printed on every CLI invocation; a stub `ec2` subcommand now shows the message only when `dallinger ec2` is actually used.
+- Bumped `actions/checkout` (`v4` → `v5`), `actions/cache` (`v4` → `v5`), `actions/setup-python` (`v5` → `v6`), `actions/setup-node` (`v4` → `v5`), `nanasess/setup-chromedriver` (`v2.2.2` → `v2.4.0`), `docker/setup-buildx-action` (`v3` → `v4`), `docker/build-push-action` (`v5` → `v7`), and `docker/login-action` (`v3` → `v4`), and `codecov/codecov-action` (`v4` → `v6`) in GitHub Actions workflows to use the Node.js 24 runtime, resolving the deprecation warning for Node.js 20 actions.
+- Standardized `CHANGELOG.md` Markdown formatting and added a repository `.markdownlint.jsonc` config to support linting without flagging intentional changelog structure.
+- Replaced third-party `cached_property` package with Python's built-in `functools.cached_property` (available since Python 3.8).
+- Improved provisioning output: replaced noisy error messages and bare data dumps with yaspin spinners and green checkmarks for all long-running steps (Docker check/install, storage resize, DNS record creation, etc.).
+- Added `tomli` as a dependency for Python 3.10 so pyproject extras can be parsed without a traceback.
+- Improved `dallinger docker-ssh` server selection UX: when multiple servers are configured and `--server` is omitted (and for `servers remove` when `--host` is omitted), users now choose from a numbered list; explicit host/server options and single-server behavior remain unchanged.
+- Migrated CLI table rendering from `tabulate` to Rich tables for consistent formatting and non-interactive output behavior.
+- Improved EC2/provisioning CLI output: replaced noisy error messages and bare data dumps with clearer progress indicators (spinners/checkmarks plus list progress where appropriate), clarified `--dns` vs `--dns-host` option help text, and added friendly validation/errors for EC2 instance lookup and selector usage (`--name`/`--dns`).
+- Replaced `tqdm` progress display in EC2 CLI paths with `rich.progress` for consistent spinner/bar output and simplified dependency surface.
+- Adjusted EC2 all-regions listing log level from WARNING to INFO to avoid signaling normal behavior as an issue.
+- Modernized frontend JavaScript tooling:
+  - Upgraded to webpack 5 and webpack-cli 6, replacing legacy UglifyJS plugin usage with webpack's native production optimization settings.
+  - Upgraded frontend test/docs tooling to Jest 30 and JSDoc 4, and configured Jest to use the explicit `jsdom` environment package required by modern Jest.
+
+### Fixed
+
+- Fixed manual entity failure by switching to client-side formatting of data tables
+- Fixed frontend npm audit vulnerabilities by updating transitive JavaScript dependencies in `yarn.lock`, including patched versions of `immutable`, `minimatch`, `ajv`, and related build tooling packages.
+- Fixed clock process startup after Redis restarts by waiting for Redis to finish loading before scheduled tasks begin.
+- Fixed `get_page_from_directory` route returning 500 errors with full tracebacks for missing templates (e.g. from vulnerability scanners). Now returns 404, matching the existing `get_page` behavior.
+- Fixed Dozzle login failing on deployments using Dozzle v8+. The `set_dozzle_password` function was using SHA256 hashing, which is no longer supported by recent Dozzle versions. Now uses bcrypt. Also pinned Dozzle image to v10.0.2 to prevent future breaking changes from `:latest`.
+- Fixed `docker-ssh export` and `docker-ssh apps` for root-domain deployments.
+- Fixed `rq_gevent_worker` compatibility with newer `rq` versions where `StopRequested` and log color helpers moved/changed modules.
+- Fixed noisy Docker socket permission output in `dallinger docker-ssh servers add` by checking Docker usability, attempting group-permission remediation, and showing a concise actionable error if Docker remains unavailable.
+- Fixed Jest coverage instrumentation failures (`TypeError: minimatch is not a function`) by splitting Yarn resolutions so `test-exclude` uses a callable-compatible minimatch line while modern dependency paths continue to use minimatch 10.
+
+### Removed
+
+- Removed `ua-parser` package from dependencies (still required via `user-agents`).
+- Removed obsolete `patches.py` module that patched ipykernel's `OutStream.writable()` method. This workaround for pexpect compatibility has been unnecessary since ipykernel 4.9 (April 2018), which added the fix upstream.
+- Removed unused `flask-crossdomain` dependency (a local implementation in `dallinger.experiment_server.utils` has been used instead for some time).
+- Removed unused `pyopenssl` dependency.
+- Removed redundant `paramiko` from `docker` and `ec2` optional dependencies (already in core dependencies).
+- Removed redundant `yaspin` from `ec2` optional dependencies (already in core dependencies).
+- Removed `tqdm` from the `ec2` optional dependency set and generated dev requirements after migrating EC2 progress rendering to Rich.
+- Removed redundant `alabaster` from dev dependencies (transitive dependency of `sphinx`).
+- Removed redundant `pycodestyle` from dev dependencies (transitive dependency of `flake8`).
+- Removed redundant `black` from dev dependencies (already included via `black[jupyter]`).
+- Removed redundant `jupyter-server` from `jupyter` optional dependencies (transitive dependency of `jupyterlab` via `jupyter`).
+- Removed redundant `ipywidgets` from `jupyter` optional dependencies (transitive dependency of `jupyter`).
+
+### Updated
+
+- Pinned myst-parser < 5
+- Pinned pandas < 3
+- Pinned chardet < 6
+- Pinned markdown-it-py < 4 to keep production and dev lock files on the same version (myst-parser requires 3.x)
+- Updated dependencies
+
+## [v12.1.2](https://github.com/dallinger/dallinger/tree/v12.1.2) (2026-02-13)
+
+### Reverted
+
+- Reverted upgrade to PostgreSQL 16
+
+### Fixed
+
+- Improved error message for AWS authentication failures (wrong credentials, expired tokens, clock skew) in EC2 commands: now displays a concise, actionable message instead of a full stack trace.
+
+## [v12.1.1](https://github.com/dallinger/dallinger/tree/v12.1.1) (2026-02-11) [YANKED]
+
+### Changed
+
+- EC2 provisioning now defaults to Canonical's Ubuntu 24.04 SSM parameter instead of a pinned AMI name. Falls back to `ec2.describe_images` if SSM access is denied (e.g. missing `ssm:GetParameter` permission).
+
+### Fixed
+
+- Replaced remaining `pkg_resources` usage with `importlib.metadata` (in CI Docker entry point test and dependency checker).
+- Fixed Prolific study creation failure caused by removed `eligibility_requirements` API field; replaced with `filters` per [Prolific's updated API](https://docs.prolific.com/api-reference/studies/create-study).
+- Fixed dead Prolific API documentation URLs throughout codebase and docs.
+- Fixed `BadHostKeyException` crash when connecting to a rebuilt EC2 instance whose SSH host key has changed. The user is now prompted to confirm the key update before continuing.
+- Fixed doubled experiment ID in Redis Docker container and volume names for docker-ssh deployments (e.g. `diagrams-expertise-redis_diagrams-expertise-1` is now `diagrams-expertise-redis-1`).
+- Simplified Redis volume name in local Docker Compose template for consistency.
+- Fixed `TypeError` in `dallinger constraints generate` when `constraints=None` and `uv pip compile` fails.
+- Fixed flaky MTurk test by including Python version in qualification names to prevent collisions between parallel CI jobs.
+- Fixed new participant link to avoid propagating credentials from the dashboard URL.
+- Fixed EC2 teardown to show a clear error when no instances exist in a region.
+
+### Updated
+
+- Updated to PostgreSQL 16
+
+## [v12.1.0](https://github.com/dallinger/dallinger/tree/v12.1.0) (2026-01-09)
+
+### Changed
+
+- **docker-ssh server storage location moved to `~/.dallinger/docker-ssh/hosts`**:
+  The `dallinger docker-ssh servers add` command now stores server information in `~/.dallinger/docker-ssh/hosts`
+  instead of the platform-specific location (e.g., `~/.local/share/dallinger/hosts` on Linux).
+  This platform-independent location works better with DevContainers and other containerized environments.
+  Hosts found in the old location are automatically imported to the new location on first access.
+- Dashboard authentication is now disabled if Dallinger detects that it is running in debug mode
+  in GitHub Codespaces. This stops users from having to type in dashboard credentials every time they debug.
+
+### Fixed
+
+- Fixed bug where `server_pem` was not propagated to the Docker remote build process.
+- Pinned paramiko to <4.0.0 to address incompatibility with sshtunnel
+  (see [discussion](https://github.com/pahaz/sshtunnel/issues/302)).
+- Fixed bug in `dallinger constraints generate` when using `pyproject.toml` in combination with a Git Dallinger dependency.
+
+### Documentation
+
+- Made minor clarifications about the use of SSH keys and AWS permissions.
+
+### Updated
+
+- Updated dependencies
+
+## [v12.0.0](https://github.com/dallinger/dallinger/tree/v12.0.0) (2025-12-16)
+
+### Breaking Changes
+
+- Removed ssh-agent based SSH authentication for deployments. SSH deployments now require the `server_pem` configuration variable to be set with a path to an SSH key file.
+
+### Added
+
+- Fail CI if there is no CHANGELOG entry in a pull request (except 'pyup-update' branches which are excluded)
+- Allow root domain deploments (such has my-domain.com) as well as multi subdomain deployments (such as subdom-2.subdom-1.my-domain.com).
+- Added support for custom Prolific completion codes and actions.
+- Added tests for EC2 `get_all_instances`, `get_instance_details`, `get_pem_path`, and `register_key_pair` (RSA, Ed25519, ECDSA key types)
+
+### Fixed
+
+- Disabled Prolific's custom screening in the test suite by changing the default for `is_custom_screening` to `False`
+- Fixed markers configuration in pytest.ini files
+- Fixed/Cleaned up .coveragerc
+- DNS record creation now uses `UPSERT` instead of `CREATE`, preventing errors when redeploying experiments with existing DNS entries
+- Improved SSH connection retry logic to properly handle transient network errors and SSH handshake timing issues
+- Fixed Docker client cleanup to properly close SSH connections when building images on remote hosts
+- Added better error message when using incompatible PEM key files with EC2 instances
+- Fixes related to randomly failing Bartlett demo CI test:
+  - Set button click handler to 'disabled' in demos' HTML template code to prevent possible race conditions
+  - `BotBase` now validates that `participant_id` is present in the URL (except for `/ad` URLs where it's assigned during sign-up)
+  - Enable `.btn-success` in `createParticipant()` and `loadParticipant()` only after server response assigns `participantId`.
+  - Extract participant ID from URL in `Bot.sign_up` after clicking the Start button
+  - Added checks in `Bot.sign_up` and `Bot.sign_off` to assure `bot.participant_id` is set
+
+### Changed
+
+- Renamed label used in pyup Pull Requests from 'enhancement' to 'dependencies'
+- **PEM files are now searched in `~/.ssh/` directory first** (recommended best practice), with fallback to `~/` for backwards compatibility. A warning is logged when PEM files are found in the legacy `~/` location with migration instructions. All documentation and examples have been updated to promote `~/.ssh/` as the standard location for SSH key files.
+- PEM file paths are now validated upfront with clear error messages if missing or invalid
+- EC2 key pair registration now supports RSA, Ed25519, and ECDSA key types (previously only RSA was supported)
+
+### Removed
+
 - Removed Danger and its dependencies
+- Removed automatic ssh-agent key management; SSH keys are now used directly via key files
+- Removed support for DSS/DSA SSH keys due to paramiko 4.0.0 upgrade and industry-wide deprecation for security reasons
+- Removed `pip<25.3` version constraint as pip-tools 7.5.2+ now fully supports pip 25.3
+
+### Updated
+
+- Updated dependencies
+- Enhanced documentation for `server_pem` and `ec2_default_pem` configuration variables, including SSH setup instructions, security group ingress rules, and AWS documentation links for key pair creation and SSH connections
+- Upgraded paramiko to 4.0.0, which removes support for DSS/DSA SSH keys. Users must migrate to RSA (2048+ bit), Ed25519, or ECDSA keys. See documentation migration instructions.
 
 ## [v11.5.5](https://github.com/dallinger/dallinger/tree/v11.5.5) (2025-10-23)
 
-#### Fixed
+### Fixed
+
 - Improved logging when approving Prolific participant submissions.
 
 ## [v11.5.4](https://github.com/dallinger/dallinger/tree/v11.5.4) (2025-10-20)
 
-#### Fixed
+### Fixed
+
 - Fixed bug raising ProlificServiceException.
 
 ## [v11.5.3](https://github.com/dallinger/dallinger/tree/v11.5.3) (2025-10-16)
 
-#### Fixed
+### Fixed
+
 - Removed calling `handle_and_raise_recruitment_error` from within the `approve_participant_submission` method as it was logging errors unnecessarily.
 
 ## [v11.5.2](https://github.com/dallinger/dallinger/tree/v11.5.2) (2025-10-07)
 
-#### Fixed
+### Fixed
+
 - Fixed bug in MTurkRecruiter._report_event_notification.
 - Fixed bug in MTurk create_qualification_type which was causing false-positive error logging.
 - We now use the Docker bitnamilegacy repository for pgbouncer as the bitnami repository has been deleted. This is a temporary fix until we move to building our own pgbouncer image.
 - Allow customization of maximum experiment size in MB via EXP_MAX_SIZE_MB environment variable.
 
-#### Changed
+### Changed
+
 - Increased the default maximum experiment size from 50MB to 256MB.
 
 ## [v11.5.1](https://github.com/dallinger/dallinger/tree/v11.5.1) (2025-09-16)
 
-#### Fixed
+### Fixed
+
 - Fix a couple of bugs in new remote build code
 - The new DataTables database view was failing in certain situations with a 'URL too long error'. The problem is fixed now by using POST instead and passing the filter specification in the request body rather than in the URL.
 
 ## [v11.5.0](https://github.com/dallinger/dallinger/tree/v11.5.0) (2025-09-11)
 
-#### Added
+### Added
+
 - Added support for displaying custom HTML content on the deployed experiment's index page by customising the `Experiment.index_html` property
 - Introduced two new flags to the `dallinger docker-ssh deploy` command: `--remote-build` and `--push-remote-build`.
   - The `--remote-build` flag allows users to build the experiment's Docker image directly on the remote server specified by `docker-ssh`, rather than building it locally and then transferring it.
   - The `--push-remote-build` flag, when used in conjunction with `--remote-build`, instructs the remote server to push the newly built Docker image to a configured remote registry.
 
-#### Changed
+### Changed
+
 - Switched from `DataTables` client-side pagination and filtering to full `DataTables` server-side processing, pagination and filtering in the database dashboard. This implied also implementing server-side `SearchPanes` support to not break existing functionality.
 - Previously `dallinger develop debug` only opened the dashboard. Now it also opens the ad page, consistent with `dallinger debug`.
 - Revamped the `generate constraints` functionality:
@@ -64,34 +648,41 @@
   a way for users to bypass unresolvable dependency conflicts.
   - Behaviour tests are provided in `test_generate_constraints.py`.
 
-#### Fixed
+### Fixed
+
 - Switched from httpbin to httpbingo; httpbin was flakey and caused tests to fail. httpbingo seems to be a more recent, more reliable alternative
 
-#### Updated
+### Updated
+
 - Updated Dallinger setup/installation documentation
 - Updated AWS EC2 provisioning and deployment documentation
 - Added more complete documentation for the Dallinger WebSocket implementation.
 
-#### Removed
+### Removed
+
 - Got rid of the creation of Python 2 `__init__.py` files to working directories when registering experiment packages
 
-#### Deprecated
+### Deprecated
+
 - Refactored `Experiment` to no longer require a `session` argument. Instead of using the session to determine whether to run setup, the setup method is now called explicitly from the `/launch` route. The `session` attribute of the experiment is now deprecated and issues a warning when get or set. The `get_config` function has been updated to accept a `load` argument to load the experiment config and reduce code duplication.
 
 ## [v11.4.0](https://github.com/dallinger/dallinger/tree/v11.4.0) (2025-08-12)
 
-#### Added
+### Added
+
 - Added support for Python 3.13
 - Added new configuration variable `server_pem` for authenticating SSH connections to remote servers, e.g. when doing Docker SSH deployments
 
-#### Changed
+### Changed
+
 - Disabled browser check that returned an error response when a duplicate participant was detected in live mode
 - Reduced overall verbosity in debug mode, incl. removing the hard-coding of `loglevel=0` ; improved cleanup of resources (file handles, sub-processes) to quiet warnings in test output
 - Improved error reporting in a failed experiment launch with `dallinger docker-ssh deploy` by highlighting the Dozzle link
 - Infer `dns_host` from `server` when executing the `dallinger docker-ssh deploy` and `dallinger docker-ssh sandbox`  commands
 - Reinstated `async_recruiter_status_check`, which previously was causing some kind of deadlock on long-running experiments
 
-#### Fixed
+### Fixed
+
 - Fixed constructing the `docker_volumes` string for cases where the string is empty or when there's only one volume retrieved from the configuration
 - Fixed `dallinger debug` to work when `loglevel > 0`: `dallinger debug` previously waited for a particular log line to be printed to know that the server had started successfully. This log line is not printed when `loglevel` > 1, however. The logic was changed to instead check whether the server is available by listening to the appropriate port.
 - Refactored database session management and ORM usage for improved clarity, safety, and maintainability:
@@ -99,30 +690,35 @@
   - Background tasks and clock jobs now manage their own session scopes
   - Recruiter background jobs are wrapped in a session management decorator
   - Tests and demos have been updated to match the new patterns
-  See https://github.com/Dallinger/Dallinger/pull/7819 for more details
+  See <https://github.com/Dallinger/Dallinger/pull/7819> for more details
 - Throw a better error message if the `/launch POST` fails early
-- `dallinger ec2 list instances` no longer crashes when https://ec2.shop is offline; instead a warning is logged and the corresponding columns are omitted from the result table
+- `dallinger ec2 list instances` no longer crashes when <https://ec2.shop> is offline; instead a warning is logged and the corresponding columns are omitted from the result table
 
-#### Updated
+### Updated
+
 - Replaced appdirs.py with the platformdirs package
 - Updated dependencies (incl. unpinning of click, myst-parser, sphinxcontrib-spelling, and urllib3 packages)
 
-#### Removed
+### Removed
+
 - Dropped support for Python 3.9
 
 ## [v11.3.2](https://github.com/dallinger/dallinger/tree/v11.3.2) (2025-10-12)
 
-#### Fixed
+### Fixed
+
 - We now use the Docker bitnamilegacy repository for pgbouncer as the bitnami repository has been deleted. This is a temporary fix until we move to building our own pgbouncer image.
 
 ## [v11.3.1](https://github.com/dallinger/dallinger/tree/v11.3.1) (2025-05-25)
 
-#### Fixed
+### Fixed
+
 - Disable (temporarily) `scheduled_job` `async_recruiter_status_check` as it is causing database deadlocks.
 
 ## [v11.3.0](https://github.com/dallinger/dallinger/tree/v11.3.0) (2025-05-22)
 
-#### Added
+### Added
+
 - Added support for screen-out-submissions in ProlificRecruiter
 - Added experiment hooks for server setup and termination, as well as worker termination and startup
 - Added experiment hook for recruiter error by overriding `logger.exception` in `recruiters.py`
@@ -131,23 +727,27 @@
   - Added `dallinger prolific list studies` to list all studies associated with an account (across workspaces and projects)
   - Added `dallinger prolific delete-drafts` delete all unpublished draft surveys in the account
 
-#### Changed
+### Changed
+
 - Only show deprecation warnings once
 - When loading the defaults, load `.dallingerconfig` last
 - Give a more informative error message when `FileSource` tries to copy a broken symlink
 - Make `scripts/update_dependencies.sh` POSIX compliant
 
-#### Updated
+### Updated
+
 - Update AMI image for EC2 provisioning to use Ubuntu 24.04
 - Updated dependencies; pin click < 8.2
 
-#### Removed
+### Removed
+
 - Removed dependency on `setuptools.dist.strtobool`, which was causing a deprecation warning
 - Removed unnecessary 'Initializing recruiter' messages
 
 ## [v11.2.0](https://github.com/dallinger/dallinger/tree/v11.2.0) (2025-04-04)
 
-#### Added
+### Added
+
 - Ported `classproperty` decorator from PsyNet to Dallinger
 - Added a hook for overriding hidden dashboard tabs and a hook for sorting the dashboard tabs
 - Added option to disable strict config variable loading, which is useful for cross-compatibility with PsyNet
@@ -164,56 +764,69 @@
       - Always emit the recruiter name (nickname) in `get_status`
 - Added support for Heroku regions via new config variable `heroku_region`
 
-#### Changed
+### Changed
+
 - Renamed all functions used for rendering dashboard tabs to use the prefix `dashboard_` and removed this prefix in the final route used in Flask (i.e. instead of `/dashboard/dashboard_func` →  `/dashboard/func`)
 
-#### Updated
+### Updated
+
 - Updated dependencies; updated black, flake8
 
 ## [v11.1.1](https://github.com/dallinger/dallinger/tree/v11.1.1) (2025-02-26)
 
-#### Changed
+### Changed
+
 - Config variable `publish_experiment` now defaults to `False` for Prolific recruitment
 
-#### Updated
+### Updated
+
 - Updated dependencies
 
 ## [v11.1.0](https://github.com/dallinger/dallinger/tree/v11.1.0) (2025-02-11)
 
-#### Fixed
+### Fixed
+
 - Fixed a bug in `DevProlificService` when debugging locally with `recruiter = prolific`. Previously, an exception was raised erroneously saying that no corresponding Prolific workspace was found
 
-#### Added
+### Added
+
 - Added `disable_browser_autotranslate` config variable to prevent automatic translation when using the Google translator built into Chrome. `Default is False`
 - Added `publish_experiment` config variable to indicate if the experiment should be published when deploying. Currently only used in Prolific recruitment; if `False` a draft study will be created which later can be published via the Prolific web UI. Default is `True`
 - Added `Recruiter.supports_delayed_publishing` attribute
 
-#### Removed
+### Removed
+
 - Removed `--open-recruitment` config variable; removed `--open-recruitment` flag from `deploy` and `sandbox` commands
 
-#### Changed
+### Changed
+
 - Use `tenacity` for better logging in `wait_for_instance`
 
-#### Updated
+### Updated
+
 - Updated dependencies; update black, isort; minor reformatting
 
 ## [v11.0.1](https://github.com/dallinger/dallinger/tree/v11.0.1) (2025-01-16)
 
-#### Fixed
+### Fixed
+
 - Fixed bug in `get_assignments_for_study` that prevented a participant's status from being updated in Prolific studies via the `async_recruiter_status_check` scheduled job
 
 ## [v11.0.0](https://github.com/dallinger/dallinger/tree/v11.0.0) (2025-01-14)
 
-#### Breaking changes
+### Breaking changes
+
 - Renamed config variable `activate_recruiter_on_start` to `open_recruitment` and allow it to be set to `True` also by using a `--open-recruitment` flag
 
-#### Added
+### Added
+
 - Added new config variables `prolific_workspace` and `prolific_project` to support declaration of Prolific workspaces and project names (the workspace must already exist and a new project in that workspace will be created if it doesn't exist already)
 - Added the `dallinger docker-ssh sandbox` command
 - Added `validate_config` methods to recruiters
 - Added `local_only` to `exclusion_policy` used when assembling the deployment directory. Users can then use this directory called `local_only` to store misc files that they don't want deployed to the web server.
 
-#### Fixed
+### Fixed
+
 - Keep Dallinger database in sync with Prolific via combination of regular polling + experiment-requested syncs by adding new `scheduled_job` '`async_recruiter_status_check`'
 - Fixed a regex error in `HerokuApp.db_uri` for Heroku deployments
 - EC2 provisioning:
@@ -226,60 +839,72 @@
   - Update an instance's DNS entry to use the new IP address when an EC2 instance is stopped and later restarted
 
 ### Changed
+
 - Scrub `client_ip_address` data from participant anonymous data export
 - Improved handling of exporting data when no AWS credentials are registered by not raising an `S3BucketUnavailable` error
 - Throw an error when deploying to MTurk and `open_recruitment` is not set to `True`, either by setting `open_recruitment` in the config or by using the `--open-recruitment` command flag
 
 ### Refactorings
+
 - `dallinger docker-ssh deploy/sandbox` commands introducing a `_deploy_in_mode` function
 - `dallinger docker deploy/sandbox` commands
 - `dallinger deploy/sandbox` commands
 - `run_pre_launch_checks` method in `dallinger.command_line.utils`
 
-#### Updated
+### Updated
+
 - Updated `rq` to version `>= 2` by refactoring and thereby getting rid of deprecation warnings
 - Updated dependencies; pin `sphinxcontrib-spelling < 8.0.1`
 
 ## [v10.3.3](https://github.com/dallinger/dallinger/tree/v10.3.3) (2024-12-07)
 
-#### Fixed
+### Fixed
+
 - Fixed tagging latest Docker image also as `latest`.
 
 ## [v10.3.0](https://github.com/dallinger/dallinger/tree/v10.3.0) (2024-11-04)
 
-#### Fixed
+### Fixed
+
 - Exclude symbolic links when calculating `FileSource` size.
 
-#### Added
+### Added
+
 - Added new config variable `prolific_is_custom_screening`.
 
-#### Updated
+### Updated
+
 - Updated dependencies; pin `rq < 2`.
 
 ## [v10.2.2](https://github.com/dallinger/dallinger/tree/v10.2.2) (2024-09-24)
 
-#### Fixed
+### Fixed
+
 - Fixed bug setting loglevel for worker.
 - Fixed building Sphinx documentation.
 
 ## [v10.2.1](https://github.com/dallinger/dallinger/tree/v10.2.1) (2024-09-16)
 
-#### Fixed
+### Fixed
+
 - Fixed importing `dallinger.config.get_config`.
 
 ## [v10.2.0](https://github.com/dallinger/dallinger/tree/v10.2.0) (2024-09-14)
 
-#### Fixed
+### Fixed
+
 - Bugfix in `init_db(drop_all=True)`.
 
-#### Added
+### Added
+
 - Added EC2 provisioning support to Dallinger command line.
 - Added `DevProlificRecruiter` and `DevProlificService` for Prolific development.
 - Added sphinx-js back and point the repo to a tag of our fork with fixed pins.
 - Added `docker_worker_cpu_shares` configuration variable which limits the worker CPU usage when resources are constrained.
 - Added new config variable `loglevel_worker` for worker processes.
 
-#### Updated
+### Updated
+
 - Updated extensions for the datatables JS library to their latest versions for datatables < 2.0 to fix bug with missing filters' headers and allow filtering by boolean properties.
 - Upgraded jQuery from version 3.6.0 to 3.7.1.
 - Updated update_dependencies.sh script:
@@ -289,44 +914,44 @@
 
 ## [v10.1.3](https://github.com/dallinger/dallinger/tree/v10.1.3) (2024-07-04)
 
-#### Fixed
+### Fixed
 
 - Fixed a new bug whereby participants could not begin the experiment in Prolific.
 
 ## [v10.1.2](https://github.com/dallinger/dallinger/tree/v10.1.2) (2024-07-02)
 
-#### Fixed
+### Fixed
 
 - Removed `check-latest: true` from `setup-python` action in ci.yml.
 - Renamed `prolific.co` to `prolific.com` for API calls to `api.prolific.com` and for various other subdomains.
 - Fixed value for `recruiter` in the 'New participant' link in the dashboard's "Development" tab. It is now set dynamically, e.g. when deploying with Prolific as recruitment method `recruiter` is set to "prolific", whereas when debugging the same experiment locally, `recruiter` is assigned "hotair" as value.
 
-#### Updated
+### Updated
 
 - Infrastructure: Updated dependencies.
 
 ## [v10.1.1](https://github.com/dallinger/dallinger/tree/v10.1.1) (2024-05-09)
 
-#### Updated
+### Updated
 
 - Infrastructure: Updated Docker images to Debian bookworm.
 
 ## [v10.1.0](https://github.com/dallinger/dallinger/tree/v10.1.0) (2024-05-08)
 
-#### Added
+### Added
 
 - Added check to prevent underscores in `app` names. Allowed characters are `a-z`, `0-9` , and `-`.
 - Added logic for customizing `Recruiter` classes.
 
-#### Fixed
+### Fixed
 
 - Fixed `SyntaxWarning: invalid escape sequence '\*'` in Python 3.12.
 
-#### Changed
+### Changed
 
 - The database reset button in the dashboard is now only displayed in debug mode.
 
-#### Updated
+### Updated
 
 - Infrastructure: Updated dependencies
   - Removed `mock` package; updated tests.
@@ -334,31 +959,31 @@
 
 ## [v10.0.1](https://github.com/dallinger/dallinger/tree/v10.0.1) (2024-03-04)
 
-#### Added
+### Added
 
 - Implemented `Experiment.get_status`, a customizable method that reports the current status of the experiment.
 - Implemented `Experiment.before_request` and `Experiment.after_request`, customizable hooks for running code before and after HTTP requests.
 
-#### Fixed
+### Fixed
 
 - Fixed Chrome and ChromeDriver download link in Dockerfile.
 - Fixed dallinger requirement in demos and updated demos' constraints.
 
-#### Removed
+### Removed
 
 - Removed unused numpy and pandas dependencies.
 
-#### Updated
+### Updated
 
 - Infrastructure: Updated dependencies; pin pytest == 8.0.0.
 
 ## [v10.0.0](https://github.com/dallinger/dallinger/tree/v10.0.0) (2024-02-15)
 
-#### Breaking
+### Breaking
 
 - Removed support for Python 3.8.
 
-#### Added
+### Added
 
 - Added support for Python 3.12.
   - Remove version pinning for numpy, pandas, pre-commit, sphinx, and sphinx-related packages.
@@ -369,12 +994,12 @@
 - Added better checks in `dallinger docker-ssh` for pre-existing apps with the same name.
 - Added Dozzle service to `dallinger docker-ssh` deployments.
 
-#### Changed
+### Changed
 
 - Revised logging text for Prolific.
 - Improve `handle_launch_data` error reporting and use it also for docker-ssh deployments.
 
-#### Updated
+### Updated
 
 - Infrastructure: Updated dependencies; pin ipython < 8.19.
 
@@ -479,7 +1104,7 @@
 
 ## [v9.6.0](https://github.com/dallinger/dallinger/tree/v9.6.0) (2023-04-18)
 
-- Fixed: Fixed GitHub CI builds by removing the codecov package from setup.py and migrating the codecov setup according to https://docs.codecov.com/docs/deprecated-uploader-migration-guide#python-uploader.
+- Fixed: Fixed GitHub CI builds by removing the codecov package from setup.py and migrating the codecov setup according to <https://docs.codecov.com/docs/deprecated-uploader-migration-guide#python-uploader>.
 - Fixed: Fixed broken Docker CI tests.
 - Fixed: Reinstate `auto_recruit` check in `ProlificRecruiter.recruit()`.
 - Fixed: The original `Bot` constructor assumed that the participant recruitment URL was specified in snake case. However the Docker CI tests use participant recruit URLs with camel case. This was causing Bot parameters (assignment ID, worker ID, participant ID) to be left unset, and seemed to have caused occasional CI errors in the Docker tests.
@@ -512,7 +1137,7 @@
 ## [v9.4.3](https://github.com/dallinger/dallinger/tree/v9.4.3) (2023-02-25)
 
 - Fixed: Check if auto_recruit is True in order to autorecruit a new participant.
-- Fixed: Rename 'default_worker_ttl' to 'worker_ttl' to work with rq==1.13.0 (See https://github.com/rq/rq/commit/b69ee10cbba78789e48ce44fa69f14715d94b7a5).
+- Fixed: Rename 'default_worker_ttl' to 'worker_ttl' to work with rq==1.13.0 (See <https://github.com/rq/rq/commit/b69ee10cbba78789e48ce44fa69f14715d94b7a5>).
 - Fixed: Remove extras from sonstraints and requirements files.
 - Changed: Add soon to be default resolver 'backtracking' to pip-compile commands.
 - Enhancement: Add better logging on Prolific JSONDecodeError.
@@ -786,7 +1411,7 @@
   parameter is set to `False` the duration exceeded event triggered by the clock
   server will not disable the MTurk auto-recruit or expire an MTurk HIT.
 - Enhancement: To provide more insight into your MTurk HIT inventory (similar
-  to feature of https://manage-hits-individually.s3.amazonaws.com), you can
+  to feature of <https://manage-hits-individually.s3.amazonaws.com>), you can
   now view all your HITs with `dallinger hits` instead of forcing you to
   specify a Dallinger app ID
 - Enhancement: `dallinger expire` command now supports specifying a specific
@@ -899,12 +1524,12 @@
 - Add validators to configuration system.
 - Add new `qualification_requirements` config parameter to add explicit MTurk
   qualifications.
-- New, extensible `/dashboard` infrastructure for viewing and manipulating details of the live experiment, protected by a username and password (see http://docs.dallinger.io/en/latest/monitoring_a_live_experiment.html#the-dashboard)
+- New, extensible `/dashboard` infrastructure for viewing and manipulating details of the live experiment, protected by a username and password (see <http://docs.dallinger.io/en/latest/monitoring_a_live_experiment.html#the-dashboard>)
 - New `dallinger extend_mtuk_hit` command: extend an existing MTurk HIT by adding assignments, and optionally, additional time before expiration.
 
 ## [v6.2.2](https://github.com/dallinger/dallinger/tree/v6.2.2) (2020-04-27)
 
-- Bugfix: revert change to `HOST` configuration which broke Heroku deployments (see https://github.com/Dallinger/Dallinger/issues/2130)
+- Bugfix: revert change to `HOST` configuration which broke Heroku deployments (see <https://github.com/Dallinger/Dallinger/issues/2130>)
 
 ## [v6.2.1](https://github.com/Dallinger/Dallinger/tree/v6.2.1) (2020-04-25)
 
@@ -1286,7 +1911,7 @@ The new workflow is:
   experiments that do not override the default, you should include the original
   default `recruit` method in your experiment.py file:
 
-```
+```text
 def recruit(self):
     """Recruit one participant at a time until all networks are full."""
     if self.networks(full=False):
@@ -1305,11 +1930,11 @@ def recruit(self):
         mode="live",
         base_payment=1.00,
     })
-```
+```text
 
 **FEATURE**. There is a new data module, `dallinger.data`, which provides a few new pieces of functionality. First, you can load datasets that have been exported:
 
-```
+```text
 data = dallinger.load(UUID_OF_EXPERIMENT)
 ```
 
@@ -1367,72 +1992,72 @@ including a pandas DataFrame and CSV file.
 
 ## [v2.3.0](https://github.com/dallinger/dallinger/tree/v2.3.0) (2016-09-24)
 
-**New demos**
+### New demos
 
 - 2048 [\#207](https://github.com/Dallinger/Dallinger/pull/207)
 
-**Enhancements**
+### Enhancements
 
 - Upgrade some dependencies [\#203](https://github.com/Dallinger/Dallinger/pull/203), [\#205](https://github.com/Dallinger/Dallinger/pull/205)
 - Add a `dallinger.config` module that automatically loads variables from the experiment config file [\#213](https://github.com/Dallinger/Dallinger/pull/213)
 - Add waiting room to chatroom demo
 
-**Bug fixes**
+### Bug fixes
 
 - Miscellaneous typo fixes
 
 ## [v2.2.2](https://github.com/dallinger/dallinger/tree/v2.2.2) (2016-09-21)
 
-**Bugs squashed**
+### Bugs squashed
 
 - Fix backwards incompatibility [\#201](https://github.com/Dallinger/Dallinger/pull/201)
 - We now use valid RFC 4122 UUIDs for experiment ids [\#185](https://github.com/Dallinger/Dallinger/pull/185)
 
 ## [v2.2.1](https://github.com/dallinger/dallinger/tree/v2.2.1) (2016-09-14)
 
-**Bugs squashed**
+### Bugs squashed
 
 - Fix issues with requirements [\#117](https://github.com/Dallinger/Dallinger/pull/117)
 
-**Merged pull requests:**
+### Merged pull requests
 
 - Rename "example" to "demo" [\#105](https://github.com/Dallinger/Dallinger/pull/105)
 - Minify StackBlur [\#99](https://github.com/Dallinger/Dallinger/pull/99)
 
 ## [v2.2.0](https://github.com/dallinger/dallinger/tree/v2.2.0) (2016-09-12)
 
-**New demos**
+### New demos
 
 - Vox populi, a replication of Sir Francis Galton's 1903 study of the wisdom of the crowd [\#45](https://github.com/Dallinger/Dallinger/pull/45)
 - The Sheep Market, drawing 10k sheep [\#27](https://github.com/Dallinger/Dallinger/pull/27)
 
-**Enhancements and bug fixes**
+### Enhancements and bug fixes
 
 - Faster Travis CI builds ([\#48](https://github.com/Dallinger/Dallinger/issues/48)), a README badge with the number of demos ([\#33](https://github.com/Dallinger/Dallinger/issues/33)), amongst others.
 
 ## [v2.1.1](https://github.com/dallinger/dallinger/tree/v2.1.1) (2016-09-09)
 
-**Bugs squashed**
+### Bugs squashed
 
 - Fix issue with installation on PyPi [\#31](https://github.com/Dallinger/Dallinger/pull/31)
 
 ## [v2.1.0](https://github.com/dallinger/dallinger/tree/v2.1.0) (2016-09-09)
 
-**Bugs squashed**
+### Bugs squashed
 
 - Install Dallinger via PyPi on Heroku [\#28](https://github.com/Dallinger/Dallinger/pull/28)
 
 ## [v2.0.1](https://github.com/dallinger/dallinger/tree/v2.0.1) (2016-09-09)
 
-**Enhancements**
+### Enhancements
 
 - Drawing demo [\#24](https://github.com/Dallinger/Dallinger/pull/24)
 
-**Bugs squashed**
+### Bugs squashed
 
 - Add pypandoc 1.2.0 to reqs [\#26](https://github.com/Dallinger/Dallinger/pull/26)
 
-**Merged pull requests:**
+### Merged pull requests
 
 - GitHub templates [\#22](https://github.com/Dallinger/Dallinger/pull/22)
 - Release 2.0.0 [\#21](https://github.com/Dallinger/Dallinger/pull/21)
@@ -1440,7 +2065,7 @@ including a pandas DataFrame and CSV file.
 
 ## [v2.0.0](https://github.com/dallinger/dallinger/tree/v2.0.0) (2016-09-07)
 
-**Bugs squashed**
+### Bugs squashed
 
 - License badge shows up as unknown [\#17](https://github.com/Dallinger/Dallinger/issues/17)
 - Test ticket from Code Climate [\#12](https://github.com/Dallinger/Dallinger/issues/12)
@@ -1451,12 +2076,12 @@ including a pandas DataFrame and CSV file.
 - Don't check for broken links when building docs [\#8](https://github.com/Dallinger/Dallinger/pull/8)
 - Fix a branding bug [\#6](https://github.com/Dallinger/Dallinger/pull/6)
 
-**Issues closed**
+### Issues closed
 
 - Deploy to PyPi automatically [\#13](https://github.com/Dallinger/Dallinger/issues/13)
 - Improve documentation styling [\#5](https://github.com/Dallinger/Dallinger/issues/5)
 
-**Merged pull requests:**
+### Merged pull requests
 
 - Set up a release process [\#18](https://github.com/Dallinger/Dallinger/pull/18)
 - Speed up Travis CI runs [\#15](https://github.com/Dallinger/Dallinger/pull/15)

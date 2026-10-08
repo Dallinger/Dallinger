@@ -14,7 +14,7 @@ class TestExperimentWidget:
     def exp(db_session):
         from dallinger.experiment import Experiment
 
-        return Experiment(db_session)
+        return Experiment()
 
     def test_experiment_initializes_widget(self, exp):
         assert exp.widget is not None

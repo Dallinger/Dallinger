@@ -1,8 +1,7 @@
 import logging
 import smtplib
 from email.mime.text import MIMEText
-
-from cached_property import cached_property
+from functools import cached_property
 
 logger = logging.getLogger(__name__)
 CONFIG_PLACEHOLDER = "???"

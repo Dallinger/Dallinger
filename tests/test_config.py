@@ -1,9 +1,16 @@
 import os
 from tempfile import NamedTemporaryFile
+from unittest import mock
 
 import pytest
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 from dallinger.config import LOCAL_CONFIG, Configuration, get_config
+
+
+def _layer_count(config):
+    """Count config layers as a plain int, so a failing assert can't print secrets."""
+    return len(config.data)
 
 
 class TestConfigurationUnitTests:
@@ -75,6 +82,55 @@ class TestConfigurationUnitTests:
         assert config.get("num_participants", 1) == 1
         config.extend({"num_participants": 2})
         assert config.get("num_participants", 1) == 2
+
+    def test_data_is_a_read_only_sequence(self):
+        config = Configuration()
+        assert isinstance(config.data, tuple)
+        with pytest.raises(AttributeError):
+            config.data.append({})
+
+    def test_source_priority_beats_load_order(self):
+        from dallinger.config import ConfigSource
+
+        config = Configuration()
+        config.register("mode", str)
+        config.extend({"mode": "live"}, source=ConfigSource.ENVIRONMENT)
+        # Loaded later, but from a lower-priority source.
+        config.extend({"mode": "sandbox"}, source=ConfigSource.USER_CONFIG)
+        config.ready = True
+        assert config.get("mode") == "live"
+
+    def test_runtime_writes_beat_all_sources(self):
+        from dallinger.config import ConfigSource
+
+        config = Configuration()
+        config.register("mode", str)
+        config.extend({"mode": "live"}, source=ConfigSource.ENVIRONMENT)
+        config.ready = True
+        config.set("mode", "debug")
+        assert config.get("mode") == "debug"
+
+    def test_newest_layer_wins_within_a_source(self):
+        from dallinger.config import ConfigSource
+
+        config = Configuration()
+        config.register("mode", str)
+        config.extend({"mode": "sandbox"}, source=ConfigSource.USER_CONFIG)
+        config.extend({"mode": "live"}, source=ConfigSource.USER_CONFIG)
+        config.ready = True
+        assert config.get("mode") == "live"
+
+    def test_write_reflects_source_priority(self, in_tempdir):
+        from dallinger.config import LOCAL_CONFIG, ConfigSource
+
+        config = Configuration()
+        config.register("mode", str)
+        config.extend({"mode": "live"}, source=ConfigSource.ENVIRONMENT)
+        config.extend({"mode": "sandbox"}, source=ConfigSource.USER_CONFIG)
+        config.ready = True
+        config.write()
+        with open(LOCAL_CONFIG) as txt:
+            assert "mode = live" in txt.read()
 
     def test_setting_unknown_key_is_ignored(self):
         config = Configuration()
@@ -171,9 +227,7 @@ class TestConfigurationUnitTests:
 mode = {}
 num_participants = 10
 worldwide = false
-""".format(
-            mode_with_trailing_whitespace
-        )
+""".format(mode_with_trailing_whitespace)
 
         with NamedTemporaryFile() as configfile:
             configfile.write(contents.encode("utf-8"))
@@ -203,6 +257,15 @@ worldwide = false
         redis_conn.set("auto_recruit", 1)
         assert active_config.get("auto_recruit") is True
 
+    def test_auto_recruit_falls_back_when_redis_unavailable(self, active_config):
+        active_config.set("auto_recruit", False)
+
+        with mock.patch(
+            "dallinger.db.redis_conn.get",
+            side_effect=RedisConnectionError("redis unavailable"),
+        ):
+            assert active_config.get("auto_recruit") is False
+
 
 @pytest.mark.usefixtures("experiment_dir_merged")
 class TestConfigurationIntegrationTests:
@@ -226,6 +289,186 @@ class TestConfigurationIntegrationTests:
         config._reset(register_defaults=True)
         config.register_extra_parameters()
         config.load_from_file(LOCAL_CONFIG)
+
+    @pytest.fixture
+    def loaded_config(self, monkeypatch):
+        """A real, loaded global config in place of the stubbed one."""
+        import dallinger.config
+
+        monkeypatch.setattr(dallinger.config, "config", None)
+        return get_config(load=True)
+
+    def test_repeated_load_does_not_accumulate_layers(self, loaded_config):
+        config = loaded_config
+        layer_count = _layer_count(config)
+        resolved = config.as_dict()
+
+        with config.override({"title": "overridden"}):
+            for _ in range(50):
+                config.load()
+            assert config.get("title") == "overridden"
+
+        assert _layer_count(config) == layer_count
+        assert config.as_dict() == resolved
+
+    def test_failed_reload_keeps_previous_config(self, loaded_config, monkeypatch):
+        config = loaded_config
+        layer_count = _layer_count(config)
+        resolved = config.as_dict()
+
+        def fail():
+            raise ValueError("unreadable source")
+
+        monkeypatch.setattr(config, "load_from_environment", fail)
+        with pytest.raises(ValueError):
+            config.load()
+        assert _layer_count(config) == layer_count
+        assert config.as_dict() == resolved
+
+    def test_load_nested_inside_load_gives_a_complete_config(
+        self, loaded_config, monkeypatch
+    ):
+        config = loaded_config
+        layer_count = _layer_count(config)
+        resolved = config.as_dict()
+        load_defaults = config.load_defaults
+        nested = []
+
+        def load_defaults_after_a_nested_load(strict=True):
+            # As when importing the experiment calls load() again.
+            if not nested:
+                nested.append(True)
+                config.load()
+            load_defaults(strict)
+
+        monkeypatch.setattr(config, "load_defaults", load_defaults_after_a_nested_load)
+        config.load()
+        assert nested
+        assert config.as_dict() == resolved
+
+        # Every layer of the outer load counts as loaded, so a reload replaces it.
+        config.load()
+        assert _layer_count(config) == layer_count
+
+    def test_overlapping_loads_in_two_threads(self, loaded_config, monkeypatch):
+        import threading
+
+        config = loaded_config
+        layer_count = _layer_count(config)
+        load_defaults = config.load_defaults
+        first_load_started = threading.Event()
+        second_load_waiting = threading.Event()
+        release_first_load = threading.Event()
+        real_lock = config._load_lock
+
+        class SignalingLock:
+            def __enter__(self):
+                if first_load_started.is_set():
+                    second_load_waiting.set()
+                return real_lock.__enter__()
+
+            def __exit__(self, *args):
+                return real_lock.__exit__(*args)
+
+        def slow_load_defaults(strict=True):
+            if not first_load_started.is_set():
+                first_load_started.set()
+                release_first_load.wait()
+            load_defaults(strict)
+
+        config._load_lock = SignalingLock()
+        monkeypatch.setattr(config, "load_defaults", slow_load_defaults)
+        threads = [threading.Thread(target=config.load) for _ in range(2)]
+        threads[0].start()
+        assert first_load_started.wait(timeout=2)
+        threads[1].start()
+        try:
+            assert second_load_waiting.wait(timeout=2)
+        finally:
+            release_first_load.set()
+        for thread in threads:
+            thread.join(timeout=2)
+            assert not thread.is_alive()
+
+        assert _layer_count(config) == layer_count
+
+    def test_get_and_extend_in_another_thread_during_load(
+        self, loaded_config, monkeypatch
+    ):
+        import threading
+
+        config = loaded_config
+        committed_title = config.get("title")
+        load_defaults = config.load_defaults
+        load_started = threading.Event()
+        release_load = threading.Event()
+        should_block = True
+
+        def blocking_load_defaults(strict=True):
+            if should_block:
+                load_started.set()
+                release_load.wait()
+            load_defaults(strict)
+
+        monkeypatch.setattr(config, "load_defaults", blocking_load_defaults)
+        load_thread = threading.Thread(target=config.load)
+        load_thread.start()
+        try:
+            assert load_started.wait(timeout=2)
+            assert config.get("title") == committed_title
+
+            extend_thread = threading.Thread(
+                target=config.extend, args=({"title": "added concurrently"},)
+            )
+            extend_thread.start()
+            extend_thread.join(timeout=2)
+            assert not extend_thread.is_alive()
+        finally:
+            release_load.set()
+            load_thread.join(timeout=2)
+        assert not load_thread.is_alive()
+        assert config.get("title") == "added concurrently"
+
+        should_block = False
+        config.load()
+        assert config.get("title") == "added concurrently"
+
+    def test_override_during_load_removes_its_layer(self, loaded_config, monkeypatch):
+        config = loaded_config
+        load_defaults = config.load_defaults
+
+        def load_defaults_with_override(strict=True):
+            with config.override({"title": "temporary override"}):
+                load_defaults(strict)
+
+        monkeypatch.setattr(config, "load_defaults", load_defaults_with_override)
+        config.load()
+        assert config.get("title") != "temporary override"
+
+    def test_added_layer_beats_later_loaded_layer_from_same_source(
+        self, loaded_config, monkeypatch
+    ):
+        from dallinger.config import ConfigSource
+
+        config = loaded_config
+        config.extend({"title": "added"}, source=ConfigSource.ENVIRONMENT)
+        monkeypatch.setenv("title", "loaded later")
+
+        config.load()
+
+        assert config.get("title") == "added"
+
+    def test_reload_drops_values_removed_from_a_source(
+        self, loaded_config, monkeypatch
+    ):
+        config = loaded_config
+        monkeypatch.setenv("title", "from_environment")
+        config.load()
+        assert config.get("title") == "from_environment"
+
+        monkeypatch.delenv("title")
+        config.load()
+        assert config.get("title") != "from_environment"
 
     def test_write_omits_sensitive_keys_if_filter_sensitive(self, in_tempdir):
         config = get_config()
@@ -267,3 +510,160 @@ class TestConfigurationIntegrationTests:
         config.load_experiment_config_defaults()
 
         assert config.get("duration") == 12345.0
+
+    def test_experiment_config_settings_priority(self, tmpdir, monkeypatch):
+        # Experiment.config_settings() values are authoritative: they beat
+        # ~/.dallingerconfig, but config.txt still wins because it has a
+        # higher source priority (EXPERIMENT_CONFIG > EXPERIMENT_SETTINGS).
+        import dallinger.config
+        from dallinger.experiment import load as load_experiment
+
+        exp_klass = load_experiment()
+        monkeypatch.setattr(
+            exp_klass,
+            "config_settings",
+            classmethod(
+                lambda cls: {
+                    # Not in config.txt: should win over ~/.dallingerconfig.
+                    "group_name": "from_class_settings",
+                    # Also in config.txt: config.txt should win.
+                    "organization_name": "settings_should_lose",
+                }
+            ),
+        )
+        monkeypatch.setenv("HOME", str(tmpdir))
+        with open(os.path.join(str(tmpdir), ".dallingerconfig"), "w") as f:
+            f.write("[Parameters]\ngroup_name = from_user_config\n")
+
+        saved_config = dallinger.config.config
+        try:
+            dallinger.config.config = None
+            config = get_config(load=True)
+            assert config.get("group_name") == "from_class_settings"
+            assert config.get("organization_name") != "settings_should_lose"
+        finally:
+            dallinger.config.config = saved_config
+
+    def test_load_resolves_same_config_after_cwd_change(self, tmpdir, monkeypatch):
+        # Long-running processes (workers, CLI tools) may load config after
+        # the current working directory has changed away from the experiment
+        # directory. Once the experiment package has been initialized, such
+        # processes must resolve the same config values (experiment defaults
+        # and config.txt included) as processes loading from the experiment
+        # directory (see https://gitlab.com/PsyNetDev/PsyNet/-/issues/1040).
+        import sys
+
+        import dallinger.config
+        from dallinger.config import ConfigSource, initialize_experiment_package
+
+        saved_experiment_module = sys.modules.get("dallinger_experiment")
+        saved_config = dallinger.config.config
+        initialize_experiment_package(os.getcwd())
+        original_cwd = os.getcwd()
+        # Isolate the test from any real ~/.dallingerconfig.
+        monkeypatch.setenv("HOME", str(tmpdir))
+        # An unrelated config.txt in the directory the process changes into
+        # must not shadow the experiment's own config.txt.
+        with open(os.path.join(str(tmpdir), "config.txt"), "w") as f:
+            f.write("[Parameters]\norganization_name = stray_config\n")
+        try:
+            # Reference: a fresh config loaded from the experiment directory.
+            dallinger.config.config = None
+            reference = get_config(load=True)
+
+            # A fresh config loaded after changing the working directory.
+            os.chdir(str(tmpdir))
+            dallinger.config.config = None
+            config = get_config(load=True)
+
+            assert config.get("duration") == reference.get("duration")
+            assert config.get("title") == reference.get("title")
+            assert config.get("organization_name") == reference.get("organization_name")
+            # The experiment class defaults layer was applied, not skipped.
+            defaults_layers = [
+                layer
+                for layer in config.data
+                if layer.source == ConfigSource.EXPERIMENT_DEFAULTS
+            ]
+            assert defaults_layers and defaults_layers[0]["duration"] == 12345.0
+        finally:
+            os.chdir(original_cwd)
+            dallinger.config.config = saved_config
+            if saved_experiment_module is None:
+                sys.modules.pop("dallinger_experiment", None)
+            else:
+                sys.modules["dallinger_experiment"] = saved_experiment_module
+
+    def test_exp_class_working_dir_reload_keeps_env_priority(self, tmpdir, monkeypatch):
+        # Regression test: the config.txt reload performed by the
+        # exp_class_working_dir decorator must be tagged EXPERIMENT_CONFIG,
+        # so environment variables keep their higher priority.
+        import sys
+        import types
+
+        import dallinger.config
+        from dallinger.experiment import exp_class_working_dir
+
+        # Isolate the test from any real ~/.dallingerconfig.
+        monkeypatch.setenv("HOME", str(tmpdir))
+        module = types.ModuleType("fake_experiment_module")
+        module.__file__ = os.path.join(os.getcwd(), "experiment.py")
+        monkeypatch.setitem(sys.modules, "fake_experiment_module", module)
+        monkeypatch.setenv("organization_name", "from_environment")
+
+        captured = {}
+
+        class Runner:
+            __module__ = "fake_experiment_module"
+
+            @exp_class_working_dir
+            def run(self):
+                captured["organization_name"] = get_config().get("organization_name")
+
+        saved_config = dallinger.config.config
+        try:
+            dallinger.config.config = None
+            config = get_config(load=True)
+            # Sanity check: the environment beats config.txt in a full load.
+            assert config.get("organization_name") == "from_environment"
+            Runner().run()
+        finally:
+            dallinger.config.config = saved_config
+
+        # The decorator's config.txt reload must not demote the environment.
+        assert captured["organization_name"] == "from_environment"
+
+    def test_get_config_without_load_does_not_load(self):
+        # The experiment loader import inside get_config() used to shadow the
+        # `load` parameter, forcing an eager config load whenever an
+        # experiment was available.
+        import dallinger.config
+
+        saved_config = dallinger.config.config
+        try:
+            dallinger.config.config = None
+            config = get_config()
+            assert not config.ready
+        finally:
+            dallinger.config.config = saved_config
+
+    def test_experiment_available_ignores_stale_experiment_module(
+        self, tmpdir, monkeypatch
+    ):
+        # A `dallinger_experiment` entry in sys.modules that does not point at
+        # a real experiment (e.g. a leftover namespace package) should not make
+        # experiment_available() return True.
+        import sys
+        import types
+
+        from dallinger.config import experiment_available
+
+        stale = types.ModuleType("dallinger_experiment")
+        stale.__path__ = [str(tmpdir)]  # No experiment module in there.
+        monkeypatch.setitem(sys.modules, "dallinger_experiment", stale)
+        original_cwd = os.getcwd()
+        os.chdir(str(tmpdir))
+        try:
+            assert not experiment_available()
+        finally:
+            os.chdir(original_cwd)

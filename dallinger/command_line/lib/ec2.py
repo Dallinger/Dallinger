@@ -1,11 +1,11 @@
-import base64
+import errno
 import logging
 import os.path
-import struct
-import subprocess
+import socket
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Callable
 
 import boto3
@@ -14,9 +14,15 @@ import pandas as pd
 import paramiko
 import requests
 from botocore.exceptions import ClientError
-from paramiko.util import deflate_long
-from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
-from tqdm import tqdm
+from paramiko import ssh_exception as pse
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_fixed,
+)
 from yaspin import yaspin
 
 from ..config import remove_host as dallinger_remove_host
@@ -25,6 +31,21 @@ from ..docker_ssh import Executor
 from ..docker_ssh import prepare_server as dallinger_prepare_server
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_AWS_REGION = "us-east-1"
+
+DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER = (
+    "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
+)
+
+
+def _resolve_default_region_name():
+    """Resolve default region for user-facing messages."""
+    from dallinger.config import get_config
+
+    config = get_config(load=True)
+
+    return config.get("aws_region", DEFAULT_AWS_REGION)
 
 
 def get_keys(region_name=None):
@@ -37,7 +58,7 @@ def get_keys(region_name=None):
         keys = {
             "aws_access_key_id": config.get("aws_access_key_id"),
             "aws_secret_access_key": config.get("aws_secret_access_key"),
-            "region_name": region_name or config.get("aws_region", "us-east-1"),
+            "region_name": region_name or config.get("aws_region", DEFAULT_AWS_REGION),
         }
     return keys
 
@@ -57,12 +78,48 @@ def url_to_country_city(url):
     }
 
 
+_AUTH_FAILURE_MSG = (
+    "AWS authentication failed. "
+    "Please check that (1) your AWS credentials are correct and not expired, "
+    "and (2) your system clock is in sync (e.g. run 'timedatectl' on Linux "
+    "or 'w32tm /query /status' on Windows)."
+)
+
+_AUTH_FAILURE_CODES = {"AuthFailure", "InvalidClientTokenId", "RequestExpired"}
+
+
+class _BotoClientProxy:
+    """Wraps a boto3 client to add a helpful hint to auth-related errors."""
+
+    def __init__(self, client):
+        self._client = client
+
+    def __getattr__(self, name):
+        attr = getattr(self._client, name)
+        if not callable(attr):
+            return attr
+
+        def wrapper(*args, **kwargs):
+            try:
+                return attr(*args, **kwargs)
+            except ClientError as e:
+                if e.response.get("Error", {}).get("Code") in _AUTH_FAILURE_CODES:
+                    raise click.ClickException(_AUTH_FAILURE_MSG) from e
+                raise
+
+        return wrapper
+
+
 def get_ec2_client(region_name=None):
-    return boto3.client("ec2", **get_keys(region_name))
+    return _BotoClientProxy(boto3.client("ec2", **get_keys(region_name)))
+
+
+def get_ssm_client(region_name=None):
+    return _BotoClientProxy(boto3.client("ssm", **get_keys(region_name)))
 
 
 def get_53_client():
-    return boto3.client("route53", **get_keys())
+    return _BotoClientProxy(boto3.client("route53", **get_keys()))
 
 
 def list_regions():
@@ -111,8 +168,18 @@ def get_instance_details(instance_types, region_name=None):
     return price_df
 
 
-def get_instances(region_name):
-    reservations = get_ec2_client(region_name).describe_instances()["Reservations"]
+def get_instances(region_name, show_spinner=True):
+    display_region = region_name or _resolve_default_region_name()
+    if show_spinner:
+        with yaspin(
+            text=f"Retrieving instances in {display_region}...", color="green"
+        ) as sp:
+            reservations = get_ec2_client(region_name).describe_instances()[
+                "Reservations"
+            ]
+            sp.ok("✔")
+    else:
+        reservations = get_ec2_client(region_name).describe_instances()["Reservations"]
     instances = []
     for reservation in reservations:
         for instance in reservation["Instances"]:
@@ -140,18 +207,46 @@ def get_instances(region_name):
                 }
             )
 
-    return pd.DataFrame(instances)
+    columns = [
+        "name",
+        "instance_id",
+        "instance_type",
+        "region",
+        "state",
+        "public_dns_name",
+        "pem",
+        "uptime",
+    ]
+    return pd.DataFrame(instances, columns=columns)
 
 
 def get_all_instances(region_name=None):
     if region_name is None:
-        logger.warning("Listing instances in all regions...")
+        logger.info("Listing instances in all regions...")
         instance_dfs = []
         all_regions = get_ec2_client().describe_regions()["Regions"]
-        pb = tqdm(all_regions, total=len(all_regions))
-        for region in pb:
-            pb.set_description("Retrieving instances in " + region["RegionName"])
-            instance_dfs.append(get_instances(region["RegionName"]))
+        with Progress(
+            SpinnerColumn(style="green"),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("{task.completed}/{task.total}"),
+            transient=True,
+        ) as progress:
+            task = progress.add_task(
+                "Retrieving instances in all regions...", total=len(all_regions)
+            )
+            for region in all_regions:
+                progress.update(
+                    task,
+                    description=f"Retrieving instances in {region['RegionName']}...",
+                )
+                instance_dfs.append(
+                    get_instances(region["RegionName"], show_spinner=False)
+                )
+                progress.advance(task)
+        click.echo(
+            click.style("✔ Finished retrieving instances in all regions.", fg="green")
+        )
         instance_df = pd.concat(instance_dfs)
     else:
         instance_df = get_instances(region_name)
@@ -211,14 +306,24 @@ def list_instances(region_name=None, filtered_states=[], pem=None):
 
 def get_instance_types(region_name=None):
     ec2 = get_ec2_client(region_name)
-    pb = tqdm()
-    response = ec2.describe_instance_types()
-    instance_types = response["InstanceTypes"]
-    pb.update(len(instance_types))
-    while "NextToken" in response:
-        response = ec2.describe_instance_types(NextToken=response["NextToken"])
-        instance_types += response["InstanceTypes"]
-        pb.update(len(instance_types))
+    with Progress(
+        SpinnerColumn(style="green"),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Retrieving instance types...", total=None)
+        response = ec2.describe_instance_types()
+        instance_types = response["InstanceTypes"]
+        progress.update(
+            task, description=f"Retrieving instance types... ({len(instance_types)})"
+        )
+        while "NextToken" in response:
+            response = ec2.describe_instance_types(NextToken=response["NextToken"])
+            instance_types += response["InstanceTypes"]
+            progress.update(
+                task,
+                description=f"Retrieving instance types... ({len(instance_types)})",
+            )
 
     instance_type_metadata = []
     for instance_type in instance_types:
@@ -301,35 +406,117 @@ def get_security_group_id(security_group_name, region_name=None):
         return group_id
 
 
-def get_pem_path(key_name):
-    return os.path.join(os.path.expanduser("~"), f"{key_name}.pem")
+def get_pem_path(key_name) -> Path:
+    """Return a Path to the PEM file for the given key name.
+
+    Looks for the key in ~/.ssh/ first (best practice), then falls back to ~/
+    for backwards compatibility.
+    """
+    # Try ~/.ssh/ first (best practice)
+    ssh_pem_path = Path.home() / ".ssh" / f"{key_name}.pem"
+    if ssh_pem_path.exists():
+        return ssh_pem_path
+
+    # Fall back to home directory for backwards compatibility
+    home_pem_path = Path.home() / f"{key_name}.pem"
+    if home_pem_path.exists():
+        logger.warning(
+            f"PEM file found at legacy location: {home_pem_path}\n"
+            f"    Recommended: Move to {ssh_pem_path} for better security\n"
+            f"    Command: mkdir -p ~/.ssh && mv '{home_pem_path}' '{ssh_pem_path}' && chmod 400 '{ssh_pem_path}'"
+        )
+        return home_pem_path
+
+    # Neither location found - provide helpful error message
+    raise FileNotFoundError(
+        f"Private key file for EC2 keypair '{key_name}' not found.\n"
+        "Looked in the following locations:\n"
+        f"  - {ssh_pem_path} (recommended)\n"
+        f"  - {home_pem_path} (legacy)\n\n"
+        "Best practice: Store your PEM file in ~/.ssh/ directory.\n"
+        "Make sure you have the private key locally and that the path is correct.\n"
+        "Set the EC2 key name in your config with: ec2_default_pem = <keyname>"
+    )
 
 
 def register_key_pair(ec2, key_name):
-    pem_loc = get_pem_path(key_name)
-    key = paramiko.RSAKey.from_private_key_file(pem_loc)
+    """Import a local SSH key into EC2.
 
-    output = b""
-    parts = [
-        b"ssh-rsa",
-        deflate_long(key.public_numbers.e),
-        deflate_long(key.public_numbers.n),
-    ]
-    for part in parts:
-        output += struct.pack(">I", len(part)) + part
-    public_key = b"ssh-rsa " + base64.b64encode(output) + b"\n"
+    Supports RSA, Ed25519, and ECDSA key types.
+    """
+    pem_path: Path = get_pem_path(key_name)
+
+    # Try each supported key type
+    key = None
+    for key_class in [paramiko.RSAKey, paramiko.Ed25519Key, paramiko.ECDSAKey]:
+        try:
+            key = key_class.from_private_key_file(str(pem_path))
+            break
+        except Exception:
+            continue
+
+    if key is None:
+        raise ValueError(
+            f"Unable to load key from {pem_path}. "
+            "Supported key types: RSA, Ed25519, ECDSA (DSS/DSA keys are not supported)"
+        )
+
+    # Get public key in SSH format (works for all types!)
+    public_key = f"{key.get_name()} {key.get_base64()}\n".encode()
     ec2.import_key_pair(KeyName=key_name, PublicKeyMaterial=public_key)
 
 
-def add_key_to_ssh_agent(key_name):
-    pem_loc = get_pem_path(key_name)
-    subprocess.run(["ssh-add", pem_loc])
+def _is_retryable(exc: BaseException) -> bool:
+    """Avoid retrying when there's no hope."""
+    _RETRY_ERRNOS = {
+        getattr(errno, "ECONNREFUSED", None),
+        getattr(errno, "EHOSTUNREACH", None),
+        getattr(errno, "ENETUNREACH", None),
+        getattr(errno, "ETIMEDOUT", None),
+        getattr(errno, "ECONNRESET", None),
+    }
+
+    # Common transient cases
+    if isinstance(
+        exc,
+        (
+            socket.timeout,
+            ConnectionRefusedError,
+            ConnectionResetError,
+            pse.NoValidConnectionsError,
+        ),
+    ):
+        return True
+
+    # temporary DNS failure
+    if isinstance(exc, socket.gaierror):
+        return exc.errno == getattr(socket, "EAI_AGAIN", -3)
+
+    # Raw OSErrors: host/net unreachable, timeouts, refused/reset, etc.
+    if isinstance(exc, OSError) and getattr(exc, "errno", None) in _RETRY_ERRNOS:
+        return True
+
+    # SSH handshake timing issues while sshd is coming up
+    if isinstance(exc, pse.SSHException):
+        # (SSHException is very broad, unfortunately)
+        msg = str(exc)
+        return any(
+            s in msg
+            for s in (
+                "Error reading SSH protocol banner",
+                "kex timeout",
+                "Connection reset by peer",
+            )
+        )
+
+    return False
 
 
 def wait_for_instance(host, user="ubuntu", n_tries=10):
     @retry(
         stop=stop_after_attempt(n_tries),
         wait=wait_fixed(5),
+        retry=retry_if_exception(_is_retryable),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
     def _wait_for_instance():
@@ -338,7 +525,60 @@ def wait_for_instance(host, user="ubuntu", n_tries=10):
     return _wait_for_instance()
 
 
+def _get_latest_ubuntu_image_id(ec2):
+    """Fallback: find the latest Ubuntu 24.04 AMI via ec2.describe_images."""
+    response = ec2.describe_images(
+        IncludeDeprecated=False,
+        Owners=["099720109477"],  # Canonical
+        Filters=[
+            {
+                "Name": "name",
+                "Values": [
+                    "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"
+                ],
+            },
+            {"Name": "state", "Values": ["available"]},
+        ],
+    )
+    images = response["Images"]
+    if not images:
+        raise Exception(
+            f"No Ubuntu 24.04 AMI found in region '{ec2.meta.region_name}'."
+        )
+    # Sort by name descending — the date suffix (YYYYMMDD) makes this work
+    images.sort(key=lambda img: img["Name"], reverse=True)
+    latest = images[0]
+    print(f"Resolved latest Ubuntu 24.04 AMI: {latest['ImageId']} ({latest['Name']})")
+    return latest["ImageId"]
+
+
 def get_image_id(ec2, image_name):
+    if image_name.startswith("ami-"):
+        return image_name
+
+    if image_name.startswith("/aws/service/"):
+        region_name = ec2.meta.region_name
+        ssm = get_ssm_client(region_name)
+        try:
+            response = ssm.get_parameter(Name=image_name)
+        except ClientError as exc:
+            error_code = exc.response.get("Error", {}).get("Code", "")
+            if error_code in ("AccessDeniedException", "ParameterNotFound"):
+                print(
+                    f"Warning: SSM lookup failed ({error_code}). "
+                    f"Falling back to describe_images for the latest Ubuntu 24.04 AMI."
+                )
+                return _get_latest_ubuntu_image_id(ec2)
+            raise Exception(
+                f"SSM parameter '{image_name}' not found in region '{region_name}'."
+            ) from exc
+        ami_id = response["Parameter"]["Value"]
+        if not ami_id.startswith("ami-"):
+            raise Exception(
+                f"SSM parameter '{image_name}' returned unexpected value '{ami_id}'."
+            )
+        return ami_id
+
     response = ec2.describe_images(
         IncludeDeprecated=False,
         Filters=[
@@ -348,8 +588,18 @@ def get_image_id(ec2, image_name):
             },
         ],
     )
-    assert len(response["Images"]) == 1
-    return response["Images"][0]["ImageId"]
+    images = response["Images"]
+    if len(images) != 1:
+        region_name = ec2.meta.region_name
+        if len(images) == 0:
+            raise Exception(
+                f"No AMI found for name '{image_name}' in region '{region_name}'."
+            )
+        raise Exception(
+            f"Multiple AMIs found for name '{image_name}' in region '{region_name}'. "
+            "Provide a unique AMI name, an AMI id, or an SSM parameter."
+        )
+    return images[0]["ImageId"]
 
 
 def setup_ssh_keys(ec2, key_name, region_name=None):
@@ -358,8 +608,6 @@ def setup_ssh_keys(ec2, key_name, region_name=None):
     except ClientError:
         print(f"Key pair {key_name} not found in region {region_name}. Creating...")
         register_key_pair(ec2, key_name)
-
-    add_key_to_ssh_agent(key_name)
 
 
 def boot_instance(ec2, image_id, instance_type, key_name, instance_name, region_name):
@@ -384,10 +632,12 @@ def boot_instance(ec2, image_id, instance_type, key_name, instance_name, region_
     instance = response["Instances"][0]
     instance_id = instance["InstanceId"]
 
-    print(f"Waiting for {instance_name} to be ready...")
-    waiter = get_ec2_client(region_name).get_waiter("instance_running")
-    waiter.wait(InstanceIds=[instance_id])
-    print(f"{instance_name} is ready!")
+    with yaspin(
+        text=f"Waiting for {instance_name} to be ready...", color="green"
+    ) as sp:
+        waiter = get_ec2_client(region_name).get_waiter("instance_running")
+        waiter.wait(InstanceIds=[instance_id])
+        sp.ok("✔")
     return instance_id
 
 
@@ -412,9 +662,6 @@ def increase_storage(
     if ec2 is None:
         assert region_name is not None
         ec2 = get_ec2_client(region_name)
-    # Set sufficient storage
-    print(f"Increasing storage of {instance_name} to {storage_in_gb} GB...")
-
     # get volume id
     response = ec2.describe_instances(InstanceIds=[instance_id])
     instance = response["Reservations"][0]["Instances"][0]
@@ -427,16 +674,19 @@ def increase_storage(
         volume_size < storage_in_gb
     ), f"Volume size {volume_size} GB is already greater than {storage_in_gb} GB"
 
-    # increase volume size
-    ec2.modify_volume(
-        VolumeId=volume_id,
-        Size=storage_in_gb,
-    )
+    with yaspin(
+        text=f"Increasing storage of {instance_name} to {storage_in_gb} GB...",
+        color="green",
+    ) as sp:
+        ec2.modify_volume(
+            VolumeId=volume_id,
+            Size=storage_in_gb,
+        )
 
-    print(f"Waiting for {instance_name} to be ready...")
-    waiter = ec2.get_waiter("volume_in_use")
-    waiter.wait(VolumeIds=[volume_id])
-    print(f"{instance_name} is ready!")
+        sp.text = "Waiting for volume to be ready..."
+        waiter = ec2.get_waiter("volume_in_use")
+        waiter.wait(VolumeIds=[volume_id])
+        sp.ok("✔")
 
     # Extend partition
     host, user, ip_address = (
@@ -469,14 +719,21 @@ def increase_storage(
     selected_volume = selected_volumes[0]
     selected_partition = volume_to_partitions[selected_volume][0]
 
+    print("Disk usage before resize:")
     print(executor.run("df -h"))
-    print(executor.run("lsblk"))
-    time.sleep(20)
-    executor.run(f"sudo growpart /dev/{selected_volume} 1")
 
-    time.sleep(10)
-    executor.run(f"sudo resize2fs /dev/{selected_partition}")
+    with yaspin(
+        text=f"Resizing partition /dev/{selected_volume}...", color="green"
+    ) as sp:
+        time.sleep(20)
+        executor.run(f"sudo growpart /dev/{selected_volume} 1")
 
+        sp.text = f"Resizing filesystem on /dev/{selected_partition}..."
+        time.sleep(10)
+        executor.run(f"sudo resize2fs /dev/{selected_partition}")
+        sp.ok("✔")
+
+    print("Disk usage after resize:")
     print(executor.run("df -h"))
     return host, user, ip_address, executor
 
@@ -540,7 +797,7 @@ def create_dns_record(dns_host, user, host, route_53=None):
         ChangeBatch={
             "Changes": [
                 {
-                    "Action": "CREATE",
+                    "Action": "UPSERT",
                     "ResourceRecordSet": {
                         "Type": "CNAME",
                         "Name": dns_host,
@@ -557,8 +814,9 @@ def create_dns_record(dns_host, user, host, route_53=None):
     ), "Failed to set up DNS record"
 
     with yaspin(
-        text="Waiting for DNS record to be set up (can take up to two minutes)..."
-    ):
+        text=f"Waiting for DNS record for {dns_host} (can take up to two minutes)...",
+        color="green",
+    ) as sp:
         change_id = response["ChangeInfo"]["Id"]
         n_tries = 24
         wait = 5
@@ -570,13 +828,13 @@ def create_dns_record(dns_host, user, host, route_53=None):
             time.sleep(wait)
         else:
             raise Exception(f"DNS record setup timed out after {timeout} seconds.")
+        sp.ok("✔")
 
     is_wild_card = dns_host.startswith("*.")
     full_domain = dns_host.replace("*.", "")
     test_host = f"test.{full_domain}" if is_wild_card else dns_host
 
     dns_executor = Executor(test_host, user)
-    print("DNS record set up!")
     return dns_executor
 
 
@@ -600,9 +858,6 @@ def prepare_instance(
 
     if dns_host is not None:
         route_53 = get_53_client()
-        assert (
-            len(dns_host.split(".")) == 3
-        ), "DNS host must be in the format subdomain.domain.tld"
         domain = get_domain(dns_host)
 
         msg = f"""
@@ -675,18 +930,22 @@ def prepare_docker_experiment_setup(
 ):
     from dallinger.config import get_config
 
-    config = get_config(load=True)
-    assert config.get("dashboard_user") and config.get(
-        "dashboard_password"
-    ), "dashboard_user and dashboard_password must be set in ~/.dallingerconfig"
+    with yaspin(text="Loading Dallinger configuration...", color="green") as sp:
+        config = get_config(load=True)
+        assert config.get("dashboard_user") and config.get(
+            "dashboard_password"
+        ), "dashboard_user and dashboard_password must be set in ~/.dallingerconfig"
+        sp.ok("✔")
 
     dallinger_prepare_server(host, user)
 
     create_dns_records(dns_host, user, host)
 
-    dallinger_store_host(dict(host=host, user=user))
-    dallinger_store_host(dict(host=dns_host, user=user))
-    print("Host registered in dallinger")
+    with yaspin(text="Registering host in Dallinger...", color="green") as sp:
+        dallinger_store_host(dict(host=host, user=user))
+        if dns_host:
+            dallinger_store_host(dict(host=dns_host, user=user))
+        sp.ok("✔")
 
 
 def provision(
@@ -718,13 +977,12 @@ def _get_instance_row_from(
     public_dns_name=None,
     filter_by="state == 'running'",
 ):
+    if (instance_name is None) == (public_dns_name is None):
+        raise click.ClickException("Provide exactly one of `--name` or `--dns`.")
+
     instances_df = get_instances(region_name)
     if filter_by is not None:
         instances_df = instances_df.query(filter_by)
-
-    assert (
-        sum([var is None for var in [instance_name, public_dns_name]]) == 1
-    ), "Provide either instance_name or public_dns"
     if instance_name is not None:
         selected_instances = instances_df.query(f"name == '{instance_name}'")
     else:
@@ -732,7 +990,24 @@ def _get_instance_row_from(
             f"public_dns_name == '{public_dns_name}'"
         )
     if len(selected_instances) == 0:
-        raise Exception("No instances found")
+        lookup = (
+            f"name '{instance_name}'"
+            if instance_name is not None
+            else f"public DNS '{public_dns_name}'"
+        )
+        if region_name is not None:
+            region_hint = f"region '{region_name}'"
+        else:
+            default_region = _resolve_default_region_name()
+            region_hint = (
+                f"default AWS region '{default_region}' " "(no `--region` was provided)"
+            )
+        error_prefix = click.style("✖", fg="red")
+        raise click.ClickException(
+            f"{error_prefix} No EC2 instance found for {lookup} in {region_hint}.\n"
+            "Tip: Check the instance name/DNS and region. You can list instances with "
+            "`dallinger ec2 list instances --region <region>`."
+        )
     elif len(selected_instances) > 1:
         raise Exception("Multiple running instances found")
     else:

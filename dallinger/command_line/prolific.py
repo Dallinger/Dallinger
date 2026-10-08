@@ -3,7 +3,9 @@ import time
 from datetime import datetime
 
 import click
-from tabulate import tabulate
+from rich.text import Text
+
+from dallinger.command_line.utils import render_rich_table
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +41,12 @@ def delete_drafts(ctx):
 
 @prolific.group("list")
 @click.pass_context
-def list(ctx):
+def list_commands(ctx):
     """Sub-commands for listing Prolific entities"""
     pass
 
 
-@list.command("workspaces")
+@list_commands.command("workspaces")
 @click.option(
     "--show-all-columns",
     is_flag=True,
@@ -68,22 +70,21 @@ def list_workspaces(ctx, show_all_columns):
         {k: v for k, v in row.items() if k not in columns_to_exclude}
         for row in prolific_service_from_config().get_workspaces()
     ]
+    if not filtered_workspaces_data:
+        click.echo("No workspaces found.")
+        return
 
-    print(tabulate(filtered_workspaces_data, headers="keys", tablefmt="github"))
-
-
-def bold(text):
-    return f"\033[1m{text}\033[0m"
-
-
-def red(text):
-    return f"\033[91m{text}\033[0m"
+    headers = [key for key in filtered_workspaces_data[0].keys()]
+    rows = [
+        [row.get(header, "") for header in headers] for row in filtered_workspaces_data
+    ]
+    print(render_rich_table(rows, headers=headers))
 
 
 sort_by_choices = ["date_created", "total_cost"]
 
 
-@list.command("studies")
+@list_commands.command("studies")
 @click.option(
     "--sort_by",
     default=None,
@@ -119,14 +120,18 @@ def list_studies(ctx, sort_by, published):
     if sort_by is not None:
         filtered_studies.sort(key=lambda x: x[sort_by], reverse=True)
 
+    if not filtered_studies:
+        click.echo("No studies found.")
+        return
+
     def format_cost(cost):
         return f"£{cost / 100:.2f}"
 
     formatted_studies = []
     for study in filtered_studies:
-        cost_string = format_cost(study["cost"])
+        cost_cell = Text(format_cost(study["cost"]))
         if study["is_underpaying"]:
-            cost_string += bold(red(" (underpaying)"))
+            cost_cell.append(" (underpaying)", style="bold red")
         submission_string = (
             f"{study['number_of_submissions']} / {study['total_available_places']}"
         )
@@ -138,14 +143,19 @@ def list_studies(ctx, sort_by, published):
                 "%Y-%m-%d %H:%M:%S"
             ),
             "submissions": submission_string,
-            "cost": cost_string,
+            "cost": cost_cell,
         }
         formatted_studies.append(formatted_study)
 
     formatted_studies.append(
         {
-            "cost": bold(format_cost(sum(study["cost"] for study in filtered_studies))),
+            "cost": Text(
+                format_cost(sum(study["cost"] for study in filtered_studies)),
+                style="bold",
+            ),
         }
     )
 
-    print(tabulate(formatted_studies, headers="keys", tablefmt="github"))
+    headers = [key for key in formatted_studies[0].keys()]
+    rows = [[row.get(header, "") for header in headers] for row in formatted_studies]
+    print(render_rich_table(rows, headers=headers))

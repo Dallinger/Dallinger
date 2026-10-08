@@ -142,7 +142,7 @@ providing the file name of the JSON file.
 Example JSON file contents (say it's been named "prolific.json")::
 
     {
-      "eligibility_requirements": [
+      "filters": [
           {
             "attributes": [
               {

@@ -167,6 +167,21 @@ class TestAdvertisement:
         assert resp.status_code == 500
         assert b"already_did_exp_hit" in resp.data
 
+    def test_previously_completed_same_exp_is_allowed_when_configured(
+        self, a, active_config, webapp
+    ):
+        p = a.participant()
+        active_config.set("allow_repeat_worker_ids", True)
+
+        resp = webapp.get(
+            "/ad?hitId={}&assignmentId={}&workerId={}".format(
+                p.hit_id, "new-assignment", p.worker_id
+            )
+        )
+
+        assert resp.status_code == 200
+        assert b"Thanks for accepting this HIT." in resp.data
+
     def test_generate_tokens_redirects(self, webapp):
         resp = webapp.get("/ad?generate_tokens=1")
         assert resp.status_code == 302
@@ -617,6 +632,63 @@ class TestSimpleGETRoutes:
         assert b"User-agent" in resp.data
         resp.close()
 
+    def test_health_returns_json(self, webapp):
+        resp = webapp.get("/health")
+        assert resp.status_code == 200
+        assert resp.json == {"status": "ok"}
+        resp.close()
+
+    def test_presence_returns_no_content(self, webapp):
+        assert webapp.post("/presence").status_code == 204
+
+    def test_idle_hibernation_waits_for_recruitment_and_participants(
+        self, a, webapp, active_config
+    ):
+        def answer():
+            data = webapp.get("/idle-hibernation").json
+            return data["stay_awake"], data["reason"]
+
+        active_config.extend({"auto_recruit": False})
+        assert answer() == (False, None)
+        participant = a.participant()
+        assert answer() == (True, "participants are still working")
+        participant.status = "approved"
+        active_config.extend({"auto_recruit": True})
+        assert answer() == (True, "auto_recruit is on")
+
+    @pytest.mark.parametrize(
+        "settings, timings",
+        [
+            ({}, None),
+            ({"docker_ssh_idle_hibernate": True}, (300_000, 3_600_000)),
+            (
+                {
+                    "docker_ssh_idle_hibernate": True,
+                    "docker_ssh_idle_hibernate_minutes": 1,
+                },
+                (20_000, 60_000),
+            ),
+        ],
+    )
+    def test_pages_ping_presence_only_with_idle_sleep(
+        self, webapp, active_config, settings, timings
+    ):
+        from pathlib import Path
+
+        import dallinger
+
+        layout = Path(dallinger.__file__).parent / "frontend/templates/base/layout.html"
+        active_config.extend(settings)
+        app = webapp.application
+        with app.test_request_context():
+            html = app.jinja_env.from_string(layout.read_text()).render()
+        if timings is None:
+            assert "presence.js" not in html
+        else:
+            assert "scripts/presence.js" in html
+            assert f"intervalMs: {timings[0]}," in html
+            assert f"activeWindowMs: {timings[1]}" in html
+
     def test_consent(self, webapp):
         resp = webapp.get(
             "/consent",
@@ -709,6 +781,7 @@ class TestParticipantByAssignmentRoute:
         resp = webapp.post("/load-participant")
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "error"
+        assert data.get("error_code") == "assignment_id_missing"
         assert "no participant found" in data.get("html")
 
     def test_assignment_invalid(self, webapp):
@@ -718,6 +791,7 @@ class TestParticipantByAssignmentRoute:
         )
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "error"
+        assert data.get("error_code") == "participant_not_found"
         assert "no participant found" in data.get("html")
 
     def test_load_participant_calls_normalize_entry_information(
@@ -746,7 +820,6 @@ class TestParticipantByAssignmentRoute:
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
 class TestParticipantCreateRoute:
-
     def create_participant(self, a, **kw):
         if "recruiter_name" in kw:
             kw["recruiter_id"] = kw["recruiter_name"]
@@ -762,8 +835,8 @@ class TestParticipantCreateRoute:
             mock_exp.protected_routes = []
             mock_exp.is_overrecruited.return_value = True
             mock_exp.quorum = 50
-            mock_exp.create_participant.side_effect = (
-                lambda **args: self.create_participant(a, **args)
+            mock_exp.create_participant.side_effect = lambda **args: (
+                self.create_participant(a, **args)
             )
             mock_class.return_value = mock_exp
 
@@ -777,8 +850,8 @@ class TestParticipantCreateRoute:
             mock_exp.protected_routes = []
             mock_exp.is_overrecruited.return_value = False
             mock_exp.quorum = None
-            mock_exp.create_participant.side_effect = (
-                lambda **args: self.create_participant(a, **args)
+            mock_exp.create_participant.side_effect = lambda **args: (
+                self.create_participant(a, **args)
             )
             mock_class.return_value = mock_exp
 
@@ -824,6 +897,33 @@ class TestParticipantCreateRoute:
         )
 
         assert resp.status_code == 403
+
+    def test_allows_duplicate_participant_for_worker_when_config_enabled(
+        self, a, active_config, db_session, webapp
+    ):
+        p = a.participant()
+        active_config.set("allow_repeat_worker_ids", True)
+
+        resp = webapp.post(
+            "/participant/{}/{}/{}/debug".format(
+                p.worker_id, p.hit_id, "new-assignment"
+            )
+        )
+
+        assert resp.status_code == 200
+        third_resp = webapp.post(
+            "/participant/{}/{}/{}/debug".format(
+                p.worker_id, p.hit_id, "third-assignment"
+            )
+        )
+        assert third_resp.status_code == 200
+        with db.sessions_scope(commit=True) as session:
+            count = (
+                session.query(models.Participant)
+                .filter_by(worker_id=p.worker_id)
+                .count()
+            )
+        assert count == 3
 
     def test_sets_status_when_participant_is_overrecruited(self, webapp, overrecruited):
         worker_id = "1"
@@ -1636,10 +1736,45 @@ class TestTransformationPost:
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
 class TestLaunchRoute:
+    def assert_launch_error(self, resp, message):
+        assert resp.status_code == 500
+        data = json.loads(resp.get_data())
+        assert data["status"] == "error"
+        assert message in data["message"]
+
     def test_launch(self, webapp):
         resp = webapp.post("/launch", data={})
         data = json.loads(resp.get_data())
         assert "recruitment_msg" in data
+
+    def test_launch_reports_config_load_error(self, webapp):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server._config",
+            side_effect=RuntimeError("config exploded"),
+        ):
+            resp = webapp.post("/launch", data={})
+
+        self.assert_launch_error(resp, "config exploded")
+
+    def test_launch_reports_protected_route_load_error(self, webapp):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment",
+            side_effect=TypeError("unexpected keyword argument 'no_configure'"),
+        ):
+            resp = webapp.post("/launch", data={})
+
+        self.assert_launch_error(resp, "unexpected keyword argument 'no_configure'")
+
+    def test_launch_reports_before_request_error(self, webapp):
+        from dallinger.experiment_server import experiment_server
+
+        mock_exp_klass = mock.Mock()
+        mock_exp_klass.before_request.side_effect = RuntimeError("hook exploded")
+        mock_exp_klass.after_request.side_effect = lambda request, response: response
+        with mock.patch.object(experiment_server, "exp_klass", mock_exp_klass):
+            resp = webapp.post("/launch", data={})
+
+        self.assert_launch_error(resp, "hook exploded")
 
     def test_launch_with_recruitment(self, webapp, active_config):
         with mock.patch(

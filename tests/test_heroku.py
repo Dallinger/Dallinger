@@ -5,6 +5,7 @@ import time
 from unittest import mock
 
 import pytest
+import redis
 
 from dallinger.config import get_config
 
@@ -47,19 +48,25 @@ class TestClockScheduler:
         with mock.patch("apscheduler.schedulers.blocking.BlockingScheduler.start"):
             yield heroku.clock.scheduler
 
+    @pytest.fixture
+    def patched_wait_for_redis(self, setup):
+        with mock.patch("dallinger.heroku.clock.wait_for_redis_ready") as patched:
+            yield patched
+
     def teardown(self):
         os.chdir("../..")
 
     def test_scheduler_has_job(self, setup):
         assert len(self.clock.scheduler.get_jobs()) > 0
 
-    def test_launch_loads_config(self, patched_scheduler):
+    def test_launch_loads_config(self, patched_scheduler, patched_wait_for_redis):
         self.clock.launch()
+        patched_wait_for_redis.assert_called_once_with()
         patched_scheduler.start.assert_called_once()
         assert get_config().ready
 
     def test_launch_registers_additional_tasks(
-        self, patched_scheduler, tasks_with_cleanup
+        self, patched_scheduler, patched_wait_for_redis, tasks_with_cleanup
     ):
         tasks_with_cleanup.append(
             {
@@ -70,6 +77,7 @@ class TestClockScheduler:
         )
 
         self.clock.launch()
+        patched_wait_for_redis.assert_called_once_with()
         jobs = patched_scheduler.get_jobs()
         func_names = [job.func_ref for job in jobs]
 
@@ -77,6 +85,45 @@ class TestClockScheduler:
             "dallinger_experiment.dallinger_experiment:TestExperiment.test_task"
             in func_names
         )
+
+    def test_wait_for_redis_ready_returns_when_ping_succeeds(self, setup):
+        mock_redis = mock.Mock()
+
+        with mock.patch.object(self.clock.db, "redis_conn", mock_redis):
+            self.clock.wait_for_redis_ready(timeout=1, interval=0)
+
+        mock_redis.ping.assert_called_once_with()
+
+    def test_wait_for_redis_ready_retries_busy_loading(self, setup):
+        mock_redis = mock.Mock()
+        mock_redis.ping.side_effect = [
+            redis.exceptions.BusyLoadingError("loading"),
+            True,
+        ]
+
+        with (
+            mock.patch.object(self.clock.db, "redis_conn", mock_redis),
+            mock.patch("dallinger.heroku.clock.time.sleep") as sleep,
+        ):
+            self.clock.wait_for_redis_ready(timeout=1, interval=0.1)
+
+        assert mock_redis.ping.call_count == 2
+        sleep.assert_called_once_with(0.1)
+
+    def test_wait_for_redis_ready_times_out(self, setup):
+        mock_redis = mock.Mock()
+        mock_redis.ping.side_effect = redis.exceptions.ConnectionError("down")
+
+        with (
+            mock.patch.object(self.clock.db, "redis_conn", mock_redis),
+            mock.patch(
+                "dallinger.heroku.clock.time.monotonic",
+                side_effect=[0, 0, 2],
+            ),
+            mock.patch("dallinger.heroku.clock.time.sleep"),
+        ):
+            with pytest.raises(RuntimeError, match="Redis did not become ready"):
+                self.clock.wait_for_redis_ready(timeout=1, interval=0.1)
 
 
 @pytest.mark.usefixtures("experiment_dir", "active_config")
@@ -504,6 +551,84 @@ class TestHerokuApp:
         app.set("auto_recruit", True)
 
 
+def test_heroku_local_monitor_stops_when_output_ends():
+    import io
+
+    from dallinger.heroku.tools import HerokuLocalWrapper
+
+    wrapper = HerokuLocalWrapper(mock.Mock(), mock.Mock(), env={"HOME": "/tmp"})
+    wrapper._process = mock.Mock(stdout=io.BytesIO(b"web.1 | up\n"))
+    wrapper._process.poll.return_value = 1
+    listener = mock.Mock(return_value=None)
+
+    stream = wrapper._stream()
+    assert next(stream) == "web.1 | up\n"
+    assert next(stream, None) is None
+
+    wrapper._process.stdout = io.BytesIO(b"web.1 | up\n")
+    wrapper.monitor(listener)
+
+    listener.assert_called_once_with("web.1 | up\n")
+    assert "exit code: 1" in wrapper.out.error.call_args.args[0]
+
+
+def test_heroku_local_monitor_is_quiet_after_requested_stop():
+    import subprocess
+    import sys
+    import threading
+
+    from dallinger.heroku.tools import HerokuLocalWrapper
+
+    wrapper = HerokuLocalWrapper(mock.Mock(), mock.Mock(), env={"HOME": "/tmp"})
+    wrapper._process = subprocess.Popen(
+        [sys.executable, "-c", "import time; print('up', flush=True); time.sleep(30)"],
+        stdout=subprocess.PIPE,
+        start_new_session=True,
+    )
+    started = threading.Event()
+    monitor = threading.Thread(
+        target=wrapper.monitor, args=(lambda line: started.set(),)
+    )
+    monitor.start()
+    assert started.wait(10)
+
+    wrapper.stop()
+    monitor.join(10)
+
+    assert not monitor.is_alive()
+    wrapper.out.error.assert_not_called()
+
+
+def test_heroku_local_cancels_timeout_when_boot_fails():
+    from dallinger.heroku.tools import HerokuLocalWrapper
+
+    wrapper = HerokuLocalWrapper(mock.Mock(), mock.Mock(), env={"HOME": "/tmp"})
+    with (
+        mock.patch("dallinger.heroku.tools.signal.signal"),
+        mock.patch("dallinger.heroku.tools.signal.alarm") as alarm,
+        mock.patch.object(wrapper, "_boot", side_effect=OSError),
+        pytest.raises(OSError),
+    ):
+        wrapper.start(timeout_secs=12)
+
+    assert alarm.call_args_list == [mock.call(12), mock.call(0)]
+
+
+def test_heroku_local_does_not_inherit_stdin():
+    """A closed or hung-up parent stdin must not reach heroku local."""
+    import subprocess
+
+    from dallinger.heroku.tools import HerokuLocalWrapper
+
+    settings = {"base_port": 5000, "num_dynos_web": 1, "num_dynos_worker": 1}
+    config = mock.Mock(get=settings.get)
+    wrapper = HerokuLocalWrapper(config, mock.Mock(), env={"HOME": "/tmp"})
+    with mock.patch("dallinger.heroku.tools.subprocess.Popen") as popen:
+        wrapper._boot()
+
+    assert popen.call_args.kwargs["stdin"] is subprocess.DEVNULL
+
+
 @pytest.mark.usefixtures("bartlett_dir")
 @pytest.mark.slow
 class TestHerokuLocalWrapper:
@@ -514,7 +639,7 @@ class TestHerokuLocalWrapper:
         cwd = os.getcwd()
         config = get_config(load=True)
 
-        (id, tmp) = setup_experiment(log=mock.Mock(), verbose=True, exp_config={})
+        id, tmp = setup_experiment(log=mock.Mock(), verbose=True, exp_config={})
 
         os.chdir(tmp)
         yield config
@@ -555,24 +680,24 @@ class TestHerokuLocalWrapper:
     def test_gives_up_after_timeout(self, heroku):
         from dallinger.heroku.tools import HerokuTimeoutError
 
-        with pytest.raises(HerokuTimeoutError):
-            heroku.start(timeout_secs=1)
+        with mock.patch.object(heroku, "_up_and_running", return_value=False):
+            with pytest.raises(HerokuTimeoutError):
+                heroku.start(timeout_secs=1)
 
     def test_quits_on_gunicorn_startup_error(self, heroku):
         from dallinger.heroku.tools import HerokuStartupError
 
         heroku.verbose = False  # more coverage
         heroku._stream = mock.Mock(return_value=["[DONE] Killing all processes"])
-        with pytest.raises(HerokuStartupError):
-            heroku.start()
+        with mock.patch.object(heroku, "_up_and_running", return_value=False):
+            with pytest.raises(HerokuStartupError):
+                heroku.start()
 
     def test_start_fails_if_port_never_opens(self, heroku):
         from dallinger.heroku.tools import HerokuStartupError
 
-        heroku._stream = mock.Mock(
-            return_value=["apple", "orange", heroku.STREAM_SENTINEL]
-        )
-        with mock.patch("dallinger.utils.port_is_open", return_value=False):
+        heroku._stream = mock.Mock(return_value=["apple", "orange"])
+        with mock.patch.object(heroku, "_up_and_running", return_value=False):
             with pytest.raises(HerokuStartupError):
                 heroku.start()
         assert not heroku.is_running
@@ -580,19 +705,15 @@ class TestHerokuLocalWrapper:
     def test_error_flushes_logs(self, heroku):
         from dallinger.heroku.tools import HerokuStartupError
 
-        heroku._stream = mock.Mock(
-            return_value=["apple", "orange", heroku.STREAM_SENTINEL]
-        )
+        heroku._stream = mock.Mock(return_value=["apple", "orange"])
         heroku._log_failure = mock.Mock()
-        with mock.patch("dallinger.utils.port_is_open", return_value=False):
+        with mock.patch.object(heroku, "_up_and_running", return_value=False):
             with pytest.raises(HerokuStartupError):
                 heroku.start()
         heroku._log_failure.assert_called_once()
 
     def test_failure_logs_until_process_end(self, heroku):
-        heroku._stream = mock.Mock(
-            return_value=["real", "stopped", heroku.STREAM_SENTINEL]
-        )
+        heroku._stream = mock.Mock(return_value=["real", "stopped"])
         heroku._process = mock.Mock(pid=12345)
         heroku._process.poll = mock.Mock(return_value=1)
         heroku._log_failure()
@@ -606,7 +727,6 @@ class TestHerokuLocalWrapper:
                 "more",
                 "[] web.1  |  [ERROR] Random",
                 "remainder",
-                heroku.STREAM_SENTINEL,
             ]
         )
         heroku._process = mock.Mock(pid=12345)
@@ -620,7 +740,6 @@ class TestHerokuLocalWrapper:
             yield "second"
             time.sleep(10)
             yield "after"
-            yield heroku.STREAM_SENTINEL
 
         heroku._stream = mock.Mock(return_value=timeout_stream())
         heroku._process = mock.Mock(pid=12345)

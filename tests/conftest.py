@@ -6,7 +6,7 @@ from unittest import mock
 import pytest
 from tzlocal import get_localzone
 
-pytest_plugins = ["pytest_dallinger"]
+pytest_plugins = ["pytest_dallinger", "dallinger.pytest_docker_ssh"]
 
 
 @pytest.fixture(scope="module")
@@ -198,14 +198,22 @@ def fake_parsed_prolific_study():
         "description": "This study aims to determine how to make a good public API",
         "external_study_url": "https://my-dallinger-app.com/?PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}",
         "prolific_id_option": "url_parameters",
-        "completion_code": "7EF9FD0D",
+        "completion_code": None,
+        "completion_codes": [
+            {
+                "code": "J31WN9VJ",
+                "code_type": "DEFAULT",
+                "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
+                "actor": "participant",
+            },
+        ],
         "completion_option": "url",
         "total_available_places": 30,
         "estimated_completion_time": 5,
         "reward": 13,
         "device_compatibility": ["desktop"],
         "peripheral_requirements": [],
-        "eligibility_requirements": [],
+        "filters": [],
         "status": "ACTIVE",
     }
 
@@ -295,19 +303,36 @@ def pytest_addoption(parser):
         default=False,
         help="Run tests which create S3 buckets",
     )
+    parser.addoption(
+        "--docker-ssh-smoke",
+        action="store_true",
+        default=False,
+        help="Run docker-ssh smoke integration tests",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
-    run_slow = run_docker = False
+    run_slow = run_docker = run_docker_ssh_smoke = False
     if config.getoption("--runslow"):
         # --runslow given in cli: do not skip slow tests
         run_slow = True
     if os.environ.get("RUN_DOCKER"):
         # RUN_DOCKER environment variable set: do not skip docker tests
         run_docker = True
+    if config.getoption("--docker-ssh-smoke"):
+        run_docker_ssh_smoke = True
     skip_slow = pytest.mark.skip(reason="need --runslow option to run")
     skip_docker = pytest.mark.skip(reason="need RUN_DOCKER environment variable")
+    skip_docker_ssh_smoke = pytest.mark.skip(
+        reason="need --docker-ssh-smoke option to run"
+    )
     for item in items:
+        if "docker_ssh_smoke" in item.keywords:
+            if not run_docker_ssh_smoke:
+                item.add_marker(skip_docker_ssh_smoke)
+            # docker-ssh smoke tests are gated only by --docker-ssh-smoke.
+            # They should not additionally require --runslow or RUN_DOCKER.
+            continue
         if "slow" in item.keywords and not run_slow:
             item.add_marker(skip_slow)
         if "docker" in item.keywords and not run_docker:

@@ -3,6 +3,9 @@
 This script is used to update the constraints.txt files in the demos directory
 when preparing a new Dallinger release.
 
+The script reads the Dallinger version from dallinger/version.py and uses it to
+reference the correct GitHub tag (e.g., v12.0.0) in the constraint files.
+
 Note 1: you should make sure that you have pushed the latest version of your branch
 before running this script, so that GitHub's hosted dev-requirements.txt file is up to date.
 
@@ -33,8 +36,13 @@ import re
 import subprocess
 from pathlib import Path
 
+import dallinger
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEMOS_DIR = REPO_ROOT / "demos" / "dlgr" / "demos"
+# The test experiment's constraints.txt is a committed fixture; regenerate it
+# alongside the demos so it does not drift from the released dependency pins.
+TEST_EXPERIMENT_DIR = REPO_ROOT / "tests" / "experiment"
 CONSTRAINTS_SCRIPT = REPO_ROOT / "dallinger" / "constraints.py"
 
 
@@ -55,13 +63,18 @@ def md5_cmd(filepath):
 
 
 def get_current_branch():
-    result = subprocess.run(["git", "branch", "--show-current"], capture_output=True, text=True, cwd=REPO_ROOT, check=True)
+    result = subprocess.run(
+        ["git", "branch", "--show-current"],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=True,
+    )
     return result.stdout.strip()
 
 
 def get_dallinger_version():
-    result = subprocess.run(["dallinger", "--version"], capture_output=True, text=True, cwd=REPO_ROOT, check=True)
-    return result.stdout.strip()
+    return dallinger.version.__version__
 
 
 def replace_in_file(path, pattern, repl):
@@ -74,12 +87,15 @@ def main():
     os.chdir(REPO_ROOT)
     current_branch = get_current_branch()
     dallinger_version = get_dallinger_version()
+    version_tag = f"v{dallinger_version}"
     print(f"Current branch: {current_branch}")
     print(f"Dallinger version: {dallinger_version}")
+    print(f"Using version tag: {version_tag}")
 
-    for demo_dir in DEMOS_DIR.iterdir():
-        if not demo_dir.is_dir():
-            continue
+    experiment_dirs = [
+        path for path in sorted(DEMOS_DIR.iterdir()) if path.is_dir()
+    ] + [TEST_EXPERIMENT_DIR]
+    for demo_dir in experiment_dirs:
         config_txt = demo_dir / "config.txt"
         requirements_txt = demo_dir / "requirements.txt"
         constraints_txt = demo_dir / "constraints.txt"
@@ -88,16 +104,20 @@ def main():
         print(f"Compiling {demo_dir.name}")
         # 0. Update .python-version
         write_python_version_file(demo_dir)
-        # 1. Replace dallinger with github requirement in requirements.txt
+        # 1. Replace dallinger with github requirement in requirements.txt (using current branch)
         if requirements_txt.exists():
             req_text = requirements_txt.read_text()
-            github_req = f"dallinger@git+https://github.com/Dallinger/Dallinger@{current_branch}"
-            new_req_text = re.sub(r"^dallinger$", github_req, req_text, flags=re.MULTILINE)
+            github_req = (
+                f"dallinger@git+https://github.com/Dallinger/Dallinger@{current_branch}"
+            )
+            new_req_text = re.sub(
+                r"^dallinger$", github_req, req_text, flags=re.MULTILINE
+            )
             requirements_txt.write_text(new_req_text)
-        # 2. Run constraints generator
-        subprocess.run([
-            "uv", "run", str(CONSTRAINTS_SCRIPT), "generate"
-        ], cwd=demo_dir, check=True)
+        # 2. Run constraints generator (using current branch for GitHub reference)
+        subprocess.run(
+            ["uv", "run", str(CONSTRAINTS_SCRIPT), "generate"], cwd=demo_dir, check=True
+        )
         # 3. Remove extras from constraints.txt
         con_text = constraints_txt.read_text()
         # Remove extras: [something== to ==
@@ -114,11 +134,18 @@ def main():
         requirements_txt.write_text(req_text)
         # 5. Update constraints.txt to use released dallinger version
         con_text = constraints_txt.read_text()
+        # Replace dallinger github reference with version
         con_text = re.sub(
             r"^dallinger @ git\+https://github.com/Dallinger/Dallinger@.*$",
             f"dallinger=={dallinger_version}",
             con_text,
             flags=re.MULTILINE,
+        )
+        # Replace branch reference with version tag in constraint URLs
+        con_text = re.sub(
+            rf"https://raw\.githubusercontent\.com/Dallinger/Dallinger/{re.escape(current_branch)}/",
+            f"https://raw.githubusercontent.com/Dallinger/Dallinger/{version_tag}/",
+            con_text,
         )
         constraints_txt.write_text(con_text)
 

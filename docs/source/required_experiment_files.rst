@@ -29,6 +29,11 @@ Required files
 -  README.txt/md - This (hopefully) contains a helpful description of
    the experiment.
 
+-  deploy.toml - Optional for generic Dallinger experiments. When
+   present, this exclude-only policy controls which regular files enter
+   debug staging and deployment. See :doc:`deploy_toml`. Create a
+   starter with ``dallinger deployment-files init``.
+
 Forbidden files
 ^^^^^^^^^^^^^^^
 

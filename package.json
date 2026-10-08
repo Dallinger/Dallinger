@@ -2,27 +2,53 @@
   "name": "dallinger",
   "version": "0.1.0",
   "description": "Dallinger experiment server",
-  "dependencies": {},
   "devDependencies": {
-    "browser-sync": "^2.18.8",
-    "browser-sync-webpack-plugin": "^1.1.4",
+    "browser-sync": "^3.0.4",
+    "browser-sync-webpack-plugin": "^2.4.0",
     "fingerprintjs2": "^1.5.1",
-    "jest": "^23.6.0",
-    "jsdoc": "^3.6.3",
-    "uglify-es": "^3.0.28",
-    "webpack": "^2.4.1"
+    "jest": "^30.5.2",
+    "jest-environment-jsdom": "^30.5.2",
+    "jsdoc": "^4.0.5",
+    "webpack": "^5.111.1",
+    "webpack-cli": "^7.2.3"
+  },
+  "overrides": {
+    "baseline-browser-mapping": "^2.11.25",
+    "browserslist": "^4.29.0",
+    "engine.io": "^6.6.10",
+    "engine.io-client": "^6.6.6",
+    "fast-uri": "^3.1.8",
+    "immutable": "^4.3.9",
+    "kind-of": "^6.0.3",
+    "js-yaml": "^3.15.2",
+    "linkify-it": "^5.0.2",
+    "lodash": "^4.17.21",
+    "follow-redirects": "^1.16.0",
+    "socket.io-adapter": "^2.5.8",
+    "socket.io-parser": "^4.2.7",
+    "ws": "^8.21.3",
+    "glob": {
+      "minimatch": "^10.2.6"
+    },
+    "resp-modifier": {
+      "minimatch": "^3.1.5"
+    },
+    "test-exclude": {
+      "minimatch": "^10.2.6"
+    }
   },
   "engines": {
-    "node": ">= 8.15.0"
+    "node": ">= 20"
   },
   "scripts": {
-    "build": "webpack",
+    "build": "WEBPACK_ENV=build webpack",
     "dev": "webpack --watch",
     "test": "jest"
   },
   "jest": {
     "collectCoverage": true,
     "coverageDirectory": "coverage",
+    "testEnvironment": "jsdom",
     "roots": [
       "<rootDir>/dallinger/"
     ],

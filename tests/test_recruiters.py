@@ -456,33 +456,96 @@ class TestProlificRecruiter:
 
             return r
 
-    @pytest.mark.parametrize("recruiter", [], indirect=True)
-    def test_open_recruitment_and_publish(self, recruiter):
-        recruiter.config["mode"] = "live"
-        recruiter.config["publish_experiment"] = True
-        with mock.patch.multiple(
-            "dallinger.prolific.ProlificService",
-            draft_study=mock.DEFAULT,
-            publish_study=mock.DEFAULT,
-        ) as mocks:
-            recruiter.open_recruitment(n=1)
-        mocks["publish_study"].assert_called()
-
-    @pytest.mark.parametrize("recruiter", [], indirect=True)
-    def test_open_recruitment_but_do_not_publish(self, recruiter):
-        recruiter.config["mode"] = "live"
-        recruiter.config["publish_experiment"] = False
-        with mock.patch.multiple(
-            "dallinger.prolific.ProlificService",
-            draft_study=mock.DEFAULT,
-            publish_study=mock.DEFAULT,
-        ) as mocks:
-            recruiter.open_recruitment(n=1)
-        mocks["publish_study"].assert_not_called()
+    def test_init_does_not_reload_loaded_config(self, recruiter, active_config):
+        active_config.load.assert_not_called()
 
     def test_open_recruitment_with_valid_request(self, recruiter):
         result = recruiter.open_recruitment(n=5)
+
+        kwargs = recruiter.prolificservice.create_study.call_args_list[0].kwargs
+        assert kwargs.get("publish_experiment") is True
         assert result["message"] == "Study created on Prolific"
+
+    def test_dev_recruiter_open_recruitment_says_study_is_simulated(
+        self, hit_id_store, active_config, caplog
+    ):
+        from dallinger.recruiters import DevProlificRecruiter
+
+        with mock.patch(
+            "dallinger.recruiters.get_base_url", return_value="http://fake-domain"
+        ):
+            recruiter = DevProlificRecruiter(store=hit_id_store)
+
+        with caplog.at_level("INFO", logger="dallinger.prolific"):
+            result = recruiter.open_recruitment(n=5)
+
+        expected = (
+            "Prolific study simulated in debug mode; nothing was created on Prolific"
+        )
+        assert result["message"] == expected
+        assert f"{expected}." in caplog.messages
+        assert "Created unpublished draft study" not in caplog.text
+
+    def test_open_recruitment_with_publication_suppressed(self, recruiter):
+        recruiter.config["publish_experiment"] = False
+        recruiter.open_recruitment(n=5)
+
+        kwargs = recruiter.prolificservice.create_study.call_args_list[0].kwargs
+        assert kwargs.get("publish_experiment") is False
+
+    def test_open_recruitment_sets_up_completion_codes(self, recruiter, active_config):
+        # Arrange
+        recruiter.config["prolific_completion_config"] = json.dumps(
+            {
+                "FAILED_ATTENTION_CHECK": {
+                    "actions": [
+                        {
+                            "action": "REMOVE_FROM_PARTICIPANT_GROUP",
+                            "participant_group": "some group ID",
+                        },
+                        {
+                            "action": "MANUALLY_REVIEW",
+                        },
+                    ],
+                },
+                "COMPLETED": {
+                    "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
+                },
+                "FIXED_SCREENOUT": {
+                    "actions": [
+                        {
+                            "action": "FIXED_SCREEN_OUT_PAYMENT",
+                            "fixed_screen_out_reward": 20,
+                            "slots": 1,
+                        }
+                    ],
+                },
+            }
+        )
+
+        # Act
+        recruiter.open_recruitment(n=1)
+
+        # Assert
+        kwargs = recruiter.prolificservice.create_study.call_args_list[0].kwargs
+        codes_and_config = kwargs.get("completion_codes")
+        assert {item["code_type"] for item in codes_and_config} == {
+            "DEFAULT",
+            "FAILED_ATTENTION_CHECK",
+            "FIXED_SCREENOUT",
+            "COMPLETED",
+        }
+
+        for record in codes_and_config:
+            assert "code" in record  # We've added these
+
+        code_map = json.loads(active_config.get("prolific_completion_codes"))
+        assert {
+            "DEFAULT",
+            "FAILED_ATTENTION_CHECK",
+            "FIXED_SCREENOUT",
+            "COMPLETED",
+        } == set(code_map.keys())
 
     def test_open_recruitment_raises_if_study_already_in_progress(self, recruiter):
         from dallinger.recruiters import ProlificRecruiterException
@@ -499,6 +562,17 @@ class TestProlificRecruiter:
             recruiter.open_recruitment(n=1)
 
         assert ex_info.match("Can't run a Prolific Study from localhost")
+
+    def test_get_status_without_current_study_does_not_call_prolific(self, recruiter):
+        status = recruiter.get_status()
+
+        recruiter.prolificservice.get_submissions.assert_not_called()
+        recruiter.prolificservice.get_study.assert_not_called()
+        recruiter.prolificservice.get_total_cost.assert_not_called()
+        assert status.study_id == ""
+        assert status.study_status == ""
+        assert status.study_cost == 0
+        assert status.participant_status_counts == {}
 
     def test_normalize_entry_information_standardizes_participant_data(self, recruiter):
         prolific_format = {
@@ -524,10 +598,11 @@ class TestProlificRecruiter:
     @pytest.mark.usefixtures("experiment_dir_merged")
     def test_exit_page_includes_submission_prolific_button(self, a, webapp, recruiter):
         p = a.participant(recruiter_id="prolific")
+        expected_url = recruiter.external_submission_url("DEFAULT")
 
         response = webapp.get(f"/recruiter-exit?participant_id={p.id}")
 
-        assert recruiter.external_submission_url in response.data.decode("utf-8")
+        assert expected_url in response.data.decode("utf-8")
 
     def test_reward_bonus_passes_only_whats_needed(self, a, recruiter):
         participant = a.participant(assignment_id="some assignement")
@@ -639,7 +714,7 @@ class TestProlificRecruiter:
             details = json.load(f)
         cleaned_details = recruiter.clean_qualification_attributes(details)
         assert details.keys() == cleaned_details.keys(), "Keys should be the same"
-        requirements = cleaned_details["eligibility_requirements"]
+        requirements = cleaned_details["filters"]
 
         assert requirements == [
             {
@@ -795,11 +870,7 @@ class TestProlificRecruiter:
             "payment_per_participant": {"amount": 3.50, "currency": "GBP"},
         }
 
-        recruiter.prolificservice = mock.Mock()
-        recruiter.prolificservice.get_study = mock.Mock(
-            return_value={"is_custom_screening": True}
-        )
-        recruiter.prolificservice.screen_out = mock.Mock()
+        recruiter.prolificservice.get_study.return_value = {"is_custom_screening": True}
         recruiter.prolificservice.screen_out.return_value = mock_response
 
         recruiter._record_current_study_id("test_study_id")
@@ -829,11 +900,7 @@ class TestProlificRecruiter:
                 "error": "Payment too low",
             }
         )
-
-        recruiter.prolificservice = mock.Mock()
-        recruiter.prolificservice.get_study = mock.Mock(
-            return_value={"is_custom_screening": True}
-        )
+        recruiter.prolificservice.get_study.return_value = {"is_custom_screening": True}
         recruiter.prolificservice.screen_out = mock.Mock(return_value=error_response)
 
         recruiter._record_current_study_id("test_study_id")

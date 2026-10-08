@@ -3,10 +3,12 @@ import os
 import click
 
 from .lib.ec2 import (
+    DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER,
     _get_instance_id_from,
     _get_instance_row_from,
     create_dns_records,
     get_instances,
+    get_pem_path,
     increase_storage,
     list_instance_types,
     list_instances,
@@ -19,6 +21,12 @@ from .lib.ec2 import (
     teardown,
     wait_for_instance_state_change,
 )
+from .utils import get_server_pem_path
+
+
+def _validate_instance_selector(name, dns):
+    if (name is None) == (dns is None):
+        raise click.UsageError("Provide exactly one of `--name` or `--dns`.")
 
 
 def get_config(strict=True):
@@ -56,10 +64,21 @@ def ssh(ctx):
 
 @ssh.command("web")
 @click.option("--app", required=True, help="App name")
-@click.option("--dns", required=True, help="Server name")
+@click.option(
+    "--dns",
+    required=True,
+    help="Public DNS of the EC2 instance (AWS hostname), e.g. ec2-...compute.amazonaws.com",
+)
 def ssh__web(app, dns):
     """SSH to a web app container on an EC2 instance"""
-    command = f"ssh {dns} -t 'docker exec -it {app}-web-1 bash'"
+    cfg = get_instance_config()
+    keyname = cfg.get("pem")
+    try:
+        pem_path = get_pem_path(keyname)
+    except FileNotFoundError as err:
+        raise click.UsageError(str(err))
+    pem_opt = f"-i {pem_path}"
+    command = f"ssh {pem_opt} {dns} -t 'docker exec -it {app}-web-1 bash'"
     os.system(command)
 
 
@@ -75,9 +94,8 @@ def list(ctx):
 @click.option("--running", is_flag=True, help="List running instances")
 @click.option("--stopped", is_flag=True, help="List stopped instances")
 @click.option("--terminated", is_flag=True, help="List terminated instances")
-@click.option("--pem", default=None, help="Name of the PEM file to use")
 @click.pass_context
-def list__instances(ctx, region, running, stopped, terminated, pem):
+def list__instances(ctx, region, running, stopped, terminated):
     """List your EC2 instances (with filtering)"""
     filtered_states = []
     if running:
@@ -86,6 +104,8 @@ def list__instances(ctx, region, running, stopped, terminated, pem):
         filtered_states.append("stopped")
     if terminated:
         filtered_states.append("terminated")
+    cfg = get_instance_config()
+    pem = cfg.get("pem")
     list_instances(region, filtered_states=filtered_states, pem=pem)
 
 
@@ -110,14 +130,12 @@ def list__instance_types(ctx, region):
 @click.option("--type", default="m5.xlarge", help="Instance type")
 @click.option("--storage", default=32, type=int, help="Storage in GB; default is 32 GB")
 @click.option(
-    "--pem",
-    default=None,
-    help="Path to PEM file; if not specified, defaults to the `pem` config variable, whose default value is 'dallinger.pem'",
-)
-@click.option(
     "--image_name",
-    default="ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-20250516",
-    help="Image name; default is Ubuntu 24.04",
+    default=DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER,
+    help=(
+        "Image name, AMI id, or SSM parameter. Default uses Canonical's "
+        "Ubuntu 24.04 SSM parameter."
+    ),
 )
 @click.option(
     "--security_group_name",
@@ -126,17 +144,24 @@ def list__instance_types(ctx, region):
 )
 @click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
+    help="Custom DNS host (e.g. myexp.example.com) to create/update in Route53; distinct from --dns (instance public DNS).",
     default=None,
 )
 @click.pass_context
 def ec2__provision(
-    ctx, name, region, type, storage, pem, image_name, security_group_name, dns_host
+    ctx, name, region, type, storage, image_name, security_group_name, dns_host
 ):
     """Provision an EC2 instance for running experiments"""
     config = get_instance_config()
-    if not pem:
-        pem = config.get("pem", pem)
+    pem_key = config.get("pem")
+
+    # Validate that the expected local PEM files exist
+    try:
+        get_pem_path(pem_key)
+        get_server_pem_path()
+    except FileNotFoundError as err:
+        raise click.UsageError(str(err))
+
     if not security_group_name:
         security_group_name = config.get("security_group_name", security_group_name)
     from .utils import check_valid_subdomain
@@ -148,7 +173,7 @@ def ec2__provision(
         region_name=region,
         instance_type=type,
         storage_in_gb=storage,
-        key_name=pem,
+        key_name=pem_key,
         image_name=image_name,
         security_group_name=security_group_name,
         dns_host=dns_host,
@@ -156,13 +181,18 @@ def ec2__provision(
 
 
 @ec2.command("increase-storage")
-@click.option("--dns", default=None, help="Public DNS name")
+@click.option(
+    "--dns",
+    default=None,
+    help="Public DNS of the EC2 instance (AWS hostname). Use this OR --name.",
+)
 @click.option("--name", default=None, help="Instance ID")
 @click.option("--region", default=None, help="Region name")
 @click.option("--storage", required=True, type=int, help="Storage in GB")
 @click.pass_context
 def ec2__increase_storage(ctx, dns, name, region, storage):
     """Increase the disk storage on an EC2 instance"""
+    _validate_instance_selector(name, dns)
     instance_row = _get_instance_row_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
@@ -172,17 +202,22 @@ def ec2__increase_storage(ctx, dns, name, region, storage):
 
 
 @ec2.command("stop")
-@click.option("--dns", default=None, help="Public DNS name")
+@click.option(
+    "--dns",
+    default=None,
+    help="Public DNS of the EC2 instance (AWS hostname). Use this OR --name.",
+)
 @click.option("--name", default=None, help="Instance ID")
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
+    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS).",
     default=None,
 )
 @click.pass_context
 def ec2__stop(ctx, dns, name, region, dns_host):
     """Stop (pause) an existing EC2 instance"""
+    _validate_instance_selector(name, dns)
     instance_id = _get_instance_id_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
@@ -192,17 +227,22 @@ def ec2__stop(ctx, dns, name, region, dns_host):
 
 
 @ec2.command("start")
-@click.option("--dns", default=None, help="Public DNS name")
+@click.option(
+    "--dns",
+    default=None,
+    help="Public DNS of the EC2 instance (AWS hostname). Use this OR --name.",
+)
 @click.option("--name", default=None, help="Instance ID")
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
+    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS).",
     default=None,
 )
 @click.pass_context
 def ec2__start(ctx, dns, name, region, dns_host):
     """Start a stopped EC2 instance"""
+    _validate_instance_selector(name, dns)
     from dallinger.command_line.config import get_configured_hosts
 
     CONFIGURED_HOSTS = get_configured_hosts()
@@ -213,9 +253,9 @@ def ec2__start(ctx, dns, name, region, dns_host):
         filter_by=None,
     )
     instance_row = wait_for_instance_state_change(region, name, "stopped")
-    assert (
-        instance_row["state"] == "stopped"
-    ), f"Instance '{name}' is not stopped, but in state '{instance_row['state']}'"
+    assert instance_row["state"] == "stopped", (
+        f"Instance '{name}' is not stopped, but in state '{instance_row['state']}'"
+    )
     dns, instance_id, name = (
         instance_row["public_dns_name"],
         instance_row["instance_id"],
@@ -232,12 +272,17 @@ def ec2__start(ctx, dns, name, region, dns_host):
 
 
 @ec2.command("restart")
-@click.option("--dns", default=None, help="Public DNS name")
+@click.option(
+    "--dns",
+    default=None,
+    help="Public DNS of the EC2 instance (AWS hostname). Use this OR --name.",
+)
 @click.option("--name", default=None, help="Instance ID")
 @click.option("--region", default=None, help="Region name")
 @click.pass_context
 def ec2__restart(ctx, dns, name, region):
     """Restart a running EC2 instance"""
+    _validate_instance_selector(name, dns)
     instance_id = _get_instance_id_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
@@ -245,17 +290,22 @@ def ec2__restart(ctx, dns, name, region):
 
 
 @ec2.command("teardown")
-@click.option("--dns", default=None, help="Public DNS name")
+@click.option(
+    "--dns",
+    default=None,
+    help="Public DNS of the EC2 instance (AWS hostname). Use this OR --name.",
+)
 @click.option("--name", default=None, help="Instance ID")
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="DNS name to use. Must resolve all its subdomains to the IP address specified as SSH host",
+    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS).",
     default=None,
 )
 @click.pass_context
 def ec2__teardown(ctx, dns, name, region, dns_host):
     """Teardown an EC2 instance"""
+    _validate_instance_selector(name, dns)
     instance_id = _get_instance_id_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )

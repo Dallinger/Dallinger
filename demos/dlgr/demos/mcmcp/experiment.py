@@ -66,7 +66,7 @@ class MCMCP(Experiment):
     @classmethod
     def choice(cls, node_id, choice):
         try:
-            exp = MCMCP(db.session)
+            exp = MCMCP()
             node = db.session.query(models.Agent).get(node_id)
             infos = node.infos()
 

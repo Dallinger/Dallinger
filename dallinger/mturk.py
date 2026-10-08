@@ -1,10 +1,10 @@
 import datetime
 import logging
 import time
+from functools import cached_property
 
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
-from cached_property import cached_property
 
 logger = logging.getLogger(__name__)
 PERCENTAGE_APPROVED_REQUIREMENT_ID = "000000000000000000L0"

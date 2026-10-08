@@ -46,6 +46,60 @@ describe('getUrlParameter', function () {
 
 });
 
+describe('AjaxRejection', function () {
+  test('exposes structured server error codes', () => {
+    var dlgr = require('./dallinger2').dallinger;
+    var rejection = dlgr.AjaxRejection({
+      route: '/load-participant',
+      method: 'post',
+      error: {
+        status: 403,
+        response: JSON.stringify({
+          status: 'error',
+          error_code: 'participant_not_found',
+          html: '<p>Not found</p>'
+        })
+      }
+    });
+
+    expect(rejection.errorCode).toBe('participant_not_found');
+    expect(rejection.html).toBe('<p>Not found</p>');
+    expect(rejection.response.error_code).toBe('participant_not_found');
+  });
+
+  test('handles unparseable responses without an error code', () => {
+    var dlgr = require('./dallinger2').dallinger;
+    var rejection = dlgr.AjaxRejection({
+      route: '/load-participant',
+      method: 'post',
+      error: {
+        status: 500,
+        response: '<html>not json</html>'
+      }
+    });
+
+    expect(rejection.errorCode).toBeUndefined();
+    expect(rejection.html).toBe('');
+    expect(rejection.response).toEqual({});
+  });
+
+  test.each([['null'], ['"a string"'], ['[1, 2]']])(
+    'handles non-object JSON body %s',
+    (body) => {
+      var dlgr = require('./dallinger2').dallinger;
+      var rejection = dlgr.AjaxRejection({
+        route: '/load-participant',
+        method: 'post',
+        error: {status: 500, response: body}
+      });
+
+      expect(rejection.response).toEqual({});
+      expect(rejection.html).toBe('');
+      expect(rejection.errorCode).toBeUndefined();
+    }
+  );
+});
+
 describe('AD block functions', function () {
 
   var dlgr;

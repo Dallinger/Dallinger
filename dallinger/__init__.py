@@ -18,12 +18,9 @@ from . import (
     registration,
     transformations,
 )
-from .patches import patch
 
 logger = logging.getLogger(__name__)
 logger.addHandler(NullHandler())
-
-patch()
 
 __all__ = (
     "bots",

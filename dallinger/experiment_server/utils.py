@@ -178,8 +178,29 @@ def error_response(
     participant=None,
     simple=False,
     request_data="",
+    error_code=None,
 ):
-    """Return a generic server error response."""
+    """Return a generic server error response.
+
+    Parameters
+    ----------
+    error_type : str, optional
+        Human-readable error category shown in the rendered error page.
+    error_text : str, optional
+        Additional detail for the error page or simple JSON message.
+    status : int, optional
+        HTTP status code for the response.
+    participant : Participant, optional
+        Participant used when rendering a full error page.
+    simple : bool, optional
+        When True, return a JSON body with ``message`` instead of ``html``.
+    request_data : str, optional
+        Request context embedded in the rendered error page.
+    error_code : str, optional
+        Machine-readable code included in the JSON body as ``error_code``
+        when provided. Clients can read this via
+        ``AjaxRejection.errorCode`` without parsing HTML.
+    """
     last_exception = sys.exc_info()
     if last_exception[0]:
         request_info = dict(request.args) if has_request_context() else {}
@@ -189,6 +210,8 @@ def error_response(
         )
 
     data = {"status": "error"}
+    if error_code is not None:
+        data["error_code"] = error_code
 
     if simple:
         data["message"] = error_text

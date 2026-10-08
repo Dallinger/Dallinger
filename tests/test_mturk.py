@@ -2,6 +2,7 @@ import datetime
 import hmac
 import os
 import socket
+import sys
 import time
 from hashlib import sha1
 from unittest import mock
@@ -29,6 +30,9 @@ STANDARD_WAIT_SECS = 15
 MAX_MTURK_RERUNS = 1
 if os.environ.get("CI"):
     MAX_MTURK_RERUNS = 3
+skip_live_mturk = pytest.mark.skip(
+    reason="Amazon has discontinued Mechanical Turk, so live MTurk calls fail."
+)
 
 
 class FixtureConfigurationError(Exception):
@@ -50,10 +54,12 @@ def test_session_desc():
 
 
 def name_with_hostname_prefix():
-    # Including the hostname in content created in the MTurk sandbox helps
-    # identify its source when reviewing records there.
+    # Including the hostname and Python version in content created in the MTurk
+    # sandbox helps identify its source when reviewing records there, and prevents
+    # collisions between parallel CI jobs running different Python versions.
     hostname = socket.gethostname()
-    name = "{}:{}".format(hostname, generate_random_id(size=32))
+    py_version = "py{}.{}".format(*sys.version_info[:2])
+    name = "{}:{}:{}".format(hostname, py_version, generate_random_id(size=32))
     return name
 
 
@@ -408,6 +414,7 @@ class TestSNSServiceIsolation:
         )
 
 
+@skip_live_mturk
 @pytest.mark.mturk
 @pytest.mark.mturkworker
 @pytest.mark.slow
@@ -468,6 +475,7 @@ class TestMTurkServiceIntegrationSmokeTest:
         )
 
 
+@skip_live_mturk
 @pytest.mark.mturk
 @pytest.mark.usefixtures("check_mturkfull")
 class TestMTurkService:
@@ -646,6 +654,7 @@ class TestMTurkService:
         with_cleanup.dispose_qualification_type(qtype2["id"])
 
 
+@skip_live_mturk
 @pytest.mark.mturk
 @pytest.mark.mturkworker
 @pytest.mark.usefixtures("check_mturkfull")
@@ -762,6 +771,7 @@ class TestMTurkServiceWithRequesterAndWorker:
             with_cleanup.increment_named_qualification_score("NONEXISTENT", worker_id)
 
 
+@skip_live_mturk
 @pytest.mark.mturk
 @pytest.mark.mturkworker
 @pytest.mark.usefixtures("check_manual")

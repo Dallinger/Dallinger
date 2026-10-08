@@ -18,14 +18,42 @@ You can then get and set parameters:
     config.get("duration")
     config.set("duration", 0.50)
 
-When retrieving a configuration parameter, Dallinger will look for the parameter
-first among environment variables, then in a ``config.txt`` in the experiment
-directory, and then in the ``.dallingerconfig`` file, using whichever value
-is found first. If the parameter is not found, Dallinger will use the default.
-
 If a value is extracted from the environment or a config file it will be converted
 to the correct type. You can also specify a value of ``file:/path/to/file`` to
 use the contents of that file on your local computer.
+
+
+Load order and precedence
+-------------------------
+
+Configuration values can come from several sources. When the same parameter is
+set in more than one source, the value from the higher-priority source wins.
+The sources are, from lowest to highest priority:
+
+1. **Dallinger package defaults** — shipped in ``dallinger/default_configs/``.
+2. **Experiment class defaults** — values returned by
+   :meth:`~dallinger.experiment.Experiment.config_defaults` on your experiment
+   class. These are suggestions that all of the sources below override.
+3. **~/.dallingerconfig** — the global, per-user config file in your home
+   directory.
+4. **Experiment class settings** — values returned by
+   :meth:`~dallinger.experiment.Experiment.config_settings` on your experiment
+   class.
+5. **config.txt** — the ``config.txt`` file in the experiment directory.
+6. **Environment variables** — a variable named after the config parameter
+   (e.g. ``dashboard_user``).
+7. **Runtime writes** — values set from code via ``config.set()``,
+   ``config.extend()``, or ``config.override()``.
+
+Tagged sources resolve by this fixed priority rather than layer insertion
+order. Untagged calls to ``config.extend()`` or ``config.load_from_file()`` are
+treated as runtime writes and therefore take the highest priority.
+
+Once an experiment package has been initialized, changing into a
+non-experiment directory does not prevent its class defaults, class settings,
+or ``config.txt`` from loading. A working directory containing another
+``experiment.py`` still takes precedence, and environment variables or runtime
+writes may differ between processes.
 
 
 Built-in configuration
@@ -93,6 +121,11 @@ Recruitment (General)
 ``auto_recruit`` *boolean*
     A boolean on whether recruitment should be automatic.
 
+``allow_repeat_worker_ids`` *boolean*
+    Allows a worker to create multiple participants with the same ``worker_id``.
+    This is useful for recruiters like Prolific when a study is configured to
+    allow multiple submissions from the same participant. Defaults to ``False``.
+
 ``browser_exclude_rule`` *unicode - comma separated*
     A set of rules you can apply to prevent participants with unsupported web
     browsers from participating in your experiment. Valid exclustion values are:
@@ -102,6 +135,15 @@ Recruitment (General)
         * touchcapable
         * pc
         * bot
+
+``publish_experiment`` *bool*
+    Whether the experiment should be published when deploying. By default this
+    variable is unset, in which case sensible defaults will be used: in
+    particular, MTurk studies are always published (because there is no way to
+    create an MTurk study without publishing it), whereas Prolific studies are
+    created as draft studies which later can be published via the Prolific web
+    UI. If ``publish_experiment`` is set to ``True``, then Prolific studies will
+    instead be automatically published upon deployment.
 
 ``recruiter`` *unicode*
     The recruiter class to use during the experiment run. While this can be a
@@ -231,18 +273,9 @@ Prolific Recruitment
 
 ``prolific_is_custom_screening`` *bool*
     Whether or not this study includes a custom screening. Default is `False`.
-    See https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/CreateStudy for more information.
+    See https://docs.prolific.com/api-reference/studies/create-study for more information.
 
-``publish_experiment`` *bool*
-    Whether the experiment should be published when deploying.
-    By default this variable is unset, in which case sensible defaults will be used:
-    in particular, MTurk studies are always published
-    (because there is no way to create an MTurk study without publishing it),
-    whereas Prolific studies are created as draft studies
-    which later can be published via the Prolific web UI.
-    If ``publish_experiment`` is set to ``True``, then Prolific studies will instead
-    be automatically published upon deployment.
-
+.. _prolific-completion-config:
 ``prolific_recruitment_config`` *unicode - JSON formatted*
     JSON data to add additional recruitment parameters
 
@@ -252,9 +285,9 @@ Prolific Recruitment
 
         - ``device_compatibility``
         - ``peripheral_requirements``
-        - ``eligibility_requirements``
+        - ``filters``
 
-    See the `Prolific API Documentation <https://docs.prolific.com/docs/api-docs/public/#tag/Studies/paths/~1api~1v1~1studies~1/post>`__
+    See the `Prolific API Documentation <https://docs.prolific.com/api-reference/studies/create-study>`__
     for details.
 
     Configuration can also be stored in a separate JSON file, and included by using the
@@ -263,7 +296,7 @@ Prolific Recruitment
     valid JSON as contents::
 
         {
-            "eligibility_requirements": [
+            "filters": [
                 {
                     "attributes": [
                         {
@@ -284,7 +317,7 @@ Prolific Recruitment
     You can also specify the devices you expect the participants to have, e.g.::
 
         {
-            "eligibility_requirements": […],
+            "filters": […],
             "device_compatibility": ["desktop"],
             "peripheral_requirements": ["audio", "microphone"]
         }
@@ -302,6 +335,69 @@ Prolific Recruitment
     (for example, ``{"title": "My Experiment Title"}``), we recommend that you stick to the standard
     key = value format of ``config.txt`` whenever possible, and leave ``prolific_recruitment_config``
     for complex requirements which can't be configured in this simpler way.
+
+
+``prolific_completion_config`` *unicode - JSON formatted*
+    Defines custom completion "code types" and associated actions for Prolific studies.
+
+    This should be a JSON object mapping code types to their definitions. Each
+    entry can specify actions (such as automatic approval, manual review, or
+    screening out), the actor, and other parameters supported by Prolific's API.
+
+    Note that the default value for ``actor`` is "participant", and so this key
+    only needs to be included when the value is "researcher".
+
+    Example::
+
+        prolific_completion_config = {
+            "FAILED_ATTENTION_CHECK": {
+                "actions": [
+                    {
+                        "action": "REMOVE_FROM_PARTICIPANT_GROUP",
+                        "participant_group": "some group ID"
+                    },
+                    {"action": "MANUALLY_REVIEW"}
+                ],
+                "actor": "participant"
+            },
+            "FIXED_SCREENOUT": {
+                "actions": [
+                    {
+                        "action": "FIXED_SCREEN_OUT_PAYMENT",
+                        "fixed_screen_out_reward": 20,
+                        "slots": 1,
+                    }
+                ],
+            },
+        }
+
+    See :ref:`prolific_recruitment_config <prolific-completion-config>` for
+    details on storing completion code configuration in a separate file.
+
+    See the `Prolific API Documentation
+    <https://docs.prolific.com/api-reference/studies/create-study>`__
+    for details on supported actions.
+
+``prolific_completion_codes`` *unicode - JSON formatted*
+    Stores the generated completion codes for each code type as a JSON object.
+
+    This is automatically populated when recruitment is opened, and can be used
+    for reference or validation. Each key is a ``code_type``, and the value is
+    the unique completion ``code`` assigned for that type, which will be
+    included as the ``cc`` query string parameter when returning participants to
+    Prolific for study submission.
+
+    **NOTE**: This value will be set by the recruiter during experiment
+    deployment and should not be included in config.txt.
+
+
+    Example::
+
+        prolific_completion_codes = {
+            "DEFAULT": "J31WN9VJ",
+            "FAILED_ATTENTION_CHECK": "6Q1UMKRE",
+            "COMPLETED": "QG8FB1SA"
+        }
 
 .. deprecated:: 10.0.0
 
@@ -496,3 +592,182 @@ Docker Deployment Configuration
     An integer value which specify `Docker --cpu-shares option <https://docs.docker.com/config/containers/resource_constraints/#configure-the-default-cfs-scheduler>`_ for worker containers.
 
     Defaults to ``1024``, lower this value to limit worker containers CPU usage when CPU cycles are constrained.
+
+``cloudflare_api_token`` *unicode*
+    API token used by ``dallinger docker-ssh`` Cloudflare tunnel deploys.
+    Prefer ``CLOUDFLARE_API_TOKEN`` in the environment, or the macOS Keychain
+    item ``dallinger-cloudflare-api-token``, over writing this value to disk.
+    It is never stored in docker-ssh host records or ``deployment.json``.
+
+``cloudflare_account_id`` *unicode*
+    Cloudflare account id for named ``dallinger-{app}`` tunnels.
+
+``cloudflare_zone_id`` *unicode*
+    Cloudflare DNS zone id that will hold first-level experiment CNAMEs.
+
+``cloudflare_dns_zone`` *unicode*
+    DNS zone for experiment hostnames, for example ``science-of-music.org``.
+    Distinct from classic Caddy ``--dns-host``.
+
+``docker_ssh_idle_hibernate`` *boolean*
+    Automatically hibernate the app after a period of inactivity and wake it
+    when a participant arrives. Default ``False``.
+
+    Do not enable for experiments that recruit continuously — for example,
+    experiments that replace failed participants or recruit reactively
+    throughout their lifetime. See
+    :ref:`idle-hibernation-rolling-recruitment`. As a backstop, the app
+    stays awake while ``auto_recruit`` is on or any participant is still
+    working.
+
+    After ``docker_ssh_idle_hibernate_minutes`` with no participant/dashboard
+    traffic, expensive containers stop. ``/health`` probes are ignored and
+    do not reset the idle timer. While this flag is on, every page built on
+    Dallinger's base layout (including PsyNet pages) POSTs ``/presence``
+    at a third of the idle window while it is in use: someone interacted
+    with it within the idle window, audible non-looping audio or video is
+    playing, or the page called ``dallingerPresence.setWaiting(true)``. A
+    page in use counts as traffic even when it is quiet or talks only over
+    a WebSocket, and an abandoned tab stops pinging one idle window after
+    its last interaction. A page that polls the server itself (for example
+    PsyNet's waiting pages) keeps the app awake for as long as it stays
+    open. Manual
+    ``dallinger docker-ssh hibernate`` and ``awaken`` work even when this
+    flag is false.
+
+    Sleep stops web, workers, the clock, Redis, and (for Cloudflare apps)
+    Postgres. A later visit starts a spinner until those services are
+    healthy again. Expensive services use Compose ``restart: unless-stopped``.
+    A host reboot brings back an app that was running. An explicit hibernate
+    is a Docker stop, so those containers stay stopped across reboot and
+    ``/health`` keeps reporting hibernating until a visitor or
+    ``dallinger docker-ssh awaken``. The idle quiet period restarts when
+    the app wakes and when its controller starts (for example after an
+    update or reboot). ``--update`` wakes a hibernating app.
+    The front door and controller stay up. Docker may restart a crashed
+    container; ``/health`` returns HTTP 503 while the backend is actually down.
+
+``docker_ssh_idle_hibernate_minutes`` *int*
+    Quiet period before automatic hibernation. Default ``60``.
+
+``docker_ssh_monitoring_kind`` *unicode*
+    Generic monitoring kind written into the docker-ssh deployment manifest.
+    Default ``experiment``. PsyNet sets this to ``psynet``.
+
+``docker_ssh_monitoring_path`` *unicode*
+    Availability path recorded in the deployment manifest. Default ``/health``.
+
+``server_pem`` *unicode*
+    **Required for SSH-based deployments** (``dallinger docker-ssh`` and ``dallinger ec2``).
+
+    Full path to the private SSH key (PEM file) used for authenticating to remote servers.
+    The path supports tilde expansion (``~`` will be replaced with your home directory).
+
+    **Best practice:** Store your PEM files in the ``~/.ssh/`` directory. This is the standard
+    location for SSH authentication files on Unix-like systems and provides a secure, centralized
+    location for managing your keys. Never store PEM files in project directories where they might
+    accidentally be committed to version control.
+
+    Example::
+
+        server_pem = ~/.ssh/my-server-key.pem
+        server_pem = /home/username/.ssh/deployment-key.pem
+
+    This configuration is validated before deployment, and an error will be raised if:
+
+    * The configuration value is not set
+    * The file does not exist at the specified path
+
+    The PEM file must have restrictive permissions. After creating or downloading your PEM file,
+    set the correct permissions::
+
+        chmod 400 ~/.ssh/keyfile.pem
+
+    The ``~/.ssh/`` directory itself should have permissions set to 700::
+
+        chmod 700 ~/.ssh
+
+
+EC2 Configuration
+~~~~~~~~~~~~~~~~~
+
+``ec2_default_pem`` *unicode*
+    The name of the EC2 key pair to use when provisioning instances (without the ``.pem`` extension).
+
+    This key pair name must exist in your AWS account in the region where you're provisioning.
+    Defaults to ``dallinger`` if not specified.
+
+    **Creating an EC2 key pair:**
+
+    Before using Dallinger with EC2, you need to create a key pair in the AWS console:
+
+    1. Go to the EC2 dashboard in your AWS region
+    2. Navigate to "Key Pairs" under "Network & Security"
+    3. Click "Create key pair"
+    4. Give it a name (e.g., ``my-ec2-keypair``)
+    5. Choose the PEM file format (for use with OpenSSH)
+    6. Click "Create key pair" - AWS will immediately download the ``.pem`` file to your computer
+    7. Move this file to the ``~/.ssh/`` directory (the standard location for SSH keys)::
+
+        mv ~/Downloads/my-ec2-keypair.pem ~/.ssh/
+
+    8. Set the correct permissions on the file and directory::
+
+        chmod 700 ~/.ssh
+        chmod 400 ~/.ssh/my-ec2-keypair.pem
+
+    **Note:** Avoid using spaces in your key pair filename. Use hyphens or underscores instead
+    (e.g., ``my-ec2-key.pem`` or ``my_ec2_key.pem``).
+
+    **Important:** AWS only allows you to download the private key file once when you create the key pair.
+    If you lose the file, you'll need to create a new key pair.
+
+    For more information, see the `AWS EC2 documentation on creating key pairs 
+    <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html>`__.
+
+    Example configuration::
+
+        ec2_default_pem = my-ec2-keypair
+
+    .. note::
+        
+        By default, Dallinger will look for this file in the ``~/.ssh/`` directory first (recommended best practice),
+        and will fall back to the home directory (``~/``) for backwards compatibility. For example, if you specify::
+
+            ec2_default_pem = my_key
+
+        then it will look for:
+        
+        1. ``~/.ssh/my_key.pem`` (recommended)
+        2. ``~/my_key.pem`` (legacy fallback)
+
+        We strongly recommend storing your PEM files in ``~/.ssh/`` following standard SSH key management practices.
+
+        Alternatively, you can specify an absolute path (e.g., ``/path/to/my/key``), which will resolve
+        to ``/path/to/my/key.pem``.
+
+    When you provision an EC2 instance, this key pair will be associated with the instance.
+    The corresponding local private key file must be specified via the ``server_pem``
+    configuration variable for SSH authentication to work.
+
+    **Note:** Both ``ec2_default_pem`` (the AWS key pair name) and ``server_pem``
+    (the local private key file path) are required for EC2 deployments.
+
+    For more information on connecting to EC2 instances, see the `AWS EC2 documentation on 
+    connecting using SSH <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connect-to-linux-instance.html>`__.
+
+    For example::
+
+        ec2_default_pem = my-ec2-keypair
+        server_pem = ~/.ssh/my-ec2-keypair.pem
+
+``ec2_default_security_group`` *unicode*
+    The name of the security group to use when provisioning EC2 instances.
+
+    Defaults to ``dallinger``. If the specified security group does not exist,
+    one will be created with ingress rules (firewall rules allowing incoming traffic)
+    for ports 22 (SSH), 80 (HTTP), 443 (HTTPS), and 5000 (direct application access).
+
+    Example::
+
+        ec2_default_security_group = my-security-group

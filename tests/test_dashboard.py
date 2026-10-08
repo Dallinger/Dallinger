@@ -237,6 +237,22 @@ class TestDashboard:
             is admin_user
         )
 
+    def test_load_user_from_request_in_codespaces(self, admin_user):
+        """Test that load_user_from_request auto-authenticates in GitHub Codespaces."""
+        from dallinger.experiment_server.dashboard import load_user_from_request
+
+        with mock.patch(
+            "dallinger.experiment_server.dashboard.is_running_in_codespaces"
+        ) as mock_codespaces:
+            mock_codespaces.return_value = True
+            # Should return admin_user even without auth headers
+            assert (
+                load_user_from_request(
+                    self.create_request("/dashboard", "http://localhost/")
+                )
+                is admin_user
+            )
+
     def test_unauthorized_debug_mode(self, active_config, env):
         from werkzeug.exceptions import Unauthorized
 
@@ -289,6 +305,15 @@ class TestDashboardCoreRoutes:
     def test_debug_dashboad_unauthorized(self, webapp):
         resp = webapp.get("/dashboard/")
         assert resp.status_code == 401
+
+    def test_dashboard_auto_authenticates_in_codespaces(self, webapp, active_config):
+        """Test that dashboard routes are accessible without login in GitHub Codespaces."""
+        with mock.patch(
+            "dallinger.experiment_server.dashboard.is_running_in_codespaces"
+        ) as mock_codespaces:
+            mock_codespaces.return_value = True
+            resp = webapp.get("/dashboard/")
+            assert resp.status_code == 200
 
     def test_nondebug_dashboad_redirects_to_login(self, webapp, active_config):
         active_config.set("mode", "sandbox")
@@ -710,11 +735,9 @@ class TestDashboardDatabase:
 
     def test_table_columns_and_data_participant(self, a, db_session):
         """Columns now come from table_columns(); data formatting changed."""
-        from markupsafe import escape
-
         from dallinger.experiment_server.experiment_server import Experiment
 
-        exp = Experiment(db_session)
+        exp = Experiment()
 
         p = a.participant()
 
@@ -731,20 +754,18 @@ class TestDashboardDatabase:
         assert isinstance(page["data"], list) and page["data"]
 
         row = page["data"][0]
-        # id and type will be strings or <code>…</code> depending on __json__()
-        # but worker_id is explicitly injected and should be plain (escaped) string
-        assert row["worker_id"] == escape(p.worker_id)
+        # worker_id is explicitly injected and should be a plain string
+        assert row["worker_id"] == p.worker_id
 
-        # Dict fields like details are rendered as <code>JSON</code>
+        # Dict fields like details are returned as raw objects (rendered client-side)
         if "details" in row:
-            assert row["details"].startswith("<code>")
-            assert row["details"].endswith("</code>")
+            assert isinstance(row["details"], dict)
 
     def test_table_data_search_and_order(self, a, db_session):
         """Global search and ordering by a column should work."""
         from dallinger.experiment_server.experiment_server import Experiment
 
-        exp = Experiment(db_session)
+        exp = Experiment()
 
         a.participant(worker_id="W_AAA")
         a.participant(worker_id="W_BBB")
@@ -769,7 +790,7 @@ class TestDashboardDatabase:
             order_dir="desc",
         )
         ids = [d["id"] for d in page_all["data"]]
-        assert ids == ["<code>2</code>", "<code>1</code>"]
+        assert ids == [2, 1]
 
     def test_prep_datatables_options(self):
         """Ensure server-side flags and column normalization are applied."""
@@ -817,7 +838,7 @@ class TestDashboardDatabase:
         """Basic pane computation + special handling for object_type (type column)."""
         from dallinger.experiment_server.experiment_server import Experiment
 
-        exp = Experiment(db_session)
+        exp = Experiment()
 
         a.participant(worker_id="W1", hit_id="H1")
         a.participant(worker_id="W2", hit_id="H2")

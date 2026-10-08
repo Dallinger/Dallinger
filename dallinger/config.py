@@ -1,11 +1,37 @@
+"""Experiment configuration loading and resolution.
+
+Configuration values come from several sources with a fixed precedence,
+lowest to highest:
+
+1. Dallinger package defaults (``dallinger/default_configs/``)
+2. Experiment class defaults (``Experiment.config_defaults()``)
+3. The user's ``~/.dallingerconfig``
+4. Experiment class settings (``Experiment.config_settings()``)
+5. The experiment's ``config.txt``
+6. Environment variables
+7. Runtime writes (``config.set()``, ``config.extend()``, ``config.override()``)
+
+Each call to :meth:`Configuration.load` re-reads sources 1 to 6 and replaces
+what the previous call loaded. Values added with ``extend()``, ``set()`` or
+``override()`` are kept across reloads.
+
+After an experiment package has been initialized (see
+:func:`initialize_experiment_package`), its directory is used when the
+process changes into a non-experiment directory. A current working
+directory containing ``experiment.py`` still takes precedence, so a process
+should not move between different experiment roots.
+"""
+
 import configparser
+import enum
 import io
 import json
 import logging
 import os
 import sys
-from collections import deque
+import threading
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -51,6 +77,7 @@ default_keys = (
     ("approve_requirement", int, []),
     ("assign_qualifications", bool, []),
     ("auto_recruit", bool, []),
+    ("allow_repeat_worker_ids", bool, []),
     ("aws_access_key_id", str, ["AWS_ACCESS_KEY_ID"], True),
     (
         "aws_region",
@@ -107,6 +134,8 @@ default_keys = (
     ("port", int, ["PORT"]),
     ("prolific_api_token", str, ["PROLIFIC_RESEARCHER_API_TOKEN"], True),
     ("prolific_api_version", str, []),
+    ("prolific_completion_config", str, [], False, [is_valid_json]),
+    ("prolific_completion_codes", str, [], False, [is_valid_json]),
     ("prolific_estimated_completion_minutes", int, []),
     ("prolific_is_custom_screening", bool, []),
     ("prolific_maximum_allowed_minutes", int, []),
@@ -135,24 +164,83 @@ default_keys = (
     ("docker_image_name", str, [], ""),
     ("docker_volumes", str, [], ""),
     ("docker_worker_cpu_shares", int, [], ""),
+    ("docker_ssh_idle_hibernate", bool, []),
+    ("docker_ssh_idle_hibernate_minutes", int, []),
+    ("docker_ssh_monitoring_kind", str, []),
+    ("docker_ssh_monitoring_path", str, []),
+    ("cloudflare_api_token", str, ["CLOUDFLARE_API_TOKEN"], True),
+    ("cloudflare_account_id", str, ["CLOUDFLARE_ACCOUNT_ID"]),
+    ("cloudflare_zone_id", str, ["CLOUDFLARE_ZONE_ID"]),
+    ("cloudflare_dns_zone", str, ["CLOUDFLARE_DNS_ZONE"]),
     ("server_pem", str, []),
 )
 
 
+class ConfigSource(enum.IntEnum):
+    """Configuration sources, ordered by resolution priority (higher wins)."""
+
+    PACKAGE_DEFAULTS = 10
+    EXPERIMENT_DEFAULTS = 20
+    USER_CONFIG = 30
+    EXPERIMENT_SETTINGS = 35
+    EXPERIMENT_CONFIG = 40
+    ENVIRONMENT = 50
+    RUNTIME = 60
+
+
+class ConfigLayer(dict):
+    """A mapping of config values tagged with the source that provided them.
+
+    Subclassing dict preserves structural compatibility for callers that
+    inspect ``Configuration.data``. Raw layer iteration does not follow
+    resolution priority; callers needing resolved values should use
+    :meth:`Configuration.get` or :meth:`Configuration.as_dict`.
+    """
+
+    __slots__ = ("source",)
+
+    def __init__(self, mapping, source):
+        super().__init__(mapping)
+        self.source = source
+
+
 class Configuration:
+    """Experiment configuration, resolved from layers tagged with their source.
+
+    Layers come in two groups. :meth:`load` builds the *loaded* layers from
+    defaults, config files and the environment, and replaces the previous
+    loaded layers in one step, so calling it again is idempotent and a load
+    that fails leaves the previous configuration in place. Layers added any
+    other way (:meth:`extend`, :meth:`set`, :meth:`override`, or
+    :meth:`load_from_file` called directly) are *added* layers: they survive
+    reloads and count as newer than loaded layers of the same source.
+    :meth:`get` resolves a key across both groups by source priority.
+    """
+
     SUPPORTED_TYPES = {bytes, str, int, float, bool}
     _experiment_params_loaded = False
     _module_params_loaded = False
 
     def __init__(self):
+        self._load_lock = threading.RLock()
+        self._loading_layers = ContextVar(
+            f"configuration_loading_layers_{id(self)}", default=None
+        )
         self._reset()
 
     def set(self, key, value):
         return self.extend({key: value})
 
     def clear(self):
-        self.data = deque()
+        self._loaded = []
+        self._added = []
+        self._loading_layers.set(None)
         self.ready = False
+
+    @property
+    def data(self):
+        """All layers as a read-only tuple: added, then loaded, each newest first."""
+        return tuple(reversed(self._loaded + self._added))
 
     def _reset(self, register_defaults=False):
         self.clear()
@@ -166,7 +254,14 @@ class Configuration:
             for registration in default_keys:
                 self.register(*registration)
 
-    def extend(self, mapping, cast_types=False, strict=False):
+    def extend(self, mapping, cast_types=False, strict=False, source=None):
+        """Add a layer of config values, tagged with their source.
+
+        ``source`` defaults to :attr:`ConfigSource.RUNTIME`, the highest
+        priority, so ad-hoc writes always win over file-based sources.
+        """
+        if source is None:
+            source = ConfigSource.RUNTIME
         normalized_mapping = {}
         for key, value in mapping.items():
             key = self.synonyms.get(key, key)
@@ -204,13 +299,35 @@ class Configuration:
                     e.dallinger_config_value = value
                     raise e
             normalized_mapping[key] = value
-        self.data.extendleft([normalized_mapping])
+        layer = ConfigLayer(normalized_mapping, source)
+        loading = self._loading_layers.get()
+        target = self._added if loading is None else loading
+        target.append(layer)
+        return layer
+
+    def _layers_by_priority(self):
+        """Return layers ordered highest-priority first.
+
+        The stable sort keeps the order of ``self.data`` within a source, so
+        added layers beat loaded layers, and otherwise the newest layer wins.
+        """
+        return sorted(self.data, key=lambda layer: -layer.source)
 
     @contextmanager
     def override(self, *args, **kwargs):
-        self.extend(*args, **kwargs)
-        yield self
-        self.data.popleft()
+        layer = self.extend(*args, **kwargs)
+        try:
+            yield self
+        finally:
+            for layers in (
+                self._loading_layers.get(),
+                self._added,
+                self._loaded,
+            ):
+                if layers is not None:
+                    layers[:] = [
+                        candidate for candidate in layers if candidate is not layer
+                    ]
 
     changeable_params = ["auto_recruit"]
 
@@ -218,14 +335,23 @@ class Configuration:
         # For now this is limited to "auto_recruit", but in the future it can be extended
         # to other parameters as well
         if key == "auto_recruit":
+            from redis.exceptions import RedisError
+
             from dallinger.db import redis_conn
 
-            auto_recruit = redis_conn.get("auto_recruit")
-            if auto_recruit is not None:
-                return bool(int(auto_recruit))
+            try:
+                auto_recruit = redis_conn.get("auto_recruit")
+            except (RedisError, OSError) as exc:
+                logger.debug(
+                    "Could not read auto_recruit from Redis, using configured value: %s",
+                    exc,
+                )
+            else:
+                if auto_recruit is not None:
+                    return bool(int(auto_recruit))
         if not self.ready:
             raise RuntimeError("Config not loaded")
-        for layer in self.data:
+        for layer in self._layers_by_priority():
             try:
                 value = layer[key]
                 if isinstance(value, str):
@@ -285,18 +411,21 @@ class Configuration:
         if sensitive:
             self.sensitive.add(key)
 
-    def load_from_file(self, filename, strict=True):
+    def load_from_file(self, filename, strict=True, source=None):
         parser = configparser.ConfigParser()
         parser.read(filename)
         data = {}
         for section in parser.sections():
             data.update(dict(parser.items(section)))
-        self.extend(data, cast_types=True, strict=strict)
+        self.extend(data, cast_types=True, strict=strict, source=source)
 
     def write(self, filter_sensitive=False, directory=None):
         parser = configparser.ConfigParser()
         parser.add_section("Parameters")
-        for layer in reversed(self.data):
+        # Lowest priority first (reverse resolution order), so later
+        # parser.set calls overwrite earlier ones and the written file
+        # reflects the resolved configuration.
+        for layer in reversed(self._layers_by_priority()):
             for k, v in layer.items():
                 if filter_sensitive and self.is_sensitive(k):
                     continue
@@ -308,13 +437,15 @@ class Configuration:
             parser.write(fp)
 
     def load_from_environment(self):
-        self.extend(os.environ, cast_types=True)
+        self.extend(os.environ, cast_types=True, source=ConfigSource.ENVIRONMENT)
 
     def load_defaults(self, strict=True):
         """Load default configuration values"""
         # Apply extra parameters before loading the configs
         if experiment_available():
-            # In practice, experiment_available should only return False in tests
+            # In practice this is False only in non-experiment contexts such
+            # as tests: no experiment.py in the current directory and no
+            # experiment package initialized in this process.
             self.register_extra_parameters()
 
         global_config_name = ".dallingerconfig"
@@ -325,27 +456,58 @@ class Configuration:
             defaults_folder, "global_config_defaults.txt"
         )
 
-        # Load the configuration, with local parameters overriding global ones.
+        # Load the package defaults, with local parameters overriding global ones.
         for config_file in [global_defaults_file, local_defaults_file]:
-            self.load_from_file(config_file, strict)
+            self.load_from_file(
+                config_file, strict, source=ConfigSource.PACKAGE_DEFAULTS
+            )
 
         if experiment_available():
             self.load_experiment_config_defaults()
 
-        self.load_from_file(global_config, strict)
+        self.load_from_file(global_config, strict, source=ConfigSource.USER_CONFIG)
 
     def load(self, strict=True):
-        self.load_defaults(strict)
+        """Load configuration from defaults, config files and the environment.
 
-        localConfig = os.path.join(os.getcwd(), LOCAL_CONFIG)
-        if os.path.exists(localConfig):
-            self.load_from_file(localConfig, strict)
+        Calling ``load()`` again re-reads these sources and replaces the
+        previously loaded layers, so repeated loads neither accumulate layers
+        nor keep values that were removed from a source. Added layers, such
+        as runtime writes, are kept. If loading fails, the previous loaded
+        layers stay in place.
+        """
+        # The context-local list keeps a nested load separate while preventing
+        # writes from another thread or greenlet from becoming loaded layers.
+        with self._load_lock:
+            loading = []
+            token = self._loading_layers.set(loading)
+            try:
+                self.load_defaults(strict)
 
-        self.load_from_environment()
-        self.ready = True
+                if experiment_available():
+                    self.load_experiment_config_settings()
+
+                # Load config.txt from the experiment's directory, so processes
+                # that changed their working directory still resolve the same
+                # configuration (and unrelated config.txt files in the current
+                # directory cannot shadow the experiment's). Outside an
+                # experiment, fall back to the current directory.
+                local_config = os.path.join(
+                    experiment_directory() or os.getcwd(), LOCAL_CONFIG
+                )
+                if os.path.exists(local_config):
+                    self.load_from_file(
+                        local_config, strict, source=ConfigSource.EXPERIMENT_CONFIG
+                    )
+
+                self.load_from_environment()
+                self._loaded = loading
+            finally:
+                self._loading_layers.reset(token)
+            self.ready = True
 
     def register_extra_parameters(self):
-        initialize_experiment_package(os.getcwd())
+        initialize_experiment_package(experiment_directory() or os.getcwd())
         extra_parameters = None
 
         # Import and instantiate the experiment class if available
@@ -378,11 +540,26 @@ class Configuration:
             extra_parameters()
             self._module_params_loaded = True
 
-    def load_experiment_config_defaults(self):
+    def _load_experiment_mapping(self, method_name, source):
+        """Load a config mapping returned by a classmethod on the experiment class."""
         from dallinger.experiment import load
 
         exp_klass = load()
-        self.extend(exp_klass.config_defaults(), strict=True)
+        mapping = getattr(exp_klass, method_name)()
+        if mapping:
+            self.extend(mapping, strict=True, source=source)
+
+    def load_experiment_config_defaults(self):
+        """Load suggested defaults from ``Experiment.config_defaults()``."""
+        self._load_experiment_mapping(
+            "config_defaults", ConfigSource.EXPERIMENT_DEFAULTS
+        )
+
+    def load_experiment_config_settings(self):
+        """Load authoritative settings from ``Experiment.config_settings()``."""
+        self._load_experiment_mapping(
+            "config_settings", ConfigSource.EXPERIMENT_SETTINGS
+        )
 
 
 config = None
@@ -393,9 +570,11 @@ def get_config(load=False):
 
     if config is None:
         if experiment_available():
-            from dallinger.experiment import load
+            # Import under a different name to avoid shadowing the `load`
+            # parameter, which would otherwise force config loading below.
+            from dallinger.experiment import load as load_experiment
 
-            exp_klass = load()
+            exp_klass = load_experiment()
             config_class = exp_klass.config_class()
         else:
             config_class = Configuration
@@ -432,8 +611,38 @@ def initialize_experiment_package(path):
     sys.path.pop(0)
 
 
+def experiment_directory():
+    """Return the directory of the current experiment, or None.
+
+    The current working directory counts if it contains an
+    ``experiment.py`` file. Otherwise, fall back to the directory of the
+    experiment package initialized in this process (via
+    ``initialize_experiment_package``), provided that package contains
+    ``experiment.py`` or ``dallinger_experiment.py``. This preserves the
+    experiment's config layers after changing into a non-experiment
+    directory. If the new directory contains another ``experiment.py``, the
+    current working directory takes precedence.
+    """
+    if Path("experiment.py").exists():
+        return os.getcwd()
+    module = sys.modules.get("dallinger_experiment")
+    if module is None:
+        return None
+    # Only count initialized packages that actually contain an experiment
+    # module that ``dallinger.experiment.load`` could import; this guards
+    # against stale or accidental `dallinger_experiment` entries (e.g.
+    # namespace packages without any real location).
+    module_paths = getattr(module, "__path__", None) or []
+    for path in module_paths:
+        for filename in ("experiment.py", "dallinger_experiment.py"):
+            if Path(path, filename).exists():
+                return path
+    return None
+
+
 def experiment_available():
-    return Path("experiment.py").exists()
+    """Return True if an experiment is available in the current process."""
+    return experiment_directory() is not None
 
 
 def raise_invalid_key_error(key):

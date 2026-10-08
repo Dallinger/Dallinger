@@ -1,14 +1,11 @@
-var webpack = require('webpack');
 var BrowserSyncPlugin = require('browser-sync-webpack-plugin');
-var UglifyJsPlugin = webpack.optimize.UglifyJsPlugin;
+var path = require('path');
 var env = process.env.WEBPACK_ENV;
+var isProductionBuild = env === 'build';
 
 var plugins = [];
 
-if (env === 'build') {
-  // uglify code for production
-  plugins.push(new UglifyJsPlugin({sourceMap: true}));
-} else {
+if (!isProductionBuild) {
   plugins.push(new BrowserSyncPlugin({
     host: 'localhost',
     port: 6001,
@@ -24,12 +21,16 @@ if (env === 'build') {
 }
 
 module.exports = {
+  mode: isProductionBuild ? 'production' : 'development',
   entry: {
     tracker: './dallinger/frontend/static/scripts/tracking/load-tracker.js'
   },
   output: {
-    path: __dirname + '/dallinger/frontend/static/',
+    path: path.resolve(__dirname, 'dallinger/frontend/static'),
     filename: 'scripts/[name].js'
+  },
+  optimization: {
+    minimize: isProductionBuild
   },
   devtool: 'source-map',
   plugins: plugins

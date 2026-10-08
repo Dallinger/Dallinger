@@ -62,16 +62,20 @@ def reset_sys_modules():
 
 @pytest.fixture
 def clear_workers():
-    import subprocess
+    """Stop leftover local Dallinger processes that use this test run's database."""
+    import psutil
+
+    from dallinger.heroku.tools import local_worker_processes
 
     def _zap():
-        kills = [["pkill", "-f", "heroku"]]
-        for kill in kills:
+        for process in local_worker_processes():
+            if process.pid == os.getpid():
+                continue
             try:
-                subprocess.check_call(kill)
-            except Exception as e:
-                if e.returncode != 1:
-                    raise
+                # When one of its processes exits, heroku local stops the rest.
+                process.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
 
     _zap()
     yield
@@ -167,6 +171,7 @@ def stub_config():
         "num_dynos_web": 1,
         "num_dynos_worker": 1,
         "organization_name": "Monsters University",
+        "prolific_completion_config": "{}",
         "publish_experiment": True,
         "sentry": True,
         "smtp_host": "smtp.fakehost.com:587",
@@ -180,12 +185,14 @@ def stub_config():
         "replay": False,
         "worker_multiplier": 1.5,
     }
-    from dallinger.config import Configuration, default_keys
+    from dallinger.config import ConfigSource, Configuration, default_keys
 
     config = Configuration()
     for key in default_keys:
         config.register(*key)
-    config.extend(defaults.copy())
+    # The stub values stand in for a fully loaded baseline configuration,
+    # so tag them as low-priority defaults rather than runtime overrides.
+    config.extend(defaults.copy(), source=ConfigSource.PACKAGE_DEFAULTS)
     # Patch load() so we don't update any key/value pairs from actual files:
     config.load = mock.Mock(
         side_effect=lambda strict=True, exp_klass=None: setattr(config, "ready", True)

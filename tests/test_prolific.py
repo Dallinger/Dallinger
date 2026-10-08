@@ -5,6 +5,7 @@ from unittest import mock
 from unittest.mock import patch
 
 import pytest
+import requests
 
 from dallinger.config import get_config
 from dallinger.prolific import (
@@ -16,11 +17,18 @@ from dallinger.prolific import (
 )
 
 study_request = {
-    "completion_code": "A1B2C3D4",
+    "completion_codes": [
+        {
+            "code": "A1B2C3",
+            "code_type": "DEFAULT",
+            "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
+            "actor": "participant",
+        },
+    ],
     "completion_option": "url",
     "description": "fake HIT description",
     "device_compatibility": ["desktop"],
-    "eligibility_requirements": [],
+    "filters": [],
     "estimated_completion_time": 5,
     "external_study_url": "https://www.example.com/ad?recruiter=prolific&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}",
     "internal_name": "fake experiment title (TEST_EXPERIMENT_UID)",
@@ -36,23 +44,32 @@ study_request = {
 }
 
 # If you need to created a study for testing which targets just your
-# own worker, you can add the worker ID to the eligibility_requirements,
+# own worker, you can add the worker ID to the filters,
 # then run test_make_quick_study() (after removing the @pytest.mark.skip)
 private_study_request = {
-    "completion_code": "A1B2C3D4",
+    "completion_codes": [
+        {
+            "code": "A1B2C3",
+            "code_type": "DEFAULT",
+            "actions": [{"action": "AUTOMATICALLY_APPROVE"}],
+            "actor": "participant",
+        },
+    ],
     "completion_option": "url",
     "description": "(Uses allow_list with one ID)",
-    "eligibility_requirements": [
+    "filters": [
         {
             # Add your worker ID here
-            "attributes": [{"name": "white_list", "value": []}],
+            "attributes": [
+                {"name": "white_list", "value": ["61f2914e3bb4b4d40080a6ec"]}
+            ],
             "_cls": "web.eligibility.models.CustomWhitelistEligibilityRequirement",
         }
     ],
     "estimated_completion_time": 2,
     "external_study_url": "https://dlgr-d25ea4ab-7400-437a.herokuapp.com/ad?recruiter=prolific&PROLIFIC_PID={{%PROLIFIC_PID%}}&STUDY_ID={{%STUDY_ID%}}&SESSION_ID={{%SESSION_ID%}}",
     "internal_name": "Test Private Study for One",
-    "is_custom_screening": True,
+    "is_custom_screening": False,
     "maximum_allowed_time": 10,
     "name": "Test Private Study for One",
     "project_name": "My project",
@@ -198,7 +215,8 @@ def subject(prolific_creds):
 
 @pytest.mark.skip(reason="Cannot clean up after itself")
 def test_make_quick_study(subject):
-    subject.create_study(**private_study_request)
+    result = subject.draft_study(**private_study_request)
+    assert result["name"] == "Test Private Study for One"
 
 
 @pytest.mark.usefixtures("check_prolific")
@@ -241,6 +259,29 @@ def test_can_create_a_draft_study_and_delete_it(subject):
     assert "id" in result
     assert result["is_custom_screening"] is False
     assert subject.delete_study(study_id=result["id"])
+
+
+@pytest.mark.parametrize("status_code", [200, 204])
+def test_delete_study_uses_canonical_endpoint(subject, status_code):
+    subject._req = mock.MagicMock(return_value={"status_code": status_code})
+
+    assert subject.delete_study(study_id="study_123")
+    subject._req.assert_called_once_with(
+        method="DELETE", endpoint="/studies/study_123/"
+    )
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"status_code": 404},
+        {"error": "Not found"},
+    ],
+)
+def test_delete_study_returns_false_for_unsuccessful_responses(subject, response):
+    subject._req = mock.MagicMock(return_value=response)
+
+    assert not subject.delete_study(study_id="study_123")
 
 
 @pytest.mark.usefixtures("check_prolific_writes")
@@ -480,6 +521,217 @@ def test_screen_out_single_id(subject):
             "increase_places": increase_places,
         },
     )
+
+
+def test_get_submissions_requires_study_id(subject):
+    subject._req = mock.MagicMock()
+
+    with pytest.raises(ProlificServiceException) as exc_info:
+        subject.get_submissions(None)
+
+    assert (
+        str(exc_info.value) == "Cannot fetch Prolific submissions without a study_id."
+    )
+    subject._req.assert_not_called()
+
+
+def test_get_participant_submission_without_translate_returns_payload(subject):
+    payload = {
+        "id": "sub-1",
+        "status": "ACTIVE",
+        "bonus_payments": [20, 30],
+    }
+    response = mock.MagicMock()
+    response.ok = True
+    response.json.return_value = payload
+    with mock.patch(
+        "dallinger.prolific.requests.request", return_value=response
+    ) as req:
+        assert subject.get_participant_submission("sub-1", translate=False) == payload
+    assert req.call_args.args[:2] == (
+        "GET",
+        f"{subject.api_root}/submissions/sub-1/",
+    )
+
+
+def test_requests_time_out_by_default(subject):
+    from dallinger.prolific import REQUEST_TIMEOUT
+
+    response = mock.MagicMock()
+    response.ok = True
+    response.json.return_value = {"id": "sub-1"}
+    with mock.patch(
+        "dallinger.prolific.requests.request", return_value=response
+    ) as req:
+        subject.get_participant_submission("sub-1", translate=False)
+    assert req.call_args.kwargs["timeout"] == REQUEST_TIMEOUT
+
+
+def test_transport_errors_raise_prolific_service_exception(subject):
+    with mock.patch(
+        "dallinger.prolific.requests.request", side_effect=requests.Timeout("slow")
+    ):
+        with pytest.raises(ProlificServiceException, match="slow"):
+            subject.get_participant_submission("sub-1")
+
+
+def test_approving_an_approved_submission_does_not_post(subject):
+    response = mock.MagicMock()
+    response.ok = True
+    response.json.return_value = {
+        "id": "sub-1",
+        "study_id": "study-1",
+        "participant": "worker-1",
+        "started_at": None,
+        "status": "APPROVED",
+    }
+    with mock.patch(
+        "dallinger.prolific.requests.request", return_value=response
+    ) as req:
+        result = subject.approve_participant_submission("sub-1")
+    assert result["status"] == "APPROVED"
+    assert [call.args[0] for call in req.call_args_list] == ["GET"]
+
+
+def test_get_participant_submission_without_translate_returns_none_on_http_error(
+    subject,
+):
+    response = mock.MagicMock()
+    response.ok = False
+    response.status_code = 404
+    with mock.patch("dallinger.prolific.requests.request", return_value=response):
+        with mock.patch(
+            "dallinger.recruiters.handle_and_raise_recruitment_error"
+        ) as handle:
+            assert (
+                subject.get_participant_submission("missing", translate=False) is None
+            )
+            handle.assert_not_called()
+
+
+def test_get_participant_submission_still_raises_on_error_payload(subject):
+    response = mock.MagicMock()
+    response.ok = True
+    response.json.return_value = {"error": "not found"}
+    with mock.patch("dallinger.prolific.requests.request", return_value=response):
+        with pytest.raises(ProlificServiceException):
+            subject.get_participant_submission("sub-1")
+
+
+def test_dev_get_participant_submission_without_translate_goes_through_req(
+    active_config,
+):
+    active_config.extend(
+        {"prolific_workspace": "My Workspace", "prolific_project": "My Project"}
+    )
+    service = DevProlificService(
+        api_token="fake-token", api_version="v1", referer_header="test-header"
+    )
+    with mock.patch("dallinger.prolific.requests.request") as req:
+        fetched = service.get_participant_submission("sub1", translate=False)
+    req.assert_not_called()
+    assert fetched["status"] == "AWAITING REVIEW"
+
+
+def _make_pages(page_lengths):
+    pages = []
+    next_id = 0
+    for length in page_lengths:
+        pages.append(
+            [{"id": f"submission-{i}"} for i in range(next_id, next_id + length)]
+        )
+        next_id += length
+    return pages
+
+
+def _expected_submission_calls(page_count):
+    return [
+        mock.call(
+            method="GET",
+            endpoint="/submissions/",
+            params={
+                "study": "study_123",
+                "ordering": "started_at",
+                "page": page,
+                "page_size": 100,
+            },
+        )
+        for page in range(1, page_count + 1)
+    ]
+
+
+@pytest.mark.parametrize("page_lengths", ([100, 1], [100, 0], [100, 100, 50]))
+def test_get_submissions_returns_all_paginated_results(subject, page_lengths):
+    """Without link metadata, a partial page marks the end of the results."""
+    pages = _make_pages(page_lengths)
+    subject._req = mock.MagicMock(side_effect=[{"results": page} for page in pages])
+
+    assert subject.get_submissions("study_123") == [
+        item for page in pages for item in page
+    ]
+    assert subject._req.call_args_list == _expected_submission_calls(len(page_lengths))
+
+
+def test_get_submissions_follows_next_link_despite_short_pages(subject):
+    """The "next" link is authoritative even if Prolific were to serve smaller
+    pages than requested. (The live API honors the requested page_size, so
+    this is a robustness check rather than an observed behavior.)"""
+    pages = _make_pages([20, 20, 3])
+    responses = []
+    for i, page in enumerate(pages):
+        is_last = i == len(pages) - 1
+        responses.append(
+            {
+                "results": page,
+                "_links": {
+                    "next": {"href": None if is_last else f"https://api/{i + 2}"}
+                },
+            }
+        )
+    subject._req = mock.MagicMock(side_effect=responses)
+
+    assert subject.get_submissions("study_123") == [
+        item for page in pages for item in page
+    ]
+    assert subject._req.call_args_list == _expected_submission_calls(len(pages))
+
+
+def test_get_submissions_stops_on_null_next_link_despite_full_page(subject):
+    """A null "next" link ends pagination even when the page came back full."""
+    pages = _make_pages([100])
+    subject._req = mock.MagicMock(
+        side_effect=[{"results": pages[0], "_links": {"next": {"href": None}}}]
+    )
+
+    assert subject.get_submissions("study_123") == pages[0]
+    assert subject._req.call_args_list == _expected_submission_calls(1)
+
+
+def test_get_studies_returns_all_paginated_results(subject):
+    responses = [
+        {
+            "results": [{"id": "study-1", "status": "ACTIVE"}],
+            "_links": {"next": {"href": "https://api/2"}},
+        },
+        {
+            "results": [{"id": "study-2", "status": "COMPLETED"}],
+            "_links": {"next": {"href": None}},
+        },
+    ]
+    subject._req = mock.MagicMock(side_effect=responses)
+
+    assert subject.get_studies() == [
+        {"id": "study-1", "status": "ACTIVE"},
+        {"id": "study-2", "status": "COMPLETED"},
+    ]
+    assert subject._req.call_args_list == [
+        mock.call(
+            method="GET",
+            endpoint="/studies/",
+            params={"page": page, "page_size": 100},
+        )
+        for page in (1, 2)
+    ]
 
 
 class TestDevProlificServiceScreenOut:

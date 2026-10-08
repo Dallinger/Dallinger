@@ -12,22 +12,26 @@ import uuid
 import warnings
 from collections import Counter, OrderedDict
 from contextlib import contextmanager
-from functools import wraps
+from functools import cached_property, wraps
 from importlib import import_module
 from operator import itemgetter
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import requests
-from cached_property import cached_property
 from flask import Blueprint, url_for
-from markupsafe import escape
 from sqlalchemy import String, Table, and_, asc, cast, create_engine, desc, func, or_
 from sqlalchemy.orm import scoped_session, sessionmaker, undefer
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
 
 from dallinger import db, models, recruiters
-from dallinger.config import LOCAL_CONFIG, get_config, initialize_experiment_package
+from dallinger.config import (
+    LOCAL_CONFIG,
+    ConfigSource,
+    experiment_directory,
+    get_config,
+    initialize_experiment_package,
+)
 from dallinger.data import (
     Data,
     export,
@@ -65,7 +69,7 @@ def exp_class_working_dir(meth):
             os.chdir(new_path)
             # Override configs
             config.register_extra_parameters()
-            config.load_from_file(LOCAL_CONFIG)
+            config.load_from_file(LOCAL_CONFIG, source=ConfigSource.EXPERIMENT_CONFIG)
             return meth(self, *args, **kwargs)
         finally:
             config.clear()
@@ -301,7 +305,25 @@ class Experiment:
 
     @classmethod
     def config_defaults(cls):
-        """Override this classmethod to register new default values for config variables."""
+        """Override this classmethod to register new default values for config variables.
+
+        These are low-priority *suggestions*: a user's ``~/.dallingerconfig``,
+        the experiment's ``config.txt``, environment variables, and runtime
+        writes all override them. For authoritative experiment settings, use
+        :meth:`config_settings` instead.
+        """
+        return {}
+
+    @classmethod
+    def config_settings(cls):
+        """Override this classmethod to set authoritative config values in code.
+
+        Unlike :meth:`config_defaults`, values returned here are the
+        experiment's *decisions*: they override the user's
+        ``~/.dallingerconfig``. The experiment's ``config.txt``,
+        environment variables, and runtime writes still override these
+        values, in that order.
+        """
         return {}
 
     @property
@@ -342,6 +364,24 @@ class Experiment:
         participants.
         """
         return recruiters.from_config(get_config())
+
+    def recruiter_exit_info(self, participant) -> Optional[Any]:
+        """Recruiters may accept special values to include when sending
+        participants to exit/submission URLs.
+
+        For example, if you have configured custom Prolific completion codes via
+        the `prolific_completion_config` config parameter, you can return the
+        appropriate code type (`FIXED_SCREENOUT` for example) for the
+        participant.
+
+        If None is returned, the default code type, which automatically approves
+        the participant, will be used.
+
+        Note that if you are using multiple recruiters in an experiment run, you
+        will want to check ``if participant.recruiter_id == "prolific`` or
+        similar.
+        """
+        return None
 
     def calculate_qualifications(self, participant):
         """All the qualifications we want to assign to a worker.
@@ -941,6 +981,21 @@ class Experiment:
         if not self.networks(full=False):
             self.log("All networks full: closing recruitment", "-----")
             self.recruiter.close_recruitment()
+
+    def reason_to_stay_awake(self):
+        """Return why docker-ssh idle sleep must not stop the app, or ``None``.
+
+        While the app sleeps, the clock and recruiter callbacks stop, so
+        nothing times out abandoned participants or recruits replacements.
+        Override this to add conditions, calling the parent method first.
+
+        :returns: a short reason for the deploy logs, or ``None`` to allow sleep
+        """
+        if get_config().get("auto_recruit", False):
+            return "auto_recruit is on"
+        if Participant.query.filter_by(status="working").first() is not None:
+            return "participants are still working"
+        return None
 
     def log(self, text, key="?????", force=False):
         """Print a string to the logs."""
@@ -1556,10 +1611,10 @@ class Experiment:
 
         if polymorphic_identity is None:
             cls = get_mapped_class(table_obj)
-            base = self.session.query(cls)
+            base = db.session.query(cls)
         else:
             cls = get_polymorphic_mapping(table_obj)[polymorphic_identity]
-            base = self.session.query(cls).filter(cls.type == polymorphic_identity)
+            base = db.session.query(cls).filter(cls.type == polymorphic_identity)
 
         total_count = base.order_by(None).count()
 
@@ -1601,7 +1656,7 @@ class Experiment:
         # Page
         items = q.offset(start).limit(length).all()
 
-        # Rows (strings escaped; non-strings pretty-printed inside <code>)
+        # Rows (raw JSON-native values; presentation handled client-side)
         rows, all_keys = [], set()
         for obj in items:
             data = obj.__json__() or {}
@@ -1613,11 +1668,13 @@ class Experiment:
                 if value is None:
                     coerced[key] = None
                 elif isinstance(value, (str, bytes)):
-                    coerced[key] = escape(value)
+                    if isinstance(value, bytes):
+                        coerced[key] = value.decode("utf-8", errors="replace")
+                    else:
+                        coerced[key] = value
                 else:
-                    coerced[key] = (
-                        f"<code>{escape(json.dumps(value, default=date_handler))}</code>"
-                    )
+                    # Ensure the value can be JSON-encoded for the dashboard API.
+                    coerced[key] = json.loads(json.dumps(value, default=date_handler))
             rows.append(coerced)
             all_keys.update(coerced.keys())
 
@@ -1666,10 +1723,10 @@ class Experiment:
 
         if polymorphic_identity is None:
             cls = get_mapped_class(table_obj)
-            base = self.session.query(cls)
+            base = db.session.query(cls)
         else:
             cls = get_polymorphic_mapping(table_obj)[polymorphic_identity]
-            base = self.session.query(cls).filter(cls.type == polymorphic_identity)
+            base = db.session.query(cls).filter(cls.type == polymorphic_identity)
 
         # Build q_global: global search ONLY (no panes)
         def apply_global_search(q):
@@ -1785,10 +1842,10 @@ class Experiment:
 
         if polymorphic_identity in (None, "None"):
             cls = get_mapped_class(table_obj)
-            q = self.session.query(cls)
+            q = db.session.query(cls)
         else:
             cls = get_polymorphic_mapping(table_obj)[polymorphic_identity]
-            q = self.session.query(cls).filter(cls.type == polymorphic_identity)
+            q = db.session.query(cls).filter(cls.type == polymorphic_identity)
 
         exprs, names = [], []
         for column in table_obj.columns:
@@ -1803,7 +1860,7 @@ class Experiment:
 
         nonempty_counts = []
         if exprs:
-            nonempty_counts = list(self.session.query(*exprs).one())
+            nonempty_counts = list(db.session.query(*exprs).one())
 
         # Fetch one object to obtain its JSON representation and filter out unneeded columns
         obj = q.order_by(None).limit(1).first()
@@ -2143,7 +2200,7 @@ def is_experiment_class(cls):
 def load():
     """Load the active experiment."""
     first_err = second_err = None
-    initialize_experiment_package(os.getcwd())
+    initialize_experiment_package(experiment_directory() or os.getcwd())
     try:
         try:
             from dallinger_experiment import experiment

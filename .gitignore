@@ -22,6 +22,7 @@ durations.txt
 .env
 .idea
 .pytest_cache
+/.pytest-docker-ssh/
 .tox
 .vscode
 /snapshots/
@@ -33,10 +34,9 @@ src/*
 _build/*
 docs/build
 .DS_Store
-README.rst
 .netrc
 .vagrant/
-.venv/
+.venv*/
 .cache/*
 htmlcov/*
 tests/config.py
@@ -46,7 +46,6 @@ tests/config.py
 node_modules/*
 Gemfile.lock
 .ruby-version
-package-lock.json
 pip-selfcheck.json
 
 # Tests will generate these two files. They're not supposed to be committed

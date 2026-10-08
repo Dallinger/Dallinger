@@ -64,7 +64,7 @@
   "vat_percentage": 0.0,
   "discount_from_coupons": 0,
   "stars_remaining": 2,
-  "eligibility_requirements": [
+  "filters": [
     {
       "id": "63d3d830667e240450329be8",
       "type": "select",

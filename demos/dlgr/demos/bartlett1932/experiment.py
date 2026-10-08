@@ -52,7 +52,6 @@ class Bartlett1932(Experiment):
         source to each network.
         """
         if not self.networks():
-
             super(Bartlett1932, self).setup()
             for net in self.networks():
                 models.WarOfTheGhostsSource(network=net)

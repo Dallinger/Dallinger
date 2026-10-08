@@ -102,8 +102,19 @@ class Channel:
                 channel = message["channel"]
                 payload = "{}:{}".format(channel.decode("utf-8"), data.decode("utf-8"))
                 for client in self.clients:
-                    gevent.spawn(client.send, payload)
+                    gevent.spawn(self._relay, client, payload)
             gevent.sleep(0.001)
+
+    @staticmethod
+    def _relay(client, payload):
+        """Send a relayed message, ignoring a client that has just disconnected.
+
+        ``Client.send`` already unsubscribes a closed client before raising.
+        """
+        try:
+            client.send(payload)
+        except ConnectionClosed:
+            log("Dropped message for a disconnected client", level="debug")
 
     def start(self):
         """Start relaying messages."""
@@ -132,7 +143,9 @@ class ChatBackend:
 
     def unsubscribe(self, client):
         """Unsubscribe a client from all channels."""
-        for channel in self.channels.values():
+        # Channel.unsubscribe publishes to Redis, which yields to greenlets
+        # that may add channels.
+        for channel in list(self.channels.values()):
             channel.unsubscribe(client)
 
 

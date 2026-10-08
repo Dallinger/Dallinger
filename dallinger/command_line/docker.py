@@ -13,11 +13,14 @@ from shlex import quote
 
 import click
 import requests
+import tenacity
+import urllib3.exceptions
 from heroku3.core import Heroku as Heroku3Client
 
 from dallinger import heroku, registration
 from dallinger.command_line.utils import (
     Output,
+    get_experiment_files,
     header,
     log,
     require_exp_directory,
@@ -27,9 +30,19 @@ from dallinger.command_line.utils import (
 from dallinger.config import get_config
 from dallinger.deployment import handle_launch_data
 from dallinger.heroku.tools import HerokuApp
-from dallinger.utils import GitClient, abspath_from_egg, setup_experiment
+from dallinger.utils import (
+    GitClient,
+    abspath_from_egg,
+    setup_experiment,
+)
 
 HEROKU_YML = abspath_from_egg("dallinger", "dallinger/docker/heroku.yml").read_text()
+
+# The Docker SDK default read timeout (60 s) is too short for large image
+# layers on slow connections. This timeout applies to how long the SDK will
+# wait for the next chunk of data from the daemon, not the total push duration.
+DOCKER_PUSH_TIMEOUT = 180
+DOCKER_PUSH_MAX_ATTEMPTS = 2
 
 
 @click.group()
@@ -70,7 +83,13 @@ def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
     from dallinger.docker.deployment import DockerDebugDeployment
 
     debugger = DockerDebugDeployment(
-        Output(), verbose, bot, proxy, exp_config, no_browsers
+        Output(),
+        verbose,
+        bot,
+        proxy,
+        exp_config,
+        no_browsers,
+        experiment_files=get_experiment_files(),
     )
     log(header, chevrons=False)
     debugger.run()
@@ -125,7 +144,12 @@ def build():
     from dallinger.docker.tools import build_image
 
     config = get_config(load=True)
-    _, tmp = setup_experiment(log=log, debug=True, local_checks=False)
+    _, tmp = setup_experiment(
+        log=log,
+        debug=True,
+        local_checks=False,
+        experiment_files=get_experiment_files(),
+    )
     build_image(tmp, config.get("docker_image_base_name"), Output(), force_build=True)
 
 
@@ -133,41 +157,69 @@ def build():
 @click.option("--use-existing", is_flag=True, default=False)
 def push(use_existing: bool, **kwargs) -> str:
     """Build and push the docker image for this experiment."""
-    from docker import client
-
     from dallinger.docker.tools import build_image
 
     config = get_config(load=True)
     app_name = kwargs.get("app_name", None)
-    _, tmp = setup_experiment(log=log, debug=True, local_checks=False, app=app_name)
+    _, tmp = setup_experiment(
+        log=log,
+        debug=True,
+        local_checks=False,
+        app=app_name,
+        experiment_files=get_experiment_files(),
+    )
     image_name_with_tag = build_image(
         tmp,
         config.get("docker_image_base_name"),
         Output(),
         force_build=not use_existing,
     )
-    docker_client = client.from_env()
-    for line in docker_client.images.push(
-        image_name_with_tag, stream=True, decode=True
+    return push_image(image_name_with_tag)
+
+
+def push_image(image_name_with_tag: str) -> str:
+    """Push a local image to its registry and return the digest name."""
+    from docker import client
+
+    docker_client = client.from_env(timeout=DOCKER_PUSH_TIMEOUT)
+    for attempt in tenacity.Retrying(
+        retry=tenacity.retry_if_exception_type(
+            (
+                requests.exceptions.ReadTimeout,
+                requests.exceptions.ConnectionError,
+                urllib3.exceptions.ReadTimeoutError,
+            )
+        ),
+        stop=tenacity.stop_after_attempt(DOCKER_PUSH_MAX_ATTEMPTS),
+        wait=tenacity.wait_fixed(5),
+        before_sleep=lambda s: print(
+            f"Push attempt {s.attempt_number} failed ({s.outcome.exception()}); "
+            f"retrying in {s.next_action.sleep:.0f}s..."
+        ),
+        reraise=True,
     ):
-        if "status" in line:
-            print(line["status"], end="")
-            print(line.get("progress", ""))
-        if "error" in line:
-            print(line.get("error", "") + "\n")
-            if "unauthenticated" in line["error"]:
-                registry_name = image_name_with_tag.split("/")[0]
-                for help_line in REGISTRY_UNAUTHORIZED_HELP_TEXTS.get(
-                    registry_name, REGISTRY_UNAUTHORIZED_HELP_TEXT
-                ):
-                    print(help_line.format(**locals()))
-            if "denied" in line["error"]:
-                print(
-                    f"Your current account does not have permission to push to {image_name_with_tag}"
-                )
-            raise click.Abort
-        if "aux" in line:
-            print(f'Pushed image: {line["aux"]["Digest"]}\n')
+        with attempt:
+            for line in docker_client.images.push(
+                image_name_with_tag, stream=True, decode=True
+            ):
+                if "status" in line:
+                    print(line["status"], end="")
+                    print(line.get("progress", ""))
+                if "error" in line:
+                    print(line.get("error", "") + "\n")
+                    if "unauthenticated" in line["error"]:
+                        registry_name = image_name_with_tag.split("/")[0]
+                        for help_line in REGISTRY_UNAUTHORIZED_HELP_TEXTS.get(
+                            registry_name, REGISTRY_UNAUTHORIZED_HELP_TEXT
+                        ):
+                            print(help_line.format(**locals()))
+                    if "denied" in line["error"]:
+                        print(
+                            f"Your current account does not have permission to push to {image_name_with_tag}"
+                        )
+                    raise click.Abort
+                if "aux" in line:
+                    print(f"Pushed image: {line['aux']['Digest']}\n")
     pushed_image = docker_client.images.get(image_name_with_tag).attrs["RepoDigests"][0]
     print(f"Image {pushed_image} built and pushed.\n")
     return pushed_image
@@ -310,22 +362,32 @@ def _deploy_in_mode(mode, verbose, app=None):
 
 
 def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
-    from dallinger.docker.tools import build_image
+    from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
 
     config = get_config(load=True)
-    (heroku_app_id, tmp) = setup_experiment(
-        log, debug=False, app=app, exp_config=exp_config, local_checks=False
+    heroku_app_id, tmp = setup_experiment(
+        log,
+        debug=False,
+        app=app,
+        exp_config=exp_config,
+        local_checks=False,
+        experiment_files=get_experiment_files(),
     )
     # Register the experiment using all configured registration services.
     if config.get("mode") == "live":
         log("Registering the experiment on configured services...")
         registration.register(heroku_app_id, snapshot=None)
 
-    # Build experiment image
-    build_image(tmp, Path(os.getcwd()).name, Output(), force_build=True)
-
-    # Push the built image to get the registry sha256
-    image_name = push.callback(use_existing=True, app_name=app)
+    # Build experiment image. Tag with the launch UID so concurrent deploys
+    # cannot share or overwrite one image (the experiment is COPYd in, not mounted).
+    image_name = build_image(
+        tmp,
+        config.get("docker_image_base_name") or Path(os.getcwd()).name,
+        Output(),
+        force_build=True,
+        image_tag=docker_tag_from_experiment_id(config.get("id")),
+    )
+    image_name = push_image(image_name)
 
     # Log in to Heroku if we aren't already.
     log("Making sure that you are logged in to Heroku.")

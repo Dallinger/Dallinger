@@ -56,6 +56,10 @@ AVAILABLE_STATES = [
     "SCHEDULED",
 ]
 
+# (connect, read) seconds. Without a timeout a stalled Prolific request
+# blocks its web or worker process indefinitely.
+REQUEST_TIMEOUT = (10, 30)
+
 
 class ProlificService:
     """
@@ -66,6 +70,10 @@ class ProlificService:
         api_version: Prolific API version
         referer_header: Referer header to help Prolific identify our requests when troubleshooting
     """
+
+    _unpublished_study_log_message = (
+        "Created unpublished draft study {study_id} on Prolific."
+    )
 
     def __init__(self, api_token: str, api_version: str, referer_header: str):
         self.api_token = api_token
@@ -104,12 +112,14 @@ class ProlificService:
         the study on Prolific. If we get there first, there will be an error
         because the submission hasn't happened yet.
         """
-        status = self.get_participant_submission(submission_id)["status"]
+        submission = self.get_participant_submission(submission_id)
+        status = submission["status"]
         if status == "APPROVED":
             logger.info(
                 "Participant submission is already approved, no need to approve again."
             )
-        elif status != "AWAITING REVIEW":
+            return submission
+        if status != "AWAITING REVIEW":
             # This will trigger a retry from the decorator
             raise ProlificServiceException(
                 f"Prolific session not yet submitted (current status is '{status}')."
@@ -121,26 +131,40 @@ class ProlificService:
             json={"action": "APPROVE"},
         )
 
-    def get_participant_submission(self, submission_id: str) -> dict:
-        """Retrieve details of a participant Submission
+    def get_participant_submission(
+        self, submission_id: str, *, translate: bool = True
+    ) -> Optional[dict]:
+        """Retrieve details of a participant Submission.
 
-        See: https://docs.prolific.com/docs/api-docs/public/#tag/Submissions/Submission-object
+        See: https://docs.prolific.com/api-reference/submissions
 
         This is roughly equivalent to an Assignment on MTurk.
 
-        Example return value:
+        By default the result is translated to Dallinger assignment fields
+        and a miss is a recruitment error. Pass ``translate=False`` to return
+        the Prolific payload (including ``bonus_payments``) or ``None`` on a
+        miss.
+
+        Example return value (default):
 
         {
-            "id": "60d9aadeb86739de712faee0",
-            "study_id": "60aca280709ee40ec37d4885",
-            "participant": "60bf9310e8dec401be6e9615",
+            "assignment_id": "60d9aadeb86739de712faee0",
+            "hit_id": "60aca280709ee40ec37d4885",
+            "worker_id": "60bf9310e8dec401be6e9615",
             "started_at": "2021-05-20T11:03:00.457Z",
             "status": "ACTIVE",
         }
         """
-        response = self._req(method="GET", endpoint=f"/submissions/{submission_id}/")
-        if response:
-            return _translate_submission_from_get_submission(response)
+        response = self._req(
+            method="GET",
+            endpoint=f"/submissions/{submission_id}/",
+            raise_on_error=translate,
+        )
+        if not response:
+            return None
+        if not translate:
+            return response
+        return _translate_submission_from_get_submission(response)
 
     def get_total_cost(self, study_id: str) -> float:
         """Get the total cost of a study including platform fees in cents."""
@@ -153,7 +177,7 @@ class ProlificService:
 
         return get_amount(rewards) + get_amount(bonuses)
 
-    def get_submissions(self, study_id: str) -> dict:
+    def get_submissions(self, study_id: str) -> List[dict]:
         """
         Fetch /submissions endpoint for a given study_id and return the result
 
@@ -171,17 +195,55 @@ class ProlificService:
             }
         ]
         """
-        query_params = {"study": study_id}
-        return self._req(method="GET", endpoint="/submissions/", params=query_params)[
-            "results"
-        ]
+        if not study_id:
+            raise ProlificServiceException(
+                "Cannot fetch Prolific submissions without a study_id."
+            )
+
+        return self._get_all_pages(
+            endpoint="/submissions/",
+            params={"study": study_id, "ordering": "started_at"},
+        )
 
     def get_studies(self, states: List[str] = None) -> List[dict]:
+        """Return all studies in the given states (default: all states)."""
         if not states:
             states = AVAILABLE_STATES
         assert all([state in AVAILABLE_STATES for state in states])
-        studies = self._req(method="GET", endpoint="/studies/")["results"]
+        studies = self._get_all_pages(endpoint="/studies/")
         return [study for study in studies if study["status"] in states]
+
+    def _get_all_pages(
+        self, endpoint: str, params: Optional[dict] = None, page_size: int = 100
+    ) -> List[dict]:
+        """Fetch every page of results from a paginated Prolific list endpoint.
+
+        Prolific list responses include ``_links`` metadata whose "next" href
+        is the authoritative continuation signal: it is a URL while further
+        pages exist and null on the last page. Requesting a page past the end
+        returns a 404 error, so we must stop exactly when "next" becomes null
+        rather than probing for an empty page. The next href simply preserves
+        the requested page_size and increments the page number (verified
+        against the live API), so re-requesting with an incremented ``page``
+        param is equivalent to following the href itself.
+        """
+        base_params = dict(params or {})
+        page = 1
+        results = []
+
+        while True:
+            response = self._req(
+                method="GET",
+                endpoint=endpoint,
+                params={**base_params, "page": page, "page_size": page_size},
+            )
+            page_results = response["results"]
+            results.extend(page_results)
+
+            if not _has_next_page(response, len(page_results), page_size):
+                return results
+
+            page += 1
 
     def get_assignments_for_study(self, study_id: str) -> dict:
         """Return all submissions for the current Prolific study, keyed by
@@ -274,10 +336,10 @@ class ProlificService:
 
     def draft_study(
         self,
-        completion_code: str,
+        completion_codes: List[str],
         completion_option: str,
         description: str,
-        eligibility_requirements: List[dict],
+        filters: List[dict],
         estimated_completion_time: int,
         external_study_url: str,
         internal_name: str,
@@ -318,10 +380,10 @@ class ProlificService:
 
         # We can now create the draft study.
         payload = {
-            "completion_code": completion_code,
+            "completion_codes": completion_codes,
             "completion_option": completion_option,
             "description": description,
-            "eligibility_requirements": eligibility_requirements,
+            "filters": filters,
             "estimated_completion_time": estimated_completion_time,
             "external_study_url": external_study_url,
             "internal_name": internal_name,
@@ -345,10 +407,10 @@ class ProlificService:
 
     def create_study(
         self,
-        completion_code: str,
+        completion_codes: List[dict],
         completion_option: str,
         description: str,
-        eligibility_requirements: List[dict],  # can be empty, but not None
+        filters: List[dict],  # can be empty, but not None
         estimated_completion_time: int,
         external_study_url: str,
         internal_name: str,
@@ -380,7 +442,7 @@ class ProlificService:
             logger.info(f"Publishing study {study_id} on Prolific...")
             return self.publish_study(study_id)
         else:
-            logger.info(f"Created unpublished draft study {study_id} on Prolific.")
+            logger.info(self._unpublished_study_log_message.format(study_id=study_id))
             return draft
 
     def get_hits(self):
@@ -432,7 +494,7 @@ class ProlificService:
             increase_places: Whether to increase available study places
 
         Calls the 'Bulk screen out submissions' route in the Prolific API
-        (see https://docs.prolific.com/docs/api-docs/public/#tag/Submissions/operation/BulkScreenOutSubmissions).
+        (see https://docs.prolific.com/api-reference/submissions).
 
         The Prolific documentation for this route is reproduced below:
 
@@ -484,8 +546,8 @@ class ProlificService:
 
     def delete_study(self, study_id: str) -> bool:
         """Delete a Study entirely. This is only possible on UNPUBLISHED studies."""
-        response = self._req(method="DELETE", endpoint=f"/studies/{study_id}")
-        return response == {"status_code": 204}
+        response = self._req(method="DELETE", endpoint=f"/studies/{study_id}/")
+        return response.get("status_code") in {200, 204}
 
     def pay_session_bonus(self, study_id: str, worker_id: str, amount: float) -> bool:
         """Pay a worker a bonus.
@@ -523,14 +585,27 @@ class ProlificService:
         """
         return self._req(method="GET", endpoint="/users/me/")
 
-    def _req(self, method: str, endpoint: str, **kw) -> dict:
+    def _req(
+        self,
+        method: str,
+        endpoint: str,
+        *,
+        raise_on_error: bool = True,
+        timeout=REQUEST_TIMEOUT,
+        **kw,
+    ) -> Optional[dict]:
         """Runs the actual request/response cycle:
         * Adds Authorization header
         * Adds Referer header to help Prolific identify our requests
           when troubleshooting
         * Logs all requests (we might want to stop doing this when we're
           out of our "beta" period with Prolific)
-        * Parses response and does error handling
+        * Parses response and does error handling, raising connection errors
+          and timeouts as ``ProlificServiceException``
+
+        When ``raise_on_error`` is false, a miss returns ``None`` instead of a
+        recruitment error. ``timeout`` is passed to ``requests``; it defaults
+        to ``REQUEST_TIMEOUT``, and ``None`` waits indefinitely.
         """
         from dallinger.recruiters import handle_and_raise_recruitment_error
 
@@ -545,7 +620,23 @@ class ProlificService:
             "args": kw,
         }
         logger.warning(f"Prolific API request: {json.dumps(summary)}")
-        response = requests.request(method, url, headers=headers, **kw)
+        try:
+            response = requests.request(
+                method, url, headers=headers, timeout=timeout, **kw
+            )
+        except requests.RequestException as err:
+            if not raise_on_error:
+                return None
+            error = {
+                "method": method,
+                "token": self.api_token_fragment,
+                "URL": url,
+                "args": kw,
+                "error": repr(err),
+            }
+            handle_and_raise_recruitment_error(
+                ProlificServiceException(json.dumps(error))
+            )
 
         if method == "DELETE" and response.ok:
             return {"status_code": response.status_code}
@@ -553,13 +644,17 @@ class ProlificService:
         try:
             parsed = response.json()
         except requests.exceptions.JSONDecodeError as err:
+            if not raise_on_error:
+                return None
             handle_and_raise_recruitment_error(
                 ProlificServiceException(
                     f"Failed to parse the following JSON response from Prolific: {err.doc}"
                 )
             )
 
-        if "error" in parsed:
+        if isinstance(parsed, dict) and "error" in parsed:
+            if not raise_on_error:
+                return None
             error = {
                 "method": method,
                 "token": self.api_token_fragment,
@@ -570,6 +665,9 @@ class ProlificService:
             handle_and_raise_recruitment_error(
                 ProlificServiceException(json.dumps(error))
             )
+
+        if not raise_on_error and not response.ok:
+            return None
 
         return parsed
 
@@ -586,6 +684,24 @@ def _translate_submission_from_get_submission(prolific_assignment_info):
     }
 
 
+def _has_next_page(response: dict, page_length: int, page_size: int) -> bool:
+    """Whether a paginated Prolific list response points to a further page.
+
+    Prolific list responses include link metadata of the form
+    ``{"_links": {"next": {"href": <url-or-null>}, ...}}``; a non-null "next"
+    href is the authoritative signal that a further page exists. If a response
+    were ever to omit the link metadata, we fall back to treating a partial
+    page as the final one.
+    """
+    links = response.get("_links")
+    if isinstance(links, dict) and "next" in links:
+        next_link = links["next"]
+        if isinstance(next_link, dict):
+            next_link = next_link.get("href")
+        return bool(next_link)
+    return page_length >= page_size
+
+
 def _translate_submission_from_get_submissions(prolific_assignment_info, study_id):
     # Convert from Prolific to Dallinger terminology
     p = prolific_assignment_info
@@ -600,6 +716,10 @@ def _translate_submission_from_get_submissions(prolific_assignment_info, study_i
 
 class DevProlificService(ProlificService):
     """Wrapper that mocks the Prolific REST API and instead of making requests it writes to the log."""
+
+    _unpublished_study_log_message = (
+        "Prolific study simulated in debug mode; nothing was created on Prolific."
+    )
 
     def __init__(self, *args, **kwargs):
         self.owner_id = "60a42f4c693c29420793cb73"
@@ -665,7 +785,9 @@ class DevProlificService(ProlificService):
 
         return True
 
-    def _req(self, method: str, endpoint: str, **kw) -> dict:
+    def _req(
+        self, method: str, endpoint: str, *, raise_on_error: bool = True, **kw
+    ) -> Optional[dict]:
         """Does NOT make any requests but instead writes to the log."""
         self.log_request(method=method, endpoint=endpoint, **kw)
         response = None
@@ -681,7 +803,7 @@ class DevProlificService(ProlificService):
             if method == "GET":
                 if re.match(r"/studies/[a-z0-9]+/", endpoint):
                     # method="GET", endpoint=f"/studies/{study_id}/"
-                    # Response based on example at https://docs.prolific.com/docs/api-docs/public/#tag/Studies/operation/GetStudy
+                    # Response based on example at https://docs.prolific.com/api-reference/studies/get-study
                     response = {
                         "id": "60d9aadeb86739de712faee0",
                         "name": "Study about API's",
@@ -791,7 +913,7 @@ class DevProlificService(ProlificService):
                 }
 
             elif method == "DELETE":
-                # method="DELETE", endpoint=f"/studies/{study_id}"
+                # method="DELETE", endpoint=f"/studies/{study_id}/"
                 response = {"status_code": 204}
 
         # Submissions
@@ -922,8 +1044,8 @@ class DevProlificService(ProlificService):
         log_msg = (
             f'Simulated Prolific API request: method="{method}", endpoint="{endpoint}"'
         )
-        log_msg += f', json={kw["json"]}' if "json" in kw else ""
-        log_msg += f'\n{kw["message"]}' if "message" in kw else ""
+        log_msg += f", json={kw['json']}" if "json" in kw else ""
+        log_msg += f"\n{kw['message']}" if "message" in kw else ""
         logger.info(log_msg)
 
     def log_response(self, response):
@@ -935,7 +1057,9 @@ def prolific_service_from_config(strict=False):  #
     from dallinger.prolific import ProlificService
 
     config = get_config()
-    config.load(strict=strict)
+    # Recruiters are built per request; don't re-read config files each time.
+    if not config.ready:
+        config.load(strict=strict)
     return ProlificService(
         api_token=config.get("prolific_api_token"),
         api_version=config.get("prolific_api_version"),

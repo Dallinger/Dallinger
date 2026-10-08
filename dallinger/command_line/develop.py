@@ -9,6 +9,7 @@ from rq import Queue
 from dallinger.command_line.utils import (
     Output,
     error,
+    get_experiment_files,
     header,
     log,
     require_exp_directory,
@@ -16,7 +17,11 @@ from dallinger.command_line.utils import (
 from dallinger.config import get_config
 from dallinger.db import redis_conn
 from dallinger.deployment import DevelopmentDeployment, handle_launch_data
-from dallinger.utils import develop_target_path, open_browser, setup_warning_hooks
+from dallinger.utils import (
+    develop_target_path,
+    open_browser,
+    setup_warning_hooks,
+)
 
 setup_warning_hooks()
 
@@ -55,10 +60,22 @@ def develop():
     is_flag=True,
     help="Skip launching Flask, so that Flask can be managed externally",
 )
-def debug(port, skip_flask):
+@click.option(
+    "--no-browsers",
+    is_flag=True,
+    help="Skip opening browsers; log the recruitment message and dashboard login",
+)
+def debug(port, skip_flask, no_browsers=False):
     from dallinger.command_line.utils import verify_package
 
-    if not verify_package():
+    files = get_experiment_files()
+    # Skip deployable-package module verification so large experiments are not
+    # copied before staging. Config loading still imports the working tree,
+    # Flask imports the staged tree, and `dallinger verify` remains strict.
+    if not verify_package(
+        verify_experiment=False,
+        experiment_files=files,
+    ):
         # We could instead use the @require_exp_directory decorator,
         # but this doesn't print anything useful without the verbose flag.
         # To consider for later: improving this default behavior of @require_exp_directory?
@@ -67,10 +84,13 @@ def debug(port, skip_flask):
         )
         raise click.Abort
 
-    _bootstrap()
+    _bootstrap(experiment_files=files)
 
     q = Queue("default", connection=redis_conn)
-    job = q.enqueue_call(launch_app_and_open_browser, kwargs={"port": port})
+    if no_browsers:
+        job = q.enqueue_call(launch_app_without_browsers, kwargs={"port": port})
+    else:
+        job = q.enqueue_call(launch_app_and_open_browser, kwargs={"port": port})
 
     if not skip_flask:
         config = get_config()
@@ -85,12 +105,16 @@ def debug(port, skip_flask):
 @develop.command()
 @require_exp_directory
 def bootstrap(exp_config=None):
-    _bootstrap(exp_config)
+    _bootstrap(exp_config, experiment_files=get_experiment_files())
 
 
-def _bootstrap(exp_config=None):
+def _bootstrap(exp_config=None, experiment_files=None):
     """Creates a directory which will be used to host the development version of the experiment."""
-    bootstrapper = DevelopmentDeployment(Output(), exp_config)
+    bootstrapper = DevelopmentDeployment(
+        Output(),
+        exp_config,
+        experiment_files=experiment_files,
+    )
     log(header, chevrons=False)
     bootstrapper.run()
 
@@ -102,9 +126,27 @@ def launch_app_and_open_browser(port):
     _async_browser("ad", port)
 
 
+def launch_app_without_browsers(port):
+    """Launch the app and log what the browsers would otherwise show.
+
+    Matches the output of ``dallinger debug --no-browsers``.
+    """
+    launch_data = _launch_app(port)
+    if launch_data.get("recruitment_msg"):
+        log(launch_data["recruitment_msg"])
+    config = get_config(load=True)
+    log("Experiment dashboard: {}".format(BASE_URL.format(port) + "dashboard/develop"))
+    log(
+        "Dashboard user: {} password: {}".format(
+            config.get("dashboard_user"),
+            config.get("dashboard_password"),
+        )
+    )
+
+
 def _launch_app(port):
     url = BASE_URL.format(port) + "launch"
-    handle_launch_data(url, error=log, delay=1.0, context="local")
+    return handle_launch_data(url, error=log, delay=1.0, context="local")
 
 
 @develop.command()
