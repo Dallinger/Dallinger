@@ -165,8 +165,9 @@
 ### Updated
 
 - Upgraded Paramiko to 5, which fixes CVE-2026-44405 by removing SHA-1 from
-  RSA signatures and key exchange. docker-ssh and EC2 commands can no longer
-  connect to SSH servers that only offer SHA-1 (OpenSSH older than 7.2).
+  RSA signatures and key exchange. docker-ssh and EC2 commands that use an RSA
+  key, or reach a server with an RSA host key, now need OpenSSH 7.2 or newer
+  on the server.
 - Removed the unmaintained `sshtunnel` dependency from the `docker` extra; it
   does not work with Paramiko 4 or later. The database tunnel used by
   `docker-ssh export` and archive restores now forwards over Dallinger's own

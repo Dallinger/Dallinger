@@ -883,6 +883,17 @@ def test_remote_postgres_prefers_pinned_container_name(monkeypatch):
     remote.close()
 
 
+def test_forward_local_port_drops_connection_when_server_refuses(caplog):
+    transport = mock.Mock()
+    transport.open_channel.side_effect = docker_ssh_module.paramiko.ChannelException(
+        1, "Administratively prohibited"
+    )
+    with docker_ssh_module._forward_local_port(transport, ("10.0.0.8", 5432)) as port:
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as client:
+            assert client.recv(1) == b""
+    assert "Could not open SSH tunnel to 10.0.0.8:5432" in caplog.text
+
+
 def test_remote_postgres_does_not_fall_back_when_app_db_is_stopped(monkeypatch):
     executor = mock.Mock()
 
