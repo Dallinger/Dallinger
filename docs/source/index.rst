@@ -100,7 +100,7 @@ Alternative Environments Documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 We are currently experimenting with several other development and deployment environments
-for Dallinger, such as Docker and Vagrant. These potentially offer various advantages,
+for Dallinger, such as Docker. These potentially offer various advantages,
 such as better cross-platform compatibility, enhanced reproducibility, and so on.
 The following documentation topics describe some of these approaches. However,
 this work is still experimental and so the documentation is not complete yet.
@@ -112,7 +112,6 @@ this work is still experimental and so the documentation is not complete yet.
     docker_tutorial
     docker_support
     docker_only
-    vagrant_setup
     ec2_deployment
 
 
