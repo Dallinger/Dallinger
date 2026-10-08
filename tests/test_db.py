@@ -81,3 +81,28 @@ def test_create_db_engine_updates_postgresql_scheme():
     engine = create_db_engine(old_scheme_uri)
 
     assert engine.url.render_as_string().startswith("postgresql://")
+
+
+def test_create_db_engine_bounds_pool_by_default(monkeypatch):
+    from dallinger.db import create_db_engine
+
+    for name in (
+        "DATABASE_POOL_SIZE",
+        "DATABASE_MAX_OVERFLOW",
+        "DATABASE_POOL_TIMEOUT",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    pool = create_db_engine("postgresql://foo:bar@somehost/blah").pool
+
+    assert (pool.size(), pool._max_overflow, pool._timeout) == (5, 10, 30)
+
+
+def test_create_db_engine_reads_pool_limits_from_environment(monkeypatch):
+    from dallinger.db import create_db_engine
+
+    monkeypatch.setenv("DATABASE_POOL_SIZE", "3")
+    monkeypatch.setenv("DATABASE_MAX_OVERFLOW", "4")
+    monkeypatch.setenv("DATABASE_POOL_TIMEOUT", "5")
+    pool = create_db_engine("postgresql://foo:bar@somehost/blah").pool
+
+    assert (pool.size(), pool._max_overflow, pool._timeout) == (3, 4, 5)

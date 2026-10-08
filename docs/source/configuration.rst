@@ -56,6 +56,31 @@ or ``config.txt`` from loading. A working directory containing another
 writes may differ between processes.
 
 
+Database connection pool
+------------------------
+
+Each Dallinger process (every web worker, RQ worker and the clock) keeps its
+own pool of database connections. The pool keeps up to 5 idle connections,
+opens up to 10 more under load, and then makes further requests wait up to 30
+seconds for a free connection. This stops a busy server from exhausting the
+connection limit of PostgreSQL (100 by default) or of PgBouncer. The pool is
+created before the configuration is loaded, so it is set with environment
+variables rather than config parameters:
+
+``DATABASE_POOL_SIZE``
+    Idle connections kept per process (default 5).
+
+``DATABASE_MAX_OVERFLOW``
+    Extra connections a process may open under load (default 10).
+
+``DATABASE_POOL_TIMEOUT``
+    Seconds to wait for a free connection before raising an error
+    (default 30).
+
+Keep (web workers + RQ workers + clock) × (pool size + overflow) below the
+database's connection limit.
+
+
 Built-in configuration
 ----------------------
 

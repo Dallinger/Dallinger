@@ -129,6 +129,10 @@ services:
       - PGBOUNCER_PORT=5432
       - PGBOUNCER_DATABASE={{ experiment_id }}
       - PGBOUNCER_POOL_MODE=transaction
+      # Each Dallinger process may open up to DATABASE_POOL_SIZE +
+      # DATABASE_MAX_OVERFLOW connections. Client connections are cheap;
+      # PgBouncer still caps server connections at its default pool size (20).
+      - PGBOUNCER_MAX_CLIENT_CONN=1000
       # Connections to postgres will be closed after 60 seconds of inactivity
       - PGBOUNCER_SERVER_IDLE_TIMEOUT=60
 
