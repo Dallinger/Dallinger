@@ -680,6 +680,17 @@ the title, but the important part to notice here is that we include the
 experiment's Javascript files. Here is where you can add any Javascript
 libraries that you need to use for your experiment.
 
+The ``libs`` block loads jQuery inside its own ``jquery`` block. If your
+layout already loads jQuery in ``<head>``, for example so that jQuery plugins
+can load before the page body, override that block with an empty one:
+
+::
+
+	{% block jquery %}{% endblock %}
+
+Loading jQuery a second time would replace the first copy and drop any
+plugins registered on it.
+
 myexperiments.pushbutton/myexperiments/pushbutton/templates/ad.html
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

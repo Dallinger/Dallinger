@@ -4,6 +4,10 @@
 
 ### Added
 
+- Added a `jquery` block inside the `libs` block of `base/layout.html`.
+  Templates that already load jQuery in `<head>` can override it with an
+  empty block instead of loading jQuery a second time, which replaced the
+  first copy and dropped the jQuery plugins registered on it.
 - Added a Cursor `/release` command and release skill for cutting
   Dallinger releases to PyPI and ghcr.
 - Added `--no-browsers` to `dallinger develop debug`. Instead of opening the
