@@ -774,18 +774,31 @@ def _find_dns_records(route_53, zone_id, dns_host):
 
     Records of any type are returned, because ``create_dns_record`` has to
     replace whatever is at that name (a hand-made ``A`` record, say) with its
-    ``CNAME``. The zone's own ``SOA``/``NS`` records are excluded: they share the
-    apex name, and Route 53 refuses to delete them.
+    ``CNAME``. A name holding ``SOA`` or ``NS`` records is a zone apex or a
+    delegated subdomain: a ``CNAME`` cannot live there, and deleting its other
+    records would break mail or the delegated zone, so it is refused outright.
     """
     managed_names = _managed_record_names(dns_host)
     paginator = route_53.get_paginator("list_resource_record_sets")
-    return [
+    records = [
         record
         for page in paginator.paginate(HostedZoneId=zone_id)
         for record in page["ResourceRecordSets"]
         if record["Name"].lower() in managed_names
-        and record["Type"] not in ("SOA", "NS")
     ]
+    record_types = {record["Type"] for record in records}
+    if "SOA" in record_types:
+        raise click.ClickException(
+            f"DNS host {dns_host} is the apex of a hosted zone, so Dallinger cannot "
+            f"point it at a server. Use a subdomain instead, for example exp.{dns_host}."
+        )
+    if "NS" in record_types:
+        raise click.ClickException(
+            f"DNS host {dns_host} is delegated to another hosted zone, so Dallinger "
+            "cannot point it at a server. Use a name that is neither delegated nor "
+            "inside a delegated subdomain."
+        )
+    return records
 
 
 def remove_dns_records(zone_id, dns_host, route_53=None, confirm=False):

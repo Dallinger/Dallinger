@@ -76,25 +76,26 @@ class TestRemoveDnsRecords:
 
         assert _deleted_names(route_53) == ["exp.example.com."]
 
-    def test_zone_apex_keeps_subdomains_and_ns_soa_records(self):
+    @pytest.mark.parametrize(
+        "dns_host, types, error",
+        [
+            ("example.com", ["SOA", "NS", "MX"], "for example exp.example.com"),
+            ("exp.example.com", ["NS"], "neither delegated"),
+        ],
+        ids=["zone-apex", "delegated-subdomain"],
+    )
+    def test_refuses_apex_and_delegations_without_deleting(
+        self, dns_host, types, error
+    ):
         route_53 = _route_53_client(
-            [
-                {"Name": "example.com.", "Type": "NS", "TTL": 172800},
-                {"Name": "example.com.", "Type": "SOA", "TTL": 900},
-                _record("exp.example.com."),
-                _record("example.com.", value="1.2.3.4"),
-            ]
+            [{"Name": f"{dns_host}.", "Type": type_, "TTL": 300} for type_ in types]
+            + [_record(f"other.{dns_host}.")]
         )
 
-        remove_dns_records("ZONE", "example.com", route_53=route_53)
+        with pytest.raises(click.ClickException, match=error):
+            remove_dns_records("ZONE", dns_host, route_53=route_53)
 
-        deleted = [
-            call.kwargs["ChangeBatch"]["Changes"][0]["ResourceRecordSet"]
-            for call in route_53.change_resource_record_sets.call_args_list
-        ]
-        assert [(record["Name"], record["Type"]) for record in deleted] == [
-            ("example.com.", "CNAME")
-        ]
+        route_53.change_resource_record_sets.assert_not_called()
 
     def test_replaces_a_record_left_at_the_managed_name(self):
         route_53 = _route_53_client(
@@ -126,7 +127,7 @@ class TestRemoveDnsRecords:
 
         route_53.change_resource_record_sets.assert_not_called()
 
-    def test_alias_records_without_targets_do_not_crash(self, capsys, monkeypatch):
+    def test_alias_records_without_targets_do_not_crash(self, monkeypatch):
         route_53 = _route_53_client(
             [{"Name": "exp.example.com.", "Type": "A", "AliasTarget": {}}]
         )
