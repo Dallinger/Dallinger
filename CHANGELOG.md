@@ -162,6 +162,13 @@
   caller's, which it never reads. Startup failures also cancel the timeout
   alarm instead of leaving it armed after the original error.
 
+### Removed
+
+- Removed the Vagrant development environment (``Vagrantfile`` and the Vagrant
+  setup documentation). It targeted Ubuntu 16.04, Python 3.6, and PostgreSQL
+  9.5 and could not install current Dallinger. Use a normal install or Docker
+  instead.
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added
