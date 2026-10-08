@@ -243,6 +243,9 @@
 - Updated Python dependencies (regenerated ``requirements.txt``,
   ``dev-requirements.txt``, and ``constraints.txt``; bumped the ruff
   pre-commit hook).
+- Updated Python dependencies (regenerated ``requirements.txt``,
+  ``dev-requirements.txt``, and ``constraints.txt``; bumped the ruff
+  pre-commit hook to v0.16.10).
 - Documented ``deploy.toml`` for experiment authors, including format,
   the nested ``[exclude]`` table, auto-omitted paths,
   ``dallinger deployment-files list`` / ``init``, and that Git-based
