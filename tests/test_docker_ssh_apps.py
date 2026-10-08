@@ -911,6 +911,7 @@ def test_remote_postgres_does_not_fall_back_when_app_db_is_stopped(monkeypatch):
             {"host": "example.com", "user": "ubuntu"}, "myapp"
         ):
             pass
+    executor.client.close.assert_called_once()
 
 
 def test_select_running_app_returns_lone_hibernating_app(monkeypatch):

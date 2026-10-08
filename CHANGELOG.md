@@ -173,8 +173,9 @@
   `docker-ssh export` and archive restores now forwards over Dallinger's own
   SSH connection, so it uses only the `server_pem` key and the same
   known-hosts handling as other docker-ssh commands.
-- A DSA `server_pem` no longer works. Paramiko 5 does not load DSA keys, and
-  Dallinger reports the file as `not a valid OPENSSH private key file`.
+- A DSA `server_pem` no longer works. Paramiko 5 does not load DSA keys; a
+  PEM-format key fails with `not a valid OPENSSH private key file` and an
+  OpenSSH-format key with a `ValueError` such as `dmq1 must be odd`.
   Check the key with `ssh-keygen -l -f`, install a new public key through a
   login that already works, and point `server_pem` at the new private key.
   The docker-ssh documentation has the replacement steps.
