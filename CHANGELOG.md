@@ -162,6 +162,17 @@
   caller's, which it never reads. Startup failures also cancel the timeout
   alarm instead of leaving it armed after the original error.
 
+### Updated
+
+- Upgraded Paramiko to 5, which fixes CVE-2026-44405 by removing SHA-1 from
+  RSA signatures and key exchange. docker-ssh and EC2 commands can no longer
+  connect to SSH servers that only offer SHA-1 (OpenSSH older than 7.2).
+- Removed the unmaintained `sshtunnel` dependency from the `docker` extra; it
+  does not work with Paramiko 4 or later. The database tunnel used by
+  `docker-ssh export` and archive restores now forwards over Dallinger's own
+  SSH connection, so it uses only the `server_pem` key and the same
+  known-hosts handling as other docker-ssh commands.
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added
