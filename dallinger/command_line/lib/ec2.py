@@ -756,16 +756,53 @@ def get_subdomain(dns_host):
     return dns_host.split(".")[0]
 
 
-def remove_dns_records(zone_id, dns_host, route_53=None, confirm=False):
-    if route_53 is None:
-        route_53 = get_53_client()
-    records = route_53.list_resource_record_sets(HostedZoneId=zone_id)
-    filtered_records = [
-        record for record in records["ResourceRecordSets"] if dns_host in record["Name"]
+def _managed_record_names(dns_host):
+    """Return the Route 53 record names that Dallinger manages for dns_host.
+
+    ``create_dns_records`` creates both ``dns_host`` and ``*.dns_host``, and
+    Route 53 reports fully qualified names with the wildcard octet escaped as
+    ``\\052``, so every spelling of the pair is included.
+    """
+    base = dns_host.rstrip(".").lower()
+    if base.startswith("*."):
+        base = base[2:]
+    return {f"{base}.", f"*.{base}.", f"\\052.{base}."}
+
+
+def _find_dns_records(route_53, zone_id, dns_host):
+    """Return the records in zone_id that Dallinger manages for dns_host.
+
+    Records of any type are returned, because ``create_dns_record`` has to
+    replace whatever is at that name (a hand-made ``A`` record, say) with its
+    ``CNAME``. The zone's own ``SOA``/``NS`` records are excluded: they share the
+    apex name, and Route 53 refuses to delete them.
+    """
+    managed_names = _managed_record_names(dns_host)
+    paginator = route_53.get_paginator("list_resource_record_sets")
+    return [
+        record
+        for page in paginator.paginate(HostedZoneId=zone_id)
+        for record in page["ResourceRecordSets"]
+        if record["Name"].lower() in managed_names
+        and record["Type"] not in ("SOA", "NS")
     ]
 
+
+def remove_dns_records(zone_id, dns_host, route_53=None, confirm=False):
+    """Delete the records for dns_host and its wildcard, optionally confirming first."""
+    if route_53 is None:
+        route_53 = get_53_client()
+    filtered_records = _find_dns_records(route_53, zone_id, dns_host)
+
     if len(filtered_records) > 0:
-        used_host = filtered_records[0]["ResourceRecords"][0]["Value"]
+        targets = sorted(
+            {
+                resource["Value"]
+                for record in filtered_records
+                for resource in record.get("ResourceRecords", [])
+            }
+        )
+        used_host = ", ".join(targets) if targets else "an unknown target"
         msg = f"""
                 DNS host {dns_host} is already used by instance {used_host}. Make sure no experiments are running under this
                 domain, OTHERWISE THIS WILL BREAK THEM. Are you sure you want to overwrite the DNS record and use it for

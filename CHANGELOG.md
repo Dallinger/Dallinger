@@ -222,6 +222,13 @@
   not succeed before the timeout, and a failed launch now ends with a short
   ``Error: Experiment launch failed. ...`` diagnosis instead of a Python
   traceback.
+- ``dallinger ec2`` commands that manage Route 53 records now match the
+  requested DNS name exactly, together with its wildcard companion, instead of
+  matching any record whose name merely contains that string. Provisioning
+  ``exp.example.com`` no longer reports an unrelated ``staging-exp.example.com``
+  as the conflicting instance and no longer deletes it, and the zone's own
+  ``SOA``/``NS`` records are left alone. Record lookup is also paginated, so
+  names are still found in hosted zones with more than one page of records.
 - docker-ssh deploy and sandbox no longer carry on after the deploy fails when
   ``docker_image_name`` is configured. The registry lookup wrapped the whole
   deploy, so an abort (a failed DNS check, a missing contact email, a
