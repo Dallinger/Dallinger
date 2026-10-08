@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added a Cursor `/release` command and release skill for cutting
+  Dallinger releases to PyPI and ghcr.
 - Added `--no-browsers` to `dallinger develop debug`. Instead of opening the
   dashboard and participant browsers, it logs the recruitment message, the
   dashboard URL and the dashboard login, like `dallinger debug --no-browsers`.
