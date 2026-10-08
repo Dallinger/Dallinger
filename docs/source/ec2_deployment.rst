@@ -113,6 +113,10 @@ Both PEM and OpenSSH private key formats are supported.
 
     DSS/DSA keys are NOT supported. They have been deprecated industry-wide since 2015
     due to security weaknesses (limited to 1024-bit). AWS EC2 does not generate DSS keys.
+    To replace a DSA ``server_pem``, follow :ref:`replacing-a-dsa-key`.
+    Import the new public key as an EC2 key pair and set ``ec2_default_pem`` to its name
+    so that new instances boot with it. An instance that is already running still needs
+    the new public key in its ``authorized_keys``.
 
 AWS Region
 ----------
