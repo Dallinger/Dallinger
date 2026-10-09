@@ -179,6 +179,12 @@
   Paramiko with an unrelated message such as `dmq1 must be odd`. To replace
   the key, check it with `ssh-keygen -l -f`, install a new public key through
   a login that already works, and point `server_pem` at the new private key.
+### Removed
+
+- Removed the Vagrant development environment (``Vagrantfile`` and the Vagrant
+  setup documentation). It targeted Ubuntu 16.04, Python 3.6, and PostgreSQL
+  9.5 and could not install current Dallinger. Use a normal install or Docker
+  instead.
 
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
