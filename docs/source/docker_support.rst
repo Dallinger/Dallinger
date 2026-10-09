@@ -389,6 +389,46 @@ Both PEM and OpenSSH private key formats are supported.
 .. note::
 
     DSS/DSA keys are no longer supported as they have been deprecated industry-wide since 2015 due to security weaknesses (limited to 1024-bit key length).
+    Replace an existing DSA ``server_pem`` as described in :ref:`replacing-a-dsa-key`.
+
+    SHA-1 is not supported for key exchange or RSA signatures. If your key or the server's host key is RSA, the server needs OpenSSH 7.2 or newer.
+
+.. _replacing-a-dsa-key:
+
+.. rubric:: Replacing a DSA key
+
+A DSA (DSS) private key cannot be converted to Ed25519, RSA, or ECDSA.
+Check the file named by ``server_pem``:
+
+.. code-block:: shell
+
+    ssh-keygen -l -f ~/.ssh/your-key.pem
+
+``(DSA)`` in that output means the key has to be replaced. Generate a new key:
+
+.. code-block:: shell
+
+    ssh-keygen -t ed25519 -f ~/.ssh/my-key.pem
+    chmod 400 ~/.ssh/my-key.pem
+
+Install ``~/.ssh/my-key.pem.pub`` on the server before you depend on the new Dallinger.
+From a login that already works, append that public key to ``~/.ssh/authorized_keys``
+for the deploy user. Another authorized key can do it in one step:
+
+.. code-block:: shell
+
+    ssh -i ~/.ssh/other-key.pem user@server 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys' < ~/.ssh/my-key.pem.pub
+
+A current OpenSSH client cannot log in with the DSA key, because it no longer offers ``ssh-dss``.
+If that key is the only login, paste the new public key in through the server provider's console.
+Then point ``server_pem`` at ``~/.ssh/my-key.pem`` and confirm it:
+
+.. code-block:: shell
+
+    ssh -i ~/.ssh/my-key.pem user@server
+
+Dallinger cannot use a DSA ``server_pem``. Commands that connect to the server stop
+before connecting, with an error that links to this section.
 
 Dallinger verifies that ``docker`` and ``docker compose`` are installed, and installs them if they are not.
 The installation should take a couple of minutes.

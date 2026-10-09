@@ -171,6 +171,8 @@ imagesize==2.0.1
     # via sphinx
 iniconfig==2.3.0
     # via pytest
+invoke==3.0.3
+    # via paramiko
 ipykernel==7.3.0
     # via
     #   jupyter
@@ -350,10 +352,8 @@ pandas==3.0.6
     #   tablib
 pandocfilters==1.5.1
     # via nbconvert
-paramiko==3.5.1
-    # via
-    #   dallinger
-    #   sshtunnel
+paramiko==5.0.0
+    # via dallinger
 parsimonious==0.10.0
     # via sphinx-js
 parso==0.8.7
@@ -543,8 +543,6 @@ sphinxcontrib-serializinghtml==2.0.0
 sphinxcontrib-spelling==8.0.2
     # via dallinger
 sqlalchemy==1.4.54
-    # via dallinger
-sshtunnel==0.4.0
     # via dallinger
 stack-data==0.6.3
     # via ipython
