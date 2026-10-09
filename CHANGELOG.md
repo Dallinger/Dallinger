@@ -91,6 +91,9 @@
 
 ### Fixed
 
+- Stopping `dallinger develop debug` no longer prints a
+  `TypeError: 'NoneType' object is not callable` traceback from gevent
+  during interpreter shutdown on Python 3.13.
 - Remote Docker builds work when the SSH username contains ``@``.
 - docker-ssh deploys no longer write the dashboard or Dozzle password into
   ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.
