@@ -427,9 +427,8 @@ Then point ``server_pem`` at ``~/.ssh/my-key.pem`` and confirm it:
 
     ssh -i ~/.ssh/my-key.pem user@server
 
-After this upgrade, Dallinger cannot load a DSA ``server_pem``. A PEM-format key
-(``BEGIN DSA PRIVATE KEY``) fails with ``not a valid OPENSSH private key file``; an
-OpenSSH-format key fails with a ``ValueError`` such as ``dmq1 must be odd``.
+Dallinger cannot use a DSA ``server_pem``. Commands that connect to the server stop
+before connecting, with an error that links to this section.
 
 Dallinger verifies that ``docker`` and ``docker compose`` are installed, and installs them if they are not.
 The installation should take a couple of minutes.

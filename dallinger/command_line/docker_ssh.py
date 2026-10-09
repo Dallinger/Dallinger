@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import io
 import ipaddress
@@ -2366,6 +2367,31 @@ def _run_hibernation_action(server, app, action, required=True):
     return True
 
 
+def _is_dsa_key(path):
+    """Return whether the private key file at ``path`` holds a DSA key.
+
+    Recognizes PEM (``BEGIN DSA PRIVATE KEY``) and OpenSSH formats. The
+    public key in an OpenSSH file is not encrypted, so this also works for
+    passphrase-protected keys.
+    """
+    try:
+        text = Path(path).read_text()
+    except (OSError, UnicodeDecodeError):
+        return False
+    if "-----BEGIN DSA PRIVATE KEY-----" in text:
+        return True
+    match = re.search(
+        r"-----BEGIN OPENSSH PRIVATE KEY-----(.*?)-----END", text, re.DOTALL
+    )
+    if match is None:
+        return False
+    try:
+        blob = base64.b64decode("".join(match.group(1).split()))
+    except ValueError:
+        return False
+    return b"\x00\x00\x00\x07ssh-dss" in blob
+
+
 def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
     """Create and connect an SSH client with proper authentication.
 
@@ -2383,6 +2409,13 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
     """
     ssh_host, ssh_port = split_ssh_host_port(host)
     pem_path = get_server_pem_path()
+    if _is_dsa_key(pem_path):
+        raise click.ClickException(
+            f"The server_pem key at {pem_path} is a DSA key, which Dallinger "
+            "can no longer use. Replace it with an Ed25519, RSA, or ECDSA key: "
+            "https://dallinger.readthedocs.io/en/latest/docker_support.html"
+            "#replacing-a-dsa-key"
+        )
     client = paramiko.SSHClient()
 
     known_hosts_path = os.path.expanduser("~/.ssh/known_hosts")
@@ -2449,15 +2482,6 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         except paramiko.AuthenticationException:
             spinner.fail("✖ Authentication failed")
             raise
-        except ValueError as ex:
-            if "q must be exactly" in str(ex):
-                raise ValueError(
-                    f"The PEM key file at {pem_path} is not compatible with this EC2 instance.\n"
-                    "Make sure you're using the correct EC2 key pair file that matches this instance.\n"
-                    "Check your 'server_pem' configuration or use the correct key file."
-                )
-            else:
-                raise
         except Exception:
             spinner.fail("✖ Connection failed")
             raise
