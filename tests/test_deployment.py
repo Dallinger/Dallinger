@@ -1981,6 +1981,7 @@ class TestDebugServer:
 
     def test_recruitment_closed(self, debugger_unpatched):
         debugger = debugger_unpatched
+        debugger.status_poll_interval = 0.01
         debugger.new_recruit = mock.Mock(return_value=None)
         debugger.heroku = mock.Mock()
         response = mock.Mock(json=mock.Mock(return_value={"completed": True}))
@@ -1991,6 +1992,44 @@ class TestDebugServer:
 
         debugger.out.log.assert_called_with("Experiment completed, all nodes filled.")
         debugger.heroku.stop.assert_called_once()
+
+    def test_status_errors_are_reported_only_when_they_persist(
+        self, debugger_unpatched
+    ):
+        import requests
+
+        debugger = debugger_unpatched
+        debugger.status_poll_interval = 0.01
+        debugger.heroku = mock.Mock()
+        down = requests.exceptions.ConnectionError("refused")
+        done = mock.Mock(json=mock.Mock(return_value={"completed": True}))
+        pending = mock.Mock(json=mock.Mock(return_value={"completed": False}))
+        responses = [down, pending, down, down, down, down, done]
+        with mock.patch("dallinger.deployment.requests.get", side_effect=responses):
+            debugger.check_status()
+
+        errors = debugger.out.error.call_args_list
+        assert len(errors) == 1
+        assert "3 attempts in a row" in errors[0].args[0]
+        debugger.out.log.assert_any_call("Fetching experiment status works again.")
+        debugger.heroku.stop.assert_called_once()
+
+    def test_status_checks_stop_quietly_on_cleanup(self, debugger_unpatched):
+        import requests
+
+        debugger = debugger_unpatched
+        debugger.exp_id = "some-id"
+        debugger.status_failures_before_error = 1
+
+        def server_stops(*args, **kwargs):
+            debugger.cleanup()
+            raise requests.exceptions.ConnectionError("refused")
+
+        with mock.patch("dallinger.deployment.requests.get", side_effect=server_stops):
+            debugger.status_poll_interval = 0.01
+            debugger.check_status()
+
+        debugger.out.error.assert_not_called()
 
     def test_new_recruit(self, debugger_unpatched, browser):
         debugger_unpatched.notify(

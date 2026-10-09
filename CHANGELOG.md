@@ -91,6 +91,11 @@
 
 ### Fixed
 
+- `dallinger debug` no longer prints "Error fetching experiment status" while
+  the server shuts down or after a single failed request. Once recruitment
+  closes, it reports an error only after three failed status checks in a row,
+  says when checks work again, and stops checking as soon as the debug session
+  ends instead of up to 10 seconds later.
 - Remote Docker builds work when the SSH username contains ``@``.
 - docker-ssh deploys no longer write the dashboard or Dozzle password into
   ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.
