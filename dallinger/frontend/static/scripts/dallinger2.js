@@ -488,11 +488,6 @@ var dallinger = (function () {
     }
 
     if (dlgr.identity.participantId !== undefined && dlgr.identity.participantId !== 'undefined') {
-      // A previous instructions page already created this participant. The
-      // Begin button on this page is still waiting to be enabled.
-      $(function () {
-        $('.btn-success').prop('disabled', false);
-      });
       deferred.resolve();
     } else {
       $(function () {
@@ -555,9 +550,6 @@ var dallinger = (function () {
     }
 
     if (dlgr.identity.participantId !== undefined && dlgr.identity.participantId !== 'undefined') {
-      $(function () {
-        $('.btn-success').prop('disabled', false);
-      });
       deferred.resolve();
     } else {
       $(function () {
