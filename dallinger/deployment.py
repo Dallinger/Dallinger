@@ -549,6 +549,8 @@ class DebugDeployment(HerokuLocalDeployment):
     #: Failed checks in a row before reporting an error, so that a single
     #: slow or interrupted request doesn't look like a broken server.
     status_failures_before_error = 3
+    #: Seconds to wait for one ``/summary`` response.
+    status_request_timeout = 5
 
     def __init__(
         self,
@@ -620,9 +622,9 @@ class DebugDeployment(HerokuLocalDeployment):
         return HerokuLocalWrapper.MONITOR_STOP
 
     def cleanup(self):
-        self.out.log("Completed debugging of experiment with id " + self.exp_id)
         self.complete = True
         self._stop_status_checks.set()
+        self.out.log("Completed debugging of experiment with id " + self.exp_id)
 
     def new_recruit(self, match):
         """Dispatched to by notify(). If a recruitment request has been issued,
@@ -688,17 +690,20 @@ class DebugDeployment(HerokuLocalDeployment):
         status_url = base_url + "/summary"
         failures = 0
         while not self._stop_status_checks.wait(self.status_poll_interval):
+            error = None
             try:
-                resp = requests.get(status_url, timeout=self.status_poll_interval)
+                resp = requests.get(status_url, timeout=self.status_request_timeout)
                 exp_data = resp.json()
             except (ValueError, requests.exceptions.RequestException) as e:
-                if self._stop_status_checks.is_set():
-                    return
+                error = e
+            if self._stop_status_checks.is_set():
+                return
+            if error is not None:
                 failures += 1
                 if failures == self.status_failures_before_error:
                     self.out.error(
                         "Error fetching experiment status from {} ({} attempts in "
-                        "a row): {}".format(status_url, failures, e)
+                        "a row): {}".format(status_url, failures, error)
                     )
                 continue
             if failures >= self.status_failures_before_error:
