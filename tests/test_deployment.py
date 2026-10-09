@@ -1979,18 +1979,83 @@ class TestDebugServer:
         debugger.notify(" New participant requested: http://example.com")
         assert debugger.new_recruit.called
 
-    def test_recruitment_closed(self, debugger_unpatched):
+    @pytest.fixture
+    def status_debugger(self, debugger_unpatched):
         debugger = debugger_unpatched
-        debugger.new_recruit = mock.Mock(return_value=None)
+        debugger.exp_id = "some-id"
+        debugger.status_poll_interval = 0.01
         debugger.heroku = mock.Mock()
+        with mock.patch(
+            "dallinger.deployment.get_base_url", return_value="http://localhost:5000"
+        ):
+            yield debugger
+
+    def test_recruitment_closed(self, status_debugger):
+        debugger = status_debugger
+        debugger.new_recruit = mock.Mock(return_value=None)
         response = mock.Mock(json=mock.Mock(return_value={"completed": True}))
-        with mock.patch("dallinger.deployment.requests") as mock_requests:
-            mock_requests.get.return_value = response
+        with mock.patch("dallinger.deployment.requests.get", return_value=response):
             debugger.notify(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX)
             debugger.status_thread.join()
 
         debugger.out.log.assert_called_with("Experiment completed, all nodes filled.")
         debugger.heroku.stop.assert_called_once()
+
+    def test_status_errors_are_reported_only_when_they_persist(self, status_debugger):
+        import requests
+
+        debugger = status_debugger
+        down = requests.exceptions.ConnectionError("refused")
+        done = mock.Mock(json=mock.Mock(return_value={"completed": True}))
+        pending = mock.Mock(json=mock.Mock(return_value={"completed": False}))
+        responses = [down, pending, down, down, down, down, done]
+        with mock.patch("dallinger.deployment.requests.get", side_effect=responses):
+            debugger.check_status()
+
+        [error] = debugger.out.error.call_args_list
+        assert "http://localhost:5000/summary (3 attempts in a row)" in error.args[0]
+        assert "refused" in error.args[0]
+        recoveries = [
+            c
+            for c in debugger.out.log.call_args_list
+            if c.args == ("Fetching experiment status works again.",)
+        ]
+        assert len(recoveries) == 1
+        debugger.heroku.stop.assert_called_once()
+
+    def test_status_checks_stop_quietly_on_cleanup(self, status_debugger):
+        import requests
+
+        debugger = status_debugger
+        debugger.status_failures_before_error = 1
+        done = mock.Mock(json=mock.Mock(return_value={"completed": True}))
+
+        def server_stops(*args, **kwargs):
+            debugger.cleanup()
+            raise requests.exceptions.ConnectionError("refused")
+
+        def finishes_after_cleanup(*args, **kwargs):
+            debugger.cleanup()
+            return done
+
+        for get in (server_stops, finishes_after_cleanup):
+            debugger._stop_status_checks.clear()
+            with mock.patch("dallinger.deployment.requests.get", side_effect=get):
+                debugger.check_status()
+
+        debugger.out.error.assert_not_called()
+        debugger.heroku.stop.assert_not_called()
+
+    def test_cleanup_interrupts_the_wait_between_status_checks(self, status_debugger):
+        debugger = status_debugger
+        debugger.status_poll_interval = 60
+        with mock.patch("dallinger.deployment.requests.get") as get:
+            debugger.recruitment_closed(None)
+            debugger.cleanup()
+            debugger.status_thread.join(timeout=5)
+
+        assert not debugger.status_thread.is_alive()
+        get.assert_not_called()
 
     def test_new_recruit(self, debugger_unpatched, browser):
         debugger_unpatched.notify(
