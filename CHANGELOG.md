@@ -79,6 +79,8 @@
   turned into columns, consent text keeps its size and justification, the
   waiting-page progress bar keeps its width, and a disabled button still
   receives the click.
+- Upgraded jQuery from 3.7.1 to 4.0.0. The sheep market and iterated
+  drawing demos still load jQuery 1.7.2 because Raphael requires it.
 - Skipped the live MTurk integration tests, because Amazon has discontinued
   Mechanical Turk and every call now fails with `AccessDeniedException`.
   Mocked MTurk tests still run.
