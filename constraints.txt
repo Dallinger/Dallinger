@@ -544,7 +544,7 @@ sphinxcontrib-spelling==8.0.2
     # via dallinger
 sqlalchemy==1.4.54
     # via dallinger
-sshtunnel==0.4.0
+sshtunnel==0.5.1
     # via dallinger
 stack-data==0.6.3
     # via ipython
