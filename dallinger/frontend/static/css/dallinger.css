@@ -1,3 +1,52 @@
+/* Bootstrap 5 enables smooth scrolling, so WebDriver clicks on elements below
+   the fold land mid-scroll and are intercepted. */
+:root {
+    scroll-behavior: auto;
+}
+
+/* Bootstrap 5 gives every .row child width: 100%. The demos' col-xs-* classes
+   are not columns in Bootstrap 4 either, and some rows contain plain divs.
+   Size those children the way Bootstrap 4 did, so buttons and figures stay
+   where they were. */
+.row > [class*="col-xs-"],
+.row > :not([class*="col-"]) {
+    flex: 0 1 auto;
+    width: auto;
+    max-width: 100%;
+    padding-right: 0;
+    padding-left: 0;
+    margin-top: 0;
+}
+
+/* Removed in Bootstrap 5. Without it the consent text reflows and the
+   buttons below it move down. */
+.text-justify {
+    text-align: justify !important;
+}
+
+/* Bootstrap 5 sizes small at 87.5%. Bootstrap 4 used 80%, and the larger
+   size wraps the consent text onto extra lines. */
+small,
+.small {
+    font-size: 80%;
+}
+
+/* Bootstrap 4 padded every column by 15px. Bootstrap 5 only pads a column
+   when it is a direct child of a .row, which widens the waiting-page bar. */
+[class*="col-"]:not([class*="col-xs-"]) {
+    padding-right: 15px;
+    padding-left: 15px;
+}
+
+/* A disabled button still occupies its box, as it did in Bootstrap 4.
+   Bootstrap 5 sets pointer-events: none, so a click lands on the element
+   underneath. */
+.btn:disabled,
+.btn.disabled,
+fieldset:disabled .btn {
+    pointer-events: auto;
+}
+
 body {
     font-weight: 300;
     font-size: 13pt;

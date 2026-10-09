@@ -24,13 +24,9 @@ var draw_network = function () {
     var selected_networks = [];
     var hidden_network_ids = [];
 
-    $('#order').children().each(function (index, element) {
-        if ($(element).hasClass('active')) {
-            if (index === 0) {
-                net_structure.networks = net_structure.networks.reverse();
-            }
-        }
-    });
+    if ($('#order-desc').prop('checked')) {
+        net_structure.networks = net_structure.networks.reverse();
+    }
 
     var max_networks = $('#max-networks').val();
     if (max_networks === '') {
@@ -603,9 +599,7 @@ var draw_network = function () {
             if (params.nodes.length === 0 && params.edges.length === 0) {
                 stats.style.display = 'none';
             } else {
-                stats.innerHTML = '<button type="button" class="close" aria-label="Close" onclick="document.getElementById(\'element-details\').style.display= \'none\';">\n' +
-                    '  <span aria-hidden="true">×</span>\n' +
-                    '</button>';
+                stats.innerHTML = '<button type="button" class="btn-close" aria-label="Close" onclick="document.getElementById(\'element-details\').style.display= \'none\';"></button>';
                 append_stats(params.nodes, 'Nodes');
                 append_stats(params.edges, 'Edges');
                 stats.style.display = 'block';

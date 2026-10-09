@@ -20,8 +20,8 @@
             <ul class="nav nav-tabs">
               {% for tab in config.get('dashboard_tabs',()) %}
                 {% if tab.has_children %}
-                <li class="nav-item">
-                  <a class="nav-link dropdown-toggle{{ tab.route_name == request.endpoint and ' active' or ''}}" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">{{ tab.title }}</a>
+                <li class="nav-item dropdown">
+                  <a class="nav-link dropdown-toggle{{ tab.route_name == request.endpoint and ' active' or ''}}" data-bs-toggle="dropdown" href="#" role="button" aria-expanded="false">{{ tab.title }}</a>
                   <div class="dropdown-menu">
                     {% for child_tab in tab %}
                       <a class="dropdown-item" href="{{ child_tab.url() }}">{{ child_tab.title }}</a>
@@ -58,8 +58,7 @@
       </div>
       {% block libs %}
       <script src="{{ url_for('static', filename='scripts/jquery-3.7.1.min.js') }}"></script>
-      <script src="{{ url_for('static', filename='scripts/popper.min.js') }}"></script>
-      <script src="{{ url_for('static', filename='scripts/bootstrap.min.js') }}"></script>
+      <script src="{{ url_for('static', filename='scripts/bootstrap.bundle.min.js') }}"></script>
       <script src="{{ url_for('static', filename='scripts/clipboard.min.js') }}"></script>
       {% endblock %}
       {% block scripts %}

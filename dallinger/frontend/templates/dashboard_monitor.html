@@ -9,10 +9,10 @@
     <div id="monitor-wrapper" class="d-flex justify-content-between align-items-stretch">
         <main class="flex-fill">
             <div style="display: -ms-flexbox; display: flex; -ms-flex-wrap: wrap; flex-wrap: wrap;">
-                    <div class="form-group">
-                        <label for="sortBy">Sort networks by</label>
+                    <div class="mb-3">
+                        <label for="sortBy" class="form-label">Sort networks by</label>
                         <div class="input-group mb-3">
-                            <select class="form-control" id="sortBy">
+                            <select class="form-select" id="sortBy">
                                 <option value="network_id">Network ID</option>
                                 <option value="n_pending_infos">Number of pending infos</option>
                                 <option value="n_completed_infos">Number of completed infos</option>
@@ -20,11 +20,9 @@
                                 <option value="n_alive_nodes">Number of completed nodes</option>
                                 <option value="n_failed_nodes">Number of failed nodes</option>
                             </select>
-                            <div class="input-group-append">
-                                <div class="btn-group btn-group-toggle" id="order" data-toggle="buttons">
-
-                                    <label class="btn btn-secondary active">
-                                        <input type="radio" name="options" checked>
+                            <div class="btn-group" role="group" id="order" aria-label="Sort order">
+                                    <input type="radio" class="btn-check" name="options" id="order-desc" autocomplete="off" checked>
+                                    <label class="btn btn-secondary" for="order-desc">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
                                              fill="currentColor"
                                              class="bi bi-arrow-down" viewBox="0 0 16 16">
@@ -32,8 +30,8 @@
                                                   d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/>
                                         </svg>
                                     </label>
-                                    <label class="btn btn-secondary">
-                                        <input type="radio" name="options">
+                                    <input type="radio" class="btn-check" name="options" id="order-asc" autocomplete="off">
+                                    <label class="btn btn-secondary" for="order-asc">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
                                              fill="currentColor"
                                              class="bi bi-arrow-up" viewBox="0 0 16 16">
@@ -42,31 +40,30 @@
                                         </svg>
                                     </label>
                                 </div>
-                            </div>
                         </div>
                     </div>
 
                 <div id="search-container" class="mx-auto row">
-                    <div class="form-group pr-3">
+                    <div class="mb-3 pe-3">
                         <label for="max-networks">Number of networks</label>
                         <input type="number" min="1" class="form-control" id="max-networks"
                                placeholder="Networks to print">
                     </div>
-                    <div class="form-group">
-                        <label for="search">Freetext search</label>
+                    <div class="mb-3">
+                        <label for="search" class="form-label">Freetext search</label>
                         <input type="text" class="form-control" id="search" placeholder="Search networks">
                     </div>
                 </div>
                 <div>
-                    <div class="form-group">
+                    <div class="mb-3">
 
                         <label></label>
                         <div>
-                            <a class="text-primary" data-toggle="collapse" href="#statistics" role="button"
+                            <a class="text-primary" data-bs-toggle="collapse" href="#statistics" role="button"
                                aria-expanded="false" aria-controls="statistics">
                                 Experiment Statistics
                             </a>
-                            <a class="text-secondary" data-toggle="collapse" href="#advanced-filter"
+                            <a class="text-secondary" data-bs-toggle="collapse" href="#advanced-filter"
                                role="button" aria-expanded="false" aria-controls="advanced-filter">
                                 Advanced Filter
                             </a>
