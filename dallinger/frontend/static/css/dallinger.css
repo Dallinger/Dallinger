@@ -4,20 +4,48 @@
     scroll-behavior: auto;
 }
 
-/* The demos still use Bootstrap 3's col-xs-* columns. Bootstrap 5 gives every
-   row child width: 100%, which stacked Previous above Next. These match col-*. */
-.col-xs-1  { flex: 0 0 auto; width: 8.33333333%; }
-.col-xs-2  { flex: 0 0 auto; width: 16.66666667%; }
-.col-xs-3  { flex: 0 0 auto; width: 25%; }
-.col-xs-4  { flex: 0 0 auto; width: 33.33333333%; }
-.col-xs-5  { flex: 0 0 auto; width: 41.66666667%; }
-.col-xs-6  { flex: 0 0 auto; width: 50%; }
-.col-xs-7  { flex: 0 0 auto; width: 58.33333333%; }
-.col-xs-8  { flex: 0 0 auto; width: 66.66666667%; }
-.col-xs-9  { flex: 0 0 auto; width: 75%; }
-.col-xs-10 { flex: 0 0 auto; width: 83.33333333%; }
-.col-xs-11 { flex: 0 0 auto; width: 91.66666667%; }
-.col-xs-12 { flex: 0 0 auto; width: 100%; }
+/* Bootstrap 5 gives every .row child width: 100%. The demos' col-xs-* classes
+   are not columns in Bootstrap 4 either, and some rows contain plain divs.
+   Size those children the way Bootstrap 4 did, so buttons and figures stay
+   where they were. */
+.row > [class*="col-xs-"],
+.row > :not([class*="col-"]) {
+    flex: 0 1 auto;
+    width: auto;
+    max-width: 100%;
+    padding-right: 0;
+    padding-left: 0;
+    margin-top: 0;
+}
+
+/* Removed in Bootstrap 5. Without it the consent text reflows and the
+   buttons below it move down. */
+.text-justify {
+    text-align: justify !important;
+}
+
+/* Bootstrap 5 sizes small at 87.5%. Bootstrap 4 used 80%, and the larger
+   size wraps the consent text onto extra lines. */
+small,
+.small {
+    font-size: 80%;
+}
+
+/* Bootstrap 4 padded every column by 15px. Bootstrap 5 only pads a column
+   when it is a direct child of a .row, which widens the waiting-page bar. */
+[class*="col-"]:not([class*="col-xs-"]) {
+    padding-right: 15px;
+    padding-left: 15px;
+}
+
+/* A disabled button still occupies its box, as it did in Bootstrap 4.
+   Bootstrap 5 sets pointer-events: none, so a click lands on the element
+   underneath. */
+.btn:disabled,
+.btn.disabled,
+fieldset:disabled .btn {
+    pointer-events: auto;
+}
 
 body {
     font-weight: 300;
