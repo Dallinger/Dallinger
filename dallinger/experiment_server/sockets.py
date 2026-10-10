@@ -8,7 +8,7 @@ import gevent
 from flask import request
 from flask_sock import Sock
 from gevent.lock import Semaphore
-from redis import ConnectionError
+from redis.exceptions import RedisError
 from simple_websocket import ConnectionClosed
 
 from dallinger.db import redis_conn
@@ -70,40 +70,64 @@ class Channel:
                 "Unsubscribed client {} from channel {}".format(client, self.name),
                 level="debug",
             )
-            redis_conn.publish(
-                CONTROL_CHANNEL,
-                json.dumps(
-                    {
-                        "type": "channel",
-                        "event": "unsubscribed",
-                        "channel": self.name,
-                        "client": client.client_info(),
-                    }
-                ),
-            )
+            # Only a notification: failing it must not stop the caller from
+            # releasing a channel that is now empty.
+            try:
+                redis_conn.publish(
+                    CONTROL_CHANNEL,
+                    json.dumps(
+                        {
+                            "type": "channel",
+                            "event": "unsubscribed",
+                            "channel": self.name,
+                            "client": client.client_info(),
+                        }
+                    ),
+                )
+            except RedisError:
+                app.logger.warning(
+                    "Could not announce that a client left channel {}.".format(
+                        self.name
+                    ),
+                    exc_info=True,
+                )
 
     def listen(self):
         """Relay messages from a redis pubsub to all subscribed clients.
 
-        This is run continuously in a separate greenlet.
+        This is run continuously in a separate greenlet. Only this greenlet
+        uses the pubsub, and it closes the pubsub when the channel is stopped.
         """
-        pubsub = redis_conn.pubsub()
-        name = self.name
-        if isinstance(name, str):
-            name = name.encode("utf-8")
+        while True:
+            pubsub = redis_conn.pubsub()
+            try:
+                pubsub.subscribe(self.name)
+                log("Listening on channel {}".format(self.name))
+                for message in pubsub.listen():
+                    if message["type"] == "message":
+                        self._relay_to_clients(message)
+                    # Yield to other greenlets without capping the relay rate.
+                    gevent.sleep(0)
+            except Exception:
+                app.logger.exception(
+                    "Lost redis channel {}; retrying.".format(self.name)
+                )
+            finally:
+                pubsub.close()
+            gevent.sleep(1)
+
+    def _relay_to_clients(self, message):
         try:
-            pubsub.subscribe([name])
-        except ConnectionError:
-            app.logger.exception("Could not connect to redis.")
-        log("Listening on channel {}".format(self.name))
-        for message in pubsub.listen():
-            data = message.get("data")
-            if message["type"] == "message" and data != "None":
-                channel = message["channel"]
-                payload = "{}:{}".format(channel.decode("utf-8"), data.decode("utf-8"))
-                for client in self.clients:
-                    gevent.spawn(self._relay, client, payload)
-            gevent.sleep(0.001)
+            channel = message["channel"].decode("utf-8")
+            data = message["data"].decode("utf-8")
+        except UnicodeDecodeError:
+            app.logger.warning(
+                "Dropped a message on channel {} that is not UTF-8.".format(self.name)
+            )
+            return
+        payload = "{}:{}".format(channel, data)
+        for client in self.clients:
+            gevent.spawn(self._relay, client, payload)
 
     @staticmethod
     def _relay(client, payload):
@@ -142,11 +166,20 @@ class ChatBackend:
         self.channels[channel_name].subscribe(client)
 
     def unsubscribe(self, client):
-        """Unsubscribe a client from all channels."""
+        """Unsubscribe a client from all channels, stopping channels left empty.
+
+        Stopping a channel releases its redis connection, so a process only
+        holds connections for channels that currently have clients.
+        """
         # Channel.unsubscribe publishes to Redis, which yields to greenlets
-        # that may add channels.
+        # that may add channels or clients.
         for channel in list(self.channels.values()):
+            if client not in channel.clients:
+                continue
             channel.unsubscribe(client)
+            if not channel.clients and self.channels.get(channel.name) is channel:
+                del self.channels[channel.name]
+                channel.stop()
 
 
 # There is one chat backend per process.

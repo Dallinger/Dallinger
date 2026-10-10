@@ -192,3 +192,20 @@ unique channel like `"participant_${participant_id}_channel"`, to which the
 experiment instance could send private messages using
 `self.publish_to_subscribers(payload, channel_name=channel)` or
 `redis_conn.publish(f"participant_${participant_id}_channel", payload)`.
+
+
+Connection Limits
+-----------------
+
+Each web process holds one Redis connection for every channel that has at
+least one client in that process, and releases it when the last client leaves.
+Channels that the experiment itself subscribes to stay open for the whole run.
+With one channel per participant, the number of Redis connections is therefore
+about the number of participants connected at once.
+
+Redis allows 10,000 clients by default, shared by every process in the app, so
+about 10,000 participants can hold their own channel at once. Each connection
+also uses a file descriptor in its web process, alongside the participant's
+websocket. Containers often have a soft limit of 1,024 open files per process,
+which caps each web process at about 500 participants with their own channel.
+Hosted Redis services may allow far fewer clients, depending on the plan.

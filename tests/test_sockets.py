@@ -32,6 +32,8 @@ def sockets(redis):
     yield sockets
 
     # make sure all greenlets complete
+    for channel in list(sockets.chat_backend.channels.values()):
+        channel.stop()
     gevent.wait()
 
 
@@ -45,7 +47,17 @@ def channel(sockets):
     sockets.chat_backend.channels["test"] = channel = sockets.Channel("test")
     yield channel
     channel.stop()
-    del sockets.chat_backend.channels["test"]
+    sockets.chat_backend.channels.pop("test", None)
+
+
+def block_forever():
+    """Stand in for ``pubsub.listen()`` waiting for messages."""
+    gevent.sleep(60)
+    return iter(())
+
+
+def message(channel, data):
+    return {"type": "message", "channel": channel, "data": data}
 
 
 @pytest.fixture
@@ -86,49 +98,76 @@ def mocksocket():
 
 
 class TestChannel:
-    def test_subscribes_to_redis(self, sockets, pubsub):
-        sockets.Channel("custom").start()
-        gevent.wait()
-        pubsub.subscribe.assert_called_once_with([b"custom"])
+    def test_subscribes_to_redis(self, channel, pubsub):
+        channel.start()
+        gevent.sleep(0.01)
+        pubsub.subscribe.assert_called_once_with("test")
 
-    def test_listen(self, sockets, mockclient):
-        sockets.redis_conn.pubsub.return_value = pubsub = Mock()
-        pubsub.listen.return_value = [
-            {"type": "message", "channel": b"quorum", "data": b"Calloo! Callay!"}
-        ]
-
-        channel = sockets.Channel("custom")
+    def test_listen(self, channel, pubsub, mockclient):
+        pubsub.listen.return_value = [message(b"quorum", b"Calloo! Callay!")]
         channel.subscribe(mockclient)
         channel.start()
-        gevent.wait()  # wait for event loop
+        gevent.sleep(0.01)
 
         mockclient.send.assert_called_once_with("quorum:Calloo! Callay!")
 
     def test_listen_tolerates_client_that_disconnected(
-        self, sockets, mockclient, monkeypatch
+        self, channel, pubsub, mockclient, monkeypatch
     ):
         errors = []
         monkeypatch.setattr(
             gevent.get_hub(), "handle_error", lambda *args: errors.append(args)
         )
-        sockets.redis_conn.pubsub.return_value = pubsub = Mock()
-        pubsub.listen.return_value = [
-            {"type": "message", "channel": b"quorum", "data": b"Calloo! Callay!"}
-        ]
+        pubsub.listen.return_value = [message(b"quorum", b"Calloo! Callay!")]
         mockclient.send.side_effect = ConnectionClosed(1000, "")
-
-        channel = sockets.Channel("custom")
         channel.subscribe(mockclient)
         channel.start()
-        gevent.wait()
+        gevent.sleep(0.01)
 
         mockclient.send.assert_called_once_with("quorum:Calloo! Callay!")
         assert errors == []
 
-    def test_stop(self, channel):
+    def test_listen_skips_messages_that_are_not_utf8(self, channel, pubsub, mockclient):
+        pubsub.listen.return_value = [
+            message(b"quorum", b"\xff"),
+            message(b"quorum", b"after"),
+        ]
+        channel.subscribe(mockclient)
         channel.start()
+        gevent.sleep(0.01)
+
+        mockclient.send.assert_called_once_with("quorum:after")
+        pubsub.subscribe.assert_called_once()
+
+    def test_listen_recovers_from_lost_redis_connection(
+        self, channel, pubsub, mockclient
+    ):
+        from redis import ConnectionError
+
+        responses = [ConnectionError("lost"), [message(b"test", b"back")]]
+
+        def listen():
+            if not responses:
+                return block_forever()
+            response = responses.pop(0)
+            if isinstance(response, Exception):
+                raise response
+            return response
+
+        pubsub.listen.side_effect = listen
+        channel.subscribe(mockclient)
+        channel.start()
+        gevent.sleep(1.1)
+
+        mockclient.send.assert_called_once_with("test:back")
+
+    def test_stop_closes_the_redis_connection(self, channel, pubsub):
+        pubsub.listen.side_effect = block_forever
+        channel.start()
+        gevent.sleep(0.01)
         channel.stop()
         assert channel.greenlet is None
+        pubsub.close.assert_called_once()
 
     def test_subscribe_sends_control_message(self, sockets, mockclient):
         channel = sockets.Channel("custom")
@@ -168,10 +207,42 @@ class TestChatBackend:
         chat.subscribe(mockclient, channel.name)
         pubsub.subscribe.assert_not_called()
 
-    def test_unsubscribe(self, chat, mockclient):
+    def test_last_client_leaving_releases_the_redis_connection(
+        self, chat, pubsub, mockclient
+    ):
+        pubsub.listen.side_effect = block_forever
         chat.subscribe(mockclient, "quorum")
+        gevent.sleep(0.01)
         chat.unsubscribe(mockclient)
-        assert mockclient not in chat.channels["quorum"].clients
+
+        assert "quorum" not in chat.channels
+        pubsub.close.assert_called_once()
+
+    def test_last_client_leaving_releases_the_connection_when_redis_fails(
+        self, sockets, chat, pubsub, mockclient
+    ):
+        from redis.exceptions import ConnectionError
+
+        pubsub.listen.side_effect = block_forever
+        chat.subscribe(mockclient, "quorum")
+        gevent.sleep(0.01)
+        sockets.redis_conn.publish.side_effect = ConnectionError("Redis is down")
+        chat.unsubscribe(mockclient)
+
+        assert "quorum" not in chat.channels
+        pubsub.close.assert_called_once()
+
+    def test_channel_stays_while_other_clients_remain(self, chat, pubsub, mockclient):
+        pubsub.listen.side_effect = block_forever
+        other = Mock(**{"client_info.return_value": {}})
+        chat.subscribe(mockclient, "quorum")
+        chat.subscribe(other, "quorum")
+        gevent.sleep(0)
+        chat.unsubscribe(mockclient)
+        gevent.sleep(0)
+
+        assert chat.channels["quorum"].clients == [other]
+        pubsub.close.assert_not_called()
 
     def test_unsubscribe_tolerates_channel_added_meanwhile(
         self, sockets, chat, mockclient
@@ -182,7 +253,7 @@ class TestChatBackend:
             "late", sockets.Channel("late")
         )
         chat.unsubscribe(mockclient)
-        assert mockclient not in chat.channels["quorum"].clients
+        assert "quorum" not in chat.channels
 
 
 @pytest.mark.slow
