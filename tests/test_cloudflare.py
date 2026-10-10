@@ -386,6 +386,24 @@ def test_load_api_token_prefers_environment(monkeypatch):
     assert cf.load_api_token(config) == "from-env"
 
 
+def test_load_api_token_reads_the_configured_keychain_item(monkeypatch):
+    monkeypatch.delenv("CLOUDFLARE_API_TOKEN", raising=False)
+    monkeypatch.setattr(cf.shutil, "which", lambda name: "/usr/bin/security")
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        return mock.Mock(stdout="from-keychain\n")
+
+    monkeypatch.setattr(cf.subprocess, "run", run)
+    config = mock.Mock()
+    config.get.side_effect = lambda key, default=None: {
+        "cloudflare_keychain_service": "org.example.cloudflare-token"
+    }.get(key, default)
+    assert cf.load_api_token(config) == "from-keychain"
+    assert calls[0][calls[0].index("-s") + 1] == "org.example.cloudflare-token"
+
+
 def test_load_api_token_requires_a_source(monkeypatch):
     monkeypatch.delenv("CLOUDFLARE_API_TOKEN", raising=False)
     monkeypatch.setattr(cf.shutil, "which", lambda name: None)

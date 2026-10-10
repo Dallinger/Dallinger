@@ -189,7 +189,8 @@ The tunnel proxies to the experiment web service. Set the non-secret
 ``cloudflare_account_id``, ``cloudflare_zone_id``, and ``cloudflare_dns_zone``
 in Dallinger config. The API token is read from ``CLOUDFLARE_API_TOKEN``, then
 Dallinger config, then the macOS Keychain item
-``dallinger-cloudflare-api-token``. It is never written to host records, the
+``dallinger-cloudflare-api-token`` (or the item named by
+``cloudflare_keychain_service``). It is never written to host records, the
 manifest, or the app's Compose file. Tunnel names do not include the server,
 so a deploy refuses an app name whose tunnel already exists, unless it is the
 tunnel this server recorded for that app (in its manifest, or next to the
