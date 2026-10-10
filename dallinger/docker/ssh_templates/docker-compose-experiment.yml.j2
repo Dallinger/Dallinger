@@ -133,6 +133,12 @@ services:
       # default of 100 refuses connections under load. Excess clients queue
       # for the pooled Postgres connections instead of failing.
       - PGBOUNCER_MAX_CLIENT_CONN=2000
+      # A server connection stays tied to a request for its whole transaction,
+      # including the Python work between queries, so the default pool of 20
+      # queues requests at about 200 participants while the CPU is mostly
+      # idle. Keep this below Postgres's max_connections (100) to leave room
+      # for exports and admin sessions.
+      - PGBOUNCER_DEFAULT_POOL_SIZE=80
       # Connections to postgres will be closed after 60 seconds of inactivity
       - PGBOUNCER_SERVER_IDLE_TIMEOUT=60
     ulimits:
