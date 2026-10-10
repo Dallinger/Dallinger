@@ -28,6 +28,4 @@ def connect_to_redis(url=None):
         connection_args["ssl_cert_reqs"] = None
 
     pool = redis.BlockingConnectionPool.from_url(redis_url, **connection_args)
-    client = redis.Redis(connection_pool=pool)
-    client.auto_close_connection_pool = True
-    return client
+    return redis.Redis.from_pool(pool)
