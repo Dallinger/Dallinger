@@ -157,7 +157,8 @@ class ChatBackend:
             except Exception:
                 app.logger.exception("Could not relay a redis message; retrying.")
                 gevent.sleep(1)
-            gevent.sleep(0.001)
+            # Yield to other greenlets without capping the relay rate.
+            gevent.sleep(0)
 
     def _relay_next_message(self):
         message = self.pubsub.get_message(timeout=None)
