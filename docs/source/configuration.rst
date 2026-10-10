@@ -596,7 +596,8 @@ Docker Deployment Configuration
 ``cloudflare_api_token`` *unicode*
     API token used by ``dallinger docker-ssh`` Cloudflare tunnel deploys.
     Prefer ``CLOUDFLARE_API_TOKEN`` in the environment, or the macOS Keychain
-    item ``dallinger-cloudflare-api-token``, over writing this value to disk.
+    item named by ``cloudflare_keychain_service``, over writing this value to
+    disk.
     It is never stored in docker-ssh host records or ``deployment.json``.
 
 ``cloudflare_keychain_service`` *unicode*
