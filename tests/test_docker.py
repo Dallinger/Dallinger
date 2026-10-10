@@ -219,6 +219,12 @@ def test_compose_reads_the_database_password_from_the_app_env():
     )
 
 
+def test_pgbouncer_accepts_more_clients_than_its_default():
+    pgbouncer = get_yaml({})["services"]["pgbouncer"]
+    assert "PGBOUNCER_MAX_CLIENT_CONN=2000" in pgbouncer["environment"]
+    assert pgbouncer["ulimits"]["nofile"] > 2000
+
+
 def test_num_dynos():
     """Make sure the correct number of worker services is created"""
     n = 3

@@ -88,6 +88,14 @@
   Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 - The ``deployment-files`` CLI tests no longer use Click's deprecated
   ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
+- docker-ssh apps' pgbouncer now accepts up to 2,000 client connections
+  instead of its default of 100. Under load, gevent web workers exceeded 100
+  and requests failed with ``no more connections allowed (max_client_conn)``;
+  extra clients now wait for one of the pooled Postgres connections instead.
+- Classic-ingress docker-ssh deploys to a server with a private IP address
+  now stop before building the image and suggest ``--ingress cloudflare``,
+  because Let's Encrypt cannot issue certificates for such servers.
+  ``docker-ssh servers add`` prints the same advice.
 
 ### Fixed
 

@@ -234,6 +234,10 @@ def add(host, user, default_ingress):
     """
     prepare_server(host, user)
     store_host({"host": host, "user": user, "default_ingress": default_ingress})
+    if default_ingress == INGRESS_CLASSIC:
+        ip_addr = _private_network_ip(split_ssh_host_port(host)[0])
+        if ip_addr:
+            print(f"{RED}Warning: {_private_network_message(host, ip_addr)}{END}")
 
 
 @servers.command()
@@ -681,6 +685,39 @@ def _resolve_ingress(server_info, ingress=None):
     return requested
 
 
+def _private_network_ip(host):
+    """Return the IPv4 address of ``host`` if it is private and not loopback."""
+    ip_addr = _first_ipv4(host)
+    if ip_addr is None:
+        return None
+    address = ipaddress.ip_address(ip_addr)
+    if address.is_private and not address.is_loopback:
+        return ip_addr
+    return None
+
+
+def _private_network_message(host, ip_addr):
+    return (
+        f"{host} has a private IP address ({ip_addr}), so Let's Encrypt cannot "
+        "issue TLS certificates for it and participants outside its network "
+        "cannot reach classic ingress. Deploy with --ingress cloudflare, or "
+        "re-register the server with `dallinger docker-ssh servers add "
+        f"--host {host} --default-ingress cloudflare`."
+    )
+
+
+def _check_classic_ingress_reachable(server, ingress=None):
+    """Abort classic-ingress deploys to servers on a private network."""
+    server_info = CONFIGURED_HOSTS.get(server) or {}
+    if _resolve_ingress(server_info, ingress) == INGRESS_CLOUDFLARE:
+        return
+    host, _ = split_ssh_host_port(server_info.get("host", server))
+    ip_addr = _private_network_ip(host)
+    if ip_addr:
+        print(f"{RED}Error: {_private_network_message(host, ip_addr)}{END}")
+        raise click.Abort()
+
+
 def _cloudflare_settings(config, dns_zone=None):
     """Read non-secret Cloudflare account/zone settings from Dallinger config.
 
@@ -1057,6 +1094,7 @@ def build_and_push_image(f):
         from dallinger.command_line.docker import push_image
         from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
 
+        _check_classic_ingress_reachable(kwargs["server"], kwargs.get("ingress"))
         config = get_config(load=True)
         image_name = config.get("docker_image_name", None)
         local_build = kwargs.get("local_build", False)
