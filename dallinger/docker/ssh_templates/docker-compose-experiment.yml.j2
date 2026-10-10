@@ -129,8 +129,15 @@ services:
       - PGBOUNCER_PORT=5432
       - PGBOUNCER_DATABASE={{ experiment_id }}
       - PGBOUNCER_POOL_MODE=transaction
+      # Each gevent web worker can hold many client connections, so the
+      # default of 100 refuses connections under load. Excess clients queue
+      # for the pooled Postgres connections instead of failing.
+      - PGBOUNCER_MAX_CLIENT_CONN=2000
       # Connections to postgres will be closed after 60 seconds of inactivity
       - PGBOUNCER_SERVER_IDLE_TIMEOUT=60
+    ulimits:
+      # Every client and server connection uses a file descriptor.
+      nofile: 4096
 
 {%- if config["clock_on"] %}
   clock:

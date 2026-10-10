@@ -81,3 +81,18 @@ def test_create_db_engine_updates_postgresql_scheme():
     engine = create_db_engine(old_scheme_uri)
 
     assert engine.url.render_as_string().startswith("postgresql://")
+
+
+def test_create_db_engine_grows_without_limit_but_keeps_only_pool_size():
+    from dallinger.db import create_db_engine, db_url
+
+    engine = create_db_engine(db_url, pool_size=2)
+    try:
+        # More than SQLAlchemy's default overflow of 10, which would block here.
+        connections = [engine.connect() for _ in range(15)]
+        for connection in connections:
+            connection.close()
+
+        assert engine.pool.checkedin() == 2
+    finally:
+        engine.dispose()

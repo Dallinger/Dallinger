@@ -33,8 +33,14 @@ def corrected_db_url(db_url):
     return db_url
 
 
-def create_db_engine(db_url, pool_size=1000):
-    return create_engine(corrected_db_url(db_url), pool_size=pool_size)
+def create_db_engine(db_url, pool_size=20):
+    """Create an engine whose pool never makes a request wait for a connection.
+
+    A gevent worker can serve many requests at once, so the pool may grow without
+    limit; connections beyond ``pool_size`` are closed when returned rather than
+    kept idle, where they would count against the database's client limit.
+    """
+    return create_engine(corrected_db_url(db_url), pool_size=pool_size, max_overflow=-1)
 
 
 db_url_default = "postgresql://dallinger:dallinger@localhost/dallinger"
