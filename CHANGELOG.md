@@ -101,6 +101,10 @@
   to 1,000. Busy web workers still open as many connections as they need,
   but close the extra ones afterwards, so idle connections no longer pile up
   after heavy load and use up the database's or pgbouncer's client limit.
+- Database connections are now checked before each use and replaced if the
+  server dropped them. Before, restarting a docker-ssh app's pgbouncer or
+  Postgres container while the web container kept running made requests
+  fail with ``server closed the connection unexpectedly``.
 - Classic-ingress docker-ssh deploys to a server with a private IP address
   now stop before building the image and suggest ``--ingress cloudflare``,
   because Let's Encrypt cannot issue certificates for such servers.
