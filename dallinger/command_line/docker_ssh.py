@@ -686,12 +686,15 @@ def _resolve_ingress(server_info, ingress=None):
 
 
 def _private_network_ip(host):
-    """Return the IPv4 address of ``host`` if it is private and not loopback."""
+    """Return the IPv4 address of ``host`` if the internet cannot reach it.
+
+    Loopback addresses are allowed, for servers that are tunnelled to locally.
+    """
     ip_addr = _first_ipv4(host)
     if ip_addr is None:
         return None
     address = ipaddress.ip_address(ip_addr)
-    if address.is_private and not address.is_loopback:
+    if not address.is_global and not address.is_loopback:
         return ip_addr
     return None
 
@@ -711,10 +714,10 @@ def _check_classic_ingress_reachable(server, ingress=None):
     server_info = CONFIGURED_HOSTS.get(server) or {}
     if _resolve_ingress(server_info, ingress) == INGRESS_CLOUDFLARE:
         return
-    host, _ = split_ssh_host_port(server_info.get("host", server))
-    ip_addr = _private_network_ip(host)
+    ssh_host = server_info.get("host", server)
+    ip_addr = _private_network_ip(split_ssh_host_port(ssh_host)[0])
     if ip_addr:
-        print(f"{RED}Error: {_private_network_message(host, ip_addr)}{END}")
+        print(f"{RED}Error: {_private_network_message(ssh_host, ip_addr)}{END}")
         raise click.Abort()
 
 
