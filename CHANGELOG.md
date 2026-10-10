@@ -96,7 +96,8 @@
   after about 100 channels (for example, one per waiting participant) its
   pool ran out: new channels silently received no messages and other Redis
   calls failed with ``MaxConnectionsError``. A channel now stops and closes
-  its Redis connection when its last client leaves, so a process only holds
+  its Redis connection when its last client leaves, even if Redis is down at
+  that moment, so a process only holds
   connections for channels that currently have clients, and a channel that
   loses its Redis connection keeps retrying instead of going quiet. A message
   that is not valid UTF-8 is dropped with a warning instead. Messages

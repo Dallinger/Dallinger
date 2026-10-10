@@ -218,6 +218,20 @@ class TestChatBackend:
         assert "quorum" not in chat.channels
         pubsub.close.assert_called_once()
 
+    def test_last_client_leaving_releases_the_connection_when_redis_fails(
+        self, sockets, chat, pubsub, mockclient
+    ):
+        from redis.exceptions import ConnectionError
+
+        pubsub.listen.side_effect = block_forever
+        chat.subscribe(mockclient, "quorum")
+        gevent.sleep(0.01)
+        sockets.redis_conn.publish.side_effect = ConnectionError("Redis is down")
+        chat.unsubscribe(mockclient)
+
+        assert "quorum" not in chat.channels
+        pubsub.close.assert_called_once()
+
     def test_channel_stays_while_other_clients_remain(self, chat, pubsub, mockclient):
         pubsub.listen.side_effect = block_forever
         other = Mock(**{"client_info.return_value": {}})

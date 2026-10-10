@@ -8,6 +8,7 @@ import gevent
 from flask import request
 from flask_sock import Sock
 from gevent.lock import Semaphore
+from redis.exceptions import RedisError
 from simple_websocket import ConnectionClosed
 
 from dallinger.db import redis_conn
@@ -69,17 +70,27 @@ class Channel:
                 "Unsubscribed client {} from channel {}".format(client, self.name),
                 level="debug",
             )
-            redis_conn.publish(
-                CONTROL_CHANNEL,
-                json.dumps(
-                    {
-                        "type": "channel",
-                        "event": "unsubscribed",
-                        "channel": self.name,
-                        "client": client.client_info(),
-                    }
-                ),
-            )
+            # Only a notification: failing it must not stop the caller from
+            # releasing a channel that is now empty.
+            try:
+                redis_conn.publish(
+                    CONTROL_CHANNEL,
+                    json.dumps(
+                        {
+                            "type": "channel",
+                            "event": "unsubscribed",
+                            "channel": self.name,
+                            "client": client.client_info(),
+                        }
+                    ),
+                )
+            except RedisError:
+                app.logger.warning(
+                    "Could not announce that a client left channel {}.".format(
+                        self.name
+                    ),
+                    exc_info=True,
+                )
 
     def listen(self):
         """Relay messages from a redis pubsub to all subscribed clients.
@@ -106,12 +117,12 @@ class Channel:
             gevent.sleep(1)
 
     def _relay_to_clients(self, message):
-        channel = message["channel"].decode("utf-8")
         try:
+            channel = message["channel"].decode("utf-8")
             data = message["data"].decode("utf-8")
         except UnicodeDecodeError:
             app.logger.warning(
-                "Dropped a message on channel {} that is not UTF-8.".format(channel)
+                "Dropped a message on channel {} that is not UTF-8.".format(self.name)
             )
             return
         payload = "{}:{}".format(channel, data)
