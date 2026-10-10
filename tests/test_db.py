@@ -81,3 +81,16 @@ def test_create_db_engine_updates_postgresql_scheme():
     engine = create_db_engine(old_scheme_uri)
 
     assert engine.url.render_as_string().startswith("postgresql://")
+
+
+def test_create_db_engine_closes_connections_beyond_pool_size():
+    from dallinger.db import create_db_engine, db_url
+
+    engine = create_db_engine(db_url)
+    pool_size = engine.pool.size()
+    connections = [engine.connect() for _ in range(pool_size + 5)]
+    for connection in connections:
+        connection.close()
+
+    assert engine.pool.checkedin() == pool_size < 100
+    engine.dispose()
