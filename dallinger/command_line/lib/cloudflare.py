@@ -102,6 +102,11 @@ def load_api_token(config: Any | None = None) -> str:
         raise CloudflareError(
             "Set CLOUDFLARE_API_TOKEN in the environment before a Cloudflare docker-ssh deploy."
         )
+    service = (
+        str(config.get("cloudflare_keychain_service", "") or "").strip()
+        if config is not None
+        else ""
+    ) or KEYCHAIN_SERVICE
     account = os.environ.get("USER") or getpass.getuser()
     try:
         result = subprocess.run(
@@ -111,7 +116,7 @@ def load_api_token(config: Any | None = None) -> str:
                 "-a",
                 account,
                 "-s",
-                KEYCHAIN_SERVICE,
+                service,
                 "-w",
             ],
             text=True,
@@ -121,7 +126,7 @@ def load_api_token(config: Any | None = None) -> str:
     except subprocess.CalledProcessError as exc:
         raise CloudflareError(
             "CLOUDFLARE_API_TOKEN is unset and the Keychain item "
-            f"{KEYCHAIN_SERVICE!r} could not be read."
+            f"{service!r} could not be read."
         ) from exc
     token = result.stdout.strip()
     if not token:

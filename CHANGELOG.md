@@ -4,6 +4,10 @@
 
 ### Added
 
+- Added the `cloudflare_keychain_service` config key, which names the macOS
+  Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
+  deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
+  already store the token under another name don't have to copy it.
 - Added a `jquery` block inside the `libs` block of `base/layout.html`.
   Templates that already load jQuery in `<head>` can override it with an
   empty block instead of loading jQuery a second time, which replaced the

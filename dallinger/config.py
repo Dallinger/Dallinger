@@ -169,6 +169,7 @@ default_keys = (
     ("docker_ssh_monitoring_kind", str, []),
     ("docker_ssh_monitoring_path", str, []),
     ("cloudflare_api_token", str, ["CLOUDFLARE_API_TOKEN"], True),
+    ("cloudflare_keychain_service", str, []),
     ("cloudflare_account_id", str, ["CLOUDFLARE_ACCOUNT_ID"]),
     ("cloudflare_zone_id", str, ["CLOUDFLARE_ZONE_ID"]),
     ("cloudflare_dns_zone", str, ["CLOUDFLARE_DNS_ZONE"]),
