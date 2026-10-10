@@ -98,7 +98,8 @@
   calls failed with ``MaxConnectionsError``. A channel now stops and closes
   its Redis connection when its last client leaves, so a process only holds
   connections for channels that currently have clients, and a channel that
-  loses its Redis connection keeps retrying instead of going quiet. Messages
+  loses its Redis connection keeps retrying instead of going quiet. A message
+  that is not valid UTF-8 is dropped with a warning instead. Messages
   are relayed without a 1 ms pause after each, so a busy channel is no longer
   limited to about 730 messages per second. Redis connections also wait up to
   20 seconds for a free slot in a pool of 1,000 instead of failing at

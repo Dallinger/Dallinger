@@ -107,7 +107,14 @@ class Channel:
 
     def _relay_to_clients(self, message):
         channel = message["channel"].decode("utf-8")
-        payload = "{}:{}".format(channel, message["data"].decode("utf-8"))
+        try:
+            data = message["data"].decode("utf-8")
+        except UnicodeDecodeError:
+            app.logger.warning(
+                "Dropped a message on channel {} that is not UTF-8.".format(channel)
+            )
+            return
+        payload = "{}:{}".format(channel, data)
         for client in self.clients:
             gevent.spawn(self._relay, client, payload)
 

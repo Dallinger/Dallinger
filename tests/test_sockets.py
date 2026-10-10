@@ -127,6 +127,18 @@ class TestChannel:
         mockclient.send.assert_called_once_with("quorum:Calloo! Callay!")
         assert errors == []
 
+    def test_listen_skips_messages_that_are_not_utf8(self, channel, pubsub, mockclient):
+        pubsub.listen.return_value = [
+            message(b"quorum", b"\xff"),
+            message(b"quorum", b"after"),
+        ]
+        channel.subscribe(mockclient)
+        channel.start()
+        gevent.sleep(0.01)
+
+        mockclient.send.assert_called_once_with("quorum:after")
+        pubsub.subscribe.assert_called_once()
+
     def test_listen_recovers_from_lost_redis_connection(
         self, channel, pubsub, mockclient
     ):
@@ -207,12 +219,16 @@ class TestChatBackend:
         pubsub.close.assert_called_once()
 
     def test_channel_stays_while_other_clients_remain(self, chat, pubsub, mockclient):
+        pubsub.listen.side_effect = block_forever
         other = Mock(**{"client_info.return_value": {}})
         chat.subscribe(mockclient, "quorum")
         chat.subscribe(other, "quorum")
+        gevent.sleep(0)
         chat.unsubscribe(mockclient)
+        gevent.sleep(0)
 
         assert chat.channels["quorum"].clients == [other]
+        pubsub.close.assert_not_called()
 
     def test_unsubscribe_tolerates_channel_added_meanwhile(
         self, sockets, chat, mockclient
