@@ -95,12 +95,14 @@
   to keep one Redis connection open for every channel it had ever relayed, so
   after about 100 channels (for example, one per waiting participant) its
   pool ran out: new channels silently received no messages and other Redis
-  calls failed with ``MaxConnectionsError``. All channels in a process now
-  share one connection, and a channel is unsubscribed when its last client
-  leaves. Messages are relayed without a 1 ms pause after each, so a busy
-  channel is no longer limited to about 730 messages per second. Redis
-  connections also wait up to 20 seconds for a free slot in a
-  pool of 1,000 instead of failing at redis-py's default limit of 100.
+  calls failed with ``MaxConnectionsError``. A channel now stops and closes
+  its Redis connection when its last client leaves, so a process only holds
+  connections for channels that currently have clients, and a channel that
+  loses its Redis connection keeps retrying instead of going quiet. Messages
+  are relayed without a 1 ms pause after each, so a busy channel is no longer
+  limited to about 730 messages per second. Redis connections also wait up to
+  20 seconds for a free slot in a pool of 1,000 instead of failing at
+  redis-py's default limit of 100.
 - Remote Docker builds work when the SSH username contains ``@``.
 - docker-ssh deploys no longer write the dashboard or Dozzle password into
   ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.
