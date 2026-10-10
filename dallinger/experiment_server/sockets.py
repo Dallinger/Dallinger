@@ -8,7 +8,6 @@ import gevent
 from flask import request
 from flask_sock import Sock
 from gevent.lock import Semaphore
-from redis import ConnectionError
 from simple_websocket import ConnectionClosed
 
 from dallinger.db import redis_conn
@@ -30,18 +29,11 @@ def log(msg, level="info"):
 
 
 class Channel:
-    """A channel relays messages from a redis pubsub to multiple clients.
-
-    Creating a channel spawns a greenlet which listens for messages from redis
-    on the specified channel name.
-
-    When a message is received, it is relayed to all clients that have subscribed.
-    """
+    """The clients in this process that receive messages from a redis channel."""
 
     def __init__(self, name):
         self.name = name
         self.clients = []
-        self.greenlet = None
 
     def subscribe(self, client):
         """Subscribe a client to the channel."""
@@ -82,28 +74,11 @@ class Channel:
                 ),
             )
 
-    def listen(self):
-        """Relay messages from a redis pubsub to all subscribed clients.
-
-        This is run continuously in a separate greenlet.
-        """
-        pubsub = redis_conn.pubsub()
-        name = self.name
-        if isinstance(name, str):
-            name = name.encode("utf-8")
-        try:
-            pubsub.subscribe([name])
-        except ConnectionError:
-            app.logger.exception("Could not connect to redis.")
-        log("Listening on channel {}".format(self.name))
-        for message in pubsub.listen():
-            data = message.get("data")
-            if message["type"] == "message" and data != "None":
-                channel = message["channel"]
-                payload = "{}:{}".format(channel.decode("utf-8"), data.decode("utf-8"))
-                for client in self.clients:
-                    gevent.spawn(self._relay, client, payload)
-            gevent.sleep(0.001)
+    def relay(self, data):
+        """Send a message received from redis to every subscribed client."""
+        payload = "{}:{}".format(self.name, data.decode("utf-8"))
+        for client in self.clients:
+            gevent.spawn(self._relay, client, payload)
 
     @staticmethod
     def _relay(client, payload):
@@ -116,9 +91,52 @@ class Channel:
         except ConnectionClosed:
             log("Dropped message for a disconnected client", level="debug")
 
-    def start(self):
-        """Start relaying messages."""
-        self.greenlet = gevent.spawn(self.listen)
+
+class ChatBackend:
+    """Manages subscriptions of clients to multiple channels.
+
+    All channels share one redis pubsub connection, read by a single listener
+    greenlet, so a process holds one subscription connection however many
+    channels its clients use. A channel is unsubscribed from redis when its
+    last client leaves.
+    """
+
+    def __init__(self):
+        self.channels = {}
+        self.pubsub = redis_conn.pubsub()
+        self.greenlet = None
+        # Keeps SUBSCRIBE and UNSUBSCRIBE commands from interleaving on the
+        # shared connection.
+        self._commands = Semaphore()
+
+    def subscribe(self, client, channel_name):
+        """Register a new client to receive messages on a channel."""
+        channel = self.channels.get(channel_name)
+        if channel is None:
+            self.channels[channel_name] = channel = Channel(channel_name)
+            try:
+                with self._commands:
+                    self.pubsub.subscribe(channel_name)
+            except Exception:
+                if self.channels.get(channel_name) is channel:
+                    del self.channels[channel_name]
+                raise
+            log("Listening on channel {}".format(channel_name))
+        self._ensure_listening()
+        channel.subscribe(client)
+
+    def unsubscribe(self, client):
+        """Unsubscribe a client from all channels."""
+        # Channel.unsubscribe publishes to Redis, which yields to greenlets
+        # that may add channels.
+        for channel in list(self.channels.values()):
+            if client not in channel.clients:
+                continue
+            channel.unsubscribe(client)
+            if not channel.clients and self.channels.get(channel.name) is channel:
+                del self.channels[channel.name]
+                with self._commands:
+                    self.pubsub.unsubscribe(channel.name)
 
     def stop(self):
         """Stop relaying messages."""
@@ -126,27 +144,27 @@ class Channel:
             self.greenlet.kill()
             self.greenlet = None
 
+    def _ensure_listening(self):
+        if self.greenlet is None or self.greenlet.dead:
+            self.greenlet = gevent.spawn(self._listen)
 
-class ChatBackend:
-    """Manages subscriptions of clients to multiple channels."""
+    def _listen(self):
+        """Relay messages from redis to subscribed clients, until stopped."""
+        while True:
+            # One listener serves every channel, so it must outlive any error.
+            try:
+                self._relay_next_message()
+            except Exception:
+                app.logger.exception("Could not relay a redis message; retrying.")
+                gevent.sleep(1)
+            gevent.sleep(0.001)
 
-    def __init__(self):
-        self.channels = {}
-
-    def subscribe(self, client, channel_name):
-        """Register a new client to receive messages on a channel."""
-        if channel_name not in self.channels:
-            self.channels[channel_name] = channel = Channel(channel_name)
-            channel.start()
-
-        self.channels[channel_name].subscribe(client)
-
-    def unsubscribe(self, client):
-        """Unsubscribe a client from all channels."""
-        # Channel.unsubscribe publishes to Redis, which yields to greenlets
-        # that may add channels.
-        for channel in list(self.channels.values()):
-            channel.unsubscribe(client)
+    def _relay_next_message(self):
+        message = self.pubsub.get_message(timeout=None)
+        if message and message["type"] == "message":
+            channel = self.channels.get(message["channel"].decode("utf-8"))
+            if channel is not None:
+                channel.relay(message["data"])
 
 
 # There is one chat backend per process.
