@@ -195,6 +195,7 @@ servers. Loopback and ``0.0.0.0`` addresses are allowed. If the server has a
 private address inside its network but its public DNS name points at a public
 IP that forwards ports 80 and 443 to it, pass ``--allow-private-ip`` to deploy
 with classic ingress anyway.
+
 The tunnel proxies to the experiment web service. Set the non-secret
 ``cloudflare_account_id``, ``cloudflare_zone_id``, and ``cloudflare_dns_zone``
 in Dallinger config. The API token is read from ``CLOUDFLARE_API_TOKEN``, then
