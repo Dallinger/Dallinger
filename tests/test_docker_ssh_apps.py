@@ -1081,7 +1081,7 @@ def test_awaken_app_optional_when_compose_missing(monkeypatch):
     monkeypatch.setattr(
         docker_ssh_module,
         "CONFIGURED_HOSTS",
-        {"s": {"host": "example.com", "user": "ubuntu"}},
+        {"s.example.com": {"host": "s.example.com", "user": "ubuntu"}},
     )
     monkeypatch.setattr(docker_ssh_module, "Executor", lambda *a, **k: executor)
     assert docker_ssh_module.awaken_app("s", "demo", required=False) is False

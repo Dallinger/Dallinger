@@ -81,8 +81,10 @@
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches.
-  ``get_apps``, ``select_running_app`` and the other helpers that take a
-  server name accept short names too.
+  ``get_apps``, ``select_running_app``, ``awaken_app`` and
+  ``ensure_root_domain_ready`` accept short names too. ``--help`` no longer
+  lists the configured servers; use ``dallinger docker-ssh servers list`` or
+  shell completion.
 - ``dallinger docker-ssh destroy`` now reports the Cloudflare tunnel and DNS
   record it deleted, or that there was nothing left to delete.
   ``delete_experiment_tunnel`` returns a ``TunnelDeletion`` that is truthy

@@ -460,7 +460,8 @@ option_server = click.option(
     "--server",
     required=False,
     default=None,
-    help="Name of the remote server, or its short hostname",
+    help="Name of the remote server, or its short hostname "
+    "(see `dallinger docker-ssh servers list`)",
     type=str,
     shell_complete=_complete_server_name,
     callback=resolve_server_option,
@@ -2324,7 +2325,7 @@ def awaken_app(server, app, required=True):
 def _run_hibernation_action(server, app, action, required=True):
     if not APP_NAME_PATTERN.fullmatch(app):
         raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
-    server_info = CONFIGURED_HOSTS[server]
+    server_info = _resolve_server_info(server)
     ssh_address = server_info["host"]
     ssh_user = server_info.get("user")
     executor = Executor(ssh_address, user=ssh_user, app=app)
