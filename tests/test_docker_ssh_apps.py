@@ -9,6 +9,7 @@ from unittest import mock
 import click
 import pytest
 
+from dallinger.command_line.lib.cloudflare import TunnelDeletion
 from dallinger.docker.tools import docker_tag_from_experiment_id
 
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
@@ -226,10 +227,17 @@ def _cloudflare_destroy(monkeypatch, removed, cloudflare=None):
     return order
 
 
-def test_destroy_cloudflare_stops_connector_before_deleting_the_tunnel(monkeypatch):
-    order = _cloudflare_destroy(monkeypatch, removed=True)
+def test_destroy_cloudflare_stops_connector_before_deleting_the_tunnel(
+    monkeypatch, capsys
+):
+    removed = TunnelDeletion(True, "dallinger-myapp", "myapp.science-of-music.org")
+    order = _cloudflare_destroy(monkeypatch, removed=removed)
     docker_ssh_module.destroy.callback(server="test-server", app="myapp")
     assert order == ["stop", ("delete", "myapp", "acct"), ("own", "tun"), "down", "rm"]
+    assert (
+        "Deleted Cloudflare tunnel dallinger-myapp and DNS record "
+        "myapp.science-of-music.org." in capsys.readouterr().out
+    )
 
 
 def test_destroy_uses_the_cloudflare_ids_recorded_at_deploy(monkeypatch):
@@ -238,13 +246,15 @@ def test_destroy_uses_the_cloudflare_ids_recorded_at_deploy(monkeypatch):
         "zone_id": "deploy-zone",
         "dns_zone": "x.org",
     }
-    order = _cloudflare_destroy(monkeypatch, removed=True, cloudflare=recorded)
+    order = _cloudflare_destroy(
+        monkeypatch, removed=TunnelDeletion(True), cloudflare=recorded
+    )
     docker_ssh_module.destroy.callback(server="test-server", app="myapp")
     assert ("delete", "myapp", "deploy-acct") in order
 
 
 def test_destroy_keeps_the_app_when_cloudflare_cleanup_fails(monkeypatch):
-    order = _cloudflare_destroy(monkeypatch, removed=False)
+    order = _cloudflare_destroy(monkeypatch, removed=TunnelDeletion(False))
     with pytest.raises(click.Abort):
         docker_ssh_module.destroy.callback(server="test-server", app="myapp")
     assert order == ["stop", ("delete", "myapp", "acct"), ("own", "tun")]
@@ -352,6 +362,23 @@ def test_select_running_app_raises_when_multiple_running(monkeypatch):
     )
     with pytest.raises(ValueError, match="Multiple running apps found"):
         docker_ssh_module.select_running_app("irrelevant")
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("pc01.lab.example.org", "pc01.lab.example.org"),
+        ("pc01", "pc01.lab.example.org"),
+        ("pc02", "ambiguous. It matches: pc02.a.org, pc02.b.org"),
+        ("pc03", "Unknown server 'pc03'. Configured servers:"),
+    ],
+)
+def test_resolve_server_name(name, expected):
+    hosts = ["pc01.lab.example.org", "pc02.a.org", "pc02.b.org"]
+    try:
+        assert docker_ssh_module.resolve_server_name(name, hosts) == expected
+    except ValueError as exc:
+        assert expected in str(exc)
 
 
 def test_get_apps_raises_for_unknown_server(monkeypatch):

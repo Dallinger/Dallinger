@@ -346,6 +346,46 @@ def copy_docker_config(host, user):
 CONFIGURED_HOSTS = get_configured_hosts()
 
 
+def resolve_server_name(name, hosts):
+    """Return the configured server that ``name`` refers to.
+
+    Parameters
+    ----------
+    name : str
+        A full configured server name, or its short hostname (the part before
+        the first dot), e.g. ``rr-pc02`` for ``rr-pc02.example.ac.uk``.
+    hosts : iterable of str
+        Configured server names.
+
+    Returns
+    -------
+    str
+        The full configured server name.
+
+    Raises
+    ------
+    ValueError
+        If ``name`` matches no configured server, or is a short hostname
+        shared by several of them.
+    """
+    hosts = tuple(hosts)
+    if name in hosts:
+        return name
+    matches = [host for host in hosts if host.split(".", 1)[0] == name]
+    if len(matches) == 1:
+        return matches[0]
+    if matches:
+        raise ValueError(
+            f"Server '{name}' is ambiguous. It matches: {', '.join(matches)}"
+        )
+    choices = ", ".join(hosts) if hosts else "<none>"
+    raise ValueError(f"Unknown server '{name}'. Configured servers: {choices}")
+
+
+def _complete_server_name(ctx, param, incomplete):
+    return [host for host in get_configured_hosts() if host.startswith(incomplete)]
+
+
 def resolve_server_option(ctx, param, value):
     hosts = tuple(get_configured_hosts().keys())
     option_name = (
@@ -354,13 +394,10 @@ def resolve_server_option(ctx, param, value):
     action = ctx.command.name if ctx is not None and ctx.command is not None else None
 
     if value is not None:
-        if value not in hosts:
-            choices = ", ".join(hosts) if hosts else "<none>"
-            raise click.BadParameter(
-                f"Unknown server '{value}'. Configured servers: {choices}",
-                param=param,
-            )
-        return value
+        try:
+            return resolve_server_name(value, hosts)
+        except ValueError as exc:
+            raise click.BadParameter(str(exc), param=param) from exc
 
     if len(hosts) == 1:
         return hosts[0]
@@ -423,8 +460,9 @@ option_server = click.option(
     "--server",
     required=False,
     default=None,
-    help="Name of the remote server",
-    type=click.Choice(tuple(CONFIGURED_HOSTS.keys())),
+    help="Name of the remote server, or its short hostname",
+    type=str,
+    shell_complete=_complete_server_name,
     callback=resolve_server_option,
 )
 option_update = click.option(
@@ -569,12 +607,7 @@ def docker_host_uri(host, user=None, port=22):
 
 
 def _resolve_server_info(server):
-    try:
-        return CONFIGURED_HOSTS[server]
-    except KeyError as exc:
-        raise ValueError(
-            f"Unknown server '{server}', expected one of {list(CONFIGURED_HOSTS.keys())}."
-        ) from exc
+    return CONFIGURED_HOSTS[resolve_server_name(server, CONFIGURED_HOSTS)]
 
 
 def _build_executor(server_info, app=None):
@@ -2253,9 +2286,18 @@ def _destroy_cloudflare_resources(app, manifest=None, own_tunnel_id=None):
     except (CloudflareError, click.UsageError) as exc:
         print(f"{RED}Cloudflare cleanup failed:{END} {exc}")
         return False
+    deleted = []
+    if removed.tunnel_name:
+        deleted.append(f"Cloudflare tunnel {removed.tunnel_name}")
+    if removed.hostname:
+        deleted.append(f"DNS record {removed.hostname}")
+    if deleted:
+        print(f"Deleted {' and '.join(deleted)}.")
     if not removed:
         print(f"{RED}Cloudflare cleanup failed.{END} See the warnings above.")
-    return removed
+    elif not deleted:
+        print(f"No Cloudflare tunnel or DNS record left to delete for {app}.")
+    return bool(removed)
 
 
 @docker_ssh.command()

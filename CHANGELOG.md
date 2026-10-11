@@ -78,6 +78,15 @@
 
 ### Changed
 
+- docker-ssh ``--server`` options also accept a server's short hostname,
+  such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
+  several configured servers is rejected with a list of the matches.
+  ``get_apps``, ``select_running_app`` and the other helpers that take a
+  server name accept short names too.
+- ``dallinger docker-ssh destroy`` now reports the Cloudflare tunnel and DNS
+  record it deleted, or that there was nothing left to delete.
+  ``delete_experiment_tunnel`` returns a ``TunnelDeletion`` that is truthy
+  when the tunnel is gone and records what the call deleted.
 - Skipped the live MTurk integration tests, because Amazon has discontinued
   Mechanical Turk and every call now fails with `AccessDeniedException`.
   Mocked MTurk tests still run.
