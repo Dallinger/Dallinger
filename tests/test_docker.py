@@ -220,10 +220,15 @@ def test_compose_reads_the_database_password_from_the_app_env():
 
 
 def test_pgbouncer_allows_more_connections_than_its_defaults():
-    pgbouncer = get_yaml({})["services"]["pgbouncer"]
+    pgbouncer = get_yaml({}, ingress="cloudflare")["services"]["pgbouncer"]
     assert "PGBOUNCER_MAX_CLIENT_CONN=2000" in pgbouncer["environment"]
     assert "PGBOUNCER_DEFAULT_POOL_SIZE=80" in pgbouncer["environment"]
     assert pgbouncer["ulimits"]["nofile"] > 2000
+
+
+def test_pgbouncer_keeps_a_small_pool_on_the_shared_postgres():
+    pgbouncer = get_yaml({}, ingress="classic")["services"]["pgbouncer"]
+    assert "PGBOUNCER_DEFAULT_POOL_SIZE=20" in pgbouncer["environment"]
 
 
 def test_num_dynos():

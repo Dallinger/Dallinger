@@ -92,11 +92,13 @@
   instead of its default of 100. Under load, gevent web workers exceeded 100
   and requests failed with ``no more connections allowed (max_client_conn)``;
   extra clients now wait for one of the pooled Postgres connections instead.
-- docker-ssh apps' pgbouncer now keeps up to 80 Postgres connections instead
-  of its default of 20. pgbouncer holds a connection for each request's whole
-  transaction, so 20 connections queued requests at about 200 participants.
-  On a 16-thread server, p95 response time at 320 participants fell from
-  438 ms to 65 ms, and 480 participants ran with a p95 of about 100 ms.
+- docker-ssh apps with their own Postgres (Cloudflare ingress) now let
+  pgbouncer keep up to 80 Postgres connections instead of its default of 20.
+  pgbouncer holds a connection for each request's whole transaction, so 20
+  connections queued requests at about 200 participants. On a 16-thread
+  server, p95 response time at 320 participants fell from 438 ms to 65 ms,
+  and 480 participants ran with a p95 of about 100 ms. Classic-ingress apps
+  share one server-wide Postgres, so they keep 20 connections each.
 - Each process now keeps at most 20 idle database connections instead of up
   to 1,000. Busy web workers still open as many connections as they need,
   but close the extra ones afterwards, so idle connections no longer pile up
