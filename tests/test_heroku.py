@@ -614,11 +614,16 @@ def test_heroku_local_cancels_timeout_when_boot_fails():
     assert alarm.call_args_list == [mock.call(12), mock.call(0)]
 
 
-def test_worker_greenlets_per_process_sets_gevent_pool_size(stub_config):
+@pytest.mark.parametrize("greenlets, max_connections", [(5, 50), (100, 110)])
+def test_worker_greenlets_per_process_sizes_gevent_and_redis_pools(
+    stub_config, greenlets, max_connections
+):
     from dallinger_scripts.worker import worker_options
 
-    stub_config.set("worker_greenlets_per_process", 5)
-    assert worker_options(stub_config)["pool_size"] == 5
+    stub_config.set("worker_greenlets_per_process", greenlets)
+    worker_kwargs, pool_connections = worker_options(stub_config)
+    assert worker_kwargs["pool_size"] == greenlets
+    assert pool_connections == max_connections
 
 
 def test_heroku_local_does_not_inherit_stdin():
