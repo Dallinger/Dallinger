@@ -228,6 +228,7 @@ def test_pgbouncer_allows_more_connections_than_its_defaults():
 
 def test_pgbouncer_keeps_a_small_pool_on_the_shared_postgres():
     pgbouncer = get_yaml({}, ingress="classic")["services"]["pgbouncer"]
+    assert "PGBOUNCER_MAX_CLIENT_CONN=2000" in pgbouncer["environment"]
     assert "PGBOUNCER_DEFAULT_POOL_SIZE=20" in pgbouncer["environment"]
 
 
