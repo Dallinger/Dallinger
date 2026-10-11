@@ -91,6 +91,9 @@
 
 ### Fixed
 
+- Dallinger's Docker commands no longer import pip's private internals to
+  read an experiment's ``requirements.txt``, so they work in uv-created
+  environments without pip. ``packaging`` is now a declared dependency.
 - Remote Docker builds work when the SSH username contains ``@``.
 - docker-ssh deploys no longer write the dashboard or Dozzle password into
   ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.

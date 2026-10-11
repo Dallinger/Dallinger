@@ -589,6 +589,38 @@ def test_get_required_dallinger_version_prerelease_falls_back_to_latest(tmp_path
     assert get_required_dallinger_version(str(tmp_path)) == LATEST_VERSION
 
 
+def test_get_required_dallinger_version_follows_includes_and_options(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "constraints.txt").write_text(
+        "# pinned\ndallinger==7.2.0 \\\n    --hash=sha256:abc  # trailing comment\n"
+    )
+    (tmp_path / "requirements.txt").write_text(
+        "-e ./local-package\n\n--index-url https://example.org\nrequests\n-c constraints.txt\n"
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_get_required_dallinger_version_from_wheel_file(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_text(
+        "file:dallinger-7.3.0-py3-none-any.whl\n"
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.3.0"
+
+
+def test_docker_tools_import_without_pip():
+    """``dallinger.docker.tools`` must import in environments without pip, e.g. uv."""
+    import subprocess
+    import sys
+
+    code = "import sys; sys.modules['pip'] = None; import dallinger.docker.tools"
+    subprocess.run([sys.executable, "-c", code], check=True)
+
+
 def test_get_required_dallinger_version_dev_release_falls_back_to_latest(tmp_path):
     from dallinger.docker.tools import LATEST_VERSION, get_required_dallinger_version
 

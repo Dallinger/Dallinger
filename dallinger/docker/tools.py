@@ -1,4 +1,5 @@
 import os
+import re
 import time
 from hashlib import sha256
 from pathlib import Path
@@ -9,8 +10,6 @@ import click
 import docker
 from jinja2 import Template
 from packaging.version import InvalidVersion, Version
-from pip._internal.network.session import PipSession
-from pip._internal.req import parse_requirements
 
 from dallinger.docker.wheel_filename import parse_wheel_filename
 from dallinger.utils import (
@@ -244,17 +243,69 @@ def get_base_image(experiment_tmp_path: str, needs_chrome: bool = False) -> str:
     return f"{base_image_name}:{dallinger_version or 'latest'}"
 
 
+_COMMENT_RE = re.compile(r"(^|\s+)#.*$")
+_INCLUDE_RE = re.compile(
+    r"^(?:-[rc]\s*|--(?:requirement|constraint)(?:\s+|=))(?P<path>\S+)$"
+)
+
+
+def _read_requirement_lines(path: Path) -> list[str]:
+    """Return the requirement specifiers in a pip requirements file.
+
+    Supports the subset of the pip requirements file format that Dallinger
+    generates or experiments commonly use: comments, blank lines, backslash
+    line continuations, ``-r``/``-c`` includes (resolved relative to the
+    including file) and per-requirement options such as ``--hash``. Other
+    option lines, including editable (``-e``) requirements, are skipped.
+
+    Parameters
+    ----------
+    path : Path
+        Path to a requirements or constraints file.
+
+    Returns
+    -------
+    list of str
+        Requirement specifiers, e.g. ``"dallinger==7.2.0"``, with trailing
+        options removed.
+    """
+    path = Path(path)
+    logical_lines = []
+    current = ""
+    for raw_line in path.read_text().splitlines():
+        line = _COMMENT_RE.sub("", raw_line)
+        if line.endswith("\\"):
+            current += line[:-1] + " "
+            continue
+        logical_lines.append((current + line).strip())
+        current = ""
+    logical_lines.append(current.strip())
+
+    requirements = []
+    for line in logical_lines:
+        if not line:
+            continue
+        if line.startswith("-"):
+            include = _INCLUDE_RE.match(line)
+            if include:
+                requirements.extend(
+                    _read_requirement_lines(path.parent / include["path"])
+                )
+            continue
+        requirements.append(re.split(r"\s+-", line, maxsplit=1)[0])
+    return requirements
+
+
 def get_required_dallinger_version(experiment_tmp_path: str) -> str:
     """Examine the requirements.txt in an experiment tmp directory
     and return the dallinger version required by the experiment.
     """
-    requirements_path = str(Path(experiment_tmp_path) / "requirements.txt")
-    all_requirements = parse_requirements(requirements_path, session=PipSession())
+    requirements_path = Path(experiment_tmp_path) / "requirements.txt"
     dallinger_requirements = [
-        el.requirement
-        for el in all_requirements
-        if el.requirement.startswith("dallinger==")
-        or el.requirement.startswith(
+        line
+        for line in _read_requirement_lines(requirements_path)
+        if line.startswith("dallinger==")
+        or line.startswith(
             "file:dallinger-"
         )  # In case dallinger is installed in editable mode
     ]
