@@ -257,6 +257,8 @@ def _read_requirement_lines(path: Path) -> list[str]:
     line continuations, ``-r``/``-c`` includes (resolved relative to the
     including file) and per-requirement options such as ``--hash``. Other
     option lines, including editable (``-e``) requirements, are skipped.
+    Files are read as UTF-8, with or without a byte order mark. URL includes
+    are not supported.
 
     Parameters
     ----------
@@ -272,7 +274,7 @@ def _read_requirement_lines(path: Path) -> list[str]:
     path = Path(path)
     logical_lines = []
     current = ""
-    for raw_line in path.read_text().splitlines():
+    for raw_line in path.read_text(encoding="utf-8-sig").splitlines():
         line = _COMMENT_RE.sub("", raw_line)
         if line.endswith("\\"):
             current += line[:-1] + " "

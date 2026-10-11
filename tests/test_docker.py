@@ -612,6 +612,16 @@ def test_get_required_dallinger_version_from_wheel_file(tmp_path):
     assert get_required_dallinger_version(str(tmp_path)) == "7.3.0"
 
 
+def test_get_required_dallinger_version_windows_file(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_bytes(
+        "\ufeffdallinger==7.2.0\r\n    # via -r requirements.txt\r\n".encode()
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
 def test_docker_tools_import_without_pip():
     """``dallinger.docker.tools`` must import in environments without pip, e.g. uv."""
     import subprocess
