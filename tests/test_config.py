@@ -285,6 +285,19 @@ worldwide = false
         with pytest.warns(FutureWarning, match=key):
             config.extend({key: value})
 
+    def test_web_processes_accepts_numbers_and_auto(self):
+        config = _default_config()
+        config.extend({"web_processes": 4})
+        assert config.get("web_processes") == "4"
+        config.extend({"web_processes": "auto"})
+        with pytest.raises(ValueError):
+            config.extend({"web_processes": "lots"})
+
+    def test_worker_greenlets_per_process_must_be_positive(self):
+        config = _default_config()
+        with pytest.raises(ValueError, match="positive integer"):
+            config.extend({"worker_greenlets_per_process": 0})
+
     def test_package_defaults_and_as_dict_do_not_warn(self):
         config = _default_config()
         with pytest.warns(FutureWarning):

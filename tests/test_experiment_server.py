@@ -84,7 +84,7 @@ class TestAppConfiguration:
                     active_config.extend({"worker_multiplier": 1.0})
                 server.load_user_config()
                 assert server.options["workers"] == "5"
-                active_config.extend({"web_processes": "2"})
+                active_config.extend({"web_processes": 2})
                 server.load_user_config()
                 assert server.options["workers"] == "2"
 

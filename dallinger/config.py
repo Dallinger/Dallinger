@@ -53,6 +53,12 @@ def is_positive_int(value):
         raise ValueError(f"Expected a positive integer, got {value}")
 
 
+def is_auto_or_positive_int(value):
+    """Raise ``ValueError`` unless ``value`` is ``"auto"`` or a positive integer."""
+    if value.strip() != "auto":
+        is_positive_int(int(value))
+
+
 def strtobool(val: str) -> int:
     """Convert a string representation of truth to true (1) or false (0).
 
@@ -163,7 +169,7 @@ default_keys = (
     ("us_only", bool, []),
     ("webdriver_type", str, []),
     ("webdriver_url", str, []),
-    ("web_processes", str, ["threads"]),
+    ("web_processes", str, ["threads"], False, [is_auto_or_positive_int]),
     ("whimsical", bool, []),
     ("worker_greenlets_per_process", int, [], False, [is_positive_int]),
     ("worker_multiplier", float, []),
@@ -182,6 +188,9 @@ default_keys = (
     ("cloudflare_dns_zone", str, ["CLOUDFLARE_DNS_ZONE"]),
     ("server_pem", str, []),
 )
+
+# String settings that also take a number, stored in its string form.
+NUMBER_OR_AUTO_KEYS = {"web_processes"}
 
 
 class ConfigSource(enum.IntEnum):
@@ -272,8 +281,7 @@ class Configuration:
             source = ConfigSource.RUNTIME
         normalized_mapping = {}
         for key, value in mapping.items():
-            _warn_if_deprecated(key)
-            key = self.synonyms.get(key, key)
+            key = self.canonical_key(key)
             if key not in self.types:
                 # This key hasn't been registered, we ignore it
                 if strict:
@@ -292,6 +300,8 @@ class Configuration:
                     value = expected_type(value)
                 except ValueError:
                     pass
+            if key in NUMBER_OR_AUTO_KEYS and type(value) is int:
+                value = str(value)
             if not isinstance(value, expected_type):
                 raise TypeError(
                     "Got {value} for {key}, expected {expected_type}".format(
@@ -360,8 +370,7 @@ class Configuration:
         if not self.ready:
             raise RuntimeError("Config not loaded")
         if key in self.synonyms:
-            _warn_if_deprecated(key)
-            key = self.synonyms[key]
+            key = self.canonical_key(key)
         for layer in self._layers_by_priority():
             try:
                 value = layer[key]
@@ -376,6 +385,15 @@ class Configuration:
                 error_text += " Prolific projects will be created automatically if they don't exist already."
             raise KeyError(error_text)
         return default
+
+    def canonical_key(self, key):
+        """Return the registered name for ``key``, mapping synonyms.
+
+        Emits a ``FutureWarning`` if ``key`` is a deprecated config variable.
+        """
+        if key in DEPRECATED_KEYS:
+            warnings.warn(DEPRECATED_KEYS[key], FutureWarning, stacklevel=3)
+        return self.synonyms.get(key, key)
 
     def __getitem__(self, key):
         return self.get(key)
@@ -692,9 +710,3 @@ DEPRECATED_KEYS = {
         "when CPU is short."
     ),
 }
-
-
-def _warn_if_deprecated(key):
-    """Emit a ``FutureWarning`` if ``key`` is a deprecated config variable."""
-    if key in DEPRECATED_KEYS:
-        warnings.warn(DEPRECATED_KEYS[key], FutureWarning, stacklevel=3)

@@ -43,7 +43,7 @@ from dallinger.command_line.utils import (
     render_rich_table,
     run_pre_launch_checks,
 )
-from dallinger.config import _warn_if_deprecated, get_config
+from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import handle_launch_data, setup_experiment
@@ -1580,8 +1580,7 @@ def _compose_environment(
         }
     )
     for key, value in dict(config_options).items():
-        _warn_if_deprecated(key)
-        cfg[config.synonyms.get(key, key)] = value
+        cfg[config.canonical_key(key)] = value
     # ``HOST`` is set by the template; the rest are secrets the app must not get.
     for key in "host", "database_url", "heroku_auth_token", "cloudflare_api_token":
         cfg.pop(key, None)

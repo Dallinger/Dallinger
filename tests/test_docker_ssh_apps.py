@@ -9,6 +9,7 @@ from unittest import mock
 import click
 import pytest
 
+from dallinger.config import Configuration
 from dallinger.docker.tools import docker_tag_from_experiment_id
 
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
@@ -799,7 +800,7 @@ def test_compose_environment_notes_idle_sleep_waits_for_auto_recruit(
     capsys, auto_recruit, noticed
 ):
     config = mock.MagicMock()
-    config.synonyms = {}
+    config.canonical_key.side_effect = lambda key: key
     config.as_dict.return_value = {}
     config.__getitem__.side_effect = {"aws_region": "x", "auto_recruit": False}.get
     docker_ssh_module._compose_environment(
@@ -815,7 +816,8 @@ def test_compose_environment_notes_idle_sleep_waits_for_auto_recruit(
 
 def test_compose_environment_strips_cloudflare_api_token():
     class Config:
-        synonyms = {"num_dynos_worker": "worker_processes"}
+        synonyms = {"num_dynos_worker": "worker_processes", "threads": "web_processes"}
+        canonical_key = Configuration.canonical_key
 
         def as_dict(self, include_sensitive=False):
             return {
@@ -833,13 +835,14 @@ def test_compose_environment_strips_cloudflare_api_token():
         def __getitem__(self, key):
             return self.as_dict()[key]
 
-    with pytest.warns(FutureWarning, match="worker_processes"):
+    with pytest.warns(FutureWarning) as warned:
         env = docker_ssh_module._compose_environment(
             Config(),
             {
                 "cloudflare_api_token": "from-cli",
                 "host": "smuggled",
                 "num_dynos_worker": "3",
+                "threads": "2",
             },
             "live",
             "uuid",
@@ -852,6 +855,10 @@ def test_compose_environment_strips_cloudflare_api_token():
     assert env["AWS_ACCESS_KEY_ID"] == "id"
     assert "host" not in env
     assert env["worker_processes"] == "3"
+    assert env["web_processes"] == "2"
+    assert "threads" not in env
+    messages = " ".join(str(warning.message) for warning in warned)
+    assert "'num_dynos_worker'" in messages and "'threads'" in messages
 
 
 def test_remote_postgres_prefers_pinned_container_name(monkeypatch):

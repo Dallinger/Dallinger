@@ -76,7 +76,8 @@
   Dallinger pins given as Git URLs are replaced by the local wheel as well
   (extras such as ``[docker]`` are dropped from the rewritten line).
 - Added Docker-first parallelism settings: ``web_processes`` (number of
-  gunicorn web processes, default ``auto``), ``worker_processes`` (number of
+  gunicorn web processes, given as a number or ``auto``, the default),
+  ``worker_processes`` (number of
   background worker processes, default ``1``; one container each on
   docker-ssh, worker dynos on Heroku) and ``worker_greenlets_per_process``
   (tasks each worker process runs at once, default ``20``). For CPU-heavy
@@ -106,7 +107,9 @@
 
 - ``threads`` and ``num_dynos_worker`` are deprecated in favour of
   ``web_processes`` and ``worker_processes``. The old names still work, but
-  setting or reading them emits a ``FutureWarning``. Setting
+  setting or reading them (including with ``docker-ssh deploy -c``) emits a
+  ``FutureWarning``. ``Configuration.canonical_key()`` maps an old name to
+  its replacement. Setting
   ``worker_multiplier`` (set ``web_processes`` to a number instead) or
   ``docker_worker_cpu_shares`` (now ignored) also warns. The warning for
   ``prolific_maximum_allowed_minutes`` is now a ``FutureWarning`` too, and no

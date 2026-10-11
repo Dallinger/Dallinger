@@ -485,8 +485,8 @@ Parallelism Configuration
 These settings control how many processes serve web requests and run
 background tasks.
 
-``web_processes`` *unicode*
-    Number of web server (gunicorn) processes. Each process uses gevent, so it
+``web_processes`` *unicode* or *integer*
+    Number of web server (gunicorn) processes, or ``auto``. Each process uses gevent, so it
     can serve many requests at once while they wait on the network or the
     database. Default ``auto``, which starts ``round(1.5 * CPU count) + 1``
     processes. Set a number instead if you need to limit memory use. On Heroku
