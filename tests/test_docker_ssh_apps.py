@@ -833,18 +833,19 @@ def test_compose_environment_strips_cloudflare_api_token():
         def __getitem__(self, key):
             return self.as_dict()[key]
 
-    env = docker_ssh_module._compose_environment(
-        Config(),
-        {
-            "cloudflare_api_token": "from-cli",
-            "host": "smuggled",
-            "num_dynos_worker": "3",
-        },
-        "live",
-        "uuid",
-        "image:tag",
-        "flask-key",
-    )
+    with pytest.warns(FutureWarning, match="worker_processes"):
+        env = docker_ssh_module._compose_environment(
+            Config(),
+            {
+                "cloudflare_api_token": "from-cli",
+                "host": "smuggled",
+                "num_dynos_worker": "3",
+            },
+            "live",
+            "uuid",
+            "image:tag",
+            "flask-key",
+        )
     assert env["FLASK_SECRET_KEY"] == "flask-key"
     assert "cloudflare_api_token" not in env
     assert "from-cli" not in env.values()

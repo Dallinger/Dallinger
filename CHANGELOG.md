@@ -81,6 +81,8 @@
   docker-ssh, worker dynos on Heroku) and ``worker_greenlets_per_process``
   (tasks each worker process runs at once, default ``20``). For CPU-heavy
   tasks, set ``worker_greenlets_per_process = 1`` and add worker processes.
+  Each worker's Redis connection pool grows with its greenlets, so values
+  above 40 don't wait for connections.
 
 ### Changed
 

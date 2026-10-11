@@ -54,6 +54,8 @@ def main():
     connection_args = {
         "url": redis_url,
         "queue_class": LifoQueue,
+        # Each greenlet can hold a Redis connection while RQ also uses some.
+        "max_connections": max(50, config.get("worker_greenlets_per_process") + 10),
     }
     # Since we are generally running on Heroku, and configuring SSL certificates
     # is challenging, we disable cert requirements on secure connections.
