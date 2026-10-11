@@ -346,6 +346,14 @@ def copy_docker_config(host, user):
 CONFIGURED_HOSTS = get_configured_hosts()
 
 
+def _is_ip_address(host):
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return True
+
+
 def resolve_server_name(name, hosts):
     """Return the configured server that ``name`` refers to.
 
@@ -354,6 +362,7 @@ def resolve_server_name(name, hosts):
     name : str
         A full configured server name, or its short hostname (the part before
         the first dot), e.g. ``rr-pc02`` for ``rr-pc02.example.ac.uk``.
+        Servers registered by IP address only match their full address.
     hosts : iterable of str
         Configured server names.
 
@@ -371,7 +380,11 @@ def resolve_server_name(name, hosts):
     hosts = tuple(hosts)
     if name in hosts:
         return name
-    matches = [host for host in hosts if host.split(".", 1)[0] == name]
+    matches = [
+        host
+        for host in hosts
+        if host.split(".", 1)[0] == name and not _is_ip_address(host)
+    ]
     if len(matches) == 1:
         return matches[0]
     if matches:
@@ -698,7 +711,10 @@ def _root_domain_preflight_required(server, app_name, archive_path, ingress):
     """
     if should_use_subdomain(app_name, archive_path):
         return False
-    server_info = CONFIGURED_HOSTS.get(server) or {}
+    try:
+        server_info = _resolve_server_info(server)
+    except ValueError:
+        server_info = {}
     if _resolve_ingress(server_info, ingress) == INGRESS_CLOUDFLARE:
         return False
     return True
@@ -956,6 +972,7 @@ def ensure_root_domain_ready(server, update):
     if update:
         return True
 
+    server = resolve_server_name(server, CONFIGURED_HOSTS)
     executor = _executor_for_server(server)
     conflicts = _host_caddy_apps(executor)
     if not conflicts:
@@ -1117,7 +1134,7 @@ def build_and_push_image(f):
         try:
             if not local_build:
                 # Set DOCKER_HOST to point to the remote server via SSH
-                server_info = CONFIGURED_HOSTS[kwargs["server"]]
+                server_info = _resolve_server_info(kwargs["server"])
                 ssh_host, ssh_port = split_ssh_host_port(server_info["host"])
                 ssh_user = server_info.get("user")
                 ensure_remote_host_in_known_hosts(server_info["host"], ssh_user)
@@ -1249,7 +1266,7 @@ def ensure_postgres_schema_permissions(executor, experiment_id):
 @option_server
 @click.password_option()
 def set_dozzle_password_cmd(server, password):
-    server_info = CONFIGURED_HOSTS[server]
+    server_info = _resolve_server_info(server)
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
 
@@ -1311,6 +1328,7 @@ def _deploy_in_mode(
 
     run_pre_launch_checks(**locals())
 
+    server = resolve_server_name(server, CONFIGURED_HOSTS)
     server_info = CONFIGURED_HOSTS[server]
     ssh_address = server_info["host"]
     ssh_host, ssh_port = split_ssh_host_port(ssh_address)
@@ -2174,7 +2192,7 @@ def _inspect_container_env(executor, container):
 @option_server
 def destroy(server, app):
     """Tear down an experiment run on a server you control via ssh."""
-    server_info = CONFIGURED_HOSTS[server]
+    server_info = _resolve_server_info(server)
     ssh_address = server_info["host"]
     ssh_host, _ = split_ssh_host_port(ssh_address)
     ssh_user = server_info.get("user")

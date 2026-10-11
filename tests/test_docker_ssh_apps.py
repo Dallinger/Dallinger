@@ -369,16 +369,58 @@ def test_select_running_app_raises_when_multiple_running(monkeypatch):
     [
         ("pc01.lab.example.org", "pc01.lab.example.org"),
         ("pc01", "pc01.lab.example.org"),
-        ("pc02", "ambiguous. It matches: pc02.a.org, pc02.b.org"),
-        ("pc03", "Unknown server 'pc03'. Configured servers:"),
+        ("10.0.0.5", "10.0.0.5"),
     ],
 )
 def test_resolve_server_name(name, expected):
-    hosts = ["pc01.lab.example.org", "pc02.a.org", "pc02.b.org"]
-    try:
-        assert docker_ssh_module.resolve_server_name(name, hosts) == expected
-    except ValueError as exc:
-        assert expected in str(exc)
+    hosts = ["pc01.lab.example.org", "pc02.a.org", "pc02.b.org", "10.0.0.5"]
+    assert docker_ssh_module.resolve_server_name(name, hosts) == expected
+
+
+@pytest.mark.parametrize(
+    "name, error",
+    [
+        ("pc02", "ambiguous. It matches: pc02.a.org, pc02.b.org"),
+        ("pc03", "Unknown server 'pc03'. Configured servers:"),
+        ("10", "Unknown server '10'"),
+    ],
+)
+def test_resolve_server_name_errors(name, error):
+    hosts = ["pc01.lab.example.org", "pc02.a.org", "pc02.b.org", "10.0.0.5"]
+    with pytest.raises(ValueError, match=error):
+        docker_ssh_module.resolve_server_name(name, hosts)
+
+
+def test_server_option_accepts_short_name(monkeypatch):
+    from click.testing import CliRunner
+
+    hosts = {"pc01.lab.example.org": {"host": "pc01.lab.example.org"}, "other": {}}
+    monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: hosts)
+    get_apps = mock.Mock(return_value=[])
+    monkeypatch.setattr(docker_ssh_module, "get_apps", get_apps)
+
+    result = CliRunner().invoke(docker_ssh_module.apps, ["--server", "pc01"])
+
+    assert result.exit_code == 0, result.output
+    get_apps.assert_called_once_with("pc01.lab.example.org")
+
+
+def test_root_domain_auto_destroy_uses_full_server_name(monkeypatch):
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"pc01.lab.example.org": {"host": "pc01.lab.example.org"}},
+    )
+    monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module, "_host_caddy_apps", mock.Mock(side_effect=[["old"], []])
+    )
+    monkeypatch.setattr(docker_ssh_module.click, "confirm", lambda *a, **k: True)
+    destroy = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module.destroy, "callback", destroy)
+
+    assert docker_ssh_module.ensure_root_domain_ready("pc01", update=False)
+    destroy.assert_called_once_with(server="pc01.lab.example.org", app="old")
 
 
 def test_get_apps_raises_for_unknown_server(monkeypatch):
