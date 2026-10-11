@@ -582,9 +582,8 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
 def test_experiment_image_from_compose_reads_web_not_infra_images():
     yml = docker_ssh_module.get_docker_compose_yml(
         {
-            "num_dynos_worker": 2,
+            "worker_processes": 2,
             "clock_on": True,
-            "docker_worker_cpu_shares": 1024,
             "docker_image_name": "ghcr.io/org/exp:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
         },
         "my-app",
@@ -800,6 +799,7 @@ def test_compose_environment_notes_idle_sleep_waits_for_auto_recruit(
     capsys, auto_recruit, noticed
 ):
     config = mock.MagicMock()
+    config.synonyms = {}
     config.as_dict.return_value = {}
     config.__getitem__.side_effect = {"aws_region": "x", "auto_recruit": False}.get
     docker_ssh_module._compose_environment(
@@ -815,6 +815,8 @@ def test_compose_environment_notes_idle_sleep_waits_for_auto_recruit(
 
 def test_compose_environment_strips_cloudflare_api_token():
     class Config:
+        synonyms = {"num_dynos_worker": "worker_processes"}
+
         def as_dict(self, include_sensitive=False):
             return {
                 "aws_access_key_id": "id",
@@ -833,7 +835,11 @@ def test_compose_environment_strips_cloudflare_api_token():
 
     env = docker_ssh_module._compose_environment(
         Config(),
-        {"cloudflare_api_token": "from-cli", "host": "smuggled"},
+        {
+            "cloudflare_api_token": "from-cli",
+            "host": "smuggled",
+            "num_dynos_worker": "3",
+        },
         "live",
         "uuid",
         "image:tag",
@@ -844,6 +850,7 @@ def test_compose_environment_strips_cloudflare_api_token():
     assert "from-cli" not in env.values()
     assert env["AWS_ACCESS_KEY_ID"] == "id"
     assert "host" not in env
+    assert env["worker_processes"] == "3"
 
 
 def test_remote_postgres_prefers_pinned_container_name(monkeypatch):

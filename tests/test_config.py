@@ -1,16 +1,28 @@
 import os
+import warnings
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import mock
 
 import pytest
 from redis.exceptions import ConnectionError as RedisConnectionError
 
-from dallinger.config import LOCAL_CONFIG, Configuration, get_config
+import dallinger.config
+from dallinger.config import LOCAL_CONFIG, Configuration, default_keys, get_config
 
 
 def _layer_count(config):
     """Count config layers as a plain int, so a failing assert can't print secrets."""
     return len(config.data)
+
+
+def _default_config():
+    """Return a ready configuration with Dallinger's default keys registered."""
+    config = Configuration()
+    for registration in default_keys:
+        config.register(*registration)
+    config.ready = True
+    return config
 
 
 class TestConfigurationUnitTests:
@@ -249,6 +261,40 @@ worldwide = false
             del os.environ["num_participants"]
         config.ready = True
         assert config.get("num_participants") == 1
+
+    @pytest.mark.parametrize(
+        "old, new, value",
+        [
+            ("threads", "web_processes", "3"),
+            ("num_dynos_worker", "worker_processes", 3),
+        ],
+    )
+    def test_old_parallelism_names_warn_and_map_to_new_names(self, old, new, value):
+        config = _default_config()
+        with pytest.warns(FutureWarning, match=old):
+            config.extend({old: value})
+        assert config.get(new) == value
+        with pytest.warns(FutureWarning, match=old):
+            assert config.get(old) == value
+
+    @pytest.mark.parametrize(
+        "key, value", [("worker_multiplier", 2.0), ("docker_worker_cpu_shares", 512)]
+    )
+    def test_retired_parallelism_settings_warn_when_set(self, key, value):
+        config = _default_config()
+        with pytest.warns(FutureWarning, match=key):
+            config.extend({key: value})
+
+    def test_package_defaults_and_as_dict_do_not_warn(self):
+        config = _default_config()
+        with pytest.warns(FutureWarning):
+            config.extend({"worker_multiplier": 2.0, "docker_worker_cpu_shares": 512})
+        defaults = Path(dallinger.config.__file__).parent / "default_configs"
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            for name in ("global_config_defaults.txt", "local_config_defaults.txt"):
+                config.load_from_file(defaults / name)
+            config.as_dict()
 
     def test_loading_auto_recruit_from_redis(self, active_config, redis_conn):
         active_config.set("auto_recruit", False)

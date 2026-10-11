@@ -21,6 +21,26 @@ from dallinger.utils import (
 
 LATEST_VERSION = ""  # use :latest image tag
 
+# Worker containers get a low CPU weight so the web server wins when CPU is
+# short: their combined weight is about 10% of the web container's default
+# weight of 1024. Docker rejects weights below 2.
+WORKERS_COMBINED_CPU_SHARES = 102
+MIN_CPU_SHARES = 2
+
+
+def worker_cpu_shares(worker_processes):
+    """Return the Docker ``cpu_shares`` for each worker container.
+
+    Parameters
+    ----------
+    worker_processes : int
+        Number of worker containers sharing the combined worker weight.
+    """
+    return max(
+        MIN_CPU_SHARES, round(WORKERS_COMBINED_CPU_SHARES / max(worker_processes, 1))
+    )
+
+
 docker_compose_template = Template(
     abspath_from_egg("dallinger", "dallinger/docker/docker-compose.yml.j2").read_text()
 )
@@ -107,6 +127,7 @@ class DockerComposeWrapper:
                     experiment_image=f"{self.experiment_name}:{tag}",
                     needs_chrome=self.needs_chrome,
                     config=self.config,
+                    worker_cpu_shares=worker_cpu_shares(1),
                 )
             )
         with open(os.path.join(self.tmp_dir, ".env"), "w") as fh:

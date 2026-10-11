@@ -1579,7 +1579,10 @@ def _compose_environment(
             "docker_image_name": image_name,
         }
     )
-    cfg.update(config_options)
+    cfg.update(
+        (config.synonyms.get(key, key), value)
+        for key, value in dict(config_options).items()
+    )
     # ``HOST`` is set by the template; the rest are secrets the app must not get.
     for key in "host", "database_url", "heroku_auth_token", "cloudflare_api_token":
         cfg.pop(key, None)
@@ -2633,7 +2636,10 @@ def get_docker_compose_yml(
     run_as_ssh_user: bool = True,
 ) -> str:
     """Render an app's docker-compose.yml. Secrets come from the app's ``.env``."""
+    from dallinger.docker.tools import worker_cpu_shares
+
     docker_volumes = config.get("docker_volumes", "")
+    worker_processes = int(config.get("worker_processes", 1))
     logger_filename = JSON_LOGFILE
     if logger_filename:
         new_volume = f"./{logger_filename}:/experiment/{logger_filename}"
@@ -2649,6 +2655,8 @@ def get_docker_compose_yml(
         experiment_image=experiment_image,
         config=config_str,
         docker_volumes=docker_volumes,
+        worker_processes=worker_processes,
+        worker_cpu_shares=worker_cpu_shares(worker_processes),
         idle_enabled=str(idle_enabled).lower(),
         idle_minutes=idle_minutes,
         # Compose's own project-name normalization, which its labels use.

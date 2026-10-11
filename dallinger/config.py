@@ -30,6 +30,7 @@ import logging
 import os
 import sys
 import threading
+import warnings
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
@@ -44,6 +45,12 @@ SENSITIVE_KEY_NAMES = ("access_id", "access_key", "password", "secret", "token")
 
 def is_valid_json(value):
     json.loads(value)
+
+
+def is_positive_int(value):
+    """Raise ``ValueError`` unless ``value`` is at least 1."""
+    if value < 1:
+        raise ValueError(f"Expected a positive integer, got {value}")
 
 
 def strtobool(val: str) -> int:
@@ -129,7 +136,6 @@ default_keys = (
     ("mturk_qualification_blocklist", str, ["qualification_blacklist"]),
     ("mturk_qualification_requirements", str, [], False, [is_valid_json]),
     ("num_dynos_web", int, []),
-    ("num_dynos_worker", int, []),
     ("organization_name", str, []),
     ("port", int, ["PORT"]),
     ("prolific_api_token", str, ["PROLIFIC_RESEARCHER_API_TOKEN"], True),
@@ -152,14 +158,16 @@ default_keys = (
     ("smtp_host", str, []),
     ("smtp_username", str, []),
     ("smtp_password", str, ["dallinger_email_password"], True),
-    ("threads", str, []),
     ("title", str, []),
     ("question_max_length", int, []),
     ("us_only", bool, []),
     ("webdriver_type", str, []),
     ("webdriver_url", str, []),
+    ("web_processes", str, ["threads"]),
     ("whimsical", bool, []),
+    ("worker_greenlets_per_process", int, [], False, [is_positive_int]),
     ("worker_multiplier", float, []),
+    ("worker_processes", int, ["num_dynos_worker"]),
     ("docker_image_base_name", str, [], ""),
     ("docker_image_name", str, [], ""),
     ("docker_volumes", str, [], ""),
@@ -264,8 +272,8 @@ class Configuration:
             source = ConfigSource.RUNTIME
         normalized_mapping = {}
         for key, value in mapping.items():
+            _warn_if_deprecated(key)
             key = self.synonyms.get(key, key)
-            test_deprecation(key)
             if key not in self.types:
                 # This key hasn't been registered, we ignore it
                 if strict:
@@ -351,6 +359,9 @@ class Configuration:
                     return bool(int(auto_recruit))
         if not self.ready:
             raise RuntimeError("Config not loaded")
+        if key in self.synonyms:
+            _warn_if_deprecated(key)
+            key = self.synonyms[key]
         for layer in self._layers_by_priority():
             try:
                 value = layer[key]
@@ -658,13 +669,32 @@ def raise_invalid_key_error(key):
     raise KeyError(error_text)
 
 
-def test_deprecation(key):
-    if key == "prolific_maximum_allowed_minutes":
-        import warnings
+DEPRECATED_KEYS = {
+    "prolific_maximum_allowed_minutes": (
+        "The 'prolific_maximum_allowed_minutes' config variable has no effect "
+        "as it is currently ignored by the Prolific API."
+    ),
+    "threads": (
+        "The 'threads' config variable is deprecated; use 'web_processes' "
+        "instead. It sets the number of web server processes, not threads."
+    ),
+    "num_dynos_worker": (
+        "The 'num_dynos_worker' config variable is deprecated; use "
+        "'worker_processes' instead."
+    ),
+    "worker_multiplier": (
+        "The 'worker_multiplier' config variable is deprecated; set "
+        "'web_processes' to a number instead."
+    ),
+    "docker_worker_cpu_shares": (
+        "The 'docker_worker_cpu_shares' config variable has no effect. "
+        "Docker deployments now give the web server priority over the workers "
+        "when CPU is short."
+    ),
+}
 
-        warnings.simplefilter("always", DeprecationWarning)
-        warnings.warn(
-            "The 'prolific_maximum_allowed_minutes' config variable has no effect "
-            + "as it is currently ignored by the Prolific API.",
-            DeprecationWarning,
-        )
+
+def _warn_if_deprecated(key):
+    """Emit a ``FutureWarning`` if ``key`` is a deprecated config variable."""
+    if key in DEPRECATED_KEYS:
+        warnings.warn(DEPRECATED_KEYS[key], FutureWarning, stacklevel=3)

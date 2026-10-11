@@ -70,7 +70,7 @@ class TestAppConfiguration:
 
     def test_gunicorn_worker_config(self, webapp, active_config):
         with mock.patch("multiprocessing.cpu_count") as cpu_count:
-            active_config.extend({"threads": "auto"})
+            active_config.extend({"web_processes": "auto"})
             cpu_count.return_value = 2
             from dallinger.experiment_server.gunicorn import StandaloneServer
 
@@ -80,10 +80,11 @@ class TestAppConfiguration:
                 cpu_count.return_value = 4
                 server.load_user_config()
                 assert server.options["workers"] == "7"
-                active_config.extend({"worker_multiplier": 1.0})
+                with pytest.warns(FutureWarning, match="worker_multiplier"):
+                    active_config.extend({"worker_multiplier": 1.0})
                 server.load_user_config()
                 assert server.options["workers"] == "5"
-                active_config.extend({"threads": "2"})
+                active_config.extend({"web_processes": "2"})
                 server.load_user_config()
                 assert server.options["workers"] == "2"
 

@@ -614,13 +614,20 @@ def test_heroku_local_cancels_timeout_when_boot_fails():
     assert alarm.call_args_list == [mock.call(12), mock.call(0)]
 
 
+def test_worker_greenlets_per_process_sets_gevent_pool_size(stub_config):
+    from dallinger_scripts.worker import worker_options
+
+    stub_config.set("worker_greenlets_per_process", 5)
+    assert worker_options(stub_config)["pool_size"] == 5
+
+
 def test_heroku_local_does_not_inherit_stdin():
     """A closed or hung-up parent stdin must not reach heroku local."""
     import subprocess
 
     from dallinger.heroku.tools import HerokuLocalWrapper
 
-    settings = {"base_port": 5000, "num_dynos_web": 1, "num_dynos_worker": 1}
+    settings = {"base_port": 5000, "num_dynos_web": 1, "worker_processes": 1}
     config = mock.Mock(get=settings.get)
     wrapper = HerokuLocalWrapper(config, mock.Mock(), env={"HOME": "/tmp"})
     with mock.patch("dallinger.heroku.tools.subprocess.Popen") as popen:

@@ -453,12 +453,13 @@ a non standard location.
     [Server]
     dyno_type = free
     num_dynos_web = 1
-    num_dynos_worker = 1
+    worker_processes = 1
     host = 0.0.0.0
     clock_on = false
     logfile = -
 
-Finally, the `Server` section contains Heroku related parameters.
+Finally, the `Server` section contains Heroku related parameters, along
+with ``worker_processes``, the number of background worker processes.
 Depending on the number of participants and size of the experiment,
 you might need to set the `dyno_type` and `num_dynos_web` parameters
 to something else, but be aware that most dyno types require a paid

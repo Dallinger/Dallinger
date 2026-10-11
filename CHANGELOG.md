@@ -75,8 +75,20 @@
   A custom experiment Dockerfile gets a final step that installs that wheel.
   Dallinger pins given as Git URLs are replaced by the local wheel as well
   (extras such as ``[docker]`` are dropped from the rewritten line).
+- Added Docker-first parallelism settings: ``web_processes`` (number of
+  gunicorn web processes, default ``auto``), ``worker_processes`` (number of
+  background worker processes, default ``1``; one container each on
+  docker-ssh, worker dynos on Heroku) and ``worker_greenlets_per_process``
+  (tasks each worker process runs at once, default ``20``). For CPU-heavy
+  tasks, set ``worker_greenlets_per_process = 1`` and add worker processes.
 
 ### Changed
+
+- Docker worker containers now get a low CPU weight (``cpu_shares``), so the
+  web server gets priority when the CPU is busy: all the workers together
+  weigh about a tenth of the web container. Postgres, pgbouncer, Redis and
+  Caddy keep Docker's default weight. ``docker_worker_cpu_shares`` is now
+  ignored.
 
 - Skipped the live MTurk integration tests, because Amazon has discontinued
   Mechanical Turk and every call now fails with `AccessDeniedException`.
@@ -88,6 +100,16 @@
   Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 - The ``deployment-files`` CLI tests no longer use Click's deprecated
   ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
+
+### Deprecated
+
+- ``threads`` and ``num_dynos_worker`` are deprecated in favour of
+  ``web_processes`` and ``worker_processes``. The old names still work, but
+  setting or reading them emits a ``FutureWarning``. Setting
+  ``worker_multiplier`` (set ``web_processes`` to a number instead) or
+  ``docker_worker_cpu_shares`` (now ignored) also warns. The warning for
+  ``prolific_maximum_allowed_minutes`` is now a ``FutureWarning`` too, and no
+  longer changes the global warnings filter.
 
 ### Fixed
 

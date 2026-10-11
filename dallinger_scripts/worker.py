@@ -1,6 +1,14 @@
 listen = ["high", "default", "low"]
 
 
+def worker_options(config):
+    """Return the keyword arguments for constructing the RQ gevent worker."""
+    return {
+        "log_job_description": False,
+        "pool_size": config.get("worker_greenlets_per_process"),
+    }
+
+
 def main():
     import gevent.monkey
 
@@ -57,7 +65,7 @@ def main():
     worker = Worker(
         [Queue(name, connection=redis_conn) for name in listen],
         connection=redis_conn,
-        log_job_description=False,
+        **worker_options(config),
     )
     worker.log_result_lifespan = False
     # Default to log.warn because rq logs extremely verbosely at the info
