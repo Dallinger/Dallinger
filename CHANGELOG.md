@@ -89,7 +89,6 @@
   weigh about a tenth of the web container. Postgres, pgbouncer, Redis and
   Caddy keep Docker's default weight. ``docker_worker_cpu_shares`` is now
   ignored.
-
 - Skipped the live MTurk integration tests, because Amazon has discontinued
   Mechanical Turk and every call now fails with `AccessDeniedException`.
   Mocked MTurk tests still run.

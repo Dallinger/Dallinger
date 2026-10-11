@@ -490,12 +490,14 @@ background tasks.
     can serve many requests at once while they wait on the network or the
     database. Default ``auto``, which starts ``round(1.5 * CPU count) + 1``
     processes. Set a number instead if you need to limit memory use. On Heroku
-    this is the number of processes in each web dyno.
+    this is the number of processes in each web dyno. Replaces ``threads``,
+    which still works but is deprecated.
 
 ``worker_processes`` *integer*
     Number of background worker processes. With Docker SSH deployments, each
     worker process runs in its own container; on Heroku, this is the number of
-    worker dynos. Default ``1``.
+    worker dynos. Default ``1``. Replaces ``num_dynos_worker``, which still
+    works but is deprecated.
 
 ``worker_greenlets_per_process`` *integer*
     Number of tasks that each worker process runs at the same time, as gevent
