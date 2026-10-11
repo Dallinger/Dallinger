@@ -99,18 +99,23 @@
   server, p95 response time at 320 participants fell from 438 ms to 65 ms,
   and 480 participants ran with a p95 of about 100 ms. Classic-ingress apps
   share one server-wide Postgres, so they keep 20 connections each.
+  Already-running apps pick up the new pgbouncer limits after
+  ``dallinger docker-ssh deploy --update``.
 - Each process now keeps at most 20 idle database connections instead of up
   to 1,000. Busy web workers still open as many connections as they need,
   but close the extra ones afterwards, so idle connections no longer pile up
   after heavy load and use up the database's or pgbouncer's client limit.
-- Database connections are now checked before each use and replaced if the
-  server dropped them. Before, restarting a docker-ssh app's pgbouncer or
-  Postgres container while the web container kept running made requests
-  fail with ``server closed the connection unexpectedly``.
-- Classic-ingress docker-ssh deploys to a server with a private IP address
-  now stop before building the image and suggest ``--ingress cloudflare``,
-  because Let's Encrypt cannot issue certificates for such servers.
-  ``docker-ssh servers add`` prints the same advice.
+- Idle pooled database connections are now checked when they are next used
+  and replaced if the server dropped them. Before, after a docker-ssh app's
+  pgbouncer or Postgres container restarted while the web container kept
+  running, later requests failed with ``server closed the connection
+  unexpectedly``. Requests in flight during the restart can still fail.
+- Classic-ingress docker-ssh deploys to a server whose SSH host resolves only
+  to private IP addresses now stop before building the image and suggest
+  ``--ingress cloudflare``, because Let's Encrypt cannot issue certificates
+  for such servers. ``docker-ssh servers add`` prints the same advice.
+  Servers with a private address inside their network but a public DNS name
+  that forwards ports 80 and 443 to them can pass ``--allow-private-ip``.
 
 ### Fixed
 
