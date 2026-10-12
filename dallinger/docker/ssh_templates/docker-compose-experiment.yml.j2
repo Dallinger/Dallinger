@@ -4,6 +4,7 @@ services:
   postgresql:
     restart: unless-stopped
     image: postgres:12
+    command: postgres -c jit=off
     container_name: {{ experiment_id }}_postgresql
     environment:
       POSTGRES_USER: {{ experiment_id }}

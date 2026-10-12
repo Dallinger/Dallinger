@@ -1,6 +1,7 @@
 services:
   postgresql:
     image: postgres:12
+    command: postgres -c jit=off
     restart: unless-stopped
     environment:
       POSTGRES_USER: dallinger

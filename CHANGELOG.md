@@ -88,6 +88,14 @@
   Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 - The ``deployment-files`` CLI tests no longer use Click's deprecated
   ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
+- The PostgreSQL containers that Dallinger runs (docker-ssh shared and
+  per-app databases, ``docker debug``, and ``docker start-services``) now
+  start with ``jit = off``. As a database grows, frequent short queries can
+  cross PostgreSQL's JIT cost thresholds, and JIT compilation then adds
+  hundreds of milliseconds of CPU to every execution. Existing docker-ssh apps
+  pick this up on their next deploy, which recreates the PostgreSQL container.
+  Heroku Postgres is unchanged; to disable JIT there, run
+  ``ALTER DATABASE <name> SET jit = off``.
 
 ### Fixed
 

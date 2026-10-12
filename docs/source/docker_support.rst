@@ -181,6 +181,9 @@ The app's database password lives in ``~/dallinger/<app>/.env`` (mode
 dashboard password, so it is private (mode ``0600``) too. ``--update`` keeps the
 password.
 
+Dallinger's PostgreSQL containers run with ``jit = off``, because JIT
+compilation slows down the short queries that experiments make.
+
 ``--ingress classic`` keeps host Caddy and the shared server Postgres.
 ``--ingress cloudflare`` starts an isolated Compose stack and a per-app
 tunnel; ``servers add --default-ingress cloudflare`` makes it a server's
