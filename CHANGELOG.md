@@ -92,6 +92,15 @@
   Selenium bots ask the browser for reduced motion, which turns off
   Bootstrap 5's smooth scrolling, so their clicks on buttons below the fold
   are not intercepted.
+- Upgraded jQuery from 3.7.1 to 4.0.0. ``scripts/jquery-3.7.1.min.js`` is
+  gone; templates that link it directly should link
+  ``scripts/jquery-4.0.0.min.js``, and templates that extend
+  ``base/layout.html`` pick it up automatically. Experiment JavaScript that
+  calls APIs jQuery 4 removed, such as ``$.trim``, ``$.isArray``,
+  ``$.parseJSON`` or ``$.isFunction``, must switch to the native
+  equivalents (see the
+  [jQuery 4.0 upgrade guide](https://jquery.com/upgrade-guide/4.0/)). The sheep market and iterated
+  drawing demos still load jQuery 1.7.2 because Raphael requires it.
 - Skipped the live MTurk integration tests, because Amazon has discontinued
   Mechanical Turk and every call now fails with `AccessDeniedException`.
   Mocked MTurk tests still run.
