@@ -1208,7 +1208,7 @@ def _start_server_services(executor):
     executor.run(f"{compose} up -d")
     # A changed server compose file recreates the shared Postgres. Waiting
     # only on it keeps a crash-looping Caddy or Dozzle from blocking deploys.
-    executor.run(f"{compose} up -d --wait --wait-timeout 300 postgresql")
+    executor.run(f"{compose} up -d --wait --wait-timeout 360 postgresql")
 
 
 def ensure_postgres_schema_permissions(executor, experiment_id):

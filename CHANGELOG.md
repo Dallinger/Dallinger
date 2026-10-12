@@ -100,8 +100,8 @@
   is live. Data volumes are kept. Classic deploys now wait for the shared
   PostgreSQL service specifically to pass its healthcheck before creating
   databases. The docker-ssh and ``docker debug`` PostgreSQL healthchecks
-  allow a 300-second start period and 15 retries, so slow crash recovery
-  doesn't fail the wait, and PostgreSQL gets 60 seconds to shut down cleanly
+  ignore failed checks for the first 300 seconds, so slow crash recovery
+  doesn't fail the wait (classic deploys wait up to 6 minutes), and PostgreSQL gets 60 seconds to shut down cleanly
   when its container is recreated. An already-running ``dallinger_postgres``
   container from ``dallinger docker start-services`` keeps JIT on until you
   run ``stop-services`` and then ``start-services`` (the volume is kept); a
