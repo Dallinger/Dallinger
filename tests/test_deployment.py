@@ -1917,6 +1917,26 @@ class Testhandle_launch_data:
             mock_print.assert_not_called()
 
 
+@pytest.mark.parametrize("preset", ["preset-key", "", None])
+def test_debug_deployment_keeps_preset_flask_secret_key(monkeypatch, preset):
+    from dallinger.deployment import DebugDeployment
+
+    if preset is None:
+        monkeypatch.delenv("FLASK_SECRET_KEY", raising=False)
+    else:
+        monkeypatch.setenv("FLASK_SECRET_KEY", preset)
+
+    debugger = DebugDeployment(
+        mock.Mock(), verbose=False, bot=False, proxy_port=None, exp_config={}
+    )
+
+    key = debugger.environ["FLASK_SECRET_KEY"]
+    if preset:
+        assert key == preset
+    else:
+        assert len(key) == 32
+
+
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
 class TestDebugServer:
