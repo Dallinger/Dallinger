@@ -182,7 +182,8 @@ dashboard password, so it is private (mode ``0600``) too. ``--update`` keeps the
 password.
 
 Dallinger's PostgreSQL containers run with ``jit = off``, because JIT
-compilation slows down the short queries that experiments make.
+compilation slows down the short queries that experiments make. A heavy
+analytic query can enable it for its session with ``SET jit = on``.
 
 ``--ingress classic`` keeps host Caddy and the shared server Postgres.
 ``--ingress cloudflare`` starts an isolated Compose stack and a per-app

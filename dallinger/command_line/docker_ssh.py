@@ -1403,7 +1403,11 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     set_dozzle_password(executor, sftp, dozzle_password)
 
     print("Launching http, postgresql and dozzle servers.")
-    executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
+    # A changed server compose file recreates the shared Postgres, so wait for
+    # its healthcheck before the psql commands below.
+    executor.run(
+        "docker compose -f ~/dallinger/docker-compose.yml up -d --wait --wait-timeout 300"
+    )
 
     if not update:
         print("Starting experiment.")
@@ -1438,9 +1442,9 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         ingress=INGRESS_CLASSIC,
         secrets=app_secrets,
     )
-    # We invoke the "ls" command in the context of the `web` container.
-    # `docker compose` will honour `web`'s dependencies and block
-    # until postgresql is ready. This way we can be sure we can start creating the database.
+    # Running "ls" in the `web` container blocks until `web`'s own dependencies
+    # (redis and pgbouncer) are healthy. The shared Postgres belongs to another
+    # compose project; the `up --wait` above already waited for it.
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
     )

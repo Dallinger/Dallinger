@@ -92,9 +92,18 @@
   per-app databases, ``docker debug``, and ``docker start-services``) now
   start with ``jit = off``. As a database grows, frequent short queries can
   cross PostgreSQL's JIT cost thresholds, and JIT compilation then adds
-  hundreds of milliseconds of CPU to every execution. Existing docker-ssh apps
-  pick this up on their next deploy, which recreates the PostgreSQL container.
-  Heroku Postgres is unchanged; to disable JIT there, run
+  hundreds of milliseconds of CPU to every execution. For Cloudflare-ingress
+  apps, each app's own PostgreSQL container is recreated on that app's next
+  deploy. For classic ingress, the next classic deploy on a server recreates
+  the shared server PostgreSQL once, briefly interrupting all classic apps on
+  that server, so do that first post-upgrade deploy when no classic experiment
+  is live. Data volumes are kept. Classic deploys now wait for the shared
+  PostgreSQL to pass its healthcheck before creating databases. An
+  already-running ``dallinger_postgres`` container from
+  ``dallinger docker start-services`` keeps JIT on until you run
+  ``stop-services`` and then ``start-services`` (the volume is kept). A heavy
+  analytic query on a live database can still enable JIT for its session with
+  ``SET jit = on``. Heroku Postgres is unchanged; to disable JIT there, run
   ``ALTER DATABASE <name> SET jit = off``.
 
 ### Fixed
