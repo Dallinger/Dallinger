@@ -565,7 +565,8 @@ class DebugDeployment(HerokuLocalDeployment):
         self.no_browsers = no_browsers
         self.experiment_files = experiment_files
         self.environ = {
-            "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
+            "FLASK_SECRET_KEY": os.environ.get("FLASK_SECRET_KEY")
+            or codecs.encode(os.urandom(16), "hex").decode("ascii"),
         }
 
     def with_proxy_port(self, url):
