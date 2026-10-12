@@ -987,6 +987,14 @@ def test_classic_bring_up_does_not_restore_twice(monkeypatch):
     assert not any("initdb" in command for command in commands)
 
 
+def test_start_server_services_waits_only_for_postgres():
+    executor = mock.Mock()
+    docker_ssh_module._start_server_services(executor)
+    commands = [call.args[0] for call in executor.run.call_args_list]
+    assert commands[0].endswith("docker-compose.yml up -d")
+    assert commands[-1].endswith("--wait --wait-timeout 300 postgresql")
+
+
 def test_write_experiment_compose_env_appends_ids_and_creates_home_dirs(tmp_path):
     app_dir = tmp_path / "dallinger" / "demo"
     app_dir.mkdir(parents=True)

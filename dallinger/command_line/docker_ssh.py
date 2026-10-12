@@ -1202,6 +1202,15 @@ def set_dozzle_password(executor, sftp, new_password):
         executor.restart_dozzle()
 
 
+def _start_server_services(executor):
+    """Start the shared server services and wait until Postgres is healthy."""
+    compose = "docker compose -f ~/dallinger/docker-compose.yml"
+    executor.run(f"{compose} up -d")
+    # A changed server compose file recreates the shared Postgres. Waiting
+    # only on it keeps a crash-looping Caddy or Dozzle from blocking deploys.
+    executor.run(f"{compose} up -d --wait --wait-timeout 300 postgresql")
+
+
 def ensure_postgres_schema_permissions(executor, experiment_id):
     # PostgreSQL 15+ no longer grants CREATE on schema public to all users.
     grant_schema_script = f'GRANT USAGE, CREATE ON SCHEMA public TO "{experiment_id}"'
@@ -1403,11 +1412,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     set_dozzle_password(executor, sftp, dozzle_password)
 
     print("Launching http, postgresql and dozzle servers.")
-    # A changed server compose file recreates the shared Postgres, so wait for
-    # its healthcheck before the psql commands below.
-    executor.run(
-        "docker compose -f ~/dallinger/docker-compose.yml up -d --wait --wait-timeout 300"
-    )
+    _start_server_services(executor)
 
     if not update:
         print("Starting experiment.")

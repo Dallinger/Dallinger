@@ -98,10 +98,14 @@
   the shared server PostgreSQL once, briefly interrupting all classic apps on
   that server, so do that first post-upgrade deploy when no classic experiment
   is live. Data volumes are kept. Classic deploys now wait for the shared
-  PostgreSQL to pass its healthcheck before creating databases. An
-  already-running ``dallinger_postgres`` container from
-  ``dallinger docker start-services`` keeps JIT on until you run
-  ``stop-services`` and then ``start-services`` (the volume is kept). A heavy
+  PostgreSQL service specifically to pass its healthcheck before creating
+  databases. The docker-ssh PostgreSQL healthchecks allow a 60-second start
+  period and 15 retries, and PostgreSQL gets 60 seconds to shut down cleanly
+  when its container is recreated. An already-running ``dallinger_postgres``
+  container from ``dallinger docker start-services`` keeps JIT on until you
+  run ``stop-services`` and then ``start-services`` (the volume is kept); a
+  container restarted with ``docker start dallinger_postgres`` also keeps JIT
+  on until it is recreated. A heavy
   analytic query on a live database can still enable JIT for its session with
   ``SET jit = on``. Heroku Postgres is unchanged; to disable JIT there, run
   ``ALTER DATABASE <name> SET jit = off``.

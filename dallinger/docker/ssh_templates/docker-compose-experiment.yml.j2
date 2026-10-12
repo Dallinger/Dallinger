@@ -16,6 +16,9 @@ services:
       test: ["CMD-SHELL", "pg_isready -U {{ experiment_id }}"]
       interval: 2s
       timeout: 5s
+      retries: 15
+      start_period: 60s
+    stop_grace_period: 60s
     networks:
       app:
         aliases:

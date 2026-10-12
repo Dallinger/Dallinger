@@ -38,6 +38,9 @@ or you can start the containers you have:
     # Needed if you want to start stopped containers
     docker start dallinger_redis dallinger_postgres
 
+A ``dallinger_postgres`` container created before Dallinger started passing
+``-c jit=off`` keeps JIT on when started this way; recreate it to turn JIT off.
+
 Start adminer:
 
 .. code-block:: shell
