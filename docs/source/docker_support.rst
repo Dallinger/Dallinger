@@ -186,6 +186,10 @@ compilation slows down the short queries that experiments make. A heavy
 analytic query can enable it for its session with ``SET jit = on``.
 
 ``--ingress classic`` keeps host Caddy and the shared server Postgres.
+When the server Postgres settings change, as with ``jit = off``, the next
+classic deploy on that server recreates the shared Postgres once, keeping its
+data volume. This briefly interrupts every classic app on the server, so make
+that deploy when no classic experiment is live.
 ``--ingress cloudflare`` starts an isolated Compose stack and a per-app
 tunnel; ``servers add --default-ingress cloudflare`` makes it a server's
 default. Cloudflare apps don't block a classic root-domain deploy.

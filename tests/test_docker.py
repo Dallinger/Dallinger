@@ -226,7 +226,10 @@ def test_postgres_services_disable_jit(tmp_path):
         yaml.safe_load((tmp_path / "docker-compose.yml").read_text()),
     ]
     for compose in composes:
-        assert compose["services"]["postgresql"]["command"] == "postgres -c jit=off"
+        postgres = compose["services"]["postgresql"]
+        assert postgres["command"] == "postgres -c jit=off"
+        assert postgres["healthcheck"]["start_period"] == "300s"
+        assert postgres["stop_grace_period"] == "60s"
 
 
 def test_compose_reads_the_database_password_from_the_app_env():
