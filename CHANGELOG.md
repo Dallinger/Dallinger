@@ -91,6 +91,9 @@
 
 ### Fixed
 
+- Bots with a ``webdriver_url`` start again. They passed
+  ``desired_capabilities``, which Selenium 4.10 removed, and now pass the
+  same browser options as local bots.
 - Remote Docker builds work when the SSH username contains ``@``.
 - docker-ssh deploys no longer write the dashboard or Dozzle password into
   ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.
