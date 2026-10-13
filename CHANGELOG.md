@@ -78,14 +78,16 @@
 
 ### Changed
 
-- Bounded each process's database connection pool to 5 idle connections
-  plus up to 10 more under load, after which requests wait up to 30 seconds
-  for a free connection. It used to allow 1,000, so under load gevent web
-  workers opened one connection per queued request until PostgreSQL or
-  PgBouncer ran out of connection slots and requests failed. Set
-  ``DATABASE_POOL_SIZE``, ``DATABASE_MAX_OVERFLOW`` and
-  ``DATABASE_POOL_TIMEOUT`` to change the limits. docker-ssh deployments also
-  raise PgBouncer's client connection limit to 1,000.
+- Each process's database connection pool can now be set with the
+  ``DATABASE_POOL_SIZE`` (default 20), ``DATABASE_MAX_OVERFLOW`` (default -1,
+  no limit) and ``DATABASE_POOL_TIMEOUT`` (default 30 seconds) environment
+  variables. With the defaults, requests never wait for the pool. A process
+  that should not open many connections, such as a bot runner, can set a
+  bounded pool; its requests then wait up to ``DATABASE_POOL_TIMEOUT`` for a
+  free connection. Invalid values raise an error that names the variable.
+  Idle connections add up to about ``DATABASE_POOL_SIZE`` times the number of
+  processes; keep that below PostgreSQL's ``max_connections`` or, on
+  docker-ssh, pgbouncer's client limit of 10,000.
 - Skipped the live MTurk integration tests, because Amazon has discontinued
   Mechanical Turk and every call now fails with `AccessDeniedException`.
   Mocked MTurk tests still run.

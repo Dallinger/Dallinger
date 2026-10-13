@@ -1,5 +1,7 @@
 from unittest import mock
 
+import pytest
+
 
 def test_redis():
     from dallinger.db import redis_conn
@@ -116,3 +118,39 @@ def test_create_db_engine_replaces_connections_the_server_dropped():
     finally:
         engine.dispose()
         killer.dispose()
+
+
+def test_create_db_engine_reads_a_bounded_pool_from_the_environment(monkeypatch):
+    from sqlalchemy.exc import TimeoutError
+
+    from dallinger.db import create_db_engine, db_url
+
+    monkeypatch.setenv("DATABASE_POOL_SIZE", "1")
+    monkeypatch.setenv("DATABASE_MAX_OVERFLOW", "1")
+    monkeypatch.setenv("DATABASE_POOL_TIMEOUT", "1")
+    engine = create_db_engine(db_url)
+    try:
+        connections = [engine.connect() for _ in range(2)]
+        with pytest.raises(TimeoutError):
+            engine.connect()
+        for connection in connections:
+            connection.close()
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "name, value",
+    [
+        ("DATABASE_POOL_SIZE", "many"),
+        ("DATABASE_POOL_SIZE", "-1"),
+        ("DATABASE_MAX_OVERFLOW", "-2"),
+        ("DATABASE_POOL_TIMEOUT", "0"),
+    ],
+)
+def test_create_db_engine_rejects_invalid_pool_settings(monkeypatch, name, value):
+    from dallinger.db import create_db_engine, db_url
+
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ValueError, match=name):
+        create_db_engine(db_url)

@@ -33,21 +33,106 @@ def corrected_db_url(db_url):
     return db_url
 
 
-def create_db_engine(db_url, pool_size=20):
-    """Create an engine whose pool never makes a request wait for a connection.
+DEFAULT_POOL_SIZE = 20
+DEFAULT_MAX_OVERFLOW = -1
+DEFAULT_POOL_TIMEOUT = 30
 
-    A gevent worker can serve many requests at once, so the pool may grow without
-    limit; connections beyond ``pool_size`` are closed when returned rather than
+
+def _pool_setting(name, default, minimum, requirement):
+    """Read an integer pool setting from the environment variable ``name``.
+
+    Parameters
+    ----------
+    name : str
+        Environment variable to read.
+    default : int
+        Value used when the variable is unset or empty.
+    minimum : int
+        Smallest accepted value.
+    requirement : str
+        Description of accepted values, used in the error message.
+
+    Returns
+    -------
+    int
+        The validated setting.
+
+    Raises
+    ------
+    ValueError
+        If the variable is not an integer or is below ``minimum``.
+    """
+    value = os.environ.get(name, "").strip()
+    if not value:
+        return default
+    try:
+        setting = int(value)
+    except ValueError:
+        setting = None
+    if setting is None or setting < minimum:
+        raise ValueError(f"{name} must be {requirement}, not {value!r}.")
+    return setting
+
+
+def create_db_engine(db_url, pool_size=None, max_overflow=None, pool_timeout=None):
+    """Create a SQLAlchemy engine for ``db_url``.
+
+    By default the pool never makes a request wait for a connection: a gevent
+    worker can serve many requests at once, so the pool may grow without limit,
+    and connections beyond ``pool_size`` are closed when returned rather than
     kept idle, where they would count against the database's client limit.
 
     Each checkout first pings the connection and replaces it if the server has
     dropped it, for example after pgbouncer or Postgres restarts while the web
     workers keep running.
+
+    Parameters
+    ----------
+    db_url : str
+        Database URL.
+    pool_size : int, optional
+        Idle connections kept open; SQLAlchemy treats 0 as no limit. Defaults
+        to ``DATABASE_POOL_SIZE``, or 20.
+    max_overflow : int, optional
+        Connections opened beyond ``pool_size`` under load; -1 means no limit.
+        Defaults to ``DATABASE_MAX_OVERFLOW``, or -1.
+    pool_timeout : int, optional
+        Seconds to wait for a connection once ``pool_size + max_overflow`` are
+        in use. Defaults to ``DATABASE_POOL_TIMEOUT``, or 30.
+
+    Returns
+    -------
+    sqlalchemy.engine.Engine
+        The new engine.
+
+    Raises
+    ------
+    ValueError
+        If one of the environment variables is invalid.
     """
+    if pool_size is None:
+        pool_size = _pool_setting(
+            "DATABASE_POOL_SIZE", DEFAULT_POOL_SIZE, 0, "an integer of at least 0"
+        )
+    if max_overflow is None:
+        max_overflow = _pool_setting(
+            "DATABASE_MAX_OVERFLOW",
+            DEFAULT_MAX_OVERFLOW,
+            -1,
+            "-1 (no limit) or an integer of at least 0",
+        )
+    if pool_timeout is None:
+        pool_timeout = _pool_setting(
+            "DATABASE_POOL_TIMEOUT",
+            DEFAULT_POOL_TIMEOUT,
+            1,
+            "a positive integer",
+        )
     return create_engine(
         corrected_db_url(db_url),
         pool_size=pool_size,
-        max_overflow=-1,
+        max_overflow=max_overflow,
+        pool_timeout=pool_timeout,
         pool_pre_ping=True,
     )
 
