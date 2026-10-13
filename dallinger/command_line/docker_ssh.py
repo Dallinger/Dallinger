@@ -79,7 +79,7 @@ from .lib.cloudflare import (
 from .lib.cloudflare import public_hostname as cloudflare_public_hostname
 from .lib.launch import (
     LaunchTarget,
-    internal_health_status,
+    check_internal_health,
     launch_from_server,
     ssh_command,
     wait_for_public_url,
@@ -913,8 +913,8 @@ def _record_then_launch(executor, target, deployment_infos, dashboard_password, 
     """Record the deployment, wait for the public URL, then launch the experiment.
 
     The record comes first so it exists even if the deploy stops here. A
-    missing ``curl`` in the web image, or an unhealthy app, fails before the
-    long public wait, which compares the public answer with the app's own.
+    missing ``curl`` in the web image, or an app whose own ``/health`` does
+    not answer 2xx, fails before the long public wait.
     Launching opens recruitment, so it only happens once participants can
     reach the public URL; if the bounded wait times out, nothing is launched.
     """
@@ -922,8 +922,8 @@ def _record_then_launch(executor, target, deployment_infos, dashboard_password, 
     if update:
         print("Skipping experiment launch logic because we are in update mode.")
         return
-    app_answer = internal_health_status(executor, target)
-    wait_for_public_url(executor, target, app_answer)
+    check_internal_health(executor, target)
+    wait_for_public_url(executor, target)
     print("Launching experiment")
     launch_data = launch_from_server(executor, target)
     print(launch_data.get("recruitment_msg"))

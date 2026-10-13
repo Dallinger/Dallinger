@@ -11,7 +11,8 @@ The launch itself does not go through the public URL. The ``web`` container
 POSTs ``/launch`` to the app's front door over the app's Docker network
 with ``curl``, sending the public ``Host`` and ``X-Forwarded-Proto``. The web
 image must have ``curl`` (the Dallinger and PsyNet images do), and the deploy
-checks for it before waiting for the public URL. The front door trusts forwarded headers from private
+checks for it, and for a 2xx from the app's own ``/health``, before waiting
+for the public URL. The front door trusts forwarded headers from private
 networks, Caddy passes ``Host`` through, and the app runs behind ``ProxyFix``,
 so the app computes its public base URL and recruitment links as if the
 request had come from outside.
@@ -66,7 +67,7 @@ WEB_NOT_RUNNING_PATTERN = re.compile(
 )
 CURL_TIMEOUT_EXIT_STATUS = 28
 FRONT_DOOR_HEALTH_URL = "http://frontdoor:5000/health"
-HEALTH_STATUS_PATTERN = re.compile(r"\nhealth=(\d{3})\s*$")
+HEALTH_STATUS_PATTERN = re.compile(r"health=(\d{3})\s*$")
 # Characters that are not literal inside a local double-quoted string.
 _DOUBLE_QUOTE_UNSAFE = re.compile(r'["$`!]|\\[\\"$`\n]|\\$')
 
@@ -98,10 +99,9 @@ class LaunchTarget:
         """Return a server-side command that runs ``command`` in the web container."""
         return f"docker compose -f {self.compose_file} exec -T web {command}"
 
-    def check_command(self, show_body=False):
+    @property
+    def check_command(self):
         """Return a local command that checks the public health URL."""
-        if show_body:
-            return f"curl -sS -w '\\nHTTP %{{http_code}}\\n' {quote(self.health_url)}"
         return f"curl -sS -o /dev/null -w '%{{http_code}}\\n' {quote(self.health_url)}"
 
     @property
@@ -183,19 +183,21 @@ def _last_line(text):
 def _internal_health_command(target):
     """Return a command that checks for curl, then GETs ``/health`` like the launch.
 
-    curl prints the body, then ``health=<status>`` on its own last line.
+    curl prints only ``health=<status>``.
     """
     origin = urlsplit(target.public_origin)
     args = [
         "--silent",
         "--max-time",
         str(REQUEST_TIMEOUT),
+        "-o",
+        "/dev/null",
         "-H",
         f"Host: {origin.netloc}",
         "-H",
         f"X-Forwarded-Proto: {origin.scheme}",
         "-w",
-        "\\nhealth=%{http_code}\\n",
+        "health=%{http_code}\\n",
         FRONT_DOOR_HEALTH_URL,
     ]
     script = (
@@ -205,12 +207,25 @@ def _internal_health_command(target):
     return target.compose_exec(f"sh -c {quote(script)}")
 
 
-def internal_health_status(executor, target):
-    """Return ``(status, body)`` of the app's own ``/health``, from inside the server.
+def _stop_before_launch(target, problem, show_logs=False):
+    if show_logs:
+        print_bold("Check the web container logs:")
+        print(target.ssh(f"docker compose -f {target.compose_file} logs web"))
+    print_bold("Or remove the app:" if show_logs else "To remove the app:")
+    print(target.destroy_command)
+    raise click.ClickException(
+        f"{problem} The app's containers are running, but the experiment was "
+        "not launched and recruitment has not started."
+    )
 
-    Stops the deploy early if the web image has no ``curl`` to launch with, or
-    if the app does not answer below 500. Retries briefly while the web
-    container or the app is still starting, like the launch.
+
+def check_internal_health(executor, target):
+    """Check that the app's own ``/health`` answers 2xx from inside the server.
+
+    Stops the deploy early if the web image has no ``curl`` to launch with,
+    if the app has no ``/health`` (404), or if it does not answer below 500.
+    Retries briefly while the web container or the app is still starting,
+    like the launch.
     """
     command = _internal_health_command(target)
     delay = DEFAULT_DELAY
@@ -218,26 +233,29 @@ def internal_health_status(executor, target):
     for attempt in range(MAX_ATTEMPTS):
         _, stdout, stderr = executor.run_with_status(command)
         if stdout.strip() == "curl-missing":
-            print_bold("To remove the app:")
-            print(target.destroy_command)
-            raise click.ClickException(
+            _stop_before_launch(
+                target,
                 "curl is not installed in the experiment's web image, so the "
                 "deploy cannot launch the experiment. Install curl in the image "
-                "(for example `apt-get install -y curl` in the Dockerfile). The "
-                "app's containers are running, but the experiment was not "
-                "launched and recruitment has not started."
+                "(for example `apt-get install -y curl` in the Dockerfile).",
             )
-        match = HEALTH_STATUS_PATTERN.search("\n" + stdout)
+        match = HEALTH_STATUS_PATTERN.search(stdout)
         status = int(match.group(1)) if match else None
         if status and status < 500:
-            return status, ("\n" + stdout)[: match.start()].lstrip("\n")
+            break
         if attempt < MAX_ATTEMPTS - 1:
             delay *= BACKOFF_FACTOR
             time.sleep(delay)
-    print_bold("Check the web container logs:")
-    print(target.ssh(f"docker compose -f {target.compose_file} logs web"))
-    print_bold("Or remove the app:")
-    print(target.destroy_command)
+    if status and 200 <= status < 300:
+        print("The app answers /health inside the server.")
+        return
+    if status == 404:
+        _stop_before_launch(
+            target,
+            "The app has no /health endpoint, so its image was built with a "
+            "Dallinger older than this command. Rebuild the image with this "
+            "Dallinger version (or newer) and deploy again.",
+        )
     if status:
         problem = f"The app's own /health answered HTTP {status}, so it is not healthy."
     else:
@@ -245,9 +263,7 @@ def internal_health_status(executor, target):
             f"Could not read the app's own /health inside the server "
             f"({_last_line(stderr) or 'no answer'})."
         )
-    raise click.ClickException(
-        f"{problem} The experiment was not launched and recruitment has not started."
-    )
+    _stop_before_launch(target, problem, show_logs=True)
 
 
 def launch_from_server(executor, target):
@@ -319,13 +335,11 @@ def launch_from_server(executor, target):
         ) from exc
 
 
-def wait_for_public_url(
-    executor, target, app_answer=(200, ""), timeout=None, interval=None
-):
-    """Wait until the app answers on its public URL, or stop the deploy.
+def wait_for_public_url(executor, target, timeout=None, interval=None):
+    """Wait until the public ``/health`` answers 2xx, or stop the deploy.
 
-    ``app_answer`` is the ``(status, body)`` the app's ``/health`` gave from
-    inside the server. Waits up to ``timeout`` seconds (default ``PUBLIC_CHECK_TIMEOUT``).
+    Waits up to ``timeout`` seconds (default ``PUBLIC_CHECK_TIMEOUT``). Edge
+    pages, gateway errors and Cloudflare's pending-tunnel 530 keep waiting.
     If the URL never answers, prints why and what to run next, and raises
     ``click.ClickException`` so the experiment is not launched.
     """
@@ -347,7 +361,7 @@ def wait_for_public_url(
     next_report = PROGRESS_INTERVAL
     while True:
         status, detail = _probe(target.health_url, target.verify)
-        if _public_url_answers(status, detail, app_answer):
+        if status is not None and 200 <= status < 300:
             print(f"{target.public_origin} is reachable.")
             return
         elapsed = time.monotonic() - started
@@ -358,7 +372,7 @@ def wait_for_public_url(
             next_report += PROGRESS_INTERVAL
         time.sleep(interval)
 
-    _abort_unreachable(executor, target, status, detail, limit, app_answer[0])
+    _abort_unreachable(executor, target, status, detail, limit)
 
 
 def _duration(seconds):
@@ -382,24 +396,6 @@ def _describe(status, detail):
     return f"HTTP {status}"
 
 
-def _public_url_answers(status, body, app_answer):
-    """True when the public answer can only have come from the app itself.
-
-    A 2xx always does. Images without ``/health`` answer 404, but so does a
-    Cloudflare connector whose hostname is not in its ingress yet, with an
-    empty body. So a 404 counts only when the app answers 404 too and the
-    public body is the app's own non-empty 404 page. Edge pages (403, 421,
-    429), gateway errors and Cloudflare's pending-tunnel 530 keep waiting.
-    """
-    if status is None:
-        return False
-    if 200 <= status < 300:
-        return True
-    app_status, app_body = app_answer
-    page = (body or "").strip()
-    return status == app_status == 404 and bool(page) and page == app_body.strip()
-
-
 def _tunnel_pending(status, detail):
     """True for Cloudflare's 530 / error 1033 answer for an unconnected tunnel."""
     return status == CLOUDFLARE_TUNNEL_PENDING_STATUS or bool(
@@ -416,7 +412,7 @@ def _connector_reports_tunnel_not_found(executor, target):
     return "tunnel not found" in (logs or "").lower()
 
 
-def _abort_unreachable(executor, target, status, detail, limit, app_status):
+def _abort_unreachable(executor, target, status, detail, limit):
     cloudflare = target.ingress == INGRESS_CLOUDFLARE
     not_found = cloudflare and _connector_reports_tunnel_not_found(executor, target)
     print(
@@ -436,21 +432,8 @@ def _abort_unreachable(executor, target, status, detail, limit, app_status):
             "Caddy may still be getting a TLS certificate, or DNS may not "
             "point at the server yet."
         )
-    if app_status == 404:
-        empty_404 = (
-            "Cloudflare has not routed the hostname yet"
-            if cloudflare
-            else "the request did not reach the app"
-        )
-        print_bold(
-            "Check the public URL again. Expect 2xx, or a 404 showing the app's "
-            f"own 'Not Found' page; an empty 404 means {empty_404}, so do not "
-            "launch:"
-        )
-        print(target.check_command(show_body=True))
-    else:
-        print_bold("Check the public URL again (expect 2xx):")
-        print(target.check_command())
+    print_bold("Check the public URL again (expect 2xx):")
+    print(target.check_command)
     if cloudflare:
         print_bold("Inspect the tunnel connector logs:")
         print(target.ssh(f"docker compose -f {target.compose_file} logs cloudflared"))

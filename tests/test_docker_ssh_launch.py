@@ -34,9 +34,7 @@ def reply(status, body):
 
 
 class FakeExecutor:
-    def __init__(
-        self, launch_replies=(), logs="", events=None, health="{}\nhealth=200"
-    ):
+    def __init__(self, launch_replies=(), logs="", events=None, health="health=200"):
         self.launch_replies = list(launch_replies)
         self.logs = logs
         self.events = [] if events is None else events
@@ -152,41 +150,6 @@ def test_a_launch_that_reached_the_app_is_sent_once(result, capsys):
     assert TARGET.destroy_command in out
 
 
-NOT_FOUND = "<h1>Not Found</h1>"
-
-
-@pytest.mark.parametrize(
-    "public, app, ready",
-    [
-        ((200, ""), (200, ""), True),
-        ((404, ""), (200, ""), False),  # Cloudflare's catch-all, not the app
-        ((404, ""), (404, NOT_FOUND), False),  # also the catch-all
-        ((404, NOT_FOUND + "\n"), (404, NOT_FOUND), True),  # image without /health
-        ((403, ""), (200, ""), False),
-        ((502, ""), (200, ""), False),
-        ((530, ""), (200, ""), False),
-    ],
-)
-def test_public_url_answers_only_like_the_app(public, app, ready):
-    assert launch._public_url_answers(*public, app) is ready
-
-
-@pytest.mark.parametrize(
-    "output, expected",
-    [
-        (
-            'health=200\n{"status": "ok"}\nhealth=200\n  \n',
-            (200, 'health=200\n{"status": "ok"}'),
-        ),
-        ("\nhealth=404\n", (404, "")),
-    ],
-)
-def test_internal_health_reads_the_status_from_the_last_line(output, expected):
-    executor = FakeExecutor()
-    executor.run_with_status = lambda cmd: (0, output, "")
-    assert launch.internal_health_status(executor, TARGET) == expected
-
-
 def test_ssh_command_leaves_tilde_for_the_server():
     assert launch.ssh_command("ssh lab", "ls ~/dallinger") == 'ssh lab "ls ~/dallinger"'
 
@@ -206,24 +169,9 @@ def public_check(events, status, text=""):
     return mock.patch.object(launch.requests, "get", get)
 
 
-@pytest.mark.parametrize(
-    "app_health, expected, check",
-    [
-        ("{}\nhealth=200", "(expect 2xx)", TARGET.check_command()),
-        (
-            f"{NOT_FOUND}\nhealth=404",
-            "an empty 404 means Cloudflare has not routed",
-            TARGET.check_command(show_body=True),
-        ),
-    ],
-)
-def test_deploy_does_not_launch_when_the_public_url_never_answers(
-    app_health, expected, check, deploy_dir, capsys
-):
+def test_deploy_does_not_launch_when_the_public_url_never_answers(deploy_dir, capsys):
     events = []
-    executor = FakeExecutor(
-        logs="ERR Unauthorized: Tunnel not found", events=events, health=app_health
-    )
+    executor = FakeExecutor(logs="ERR Unauthorized: Tunnel not found", events=events)
 
     with public_check(events, 530, "error code: 1033"):
         with pytest.raises(click.ClickException) as error:
@@ -235,9 +183,8 @@ def test_deploy_does_not_launch_when_the_public_url_never_answers(
     assert "Cloudflare has not activated the new tunnel yet" in error.value.message
     assert "'Tunnel not found'" in error.value.message
     out = capsys.readouterr().out
-    assert expected in out
     for command in (
-        check,
+        TARGET.check_command,
         TARGET.ssh(f"docker compose -f {TARGET.compose_file} logs cloudflared"),
         TARGET.ssh(launch.internal_launch_command(TARGET)),
         TARGET.destroy_command,
@@ -245,45 +192,39 @@ def test_deploy_does_not_launch_when_the_public_url_never_answers(
         assert command in out
 
 
-@pytest.mark.parametrize(
-    "app_health, public",
-    [("{}\nhealth=200", (200, "")), (f"{NOT_FOUND}\nhealth=404", (404, NOT_FOUND))],
-    ids=["health-route", "app-404-page"],
-)
-def test_deploy_launches_once_the_public_url_answers(app_health, public, deploy_dir):
+def test_deploy_launches_once_the_public_url_answers(deploy_dir, capsys):
     events = []
     executor = FakeExecutor(
-        [(0, reply(200, {"recruitment_msg": "open"}), "")],
-        events=events,
-        health=app_health,
+        [(0, reply(200, {"recruitment_msg": "open"}), "")], events=events
     )
 
-    with public_check(events, *public):
+    with public_check(events, 200):
         docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
         assert events == ["health", "check", "launch"]
+        assert "The app answers /health inside the server." in capsys.readouterr().out
 
         docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", True)
         assert events == ["health", "check", "launch"]
 
 
-def test_deploy_stops_early_without_curl_in_the_web_image(deploy_dir):
+@pytest.mark.parametrize(
+    "health, message",
+    [
+        ("curl-missing", "curl is not installed"),
+        ("health=404", "no /health endpoint.*Rebuild the image"),
+        ("health=503", "answered HTTP 503"),
+    ],
+)
+def test_deploy_stops_early_unless_the_app_answers_health_inside(
+    health, message, deploy_dir, no_sleep, capsys
+):
     events = []
-    executor = FakeExecutor(events=events, health="curl-missing")
+    executor = FakeExecutor(events=events, health=health)
 
     with public_check(events, 200):
-        with pytest.raises(click.ClickException, match="curl is not installed"):
-            docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
-
-    assert events == ["health"]
-    assert Path("deploy_logs/myapp.txt").exists()
-
-
-def test_deploy_stops_early_when_the_app_itself_is_unhealthy(deploy_dir, no_sleep):
-    events = []
-    executor = FakeExecutor(events=events, health="\nhealth=503")
-
-    with public_check(events, 200):
-        with pytest.raises(click.ClickException, match="answered HTTP 503"):
+        with pytest.raises(click.ClickException, match=message):
             docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
 
     assert set(events) == {"health"}
+    assert Path("deploy_logs/myapp.txt").exists()
+    assert TARGET.destroy_command in capsys.readouterr().out
