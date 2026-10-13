@@ -34,7 +34,9 @@ def reply(status, body):
 
 
 class FakeExecutor:
-    def __init__(self, launch_replies=(), logs="", events=None, health="health=200"):
+    def __init__(
+        self, launch_replies=(), logs="", events=None, health="{}\nhealth=200"
+    ):
         self.launch_replies = list(launch_replies)
         self.logs = logs
         self.events = [] if events is None else events
@@ -103,9 +105,10 @@ def test_launch_runs_curl_in_web_with_the_public_host(monkeypatch, tmp_path):
     "not_sent",
     [
         (1, "", 'service "web" is not running\n'),
+        (1, 'service "web" is not running\n', ""),
         (7, "\n000\n", "curl: (7) Failed to connect to frontdoor port 5000"),
     ],
-    ids=["web-not-running", "connection-refused"],
+    ids=["web-not-running", "web-not-running-on-stdout", "connection-refused"],
 )
 def test_only_an_undelivered_launch_is_sent_again(not_sent, no_sleep):
     executor = FakeExecutor(
@@ -149,19 +152,23 @@ def test_a_launch_that_reached_the_app_is_sent_once(result, capsys):
     assert TARGET.destroy_command in out
 
 
+NOT_FOUND = "<h1>Not Found</h1>"
+
+
 @pytest.mark.parametrize(
     "public, app, ready",
     [
-        (200, 200, True),
-        (404, 200, False),  # Cloudflare's catch-all, not the app
-        (404, 404, True),  # an image without /health
-        (403, 200, False),
-        (502, 200, False),
-        (530, 200, False),
+        ((200, ""), (200, ""), True),
+        ((404, ""), (200, ""), False),  # Cloudflare's catch-all, not the app
+        ((404, ""), (404, NOT_FOUND), False),  # also the catch-all
+        ((404, NOT_FOUND + "\n"), (404, NOT_FOUND), True),  # image without /health
+        ((403, ""), (200, ""), False),
+        ((502, ""), (200, ""), False),
+        ((530, ""), (200, ""), False),
     ],
 )
 def test_public_url_answers_only_like_the_app(public, app, ready):
-    assert launch._public_url_answers(public, app) is ready
+    assert launch._public_url_answers(*public, app) is ready
 
 
 def test_ssh_command_leaves_tilde_for_the_server():
@@ -183,9 +190,20 @@ def public_check(events, status, text=""):
     return mock.patch.object(launch.requests, "get", get)
 
 
-def test_deploy_does_not_launch_when_the_public_url_never_answers(deploy_dir, capsys):
+@pytest.mark.parametrize(
+    "app_health, expected",
+    [
+        ("{}\nhealth=200", "(expect 2xx)"),
+        (f"{NOT_FOUND}\nhealth=404", "(expect 2xx or 404)"),
+    ],
+)
+def test_deploy_does_not_launch_when_the_public_url_never_answers(
+    app_health, expected, deploy_dir, capsys
+):
     events = []
-    executor = FakeExecutor(logs="ERR Unauthorized: Tunnel not found", events=events)
+    executor = FakeExecutor(
+        logs="ERR Unauthorized: Tunnel not found", events=events, health=app_health
+    )
 
     with public_check(events, 530, "error code: 1033"):
         with pytest.raises(click.ClickException) as error:
@@ -197,6 +215,7 @@ def test_deploy_does_not_launch_when_the_public_url_never_answers(deploy_dir, ca
     assert "Cloudflare has not activated the new tunnel yet" in error.value.message
     assert "'Tunnel not found'" in error.value.message
     out = capsys.readouterr().out
+    assert expected in out
     for command in (
         TARGET.check_command,
         TARGET.ssh(f"docker compose -f {TARGET.compose_file} logs cloudflared"),
@@ -234,7 +253,7 @@ def test_deploy_stops_early_without_curl_in_the_web_image(deploy_dir):
 
 def test_deploy_stops_early_when_the_app_itself_is_unhealthy(deploy_dir, no_sleep):
     events = []
-    executor = FakeExecutor(events=events, health="health=503")
+    executor = FakeExecutor(events=events, health="\nhealth=503")
 
     with public_check(events, 200):
         with pytest.raises(click.ClickException, match="answered HTTP 503"):

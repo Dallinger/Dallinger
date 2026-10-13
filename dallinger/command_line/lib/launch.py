@@ -66,7 +66,7 @@ WEB_NOT_RUNNING_PATTERN = re.compile(
 )
 CURL_TIMEOUT_EXIT_STATUS = 28
 FRONT_DOOR_HEALTH_URL = "http://frontdoor:5000/health"
-HEALTH_STATUS_PATTERN = re.compile(r"health=(\d{3})")
+HEALTH_STATUS_PATTERN = re.compile(r"\nhealth=(\d{3})\s*$")
 # Characters that are not literal inside a local double-quoted string.
 _DOUBLE_QUOTE_UNSAFE = re.compile(r'["$`!]|\\[\\"$`\n]|\\$')
 
@@ -179,20 +179,21 @@ def _last_line(text):
 
 
 def _internal_health_command(target):
-    """Return a command that checks for curl, then GETs ``/health`` like the launch."""
+    """Return a command that checks for curl, then GETs ``/health`` like the launch.
+
+    curl prints the body, then ``health=<status>`` on its own last line.
+    """
     origin = urlsplit(target.public_origin)
     args = [
         "--silent",
         "--max-time",
         str(REQUEST_TIMEOUT),
-        "-o",
-        "/dev/null",
         "-H",
         f"Host: {origin.netloc}",
         "-H",
         f"X-Forwarded-Proto: {origin.scheme}",
         "-w",
-        "health=%{http_code}\\n",
+        "\\nhealth=%{http_code}\\n",
         FRONT_DOOR_HEALTH_URL,
     ]
     script = (
@@ -203,7 +204,7 @@ def _internal_health_command(target):
 
 
 def internal_health_status(executor, target):
-    """Return the HTTP status of the app's own ``/health``, from inside the server.
+    """Return ``(status, body)`` of the app's own ``/health``, from inside the server.
 
     Stops the deploy early if the web image has no ``curl`` to launch with, or
     if the app does not answer below 500. Retries briefly while the web
@@ -214,7 +215,7 @@ def internal_health_status(executor, target):
     status = None
     for attempt in range(MAX_ATTEMPTS):
         _, stdout, stderr = executor.run_with_status(command)
-        if "curl-missing" in stdout:
+        if stdout.strip() == "curl-missing":
             print_bold("To remove the app:")
             print(target.destroy_command)
             raise click.ClickException(
@@ -224,10 +225,10 @@ def internal_health_status(executor, target):
                 "app's containers are running, but the experiment was not "
                 "launched and recruitment has not started."
             )
-        match = HEALTH_STATUS_PATTERN.search(stdout)
+        match = HEALTH_STATUS_PATTERN.search("\n" + stdout)
         status = int(match.group(1)) if match else None
         if status and status < 500:
-            return status
+            return status, ("\n" + stdout)[: match.start()].lstrip("\n")
         if attempt < MAX_ATTEMPTS - 1:
             delay *= BACKOFF_FACTOR
             time.sleep(delay)
@@ -316,11 +317,13 @@ def launch_from_server(executor, target):
         ) from exc
 
 
-def wait_for_public_url(executor, target, app_status=200, timeout=None, interval=None):
+def wait_for_public_url(
+    executor, target, app_answer=(200, ""), timeout=None, interval=None
+):
     """Wait until the app answers on its public URL, or stop the deploy.
 
-    ``app_status`` is what the app's ``/health`` answered from inside the
-    server. Waits up to ``timeout`` seconds (default ``PUBLIC_CHECK_TIMEOUT``).
+    ``app_answer`` is the ``(status, body)`` the app's ``/health`` gave from
+    inside the server. Waits up to ``timeout`` seconds (default ``PUBLIC_CHECK_TIMEOUT``).
     If the URL never answers, prints why and what to run next, and raises
     ``click.ClickException`` so the experiment is not launched.
     """
@@ -342,7 +345,7 @@ def wait_for_public_url(executor, target, app_status=200, timeout=None, interval
     next_report = PROGRESS_INTERVAL
     while True:
         status, detail = _probe(target.health_url, target.verify)
-        if _public_url_answers(status, app_status):
+        if _public_url_answers(status, detail, app_answer):
             print(f"{target.public_origin} is reachable.")
             return
         elapsed = time.monotonic() - started
@@ -353,7 +356,7 @@ def wait_for_public_url(executor, target, app_status=200, timeout=None, interval
             next_report += PROGRESS_INTERVAL
         time.sleep(interval)
 
-    _abort_unreachable(executor, target, status, detail, limit, app_status)
+    _abort_unreachable(executor, target, status, detail, limit, app_answer[0])
 
 
 def _duration(seconds):
@@ -381,17 +384,22 @@ def _expected_statuses(app_status):
     return "2xx or 404" if app_status == 404 else "2xx"
 
 
-def _public_url_answers(status, app_status):
+def _public_url_answers(status, body, app_answer):
     """True when the public answer can only have come from the app itself.
 
-    A 2xx always does. A 404 counts only when the app answers 404 too (images
-    without ``/health``): a Cloudflare connector whose hostname is not in its
-    ingress yet also answers 404. Edge pages (403, 421, 429), gateway errors
-    and Cloudflare's pending-tunnel 530 keep waiting.
+    A 2xx always does. Images without ``/health`` answer 404, but so does a
+    Cloudflare connector whose hostname is not in its ingress yet, with an
+    empty body. So a 404 counts only when the app answers 404 too and the
+    public body is the app's own non-empty 404 page. Edge pages (403, 421,
+    429), gateway errors and Cloudflare's pending-tunnel 530 keep waiting.
     """
     if status is None:
         return False
-    return 200 <= status < 300 or (status == 404 and app_status == 404)
+    if 200 <= status < 300:
+        return True
+    app_status, app_body = app_answer
+    page = (body or "").strip()
+    return status == app_status == 404 and bool(page) and page == app_body.strip()
 
 
 def _tunnel_pending(status, detail):

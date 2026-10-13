@@ -922,8 +922,8 @@ def _record_then_launch(executor, target, deployment_infos, dashboard_password, 
     if update:
         print("Skipping experiment launch logic because we are in update mode.")
         return
-    app_status = internal_health_status(executor, target)
-    wait_for_public_url(executor, target, app_status)
+    app_answer = internal_health_status(executor, target)
+    wait_for_public_url(executor, target, app_answer)
     print("Launching experiment")
     launch_data = launch_from_server(executor, target)
     print(launch_data.get("recruitment_msg"))

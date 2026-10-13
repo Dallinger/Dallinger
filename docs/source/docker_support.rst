@@ -455,12 +455,13 @@ the DNS label:
 
 Launching an experiment opens recruitment, so a docker-ssh deploy first checks
 the app's ``/health`` from inside the server, then waits up to 7 minutes for
-the app's public ``/health`` URL to answer in the same way. A 2xx counts. A
-404 counts only when the app itself answers 404 (older experiment images
-without that route), because a Cloudflare tunnel that is not routing the
-hostname yet also answers 404. Cloudflare and gateway error pages, including
-the "tunnel not connected" answer (HTTP 530, error 1033), do not count. If the
-app's own ``/health`` keeps failing, the deploy stops before the wait. A new Cloudflare tunnel can take several minutes to start
+the app's public ``/health`` URL to answer. A 2xx always counts. For older
+experiment images without ``/health``, the public URL must return the app's
+own 404 page; an empty 404, which a Cloudflare tunnel gives before it routes
+the hostname, does not count. Other Cloudflare and gateway error pages,
+including the "tunnel not connected" answer (HTTP 530, error 1033), do not
+count either. If the app's own ``/health`` keeps failing, the deploy stops
+before the wait. A new Cloudflare tunnel can take several minutes to start
 working. If the URL still does not answer, the deploy stops with an error and
 does not launch the experiment: the containers keep running, but recruitment
 has not started. The error says when Cloudflare has not activated the new

@@ -95,11 +95,11 @@
   Cloudflare tunnel takes several minutes to register. The deploy writes its
   ``deploy_logs/`` record, checks the app's own ``/health`` from inside the
   server, then waits up to 7 minutes until the public ``/health`` answers with
-  a 2xx (or a 404, when the app itself answers 404 because its image predates
-  that route), so recruitment does not open while participants would get a
-  Cloudflare error,
-  and then launches the experiment from inside the server by running ``curl``
-  in the web container, so the app still records its public base URL. The web
+  a 2xx, or with the app's own 404 page for images that predate that route.
+  Recruitment therefore does not open while participants would get a
+  Cloudflare error. The deploy then launches the experiment from inside the
+  server by running ``curl`` in the web container, so the app still records
+  its public base URL. The web
   image needs ``curl`` (the Dallinger and PsyNet images have it); the deploy
   checks for it before the wait and stops early, without launching, if it is
   missing or if the app's own ``/health`` keeps failing. If the public URL never answers, the deploy stops with an error
