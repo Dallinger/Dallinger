@@ -22,6 +22,9 @@ app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
 
 CONTROL_CHANNEL = "dallinger_control"
 
+# How long a channel waits before resubscribing after losing Redis.
+RETRY_DELAY_SECS = 1
+
 
 def log(msg, level="info"):
     # Log including pid and greenlet id
@@ -114,13 +117,17 @@ class Channel:
                         self._relay_to_clients(message)
                     # Yield to other greenlets without capping the relay rate.
                     gevent.sleep(0)
+            except (RedisError, OSError) as e:
+                app.logger.warning(
+                    "Lost redis channel {} ({!r}); retrying.".format(self.name, e)
+                )
             except Exception:
                 app.logger.exception(
-                    "Lost redis channel {}; retrying.".format(self.name)
+                    "Error relaying channel {}; retrying.".format(self.name)
                 )
             finally:
                 self._close(pubsub)
-            gevent.sleep(1)
+            gevent.sleep(RETRY_DELAY_SECS)
 
     def _close(self, pubsub):
         """Close a pubsub without letting a close error replace ``GreenletExit``."""
@@ -157,6 +164,7 @@ class Channel:
 
     def start(self):
         """Start relaying messages."""
+        self._stopped = False
         self.greenlet = gevent.spawn(self.listen)
 
     def stop(self):

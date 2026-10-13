@@ -99,12 +99,13 @@
   its Redis connection when its last client leaves, however that client's
   websocket handler ends and even if Redis is down at that moment, so a
   process only holds connections for channels that currently have clients,
-  and a channel that loses its Redis connection keeps retrying instead of
-  going quiet. A message that is not valid UTF-8 is dropped with a warning
-  instead. Messages are relayed without a 1 ms pause after each, so a busy
-  channel is no longer limited to about 730 messages per second. Redis
-  connections also wait up to 20 seconds for a free slot in a pool of 1,000
-  instead of failing at redis-py's default limit of 100.
+  and a channel that loses its Redis connection keeps retrying, with a
+  one-line warning, instead of going quiet. A message that is not valid
+  UTF-8 is dropped with a warning instead. Messages are relayed without a
+  1 ms pause after each, so a busy channel is no longer limited to about 730
+  messages per second. Redis connections also wait up to 20 seconds for a
+  free slot in a pool of 1,000 instead of failing at redis-py's default limit
+  of 100.
 - Remote Docker builds work when the SSH username contains ``@``.
 - docker-ssh deploys no longer write the dashboard or Dozzle password into
   ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.

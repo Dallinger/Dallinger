@@ -140,10 +140,11 @@ class TestChannel:
         pubsub.subscribe.assert_called_once()
 
     def test_listen_recovers_from_lost_redis_connection(
-        self, channel, pubsub, mockclient
+        self, sockets, channel, pubsub, mockclient, monkeypatch
     ):
         from redis import ConnectionError
 
+        monkeypatch.setattr(sockets, "RETRY_DELAY_SECS", 0.01)
         responses = [ConnectionError("lost"), [message(b"test", b"back")]]
 
         def listen():
@@ -157,7 +158,7 @@ class TestChannel:
         pubsub.listen.side_effect = listen
         channel.subscribe(mockclient)
         channel.start()
-        gevent.sleep(1.1)
+        gevent.sleep(0.1)
 
         mockclient.send.assert_called_once_with("test:back")
 
@@ -168,6 +169,10 @@ class TestChannel:
         channel.stop()
         assert channel.greenlet is None
         pubsub.close.assert_called_once()
+
+        channel.start()
+        gevent.sleep(0.01)
+        assert pubsub.subscribe.call_count == 2
 
     def test_stop_tolerates_a_failing_close(self, channel, pubsub, monkeypatch):
         errors = []
@@ -410,7 +415,7 @@ class TestChatEndpoint:
         sockets.request.args = {"tolerance": ".5"}
         sockets.chat(ws)
 
-        # We should have three calls publishing messages on redis
+        # We should have four calls publishing messages on redis
         #
         # 1. The subscribe message on the control channel from
         #    ``TestChannel.test_subscribe_sends_control_message``
