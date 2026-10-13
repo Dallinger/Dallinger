@@ -208,6 +208,18 @@
 
 ### Fixed
 
+- A WebSocket connection waits for redis to confirm its channel subscription
+  before it relays anything. A process subscribes to a channel the first time
+  one of its connections names it, and the publish travels on a different redis
+  connection, so a client which sent a message as soon as its socket opened
+  could have that message reach every other subscriber and not itself. A lost
+  redis connection arms the wait again, so a connection arriving during an
+  outage waits for the restored subscription. The wait is bounded. If redis
+  cannot confirm a subscription within two seconds, the connection starts
+  relaying anyway instead of waiting for redis to recover. The `connected`
+  control message is sent after the wait and `subscribed` before it, so the
+  WebSocket docs direct an experiment greeting a new connection to reply to
+  `connected`.
 - The `chatroom_ws` demo sends its "has joined the chat" message, which calling
   `ReconnectingWebSocket.onopen` as a method had silently skipped. Its Leave
   button now works while the connection is reconnecting, where it used to throw
