@@ -14,10 +14,9 @@ import signal
 import gevent
 import gevent.pool
 from rq import Worker
-from rq.cli.helpers import green
 from rq.exceptions import DequeueTimeout, StopRequested
 from rq.job import JobStatus
-from rq.logutils import setup_loghandlers
+from rq.logutils import green, setup_loghandlers
 from rq.timeouts import BaseDeathPenalty, JobTimeoutException
 from rq.version import VERSION
 from rq.worker import WorkerStatus

@@ -114,6 +114,11 @@
 
 ### Fixed
 
+- RQ workers no longer hang at start-up about once in 75 to 100 starts.
+  The worker imported ``rq.cli`` to colour one log line, which loaded
+  ``croniter``; at import time ``croniter`` runs ``file`` in a subprocess,
+  and under gevent waiting for it sometimes never returned. The worker now
+  takes the colour helper from ``rq.logutils``.
 - Bots with a ``webdriver_url`` start again. They passed
   ``desired_capabilities``, which Selenium 4.10 removed, and now pass the
   same browser options as local bots.
