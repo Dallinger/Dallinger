@@ -593,6 +593,70 @@ Docker Deployment Configuration
 
     Defaults to ``1024``, lower this value to limit worker containers CPU usage when CPU cycles are constrained.
 
+``cloudflare_api_token`` *unicode*
+    API token used by ``dallinger docker-ssh`` Cloudflare tunnel deploys.
+    Prefer ``CLOUDFLARE_API_TOKEN`` in the environment, or the macOS Keychain
+    item ``dallinger-cloudflare-api-token``, over writing this value to disk.
+    It is never stored in docker-ssh host records or ``deployment.json``.
+
+``cloudflare_account_id`` *unicode*
+    Cloudflare account id for named ``dallinger-{app}`` tunnels.
+
+``cloudflare_zone_id`` *unicode*
+    Cloudflare DNS zone id that will hold first-level experiment CNAMEs.
+
+``cloudflare_dns_zone`` *unicode*
+    DNS zone for experiment hostnames, for example ``science-of-music.org``.
+    Distinct from classic Caddy ``--dns-host``.
+
+``docker_ssh_idle_hibernate`` *boolean*
+    Automatically hibernate the app after a period of inactivity and wake it
+    when a participant arrives. Default ``False``.
+
+    Do not enable for experiments that recruit continuously — for example,
+    experiments that replace failed participants or recruit reactively
+    throughout their lifetime. See
+    :ref:`idle-hibernation-rolling-recruitment`. As a backstop, the app
+    stays awake while ``auto_recruit`` is on or any participant is still
+    working.
+
+    After ``docker_ssh_idle_hibernate_minutes`` with no participant/dashboard
+    traffic, expensive containers stop. ``/health`` probes are ignored and
+    do not reset the idle timer. While this flag is on, every page built on
+    Dallinger's base layout (including PsyNet pages) POSTs ``/presence``
+    at a third of the idle window while it is in use: someone interacted
+    with it within the idle window, audible non-looping audio or video is
+    playing, or the page called ``dallingerPresence.setWaiting(true)``. A
+    page in use counts as traffic even when it is quiet or talks only over
+    a WebSocket, and an abandoned tab stops pinging one idle window after
+    its last interaction. A page that polls the server itself (for example
+    PsyNet's waiting pages) keeps the app awake for as long as it stays
+    open. Manual
+    ``dallinger docker-ssh hibernate`` and ``awaken`` work even when this
+    flag is false.
+
+    Sleep stops web, workers, the clock, Redis, and (for Cloudflare apps)
+    Postgres. A later visit starts a spinner until those services are
+    healthy again. Expensive services use Compose ``restart: unless-stopped``.
+    A host reboot brings back an app that was running. An explicit hibernate
+    is a Docker stop, so those containers stay stopped across reboot and
+    ``/health`` keeps reporting hibernating until a visitor or
+    ``dallinger docker-ssh awaken``. The idle quiet period restarts when
+    the app wakes and when its controller starts (for example after an
+    update or reboot). ``--update`` wakes a hibernating app.
+    The front door and controller stay up. Docker may restart a crashed
+    container; ``/health`` returns HTTP 503 while the backend is actually down.
+
+``docker_ssh_idle_hibernate_minutes`` *int*
+    Quiet period before automatic hibernation. Default ``60``.
+
+``docker_ssh_monitoring_kind`` *unicode*
+    Generic monitoring kind written into the docker-ssh deployment manifest.
+    Default ``experiment``. PsyNet sets this to ``psynet``.
+
+``docker_ssh_monitoring_path`` *unicode*
+    Availability path recorded in the deployment manifest. Default ``/health``.
+
 ``server_pem`` *unicode*
     **Required for SSH-based deployments** (``dallinger docker-ssh`` and ``dallinger ec2``).
 
