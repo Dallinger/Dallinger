@@ -34,16 +34,16 @@ def reply(status, body):
 
 
 class FakeExecutor:
-    def __init__(self, launch_replies=(), logs="", events=None, curl="curl-ok"):
+    def __init__(self, launch_replies=(), logs="", events=None, health="health=200"):
         self.launch_replies = list(launch_replies)
         self.logs = logs
         self.events = [] if events is None else events
-        self.curl = curl
+        self.health = health
 
     def run_with_status(self, cmd):
         if "command -v curl" in cmd:
-            self.events.append("curl")
-            return 0, self.curl + "\n", ""
+            self.events.append("health")
+            return 0, self.health + "\n", ""
         self.events.append("launch")
         return self.launch_replies.pop(0)
 
@@ -150,10 +150,22 @@ def test_a_launch_that_reached_the_app_is_sent_once(result, capsys):
 
 
 @pytest.mark.parametrize(
-    "status, ready", [(200, True), (404, True), (502, False), (530, False)]
+    "public, app, ready",
+    [
+        (200, 200, True),
+        (404, 200, False),  # Cloudflare's catch-all, not the app
+        (404, 404, True),  # an image without /health
+        (403, 200, False),
+        (502, 200, False),
+        (530, 200, False),
+    ],
 )
-def test_public_url_answers_unless_a_gateway_or_tunnel_error(status, ready):
-    assert launch._public_url_answers(status, "") is ready
+def test_public_url_answers_only_like_the_app(public, app, ready):
+    assert launch._public_url_answers(public, app) is ready
+
+
+def test_ssh_command_leaves_tilde_for_the_server():
+    assert launch.ssh_command("ssh lab", "ls ~/dallinger") == 'ssh lab "ls ~/dallinger"'
 
 
 @pytest.fixture
@@ -179,7 +191,7 @@ def test_deploy_does_not_launch_when_the_public_url_never_answers(deploy_dir, ca
         with pytest.raises(click.ClickException) as error:
             docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
 
-    assert events == ["curl", "check"]
+    assert events == ["health", "check"]
     assert Path("deploy_logs/myapp.txt").read_text() == "notes\n"
     assert "was not launched" in error.value.message
     assert "Cloudflare has not activated the new tunnel yet" in error.value.message
@@ -202,19 +214,30 @@ def test_deploy_launches_once_the_public_url_answers(deploy_dir):
 
     with public_check(events, 200):
         docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
-        assert events == ["curl", "check", "launch"]
+        assert events == ["health", "check", "launch"]
 
         docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", True)
-        assert events == ["curl", "check", "launch"]
+        assert events == ["health", "check", "launch"]
 
 
 def test_deploy_stops_early_without_curl_in_the_web_image(deploy_dir):
     events = []
-    executor = FakeExecutor(events=events, curl="curl-missing")
+    executor = FakeExecutor(events=events, health="curl-missing")
 
     with public_check(events, 200):
         with pytest.raises(click.ClickException, match="curl is not installed"):
             docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
 
-    assert events == ["curl"]
+    assert events == ["health"]
     assert Path("deploy_logs/myapp.txt").exists()
+
+
+def test_deploy_stops_early_when_the_app_itself_is_unhealthy(deploy_dir, no_sleep):
+    events = []
+    executor = FakeExecutor(events=events, health="health=503")
+
+    with public_check(events, 200):
+        with pytest.raises(click.ClickException, match="answered HTTP 503"):
+            docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
+
+    assert set(events) == {"health"}

@@ -44,7 +44,6 @@ from dallinger.deployment import (
     MAX_ATTEMPTS,
     handle_launch_data,
 )
-from dallinger.hibernation import answers_health
 from dallinger.utils import print_bold
 
 from .app_manifest import INGRESS_CLOUDFLARE
@@ -63,10 +62,11 @@ NOT_SENT_EXIT_STATUSES = frozenset({6, 7})
 # ``docker compose exec`` exits 1 with one of these when web is not running.
 COMPOSE_EXEC_FAILED_EXIT_STATUS = 1
 WEB_NOT_RUNNING_PATTERN = re.compile(
-    r"is not running|is restarting|no container|no such container", re.I
+    r"is not running|is restarting|no container found|no such container", re.I
 )
 CURL_TIMEOUT_EXIT_STATUS = 28
-CURL_CHECK = "if command -v curl >/dev/null; then echo curl-ok; else echo curl-missing; fi"
+FRONT_DOOR_HEALTH_URL = "http://frontdoor:5000/health"
+HEALTH_STATUS_PATTERN = re.compile(r"health=(\d{3})")
 # Characters that are not literal inside a local double-quoted string.
 _DOUBLE_QUOTE_UNSAFE = re.compile(r'["$`!]|\\[\\"$`\n]|\\$')
 
@@ -178,17 +178,42 @@ def _last_line(text):
     return lines[-1].strip() if lines else ""
 
 
-def require_curl(executor, target):
-    """Stop the deploy early if the web image has no ``curl`` to launch with.
+def _internal_health_command(target):
+    """Return a command that checks for curl, then GETs ``/health`` like the launch."""
+    origin = urlsplit(target.public_origin)
+    args = [
+        "--silent",
+        "--max-time",
+        str(REQUEST_TIMEOUT),
+        "-o",
+        "/dev/null",
+        "-H",
+        f"Host: {origin.netloc}",
+        "-H",
+        f"X-Forwarded-Proto: {origin.scheme}",
+        "-w",
+        "health=%{http_code}\\n",
+        FRONT_DOOR_HEALTH_URL,
+    ]
+    script = (
+        "command -v curl >/dev/null || { echo curl-missing; exit 0; }; exec curl "
+        + " ".join(quote(arg) for arg in args)
+    )
+    return target.compose_exec(f"sh -c {quote(script)}")
 
-    Retries briefly while the web container is not up yet, like the launch.
+
+def internal_health_status(executor, target):
+    """Return the HTTP status of the app's own ``/health``, from inside the server.
+
+    Stops the deploy early if the web image has no ``curl`` to launch with, or
+    if the app does not answer below 500. Retries briefly while the web
+    container or the app is still starting, like the launch.
     """
-    command = target.compose_exec(f"sh -c {quote(CURL_CHECK)}")
+    command = _internal_health_command(target)
     delay = DEFAULT_DELAY
+    status = None
     for attempt in range(MAX_ATTEMPTS):
         _, stdout, stderr = executor.run_with_status(command)
-        if "curl-ok" in stdout:
-            return
         if "curl-missing" in stdout:
             print_bold("To remove the app:")
             print(target.destroy_command)
@@ -199,6 +224,10 @@ def require_curl(executor, target):
                 "app's containers are running, but the experiment was not "
                 "launched and recruitment has not started."
             )
+        match = HEALTH_STATUS_PATTERN.search(stdout)
+        status = int(match.group(1)) if match else None
+        if status and status < 500:
+            return status
         if attempt < MAX_ATTEMPTS - 1:
             delay *= BACKOFF_FACTOR
             time.sleep(delay)
@@ -206,10 +235,15 @@ def require_curl(executor, target):
     print(target.ssh(f"docker compose -f {target.compose_file} logs web"))
     print_bold("Or remove the app:")
     print(target.destroy_command)
+    if status:
+        problem = f"The app's own /health answered HTTP {status}, so it is not healthy."
+    else:
+        problem = (
+            f"Could not read the app's own /health inside the server "
+            f"({_last_line(stderr) or 'no answer'})."
+        )
     raise click.ClickException(
-        f"Could not run a command in {target.app}'s web container "
-        f"({_last_line(stderr) or 'no output'}). The experiment was not launched "
-        "and recruitment has not started."
+        f"{problem} The experiment was not launched and recruitment has not started."
     )
 
 
@@ -241,7 +275,7 @@ def launch_from_server(executor, target):
             )
         web_not_running = (
             exit_status == COMPOSE_EXEC_FAILED_EXIT_STATUS
-            and WEB_NOT_RUNNING_PATTERN.search(stderr or "")
+            and WEB_NOT_RUNNING_PATTERN.search(f"{stderr}\n{stdout}")
         )
         if exit_status in NOT_SENT_EXIT_STATUSES or web_not_running:
             raise requests.exceptions.ConnectionError(detail)
@@ -282,11 +316,12 @@ def launch_from_server(executor, target):
         ) from exc
 
 
-def wait_for_public_url(executor, target, timeout=None, interval=None):
+def wait_for_public_url(executor, target, app_status=200, timeout=None, interval=None):
     """Wait until the app answers on its public URL, or stop the deploy.
 
-    Waits up to ``timeout`` seconds (default ``PUBLIC_CHECK_TIMEOUT``). If the
-    URL never answers, prints why and what to run next, and raises
+    ``app_status`` is what the app's ``/health`` answered from inside the
+    server. Waits up to ``timeout`` seconds (default ``PUBLIC_CHECK_TIMEOUT``).
+    If the URL never answers, prints why and what to run next, and raises
     ``click.ClickException`` so the experiment is not launched.
     """
     timeout = PUBLIC_CHECK_TIMEOUT if timeout is None else timeout
@@ -307,7 +342,7 @@ def wait_for_public_url(executor, target, timeout=None, interval=None):
     next_report = PROGRESS_INTERVAL
     while True:
         status, detail = _probe(target.health_url, target.verify)
-        if _public_url_answers(status, detail):
+        if _public_url_answers(status, app_status):
             print(f"{target.public_origin} is reachable.")
             return
         elapsed = time.monotonic() - started
@@ -318,7 +353,7 @@ def wait_for_public_url(executor, target, timeout=None, interval=None):
             next_report += PROGRESS_INTERVAL
         time.sleep(interval)
 
-    _abort_unreachable(executor, target, status, detail, limit)
+    _abort_unreachable(executor, target, status, detail, limit, app_status)
 
 
 def _duration(seconds):
@@ -342,13 +377,21 @@ def _describe(status, detail):
     return f"HTTP {status}"
 
 
-def _public_url_answers(status, detail):
-    """True once the app itself answers; gateway and tunnel errors keep waiting."""
-    return (
-        status is not None
-        and answers_health(status)
-        and not _tunnel_pending(status, detail)
-    )
+def _expected_statuses(app_status):
+    return "2xx or 404" if app_status == 404 else "2xx"
+
+
+def _public_url_answers(status, app_status):
+    """True when the public answer can only have come from the app itself.
+
+    A 2xx always does. A 404 counts only when the app answers 404 too (images
+    without ``/health``): a Cloudflare connector whose hostname is not in its
+    ingress yet also answers 404. Edge pages (403, 421, 429), gateway errors
+    and Cloudflare's pending-tunnel 530 keep waiting.
+    """
+    if status is None:
+        return False
+    return 200 <= status < 300 or (status == 404 and app_status == 404)
 
 
 def _tunnel_pending(status, detail):
@@ -367,7 +410,7 @@ def _connector_reports_tunnel_not_found(executor, target):
     return "tunnel not found" in (logs or "").lower()
 
 
-def _abort_unreachable(executor, target, status, detail, limit):
+def _abort_unreachable(executor, target, status, detail, limit, app_status):
     cloudflare = target.ingress == INGRESS_CLOUDFLARE
     not_found = cloudflare and _connector_reports_tunnel_not_found(executor, target)
     print(
@@ -387,7 +430,9 @@ def _abort_unreachable(executor, target, status, detail, limit):
             "Caddy may still be getting a TLS certificate, or DNS may not "
             "point at the server yet."
         )
-    print_bold("Check the public URL again (expect 200):")
+    print_bold(
+        f"Check the public URL again (expect {_expected_statuses(app_status)}):"
+    )
     print(target.check_command)
     if cloudflare:
         print_bold("Inspect the tunnel connector logs:")

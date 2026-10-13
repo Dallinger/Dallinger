@@ -453,11 +453,14 @@ the DNS label:
         --app consonance --ingress cloudflare \
         --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5
 
-Launching an experiment opens recruitment, so a docker-ssh deploy first waits
-up to 7 minutes for the app's public ``/health`` URL to answer. Any answer from
-the app counts, including a 404 from older experiment images without that
-route; gateway errors and Cloudflare's "tunnel not connected" answer (HTTP 530,
-error 1033) do not. A new Cloudflare tunnel can take several minutes to start
+Launching an experiment opens recruitment, so a docker-ssh deploy first checks
+the app's ``/health`` from inside the server, then waits up to 7 minutes for
+the app's public ``/health`` URL to answer in the same way. A 2xx counts. A
+404 counts only when the app itself answers 404 (older experiment images
+without that route), because a Cloudflare tunnel that is not routing the
+hostname yet also answers 404. Cloudflare and gateway error pages, including
+the "tunnel not connected" answer (HTTP 530, error 1033), do not count. If the
+app's own ``/health`` keeps failing, the deploy stops before the wait. A new Cloudflare tunnel can take several minutes to start
 working. If the URL still does not answer, the deploy stops with an error and
 does not launch the experiment: the containers keep running, but recruitment
 has not started. The error says when Cloudflare has not activated the new

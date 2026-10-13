@@ -428,14 +428,6 @@ class HibernationController:
         return self.state_dir / name
 
 
-def answers_health(status: int) -> bool:
-    """True when web answered ``/health`` with a status that means it is up.
-
-    Experiment images built before Dallinger had ``/health`` answer 404.
-    """
-    return status < 500
-
-
 def _fetch_health(url: str) -> dict[str, Any]:
     """Return web's health, treating any answer below 500 as ready.
 
@@ -446,7 +438,7 @@ def _fetch_health(url: str) -> dict[str, Any]:
             raw = response.read().decode("utf-8")
     except HTTPError as exc:
         exc.close()
-        if not answers_health(exc.code):
+        if exc.code >= 500:
             raise
         return {"status": "ok"}
     try:

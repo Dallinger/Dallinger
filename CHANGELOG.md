@@ -93,14 +93,16 @@
 
 - docker-ssh deploys no longer fail to launch after about a minute when a new
   Cloudflare tunnel takes several minutes to register. The deploy writes its
-  ``deploy_logs/`` record, waits up to 7 minutes for the app's public
-  ``/health`` to answer (a 404 from images without that route counts), so
-  recruitment does not open while participants would get a Cloudflare error,
+  ``deploy_logs/`` record, checks the app's own ``/health`` from inside the
+  server, then waits up to 7 minutes until the public ``/health`` answers with
+  a 2xx (or a 404, when the app itself answers 404 because its image predates
+  that route), so recruitment does not open while participants would get a
+  Cloudflare error,
   and then launches the experiment from inside the server by running ``curl``
   in the web container, so the app still records its public base URL. The web
   image needs ``curl`` (the Dallinger and PsyNet images have it); the deploy
   checks for it before the wait and stops early, without launching, if it is
-  missing. If the public URL never answers, the deploy stops with an error
+  missing or if the app's own ``/health`` keeps failing. If the public URL never answers, the deploy stops with an error
   without launching, says when Cloudflare has not activated the tunnel yet,
   and prints how to check the URL again, how to launch once it works, and how
   to destroy the app. The launch request is sent again only when it could not
@@ -108,7 +110,7 @@
   reached the app, even if it failed or timed out, it is not sent again: the
   deploy says recruitment may have started and prints how to check the web
   logs, launch again by hand, or destroy the app. ``--update`` deploys skip
-  the curl check, the public wait and the launch, as before.
+  the curl and health checks, the public wait and the launch, as before.
 - Remote Docker builds work when the SSH username contains ``@``.
 - docker-ssh deploys no longer write the dashboard or Dozzle password into
   ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.
