@@ -36,12 +36,18 @@ class Channel:
     on the specified channel name.
 
     When a message is received, it is relayed to all clients that have subscribed.
+
+    A channel is stopped when its last client leaves, and a new one is started
+    when a client joins again. Until the new channel's ``SUBSCRIBE`` reaches
+    Redis, messages published to that name are not relayed, so a message sent
+    straight after a client (re)joins an empty channel can be lost.
     """
 
     def __init__(self, name):
         self.name = name
         self.clients = []
         self.greenlet = None
+        self._stopped = False
 
     def subscribe(self, client):
         """Subscribe a client to the channel."""
@@ -98,7 +104,7 @@ class Channel:
         This is run continuously in a separate greenlet. Only this greenlet
         uses the pubsub, and it closes the pubsub when the channel is stopped.
         """
-        while True:
+        while not self._stopped:
             pubsub = redis_conn.pubsub()
             try:
                 pubsub.subscribe(self.name)
@@ -113,8 +119,17 @@ class Channel:
                     "Lost redis channel {}; retrying.".format(self.name)
                 )
             finally:
-                pubsub.close()
+                self._close(pubsub)
             gevent.sleep(1)
+
+    def _close(self, pubsub):
+        """Close a pubsub without letting a close error replace ``GreenletExit``."""
+        try:
+            pubsub.close()
+        except Exception:
+            app.logger.warning(
+                "Could not close redis channel {}.".format(self.name), exc_info=True
+            )
 
     def _relay_to_clients(self, message):
         try:
@@ -126,7 +141,7 @@ class Channel:
             )
             return
         payload = "{}:{}".format(channel, data)
-        for client in self.clients:
+        for client in list(self.clients):
             gevent.spawn(self._relay, client, payload)
 
     @staticmethod
@@ -146,6 +161,7 @@ class Channel:
 
     def stop(self):
         """Stop relaying messages."""
+        self._stopped = True
         if self.greenlet:
             self.greenlet.kill()
             self.greenlet = None
@@ -283,8 +299,11 @@ def chat(ws):
         worker_id=request.args.get("worker_id"),
         participant_id=request.args.get("participant_id"),
     )
-    client.subscribe(request.args.get("channel"))
-    client.publish()
+    try:
+        client.subscribe(request.args.get("channel"))
+        client.publish()
+    finally:
+        chat_backend.unsubscribe(client)
 
 
 # We need to keep the function around for tests, so we apply the decorator

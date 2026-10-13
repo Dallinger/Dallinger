@@ -203,6 +203,12 @@ Channels that the experiment itself subscribes to stay open for the whole run.
 With one channel per participant, the number of Redis connections is therefore
 about the number of participants connected at once.
 
+Because an empty channel is released, a client that joins it again starts a
+new Redis subscription. Messages published to that channel before the
+subscription reaches Redis are not relayed, so don't rely on a message sent
+the instant a client connects; have the client request the current state once
+it is connected instead.
+
 Redis allows 10,000 clients by default, shared by every process in the app, so
 about 10,000 participants can hold their own channel at once. Each connection
 also uses a file descriptor in its web process, alongside the participant's

@@ -169,6 +169,21 @@ class TestChannel:
         assert channel.greenlet is None
         pubsub.close.assert_called_once()
 
+    def test_stop_tolerates_a_failing_close(self, channel, pubsub, monkeypatch):
+        errors = []
+        monkeypatch.setattr(
+            gevent.get_hub(), "handle_error", lambda *args: errors.append(args)
+        )
+        pubsub.listen.side_effect = block_forever
+        pubsub.close.side_effect = OSError("already gone")
+        channel.start()
+        gevent.sleep(0.01)
+        greenlet = channel.greenlet
+        channel.stop()
+
+        assert greenlet.dead and errors == []
+        assert pubsub.subscribe.call_count == 1
+
     def test_subscribe_sends_control_message(self, sockets, mockclient):
         channel = sockets.Channel("custom")
         channel.subscribe(mockclient)
@@ -359,18 +374,34 @@ class TestClient:
 
 
 class TestChatEndpoint:
-    def test_chat_subscribes_to_requested_channel(self, sockets):
+    def test_chat_subscribes_to_requested_channel_until_it_returns(self, sockets):
         ws = Mock()
         ws.connected = False
-        ws.receive.return_value = None
         sockets.request = Mock()
         sockets.request.args = {"channel": "special"}
         sockets.chat(ws)
 
-        clients = [
-            c for c in sockets.chat_backend.channels["special"].clients if c.ws is ws
+        events = [
+            json.loads(call.args[1])
+            for call in sockets.redis_conn.publish.mock_calls
+            if json.loads(call.args[1])["type"] == "channel"
         ]
-        assert len(clients) == 1
+        assert [(e["event"], e["channel"]) for e in events] == [
+            ("subscribed", "special"),
+            ("unsubscribed", "special"),
+        ]
+        assert sockets.chat_backend.channels == {}
+
+    def test_chat_releases_channel_after_a_message_without_a_colon(
+        self, sockets, mocksocket
+    ):
+        mocksocket.receive.return_value = "no colon"
+        sockets.request = Mock()
+        sockets.request.args = {"channel": "special", "tolerance": "0"}
+        with pytest.raises(ValueError):
+            sockets.chat(mocksocket)
+
+        assert sockets.chat_backend.channels == {}
 
     def test_chat_publishes_message_to_requested_channel(self, sockets, mocksocket):
         ws = mocksocket
@@ -387,18 +418,19 @@ class TestChatEndpoint:
         #    entering the receive loop in `client.publish()`
         # 3. The plain text message received from `ws.receive()` on the
         #    `special` channel.
+        # 4. The unsubscribe message on the control channel when `chat()` returns.
 
-        assert sockets.redis_conn.publish.call_count == 3
+        assert sockets.redis_conn.publish.call_count == 4
 
         # Let's look for that `special` message
         assert sockets.redis_conn.publish.mock_calls[2].args[0] == "special"
         assert sockets.redis_conn.publish.mock_calls[2].args[1] == "incoming message!"
 
-    def test_sleeps_for_requested_time(self, sockets, mocksocket):
+    def test_sleeps_for_requested_time(self, sockets, mocksocket, monkeypatch):
         ws = mocksocket
         ws.receive.return_value = "somechannel:incoming message!"
         sockets.request = Mock()
         sockets.request.args.get.return_value = ".5"
-        sockets.gevent = Mock()
+        monkeypatch.setattr(sockets, "gevent", Mock())
         sockets.chat(ws)
         sockets.gevent.sleep.assert_called_once_with(0.5)
