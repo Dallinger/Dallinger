@@ -78,6 +78,20 @@
 
 ### Changed
 
+- Upgraded Bootstrap from 4.5.0 to 5.3.8 for experiment pages and the
+  dashboard. Dashboard widgets use Bootstrap 5 data attributes. The
+  dashboard script is the bundle, which includes Popper, so the separate
+  Popper file is gone. The database dashboard loads DataTables' Bootstrap 5
+  styling. ``css/dallinger.css`` now styles only Dallinger's own classes
+  (``main_div``, ``consent_div``, ``margin_div``, ``center_div`` and
+  ``right_div``), so it no longer sets the page font or floats the consent
+  buttons on pages that extend Dallinger's layout with their own markup.
+  The light 13pt text moved to ``main_div``. Dallinger's templates, the
+  demos and the tutorial use ``col-N`` instead of Bootstrap 3's
+  ``col-xs-N``, which Bootstrap 5 would otherwise lay out as full-width rows.
+  Selenium bots ask the browser for reduced motion, which turns off
+  Bootstrap 5's smooth scrolling, so their clicks on buttons below the fold
+  are not intercepted.
 - Skipped the live MTurk integration tests, because Amazon has discontinued
   Mechanical Turk and every call now fails with `AccessDeniedException`.
   Mocked MTurk tests still run.
@@ -91,6 +105,12 @@
 
 ### Fixed
 
+- Bots with a ``webdriver_url`` start again. They passed
+  ``desired_capabilities``, which Selenium 4.10 removed, and now pass the
+  same browser options as local bots.
+- On the monitoring dashboard, "Number of networks" and "Freetext search"
+  sit side by side again, and changing the sort order redraws the network
+  once instead of twice.
 - Remote Docker builds work when the SSH username contains ``@``.
 - docker-ssh deploys no longer write the dashboard or Dozzle password into
   ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.

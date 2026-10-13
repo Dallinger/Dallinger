@@ -739,8 +739,7 @@ mechanisms.
 
             <div>
                 <div class="row">
-                    <div class="col-xs-10"></div>
-                    <div class="col-xs-2">
+                    <div class="col-12">
                         <button type="button" class="btn btn-success btn-lg"
                             onClick="dallinger.allowExit(); dallinger.goToPage('exp');">
                         Begin</button>
@@ -1471,8 +1470,7 @@ Next comes the ``instructions.html`` template:
 
 			<div>
 				<div class="row">
-					<div class="col-xs-10"></div>
-					<div class="col-xs-2">
+					<div class="col-12">
 						<button id="go-to-experiment" type="button" class="btn btn-success btn-lg">
 						Begin</button>
 					</div>
