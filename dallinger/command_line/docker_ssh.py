@@ -77,7 +77,12 @@ from .lib.cloudflare import (
     validate_app_dns_label,
 )
 from .lib.cloudflare import public_hostname as cloudflare_public_hostname
-from .lib.launch import LaunchTarget, launch_from_server, wait_for_public_url
+from .lib.launch import (
+    LaunchTarget,
+    launch_from_server,
+    require_curl,
+    wait_for_public_url,
+)
 from .utils import get_server_pem_path
 
 # Hibernated apps keep stopped Compose containers that ``awaken`` restarts.
@@ -906,7 +911,8 @@ def _record_deployment_infos(experiment_id, lines, dashboard_password):
 def _record_then_launch(executor, target, deployment_infos, dashboard_password, update):
     """Record the deployment, wait for the public URL, then launch the experiment.
 
-    The record comes first so it exists even if the deploy stops here.
+    The record comes first so it exists even if the deploy stops here. A
+    missing ``curl`` in the web image fails before the long public wait.
     Launching opens recruitment, so it only happens once participants can
     reach the public URL; if the bounded wait times out, nothing is launched.
     """
@@ -914,6 +920,7 @@ def _record_then_launch(executor, target, deployment_infos, dashboard_password, 
     if update:
         print("Skipping experiment launch logic because we are in update mode.")
         return
+    require_curl(executor, target)
     wait_for_public_url(executor, target)
     print("Launching experiment")
     launch_data = launch_from_server(executor, target)

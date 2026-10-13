@@ -95,12 +95,15 @@
   Cloudflare tunnel takes several minutes to register. The deploy writes its
   ``deploy_logs/`` record, waits up to 7 minutes for the public URL so
   recruitment does not open while participants would get a Cloudflare error,
-  and then launches the experiment from inside the server with the app's
-  Python, so the app still records its public base URL. If the public URL
+  and then launches the experiment from inside the server by running ``curl``
+  in the web container, so the app still records its public base URL. The web
+  image needs ``curl`` (the Dallinger and PsyNet images have it); the deploy
+  checks for it before the wait and stops early, without launching, if it is
+  missing. If the public URL
   never answers, the deploy stops with an error without launching, says when
   Cloudflare has not activated the tunnel yet, and prints how to check the URL
   again, how to launch once it works, and how to destroy the app. The launch
-  request is retried only while the web container is not answering at all.
+  request is retried only while curl cannot reach the app at all.
   Once the app has answered, even with an error or a timeout, it is not sent
   again: the deploy says recruitment may have started and prints how to check
   the web logs, launch again by hand, or destroy the app.

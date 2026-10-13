@@ -1,6 +1,7 @@
 import importlib
 import json
 import os
+import shutil
 import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -28,16 +29,21 @@ TARGET = launch.LaunchTarget(
 
 
 def reply(status, body):
-    return json.dumps({"status": status, "body": json.dumps(body)})
+    """curl's output: the body, then the status on its own line."""
+    return f"{json.dumps(body)}\n{status}\n"
 
 
 class FakeExecutor:
-    def __init__(self, launch_replies=(), logs="", events=None):
+    def __init__(self, launch_replies=(), logs="", events=None, curl="curl-ok"):
         self.launch_replies = list(launch_replies)
         self.logs = logs
         self.events = [] if events is None else events
+        self.curl = curl
 
     def run_with_status(self, cmd):
+        if "command -v curl" in cmd:
+            self.events.append("curl")
+            return 0, self.curl + "\n", ""
         self.events.append("launch")
         return self.launch_replies.pop(0)
 
@@ -51,7 +57,8 @@ def no_sleep():
         yield
 
 
-def test_launch_runs_python_in_web_with_the_public_host(monkeypatch, tmp_path):
+@pytest.mark.skipif(shutil.which("curl") is None, reason="needs curl")
+def test_launch_runs_curl_in_web_with_the_public_host(monkeypatch, tmp_path):
     """Run the real remote command locally; a fake ``docker`` runs its tail."""
 
     class Handler(BaseHTTPRequestHandler):
@@ -96,7 +103,7 @@ def test_a_reported_response_is_not_sent_again(no_sleep):
     executor = FakeExecutor(
         [
             (1, "", 'service "web" is not running\n'),
-            (1, reply(200, {"recruitment_msg": "open"}) + "\n\n", ""),
+            (0, reply(200, {"recruitment_msg": "open"}) + "\n\n", ""),
         ]
     )
     assert launch.launch_from_server(executor, TARGET) == {"recruitment_msg": "open"}
@@ -115,12 +122,15 @@ def test_proxied_launch_headers_give_the_public_base_url():
 
 
 @pytest.mark.parametrize(
-    "output",
-    [reply(500, {"status": "error"}), json.dumps({"timeout": "timed out"})],
+    "result",
+    [
+        (0, reply(500, {"status": "error"}), ""),
+        (28, "\n000\n", "curl: (28) Operation timed out"),
+    ],
     ids=["http-500", "timeout"],
 )
-def test_a_launch_that_reached_the_app_is_sent_once(output, capsys):
-    executor = FakeExecutor([(1, output, "")])
+def test_a_launch_that_reached_the_app_is_sent_once(result, capsys):
+    executor = FakeExecutor([result])
 
     with pytest.raises(click.ClickException, match="Recruitment may have started"):
         launch.launch_from_server(executor, TARGET)
@@ -155,7 +165,7 @@ def test_deploy_does_not_launch_when_the_public_url_never_answers(deploy_dir, ca
         with pytest.raises(click.ClickException) as error:
             docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
 
-    assert events == ["check"]
+    assert events == ["curl", "check"]
     assert Path("deploy_logs/myapp.txt").read_text() == "notes\n"
     assert "was not launched" in error.value.message
     assert "Cloudflare has not activated the new tunnel yet" in error.value.message
@@ -178,7 +188,19 @@ def test_deploy_launches_once_the_public_url_answers(deploy_dir):
 
     with public_check(events, 200):
         docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
-        assert events == ["check", "launch"]
+        assert events == ["curl", "check", "launch"]
 
         docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", True)
-        assert events == ["check", "launch"]
+        assert events == ["curl", "check", "launch"]
+
+
+def test_deploy_stops_early_without_curl_in_the_web_image(deploy_dir):
+    events = []
+    executor = FakeExecutor(events=events, curl="curl-missing")
+
+    with public_check(events, 200):
+        with pytest.raises(click.ClickException, match="curl is not installed"):
+            docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
+
+    assert events == ["curl"]
+    assert Path("deploy_logs/myapp.txt").exists()

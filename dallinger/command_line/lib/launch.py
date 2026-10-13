@@ -8,19 +8,21 @@ wait times out, the deploy stops without launching and prints the command
 that launches the app once its URL works.
 
 The launch itself does not go through the public URL. The ``web`` container
-POSTs ``/launch`` to the app's front door over the app's Docker network,
-using the container's own Python, with the public ``Host`` and
-``X-Forwarded-Proto``. The front door trusts forwarded headers from private
+POSTs ``/launch`` to the app's front door over the app's Docker network
+with ``curl``, sending the public ``Host`` and ``X-Forwarded-Proto``. The web
+image must have ``curl`` (the Dallinger and PsyNet images do), and the deploy
+checks for it before waiting for the public URL. The front door trusts forwarded headers from private
 networks, Caddy passes ``Host`` through, and the app runs behind ``ProxyFix``,
 so the app computes its public base URL and recruitment links as if the
 request had come from outside.
 
 ``/launch`` is not idempotent: it can open recruitment on MTurk or Prolific
 and then fail in a later step, and a gateway error can follow a request the
-app already accepted. So the launch is sent again only when no HTTP response
-came back at all (the ``web`` container or front door was not up yet). Any
-HTTP response, or a request timeout, ends the launch: success on 2xx with a
-JSON body, otherwise an error that says recruitment may have started.
+app already accepted. So the launch is sent again only when curl could not
+deliver it at all (the ``web`` container or front door was not up yet). Any
+HTTP response, a curl timeout, or any other curl failure ends the launch:
+success on 2xx with a JSON body, otherwise an error that says recruitment may
+have started.
 Nothing here prints tokens or passwords.
 """
 
@@ -36,7 +38,12 @@ from urllib.parse import urlsplit
 import click
 import requests
 
-from dallinger.deployment import handle_launch_data
+from dallinger.deployment import (
+    BACKOFF_FACTOR,
+    DEFAULT_DELAY,
+    MAX_ATTEMPTS,
+    handle_launch_data,
+)
 from dallinger.utils import print_bold
 
 from .app_manifest import INGRESS_CLOUDFLARE
@@ -50,25 +57,13 @@ PROGRESS_INTERVAL = 60
 REQUEST_TIMEOUT = 10
 CLOUDFLARE_TUNNEL_PENDING_STATUS = 530
 CLOUDFLARE_TUNNEL_PENDING_PATTERN = re.compile(r"error(?: code:)? 1033\b", re.I)
-# Runs inside the web container. It prints one JSON line for any HTTP
-# response or a timeout, and fails with a traceback when it could not connect.
-LAUNCH_SCRIPT = """\
-import json, sys, urllib.error, urllib.request
-url, host, proto, timeout = sys.argv[1:]
-headers = {"Host": host, "X-Forwarded-Proto": proto}
-request = urllib.request.Request(url, data=b"", method="POST", headers=headers)
-try:
-    with urllib.request.urlopen(request, timeout=float(timeout)) as response:
-        status, body = response.status, response.read()
-except urllib.error.HTTPError as error:
-    status, body = error.code, error.read()
-except TimeoutError as error:
-    print(json.dumps({"timeout": str(error)}))
-    sys.exit(1)
-print(json.dumps({"status": status, "body": body.decode("utf-8", "replace")}))
-"""
-# Images without a ``python3`` command still have ``python``.
-PYTHON_FALLBACK = 'if command -v python3 >/dev/null; then exec python3 "$@"; fi; exec python "$@"'
+# ``docker compose exec`` failures (web not running) and curl's "could not
+# resolve" / "could not connect": the request never reached the app.
+NOT_SENT_EXIT_STATUSES = frozenset({1, 6, 7})
+CURL_TIMEOUT_EXIT_STATUS = 28
+CURL_CHECK = "if command -v curl >/dev/null; then echo curl-ok; else echo curl-missing; fi"
+# Characters that are not literal inside a local double-quoted string.
+_DOUBLE_QUOTE_UNSAFE = re.compile(r'["$`!]|\\[\\"$`\n]|\\$')
 
 
 @dataclass(frozen=True)
@@ -91,8 +86,17 @@ class LaunchTarget:
         return f"{self.public_origin}/health"
 
     def ssh(self, remote_command):
-        """Return a local shell command that runs ``remote_command`` on the server."""
-        return f"{self.ssh_prefix} {quote(remote_command)}"
+        """Return a local shell command that runs ``remote_command`` on the server.
+
+        Double quotes keep single-quoted arguments readable when that is safe.
+        """
+        if _DOUBLE_QUOTE_UNSAFE.search(remote_command):
+            return f"{self.ssh_prefix} {quote(remote_command)}"
+        return f'{self.ssh_prefix} "{remote_command}"'
+
+    def compose_exec(self, command):
+        """Return a server-side command that runs ``command`` in the web container."""
+        return f"docker compose -f {self.compose_file} exec -T web {command}"
 
     @property
     def check_command(self):
@@ -120,31 +124,36 @@ class _CommandResponse:
 
 
 def internal_launch_command(target):
-    """Return the server-side command that POSTs ``/launch`` to the front door."""
+    """Return the server-side command that POSTs ``/launch`` to the front door.
+
+    curl prints the response body, then the HTTP status on its own last line.
+    """
     origin = urlsplit(target.public_origin)
     args = [
-        FRONT_DOOR_LAUNCH_URL,
-        origin.netloc,
-        origin.scheme,
+        "--silent",
+        "--show-error",
+        "--max-time",
         str(LAUNCH_REQUEST_TIMEOUT),
+        "-X",
+        "POST",
+        "-H",
+        f"Host: {origin.netloc}",
+        "-H",
+        f"X-Forwarded-Proto: {origin.scheme}",
+        "-w",
+        "\\n%{http_code}\\n",
+        FRONT_DOOR_LAUNCH_URL,
     ]
-    return (
-        f"docker compose -f {target.compose_file} exec -T web "
-        f"sh -c {quote(PYTHON_FALLBACK)} sh -c {quote(LAUNCH_SCRIPT)} "
-        + " ".join(quote(arg) for arg in args)
-    )
+    return target.compose_exec("curl " + " ".join(quote(arg) for arg in args))
 
 
-def _last_json_line(text):
-    """Return the last non-empty line of ``text`` parsed as a JSON object, or None."""
-    lines = [line for line in text.splitlines() if line.strip()]
-    if not lines:
-        return None
-    try:
-        parsed = json.loads(lines[-1])
-    except ValueError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
+def _split_status(stdout):
+    """Return ``(body, status)`` from curl output, or ``(stdout, None)``."""
+    body, _, status = stdout.rstrip().rpartition("\n")
+    status = status.strip()
+    if status.isdigit() and status != "000":
+        return body, int(status)
+    return stdout, None
 
 
 def _is_json(text):
@@ -160,38 +169,70 @@ def _last_line(text):
     return lines[-1].strip() if lines else ""
 
 
+def require_curl(executor, target):
+    """Stop the deploy early if the web image has no ``curl`` to launch with.
+
+    Retries briefly while the web container is not up yet, like the launch.
+    """
+    command = target.compose_exec(f"sh -c {quote(CURL_CHECK)}")
+    delay = DEFAULT_DELAY
+    for attempt in range(MAX_ATTEMPTS):
+        _, stdout, stderr = executor.run_with_status(command)
+        if "curl-ok" in stdout:
+            return
+        if "curl-missing" in stdout:
+            print_bold("To remove the app:")
+            print(target.destroy_command)
+            raise click.ClickException(
+                "curl is not installed in the experiment's web image, so the "
+                "deploy cannot launch the experiment. Install curl in the image "
+                "(for example `apt-get install -y curl` in the Dockerfile). The "
+                "app's containers are running, but the experiment was not "
+                "launched and recruitment has not started."
+            )
+        if attempt < MAX_ATTEMPTS - 1:
+            delay *= BACKOFF_FACTOR
+            time.sleep(delay)
+    print_bold("Check the web container logs:")
+    print(target.ssh(f"docker compose -f {target.compose_file} logs web"))
+    print_bold("Or remove the app:")
+    print(target.destroy_command)
+    raise click.ClickException(
+        f"Could not run a command in {target.app}'s web container "
+        f"({_last_line(stderr) or 'no output'}). The experiment was not launched "
+        "and recruitment has not started."
+    )
+
+
 def launch_from_server(executor, target):
     """POST ``/launch`` from inside the app's network and return the launch data.
 
-    Uses ``handle_launch_data``'s retries only while no HTTP response comes
-    back. If the launch fails, prints what to check and run next and raises
+    Uses ``handle_launch_data``'s retries only while curl could not deliver
+    the request. If the launch fails, prints what to check and run next and raises
     ``click.ClickException``.
     """
     command = internal_launch_command(target)
 
     def post():
         exit_status, stdout, stderr = executor.run_with_status(command)
-        # A reported HTTP response wins over the exit status. Raising a
-        # ClickException (not a RequestException) stops handle_launch_data
-        # from sending the request again.
-        result = _last_json_line(stdout) or {}
-        if "timeout" in result:
+        # Raising a ClickException (not a RequestException) stops
+        # handle_launch_data from sending the request again.
+        body, status = _split_status(stdout)
+        if status is not None:
+            if 200 <= status < 300 and _is_json(body):
+                return _CommandResponse(status, body)
+            raise _LaunchSent(
+                f"The launch request to {target.app} returned HTTP {status}:\n{body}"
+            )
+        detail = _last_line(stderr) or f"exit status {exit_status}"
+        if exit_status == CURL_TIMEOUT_EXIT_STATUS:
             raise _LaunchSent(
                 f"The launch request to {target.app} did not answer within "
                 f"{LAUNCH_REQUEST_TIMEOUT} s and may still be running."
             )
-        if "status" in result:
-            response = _CommandResponse(int(result["status"]), result.get("body", ""))
-            if 200 <= response.status_code < 300 and _is_json(response.text):
-                return response
-            raise _LaunchSent(
-                f"The launch request to {target.app} returned HTTP "
-                f"{response.status_code}:\n{response.text}"
-            )
-        detail = _last_line(stderr) or _last_line(stdout)
-        raise requests.exceptions.ConnectionError(
-            detail or f"exit status {exit_status}"
-        )
+        if exit_status not in NOT_SENT_EXIT_STATUSES:
+            raise _LaunchSent(f"The launch request to {target.app} failed: {detail}")
+        raise requests.exceptions.ConnectionError(detail)
 
     try:
         return handle_launch_data(

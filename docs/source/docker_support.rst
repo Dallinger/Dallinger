@@ -462,6 +462,12 @@ command to check the URL again, the command that launches the experiment once
 the URL works, and the ``destroy`` command. The deployment notes in
 ``deploy_logs/<app>.txt`` are written before this wait.
 
+The deploy launches the experiment by running ``curl`` inside the app's web
+container, so the experiment image must include ``curl``. The Dallinger and
+PsyNet images do; for a custom image, add it, for example with
+``apt-get install -y curl`` in the Dockerfile. The deploy checks for ``curl``
+before the wait and stops straight away, without launching, if it is missing.
+
 
 To export the data from an experiment running on a server, run:
 
