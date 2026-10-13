@@ -1,4 +1,9 @@
 import importlib
+import json
+import os
+import subprocess
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from unittest import mock
 
@@ -21,21 +26,23 @@ TARGET = launch.LaunchTarget(
     ingress="cloudflare",
     ssh_prefix="ssh -i key.pem me@lab.example",
 )
-LAUNCHED = '{"status": "success", "recruitment_msg": "Recruitment is open"}\n200'
+
+
+def reply(status, body):
+    return json.dumps({"status": status, "body": json.dumps(body)})
 
 
 class FakeExecutor:
-    def __init__(self, launch_replies=(), logs=""):
+    def __init__(self, launch_replies=(), logs="", events=None):
         self.launch_replies = list(launch_replies)
         self.logs = logs
-        self.commands = []
+        self.events = [] if events is None else events
 
     def run_with_status(self, cmd):
-        self.commands.append(cmd)
+        self.events.append("launch")
         return self.launch_replies.pop(0)
 
     def run(self, cmd, raise_=True):
-        self.commands.append(cmd)
         return self.logs if "logs" in cmd else ""
 
 
@@ -45,21 +52,56 @@ def no_sleep():
         yield
 
 
-def test_launch_posts_to_the_front_door_with_public_headers(no_sleep):
+def test_launch_runs_python_in_web_with_the_public_host(monkeypatch, tmp_path):
+    """Run the real remote command locally; a fake ``docker`` runs its tail."""
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            proto = self.headers["X-Forwarded-Proto"]
+            body = json.dumps({"recruitment_msg": f"{proto}://{self.headers['Host']}"})
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(body.encode())
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.setattr(
+        launch, "FRONT_DOOR_LAUNCH_URL", f"http://127.0.0.1:{server.server_port}/"
+    )
+    docker = tmp_path / "docker"
+    docker.write_text(
+        '#!/bin/sh\nwhile [ "$1" != web ]; do shift; done\nshift\nexec "$@"\n'
+    )
+    docker.chmod(0o755)
+
+    class LocalExecutor:
+        def run_with_status(self, cmd):
+            env = {**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"}
+            done = subprocess.run(
+                ["bash", "-c", cmd], capture_output=True, text=True, env=env
+            )
+            return done.returncode, done.stdout, done.stderr
+
+    try:
+        data = launch.launch_from_server(LocalExecutor(), TARGET)
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert data["recruitment_msg"] == "https://myapp.x.org"
+
+
+def test_a_reported_response_is_not_sent_again(no_sleep):
     executor = FakeExecutor(
-        [(1, "", 'service "web" is not running'), (0, LAUNCHED, "")]
+        [
+            (1, "", 'service "web" is not running\n'),
+            (1, reply(200, {"recruitment_msg": "open"}) + "\n\n", ""),
+        ]
     )
-
-    data = launch.launch_from_server(executor, TARGET)
-
-    assert data["recruitment_msg"] == "Recruitment is open"
-    command = executor.commands[-1]
-    assert command.startswith(
-        "docker compose -f ~/dallinger/myapp/docker-compose.yml exec -T web curl"
-    )
-    assert '-H "Host: myapp.x.org"' in command
-    assert '-H "X-Forwarded-Proto: https"' in command
-    assert command.endswith("http://frontdoor:5000/launch")
+    assert launch.launch_from_server(executor, TARGET) == {"recruitment_msg": "open"}
+    assert executor.events == ["launch", "launch"]
 
 
 def test_proxied_launch_headers_give_the_public_base_url():
@@ -74,7 +116,7 @@ def test_proxied_launch_headers_give_the_public_base_url():
 
 
 def test_failed_launch_explains_how_to_retry_or_destroy(no_sleep, capsys):
-    error = (0, '{"status": "error", "message": "boom"}\n500', "")
+    error = (0, reply(500, {"status": "error", "message": "boom"}), "")
     executor = FakeExecutor([error] * MAX_ATTEMPTS)
 
     with pytest.raises(click.ClickException, match="recruitment has not started"):
@@ -86,78 +128,41 @@ def test_failed_launch_explains_how_to_retry_or_destroy(no_sleep, capsys):
 
 
 def test_public_check_warns_when_cloudflare_has_not_activated_the_tunnel(capsys):
-    executor = FakeExecutor(
-        logs="ERR Register tunnel error: Unauthorized: Tunnel not found"
-    )
+    executor = FakeExecutor(logs="ERR Unauthorized: Tunnel not found")
     pending = mock.Mock(status_code=530, text="error code: 1033")
 
     with mock.patch.object(launch.requests, "get", return_value=pending):
         assert launch.wait_for_public_url(executor, TARGET, timeout=0) is False
 
     out = capsys.readouterr().out
-    assert "Waiting for the Cloudflare tunnel to connect" in out
+    assert "up to 0 s" in out
     assert "Cloudflare has not activated the new tunnel yet" in out
     assert "'Tunnel not found'" in out
-    assert "The app is running and launched" in out
     assert TARGET.check_command in out
     assert TARGET.destroy_command in out
 
 
-def test_deploy_records_the_deployment_before_the_public_check(monkeypatch, tmp_path):
+def test_deploy_records_then_checks_the_public_url_then_launches(
+    monkeypatch, tmp_path, no_sleep
+):
     monkeypatch.chdir(tmp_path)
-    record = Path("deploy_logs/myapp.txt")
-    checked = []
-
-    def public_check(executor, target):
-        checked.append(record.exists())
-        return False
-
-    class Executor(FakeExecutor):
-        def __init__(self, *args, **kwargs):
-            super().__init__()
-
-    for name, value in {
-        "Executor": Executor,
-        "_check_app_slot": lambda *args: None,
-        "remove_named_volume": lambda *args: None,
-        "_app_secrets": lambda *args: {
-            "FLASK_SECRET_KEY": "k",
-            "POSTGRES_PASSWORD": "p",
-        },
-        "get_sftp": lambda *args, **kwargs: None,
-        "load_api_token": lambda config: "token",
-        "ensure_experiment_tunnel": lambda **kwargs: {
-            "tunnel_id": "t",
-            "connector_token": "secret",
-        },
-        "_install_tunnel_token": lambda *args: None,
-        "_compose_environment": lambda *args: {},
-        "_upload_app_stack": lambda *args, **kwargs: None,
-        "_bring_up_app_containers": lambda *args, **kwargs: None,
-        "launch_from_server": lambda executor, target: {"recruitment_msg": "open"},
-        "wait_for_public_url": public_check,
-    }.items():
-        monkeypatch.setattr(docker_ssh, name, value)
-
-    docker_ssh._deploy_cloudflare_in_mode(
-        archive_path=None,
-        config={
-            "cloudflare_account_id": "acct",
-            "cloudflare_zone_id": "zone",
-            "cloudflare_dns_zone": "x.org",
-        },
-        config_options={},
-        dashboard_password="pw",
-        dashboard_user="admin",
-        experiment_id="myapp",
-        experiment_uuid="uuid",
-        image_name="image",
-        mode="sandbox",
-        push_build=False,
-        server="lab",
-        server_info={"host": "lab.example"},
-        update=False,
+    monkeypatch.setattr(launch, "PUBLIC_CHECK_TIMEOUT", 0)
+    events = []
+    executor = FakeExecutor(
+        [(0, reply(500, {"status": "error"}), "")] * MAX_ATTEMPTS, events=events
     )
+    pending = mock.Mock(status_code=530, text="")
 
-    assert checked == [True]
-    assert "pw" not in record.read_text()
+    def get(*args, **kwargs):
+        events.append("check")
+        return pending
+
+    with mock.patch.object(launch.requests, "get", get):
+        with pytest.raises(click.ClickException):
+            docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
+        assert events[:2] == ["check", "launch"]
+        assert Path("deploy_logs/myapp.txt").read_text() == "notes\n"
+
+        events.clear()
+        docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", True)
+        assert events == []

@@ -1,23 +1,29 @@
-"""Launch docker-ssh apps from inside the server, then check the public URL.
+"""Check a docker-ssh app's public URL, then launch it from inside the server.
 
 A new Cloudflare tunnel can take several minutes to accept its connector,
-and a new Caddy site can wait on DNS or a TLS certificate. When ``/launch``
-went through the public URL, a slow tunnel left a running app that was never
-launched. Here the ``web`` container POSTs ``/launch`` to the app's front door
-over the app's Docker network, so the launch only waits for the app itself.
+and a new Caddy site can wait on DNS or a TLS certificate. ``/launch`` opens
+recruitment, so the deploy first waits, for a bounded time, until the public
+URL answers. Participants are then not sent to a Cloudflare error page. If the
+wait times out, the deploy warns and launches anyway, rather than leaving a
+running app that was never launched.
 
-The request carries the public ``Host`` and ``X-Forwarded-Proto``. The front
-door trusts forwarded headers from private networks, Caddy passes ``Host``
-through, and the app runs behind ``ProxyFix``, so the app computes its public
-base URL and recruitment links as if the request had come from outside.
+The launch itself does not go through the public URL. The ``web`` container
+POSTs ``/launch`` to the app's front door over the app's Docker network,
+using the container's own Python, with the public ``Host`` and
+``X-Forwarded-Proto``. The front door trusts forwarded headers from private
+networks, Caddy passes ``Host`` through, and the app runs behind ``ProxyFix``,
+so the app computes its public base URL and recruitment links as if the
+request had come from outside.
 
-Public reachability is checked after the launch and only warns, because the
-app is already launched by then. Nothing here prints tokens or passwords.
+``/launch`` is not idempotent (it can open recruitment on MTurk or Prolific),
+so a request that reached the app is never retried as if the app were still
+starting. Nothing here prints tokens or passwords.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import dataclass
 from shlex import quote
@@ -32,11 +38,31 @@ from dallinger.utils import END, RED, print_bold
 from .app_manifest import INGRESS_CLOUDFLARE
 
 FRONT_DOOR_LAUNCH_URL = "http://frontdoor:5000/launch"
+# /launch can be slow (database setup, recruiter API calls).
+LAUNCH_REQUEST_TIMEOUT = 300
 PUBLIC_CHECK_TIMEOUT = 420
 PUBLIC_CHECK_INTERVAL = 10
 PROGRESS_INTERVAL = 60
 REQUEST_TIMEOUT = 10
 CLOUDFLARE_TUNNEL_PENDING_STATUS = 530
+CLOUDFLARE_TUNNEL_PENDING_PATTERN = re.compile(r"error(?: code:)? 1033\b", re.I)
+# Runs inside the web container. It prints one JSON line for any HTTP
+# response, and fails with a traceback when it could not connect.
+LAUNCH_SCRIPT = """\
+import json, sys, urllib.error, urllib.request
+url, host, proto, timeout = sys.argv[1:]
+headers = {"Host": host, "X-Forwarded-Proto": proto}
+request = urllib.request.Request(url, data=b"", method="POST", headers=headers)
+try:
+    with urllib.request.urlopen(request, timeout=float(timeout)) as response:
+        status, body = response.status, response.read()
+except urllib.error.HTTPError as error:
+    status, body = error.code, error.read()
+except TimeoutError as error:
+    print(json.dumps({"timeout": str(error)}))
+    sys.exit(1)
+print(json.dumps({"status": status, "body": body.decode("utf-8", "replace")}))
+"""
 
 
 @dataclass(frozen=True)
@@ -54,19 +80,25 @@ class LaunchTarget:
     def compose_file(self):
         return f"~/dallinger/{self.app}/docker-compose.yml"
 
+    @property
+    def health_url(self):
+        return f"{self.public_origin}/health"
+
     def ssh(self, remote_command):
         """Return a local shell command that runs ``remote_command`` on the server."""
         return f"{self.ssh_prefix} {quote(remote_command)}"
 
     @property
     def check_command(self):
-        return (
-            f"curl -sS -o /dev/null -w '%{{http_code}}\\n' {self.public_origin}/health"
-        )
+        return f"curl -sS -o /dev/null -w '%{{http_code}}\\n' {self.health_url}"
 
     @property
     def destroy_command(self):
         return f"dallinger docker-ssh destroy --server {self.server} --app {self.app}"
+
+
+class _LaunchTimeout(click.ClickException):
+    """``/launch`` was sent but did not answer in time; it may still be running."""
 
 
 class _CommandResponse:
@@ -83,16 +115,34 @@ class _CommandResponse:
 
 def internal_launch_command(target):
     """Return the server-side command that POSTs ``/launch`` to the front door."""
-    # Double quotes keep the printed retry command readable once it is
-    # single-quoted for ssh. App names and hostnames are DNS-safe.
     origin = urlsplit(target.public_origin)
+    args = [
+        FRONT_DOOR_LAUNCH_URL,
+        origin.netloc,
+        origin.scheme,
+        str(LAUNCH_REQUEST_TIMEOUT),
+    ]
     return (
         f"docker compose -f {target.compose_file} exec -T web "
-        "curl -sS -X POST "
-        f'-H "Host: {origin.netloc}" '
-        f'-H "X-Forwarded-Proto: {origin.scheme}" '
-        f'-w "\\n%{{http_code}}" {FRONT_DOOR_LAUNCH_URL}'
+        f"python3 -c {quote(LAUNCH_SCRIPT)} " + " ".join(quote(arg) for arg in args)
     )
+
+
+def _last_json_line(text):
+    """Return the last non-empty line of ``text`` parsed as a JSON object, or None."""
+    lines = [line for line in text.splitlines() if line.strip()]
+    if not lines:
+        return None
+    try:
+        parsed = json.loads(lines[-1])
+    except ValueError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _last_line(text):
+    lines = [line for line in (text or "").splitlines() if line.strip()]
+    return lines[-1].strip() if lines else ""
 
 
 def launch_from_server(executor, target):
@@ -105,13 +155,22 @@ def launch_from_server(executor, target):
     command = internal_launch_command(target)
 
     def post():
-        status, stdout, stderr = executor.run_with_status(command)
-        body, _, code = stdout.rpartition("\n")
-        # curl writes 000 when it got no HTTP response at all.
-        if status or not code.isdigit() or code == "000":
-            detail = (stderr or stdout).strip() or f"exit status {status}"
-            raise requests.exceptions.ConnectionError(detail)
-        return _CommandResponse(int(code), body)
+        exit_status, stdout, stderr = executor.run_with_status(command)
+        # A reported HTTP response wins over the exit status: the request
+        # reached the app, and sending it again could launch twice.
+        result = _last_json_line(stdout) or {}
+        if "status" in result:
+            return _CommandResponse(int(result["status"]), result.get("body", ""))
+        if "timeout" in result:
+            raise _LaunchTimeout(
+                f"The launch request to {target.app} did not answer within "
+                f"{LAUNCH_REQUEST_TIMEOUT} s and may still be running. Check the "
+                "web container logs before retrying."
+            )
+        detail = _last_line(stderr) or _last_line(stdout)
+        raise requests.exceptions.ConnectionError(
+            detail or f"exit status {exit_status}"
+        )
 
     try:
         return handle_launch_data(
@@ -127,6 +186,8 @@ def launch_from_server(executor, target):
         print(target.ssh(command))
         print_bold("Or remove the app:")
         print(target.destroy_command)
+        if isinstance(exc, _LaunchTimeout):
+            raise
         raise click.ClickException(
             f"The launch request to {target.app} failed from inside the server. "
             "The app's containers are running, but the experiment was not "
@@ -134,31 +195,31 @@ def launch_from_server(executor, target):
         ) from exc
 
 
-def wait_for_public_url(
-    executor,
-    target,
-    timeout=PUBLIC_CHECK_TIMEOUT,
-    interval=PUBLIC_CHECK_INTERVAL,
-):
+def wait_for_public_url(executor, target, timeout=None, interval=None):
     """Wait until the app answers on its public URL; warn if it never does.
 
     Returns True when the public health check succeeds, and False after
-    printing a warning when it is still failing after ``timeout`` seconds.
+    printing a warning when it is still failing after ``timeout`` seconds
+    (default ``PUBLIC_CHECK_TIMEOUT``).
     """
-    url = f"{target.public_origin}/health"
-    minutes = max(1, round(timeout / 60))
+    timeout = PUBLIC_CHECK_TIMEOUT if timeout is None else timeout
+    interval = PUBLIC_CHECK_INTERVAL if interval is None else interval
+    limit = _duration(timeout)
     if target.ingress == INGRESS_CLOUDFLARE:
         print(
-            "Waiting for the Cloudflare tunnel to connect "
-            f"(up to {minutes} min; a new tunnel can take several minutes)."
+            "Waiting for the Cloudflare tunnel to connect before launching "
+            f"(up to {limit}; a new tunnel can take several minutes)."
         )
     else:
-        print(f"Waiting for {target.public_origin} to become reachable (up to {minutes} min).")
+        print(
+            f"Waiting for {target.public_origin} to become reachable before "
+            f"launching (up to {limit})."
+        )
 
     started = time.monotonic()
     next_report = PROGRESS_INTERVAL
     while True:
-        status, detail = _probe(url, target.verify)
+        status, detail = _probe(target.health_url, target.verify)
         if status is not None and status < 400:
             print(f"{target.public_origin} is reachable.")
             return True
@@ -170,8 +231,14 @@ def wait_for_public_url(
             next_report += PROGRESS_INTERVAL
         time.sleep(interval)
 
-    _warn_unreachable(executor, target, status, detail, minutes)
+    _warn_unreachable(executor, target, status, detail, limit)
     return False
+
+
+def _duration(seconds):
+    if seconds < 60:
+        return f"{seconds:g} s"
+    return f"{round(seconds / 60)} min"
 
 
 def _probe(url, verify):
@@ -191,7 +258,9 @@ def _describe(status, detail):
 
 def _tunnel_pending(status, detail):
     """True for Cloudflare's 530 / error 1033 answer for an unconnected tunnel."""
-    return status == CLOUDFLARE_TUNNEL_PENDING_STATUS or "1033" in (detail or "")
+    return status == CLOUDFLARE_TUNNEL_PENDING_STATUS or bool(
+        CLOUDFLARE_TUNNEL_PENDING_PATTERN.search(detail or "")
+    )
 
 
 def _connector_reports_tunnel_not_found(executor, target):
@@ -203,29 +272,29 @@ def _connector_reports_tunnel_not_found(executor, target):
     return "tunnel not found" in (logs or "").lower()
 
 
-def _warn_unreachable(executor, target, status, detail, minutes):
+def _warn_unreachable(executor, target, status, detail, limit):
     cloudflare = target.ingress == INGRESS_CLOUDFLARE
     not_found = cloudflare and _connector_reports_tunnel_not_found(executor, target)
     print(
         f"{RED}Warning:{END} {target.public_origin} was still not reachable after "
-        f"{minutes} min (last result: {_describe(status, detail)})."
+        f"{limit} (last result: {_describe(status, detail)})."
     )
     if cloudflare and (not_found or _tunnel_pending(status, detail)):
         print(
             "Cloudflare has not activated the new tunnel yet"
             + (" (cloudflared logs say 'Tunnel not found')" if not_found else "")
-            + ". The app is running and launched, and participants can reach "
-            "it once the tunnel connects."
+            + ". The app is running and will be launched anyway; participants "
+            "can reach it once the tunnel connects."
         )
     elif cloudflare:
         print(
-            "The app is running and launched, but the Cloudflare tunnel is "
-            "not serving it yet."
+            "The app is running and will be launched anyway, but the "
+            "Cloudflare tunnel is not serving it yet."
         )
     else:
         print(
-            "The app is running and launched. Caddy may still be getting a "
-            "TLS certificate, or DNS may not point at the server yet."
+            "The app is running and will be launched anyway. Caddy may still "
+            "be getting a TLS certificate, or DNS may not point at the server yet."
         )
     print_bold("Check again later (expect 200):")
     print(target.check_command)

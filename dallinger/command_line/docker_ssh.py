@@ -903,6 +903,23 @@ def _record_deployment_infos(experiment_id, lines, dashboard_password):
     deploy_log_path.write_text("\n".join(lines) + "\n")
 
 
+def _record_then_launch(executor, target, deployment_infos, dashboard_password, update):
+    """Record the deployment, wait for the public URL, then launch the experiment.
+
+    The record comes first so it exists even if the launch fails. Launching
+    opens recruitment, so it waits (for a bounded time) until participants
+    can reach the public URL.
+    """
+    _record_deployment_infos(target.app, deployment_infos, dashboard_password)
+    if update:
+        print("Skipping experiment launch logic because we are in update mode.")
+        return
+    wait_for_public_url(executor, target)
+    print("Launching experiment")
+    launch_data = launch_from_server(executor, target)
+    print(launch_data.get("recruitment_msg"))
+
+
 def _install_tunnel_token(executor, sftp, app, connector_token, tunnel_id):
     """Install the per-app connector token at mode 0600. Do not log the token.
 
@@ -1536,13 +1553,6 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         ssh_prefix=_ssh_prefix(ssh_host, ssh_port, ssh_user),
         verify=HAS_TLS,
     )
-    if update:
-        print("Skipping experiment launch logic because we are in update mode.")
-    else:
-        print("Launching experiment")
-        launch_data = launch_from_server(executor, launch_target)
-        print(launch_data.get("recruitment_msg"))
-
     dashboard_link = _public_dashboard_url(experiment_hostname)
     log_command = _log_command(ssh_host, ssh_port, ssh_user, experiment_id)
     deployment_infos = []
@@ -1555,9 +1565,9 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         f"Or you can head to {logs_url} (user = dallinger)",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
     ]
-    _record_deployment_infos(experiment_id, deployment_infos, dashboard_password)
-    if not update:
-        wait_for_public_url(executor, launch_target)
+    _record_then_launch(
+        executor, launch_target, deployment_infos, dashboard_password, update
+    )
     return {
         "dashboard_user": dashboard_user,
         "dashboard_password": dashboard_password,
@@ -1740,13 +1750,6 @@ def _deploy_cloudflare_in_mode(
         ingress=INGRESS_CLOUDFLARE,
         ssh_prefix=_ssh_prefix(ssh_host, ssh_port, ssh_user),
     )
-    if update:
-        print("Skipping experiment launch logic because we are in update mode.")
-    else:
-        print("Launching experiment")
-        launch_data = launch_from_server(executor, launch_target)
-        print(launch_data.get("recruitment_msg"))
-
     dashboard_link = _public_dashboard_url(hostname)
     log_command = _log_command(ssh_host, ssh_port, ssh_user, experiment_id)
     deployment_infos = []
@@ -1758,9 +1761,9 @@ def _deploy_cloudflare_in_mode(
         f"Public origin: {public_origin}",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
     ]
-    _record_deployment_infos(experiment_id, deployment_infos, dashboard_password)
-    if not update:
-        wait_for_public_url(executor, launch_target)
+    _record_then_launch(
+        executor, launch_target, deployment_infos, dashboard_password, update
+    )
     return {
         "dashboard_user": dashboard_user,
         "dashboard_password": dashboard_password,

@@ -1664,6 +1664,14 @@ class Testhandle_launch_data:
 
         mock_post.assert_called_once_with("/some-launch-url", verify=False)
 
+    def test_post_argument_replaces_the_http_request(self, handler):
+        result = mock.Mock(ok=True, json=mock.Mock(return_value={"message": "msg!"}))
+        post = mock.Mock(return_value=result)
+        with mock.patch("dallinger.deployment.requests.post") as mock_post:
+            assert handler("label", error=mock.Mock(), post=post) == {"message": "msg!"}
+        post.assert_called_once_with()
+        mock_post.assert_not_called()
+
     def test_https_wait_progress_is_status_not_error(self):
         from dallinger.deployment import _HTTPS_WAIT_BAR_STYLE, _https_wait_progress
 
