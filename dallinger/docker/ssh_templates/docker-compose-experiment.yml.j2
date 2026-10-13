@@ -132,9 +132,10 @@ services:
       # Each web and worker process keeps up to 20 idle client connections
       # (more while busy), so the default of 100 refuses connections under
       # load. Client connections are cheap; Postgres only sees the server
-      # pool below. Clients up to this limit queue for a server connection
-      # and fail only after query_wait_timeout (120 s); clients beyond it are
-      # refused.
+      # pool below. Idle clients, such as SQLAlchemy's idle pooled
+      # connections, just hold a client slot. A connected client whose query
+      # is waiting for a server connection waits up to query_wait_timeout
+      # (120 s). New clients beyond this limit are refused.
       - PGBOUNCER_MAX_CLIENT_CONN=10000
       # A server connection stays tied to a request for its whole transaction,
       # including the Python work between queries, so the default pool of 20
