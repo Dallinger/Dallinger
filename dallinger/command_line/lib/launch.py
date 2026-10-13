@@ -15,9 +15,13 @@ networks, Caddy passes ``Host`` through, and the app runs behind ``ProxyFix``,
 so the app computes its public base URL and recruitment links as if the
 request had come from outside.
 
-``/launch`` is not idempotent (it can open recruitment on MTurk or Prolific),
-so a request that reached the app is never retried as if the app were still
-starting. Nothing here prints tokens or passwords.
+``/launch`` is not idempotent: it can open recruitment on MTurk or Prolific
+and then fail in a later step, and a gateway error can follow a request the
+app already accepted. So the launch is sent again only when no HTTP response
+came back at all (the ``web`` container or front door was not up yet). Any
+HTTP response, or a request timeout, ends the launch: success on 2xx with a
+JSON body, otherwise an error that says recruitment may have started.
+Nothing here prints tokens or passwords.
 """
 
 from __future__ import annotations
@@ -47,7 +51,7 @@ REQUEST_TIMEOUT = 10
 CLOUDFLARE_TUNNEL_PENDING_STATUS = 530
 CLOUDFLARE_TUNNEL_PENDING_PATTERN = re.compile(r"error(?: code:)? 1033\b", re.I)
 # Runs inside the web container. It prints one JSON line for any HTTP
-# response, and fails with a traceback when it could not connect.
+# response or a timeout, and fails with a traceback when it could not connect.
 LAUNCH_SCRIPT = """\
 import json, sys, urllib.error, urllib.request
 url, host, proto, timeout = sys.argv[1:]
@@ -63,6 +67,8 @@ except TimeoutError as error:
     sys.exit(1)
 print(json.dumps({"status": status, "body": body.decode("utf-8", "replace")}))
 """
+# Images without a ``python3`` command still have ``python``.
+PYTHON_FALLBACK = 'if command -v python3 >/dev/null; then exec python3 "$@"; fi; exec python "$@"'
 
 
 @dataclass(frozen=True)
@@ -97,8 +103,8 @@ class LaunchTarget:
         return f"dallinger docker-ssh destroy --server {self.server} --app {self.app}"
 
 
-class _LaunchTimeout(click.ClickException):
-    """``/launch`` was sent but did not answer in time; it may still be running."""
+class _LaunchSent(click.ClickException):
+    """``/launch`` reached the app but did not clearly succeed; never resend it."""
 
 
 class _CommandResponse:
@@ -124,7 +130,8 @@ def internal_launch_command(target):
     ]
     return (
         f"docker compose -f {target.compose_file} exec -T web "
-        f"python3 -c {quote(LAUNCH_SCRIPT)} " + " ".join(quote(arg) for arg in args)
+        f"sh -c {quote(PYTHON_FALLBACK)} sh -c {quote(LAUNCH_SCRIPT)} "
+        + " ".join(quote(arg) for arg in args)
     )
 
 
@@ -140,6 +147,14 @@ def _last_json_line(text):
     return parsed if isinstance(parsed, dict) else None
 
 
+def _is_json(text):
+    try:
+        json.loads(text)
+    except ValueError:
+        return False
+    return True
+
+
 def _last_line(text):
     lines = [line for line in (text or "").splitlines() if line.strip()]
     return lines[-1].strip() if lines else ""
@@ -148,24 +163,30 @@ def _last_line(text):
 def launch_from_server(executor, target):
     """POST ``/launch`` from inside the app's network and return the launch data.
 
-    Keeps ``handle_launch_data``'s retries while the ``web`` container starts.
-    If the launch fails, prints how to retry or remove the app and raises
+    Uses ``handle_launch_data``'s retries only while no HTTP response comes
+    back. If the launch fails, prints what to check and run next and raises
     ``click.ClickException``.
     """
     command = internal_launch_command(target)
 
     def post():
         exit_status, stdout, stderr = executor.run_with_status(command)
-        # A reported HTTP response wins over the exit status: the request
-        # reached the app, and sending it again could launch twice.
+        # A reported HTTP response wins over the exit status. Raising a
+        # ClickException (not a RequestException) stops handle_launch_data
+        # from sending the request again.
         result = _last_json_line(stdout) or {}
-        if "status" in result:
-            return _CommandResponse(int(result["status"]), result.get("body", ""))
         if "timeout" in result:
-            raise _LaunchTimeout(
+            raise _LaunchSent(
                 f"The launch request to {target.app} did not answer within "
-                f"{LAUNCH_REQUEST_TIMEOUT} s and may still be running. Check the "
-                "web container logs before retrying."
+                f"{LAUNCH_REQUEST_TIMEOUT} s and may still be running."
+            )
+        if "status" in result:
+            response = _CommandResponse(int(result["status"]), result.get("body", ""))
+            if 200 <= response.status_code < 300 and _is_json(response.text):
+                return response
+            raise _LaunchSent(
+                f"The launch request to {target.app} returned HTTP "
+                f"{response.status_code}:\n{response.text}"
             )
         detail = _last_line(stderr) or _last_line(stdout)
         raise requests.exceptions.ConnectionError(
@@ -180,14 +201,26 @@ def launch_from_server(executor, target):
             post=post,
         )
     except click.ClickException as exc:
+        sent = isinstance(exc, _LaunchSent)
+        if sent:
+            print(exc.message)
         print_bold("Check the web container logs:")
         print(target.ssh(f"docker compose -f {target.compose_file} logs web"))
-        print_bold("Retry the launch:")
+        if sent:
+            print_bold(
+                "Only if the logs show that recruitment did not open, launch again:"
+            )
+        else:
+            print_bold("Retry the launch:")
         print(target.ssh(command))
         print_bold("Or remove the app:")
         print(target.destroy_command)
-        if isinstance(exc, _LaunchTimeout):
-            raise
+        if sent:
+            raise click.ClickException(
+                f"The launch request reached {target.app} but did not succeed. "
+                "Recruitment may have started: check the web container logs "
+                "before launching again."
+            ) from exc
         raise click.ClickException(
             f"The launch request to {target.app} failed from inside the server. "
             "The app's containers are running, but the experiment was not "

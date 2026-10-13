@@ -99,9 +99,11 @@
   Python, so the app still records its public base URL. If the public URL
   never answers, the deploy stops with an error without launching, says when
   Cloudflare has not activated the tunnel yet, and prints how to check the URL
-  again, how to launch once it works, and how to destroy the app. A failed
-  launch prints how to retry it and how to destroy the app; a launch request
-  that reached the app is never resent.
+  again, how to launch once it works, and how to destroy the app. The launch
+  request is retried only while the web container is not answering at all.
+  Once the app has answered, even with an error or a timeout, it is not sent
+  again: the deploy says recruitment may have started and prints how to check
+  the web logs, launch again by hand, or destroy the app.
 - Remote Docker builds work when the SSH username contains ``@``.
 - docker-ssh deploys no longer write the dashboard or Dozzle password into
   ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.

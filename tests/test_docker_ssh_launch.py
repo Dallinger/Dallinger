@@ -14,7 +14,6 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.test import Client
 
 from dallinger.command_line.lib import launch
-from dallinger.deployment import MAX_ATTEMPTS
 from dallinger.utils import get_base_url
 
 docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
@@ -115,16 +114,22 @@ def test_proxied_launch_headers_give_the_public_base_url():
     assert response.get_data(as_text=True) == "https://myapp.x.org"
 
 
-def test_failed_launch_explains_how_to_retry_or_destroy(no_sleep, capsys):
-    error = (0, reply(500, {"status": "error", "message": "boom"}), "")
-    executor = FakeExecutor([error] * MAX_ATTEMPTS)
+@pytest.mark.parametrize(
+    "output",
+    [reply(500, {"status": "error"}), json.dumps({"timeout": "timed out"})],
+    ids=["http-500", "timeout"],
+)
+def test_a_launch_that_reached_the_app_is_sent_once(output, capsys):
+    executor = FakeExecutor([(1, output, "")])
 
-    with pytest.raises(click.ClickException, match="recruitment has not started"):
+    with pytest.raises(click.ClickException, match="Recruitment may have started"):
         launch.launch_from_server(executor, TARGET)
 
+    assert executor.events == ["launch"]
     out = capsys.readouterr().out
-    assert "ssh -i key.pem me@lab.example 'docker compose" in out
-    assert "dallinger docker-ssh destroy --server lab --app myapp" in out
+    assert TARGET.ssh(f"docker compose -f {TARGET.compose_file} logs web") in out
+    assert TARGET.ssh(launch.internal_launch_command(TARGET)) in out
+    assert TARGET.destroy_command in out
 
 
 @pytest.fixture
