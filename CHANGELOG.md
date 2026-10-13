@@ -153,6 +153,13 @@
 
 ### Changed
 
+- The docker-ssh hibernation controller now runs on a digest-pinned
+  ``python:3.14-alpine`` image instead of ``python:3.12-alpine``, matching
+  the Python in Dallinger's Docker images. The next deploy or update pulls
+  the new image and recreates the controller; its state is kept. The pin
+  lives in ``dallinger/docker/ssh_templates/Dockerfile.controller``, and
+  Dependabot now opens weekly pull requests to update it and the base image
+  of Dallinger's ``Dockerfile``, including new Python versions.
 - Clients may no longer subscribe to Dallinger's own channels. The `channel`
   argument may not name `dallinger_control`, which reports every connection's
   worker and participant ids, nor the new `dallinger_direct`, which carries the
