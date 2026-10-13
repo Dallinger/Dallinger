@@ -456,12 +456,35 @@ class TestProlificRecruiter:
 
             return r
 
+    def test_init_does_not_reload_loaded_config(self, recruiter, active_config):
+        active_config.load.assert_not_called()
+
     def test_open_recruitment_with_valid_request(self, recruiter):
         result = recruiter.open_recruitment(n=5)
 
         kwargs = recruiter.prolificservice.create_study.call_args_list[0].kwargs
         assert kwargs.get("publish_experiment") is True
         assert result["message"] == "Study created on Prolific"
+
+    def test_dev_recruiter_open_recruitment_says_study_is_simulated(
+        self, hit_id_store, active_config, caplog
+    ):
+        from dallinger.recruiters import DevProlificRecruiter
+
+        with mock.patch(
+            "dallinger.recruiters.get_base_url", return_value="http://fake-domain"
+        ):
+            recruiter = DevProlificRecruiter(store=hit_id_store)
+
+        with caplog.at_level("INFO", logger="dallinger.prolific"):
+            result = recruiter.open_recruitment(n=5)
+
+        expected = (
+            "Prolific study simulated in debug mode; nothing was created on Prolific"
+        )
+        assert result["message"] == expected
+        assert f"{expected}." in caplog.messages
+        assert "Created unpublished draft study" not in caplog.text
 
     def test_open_recruitment_with_publication_suppressed(self, recruiter):
         recruiter.config["publish_experiment"] = False

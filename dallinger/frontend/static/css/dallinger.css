@@ -1,15 +1,16 @@
-body {
-    font-weight: 300;
-    font-size: 13pt;
-}
+/* Every rule targets a Dallinger class, so pages that extend Dallinger's
+   layout with their own markup, such as PsyNet's, are unaffected. */
 
 .main_div {
     margin: 5% 10% 5% 10%;
+    font-weight: 300;
+    font-size: 13pt;
 }
 
 .consent_div {
     margin: 0 15% 0 15%;
     font-size: smaller;
+    text-align: justify;
 }
 
 .margin_div {
@@ -23,12 +24,4 @@ body {
 
 .right_div {
     text-align: right;
-}
-
-#consent {
-    float: left;
-}
-
-#no-consent {
-    float: right;
 }
