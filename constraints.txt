@@ -425,7 +425,7 @@ pytest==9.1.1
     #   pytest-timeout
 pytest-rerunfailures==16.7
     # via dallinger
-pytest-timeout==2.4.0
+pytest-timeout==2.5.0
     # via dallinger
 python-dateutil==2.9.0.post0
     # via
