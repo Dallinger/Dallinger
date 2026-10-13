@@ -4,23 +4,124 @@
 
 ### Added
 
-- Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
-  (``paths``, ``names``, ``suffixes``) plus the deterministic
-  experiment-root deployment plan model, with development bulk directory
-  links and ordinary copied materialization for remote staging. Starter
-  ``dallinger deployment-files init`` writes root-relative prefixes in
-  ``paths``, nested junk names such as ``__pycache__`` in ``names``, and
-  ``.db`` / ``.dmg`` in ``suffixes``.
-- Added `dallinger deployment-files list` and `init` for inspecting and creating
-  starter policies.
-- Added opt-in `deploy.toml` experiment-file membership to verification,
-  development staging, copied Docker/classic staging, and Heroku assembly
-  through `ExperimentFileSource`. Experiments without a policy retain legacy
-  selection and Git staging behavior as a compatibility fallback while
-  PsyNet trials `deploy.toml`; Git-based membership may later be
-  deprecated (warning, then removal). Git remains for provenance. Plan
-  traversal uses ordinary POSIX `lstat`/`scandir` containment (rejecting
-  symlinks and special files).
+- Added a `jquery` block inside the `libs` block of `base/layout.html`.
+  Templates that already load jQuery in `<head>` can override it with an
+  empty block instead of loading jQuery a second time, which replaced the
+  first copy and dropped the jQuery plugins registered on it.
+- Added a Cursor `/release` command and release skill for cutting
+  Dallinger releases to PyPI and ghcr.
+- Added `--no-browsers` to `dallinger develop debug`. Instead of opening the
+  dashboard and participant browsers, it logs the recruitment message, the
+  dashboard URL and the dashboard login, like `dallinger debug --no-browsers`.
+- docker-ssh apps can hibernate automatically after a quiet period when
+  ``docker_ssh_idle_hibernate`` is set (``docker_ssh_idle_hibernate_minutes``,
+  default 60). ``/health`` probes do not count as traffic. With idle sleep
+  on, pages ping ``POST /presence`` while someone is using them (recent
+  interaction, audible media, or ``dallingerPresence.setWaiting``), so an
+  app never sleeps under a participant but an abandoned tab stops pinging.
+  Dallinger's quorum waiting room counts as waiting, and a WebSocket
+  reconnect does not wake a sleeping app.
+  Non-page requests to a sleeping app get HTTP 503 with ``Retry-After`` and
+  a JSON status, after the controller reads the whole request body, so
+  clients can resend them safely.
+  Idle sleep is not for experiments that recruit throughout their lifetime.
+  As a backstop, the app stays awake while ``auto_recruit`` is on or any
+  participant is still working; experiments can add conditions by
+  overriding ``Experiment.reason_to_stay_awake``.
+- ``dallinger docker-ssh hibernate`` and ``awaken`` stop and restart an
+  app's expensive services behind a new per-app front door and controller.
+  A visitor to a hibernating app gets a wait page and wakes it; other
+  requests get HTTP 503. ``apps`` reports ``hibernating`` or ``waking``,
+  ``export`` wakes the app first, and ``--update`` wakes a hibernating app.
+  ``/health`` reports the sleep state without waking the app. Cloudflare
+  tunnels now reach the app through the front door, and for classic apps
+  ``<app>_web`` on the shared network now names the front door; web and
+  workers also wait for pgbouncer's health check. Waking treats an older
+  experiment image without ``/health`` as ready once web answers. Deploy
+  also chowns the front door's state directory.
+- docker-ssh disk cleanup prunes only stopped containers outside Compose
+  projects, and the host Caddy image is pinned to ``caddy:2.10.2``.
+- docker-ssh experiment containers built from now on run as the SSH user
+  instead of root; images built earlier keep running as root until rebuilt.
+  Every directory under ``/experiment`` is writable in the image, so the app
+  can create files anywhere in its tree, and deploy chowns the app's data
+  directory and writable bind mounts under ``$HOME``. Files shipped in the
+  image cannot be edited in place, and paths outside ``/experiment`` stay
+  read-only for the app.
+- docker-ssh keeps each app's database password in a private
+  ``~/dallinger/<app>/.env`` instead of its ``docker-compose.yml``, and makes
+  both files private (mode 0600). ``--update`` keeps the database password
+  and the Flask secret key, so participants' sessions survive an update.
+  ``get_docker_compose_yml`` no longer takes ``postgresql_password``.
+- docker-ssh writes a non-secret ``~/dallinger/<app>/deployment.json`` on
+  deploy and ``apps`` shows the recorded ingress and origin.
+  New ``docker_ssh_monitoring_kind`` and ``docker_ssh_monitoring_path``
+  config keys set the manifest's monitoring fields. ``servers add`` now
+  refuses host record fields whose names look like tokens or passwords.
+  The experiment server has a stock ``GET /health``, the manifest's default
+  monitoring path.
+- docker-ssh can deploy with ``--ingress cloudflare``. Each app gets an
+  isolated Postgres and a Cloudflare tunnel that proxies to the web service.
+  Cloudflare account and zone come from the new ``cloudflare_account_id``,
+  ``cloudflare_zone_id`` and ``cloudflare_dns_zone`` config keys, and
+  ``servers add --default-ingress`` sets a server's default. A fresh deploy
+  refuses an app name whose tunnel already exists. Destroy stops the
+  connector before deleting the DNS record and tunnel, and can be re-run if
+  that cleanup fails. A deploy that cannot record a new tunnel on the
+  server deletes it again. ``get_docker_compose_yml`` no longer takes
+  ``executor``.
+- Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
+  docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
+  A custom experiment Dockerfile gets a final step that installs that wheel.
+  Dallinger pins given as Git URLs are replaced by the local wheel as well
+  (extras such as ``[docker]`` are dropped from the rewritten line).
+
+### Changed
+
+- The `/chat` WebSocket route no longer sleeps between reads. The client
+  receive loop slept for 0.1s (or whatever `?tolerance=` asked for) before
+  each `receive()`, and the redis relay greenlet slept 0.001s per message.
+  Both `receive()` and `PubSub.listen()` already block on gevent-aware
+  waits, so the timed sleeps only added delivery latency. The relay yields
+  with `gevent.sleep(0)` after each message, which runs the senders it just
+  spawned and gives other greenlets a turn without waiting on a timer; a
+  burst already sitting in the socket buffer otherwise reads straight
+  through without reaching the hub.
+- The `tolerance` query parameter on `/chat` is no longer read. Clients may
+  still send it; it has no effect and raises no warning.
+- Upgraded Bootstrap from 4.5.0 to 5.3.8 for experiment pages and the
+  dashboard. Dashboard widgets use Bootstrap 5 data attributes. The
+  dashboard script is the bundle, which includes Popper, so the separate
+  Popper file is gone. The database dashboard loads DataTables' Bootstrap 5
+  styling. ``css/dallinger.css`` now styles only Dallinger's own classes
+  (``main_div``, ``consent_div``, ``margin_div``, ``center_div`` and
+  ``right_div``), so it no longer sets the page font or floats the consent
+  buttons on pages that extend Dallinger's layout with their own markup.
+  The light 13pt text moved to ``main_div``. Dallinger's templates, the
+  demos and the tutorial use ``col-N`` instead of Bootstrap 3's
+  ``col-xs-N``, which Bootstrap 5 would otherwise lay out as full-width rows.
+  Selenium bots ask the browser for reduced motion, which turns off
+  Bootstrap 5's smooth scrolling, so their clicks on buttons below the fold
+  are not intercepted.
+- Upgraded jQuery from 3.7.1 to 4.0.0. ``scripts/jquery-3.7.1.min.js`` is
+  gone; templates that link it directly should link
+  ``scripts/jquery-4.0.0.min.js``, and templates that extend
+  ``base/layout.html`` pick it up automatically. Experiment JavaScript that
+  calls APIs jQuery 4 removed, such as ``$.trim``, ``$.isArray``,
+  ``$.parseJSON`` or ``$.isFunction``, must switch to the native
+  equivalents (see the
+  [jQuery 4.0 upgrade guide](https://jquery.com/upgrade-guide/4.0/)). The sheep market and iterated
+  drawing demos still load jQuery 1.7.2 because Raphael requires it.
+- Skipped the live MTurk integration tests, because Amazon has discontinued
+  Mechanical Turk and every call now fails with `AccessDeniedException`.
+  Mocked MTurk tests still run.
+- Modern (PEP 660) editable installs of Dallinger are now detected, not only
+  legacy ``egg-link`` installs. Heroku and SSH deploys from such an install
+  build and ship your local Dallinger checkout instead of the version in
+  ``requirements.txt``, and ``docker debug`` mounts it into the container.
+  Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
+- The ``deployment-files`` CLI tests no longer use Click's deprecated
+  ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
 
 ### Fixed
 
@@ -62,6 +163,138 @@
   notifications, so a failed publish is logged rather than raised. It
   previously aborted `ChatBackend.unsubscribe` partway, leaving a client
   registered on a channel whose listener then retried forever.
+- Bots with a ``webdriver_url`` start again. They passed
+  ``desired_capabilities``, which Selenium 4.10 removed, and now pass the
+  same browser options as local bots.
+- On the monitoring dashboard, "Number of networks" and "Freetext search"
+  sit side by side again, and changing the sort order redraws the network
+  once instead of twice.
+- Remote Docker builds work when the SSH username contains ``@``.
+- docker-ssh deploys no longer write the dashboard or Dozzle password into
+  ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.
+- docker-ssh deploy now correctly handles SSH hosts specified as ``host:port``.
+  The ``--update`` flag now yields a boolean instead of the
+  string ``"update"``. TLS certificate verification is skipped for loopback
+  deployments. SFTP operations now use the remote user's home directory as the
+  working directory. Dozzle is only restarted when it is already running.
+  PostgreSQL 15+ schema ``public`` permissions are granted after database
+  creation. Disk-full errors on the remote host are detected and offer guided
+  safe cleanup. Pre-release Dallinger versions fall back to the ``latest`` base
+  image tag. The ``auto_recruit`` config key no longer crashes when Redis is
+  unavailable. A new ``docker-ssh-smoke`` CI job runs five end-to-end smoke
+  tests on every PR covering deploy/destroy, app listing, server listing,
+  missing-app error handling, and the ``--update`` refresh flow.
+- WebSocket relays no longer log a `ConnectionClosed` traceback when a message
+  reaches a client that has just disconnected; the client was already
+  unsubscribed.
+- Fixed a `RuntimeError: dictionary changed size during iteration` when a
+  WebSocket client disconnected while another connection opened a new channel.
+- Prolific API requests now time out after 10 seconds without connecting or
+  30 seconds without receiving data, so a stalled request no longer blocks
+  its web or worker process indefinitely.
+- Prolific connection errors and timeouts now raise `ProlificServiceException`
+  and are reported as recruitment errors, like other Prolific API failures.
+  Before, they escaped as `requests` exceptions, so a failed approval or bonus
+  payment stopped the rest of submission handling.
+- Approving a Prolific submission that is already approved no longer sends a
+  second approval, which Prolific rejected and which caused the call to retry
+  until it gave up.
+- Fixed Prolific experiments slowing down as a server handles more
+  requests. Creating a `ProlificRecruiter` reloaded the configuration each
+  time, and each `Configuration.load()` added config layers that every later
+  lookup had to sort. `load()` is now idempotent: calling it again replaces
+  the layers from the previous load, so values removed from a config file or
+  the environment no longer linger, while values added with `extend()`,
+  `set()` or `override()` are kept. A `load()` that fails leaves the previous
+  configuration in place, and loads that overlap in different threads run
+  one at a time. Values added from another thread while a load is running
+  remain runtime additions and survive later reloads. `ProlificRecruiter`
+  also no longer reloads an already loaded configuration.
+  `Configuration.data` is now a read-only tuple: added layers first, then
+  loaded layers, each newest first. Use `extend()`, `set()` or `override()`
+  to change the configuration.
+
+### Fixed
+
+- `DevProlificRecruiter` no longer reports or logs that a study was created on
+  Prolific when opening recruitment in debug mode; its launch message and log
+  say the study is simulated and that nothing was created on Prolific.
+
+### Fixed
+
+- The `clear_workers` test fixture now stops only the local
+  `dallinger_heroku_*` web and worker processes that use the test run's
+  `DATABASE_URL`; `heroku local` then shuts down the rest of that session. It
+  used to run `pkill -f heroku`, which stopped every process whose command
+  line mentioned "heroku", including Heroku CLI sessions in other checkouts or
+  terminals. The new `dallinger.heroku.tools.local_worker_processes()` returns
+  these processes for other tools, such as PsyNet, to reuse.
+
+### Fixed
+
+- `dallinger debug` no longer spins at full CPU after `heroku local` exits:
+  the output monitor now stops at end of output and logs the exit code,
+  unless the exit followed a requested stop, such as when the experiment
+  completes.
+  `heroku local` also gets `/dev/null` as stdin instead of inheriting the
+  caller's, which it never reads. Startup failures also cancel the timeout
+  alarm instead of leaving it armed after the original error.
+
+### Updated
+
+- Upgraded Paramiko to 5, which fixes CVE-2026-44405 by removing SHA-1 from
+  RSA signatures and key exchange. docker-ssh and EC2 commands that use an RSA
+  key, or reach a server with an RSA host key, now need OpenSSH 7.2 or newer
+  on the server.
+- Removed the unmaintained `sshtunnel` dependency from the `docker` extra; it
+  does not work with Paramiko 4 or later. The database tunnel used by
+  `docker-ssh export` and archive restores now forwards over Dallinger's own
+  SSH connection, so it uses only the `server_pem` key and the same
+  known-hosts handling as other docker-ssh commands.
+- A DSA `server_pem` no longer works, because Paramiko 5 does not load DSA
+  keys. docker-ssh and EC2 commands now stop before connecting with an error
+  that links to the docker-ssh documentation, instead of failing inside
+  Paramiko with an unrelated message such as `dmq1 must be odd`. To replace
+  the key, check it with `ssh-keygen -l -f`, install a new public key through
+  a login that already works, and point `server_pem` at the new private key.
+### Removed
+
+- Removed the Vagrant development environment (``Vagrantfile`` and the Vagrant
+  setup documentation). It targeted Ubuntu 16.04, Python 3.6, and PostgreSQL
+  9.5 and could not install current Dallinger. Use a normal install or Docker
+  instead.
+
+## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
+
+### Added
+
+- Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
+  (``paths``, ``names``, ``suffixes``) plus the deterministic
+  experiment-root deployment plan model, with development bulk directory
+  links and ordinary copied materialization for remote staging. Starter
+  ``dallinger deployment-files init`` writes root-relative prefixes in
+  ``paths``, nested junk names such as ``__pycache__`` in ``names``, and
+  ``.db`` / ``.dmg`` in ``suffixes``.
+- Added `dallinger deployment-files list` and `init` for inspecting and creating
+  starter policies.
+- Added opt-in `deploy.toml` experiment-file membership to verification,
+  development staging, copied Docker/classic staging, and Heroku assembly
+  through `ExperimentFileSource`. Experiments without a policy retain legacy
+  selection and Git staging behavior as a compatibility fallback while
+  PsyNet trials `deploy.toml`; Git-based membership may later be
+  deprecated (warning, then removal). Git remains for provenance. Plan
+  traversal uses ordinary POSIX `lstat`/`scandir` containment (rejecting
+  symlinks and special files).
+
+### Changed
+
+- ``ProlificService.get_participant_submission`` accepts ``translate=False``
+  to return the Prolific payload (including ``bonus_payments``) or ``None``
+  on a miss, instead of translating fields and raising a recruitment
+  error. ``_req`` takes ``raise_on_error`` (default ``True``).
+
+### Fixed
+
 - SSH and Heroku-docker deploys now tag the experiment image with the
   per-launch experiment UID instead of a hash of ``requirements.txt`` and
   ``prepare_docker_image.sh``. Those files do not identify the copied
@@ -95,9 +328,35 @@
   not succeed before the timeout, and a failed launch now ends with a short
   ``Error: Experiment launch failed. ...`` diagnosis instead of a Python
   traceback.
+- ``dallinger ec2`` commands that manage Route 53 records now match the
+  requested DNS name exactly, together with its wildcard companion, instead of
+  matching any record whose name merely contains that string. Provisioning
+  ``exp.example.com`` no longer reports an unrelated ``staging-exp.example.com``
+  as the conflicting instance and no longer deletes it. A ``--dns-host`` that is
+  a hosted zone's apex or a delegated subdomain is now refused with an error
+  before any record is deleted. Record lookup is also paginated, so names are
+  still found in hosted zones with more than one page of records.
+- docker-ssh deploy and sandbox no longer carry on after the deploy fails when
+  ``docker_image_name`` is configured. The registry lookup wrapped the whole
+  deploy, so an abort (a failed DNS check, a missing contact email, a
+  root-domain conflict) was printed as ``Error checking remote image:`` and the
+  command went on to rebuild the image and deploy a second time.
+- docker-ssh deploy now reports the real experiment hostname and IP (or that
+  the name did not resolve) when DNS does not match the server, instead of
+  ``It currently resolves to True``. The error also points at ``--dns-host``,
+  dnschecker.org, and the 5-minute Route 53 TTL after reprovisioning.
 
 ### Updated
 
+- Updated JavaScript development dependencies (``jest``,
+  ``jest-environment-jsdom``, ``webpack``, ``webpack-cli``) and npm
+  overrides for patched ``js-yaml``, ``fast-uri``, ``engine.io``,
+  ``browserslist``, and ``baseline-browser-mapping``. Left
+  ``test-exclude`` on minimatch 10 (required by Jest 30.5) while
+  ``resp-modifier`` still pins callable minimatch 3.x.
+- Updated Python dependencies (regenerated ``requirements.txt``,
+  ``dev-requirements.txt``, and ``constraints.txt``; bumped the ruff
+  pre-commit hook).
 - Documented ``deploy.toml`` for experiment authors, including format,
   the nested ``[exclude]`` table, auto-omitted paths,
   ``dallinger deployment-files list`` / ``init``, and that Git-based
@@ -105,24 +364,11 @@
   after PsyNet production use.
 - Matched the documented ``dallinger deployment-files init`` starter
   ``paths``, ``names``, and ``suffixes`` lists to the CLI.
-
-### Changed
-
-- The `/chat` WebSocket route no longer sleeps between reads. The client
-  receive loop slept for 0.1s (or whatever `?tolerance=` asked for) before
-  each `receive()`, and the redis relay greenlet slept 0.001s per message.
-  Both `receive()` and `PubSub.listen()` already block on gevent-aware
-  waits, so the timed sleeps only added delivery latency. The relay yields
-  with `gevent.sleep(0)` after each message, which runs the senders it just
-  spawned and gives other greenlets a turn without waiting on a timer; a
-  burst already sitting in the socket buffer otherwise reads straight
-  through without reaching the hub.
-- The `tolerance` query parameter on `/chat` is no longer read. Clients may
-  still send it; it has no effect and raises no warning.
-- ``ProlificService.get_participant_submission`` accepts ``translate=False``
-  to return the Prolific payload (including ``bonus_payments``) or ``None``
-  on a miss, instead of translating fields and raising a recruitment
-  error. ``_req`` takes ``raise_on_error`` (default ``True``).
+- Regenerated the committed ``tests/experiment/constraints.txt`` fixture
+  against the released v12.3.0 pins (dropping the removed ``chardet``
+  dependency, which the stale v12.2.1-based file still carried) and added
+  ``tests/experiment`` to ``scripts/update_experiments_constraints.py`` so
+  the fixture is refreshed with each release like the demo constraints.
 
 ## [v12.3.0](https://github.com/dallinger/dallinger/tree/v12.3.0) (2026-08-22)
 

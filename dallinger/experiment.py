@@ -982,6 +982,21 @@ class Experiment:
             self.log("All networks full: closing recruitment", "-----")
             self.recruiter.close_recruitment()
 
+    def reason_to_stay_awake(self):
+        """Return why docker-ssh idle sleep must not stop the app, or ``None``.
+
+        While the app sleeps, the clock and recruiter callbacks stop, so
+        nothing times out abandoned participants or recruits replacements.
+        Override this to add conditions, calling the parent method first.
+
+        :returns: a short reason for the deploy logs, or ``None`` to allow sleep
+        """
+        if get_config().get("auto_recruit", False):
+            return "auto_recruit is on"
+        if Participant.query.filter_by(status="working").first() is not None:
+            return "participants are still working"
+        return None
+
     def log(self, text, key="?????", force=False):
         """Print a string to the logs."""
         if force or self.verbose:

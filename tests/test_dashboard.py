@@ -461,7 +461,7 @@ class TestDashboardMTurkRoutes:
     def test_includes_expire_command_info(self, fake_mturk_data, webapp_admin):
         page = webapp_admin.get("/dashboard/mturk").data.decode("utf8")
         assert (
-            'data-content="dallinger expire --sandbox --app TEST_EXPERIMENT_UID"'
+            'data-bs-content="dallinger expire --sandbox --app TEST_EXPERIMENT_UID"'
             in page
         )
 

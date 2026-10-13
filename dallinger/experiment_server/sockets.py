@@ -111,7 +111,7 @@ class Channel:
             message["channel"].decode("utf-8"), message["data"].decode("utf-8")
         )
         for client in self.clients:
-            gevent.spawn(client.send, payload)
+            gevent.spawn(self._relay, client, payload)
 
     def listen(self):
         """Relay messages from a redis pubsub to all subscribed clients.
@@ -182,6 +182,17 @@ class Channel:
             # too, because killing a greenlet raises inside it.
             pubsub.close()
             chat_backend.forget(self)
+
+    @staticmethod
+    def _relay(client, payload):
+        """Send a relayed message, ignoring a client that has just disconnected.
+
+        ``Client.send`` already unsubscribes a closed client before raising.
+        """
+        try:
+            client.send(payload)
+        except ConnectionClosed:
+            log("Dropped message for a disconnected client", level="debug")
 
     def start(self):
         """Start relaying messages."""
