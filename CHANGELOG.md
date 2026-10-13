@@ -88,10 +88,15 @@
   Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 - The ``deployment-files`` CLI tests no longer use Click's deprecated
   ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
-- docker-ssh apps' pgbouncer now accepts up to 2,000 client connections
-  instead of its default of 100. Under load, gevent web workers exceeded 100
-  and requests failed with ``no more connections allowed (max_client_conn)``;
-  extra clients now wait for one of the pooled Postgres connections instead.
+- docker-ssh apps' pgbouncer now accepts up to 10,000 client connections
+  instead of its default of 100, with a file-descriptor limit of 16,384.
+  Under load, gevent web workers exceeded 100 and requests failed with
+  ``no more connections allowed (max_client_conn)``. Client connections are
+  cheap, and Postgres only sees pgbouncer's server pool. Clients up to the
+  limit now queue for a pooled Postgres connection and fail only after
+  pgbouncer's ``query_wait_timeout`` (120 seconds); clients beyond it are
+  still refused. Each web or worker process keeps up to 20 idle connections,
+  so the limit leaves room for many processes on large hosts.
 - docker-ssh apps with their own Postgres (Cloudflare ingress) now let
   pgbouncer keep up to 80 Postgres connections instead of its default of 20.
   pgbouncer holds a connection for each request's whole transaction, so 20

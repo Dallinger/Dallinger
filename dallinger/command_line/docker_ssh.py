@@ -237,7 +237,8 @@ def add(host, user, default_ingress):
     if default_ingress == INGRESS_CLASSIC:
         ip_addr = _private_network_ip(split_ssh_host_port(host)[0])
         if ip_addr:
-            print(f"{RED}Warning: {_private_network_message(host, ip_addr)}{END}")
+            message = _private_network_message(host, user, ip_addr)
+            print(f"{RED}Warning: {message}{END}")
 
 
 @servers.command()
@@ -709,15 +710,16 @@ def _private_network_ip(host):
     return ip_addrs[0] if ip_addrs else None
 
 
-def _private_network_message(host, ip_addr):
+def _private_network_message(host, user, ip_addr):
+    user_option = f" --user {user}" if user else ""
     return (
         f"{host} has a private IP address ({ip_addr}), so Let's Encrypt cannot "
         "issue TLS certificates for it and participants outside its network "
         "cannot reach classic ingress. Deploy with --ingress cloudflare, or "
         "re-register the server with `dallinger docker-ssh servers add "
-        f"--host {host} --default-ingress cloudflare`. If the server's public "
-        "DNS name points at a public IP that forwards ports 80 and 443 to it, "
-        "deploy with --allow-private-ip instead."
+        f"--host {host}{user_option} --default-ingress cloudflare`. If the "
+        "server's public DNS name points at a public IP that forwards ports 80 "
+        "and 443 to it, deploy with --allow-private-ip instead."
     )
 
 
@@ -729,7 +731,8 @@ def _check_classic_ingress_reachable(server, ingress=None):
     ssh_host = server_info.get("host", server)
     ip_addr = _private_network_ip(split_ssh_host_port(ssh_host)[0])
     if ip_addr:
-        print(f"{RED}Error: {_private_network_message(ssh_host, ip_addr)}{END}")
+        message = _private_network_message(ssh_host, server_info.get("user"), ip_addr)
+        print(f"{RED}Error: {message}{END}")
         raise click.Abort()
 
 

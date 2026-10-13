@@ -122,7 +122,7 @@ def test_dns_check_treats_malformed_hostname_as_unresolved(capsys):
 def test_classic_ingress_requires_a_public_server(
     monkeypatch, capsys, ip_addr, ingress, default_ingress, aborts
 ):
-    host_record = {"host": "lab-pc:2222"}
+    host_record = {"host": "lab-pc:2222", "user": "ubuntu"}
     if default_ingress:
         host_record["default_ingress"] = default_ingress
     monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", {"lab-pc": host_record})
@@ -134,7 +134,7 @@ def test_classic_ingress_requires_a_public_server(
             docker_ssh_module._check_classic_ingress_reachable("lab-pc", ingress)
         output = capsys.readouterr().out
         assert "--ingress cloudflare" in output
-        assert "--host lab-pc:2222 " in output
+        assert "--host lab-pc:2222 --user ubuntu " in output
         assert "--allow-private-ip" in output
     else:
         docker_ssh_module._check_classic_ingress_reachable("lab-pc", ingress)

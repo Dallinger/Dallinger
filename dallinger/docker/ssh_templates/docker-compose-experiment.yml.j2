@@ -129,10 +129,13 @@ services:
       - PGBOUNCER_PORT=5432
       - PGBOUNCER_DATABASE={{ experiment_id }}
       - PGBOUNCER_POOL_MODE=transaction
-      # Each gevent web worker can hold many client connections, so the
-      # default of 100 refuses connections under load. Excess clients queue
-      # for the pooled Postgres connections instead of failing.
-      - PGBOUNCER_MAX_CLIENT_CONN=2000
+      # Each web and worker process keeps up to 20 idle client connections
+      # (more while busy), so the default of 100 refuses connections under
+      # load. Client connections are cheap; Postgres only sees the server
+      # pool below. Clients up to this limit queue for a server connection
+      # and fail only after query_wait_timeout (120 s); clients beyond it are
+      # refused.
+      - PGBOUNCER_MAX_CLIENT_CONN=10000
       # A server connection stays tied to a request for its whole transaction,
       # including the Python work between queries, so the default pool of 20
       # queues requests at about 200 participants while the CPU is mostly
@@ -144,7 +147,9 @@ services:
       - PGBOUNCER_SERVER_IDLE_TIMEOUT=60
     ulimits:
       # Every client and server connection uses a file descriptor.
-      nofile: 4096
+      nofile:
+        soft: 16384
+        hard: 16384
 
 {%- if config["clock_on"] %}
   clock:
