@@ -41,20 +41,53 @@ Returns the html page with the name ``<page>``.
 
 ::
 
-    GET /chat?channel=<channel>&worker_id=<worker_id>&participant_id=<participant_id>
+    GET /chat?channel=<channel>&worker_id=<worker_id>&participant_id=<participant_id>&scope=<scope>
 
 Opens a WebSocket channel that subscribes the client to all messages sent to the
 channel named ``<channel>``. Messages are relayed as soon as they arrive. For
 more information see
-:doc:`Using WebSockets in Dallinger Experiments <using_websockets>`.
+:doc:`Using WebSockets in Dallinger Experiments <using_websockets>`. In the
+browser, ``dallinger.openChatSocket`` opens this connection.
 
 Clients may prefix outgoing messages with any channel name except
 ``dallinger_control``, which is reserved for the server's own connection and
-subscription events. Messages a client addresses to it are discarded.
+subscription events, and ``dallinger_direct``, which is reserved for directed
+messages. Messages a client addresses to either are discarded, and a
+``channel`` argument naming either is refused.
+
+A connection which supplies a ``participant_id`` also receives any message sent
+to that participant with ``Experiment.publish_to_participants``, prefixed with
+the ``dallinger_direct`` channel name, whether or not it subscribed to a
+channel of its own.
 
 ``tolerance`` is accepted and ignored; it once capped delivery lag. Sending it
 raises no error and no deprecation warning, so existing client code needs no
 change.
+
+``channel`` is optional: a connection without one receives nothing, and can
+still send. ``scope`` is optional too, reported unaltered in the ``client``
+payload of every control channel event. A binary frame closes the connection
+with code ``1003``.
+
+::
+
+    GET /experiment-socket?channel=<channel>&worker_id=<worker_id>&participant_id=<participant_id>&scope=<scope>
+
+Opens a WebSocket that passes each incoming message to the experiment's
+``handle_websocket_message`` method, on the web process holding the socket,
+instead of publishing it to the named channel. No other subscriber sees the
+message. Everything else matches ``/chat``, including the reserved channel
+names, the directed messages a connection supplying a ``participant_id``
+receives, and the optional ``channel`` the connection still receives broadcasts
+on. In the browser, ``dallinger.openExperimentSocket`` opens this connection.
+
+An experiment socket must carry a ``participant_id`` that exists, or the server
+closes the connection with code ``1008``. If the participant lookup raises, or
+the experiment class cannot be built, the server closes with ``1013`` instead,
+which means the client should try again later.
+
+``scope`` is passed to ``handle_websocket_message`` as well as being reported in
+control channel events.
 
 Experiment routes
 ^^^^^^^^^^^^^^^^^
