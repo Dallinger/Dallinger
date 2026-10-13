@@ -156,6 +156,9 @@
 - The installation and developer setup guides now use Python 3.14, the
   version in Dallinger's Docker images, in their pyenv and virtualenv
   examples.
+- Ruff now takes its target Python from ``requires-python`` (3.11, the
+  oldest supported version) instead of a separate setting of 3.13, so its
+  fixes and formatting stay valid on every supported Python.
 - The docker-ssh hibernation controller now runs on a digest-pinned
   ``python:3.14-alpine`` image instead of ``python:3.12-alpine``, matching
   the Python in Dallinger's Docker images. The next deploy or update pulls
