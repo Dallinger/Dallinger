@@ -44,6 +44,7 @@ from dallinger.deployment import (
     MAX_ATTEMPTS,
     handle_launch_data,
 )
+from dallinger.hibernation import answers_health
 from dallinger.utils import print_bold
 
 from .app_manifest import INGRESS_CLOUDFLARE
@@ -57,9 +58,13 @@ PROGRESS_INTERVAL = 60
 REQUEST_TIMEOUT = 10
 CLOUDFLARE_TUNNEL_PENDING_STATUS = 530
 CLOUDFLARE_TUNNEL_PENDING_PATTERN = re.compile(r"error(?: code:)? 1033\b", re.I)
-# ``docker compose exec`` failures (web not running) and curl's "could not
-# resolve" / "could not connect": the request never reached the app.
-NOT_SENT_EXIT_STATUSES = frozenset({1, 6, 7})
+# curl's "could not resolve" / "could not connect": the request never left.
+NOT_SENT_EXIT_STATUSES = frozenset({6, 7})
+# ``docker compose exec`` exits 1 with one of these when web is not running.
+COMPOSE_EXEC_FAILED_EXIT_STATUS = 1
+WEB_NOT_RUNNING_PATTERN = re.compile(
+    r"is not running|is restarting|no container|no such container", re.I
+)
 CURL_TIMEOUT_EXIT_STATUS = 28
 CURL_CHECK = "if command -v curl >/dev/null; then echo curl-ok; else echo curl-missing; fi"
 # Characters that are not literal inside a local double-quoted string.
@@ -86,13 +91,8 @@ class LaunchTarget:
         return f"{self.public_origin}/health"
 
     def ssh(self, remote_command):
-        """Return a local shell command that runs ``remote_command`` on the server.
-
-        Double quotes keep single-quoted arguments readable when that is safe.
-        """
-        if _DOUBLE_QUOTE_UNSAFE.search(remote_command):
-            return f"{self.ssh_prefix} {quote(remote_command)}"
-        return f'{self.ssh_prefix} "{remote_command}"'
+        """Return a local shell command that runs ``remote_command`` on the server."""
+        return ssh_command(self.ssh_prefix, remote_command)
 
     def compose_exec(self, command):
         """Return a server-side command that runs ``command`` in the web container."""
@@ -100,11 +100,21 @@ class LaunchTarget:
 
     @property
     def check_command(self):
-        return f"curl -sS -o /dev/null -w '%{{http_code}}\\n' {self.health_url}"
+        return f"curl -sS -o /dev/null -w '%{{http_code}}\\n' {quote(self.health_url)}"
 
     @property
     def destroy_command(self):
         return f"dallinger docker-ssh destroy --server {self.server} --app {self.app}"
+
+
+def ssh_command(ssh_prefix, remote_command):
+    """Return a local shell command that runs ``remote_command`` over ssh.
+
+    Double quotes keep single-quoted arguments readable when that is safe.
+    """
+    if _DOUBLE_QUOTE_UNSAFE.search(remote_command):
+        return f"{ssh_prefix} {quote(remote_command)}"
+    return f'{ssh_prefix} "{remote_command}"'
 
 
 class _LaunchSent(click.ClickException):
@@ -156,12 +166,11 @@ def _split_status(stdout):
     return stdout, None
 
 
-def _is_json(text):
+def _is_json_object(text):
     try:
-        json.loads(text)
+        return isinstance(json.loads(text), dict)
     except ValueError:
         return False
-    return True
 
 
 def _last_line(text):
@@ -219,7 +228,7 @@ def launch_from_server(executor, target):
         # handle_launch_data from sending the request again.
         body, status = _split_status(stdout)
         if status is not None:
-            if 200 <= status < 300 and _is_json(body):
+            if 200 <= status < 300 and _is_json_object(body):
                 return _CommandResponse(status, body)
             raise _LaunchSent(
                 f"The launch request to {target.app} returned HTTP {status}:\n{body}"
@@ -230,9 +239,13 @@ def launch_from_server(executor, target):
                 f"The launch request to {target.app} did not answer within "
                 f"{LAUNCH_REQUEST_TIMEOUT} s and may still be running."
             )
-        if exit_status not in NOT_SENT_EXIT_STATUSES:
-            raise _LaunchSent(f"The launch request to {target.app} failed: {detail}")
-        raise requests.exceptions.ConnectionError(detail)
+        web_not_running = (
+            exit_status == COMPOSE_EXEC_FAILED_EXIT_STATUS
+            and WEB_NOT_RUNNING_PATTERN.search(stderr or "")
+        )
+        if exit_status in NOT_SENT_EXIT_STATUSES or web_not_running:
+            raise requests.exceptions.ConnectionError(detail)
+        raise _LaunchSent(f"The launch request to {target.app} failed: {detail}")
 
     try:
         return handle_launch_data(
@@ -294,7 +307,7 @@ def wait_for_public_url(executor, target, timeout=None, interval=None):
     next_report = PROGRESS_INTERVAL
     while True:
         status, detail = _probe(target.health_url, target.verify)
-        if status is not None and status < 400:
+        if _public_url_answers(status, detail):
             print(f"{target.public_origin} is reachable.")
             return
         elapsed = time.monotonic() - started
@@ -327,6 +340,15 @@ def _describe(status, detail):
     if status is None:
         return detail.splitlines()[0] if detail else "no response"
     return f"HTTP {status}"
+
+
+def _public_url_answers(status, detail):
+    """True once the app itself answers; gateway and tunnel errors keep waiting."""
+    return (
+        status is not None
+        and answers_health(status)
+        and not _tunnel_pending(status, detail)
+    )
 
 
 def _tunnel_pending(status, detail):

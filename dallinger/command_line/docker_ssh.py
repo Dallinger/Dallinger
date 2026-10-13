@@ -81,6 +81,7 @@ from .lib.launch import (
     LaunchTarget,
     launch_from_server,
     require_curl,
+    ssh_command,
     wait_for_public_url,
 )
 from .utils import get_server_pem_path
@@ -887,9 +888,9 @@ def _ssh_prefix(ssh_host, ssh_port, ssh_user):
 
 def _log_command(ssh_host, ssh_port, ssh_user, app):
     """Return the ssh command that follows an app's Compose logs."""
-    return (
-        f"{_ssh_prefix(ssh_host, ssh_port, ssh_user)} "
-        f"docker compose -f '~/dallinger/{app}/docker-compose.yml' logs -f"
+    return ssh_command(
+        _ssh_prefix(ssh_host, ssh_port, ssh_user),
+        f"docker compose -f ~/dallinger/{app}/docker-compose.yml logs -f",
     )
 
 

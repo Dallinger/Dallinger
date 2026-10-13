@@ -99,12 +99,17 @@ def test_launch_runs_curl_in_web_with_the_public_host(monkeypatch, tmp_path):
     assert data["recruitment_msg"] == "https://myapp.x.org"
 
 
-def test_a_reported_response_is_not_sent_again(no_sleep):
+@pytest.mark.parametrize(
+    "not_sent",
+    [
+        (1, "", 'service "web" is not running\n'),
+        (7, "\n000\n", "curl: (7) Failed to connect to frontdoor port 5000"),
+    ],
+    ids=["web-not-running", "connection-refused"],
+)
+def test_only_an_undelivered_launch_is_sent_again(not_sent, no_sleep):
     executor = FakeExecutor(
-        [
-            (1, "", 'service "web" is not running\n'),
-            (0, reply(200, {"recruitment_msg": "open"}) + "\n\n", ""),
-        ]
+        [not_sent, (0, reply(200, {"recruitment_msg": "open"}) + "\n\n", "")]
     )
     assert launch.launch_from_server(executor, TARGET) == {"recruitment_msg": "open"}
     assert executor.events == ["launch", "launch"]
@@ -126,8 +131,10 @@ def test_proxied_launch_headers_give_the_public_base_url():
     [
         (0, reply(500, {"status": "error"}), ""),
         (28, "\n000\n", "curl: (28) Operation timed out"),
+        (0, '["not", "an", "object"]\n200\n', ""),
+        (1, "", "unexpected failure\n"),
     ],
-    ids=["http-500", "timeout"],
+    ids=["http-500", "timeout", "2xx-not-json-object", "other-exit-1"],
 )
 def test_a_launch_that_reached_the_app_is_sent_once(result, capsys):
     executor = FakeExecutor([result])
@@ -140,6 +147,13 @@ def test_a_launch_that_reached_the_app_is_sent_once(result, capsys):
     assert TARGET.ssh(f"docker compose -f {TARGET.compose_file} logs web") in out
     assert TARGET.ssh(launch.internal_launch_command(TARGET)) in out
     assert TARGET.destroy_command in out
+
+
+@pytest.mark.parametrize(
+    "status, ready", [(200, True), (404, True), (502, False), (530, False)]
+)
+def test_public_url_answers_unless_a_gateway_or_tunnel_error(status, ready):
+    assert launch._public_url_answers(status, "") is ready
 
 
 @pytest.fixture

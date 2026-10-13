@@ -454,13 +454,17 @@ the DNS label:
         --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5
 
 Launching an experiment opens recruitment, so a docker-ssh deploy first waits
-up to 7 minutes for the app's public URL to answer. A new Cloudflare tunnel
-can take several minutes to start working. If the URL still does not answer,
-the deploy stops with an error and does not launch the experiment: the
-containers keep running, but recruitment has not started. The deploy prints a
-command to check the URL again, the command that launches the experiment once
-the URL works, and the ``destroy`` command. The deployment notes in
-``deploy_logs/<app>.txt`` are written before this wait.
+up to 7 minutes for the app's public ``/health`` URL to answer. Any answer from
+the app counts, including a 404 from older experiment images without that
+route; gateway errors and Cloudflare's "tunnel not connected" answer (HTTP 530,
+error 1033) do not. A new Cloudflare tunnel can take several minutes to start
+working. If the URL still does not answer, the deploy stops with an error and
+does not launch the experiment: the containers keep running, but recruitment
+has not started. The error says when Cloudflare has not activated the new
+tunnel yet. The deploy prints a command to check the URL again, the
+``cloudflared`` logs command for Cloudflare deploys, the command that launches
+the experiment once the URL works, and the ``destroy`` command. The deployment
+notes in ``deploy_logs/<app>.txt`` are written before this wait.
 
 The deploy launches the experiment by running ``curl`` inside the app's web
 container, so the experiment image must include ``curl``. The Dallinger and
