@@ -2539,8 +2539,8 @@ class Executor:
         status = channel.recv_exit_status()
         return (
             status,
-            b"".join(stdout_chunks).decode(),
-            b"".join(stderr_chunks).decode(),
+            b"".join(stdout_chunks).decode(errors="replace"),
+            b"".join(stderr_chunks).decode(errors="replace"),
         )
 
     def run_with_status(self, cmd):

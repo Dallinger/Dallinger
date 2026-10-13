@@ -171,6 +171,22 @@ def test_public_url_answers_only_like_the_app(public, app, ready):
     assert launch._public_url_answers(*public, app) is ready
 
 
+@pytest.mark.parametrize(
+    "output, expected",
+    [
+        (
+            'health=200\n{"status": "ok"}\nhealth=200\n  \n',
+            (200, 'health=200\n{"status": "ok"}'),
+        ),
+        ("\nhealth=404\n", (404, "")),
+    ],
+)
+def test_internal_health_reads_the_status_from_the_last_line(output, expected):
+    executor = FakeExecutor()
+    executor.run_with_status = lambda cmd: (0, output, "")
+    assert launch.internal_health_status(executor, TARGET) == expected
+
+
 def test_ssh_command_leaves_tilde_for_the_server():
     assert launch.ssh_command("ssh lab", "ls ~/dallinger") == 'ssh lab "ls ~/dallinger"'
 
@@ -191,14 +207,18 @@ def public_check(events, status, text=""):
 
 
 @pytest.mark.parametrize(
-    "app_health, expected",
+    "app_health, expected, check",
     [
-        ("{}\nhealth=200", "(expect 2xx)"),
-        (f"{NOT_FOUND}\nhealth=404", "(expect 2xx or 404)"),
+        ("{}\nhealth=200", "(expect 2xx)", TARGET.check_command()),
+        (
+            f"{NOT_FOUND}\nhealth=404",
+            "an empty 404 means Cloudflare has not routed",
+            TARGET.check_command(show_body=True),
+        ),
     ],
 )
 def test_deploy_does_not_launch_when_the_public_url_never_answers(
-    app_health, expected, deploy_dir, capsys
+    app_health, expected, check, deploy_dir, capsys
 ):
     events = []
     executor = FakeExecutor(
@@ -217,7 +237,7 @@ def test_deploy_does_not_launch_when_the_public_url_never_answers(
     out = capsys.readouterr().out
     assert expected in out
     for command in (
-        TARGET.check_command,
+        check,
         TARGET.ssh(f"docker compose -f {TARGET.compose_file} logs cloudflared"),
         TARGET.ssh(launch.internal_launch_command(TARGET)),
         TARGET.destroy_command,
@@ -225,13 +245,20 @@ def test_deploy_does_not_launch_when_the_public_url_never_answers(
         assert command in out
 
 
-def test_deploy_launches_once_the_public_url_answers(deploy_dir):
+@pytest.mark.parametrize(
+    "app_health, public",
+    [("{}\nhealth=200", (200, "")), (f"{NOT_FOUND}\nhealth=404", (404, NOT_FOUND))],
+    ids=["health-route", "app-404-page"],
+)
+def test_deploy_launches_once_the_public_url_answers(app_health, public, deploy_dir):
     events = []
     executor = FakeExecutor(
-        [(0, reply(200, {"recruitment_msg": "open"}), "")], events=events
+        [(0, reply(200, {"recruitment_msg": "open"}), "")],
+        events=events,
+        health=app_health,
     )
 
-    with public_check(events, 200):
+    with public_check(events, *public):
         docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
         assert events == ["health", "check", "launch"]
 

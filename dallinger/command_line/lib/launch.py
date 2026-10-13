@@ -98,8 +98,10 @@ class LaunchTarget:
         """Return a server-side command that runs ``command`` in the web container."""
         return f"docker compose -f {self.compose_file} exec -T web {command}"
 
-    @property
-    def check_command(self):
+    def check_command(self, show_body=False):
+        """Return a local command that checks the public health URL."""
+        if show_body:
+            return f"curl -sS -w '\\nHTTP %{{http_code}}\\n' {quote(self.health_url)}"
         return f"curl -sS -o /dev/null -w '%{{http_code}}\\n' {quote(self.health_url)}"
 
     @property
@@ -380,10 +382,6 @@ def _describe(status, detail):
     return f"HTTP {status}"
 
 
-def _expected_statuses(app_status):
-    return "2xx or 404" if app_status == 404 else "2xx"
-
-
 def _public_url_answers(status, body, app_answer):
     """True when the public answer can only have come from the app itself.
 
@@ -438,10 +436,16 @@ def _abort_unreachable(executor, target, status, detail, limit, app_status):
             "Caddy may still be getting a TLS certificate, or DNS may not "
             "point at the server yet."
         )
-    print_bold(
-        f"Check the public URL again (expect {_expected_statuses(app_status)}):"
-    )
-    print(target.check_command)
+    if app_status == 404:
+        print_bold(
+            "Check the public URL again. Expect 2xx, or a 404 showing the app's "
+            "own 'Not Found' page; an empty 404 means Cloudflare has not routed "
+            "the hostname yet, so do not launch:"
+        )
+        print(target.check_command(show_body=True))
+    else:
+        print_bold("Check the public URL again (expect 2xx):")
+        print(target.check_command())
     if cloudflare:
         print_bold("Inspect the tunnel connector logs:")
         print(target.ssh(f"docker compose -f {target.compose_file} logs cloudflared"))
