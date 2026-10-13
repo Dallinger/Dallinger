@@ -88,15 +88,13 @@ incoming message goes straight to the
 :func:`~dallinger.experiment.Experiment.handle_websocket_message` method, on the
 web process that owns the socket, before the next message is read. Nothing is
 published to redis on the way. Use it when a participant's action has to be
-acted on immediately, such as a move in a turn-based game::
+acted on immediately, such as a move in a turn-based game. The
+``dallinger.openExperimentSocket`` function opens such a connection, and is
+described along with the rest of the client library in its own section below::
 
-    socket = new ReconnectingWebSocket(
-      ws_scheme + location.host + "/experiment-socket" +
-        "?channel=" + channel_id +
-        "&participant_id=" + dallinger.identity.participantId +
-        "&worker_id=" + dallinger.identity.workerId +
-        "&scope=" + encodeURIComponent(page_scope)
-    );
+    var socket = dallinger.openExperimentSocket({channel: 'game_7'});
+    // Passed to handle_websocket_message with a channel_name of 'moves'
+    socket.send('moves', {type: 'move', action: 'rock'});
 
 An experiment socket subscribes to ``channel`` just as a ``/chat`` connection
 does, so broadcasts to that channel reach the browser the same way. Only the
@@ -113,7 +111,10 @@ method and in the ``client`` payload of every control channel event. It exists
 because two connections from the same participant are otherwise
 indistinguishable. What it should contain is the experiment's decision;
 identifying the page the participant is on is one choice, and lets a handler
-ignore a message from a page they have since left.
+ignore a message from a page they have since left. A socket opened with
+``dallinger.openExperimentSocket`` or ``dallinger.openChatSocket`` makes that
+choice by default, sending ``dallinger.pageScope``, a value generated once per
+page load, unless it is given a ``scope`` of its own or a ``scope`` of ``null``.
 
 Messages must be text. Dallinger splits each one on its channel prefix, and a
 binary frame has no prefix to split on, so the connection is closed with code
@@ -131,11 +132,19 @@ not authenticated, so the id says which participant the connection claims to be,
 not who is sending the messages. Treat it as Dallinger treats every other
 ``participant_id``.
 
-``ReconnectingWebSocket`` reconnects after every close, and reports the close
-code on its ``connecting`` event rather than on ``close``. A refusal is
-therefore indistinguishable from a dropped network connection, and repeats
-forever. Pass the socket to ``dallinger.stopReconnectingIfRefused`` to handle
-it::
+A socket opened with ``dallinger.openExperimentSocket`` stops reconnecting when
+the server refuses it, and passes the close code and reason to its
+``onRefused`` callbacks, or logs them to the console if there are none::
+
+    socket.onRefused(function (code, reason) {
+      console.error('The server refused the connection: ' + reason);
+    });
+
+A ``ReconnectingWebSocket`` created directly reconnects after every close, and
+reports the close code on its ``connecting`` event rather than on ``close``. A
+refusal is therefore indistinguishable from a dropped network connection, and
+repeats forever. Pass such a socket to ``dallinger.stopReconnectingIfRefused``
+to handle it::
 
     socket = new ReconnectingWebSocket(...);
     dallinger.stopReconnectingIfRefused(socket, function (code, reason) {
@@ -325,18 +334,17 @@ Directed Message Format
 Directed messages arrive on the client prefixed with the reserved
 ``dallinger_direct`` channel name, using the same ``channel:payload`` format as
 every other WebSocket message, so a single connection can receive both channel
-broadcasts and directed messages::
+broadcasts and directed messages. A socket opened with
+``dallinger.openChatSocket`` or ``dallinger.openExperimentSocket`` passes them
+to its ``onDirect`` callbacks, and its channel's broadcasts to its
+``onBroadcast`` callbacks::
 
-    socket.onmessage = function (msg) {
-        // Ignore messages which are not directed to this participant
-        if (msg.data.indexOf('dallinger_direct:') !== 0) { return; }
-        // Parse the payload
-        var data = JSON.parse(msg.data.substring('dallinger_direct:'.length));
+    socket.onDirect(function (data) {
         // Take different actions based on message type
         switch (data.type) {
            ...
         }
-    };
+    });
 
 Like ``dallinger_control``, the ``dallinger_direct`` channel is reserved for
 Dallinger's own use. Experiments should not publish to it, and clients may
@@ -390,67 +398,114 @@ process, so every recipient of a single call is sent identical bytes.
 Client Implementation
 ---------------------
 
-The default experiment layout includes a `basic websocket communication library
-<https://www.npmjs.com/package/reconnecting-websocket>`_ which implements a
-`ReconnectingWebSocket` object that can be used to establish channel
-subscriptions, send messages to various channels, and receive messages on
-subscribed channels.
+The default experiment layout includes ``dallinger2.js``, whose
+``dallinger.openChatSocket`` and ``dallinger.openExperimentSocket`` functions
+open a connection to the ``/chat`` and ``/experiment-socket`` routes
+respectively. Both identify the participant from ``dallinger.identity``, and
+both return a ``dallinger.Socket`` which takes care of the message format,
+reconnection, and refusal.
 
 Typically experiments set up a WebSocket connection after completing the initial
-call to `createAgent` using code similar to this::
+call to ``createAgent`` using code similar to this::
 
     var broadcast_socket;
     var open_socket = function (channel_id) {
-        var ws_scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
-        // Setup a websocket connection to the channel, passing our worker_id and participant_id
-        socket = new ReconnectingWebSocket(
-            ws_scheme + location.host + "/chat?channel=" + channel_id +"&worker_id=" + dallinger.identity.workerId + '&participant_id=' + dallinger.identity.participantId
-        );
+        // Subscribe to the channel
+        var socket = dallinger.openChatSocket({channel: channel_id});
         // Once the connection is established, send an initial message to the channel
-        socket.onopen(function () {
-            socket.send(channel_id + ':{"message": "Hello world!"}');
+        socket.onOpen(function (event) {
+            socket.send(channel_id, {message: 'Hello world!'});
         });
-        // Handle any incoming messages
-        socket.onmessage = function (msg) {
-            // Ignore messages not from the channel subscribed channel
-            if (msg.data.indexOf(channel_id + ':') !== 0) { return; }
-            // Parse the payload
-            var data = JSON.parse(msg.data.substring(channel_id.length + 1));
-            // Example message data
-            var type = data.type;
+        // Handle any incoming messages on the channel
+        socket.onBroadcast(function (data) {
             // Take different actions based on message type
-            switch(type) {
+            switch (data.type) {
                ...
             }
-        };
+        });
         return socket;
     };
     // Create the agent.
-    var create_agent = function() {
+    var create_agent = function () {
         dallinger.createAgent()
             .done(function (resp) {
                 ...
-                broadcast_socket = open_socket("broadcast_channel");
+                broadcast_socket = open_socket('broadcast_channel');
             })
             .fail(function (rejection) {
                 ...
             });
     };
 
+The ``send`` method takes a channel name and a payload, which will be encoded as
+JSON unless it is already a string. Messages may be sent to any channel, not
+just the one to which the connection is subscribed. The exceptions are
+``"dallinger_control"``, which is reserved for the server's own connection and
+subscription events, and ``"dallinger_direct"``, which is reserved for directed
+messages. ``send`` refuses both names. The server also discards a message a
+client addresses to either and logs a warning, since the experiment treats
+anything arriving on the control channel as genuine.
 
-When establishing a channel subscription using the `/chat` route, the client may
-include `worker_id` and `participant_id` values. Those values will be included
-in the automatically generated JSON messages alerting the experiment to
-WebSocket connection, disconnection, subscription, and un-subscription events
-over the `"dallinger_control"` channel.
+Callbacks passed to ``onBroadcast`` and ``onDirect`` receive the payload parsed
+as JSON, or the payload string itself if it is not JSON, followed by the payload
+string. A connection subscribes to at most one channel, so additional
+subscriptions can be established by opening further connections with different
+``channel`` values.
 
-Messages sent over the socket connection can be prefixed with any channel name,
-not just the channel to which the connection is subscribed. The exception is
-`"dallinger_control"`, which is reserved for the server's own connection and
-subscription events. The experiment treats anything arriving on that channel as
-genuine, so the server discards a client message addressed to it and logs a
-warning. Additional subscriptions can be established by opening new websocket
-connections to the `/chat` route with different `channel` values.
+A message sent while the connection is down will be held, and sent in order
+once the connection reopens. Messages published to the client in the meantime
+are not replayed, so a page which must not miss one should fetch whatever it
+needs from the experiment in an ``onOpen`` callback. Those callbacks run each
+time the connection opens, including after a reconnect, and the
+``isReconnect`` property of the event they are passed is ``false`` the first
+time.
+
+The ``close`` method ends the connection for good, discarding any messages still
+held. It returns a ``Deferred`` which resolves once the connection has closed,
+so a page can let the messages it has already sent reach the server before
+navigating away::
+
+    socket.send('chatroom', {type: 'log', content: 'Goodbye.'});
+    socket.close().always(function () {
+        dallinger.goToPage('questionnaire');
+    });
+
+Both functions include the participant's ``worker_id`` and ``participant_id``
+in the connection url, along with the connection's ``scope``. Those values will
+be included in the automatically generated JSON messages alerting the experiment
+to WebSocket connection, disconnection, subscription, and un-subscription events
+over the ``"dallinger_control"`` channel. The full interface is listed in the
+:doc:`Javascript API <javascript_api>`.
+
+Connecting Without the Helpers
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Any WebSocket client may connect to either route directly, using the query
+parameters described in :doc:`The Web API <web_api>`. Every message in either
+direction is a channel name followed by ``:`` and the payload, so a client
+reading messages itself will need to check each message's channel prefix before
+parsing its payload::
+
+    var ws_scheme = (location.protocol === 'https:') ? 'wss://' : 'ws://';
+    var socket = new ReconnectingWebSocket(
+        ws_scheme + location.host + '/chat' +
+            '?channel=' + encodeURIComponent(channel_id) +
+            '&worker_id=' + dallinger.identity.workerId +
+            '&participant_id=' + dallinger.identity.participantId
+    );
+    socket.onmessage = function (msg) {
+        // Ignore messages not from the subscribed channel
+        if (msg.data.indexOf(channel_id + ':') !== 0) { return; }
+        // Parse the payload
+        var data = JSON.parse(msg.data.substring(channel_id.length + 1));
+        ...
+    };
+
+The ``onopen``, ``onmessage`` and ``onclose`` handlers of a
+``ReconnectingWebSocket`` must be assigned rather than called, since calling one
+does nothing. Its ``send`` method throws an exception while the connection is
+reconnecting, and its ``close`` method does not cancel a reconnection which has
+already been scheduled.
 
 
 Experiment Channel Setup
