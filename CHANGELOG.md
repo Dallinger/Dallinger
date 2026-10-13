@@ -135,6 +135,14 @@
 
 ### Changed
 
+- Clients may no longer subscribe to Dallinger's own channels. The `channel`
+  argument may not name `dallinger_control`, which reports every connection's
+  worker and participant ids, nor the new `dallinger_direct`, which carries the
+  directed messages published to every participant on the deployment. A
+  connection naming either is logged and left unsubscribed rather than refused,
+  and may still send and receive otherwise. Client messages addressed to
+  `dallinger_control` were already discarded, and the same now applies to
+  `dallinger_direct`.
 - The `/chat` WebSocket route no longer sleeps between reads. The client
   receive loop slept for 0.1s (or whatever `?tolerance=` asked for) before
   each `receive()`, and the redis relay greenlet slept 0.001s per message.
@@ -433,33 +441,6 @@
   after PsyNet production use.
 - Matched the documented ``dallinger deployment-files init`` starter
   ``paths``, ``names``, and ``suffixes`` lists to the CLI.
-
-### Changed
-
-- Clients may no longer subscribe to Dallinger's own channels. The `channel`
-  argument may not name `dallinger_control`, which reports every connection's
-  worker and participant ids, nor the new `dallinger_direct`, which carries the
-  directed messages published to every participant on the deployment. A
-  connection naming either is logged and left unsubscribed rather than refused,
-  and may still send and receive otherwise. Client messages addressed to
-  `dallinger_control` were already discarded, and the same now applies to
-  `dallinger_direct`.
-
-- The `/chat` WebSocket route no longer sleeps between reads. The client
-  receive loop slept for 0.1s (or whatever `?tolerance=` asked for) before
-  each `receive()`, and the redis relay greenlet slept 0.001s per message.
-  Both `receive()` and `PubSub.listen()` already block on gevent-aware
-  waits, so the timed sleeps only added delivery latency. The relay yields
-  with `gevent.sleep(0)` after each message, which runs the senders it just
-  spawned and gives other greenlets a turn without waiting on a timer; a
-  burst already sitting in the socket buffer otherwise reads straight
-  through without reaching the hub.
-- The `tolerance` query parameter on `/chat` is no longer read. Clients may
-  still send it; it has no effect and raises no warning.
-- ``ProlificService.get_participant_submission`` accepts ``translate=False``
-  to return the Prolific payload (including ``bonus_payments``) or ``None``
-  on a miss, instead of translating fields and raising a recruitment
-  error. ``_req`` takes ``raise_on_error`` (default ``True``).
 - Regenerated the committed ``tests/experiment/constraints.txt`` fixture
   against the released v12.3.0 pins (dropping the removed ``chardet``
   dependency, which the stale v12.2.1-based file still carried) and added
