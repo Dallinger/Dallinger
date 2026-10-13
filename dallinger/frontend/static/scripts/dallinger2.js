@@ -1061,6 +1061,11 @@ var dallinger = (function () {
    */
   dlgr.waitForQuorum = function () {
     var deferred = $.Deferred();
+    // The quorum socket is not a request idle sleep can see.
+    if (window.dallingerPresence) {
+      window.dallingerPresence.setWaiting(true);
+      deferred.always(function () { window.dallingerPresence.setWaiting(false); });
+    }
     dlgr.openChatSocket({channel: "quorum"}).onBroadcast(function (data) {
       dlgr.updateProgressBar(data.n, data.q);
       if (data.n === data.q) {

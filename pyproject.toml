@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dallinger"
-version = "12.4.0a1"
+version = "12.5.0a1"
 maintainers = [
   {name = "Jordan Suchow", email = "jws@stevens.edu"},
   {name = "Peter Harrison", email = "pmch2@cam.ac.uk"},
@@ -43,7 +43,7 @@ dependencies = [
     "gevent",
     "gunicorn[gevent]",
     "heroku3",
-    "paramiko<4",  # Required for compatibility with sshtunnel (see https://github.com/pahaz/sshtunnel/issues/302)
+    "paramiko>=5,<6",
     "pexpect",
     "platformdirs",
     "psycopg2",
@@ -90,7 +90,6 @@ dev = [
 ]
 docker = [
     "docker",
-    "sshtunnel",
 ]
 ec2 = [
     "pandas",
@@ -122,6 +121,8 @@ Repository = "https://github.com/Dallinger/Dallinger"
 "dallinger/docker/docker-compose.yml.j2" = "dallinger/docker/docker-compose.yml.j2"
 "dallinger/docker/heroku.yml" = "dallinger/docker/heroku.yml"
 "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2" = "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2"
+"dallinger/docker/ssh_templates/Caddyfile.frontdoor" = "dallinger/docker/ssh_templates/Caddyfile.frontdoor"
+"dallinger/docker/ssh_templates/front-door-services.yml.j2" = "dallinger/docker/ssh_templates/front-door-services.yml.j2"
 "dallinger/docker/ssh_templates/docker-compose-server.yml.j2" = "dallinger/docker/ssh_templates/docker-compose-server.yml.j2"
 
 [tool.hatch.build.targets.wheel]
