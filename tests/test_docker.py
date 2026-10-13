@@ -407,6 +407,37 @@ def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypa
     assert (tmp_path / ".ssh" / "known_hosts").exists()
 
 
+@pytest.mark.parametrize("key_format", ["TraditionalOpenSSL", "OpenSSH"])
+def test_get_connected_ssh_client_rejects_dsa_key(tmp_path, monkeypatch, key_format):
+    import click
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import dsa, ed25519
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    def write_key(private_key, name, key_format):
+        path = tmp_path / name
+        path.write_bytes(
+            private_key.private_bytes(
+                serialization.Encoding.PEM,
+                getattr(serialization.PrivateFormat, key_format),
+                serialization.NoEncryption(),
+            )
+        )
+        return path
+
+    dsa_path = write_key(dsa.generate_private_key(key_size=1024), "dsa.pem", key_format)
+    monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: dsa_path)
+    monkeypatch.setattr(docker_ssh.paramiko, "SSHClient", mock.Mock())
+
+    with pytest.raises(click.ClickException, match="#replacing-a-dsa-key"):
+        docker_ssh.get_connected_ssh_client("example.com", user="root")
+    docker_ssh.paramiko.SSHClient.assert_not_called()
+    assert not docker_ssh._is_dsa_key(
+        write_key(ed25519.Ed25519PrivateKey.generate(), "ed25519.pem", "OpenSSH")
+    )
+
+
 def test_option_update_parses_as_boolean():
     import click
     from click.testing import CliRunner
