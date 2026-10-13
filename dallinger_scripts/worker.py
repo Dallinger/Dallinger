@@ -1,21 +1,51 @@
 listen = ["high", "default", "low"]
 
-# Applies until the config is loaded; keep in step with global_config_defaults.txt.
+# Applies until the config is loaded, unless the environment sets
+# worker_startup_timeout; keep in step with global_config_defaults.txt.
 DEFAULT_STARTUP_TIMEOUT = 120
 
 
-def _exit_unless_registered_within(timeout):
-    """Return a greenlet that ends the process after ``timeout`` seconds unless killed.
+def _startup_timeout_from_environment():
+    """Return ``worker_startup_timeout`` from the environment, or the default."""
+    import os
+    import sys
+
+    value = os.environ.get("worker_startup_timeout")
+    if value is None:
+        return DEFAULT_STARTUP_TIMEOUT
+    try:
+        return int(value)
+    except ValueError:
+        print(
+            f"Invalid worker_startup_timeout {value!r}; "
+            f"using {DEFAULT_STARTUP_TIMEOUT} s.",
+            file=sys.stderr,
+        )
+        return DEFAULT_STARTUP_TIMEOUT
+
+
+def _exit_unless_registered_within(timeout, started):
+    """Return a greenlet that ends the process unless it is killed in time.
+
+    It fires ``timeout`` seconds after ``started``, a ``time.monotonic()``
+    value, or at once if that is already past. Returns ``None`` if
+    ``timeout`` is 0 or less.
 
     ``GeventWorker.register_birth`` kills it, so only a worker whose start-up
     hangs exits, and Docker or Heroku then restarts it. It is a timer in the
-    gevent hub: it fires while start-up waits on gevent I/O, but not if
-    start-up blocks outside gevent. A watchdog thread or signal doesn't work
-    here: a second thread makes the fork in Dallinger's import-time
-    ``script --help`` probe (``dallinger.command_line.docker``) hang, and a
-    container's PID 1 ignores SIGALRM.
+    gevent hub, so it can't fire if start-up blocks without yielding to
+    gevent (a blocking C call, an unpatched system call or a CPU-bound loop).
+    A watchdog thread or signal doesn't work here: a second thread makes the
+    fork in Dallinger's import-time ``script --help`` probe
+    (``dallinger.command_line.docker``) hang, and a container's PID 1 ignores
+    SIGALRM.
     """
+    import time
+
     import gevent
+
+    if timeout <= 0:
+        return None
 
     def exit_unregistered():
         import os
@@ -31,14 +61,20 @@ def _exit_unless_registered_within(timeout):
         sys.stderr.flush()
         os._exit(1)
 
-    return gevent.spawn_later(timeout, exit_unregistered)
+    remaining = max(0, started + timeout - time.monotonic())
+    return gevent.spawn_later(remaining, exit_unregistered)
 
 
 def main():
+    import time
+
+    started = time.monotonic()
+
     import gevent.monkey
 
     gevent.monkey.patch_all()
-    startup_watchdog = _exit_unless_registered_within(DEFAULT_STARTUP_TIMEOUT)
+    startup_timeout = _startup_timeout_from_environment()
+    startup_watchdog = _exit_unless_registered_within(startup_timeout, started)
     # These imports are inside the __main__ block
     # to make sure that we only import from rq_gevent_worker
     # (which has the side effect of applying gevent monkey patches)
@@ -74,11 +110,13 @@ def main():
     )
     attach_json_logger(logging.getLogger())
 
-    startup_watchdog.kill()
-    startup_watchdog = None
-    startup_timeout = config.get("worker_startup_timeout")
-    if startup_timeout > 0:
-        startup_watchdog = _exit_unless_registered_within(startup_timeout)
+    configured_timeout = config.get("worker_startup_timeout")
+    if configured_timeout != startup_timeout:
+        if startup_watchdog is not None:
+            startup_watchdog.kill()
+        startup_timeout = configured_timeout
+        startup_watchdog = _exit_unless_registered_within(startup_timeout, started)
+    if startup_watchdog is not None:
         logging.getLogger(__name__).warning(
             "Worker will exit if it hasn't registered with RQ within %s s",
             startup_timeout,

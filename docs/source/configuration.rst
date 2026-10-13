@@ -460,10 +460,20 @@ Deployment Configuration
 ``worker_startup_timeout`` *integer*
     Seconds a worker process may take to start up and register with the
     job queue. A worker that hasn't registered by then prints what each
-    greenlet was doing and exits, so Heroku or Docker restarts it. Locally,
-    the exit ends a ``dallinger debug`` session, and ``dallinger develop``
-    doesn't restart the worker. Set to 0 to disable, for example while
-    stepping through worker start-up in a debugger. Default is 120.
+    greenlet was doing and exits, so Heroku or Docker restarts it. Set to 0
+    to disable, for example while stepping through worker start-up in a
+    debugger. Default is 120.
+
+    The time is counted from process start. If the value is set in the
+    worker's environment, as docker-ssh does for every config key, it
+    applies from the start. If it is only set in a config file, the
+    built-in 120 s applies until the config has loaded, and a value of 0
+    can't disable that.
+
+    The timeout can't fire if start-up blocks without yielding to gevent
+    (a blocking C call, an unpatched system call or a CPU-bound loop).
+    Locally, the exit ends a ``dallinger debug`` session, and
+    ``dallinger develop`` doesn't restart the worker.
 
 ``host`` *unicode*
     IP address of the host.
