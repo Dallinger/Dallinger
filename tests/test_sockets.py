@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 import gevent
 import pytest
+from redis import exceptions as redis_errors
 from simple_websocket import ConnectionClosed
 
 
@@ -161,6 +162,30 @@ class TestChannel:
         gevent.sleep(0.1)
 
         mockclient.send.assert_called_once_with("test:back")
+
+    @pytest.mark.parametrize(
+        "error, level",
+        [
+            (redis_errors.ConnectionError("lost"), "warning"),
+            (redis_errors.BusyLoadingError("loading"), "warning"),
+            (TimeoutError("timed out"), "warning"),
+            (redis_errors.AuthenticationError("bad password"), "exception"),
+            (OSError(24, "Too many open files"), "exception"),
+            (KeyError("bug"), "exception"),
+        ],
+    )
+    def test_listen_logs_only_unexpected_errors_with_a_traceback(
+        self, sockets, channel, pubsub, monkeypatch, error, level
+    ):
+        logger = Mock()
+        monkeypatch.setattr(sockets.app, "logger", logger)
+        monkeypatch.setattr(sockets, "RETRY_DELAY_SECS", 60)
+        pubsub.listen.side_effect = error
+        channel.start()
+        gevent.sleep(0.01)
+
+        assert getattr(logger, level).call_count == 1
+        assert logger.warning.call_count + logger.exception.call_count == 1
 
     def test_stop_closes_the_redis_connection(self, channel, pubsub):
         pubsub.listen.side_effect = block_forever

@@ -8,6 +8,7 @@ import gevent
 from flask import request
 from flask_sock import Sock
 from gevent.lock import Semaphore
+from redis import exceptions as redis_errors
 from redis.exceptions import RedisError
 from simple_websocket import ConnectionClosed
 
@@ -24,6 +25,28 @@ CONTROL_CHANNEL = "dallinger_control"
 
 # How long a channel waits before resubscribing after losing Redis.
 RETRY_DELAY_SECS = 1
+
+# Errors from a dropped or unready Redis connection, which retrying fixes.
+# redis's ConnectionError also covers BusyLoadingError.
+_CONNECTION_ERRORS = (
+    redis_errors.ConnectionError,
+    redis_errors.TimeoutError,
+    ConnectionError,
+    socket.timeout,
+)
+# Subclasses of redis's ConnectionError that need fixing, not waiting out.
+_PERSISTENT_ERRORS = (
+    redis_errors.AuthenticationError,
+    redis_errors.AuthorizationError,
+    redis_errors.MaxConnectionsError,
+)
+
+
+def _is_connection_loss(error):
+    """Return whether a listener error is a transient loss of Redis."""
+    return isinstance(error, _CONNECTION_ERRORS) and not isinstance(
+        error, _PERSISTENT_ERRORS
+    )
 
 
 def log(msg, level="info"):
@@ -117,14 +140,15 @@ class Channel:
                         self._relay_to_clients(message)
                     # Yield to other greenlets without capping the relay rate.
                     gevent.sleep(0)
-            except (RedisError, OSError) as e:
-                app.logger.warning(
-                    "Lost redis channel {} ({!r}); retrying.".format(self.name, e)
-                )
-            except Exception:
-                app.logger.exception(
-                    "Error relaying channel {}; retrying.".format(self.name)
-                )
+            except Exception as e:
+                if _is_connection_loss(e):
+                    app.logger.warning(
+                        "Lost redis channel {} ({!r}); retrying.".format(self.name, e)
+                    )
+                else:
+                    app.logger.exception(
+                        "Error relaying channel {}; retrying.".format(self.name)
+                    )
             finally:
                 self._close(pubsub)
             gevent.sleep(RETRY_DELAY_SECS)

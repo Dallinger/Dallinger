@@ -1,8 +1,6 @@
 import os
 from urllib.parse import urlparse
 
-import gevent.monkey
-import gevent.queue
 import redis
 
 # A gevent web worker can have many requests using Redis at once. redis-py's
@@ -26,7 +24,11 @@ def connect_to_redis(url=None):
         "max_connections": MAX_CONNECTIONS,
         "timeout": CONNECTION_TIMEOUT_SECS,
     }
+    import gevent.monkey
+
     if gevent.monkey.is_module_patched("threading"):
+        import gevent.queue
+
         # See http://carsonip.me/posts/10x-faster-python-gevent-redis-connection-pool/
         connection_args["queue_class"] = gevent.queue.LifoQueue
     if urlparse(redis_url).scheme == "rediss":
