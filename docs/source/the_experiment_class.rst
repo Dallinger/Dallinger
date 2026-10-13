@@ -132,6 +132,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: participant_task_completed
 
+  .. automethod:: publish_to_participants
+
   .. automethod:: publish_to_subscribers
 
   .. automethod:: receive_message

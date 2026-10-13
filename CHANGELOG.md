@@ -4,6 +4,19 @@
 
 ### Added
 
+- `Experiment.publish_to_participants(payload, participant_ids, scope=None)`
+  sends a payload to the WebSocket connections of specific participants, across
+  gunicorn workers, instead of giving each participant a channel of their own.
+  Any connection which supplied a `participant_id` can be addressed, on `/chat`
+  or `/experiment-socket`, and every connection a participant holds receives a
+  copy. The payload arrives on the client prefixed with the reserved
+  `dallinger_direct` channel name. An optional `scope` limits delivery to those
+  connections which supplied the same scope value, allowing an experiment to
+  reach the page a participant is on rather than a tab left open on an earlier
+  one. A protocol-level redis error ends a channel's listener, but the one
+  that relays directed sends between web processes starts over on a new redis
+  connection instead.
+
 - A new `/experiment-socket` route hands each inbound frame to the experiment's new
   `handle_websocket_message` method on the web process that owns the socket,
   instead of publishing it to redis for a worker to pick up later. The default
@@ -30,6 +43,24 @@
   `1008`, which the library otherwise reports only on its `connecting` event
   and retries forever. The socket is left in the `CLOSED` state rather than
   reporting `CONNECTING` indefinitely.
+
+- `dallinger.openChatSocket(options)` and `dallinger.openExperimentSocket(options)`
+  open a WebSocket connection to `/chat` or `/experiment-socket`, identified
+  from `dallinger.identity`, and return a `dallinger.Socket`. Its
+  `send(channel, payload)` encodes the payload as JSON, and holds a message sent
+  while the connection is down until it reopens, where
+  `ReconnectingWebSocket.send` throws. `onBroadcast` and `onDirect` callbacks
+  receive the parsed payloads of the subscribed channel and of directed
+  messages, and `onOpen` callbacks run on every open, including reconnects. A
+  refused connection is not retried, and `close()` returns a `Deferred` that
+  resolves once the connection has closed. Each connection sends
+  `dallinger.pageScope`, generated once per page load, as its `scope` unless it
+  is given another. `dallinger.waitForQuorum` and the `chatroom_ws` demo use
+  them.
+
+- A `partner_echo` demo pairs two participants, each on an
+  `/experiment-socket` connection, and delivers each one's messages to the other
+  with `publish_to_participants`.
 
 - Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
   (``paths``, ``names``, ``suffixes``) plus the deterministic
@@ -122,6 +153,14 @@
 
 ### Changed
 
+- Clients may no longer subscribe to Dallinger's own channels. The `channel`
+  argument may not name `dallinger_control`, which reports every connection's
+  worker and participant ids, nor the new `dallinger_direct`, which carries the
+  directed messages published to every participant on the deployment. A
+  connection naming either is logged and left unsubscribed rather than refused,
+  and may still send and receive otherwise. Client messages addressed to
+  `dallinger_control` were already discarded, and the same now applies to
+  `dallinger_direct`.
 - The `/chat` WebSocket route no longer sleeps between reads. The client
   receive loop slept for 0.1s (or whatever `?tolerance=` asked for) before
   each `receive()`, and the redis relay greenlet slept 0.001s per message.
@@ -169,6 +208,23 @@
 
 ### Fixed
 
+- A WebSocket connection waits for redis to confirm its channel subscription
+  before it relays anything. A process subscribes to a channel the first time
+  one of its connections names it, and the publish travels on a different redis
+  connection, so a client which sent a message as soon as its socket opened
+  could have that message reach every other subscriber and not itself. A lost
+  redis connection arms the wait again, so a connection arriving during an
+  outage waits for the restored subscription. The wait is bounded. If redis
+  cannot confirm a subscription within two seconds, the connection starts
+  relaying anyway instead of waiting for redis to recover. The `connected`
+  control message is sent after the wait and `subscribed` before it, so the
+  WebSocket docs direct an experiment greeting a new connection to reply to
+  `connected`.
+- The `chatroom_ws` demo sends its "has joined the chat" message, which calling
+  `ReconnectingWebSocket.onopen` as a method had silently skipped. Its Leave
+  button now works while the connection is reconnecting, where it used to throw
+  or wait for a close event that never came. Chat messages and log lines are
+  inserted as text rather than HTML.
 - The `/chat` WebSocket route unsubscribes a client from its channels
   whenever the receive loop exits, not only when `receive()` raises
   `ConnectionClosed`. A channel left with no clients stops its listener
