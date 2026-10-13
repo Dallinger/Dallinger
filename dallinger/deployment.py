@@ -106,6 +106,7 @@ def handle_launch_data(
     dozzle_password=None,
     context=None,
     verify=True,
+    post=None,
 ):
     """POST to ``url`` (``/launch``), retrying with exponential backoff.
 
@@ -123,7 +124,16 @@ def handle_launch_data(
         dns_host: Hostname for Docker SSH deployments
         dozzle_password: Password for Dozzle logs in Docker SSH deployments
         context: Deployment context ('heroku', 'ssh', 'local', etc.)
+        post: Zero-argument callable that sends the request and returns a
+            response with ``status_code``, ``ok``, ``text`` and ``json()``.
+            Defaults to ``requests.post(url)``. When given, ``url`` only
+            labels messages.
     """
+    if post is None:
+
+        def post():
+            return requests.post(url, verify=verify)
+
     launch_data = None
     launch_request = None
     last_startup_error = None
@@ -135,7 +145,7 @@ def handle_launch_data(
         for remaining_attempt in sorted(range(attempts), reverse=True):
             startup_failure = False
             try:
-                launch_request = requests.post(url, verify=verify)
+                launch_request = post()
                 request_happened = True
             except requests.exceptions.RequestException as err:
                 request_happened = False

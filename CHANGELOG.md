@@ -91,6 +91,14 @@
 
 ### Fixed
 
+- docker-ssh deploys launch the experiment from inside the server, so a new
+  Cloudflare tunnel that takes minutes to register no longer leaves a running
+  app that was never launched. The launch still records the public base URL.
+  The deploy then waits up to 7 minutes for the public URL and only warns if
+  it is still unreachable, saying whether Cloudflare has not activated the
+  tunnel yet and printing how to check again or destroy the app. The
+  ``deploy_logs/`` record is written as soon as the launch succeeds. A failed
+  launch prints how to retry it and how to destroy the app.
 - Remote Docker builds work when the SSH username contains ``@``.
 - docker-ssh deploys no longer write the dashboard or Dozzle password into
   ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.
