@@ -35,7 +35,6 @@ _build/*
 docs/build
 .DS_Store
 .netrc
-.vagrant/
 .venv*/
 .cache/*
 htmlcov/*

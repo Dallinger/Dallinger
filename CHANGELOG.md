@@ -4,6 +4,12 @@
 
 ### Added
 
+- Added a `jquery` block inside the `libs` block of `base/layout.html`.
+  Templates that already load jQuery in `<head>` can override it with an
+  empty block instead of loading jQuery a second time, which replaced the
+  first copy and dropped the jQuery plugins registered on it.
+- Added a Cursor `/release` command and release skill for cutting
+  Dallinger releases to PyPI and ghcr.
 - Added `--no-browsers` to `dallinger develop debug`. Instead of opening the
   dashboard and participant browsers, it logs the recruitment message, the
   dashboard URL and the dashboard login, like `dallinger debug --no-browsers`.
@@ -90,6 +96,39 @@
   Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 - The ``deployment-files`` CLI tests no longer use Click's deprecated
   ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
+- docker-ssh apps' pgbouncer now accepts up to 10,000 client connections
+  instead of its default of 100, with a file-descriptor limit of 16,384.
+  Under load, gevent web workers exceeded 100 and requests failed with
+  ``no more connections allowed (max_client_conn)``. Client connections are
+  cheap, and Postgres only sees pgbouncer's server pool. Clients up to the
+  limit now queue for a pooled Postgres connection and fail only after
+  pgbouncer's ``query_wait_timeout`` (120 seconds); clients beyond it are
+  still refused. Each web or worker process keeps up to 20 idle connections,
+  so the limit leaves room for many processes on large hosts.
+- docker-ssh apps with their own Postgres (Cloudflare ingress) now let
+  pgbouncer keep up to 80 Postgres connections instead of its default of 20.
+  pgbouncer holds a connection for each request's whole transaction, so 20
+  connections queued requests at about 200 participants. On a 16-thread
+  server, p95 response time at 320 participants fell from 438 ms to 65 ms,
+  and 480 participants ran with a p95 of about 100 ms. Classic-ingress apps
+  share one server-wide Postgres, so they keep 20 connections each.
+  Already-running apps pick up the new pgbouncer limits after
+  ``dallinger docker-ssh deploy --update``.
+- Each process now keeps at most 20 idle database connections instead of up
+  to 1,000. Busy web workers still open as many connections as they need,
+  but close the extra ones afterwards, so idle connections no longer pile up
+  after heavy load and use up the database's or pgbouncer's client limit.
+- Idle pooled database connections are now checked when they are next used
+  and replaced if the server dropped them. Before, after a docker-ssh app's
+  pgbouncer or Postgres container restarted while the web container kept
+  running, later requests failed with ``server closed the connection
+  unexpectedly``. Requests in flight during the restart can still fail.
+- Classic-ingress docker-ssh deploys to a server whose SSH host resolves only
+  to private IP addresses now stop before building the image and suggest
+  ``--ingress cloudflare``, because Let's Encrypt cannot issue certificates
+  for such servers. ``docker-ssh servers add`` prints the same advice.
+  Servers with a private address inside their network but a public DNS name
+  that forwards ports 80 and 443 to them can pass ``--allow-private-ip``.
 
 ### Fixed
 
@@ -164,6 +203,13 @@
   caller's, which it never reads. Startup failures also cancel the timeout
   alarm instead of leaving it armed after the original error.
 
+### Removed
+
+- Removed the Vagrant development environment (``Vagrantfile`` and the Vagrant
+  setup documentation). It targeted Ubuntu 16.04, Python 3.6, and PostgreSQL
+  9.5 and could not install current Dallinger. Use a normal install or Docker
+  instead.
+
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
 ### Added
@@ -228,6 +274,14 @@
   not succeed before the timeout, and a failed launch now ends with a short
   ``Error: Experiment launch failed. ...`` diagnosis instead of a Python
   traceback.
+- ``dallinger ec2`` commands that manage Route 53 records now match the
+  requested DNS name exactly, together with its wildcard companion, instead of
+  matching any record whose name merely contains that string. Provisioning
+  ``exp.example.com`` no longer reports an unrelated ``staging-exp.example.com``
+  as the conflicting instance and no longer deletes it. A ``--dns-host`` that is
+  a hosted zone's apex or a delegated subdomain is now refused with an error
+  before any record is deleted. Record lookup is also paginated, so names are
+  still found in hosted zones with more than one page of records.
 - docker-ssh deploy and sandbox no longer carry on after the deploy fails when
   ``docker_image_name`` is configured. The registry lookup wrapped the whole
   deploy, so an abort (a failed DNS check, a missing contact email, a

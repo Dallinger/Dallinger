@@ -13,7 +13,10 @@ def _ipv4_lookup(mapping):
         if any(len(label) > 63 for label in hostname.split(".")):
             raise UnicodeError("label empty or too long")
         if hostname in mapping:
-            return hostname, [], [mapping[hostname]]
+            addresses = mapping[hostname]
+            if isinstance(addresses, str):
+                addresses = [addresses]
+            return hostname, [], addresses
         raise gaierror("[Errno -2] Name or service not known")
 
     return fake_gethostbyname_ex
@@ -100,3 +103,62 @@ def test_dns_check_treats_malformed_hostname_as_unresolved(capsys):
             )
 
     assert "nothing (the name did not resolve)" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "ip_addr, ingress, default_ingress, aborts",
+    [
+        ("172.22.51.95", None, None, True),
+        ("100.101.102.103", None, None, True),
+        (["10.0.0.1", "192.168.1.2"], None, None, True),
+        ("172.22.51.95", "cloudflare", None, False),
+        ("172.22.51.95", None, "cloudflare", False),
+        ("13.40.159.13", None, None, False),
+        (["10.0.0.1", "13.40.159.13"], None, None, False),
+        ("127.0.0.1", None, None, False),
+        ("0.0.0.0", None, None, False),
+    ],
+)
+def test_classic_ingress_requires_a_public_server(
+    monkeypatch, capsys, ip_addr, ingress, default_ingress, aborts
+):
+    host_record = {"host": "lab-pc:2222", "user": "ubuntu"}
+    if default_ingress:
+        host_record["default_ingress"] = default_ingress
+    monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", {"lab-pc": host_record})
+    monkeypatch.setattr(
+        docker_ssh_module, "gethostbyname_ex", _ipv4_lookup({"lab-pc": ip_addr})
+    )
+    if aborts:
+        with pytest.raises(click.Abort):
+            docker_ssh_module._check_classic_ingress_reachable("lab-pc", ingress)
+        output = capsys.readouterr().out
+        assert "--ingress cloudflare" in output
+        assert "--host lab-pc:2222 --user ubuntu " in output
+        assert "--allow-private-ip" in output
+    else:
+        docker_ssh_module._check_classic_ingress_reachable("lab-pc", ingress)
+
+
+@pytest.mark.parametrize(
+    "allow_private_ip, expected", [(False, click.Abort), (True, LookupError)]
+)
+def test_allow_private_ip_skips_the_classic_ingress_check(
+    monkeypatch, allow_private_ip, expected
+):
+    pytest.importorskip("docker")
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"lab-pc": {"host": "lab-pc"}}
+    )
+    monkeypatch.setattr(
+        docker_ssh_module, "gethostbyname_ex", _ipv4_lookup({"lab-pc": "10.0.0.1"})
+    )
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
+    # Reading the config is the first step after the check.
+    monkeypatch.setattr(
+        docker_ssh_module, "get_config", mock.Mock(side_effect=LookupError)
+    )
+    deploy = docker_ssh_module.build_and_push_image(mock.Mock())
+
+    with pytest.raises(expected):
+        deploy(server="lab-pc", allow_private_ip=allow_private_ip)

@@ -83,26 +83,36 @@ def test_create_db_engine_updates_postgresql_scheme():
     assert engine.url.render_as_string().startswith("postgresql://")
 
 
-def test_create_db_engine_bounds_pool_by_default(monkeypatch):
-    from dallinger.db import create_db_engine
+def test_create_db_engine_grows_without_limit_but_keeps_only_pool_size():
+    from dallinger.db import create_db_engine, db_url
 
-    for name in (
-        "DATABASE_POOL_SIZE",
-        "DATABASE_MAX_OVERFLOW",
-        "DATABASE_POOL_TIMEOUT",
-    ):
-        monkeypatch.delenv(name, raising=False)
-    pool = create_db_engine("postgresql://foo:bar@somehost/blah").pool
+    engine = create_db_engine(db_url, pool_size=2)
+    try:
+        # More than SQLAlchemy's default overflow of 10, which would block here.
+        connections = [engine.connect() for _ in range(15)]
+        for connection in connections:
+            connection.close()
 
-    assert (pool.size(), pool._max_overflow, pool._timeout) == (5, 10, 30)
+        assert engine.pool.checkedin() == 2
+    finally:
+        engine.dispose()
 
 
-def test_create_db_engine_reads_pool_limits_from_environment(monkeypatch):
-    from dallinger.db import create_db_engine
+def test_create_db_engine_replaces_connections_the_server_dropped():
+    from sqlalchemy import text
 
-    monkeypatch.setenv("DATABASE_POOL_SIZE", "3")
-    monkeypatch.setenv("DATABASE_MAX_OVERFLOW", "4")
-    monkeypatch.setenv("DATABASE_POOL_TIMEOUT", "5")
-    pool = create_db_engine("postgresql://foo:bar@somehost/blah").pool
+    from dallinger.db import create_db_engine, db_url
 
-    assert (pool.size(), pool._max_overflow, pool._timeout) == (3, 4, 5)
+    engine = create_db_engine(db_url, pool_size=1)
+    killer = create_db_engine(db_url)
+    try:
+        with engine.connect() as connection:
+            pid = connection.execute(text("SELECT pg_backend_pid()")).scalar()
+        with killer.connect() as connection:
+            connection.execute(text("SELECT pg_terminate_backend(:pid)"), {"pid": pid})
+
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT 1")).scalar() == 1
+    finally:
+        engine.dispose()
+        killer.dispose()
