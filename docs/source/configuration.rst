@@ -460,8 +460,10 @@ Deployment Configuration
 ``worker_startup_timeout`` *integer*
     Seconds a worker process may take to start up and register with the
     job queue. A worker that hasn't registered by then prints what each
-    greenlet was doing and exits, so Heroku or Docker restarts it. Set to 0
-    to disable. Default is 120.
+    greenlet was doing and exits, so Heroku or Docker restarts it. Locally,
+    the exit ends a ``dallinger debug`` session, and ``dallinger develop``
+    doesn't restart the worker. Set to 0 to disable, for example while
+    stepping through worker start-up in a debugger. Default is 120.
 
 ``host`` *unicode*
     IP address of the host.

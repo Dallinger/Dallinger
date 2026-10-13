@@ -11,8 +11,9 @@ def _exit_unless_registered_within(timeout):
     hangs exits, and Docker or Heroku then restarts it. It is a timer in the
     gevent hub: it fires while start-up waits on gevent I/O, but not if
     start-up blocks outside gevent. A watchdog thread or signal doesn't work
-    here: a second thread makes the fork in Dallinger's import-time subprocess
-    call hang, and a container's PID 1 ignores SIGALRM.
+    here: a second thread makes the fork in Dallinger's import-time
+    ``script --help`` probe (``dallinger.command_line.docker``) hang, and a
+    container's PID 1 ignores SIGALRM.
     """
     import gevent
 
