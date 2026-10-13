@@ -36,7 +36,7 @@ function load() {
   window.ReconnectingWebSocket = ReconnectingWebSocket;
   global.store = require("./store+json2.min");
   window.localStorage.clear();
-  global.$ = global.jQuery = require("./jquery-3.7.1.min");
+  global.$ = global.jQuery = require("./jquery-4.0.0.min");
   return require("./dallinger2").dallinger;
 }
 
