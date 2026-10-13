@@ -437,10 +437,15 @@ def _abort_unreachable(executor, target, status, detail, limit, app_status):
             "point at the server yet."
         )
     if app_status == 404:
+        empty_404 = (
+            "Cloudflare has not routed the hostname yet"
+            if cloudflare
+            else "the request did not reach the app"
+        )
         print_bold(
             "Check the public URL again. Expect 2xx, or a 404 showing the app's "
-            "own 'Not Found' page; an empty 404 means Cloudflare has not routed "
-            "the hostname yet, so do not launch:"
+            f"own 'Not Found' page; an empty 404 means {empty_404}, so do not "
+            "launch:"
         )
         print(target.check_command(show_body=True))
     else:
