@@ -4,6 +4,11 @@
 
 ### Added
 
+- Worker processes that hang during start-up now exit after
+  `worker_startup_timeout` seconds (default 120; 0 disables) if they
+  haven't registered with the job queue, printing what each greenlet was
+  doing, so Heroku or Docker restarts them instead of leaving them idle.
+
 - Added a `jquery` block inside the `libs` block of `base/layout.html`.
   Templates that already load jQuery in `<head>` can override it with an
   empty block instead of loading jQuery a second time, which replaced the

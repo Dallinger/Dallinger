@@ -43,6 +43,7 @@ redis_size = premium-0
 worker_multiplier = 1.5
 num_dynos_web = 1
 num_dynos_worker = 1
+worker_startup_timeout = 120
 
 [Prolific]
 prolific_api_token = Set your Prolific API token in ~/.dallingerconfig!

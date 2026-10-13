@@ -1,10 +1,43 @@
 listen = ["high", "default", "low"]
 
+# Applies until the config is loaded; keep in step with global_config_defaults.txt.
+DEFAULT_STARTUP_TIMEOUT = 120
+
+
+def _exit_unless_registered_within(timeout):
+    """Return a greenlet that ends the process after ``timeout`` seconds unless killed.
+
+    ``GeventWorker.register_birth`` kills it, so only a worker whose start-up
+    hangs exits, and Docker or Heroku then restarts it. It is a timer in the
+    gevent hub: it fires while start-up waits on gevent I/O, but not if
+    start-up blocks outside gevent. A watchdog thread or signal doesn't work
+    here: a second thread makes the fork in Dallinger's import-time subprocess
+    call hang, and a container's PID 1 ignores SIGALRM.
+    """
+    import gevent
+
+    def exit_unregistered():
+        import os
+        import sys
+
+        from gevent.util import print_run_info
+
+        print(
+            f"Worker hasn't registered with RQ within {timeout} s; exiting.",
+            file=sys.stderr,
+        )
+        print_run_info(file=sys.stderr)
+        sys.stderr.flush()
+        os._exit(1)
+
+    return gevent.spawn_later(timeout, exit_unregistered)
+
 
 def main():
     import gevent.monkey
 
     gevent.monkey.patch_all()
+    startup_watchdog = _exit_unless_registered_within(DEFAULT_STARTUP_TIMEOUT)
     # These imports are inside the __main__ block
     # to make sure that we only import from rq_gevent_worker
     # (which has the side effect of applying gevent monkey patches)
@@ -39,6 +72,17 @@ def main():
         level=LOG_LEVEL,
     )
     attach_json_logger(logging.getLogger())
+
+    startup_watchdog.kill()
+    startup_watchdog = None
+    startup_timeout = config.get("worker_startup_timeout")
+    if startup_timeout > 0:
+        startup_watchdog = _exit_unless_registered_within(startup_timeout)
+        logging.getLogger(__name__).warning(
+            "Worker will exit if it hasn't registered with RQ within %s s",
+            startup_timeout,
+        )
+
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
     # Specify queue class for improved performance with gevent.
     # see http://carsonip.me/posts/10x-faster-python-gevent-redis-connection-pool/
@@ -58,6 +102,7 @@ def main():
         [Queue(name, connection=redis_conn) for name in listen],
         connection=redis_conn,
         log_job_description=False,
+        startup_watchdog=startup_watchdog,
     )
     worker.log_result_lifespan = False
     # Default to log.warn because rq logs extremely verbosely at the info

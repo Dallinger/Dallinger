@@ -457,6 +457,12 @@ Deployment Configuration
     Number of Heroku dynos to use for performing other computations,
     or (when deploying via Docker SSH) the number of worker Docker containers.
 
+``worker_startup_timeout`` *integer*
+    Seconds a worker process may take to start up and register with the
+    job queue. A worker that hasn't registered by then prints what each
+    greenlet was doing and exits, so Heroku or Docker restarts it. Set to 0
+    to disable. Default is 120.
+
 ``host`` *unicode*
     IP address of the host.
 
