@@ -127,42 +127,53 @@ def test_failed_launch_explains_how_to_retry_or_destroy(no_sleep, capsys):
     assert "dallinger docker-ssh destroy --server lab --app myapp" in out
 
 
-def test_public_check_warns_when_cloudflare_has_not_activated_the_tunnel(capsys):
-    executor = FakeExecutor(logs="ERR Unauthorized: Tunnel not found")
-    pending = mock.Mock(status_code=530, text="error code: 1033")
-
-    with mock.patch.object(launch.requests, "get", return_value=pending):
-        assert launch.wait_for_public_url(executor, TARGET, timeout=0) is False
-
-    out = capsys.readouterr().out
-    assert "up to 0 s" in out
-    assert "Cloudflare has not activated the new tunnel yet" in out
-    assert "'Tunnel not found'" in out
-    assert TARGET.check_command in out
-    assert TARGET.destroy_command in out
-
-
-def test_deploy_records_then_checks_the_public_url_then_launches(
-    monkeypatch, tmp_path, no_sleep
-):
+@pytest.fixture
+def deploy_dir(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(launch, "PUBLIC_CHECK_TIMEOUT", 0)
-    events = []
-    executor = FakeExecutor(
-        [(0, reply(500, {"status": "error"}), "")] * MAX_ATTEMPTS, events=events
-    )
-    pending = mock.Mock(status_code=530, text="")
+    return tmp_path
 
+
+def public_check(events, status, text=""):
     def get(*args, **kwargs):
         events.append("check")
-        return pending
+        return mock.Mock(status_code=status, text=text)
 
-    with mock.patch.object(launch.requests, "get", get):
-        with pytest.raises(click.ClickException):
+    return mock.patch.object(launch.requests, "get", get)
+
+
+def test_deploy_does_not_launch_when_the_public_url_never_answers(deploy_dir, capsys):
+    events = []
+    executor = FakeExecutor(logs="ERR Unauthorized: Tunnel not found", events=events)
+
+    with public_check(events, 530, "error code: 1033"):
+        with pytest.raises(click.ClickException) as error:
             docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
-        assert events[:2] == ["check", "launch"]
-        assert Path("deploy_logs/myapp.txt").read_text() == "notes\n"
 
-        events.clear()
+    assert events == ["check"]
+    assert Path("deploy_logs/myapp.txt").read_text() == "notes\n"
+    assert "was not launched" in error.value.message
+    assert "Cloudflare has not activated the new tunnel yet" in error.value.message
+    assert "'Tunnel not found'" in error.value.message
+    out = capsys.readouterr().out
+    for command in (
+        TARGET.check_command,
+        TARGET.ssh(f"docker compose -f {TARGET.compose_file} logs cloudflared"),
+        TARGET.ssh(launch.internal_launch_command(TARGET)),
+        TARGET.destroy_command,
+    ):
+        assert command in out
+
+
+def test_deploy_launches_once_the_public_url_answers(deploy_dir):
+    events = []
+    executor = FakeExecutor(
+        [(0, reply(200, {"recruitment_msg": "open"}), "")], events=events
+    )
+
+    with public_check(events, 200):
+        docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
+        assert events == ["check", "launch"]
+
         docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", True)
-        assert events == []
+        assert events == ["check", "launch"]

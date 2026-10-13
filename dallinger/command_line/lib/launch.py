@@ -4,8 +4,8 @@ A new Cloudflare tunnel can take several minutes to accept its connector,
 and a new Caddy site can wait on DNS or a TLS certificate. ``/launch`` opens
 recruitment, so the deploy first waits, for a bounded time, until the public
 URL answers. Participants are then not sent to a Cloudflare error page. If the
-wait times out, the deploy warns and launches anyway, rather than leaving a
-running app that was never launched.
+wait times out, the deploy stops without launching and prints the command
+that launches the app once its URL works.
 
 The launch itself does not go through the public URL. The ``web`` container
 POSTs ``/launch`` to the app's front door over the app's Docker network,
@@ -33,7 +33,7 @@ import click
 import requests
 
 from dallinger.deployment import handle_launch_data
-from dallinger.utils import END, RED, print_bold
+from dallinger.utils import print_bold
 
 from .app_manifest import INGRESS_CLOUDFLARE
 
@@ -196,11 +196,11 @@ def launch_from_server(executor, target):
 
 
 def wait_for_public_url(executor, target, timeout=None, interval=None):
-    """Wait until the app answers on its public URL; warn if it never does.
+    """Wait until the app answers on its public URL, or stop the deploy.
 
-    Returns True when the public health check succeeds, and False after
-    printing a warning when it is still failing after ``timeout`` seconds
-    (default ``PUBLIC_CHECK_TIMEOUT``).
+    Waits up to ``timeout`` seconds (default ``PUBLIC_CHECK_TIMEOUT``). If the
+    URL never answers, prints why and what to run next, and raises
+    ``click.ClickException`` so the experiment is not launched.
     """
     timeout = PUBLIC_CHECK_TIMEOUT if timeout is None else timeout
     interval = PUBLIC_CHECK_INTERVAL if interval is None else interval
@@ -222,7 +222,7 @@ def wait_for_public_url(executor, target, timeout=None, interval=None):
         status, detail = _probe(target.health_url, target.verify)
         if status is not None and status < 400:
             print(f"{target.public_origin} is reachable.")
-            return True
+            return
         elapsed = time.monotonic() - started
         if elapsed + interval > timeout:
             break
@@ -231,8 +231,7 @@ def wait_for_public_url(executor, target, timeout=None, interval=None):
             next_report += PROGRESS_INTERVAL
         time.sleep(interval)
 
-    _warn_unreachable(executor, target, status, detail, limit)
-    return False
+    _abort_unreachable(executor, target, status, detail, limit)
 
 
 def _duration(seconds):
@@ -272,34 +271,37 @@ def _connector_reports_tunnel_not_found(executor, target):
     return "tunnel not found" in (logs or "").lower()
 
 
-def _warn_unreachable(executor, target, status, detail, limit):
+def _abort_unreachable(executor, target, status, detail, limit):
     cloudflare = target.ingress == INGRESS_CLOUDFLARE
     not_found = cloudflare and _connector_reports_tunnel_not_found(executor, target)
     print(
-        f"{RED}Warning:{END} {target.public_origin} was still not reachable after "
-        f"{limit} (last result: {_describe(status, detail)})."
+        f"{target.public_origin} was still not reachable after {limit} "
+        f"(last result: {_describe(status, detail)})."
     )
     if cloudflare and (not_found or _tunnel_pending(status, detail)):
-        print(
+        reason = (
             "Cloudflare has not activated the new tunnel yet"
             + (" (cloudflared logs say 'Tunnel not found')" if not_found else "")
-            + ". The app is running and will be launched anyway; participants "
-            "can reach it once the tunnel connects."
+            + "; new tunnels usually start working within minutes."
         )
     elif cloudflare:
-        print(
-            "The app is running and will be launched anyway, but the "
-            "Cloudflare tunnel is not serving it yet."
-        )
+        reason = "The Cloudflare tunnel is not serving the app yet."
     else:
-        print(
-            "The app is running and will be launched anyway. Caddy may still "
-            "be getting a TLS certificate, or DNS may not point at the server yet."
+        reason = (
+            "Caddy may still be getting a TLS certificate, or DNS may not "
+            "point at the server yet."
         )
-    print_bold("Check again later (expect 200):")
+    print_bold("Check the public URL again (expect 200):")
     print(target.check_command)
     if cloudflare:
         print_bold("Inspect the tunnel connector logs:")
         print(target.ssh(f"docker compose -f {target.compose_file} logs cloudflared"))
-    print_bold("To remove the app:")
+    print_bold("Once the public URL works, launch the experiment:")
+    print(target.ssh(internal_launch_command(target)))
+    print_bold("Or remove the app:")
     print(target.destroy_command)
+    raise click.ClickException(
+        f"{target.public_origin} never answered, so the experiment was not "
+        "launched. The app's containers are running, but recruitment has not "
+        f"started. {reason}"
+    )

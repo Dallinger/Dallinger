@@ -906,9 +906,9 @@ def _record_deployment_infos(experiment_id, lines, dashboard_password):
 def _record_then_launch(executor, target, deployment_infos, dashboard_password, update):
     """Record the deployment, wait for the public URL, then launch the experiment.
 
-    The record comes first so it exists even if the launch fails. Launching
-    opens recruitment, so it waits (for a bounded time) until participants
-    can reach the public URL.
+    The record comes first so it exists even if the deploy stops here.
+    Launching opens recruitment, so it only happens once participants can
+    reach the public URL; if the bounded wait times out, nothing is launched.
     """
     _record_deployment_infos(target.app, deployment_infos, dashboard_password)
     if update:

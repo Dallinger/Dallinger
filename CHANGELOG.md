@@ -91,16 +91,17 @@
 
 ### Fixed
 
-- docker-ssh deploys no longer leave a running app that was never launched
-  when a new Cloudflare tunnel takes minutes to register. The deploy writes
-  its ``deploy_logs/`` record, waits up to 7 minutes for the public URL so
+- docker-ssh deploys no longer fail to launch after about a minute when a new
+  Cloudflare tunnel takes several minutes to register. The deploy writes its
+  ``deploy_logs/`` record, waits up to 7 minutes for the public URL so
   recruitment does not open while participants would get a Cloudflare error,
   and then launches the experiment from inside the server with the app's
-  Python, so the app still records its public base URL. If the public URL is
-  still unreachable, the deploy warns (saying when Cloudflare has not
-  activated the tunnel yet), prints how to check again or destroy the app,
-  and launches anyway. A failed launch prints how to retry it and how to
-  destroy the app; a launch request that reached the app is never resent.
+  Python, so the app still records its public base URL. If the public URL
+  never answers, the deploy stops with an error without launching, says when
+  Cloudflare has not activated the tunnel yet, and prints how to check the URL
+  again, how to launch once it works, and how to destroy the app. A failed
+  launch prints how to retry it and how to destroy the app; a launch request
+  that reached the app is never resent.
 - Remote Docker builds work when the SSH username contains ``@``.
 - docker-ssh deploys no longer write the dashboard or Dozzle password into
   ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.
