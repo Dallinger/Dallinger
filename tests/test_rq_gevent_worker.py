@@ -1,5 +1,7 @@
+import os
 import subprocess
 import sys
+from pathlib import Path
 
 
 def test_worker_import_does_not_load_croniter():
@@ -9,7 +11,8 @@ def test_worker_import_does_not_load_croniter():
         "loaded = [m for m in sys.modules if m.startswith(('croniter', 'rq.cli'))]; "
         "sys.exit(f'Loaded: {loaded}' if loaded else 0)"
     )
+    env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])}
     result = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True
+        [sys.executable, "-c", code], capture_output=True, text=True, env=env
     )
     assert result.returncode == 0, result.stderr

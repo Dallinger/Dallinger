@@ -215,19 +215,3 @@ class GeventWorker(Worker):
 
         self.heartbeat()
         return result
-
-
-def main():
-    import sys
-
-    from rq.cli import worker as rq_main
-
-    if "-w" in sys.argv or "--worker-class" in sys.argv:
-        print(
-            "You cannot specify worker class when using this script,"
-            "use the official rqworker instead"
-        )
-        sys.exit(1)
-
-    sys.argv.extend(["-w", "rq_gevent_worker.GeventWorker"])
-    rq_main()

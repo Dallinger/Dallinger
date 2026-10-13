@@ -118,7 +118,9 @@
   The worker imported ``rq.cli`` to colour one log line, which loaded
   ``croniter``; at import time ``croniter`` runs ``file`` in a subprocess,
   and under gevent waiting for it sometimes never returned. The worker now
-  takes the colour helper from ``rq.logutils``.
+  takes the colour helper from ``rq.logutils``. The unused ``main()`` in
+  ``dallinger.heroku.rq_gevent_worker``, which also imported ``rq.cli``, is
+  removed; the ``dallinger_heroku_worker`` command is unchanged.
 - Bots with a ``webdriver_url`` start again. They passed
   ``desired_capabilities``, which Selenium 4.10 removed, and now pass the
   same browser options as local bots.
