@@ -84,7 +84,10 @@
   variables. With the defaults, requests never wait for the pool. A process
   that should not open many connections, such as a bot runner, can set a
   bounded pool; its requests then wait up to ``DATABASE_POOL_TIMEOUT`` for a
-  free connection. Invalid values raise an error that names the variable.
+  free connection. Invalid values, including a pool size below 1, raise an
+  error that names the variable. Experiment replay
+  (``restore_state_from_replay``) now uses the same pool settings and checks
+  connections before use.
   Idle connections add up to about ``DATABASE_POOL_SIZE`` times the number of
   processes; keep that below PostgreSQL's ``max_connections`` or, on
   docker-ssh, pgbouncer's client limit of 10,000.

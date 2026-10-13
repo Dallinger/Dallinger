@@ -68,8 +68,7 @@ The pool is created before the configuration is loaded, so it is set with
 environment variables rather than config parameters:
 
 ``DATABASE_POOL_SIZE``
-    Idle connections kept per process (default 20). SQLAlchemy treats 0 as
-    no limit.
+    Idle connections kept per process, at least 1 (default 20).
 
 ``DATABASE_MAX_OVERFLOW``
     Extra connections a process may open under load, or -1 for no limit
@@ -82,7 +81,11 @@ environment variables rather than config parameters:
 
 Invalid values stop the process with an error that names the variable. To
 bound a single process, for example a bot runner, set the variables only in
-that process's environment.
+that process's environment. For docker-ssh apps, the variables must be in
+the experiment containers' environment, for example set with ``ENV`` in the
+experiment image; setting them in the shell that runs ``dallinger
+docker-ssh`` has no effect, because Compose only passes registered config
+keys to the containers.
 
 When budgeting connections, idle connections add up to roughly
 ``DATABASE_POOL_SIZE`` × the number of processes, and busy processes open
@@ -90,9 +93,10 @@ more. Without PgBouncer, keep this below PostgreSQL's ``max_connections``
 (100 by default). docker-ssh deployments put PgBouncer in front of
 PostgreSQL: it accepts up to 10,000 client connections and passes them
 through a smaller server pool (80 connections for Cloudflare-ingress apps, 20
-for classic-ingress apps). Clients beyond the server pool queue in PgBouncer
-for up to its ``query_wait_timeout`` (120 seconds); clients beyond 10,000 are
-refused.
+for classic-ingress apps). Idle clients, such as idle pooled connections,
+just hold a client slot. A query waiting for a server connection waits up to
+PgBouncer's ``query_wait_timeout`` (120 seconds). New clients beyond 10,000
+are refused.
 
 
 Built-in configuration

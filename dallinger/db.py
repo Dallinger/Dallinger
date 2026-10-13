@@ -91,8 +91,9 @@ def create_db_engine(db_url, pool_size=None, max_overflow=None, pool_timeout=Non
     db_url : str
         Database URL.
     pool_size : int, optional
-        Idle connections kept open; SQLAlchemy treats 0 as no limit. Defaults
-        to ``DATABASE_POOL_SIZE``, or 20.
+        Idle connections kept open. Defaults to ``DATABASE_POOL_SIZE``, or 20.
+        ``DATABASE_POOL_SIZE`` must be at least 1, because SQLAlchemy treats 0
+        as no limit.
     max_overflow : int, optional
         Connections opened beyond ``pool_size`` under load; -1 means no limit.
         Defaults to ``DATABASE_MAX_OVERFLOW``, or -1.
@@ -112,7 +113,7 @@ def create_db_engine(db_url, pool_size=None, max_overflow=None, pool_timeout=Non
     """
     if pool_size is None:
         pool_size = _pool_setting(
-            "DATABASE_POOL_SIZE", DEFAULT_POOL_SIZE, 0, "an integer of at least 0"
+            "DATABASE_POOL_SIZE", DEFAULT_POOL_SIZE, 1, "a positive integer"
         )
     if max_overflow is None:
         max_overflow = _pool_setting(
