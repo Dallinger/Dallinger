@@ -90,6 +90,25 @@ these explicitly:
 .. js:autofunction:: dallinger.waitForQuorum
 
 
+WebSocket connections
+~~~~~~~~~~~~~~~~~~~~~
+
+These functions open a WebSocket connection to one of the experiment server's
+WebSocket routes, as described in
+:doc:`Using WebSockets in Dallinger Experiments <using_websockets>`:
+
+.. js:autofunction:: dallinger.openChatSocket
+
+.. js:autofunction:: dallinger.openExperimentSocket
+
+.. js:autoclass:: dallinger.Socket
+   :members: send, onBroadcast, onDirect, onOpen, onRefused, close
+
+.. js:autoattribute:: dallinger.pageScope
+
+.. js:autoattribute:: dallinger.DIRECT_CHANNEL
+
+
 Helper functions and properties
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -1,0 +1,30 @@
+[Experiment]
+mode = sandbox
+auto_recruit = true
+quorum = 2
+
+[MTurk]
+title = Partner echo
+description = Send a message to your partner.
+keywords = Chat
+base_payment = 1.00
+lifetime = 24
+duration = 0.1
+us_only = true
+approve_requirement = 95
+contact_email_on_error = dallinger-partner-echo@mailinator.com
+ad_group = Partner echo
+organization_name = Monsters University
+browser_exclude_rule = MSIE, mobile, tablet
+
+[Database]
+database_url = postgresql://postgres@localhost/dallinger
+database_size = standard-0
+
+[Server]
+dyno_type = basic
+num_dynos_web = 1
+num_dynos_worker = 1
+redis_size = premium-0
+host = 0.0.0.0
+clock_on = false
