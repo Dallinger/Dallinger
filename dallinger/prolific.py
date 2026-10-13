@@ -56,6 +56,10 @@ AVAILABLE_STATES = [
     "SCHEDULED",
 ]
 
+# (connect, read) seconds. Without a timeout a stalled Prolific request
+# blocks its web or worker process indefinitely.
+REQUEST_TIMEOUT = (10, 30)
+
 
 class ProlificService:
     """
@@ -66,6 +70,10 @@ class ProlificService:
         api_version: Prolific API version
         referer_header: Referer header to help Prolific identify our requests when troubleshooting
     """
+
+    _unpublished_study_log_message = (
+        "Created unpublished draft study {study_id} on Prolific."
+    )
 
     def __init__(self, api_token: str, api_version: str, referer_header: str):
         self.api_token = api_token
@@ -104,12 +112,14 @@ class ProlificService:
         the study on Prolific. If we get there first, there will be an error
         because the submission hasn't happened yet.
         """
-        status = self.get_participant_submission(submission_id)["status"]
+        submission = self.get_participant_submission(submission_id)
+        status = submission["status"]
         if status == "APPROVED":
             logger.info(
                 "Participant submission is already approved, no need to approve again."
             )
-        elif status != "AWAITING REVIEW":
+            return submission
+        if status != "AWAITING REVIEW":
             # This will trigger a retry from the decorator
             raise ProlificServiceException(
                 f"Prolific session not yet submitted (current status is '{status}')."
@@ -432,7 +442,7 @@ class ProlificService:
             logger.info(f"Publishing study {study_id} on Prolific...")
             return self.publish_study(study_id)
         else:
-            logger.info(f"Created unpublished draft study {study_id} on Prolific.")
+            logger.info(self._unpublished_study_log_message.format(study_id=study_id))
             return draft
 
     def get_hits(self):
@@ -576,7 +586,13 @@ class ProlificService:
         return self._req(method="GET", endpoint="/users/me/")
 
     def _req(
-        self, method: str, endpoint: str, *, raise_on_error: bool = True, **kw
+        self,
+        method: str,
+        endpoint: str,
+        *,
+        raise_on_error: bool = True,
+        timeout=REQUEST_TIMEOUT,
+        **kw,
     ) -> Optional[dict]:
         """Runs the actual request/response cycle:
         * Adds Authorization header
@@ -584,10 +600,12 @@ class ProlificService:
           when troubleshooting
         * Logs all requests (we might want to stop doing this when we're
           out of our "beta" period with Prolific)
-        * Parses response and does error handling
+        * Parses response and does error handling, raising connection errors
+          and timeouts as ``ProlificServiceException``
 
         When ``raise_on_error`` is false, a miss returns ``None`` instead of a
-        recruitment error.
+        recruitment error. ``timeout`` is passed to ``requests``; it defaults
+        to ``REQUEST_TIMEOUT``, and ``None`` waits indefinitely.
         """
         from dallinger.recruiters import handle_and_raise_recruitment_error
 
@@ -603,11 +621,22 @@ class ProlificService:
         }
         logger.warning(f"Prolific API request: {json.dumps(summary)}")
         try:
-            response = requests.request(method, url, headers=headers, **kw)
-        except requests.RequestException:
+            response = requests.request(
+                method, url, headers=headers, timeout=timeout, **kw
+            )
+        except requests.RequestException as err:
             if not raise_on_error:
                 return None
-            raise
+            error = {
+                "method": method,
+                "token": self.api_token_fragment,
+                "URL": url,
+                "args": kw,
+                "error": repr(err),
+            }
+            handle_and_raise_recruitment_error(
+                ProlificServiceException(json.dumps(error))
+            )
 
         if method == "DELETE" and response.ok:
             return {"status_code": response.status_code}
@@ -687,6 +716,10 @@ def _translate_submission_from_get_submissions(prolific_assignment_info, study_i
 
 class DevProlificService(ProlificService):
     """Wrapper that mocks the Prolific REST API and instead of making requests it writes to the log."""
+
+    _unpublished_study_log_message = (
+        "Prolific study simulated in debug mode; nothing was created on Prolific."
+    )
 
     def __init__(self, *args, **kwargs):
         self.owner_id = "60a42f4c693c29420793cb73"
@@ -1024,7 +1057,9 @@ def prolific_service_from_config(strict=False):  #
     from dallinger.prolific import ProlificService
 
     config = get_config()
-    config.load(strict=strict)
+    # Recruiters are built per request; don't re-read config files each time.
+    if not config.ready:
+        config.load(strict=strict)
     return ProlificService(
         api_token=config.get("prolific_api_token"),
         api_version=config.get("prolific_api_version"),

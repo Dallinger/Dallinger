@@ -421,6 +421,27 @@ class TestChannel:
         assert channel.greenlet.ready()
         mockclient.send.assert_called_once_with("custom:payload")
 
+    def test_listen_tolerates_client_that_disconnected(
+        self, sockets, mockclient, monkeypatch
+    ):
+        errors = []
+        monkeypatch.setattr(
+            gevent.get_hub(), "handle_error", lambda *args: errors.append(args)
+        )
+        sockets.redis_conn.pubsub.return_value = pubsub = Mock()
+        pubsub.listen.return_value = [
+            {"type": "message", "channel": b"quorum", "data": b"Calloo! Callay!"}
+        ]
+        mockclient.send.side_effect = ConnectionClosed(1000, "")
+
+        channel = sockets.Channel("custom")
+        channel.subscribe(mockclient)
+        channel.start()
+        gevent.wait()
+
+        mockclient.send.assert_called_once_with("quorum:Calloo! Callay!")
+        assert errors == []
+
     def test_stop(self, channel):
         channel.start()
         channel.stop()
@@ -580,6 +601,17 @@ class TestChatBackend:
         # The dead channel is gone, so this client is relaying on a new one.
         late.send.assert_called_once_with("quorum:back")
         mockclient.send.assert_not_called()
+
+    def test_unsubscribe_tolerates_channel_added_meanwhile(
+        self, sockets, chat, mockclient
+    ):
+        chat.subscribe(mockclient, "quorum")
+        # Publishing yields to other greenlets, which may open new channels.
+        sockets.redis_conn.publish.side_effect = lambda *args: chat.channels.setdefault(
+            "late", sockets.Channel("late")
+        )
+        chat.unsubscribe(mockclient)
+        assert "quorum" not in chat.channels
 
 
 @pytest.mark.slow
@@ -1567,6 +1599,22 @@ class TestDirectedSend:
         gevent.wait(timeout=1)
 
         assert client.ws.send.call_count == 1
+
+    def test_a_connection_that_just_closed_raises_no_greenlet_error(
+        self, sockets, registered, monkeypatch
+    ):
+        errors = []
+        monkeypatch.setattr(
+            gevent.get_hub(), "handle_error", lambda *args: errors.append(args)
+        )
+        client = registered("42")
+        client.ws.send.side_effect = ConnectionClosed(1000, "")
+
+        sockets.publish_to_participants({"type": "wake"}, [42])
+        gevent.wait(timeout=1)
+
+        assert client.ws.send.call_count == 1
+        assert errors == []
 
     def test_a_scope_reaches_only_connections_opened_with_it(self, sockets, registered):
         current = registered("42", scope="page-7")

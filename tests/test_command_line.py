@@ -427,6 +427,35 @@ class TestDevelopCommand:
 
         assert result.exit_code == 0, result.output
 
+    def test_debug_no_browsers_logs_launch_details(self, active_config, develop):
+        develop_module = sys.modules["dallinger.command_line.develop"]
+        active_config.extend({"dashboard_user": "admin", "dashboard_password": "pw"})
+        with mock.patch("dallinger.command_line.develop.Queue") as queue:
+            result = CliRunner().invoke(
+                develop, ["debug", "--skip-flask", "--no-browsers"]
+            )
+        assert result.exit_code == 0, result.output
+        job = queue.return_value.enqueue_call.call_args.args[0]
+        assert job is develop_module.launch_app_without_browsers
+
+        with (
+            mock.patch.object(
+                develop_module,
+                "handle_launch_data",
+                return_value={"recruitment_msg": "Recruitment is open"},
+            ),
+            mock.patch.object(develop_module, "open_browser") as open_browser,
+            mock.patch.object(develop_module, "log") as log,
+        ):
+            job(port=5001)
+        logged = [c.args[0] for c in log.call_args_list]
+        assert logged == [
+            "Recruitment is open",
+            "Experiment dashboard: http://127.0.0.1:5001/dashboard/develop",
+            "Dashboard user: admin password: pw",
+        ]
+        open_browser.assert_not_called()
+
     def test_debug_surfaces_invalid_policy(self, develop, tmp_path, monkeypatch):
         (tmp_path / "deploy.toml").write_text("version = 2\nexclude = []\n")
         monkeypatch.chdir(tmp_path)
@@ -1589,3 +1618,27 @@ def test_get_editable_dallinger_path():
             ]
             result = get_editable_dallinger_path()
             assert result == "/a path/where many/directories/have/a/space/in them"
+
+
+def test_get_editable_dallinger_path_pep660(tmp_path, monkeypatch):
+    from dallinger.utils import get_editable_dallinger_path
+
+    monkeypatch.setattr("dallinger.utils.sys.path", [])
+
+    source_root = tmp_path / "workspace"
+    source_root.mkdir()
+    direct_url_path = tmp_path / "direct_url.json"
+    direct_url_path.write_text(
+        '{"dir_info": {"editable": true}, "url": "file://%s"}' % source_root
+    )
+
+    class FakeDist:
+        @staticmethod
+        def read_text(filename):
+            return (
+                direct_url_path.read_text() if filename == "direct_url.json" else None
+            )
+
+    monkeypatch.setattr("dallinger.utils.get_distribution", lambda _: FakeDist())
+
+    assert get_editable_dallinger_path() == str(source_root.resolve())
