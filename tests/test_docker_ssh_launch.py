@@ -1,3 +1,4 @@
+import dataclasses
 import importlib
 import json
 import os
@@ -169,27 +170,45 @@ def public_check(events, status, text=""):
     return mock.patch.object(launch.requests, "get", get)
 
 
-def test_deploy_does_not_launch_when_the_public_url_never_answers(deploy_dir, capsys):
+CLOUDFLARE_PENDING = "Cloudflare has not activated the new tunnel yet (cloudflared logs say 'Tunnel not found')"
+
+
+@pytest.mark.parametrize(
+    "ingress, status, text, reason",
+    [
+        ("cloudflare", 530, "error code: 1033", CLOUDFLARE_PENDING),
+        ("cloudflare", 404, "", CLOUDFLARE_PENDING),
+        ("classic", 502, "", "Caddy may still be getting a TLS certificate"),
+    ],
+    ids=["cloudflare-530", "cloudflare-404", "classic-502"],
+)
+def test_deploy_does_not_launch_when_the_public_url_never_answers(
+    ingress, status, text, reason, deploy_dir, capsys
+):
+    target = dataclasses.replace(TARGET, ingress=ingress)
     events = []
     executor = FakeExecutor(logs="ERR Unauthorized: Tunnel not found", events=events)
 
-    with public_check(events, 530, "error code: 1033"):
+    with public_check(events, status, text):
         with pytest.raises(click.ClickException) as error:
-            docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
+            docker_ssh._record_then_launch(executor, target, ["notes"], "pw", False)
 
     assert events == ["health", "check"]
     assert Path("deploy_logs/myapp.txt").read_text() == "notes\n"
     assert "was not launched" in error.value.message
-    assert "Cloudflare has not activated the new tunnel yet" in error.value.message
-    assert "'Tunnel not found'" in error.value.message
+    assert reason in error.value.message
     out = capsys.readouterr().out
+    assert "(expect 2xx)" in out
     for command in (
-        TARGET.check_command,
-        TARGET.ssh(f"docker compose -f {TARGET.compose_file} logs cloudflared"),
-        TARGET.ssh(launch.internal_launch_command(TARGET)),
-        TARGET.destroy_command,
+        target.check_command,
+        target.ssh(launch.internal_launch_command(target)),
+        target.destroy_command,
     ):
         assert command in out
+    cloudflared_logs = target.ssh(
+        f"docker compose -f {target.compose_file} logs cloudflared"
+    )
+    assert (cloudflared_logs in out) is (ingress == "cloudflare")
 
 
 def test_deploy_launches_once_the_public_url_answers(deploy_dir, capsys):

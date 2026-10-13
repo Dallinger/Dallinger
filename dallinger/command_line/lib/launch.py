@@ -67,7 +67,7 @@ WEB_NOT_RUNNING_PATTERN = re.compile(
 )
 CURL_TIMEOUT_EXIT_STATUS = 28
 FRONT_DOOR_HEALTH_URL = "http://frontdoor:5000/health"
-HEALTH_STATUS_PATTERN = re.compile(r"health=(\d{3})\s*$")
+HEALTH_STATUS_PATTERN = re.compile(r"(?m)^health=(\d{3})\s*$")
 # Characters that are not literal inside a local double-quoted string.
 _DOUBLE_QUOTE_UNSAFE = re.compile(r'["$`!]|\\[\\"$`\n]|\\$')
 
