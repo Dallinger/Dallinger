@@ -202,6 +202,12 @@
   `docker-ssh export` and archive restores now forwards over Dallinger's own
   SSH connection, so it uses only the `server_pem` key and the same
   known-hosts handling as other docker-ssh commands.
+- A DSA `server_pem` no longer works, because Paramiko 5 does not load DSA
+  keys. docker-ssh and EC2 commands now stop before connecting with an error
+  that links to the docker-ssh documentation, instead of failing inside
+  Paramiko with an unrelated message such as `dmq1 must be odd`. To replace
+  the key, check it with `ssh-keygen -l -f`, install a new public key through
+  a login that already works, and point `server_pem` at the new private key.
 ### Removed
 
 - Removed the Vagrant development environment (``Vagrantfile`` and the Vagrant
