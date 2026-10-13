@@ -1586,6 +1586,22 @@ class TestDirectedSend:
 
         assert client.ws.send.call_count == 1
 
+    def test_a_connection_that_just_closed_raises_no_greenlet_error(
+        self, sockets, registered, monkeypatch
+    ):
+        errors = []
+        monkeypatch.setattr(
+            gevent.get_hub(), "handle_error", lambda *args: errors.append(args)
+        )
+        client = registered("42")
+        client.ws.send.side_effect = ConnectionClosed(1000, "")
+
+        sockets.publish_to_participants({"type": "wake"}, [42])
+        gevent.wait(timeout=1)
+
+        assert client.ws.send.call_count == 1
+        assert errors == []
+
     def test_a_scope_reaches_only_connections_opened_with_it(self, sockets, registered):
         current = registered("42", scope="page-7")
         stale = registered("42", scope="page-6")

@@ -449,7 +449,7 @@ class ChatBackend:
             for client in list(self.clients_by_participant.get(participant_id, ())):
                 if scope is not None and client.scope != scope:
                     continue
-                gevent.spawn(client.send, frame)
+                gevent.spawn(Channel._relay, client, frame)
 
     def forget(self, channel):
         """Drop a channel whose listener has stopped.
