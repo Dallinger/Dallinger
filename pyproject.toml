@@ -43,7 +43,7 @@ dependencies = [
     "gevent",
     "gunicorn[gevent]",
     "heroku3",
-    "paramiko<4",  # Required for compatibility with sshtunnel (see https://github.com/pahaz/sshtunnel/issues/302)
+    "paramiko>=5,<6",
     "pexpect",
     "platformdirs",
     "psycopg2",
@@ -89,7 +89,6 @@ dev = [
 ]
 docker = [
     "docker",
-    "sshtunnel",
 ]
 ec2 = [
     "pandas",

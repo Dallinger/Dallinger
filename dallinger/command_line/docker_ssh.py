@@ -2036,18 +2036,69 @@ def _remote_hibernation_states(executor):
 
 
 @contextmanager
+def _forward_local_port(transport, remote_address):
+    """Forward connections on a free localhost port to ``remote_address``.
+
+    Each accepted connection gets its own ``direct-tcpip`` channel on
+    ``transport``. Yields the local port; forwarding stops on exit.
+    """
+    listener = socket.create_server(("127.0.0.1", 0))
+    listener.settimeout(0.5)
+    stopping = threading.Event()
+
+    def pipe(conn):
+        try:
+            chan = transport.open_channel(
+                "direct-tcpip", remote_address, conn.getpeername()
+            )
+        except paramiko.SSHException as exc:
+            logging.getLogger(__name__).warning(
+                "Could not open SSH tunnel to %s:%s: %s", *remote_address, exc
+            )
+            conn.close()
+            return
+        with conn, chan:
+            try:
+                while not stopping.is_set():
+                    readable, _, _ = select.select([conn, chan], [], [], 0.5)
+                    for source, dest in ((conn, chan), (chan, conn)):
+                        if source in readable:
+                            data = source.recv(65536)
+                            if not data:
+                                return
+                            dest.sendall(data)
+            except OSError:
+                return  # Either side dropped the connection.
+
+    def accept():
+        while not stopping.is_set():
+            try:
+                conn, _ = listener.accept()
+            except TimeoutError:
+                continue
+            threading.Thread(target=pipe, args=(conn,), daemon=True).start()
+
+    acceptor = threading.Thread(target=accept, daemon=True)
+    acceptor.start()
+    try:
+        yield listener.getsockname()[1]
+    finally:
+        stopping.set()
+        # Closing the listener while accept() is blocked on it does not
+        # stop new connections on all platforms, so wait for the loop first.
+        acceptor.join()
+        listener.close()
+
+
+@contextmanager
 def remote_postgres(server_info, app):
     """A context manager that opens an ssh tunnel to the remote host and
     returns a database URI to connect to it.
     """
-    from sshtunnel import SSHTunnelForwarder
-
-    tunnel = None
+    executor = None
     try:
-        ssh_address = server_info["host"]
-        ssh_host, ssh_port = split_ssh_host_port(ssh_address)
         ssh_user = server_info.get("user")
-        executor = Executor(ssh_address, user=ssh_user, app=app)
+        executor = Executor(server_info["host"], user=ssh_user, app=app)
         container, remote_ip, isolated = _resolve_remote_postgres(executor, app)
         if isolated:
             env = _inspect_container_env(executor, container)
@@ -2065,21 +2116,16 @@ def remote_postgres(server_info, app):
             uri_user = "dallinger"
             uri_password = "dallinger"
             uri_db = url_quote(app, safe="")
-        pem_path = get_server_pem_path()
-        tunnel = SSHTunnelForwarder(
-            (ssh_host, ssh_port),
-            ssh_username=ssh_user,
-            ssh_pkey=str(pem_path),
-            remote_bind_address=(remote_ip, 5432),
-        )
-        tunnel.start()
-        yield (
-            f"postgresql://{uri_user}:{uri_password}"
-            f"@localhost:{tunnel.local_bind_port}/{uri_db}"
-        )
+        with _forward_local_port(
+            executor.client.get_transport(), (remote_ip, 5432)
+        ) as local_port:
+            yield (
+                f"postgresql://{uri_user}:{uri_password}"
+                f"@127.0.0.1:{local_port}/{uri_db}"
+            )
     finally:
-        if tunnel is not None:
-            tunnel.stop()
+        if executor is not None:
+            executor.client.close()
 
 
 def _resolve_remote_postgres(executor, app):

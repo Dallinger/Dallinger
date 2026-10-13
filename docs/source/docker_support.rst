@@ -390,6 +390,8 @@ Both PEM and OpenSSH private key formats are supported.
 
     DSS/DSA keys are no longer supported as they have been deprecated industry-wide since 2015 due to security weaknesses (limited to 1024-bit key length).
 
+    SHA-1 is not supported for key exchange or RSA signatures. If your key or the server's host key is RSA, the server needs OpenSSH 7.2 or newer.
+
 Dallinger verifies that ``docker`` and ``docker compose`` are installed, and installs them if they are not.
 The installation should take a couple of minutes.
 
