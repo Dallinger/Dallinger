@@ -42,12 +42,12 @@ def run_worker(tmp_path, work_body="pass", startup_timeout="1", before_main=""):
 
 
 def test_worker_that_never_registers_exits_after_startup_timeout(tmp_path):
-    result = run_worker(tmp_path, "time.sleep(30)")
+    result = run_worker(tmp_path, "time.sleep(30)", startup_timeout="5")
     assert result.returncode == 1
     assert (
-        "Worker will exit if it hasn't registered with RQ within 1 s" in result.stderr
+        "Worker will exit if it hasn't registered with RQ within 5 s" in result.stderr
     )
-    assert "hasn't registered with RQ within 1 s; exiting" in result.stderr
+    assert "hasn't registered with RQ within 5 s; exiting" in result.stderr
 
 
 def test_startup_timeout_from_environment_covers_config_loading(tmp_path):
@@ -60,7 +60,7 @@ def test_startup_timeout_from_environment_covers_config_loading(tmp_path):
 
 
 def test_zero_startup_timeout_disables_it(tmp_path):
-    result = run_worker(tmp_path, "time.sleep(3)", startup_timeout="0")
+    result = run_worker(tmp_path, "time.sleep(0.5)", startup_timeout="0")
     assert result.returncode == 0, result.stderr
     assert "registered with RQ within" not in result.stderr
 
@@ -70,9 +70,10 @@ def test_registration_cancels_startup_timeout(tmp_path):
         tmp_path,
         """
         self.register_birth()
-        time.sleep(2)
+        time.sleep(6)
         self.register_death()
         """,
+        startup_timeout="5",
     )
     assert result.returncode == 0, result.stderr
     assert "exiting" not in result.stderr

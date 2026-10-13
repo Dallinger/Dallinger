@@ -5,23 +5,32 @@ listen = ["high", "default", "low"]
 DEFAULT_STARTUP_TIMEOUT = 120
 
 
+def _checked_startup_timeout(value):
+    """Return ``value`` as whole seconds, or the default if it isn't 0 or more."""
+    import sys
+
+    try:
+        timeout = int(value)
+    except ValueError:
+        timeout = -1
+    if timeout < 0:
+        print(
+            f"Invalid worker_startup_timeout {value!r}: "
+            "expected a whole number of seconds, 0 or more.",
+            file=sys.stderr,
+        )
+        return DEFAULT_STARTUP_TIMEOUT
+    return timeout
+
+
 def _startup_timeout_from_environment():
     """Return ``worker_startup_timeout`` from the environment, or the default."""
     import os
-    import sys
 
     value = os.environ.get("worker_startup_timeout")
     if value is None:
         return DEFAULT_STARTUP_TIMEOUT
-    try:
-        return int(value)
-    except ValueError:
-        print(
-            f"Invalid worker_startup_timeout {value!r}; "
-            f"using {DEFAULT_STARTUP_TIMEOUT} s.",
-            file=sys.stderr,
-        )
-        return DEFAULT_STARTUP_TIMEOUT
+    return _checked_startup_timeout(value)
 
 
 def _exit_unless_registered_within(timeout, started):
@@ -29,7 +38,7 @@ def _exit_unless_registered_within(timeout, started):
 
     It fires ``timeout`` seconds after ``started``, a ``time.monotonic()``
     value, or at once if that is already past. Returns ``None`` if
-    ``timeout`` is 0 or less.
+    ``timeout`` is 0.
 
     ``GeventWorker.register_birth`` kills it, so only a worker whose start-up
     hangs exits, and Docker or Heroku then restarts it. It is a timer in the
@@ -44,7 +53,7 @@ def _exit_unless_registered_within(timeout, started):
 
     import gevent
 
-    if timeout <= 0:
+    if timeout == 0:
         return None
 
     def exit_unregistered():
@@ -110,7 +119,7 @@ def main():
     )
     attach_json_logger(logging.getLogger())
 
-    configured_timeout = config.get("worker_startup_timeout")
+    configured_timeout = _checked_startup_timeout(config.get("worker_startup_timeout"))
     if configured_timeout != startup_timeout:
         if startup_watchdog is not None:
             startup_watchdog.kill()

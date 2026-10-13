@@ -462,7 +462,8 @@ Deployment Configuration
     job queue. A worker that hasn't registered by then prints what each
     greenlet was doing and exits, so Heroku or Docker restarts it. Set to 0
     to disable, for example while stepping through worker start-up in a
-    debugger. Default is 120.
+    debugger. A negative value prints a warning and the default is used.
+    Default is 120.
 
     The time is counted from process start. If the value is set in the
     worker's environment, as docker-ssh does for every config key, it
