@@ -23,11 +23,23 @@ DRIVER_MAP = {
     "chrome": webdriver.Chrome,
     "chrome_headless": webdriver.Chrome,
 }
-CAPABILITY_MAP = {
-    "firefox": webdriver.DesiredCapabilities.FIREFOX,
-    "chrome": webdriver.DesiredCapabilities.CHROME,
-    "chrome_headless": webdriver.DesiredCapabilities.CHROME,
-}
+
+
+def webdriver_options(driver_type):
+    """Return options for a ``DRIVER_MAP`` type that ask pages for reduced motion.
+
+    Bootstrap 5 scrolls smoothly unless the browser prefers reduced motion,
+    and WebDriver clicks on elements below the fold then land mid-scroll.
+    """
+    if driver_type == "firefox":
+        options = webdriver.FirefoxOptions()
+        options.set_preference("ui.prefersReducedMotion", 1)
+        return options
+    options = webdriver.ChromeOptions()
+    options.add_argument("--force-prefers-reduced-motion")
+    if driver_type == "chrome_headless":
+        options.add_argument("--headless")
+    return options
 
 
 class BotBase:
@@ -101,25 +113,18 @@ class BotBase:
         driver = None
 
         if driver_url:
-            capabilities = CAPABILITY_MAP.get(driver_type.lower())
-            if capabilities is None:
+            if driver_type.lower() not in DRIVER_MAP:
                 raise ValueError(
                     "Unsupported remote webdriver_type: {}".format(driver_type)
                 )
             driver = webdriver.Remote(
-                desired_capabilities=capabilities, command_executor=driver_url
+                command_executor=driver_url,
+                options=webdriver_options(driver_type.lower()),
             )
         else:
             driver_class = DRIVER_MAP.get(driver_type.lower())
             if driver_class is not None:
-                kwargs = {}
-                if driver_type.lower() == "chrome_headless":
-                    from selenium.webdriver.chrome.options import Options
-
-                    chrome_options = Options()
-                    chrome_options.add_argument("--headless")
-                    kwargs = {"options": chrome_options}
-                driver = driver_class(**kwargs)
+                driver = driver_class(options=webdriver_options(driver_type.lower()))
 
         if driver is None:
             raise ValueError("Unsupported webdriver_type: {}".format(driver_type))
