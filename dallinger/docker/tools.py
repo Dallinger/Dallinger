@@ -3,7 +3,7 @@ import time
 from hashlib import sha256
 from pathlib import Path
 from shutil import which
-from subprocess import CalledProcessError, check_output
+from subprocess import CalledProcessError, call, check_output
 
 import click
 import docker
@@ -41,6 +41,11 @@ def _quote_dotenv_value(value):
     """
     escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
     return f'"{escaped}"'
+
+
+def _private_opener(path, flags):
+    """Open ``path`` readable and writable by the owner only."""
+    return os.open(path, flags, 0o600)
 
 
 class DockerComposeWrapper:
@@ -118,9 +123,12 @@ class DockerComposeWrapper:
                     config=self.config,
                 )
             )
-        with open(os.path.join(self.tmp_dir, ".env"), "w") as fh:
+        dotenv_path = os.path.join(self.tmp_dir, ".env")
+        with open(dotenv_path, "w", opener=_private_opener) as fh:
             fh.write(f"COMPOSE_PROJECT_NAME={self.experiment_name}\n")
-            flask_secret_key = _quote_dotenv_value(self.env.get("FLASK_SECRET_KEY", ""))
+            flask_secret_key = _quote_dotenv_value(
+                self.env.get("FLASK_SECRET_KEY") or ""
+            )
             fh.write(f"FLASK_SECRET_KEY={flask_secret_key}\n")
             fh.write(f"UID={os.getuid()}\n")
             fh.write(f"GID={os.getgid()}\n")
@@ -153,7 +161,7 @@ class DockerComposeWrapper:
     def start(self):
         self.copy_docker_compose_files()
         build_image(self.tmp_dir, self.experiment_name, self.out, self.needs_chrome)
-        check_output("docker compose up -d".split())
+        self.run_compose(["up", "-d"])
         # Wait for postgres to complete initialization
         self.wait_postgres_ready()
         try:
@@ -195,7 +203,7 @@ class DockerComposeWrapper:
         self.stop()
 
     def stop(self):
-        os.system(f"docker compose -f '{self.tmp_dir}/docker-compose.yml' stop")
+        call(self._compose_command() + ["stop"], env=self.env)
 
     def get_container_name(self, service_name):
         """Return the name of the first container for the given service name
@@ -226,11 +234,16 @@ class DockerComposeWrapper:
         compose_commands = ["ps"]
         # Run `redis-cli ping` inside the `redis` container and return its output
         compose_commands = ["exec", "redis", "redis-cli", "ping"]
+
+        Compose prefers process variables over ``.env``, so commands run with
+        ``self.env``; otherwise a host ``FLASK_SECRET_KEY`` would replace the
+        deployment's key.
         """
-        return check_output(
-            ["docker", "compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
-            + compose_commands,
-        )
+        return check_output(self._compose_command() + compose_commands, env=self.env)
+
+    def _compose_command(self):
+        """Return the ``docker compose`` invocation for this experiment's file."""
+        return ["docker", "compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
 
 
 class DockerStartupError(click.Abort):

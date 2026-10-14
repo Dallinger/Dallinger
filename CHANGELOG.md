@@ -225,7 +225,10 @@
   clock containers again. Previously they ran with no secret key, because the
   generated `.env` file prefixed the key with a stray `$` and the compose file
   did not forward `FLASK_SECRET_KEY` to any service. The key is now quoted in
-  `.env`, so a key containing `$` or `#` also reaches the containers unchanged.
+  `.env`, so a key containing `$` or `#` also reaches the containers unchanged,
+  and an empty `FLASK_SECRET_KEY` in the host shell no longer replaces it. The
+  `.env` file is readable by its owner only, and compose refuses to start the
+  containers without a key.
 
 - A WebSocket connection waits for redis to confirm its channel subscription
   before it relays anything. A process subscribes to a channel the first time
