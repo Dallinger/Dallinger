@@ -1,4 +1,5 @@
 import importlib
+import re
 import sys
 import time
 from pathlib import Path
@@ -54,7 +55,10 @@ def test_get_docker_compose_yml_uses_app_scoped_redis():
     assert services["frontdoor"]["restart"] == "unless-stopped"
     assert services["frontdoor"]["user"] == "${UID}:${GID}"
     assert services["frontdoor"]["environment"]["XDG_DATA_HOME"] == "/state/caddy-data"
-    assert services["controller"]["image"].startswith("python:3.12-alpine@sha256:")
+    from dallinger.command_line.docker_ssh import CONTROLLER_IMAGE
+
+    assert services["controller"]["image"] == CONTROLLER_IMAGE
+    assert re.fullmatch(r"python:3\.\d+-alpine@sha256:[0-9a-f]{64}", CONTROLLER_IMAGE)
     assert services["controller"]["command"] == [
         "python",
         "/app/hibernation.py",
@@ -64,6 +68,20 @@ def test_get_docker_compose_yml_uses_app_scoped_redis():
         "./hibernation.py:/app/hibernation.py:ro" in services["controller"]["volumes"]
     )
     assert services["pgbouncer"]["healthcheck"]["test"][0] == "CMD-SHELL"
+
+
+def test_controller_image_needs_a_from_line(tmp_path):
+    from dallinger.command_line.docker_ssh import _read_controller_image
+
+    dockerfile = tmp_path / "Dockerfile.controller"
+    dockerfile.write_text("# comment\nFROM python:3.14-alpine@sha256:abc\n")
+    assert _read_controller_image(dockerfile) == "python:3.14-alpine@sha256:abc"
+
+    dockerfile.write_text("# FROM python:3.14-alpine\n")
+    with pytest.raises(RuntimeError, match="FROM line"):
+        _read_controller_image(dockerfile)
+    with pytest.raises(RuntimeError, match="Dockerfile.controller"):
+        _read_controller_image(None)
 
 
 def test_tunnel_compose_has_isolated_postgres_and_no_published_ports():
@@ -818,6 +836,8 @@ def frontdoor(tmp_path):
     import urllib.error
     import urllib.request
 
+    from dallinger.command_line.docker_ssh import CONTROLLER_IMAGE
+
     if not shutil.which("docker"):
         pytest.skip("docker is required to exercise the front door")
     (tmp_path / "echo.py").write_text(ECHO_SERVER)
@@ -835,7 +855,7 @@ def frontdoor(tmp_path):
             _docker(
                 *("run", "-d", "--rm", "--name", names[-1], "--network", net),
                 *("--network-alias", alias, "-e", f"PORT={port}", "-e", f"ROLE={role}"),
-                *("-v", f"{tmp_path / 'echo.py'}:/echo.py:ro", "python:3.12-alpine"),
+                *("-v", f"{tmp_path / 'echo.py'}:/echo.py:ro", CONTROLLER_IMAGE),
                 *("python", "/echo.py"),
             )
         names.append(f"{net}-frontdoor")
