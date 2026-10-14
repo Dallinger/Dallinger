@@ -29,7 +29,7 @@ If you have these already created you can remove the existing ones and recreate 
 
     # Needed if you want to recreate containers (named volumes are kept)
     docker rm -f dallinger_redis
-    docker rm -f dallinger_postgres
+    docker stop dallinger_postgres && docker rm dallinger_postgres
 
 or you can start the containers you have:
 
@@ -40,7 +40,7 @@ or you can start the containers you have:
 
 A ``dallinger_postgres`` container created before Dallinger started passing
 ``-c jit=off`` keeps JIT on when started this way. To turn JIT off, run
-``docker rm -f dallinger_postgres`` and then the ``docker run`` command above.
+``docker stop dallinger_postgres && docker rm dallinger_postgres`` and then the ``docker run`` command above.
 
 Start adminer:
 

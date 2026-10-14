@@ -229,6 +229,7 @@ def test_postgres_services_disable_jit(tmp_path):
         postgres = compose["services"]["postgresql"]
         assert postgres["command"] == "postgres -c jit=off"
         assert postgres["healthcheck"]["start_period"] == "300s"
+        assert postgres["healthcheck"]["retries"] == 15
         assert postgres["stop_grace_period"] == "60s"
 
 

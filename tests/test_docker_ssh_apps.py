@@ -995,6 +995,20 @@ def test_start_server_services_waits_only_for_postgres():
     assert commands[-1].endswith("--wait --wait-timeout 360 postgresql")
 
 
+def test_failed_server_command_prints_server_stack_logs(capsys):
+    executor = object.__new__(docker_ssh_module.Executor)
+    executor.app, executor.host = "demo", "host"
+    executor._run_with_status = mock.Mock(
+        side_effect=[(1, "", "postgresql is unhealthy"), (0, "recovery log", "")]
+    )
+    with pytest.raises(docker_ssh_module.ExecuteException):
+        executor.run(f"{docker_ssh_module.SERVER_COMPOSE} up -d --wait postgresql")
+    assert executor._run_with_status.call_args.args[0].startswith(
+        f"{docker_ssh_module.SERVER_COMPOSE} logs"
+    )
+    assert "recovery log" in capsys.readouterr().out
+
+
 def test_write_experiment_compose_env_appends_ids_and_creates_home_dirs(tmp_path):
     app_dir = tmp_path / "dallinger" / "demo"
     app_dir.mkdir(parents=True)

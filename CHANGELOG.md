@@ -88,28 +88,16 @@
   Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 - The ``deployment-files`` CLI tests no longer use Click's deprecated
   ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
-- The PostgreSQL containers that Dallinger runs (docker-ssh shared and
-  per-app databases, ``docker debug``, and ``docker start-services``) now
-  start with ``jit = off``. As a database grows, frequent short queries can
-  cross PostgreSQL's JIT cost thresholds, and JIT compilation then adds
-  hundreds of milliseconds of CPU to every execution. For Cloudflare-ingress
-  apps, each app's own PostgreSQL container is recreated on that app's next
-  deploy. For classic ingress, the next classic deploy on a server recreates
-  the shared server PostgreSQL once, briefly interrupting all classic apps on
-  that server, so do that first post-upgrade deploy when no classic experiment
-  is live. Data volumes are kept. Classic deploys now wait for the shared
-  PostgreSQL service specifically to pass its healthcheck before creating
-  databases. The docker-ssh and ``docker debug`` PostgreSQL healthchecks
-  ignore failed checks for the first 300 seconds, so slow crash recovery
-  doesn't fail the wait (classic deploys wait up to 6 minutes), and PostgreSQL gets 60 seconds to shut down cleanly
-  when its container is recreated. An already-running ``dallinger_postgres``
-  container from ``dallinger docker start-services`` keeps JIT on until you
-  run ``stop-services`` and then ``start-services`` (the volume is kept); a
-  container restarted with ``docker start dallinger_postgres`` also keeps JIT
-  on until it is recreated. A heavy
-  analytic query on a live database can still enable JIT for its session with
-  ``SET jit = on``. Heroku Postgres is unchanged; to disable JIT there, run
-  ``ALTER DATABASE <name> SET jit = off``.
+- Dallinger's Docker PostgreSQL containers (docker-ssh, ``docker debug`` and
+  ``docker start-services``) now run with ``jit = off``, because JIT
+  compilation slows down the short queries that experiments make. The next
+  classic docker-ssh deploy on each server recreates the shared PostgreSQL
+  once, keeping its data but briefly interrupting every classic app on that
+  server, so make that deploy when no classic experiment is live. Classic
+  deploys now wait up to 6 minutes for the shared PostgreSQL to become
+  healthy. To turn JIT off in an existing local ``dallinger_postgres``
+  container, run ``dallinger docker stop-services`` and then
+  ``start-services``; the data volume is kept.
 
 ### Fixed
 
