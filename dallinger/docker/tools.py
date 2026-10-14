@@ -80,6 +80,7 @@ class DockerComposeWrapper:
         self.out = output
         self.verbose = verbose
         self.env = env if env is not None else os.environ.copy()
+        self.env["FLASK_SECRET_KEY"] = self.env.get("FLASK_SECRET_KEY") or ""
         self.tmp_dir = tmp_dir
         self.original_dir = original_dir
         self.experiment_name = Path(self.original_dir).name
@@ -125,10 +126,9 @@ class DockerComposeWrapper:
             )
         dotenv_path = os.path.join(self.tmp_dir, ".env")
         with open(dotenv_path, "w", opener=_private_opener) as fh:
+            os.fchmod(fh.fileno(), 0o600)
             fh.write(f"COMPOSE_PROJECT_NAME={self.experiment_name}\n")
-            flask_secret_key = _quote_dotenv_value(
-                self.env.get("FLASK_SECRET_KEY") or ""
-            )
+            flask_secret_key = _quote_dotenv_value(self.env["FLASK_SECRET_KEY"])
             fh.write(f"FLASK_SECRET_KEY={flask_secret_key}\n")
             fh.write(f"UID={os.getuid()}\n")
             fh.write(f"GID={os.getgid()}\n")

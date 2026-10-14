@@ -308,9 +308,11 @@ def test_docker_debug_containers_get_the_deployment_flask_secret_key(tmp_path):
 
     exp_dir = make_experiment_tmp_dir(tmp_path)
     deployment = DockerDebugDeployment(mock.Mock(), False, False, None, {})
+    dotenv_path = exp_dir / ".env"
+    dotenv_path.touch()
+    dotenv_path.chmod(0o644)
     make_docker_debug_wrapper(exp_dir, deployment.environ).copy_docker_compose_files()
 
-    dotenv_path = exp_dir / ".env"
     key = deployment.environ["FLASK_SECRET_KEY"]
     assert f'FLASK_SECRET_KEY="{key}"' in dotenv_path.read_text().splitlines()
     assert dotenv_path.stat().st_mode & 0o777 == 0o600
@@ -346,6 +348,7 @@ def test_docker_debug_dotenv_treats_a_none_secret_key_as_empty(tmp_path):
     wrapper = make_docker_debug_wrapper(exp_dir, {"FLASK_SECRET_KEY": None})
     wrapper.copy_docker_compose_files()
     assert 'FLASK_SECRET_KEY=""' in (exp_dir / ".env").read_text().splitlines()
+    assert wrapper.env["FLASK_SECRET_KEY"] == ""
 
 
 def test_custom_dockerfile_reinstalls_a_staged_local_wheel(tmp_path):
