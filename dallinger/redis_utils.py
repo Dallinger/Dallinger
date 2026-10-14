@@ -16,6 +16,15 @@ def connect_to_redis(url=None):
     If a URL is supplied, it will be used, otherwise an environment variable
     is checked before falling back to a default.
 
+    Each client gets its own waiting pool of up to ``MAX_CONNECTIONS``
+    connections. When they are all in use, a caller waits up to
+    ``CONNECTION_TIMEOUT_SECS`` for one to be released before redis-py raises
+    ``ConnectionError``.
+
+    The pool uses gevent's queue if ``threading`` is already monkey-patched
+    when this function is called. ``dallinger.db`` calls it at import, so
+    ``gevent.monkey.patch_all()`` must run before ``dallinger.db`` is imported.
+
     Since we are generally running on Heroku, and configuring SSL certificates
     is challenging, we disable cert requirements on secure connections.
     """

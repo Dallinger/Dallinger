@@ -48,7 +48,7 @@ def redis(pubsub):
 def sockets(redis):
     from dallinger.experiment_server import sockets
 
-    sockets.redis_conn = redis
+    sockets.redis_conn = sockets.pubsub_conn = redis
     # use a separate ChatBackend for each test
     sockets.chat_backend = sockets.ChatBackend()
     sockets._process_experiment = None
@@ -176,7 +176,7 @@ class TestChannel:
         pubsub.subscribe.assert_called_once_with([b"custom"])
 
     def test_listen(self, sockets, mockclient):
-        sockets.redis_conn.pubsub.return_value = pubsub = Mock()
+        sockets.pubsub_conn.pubsub.return_value = pubsub = Mock()
         pubsub.listen.return_value = [
             {"type": "message", "channel": b"quorum", "data": b"Calloo! Callay!"}
         ]
@@ -460,7 +460,7 @@ class TestChannel:
         monkeypatch.setattr(
             gevent.get_hub(), "handle_error", lambda *args: errors.append(args)
         )
-        sockets.redis_conn.pubsub.return_value = pubsub = Mock()
+        sockets.pubsub_conn.pubsub.return_value = pubsub = Mock()
         pubsub.listen.return_value = [
             {"type": "message", "channel": b"quorum", "data": b"Calloo! Callay!"}
         ]

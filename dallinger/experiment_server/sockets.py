@@ -26,11 +26,17 @@ from dallinger.db import (
     redis_conn,
     session,
 )
+from dallinger.redis_utils import connect_to_redis
 
 from .experiment_server import Experiment, app
 from .utils import date_handler
 
 sock = Sock(app)
+
+#: Channel listeners hold a connection each for as long as their channel has
+#: clients, so they get their own pool. Otherwise enough busy channels would
+#: make every other Redis call in the process wait for a free connection.
+pubsub_conn = connect_to_redis()
 
 # Send a ping on the websocket channel every 25 seconds
 app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
@@ -215,7 +221,7 @@ class Channel:
             )
             return
         payload = "{}:{}".format(channel, data)
-        for client in list(self.clients):
+        for client in self.clients:
             gevent.spawn(self._relay, client, payload)
 
     def listen(self):
@@ -240,7 +246,7 @@ class Channel:
         refused, so the listener ends and ``ChatBackend.forget`` drops the
         channel. ``rebuilds_on_protocol_error`` rebuilds even then.
         """
-        pubsub = redis_conn.pubsub()
+        pubsub = pubsub_conn.pubsub()
         name = self.name
         if isinstance(name, str):
             name = name.encode("utf-8")
@@ -294,7 +300,7 @@ class Channel:
                         # ``close()`` disconnects, so the new pubsub starts on
                         # a fresh stream.
                         self._close(pubsub)
-                        pubsub = redis_conn.pubsub()
+                        pubsub = pubsub_conn.pubsub()
                         subscribed = False
                     if reported:
                         app.logger.warning(template.format(self.name, delay))
@@ -316,9 +322,10 @@ class Channel:
         or skip ``ChatBackend.forget``."""
         try:
             pubsub.close()
-        except Exception:
-            app.logger.warning(
-                "Could not close redis channel {}.".format(self.name), exc_info=True
+        except Exception as error:
+            log(
+                "Could not close redis channel {}: {!r}".format(self.name, error),
+                level="warning",
             )
 
     @staticmethod

@@ -12,15 +12,17 @@ def test_connections_wait_for_a_free_slot_instead_of_failing(monkeypatch):
     # The client owns its pool and closes it when garbage-collected.
     client = connect_to_redis("redis://localhost:6379")
     try:
-        client.ping()
-    except redis.ConnectionError:
-        pytest.skip("Redis is not running")
-    pool = client.connection_pool
-    held = pool.get_connection()
-    threading.Timer(0.2, pool.release, args=[held]).start()
+        try:
+            client.ping()
+        except redis.ConnectionError:
+            pytest.skip("Redis is not running")
+        pool = client.connection_pool
+        held = pool.get_connection()
+        threading.Timer(0.2, pool.release, args=[held]).start()
 
-    assert pool.get_connection() is held
-    client.close()
+        assert pool.get_connection() is held
+    finally:
+        client.close()
 
 
 @pytest.mark.parametrize("patched", [False, True])
