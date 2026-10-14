@@ -74,6 +74,10 @@ button#refresh:after {
     height: 500px;
     border: 1px solid lightgray;
 }
+#element-details .btn-close {
+    float: right;
+}
+
 #element-details {
     box-sizing: border-box;
     background-color: #f8f9fa;
