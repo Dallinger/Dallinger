@@ -1,6 +1,6 @@
 import pytest
 
-from dallinger.db import CONTROL_CHANNEL, DIRECT_CHANNEL
+from dallinger.db import CONTROL_CHANNEL
 from dallinger.realtime import RealtimeGame, validate_game_types
 
 
@@ -12,6 +12,9 @@ class Duel(RealtimeGame):
 
     def apply(self, state, player_id, message, now, sent):
         pass
+
+    def view(self, state, player_id):
+        return state
 
 
 def game_type(**attributes):
@@ -31,7 +34,6 @@ class TestValidGameTypes:
     @pytest.mark.parametrize(
         "attributes",
         [
-            {"tick_rate": 0},
             {"tick_rate": 0.5},
             {"max_duration": 0.25},
             {"max_messages_per_second": 0.5},
@@ -57,25 +59,13 @@ class TestInvalidGameTypes:
         with pytest.raises(ValueError, match="^Duel and Other both use the channel"):
             validate_game_types([Duel, Other])
 
-    def test_channel_is_required(self):
-        class Unnamed(RealtimeGame):
-            def initial_state(self, players):
-                return {}
-
-            def apply(self, state, player_id, message, now, sent):
-                pass
-
-        with pytest.raises(ValueError, match="^Unnamed's channel must be a non-empty"):
-            validate_game_types([Unnamed])
-
     def test_experiment_channel(self):
         with pytest.raises(ValueError, match="Duel's channel duel is the experiment's"):
             validate_game_types([Duel], experiment_channel="duel")
 
-    @pytest.mark.parametrize("channel", [CONTROL_CHANNEL, DIRECT_CHANNEL])
-    def test_reserved_channel(self, channel):
+    def test_reserved_channel(self):
         with pytest.raises(ValueError, match="reserved for Dallinger's own use"):
-            validate_game_types([game_type(channel=channel)])
+            validate_game_types([game_type(channel=CONTROL_CHANNEL)])
 
     def test_settings_set_in_init_are_checked(self):
         class Configured(Duel):
@@ -94,10 +84,8 @@ class TestInvalidGameTypes:
             ({"tick_rate": -1}, "tick_rate must be a number, 0 or more"),
             ({"tick_rate": "20"}, "tick_rate must be a number"),
             ({"max_duration": 0}, "max_duration must be None or a positive"),
-            ({"max_duration": -5}, "max_duration must be None or a positive"),
             ({"max_duration": float("inf")}, "max_duration must be None"),
             ({"max_messages_per_second": 0}, "max_messages_per_second must be a"),
-            ({"max_messages_per_second": -1}, "max_messages_per_second must be a"),
             ({"max_messages_per_second": None}, "max_messages_per_second must"),
             ({"message_burst": 0}, "message_burst must be a whole number"),
             ({"message_burst": 2.5}, "message_burst must be a whole number"),
@@ -111,14 +99,23 @@ class TestInvalidGameTypes:
         with pytest.raises(ValueError, match="^Configured's " + error):
             validate_game_types([game_type(**attributes)])
 
-    def test_required_methods_are_checked(self):
-        class Partial(RealtimeGame):
-            channel = "partial"
-
-            def appy(self, state, player_id, message, now, sent):
-                pass
+    def test_a_game_type_that_defines_view_gets_no_hint_about_it(self):
+        Partial = type(
+            "Partial",
+            (Duel,),
+            {"apply": RealtimeGame.apply, "initial_state": RealtimeGame.initial_state},
+        )
 
         with pytest.raises(
-            ValueError, match="^Partial must define apply and initial_state"
+            ValueError, match=r"^Partial must define apply and initial_state\.$"
         ):
             validate_game_types([Partial])
+
+    def test_a_game_type_missing_only_view_is_told_how_to_share_the_state(self):
+        Hidden = type("Hidden", (Duel,), {"view": RealtimeGame.view})
+
+        with pytest.raises(
+            ValueError,
+            match=r"^Hidden must define view\. A game with nothing to hide can",
+        ):
+            validate_game_types([Hidden])

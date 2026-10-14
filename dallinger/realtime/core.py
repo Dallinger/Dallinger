@@ -24,14 +24,8 @@ pass's messages with the status ``"failed"``, and ends with the reason
 """
 
 import json
-import logging
 import math
-import os
-import signal
-import threading
-import time
 import traceback
-from contextlib import contextmanager
 from dataclasses import dataclass
 
 from dallinger.realtime.game import (
@@ -42,6 +36,8 @@ from dallinger.realtime.game import (
     Sent,
     queued_effects,
 )
+from dallinger.realtime.time_limit import TimeLimitExceeded, time_limits
+from dallinger.realtime.utils import copy_json, dump_json, is_int
 
 #: Seconds on the session clock between checkpoints of the state.
 CHECKPOINT_INTERVAL = 5
@@ -52,6 +48,9 @@ MAX_BOT_ROUNDS = 1000
 
 # Envelope numbers are recorded in a Postgres integer column.
 _MAX_NUMBER = 2**31 - 1
+
+# What game code or the core can raise that fails a session.
+_FAILURES = (Exception, TimeLimitExceeded)
 
 
 @dataclass
@@ -107,10 +106,10 @@ def new_session(game, members, bots=()):
     bots = [str(bot) for bot in bots]
     if not set(bots) <= set(members):
         raise ValueError("Every bot must be a member.")
-    return _dump(
+    return dump_json(
         {
             "state_version": game.state_version,
-            "state": _copy(
+            "state": copy_json(
                 game.initial_state(list(members)),
                 "{}.initial_state's return value".format(type(game).__name__),
             ),
@@ -146,106 +145,13 @@ def run_pass(game, saved, entries, now, clock, time_limit=None):
         in the main thread.
     :returns: a :class:`PassResult`
     """
-    with _time_limits(time_limit) as new_guard:
-        played = _Pass(game, saved, now, clock, new_guard)
+    with time_limits(time_limit) as new_budget:
+        played = _Pass(game, saved, now, clock, new_budget)
         try:
             return played.run(entries)
-        except (Exception, TimeLimitExceeded) as error:
-            failed = _Pass(game, saved, now, clock, new_guard)
-            return failed.fail(entries, error, migrate=not played.migrating)
-
-
-class TimeLimitExceeded(BaseException):
-    """Raised in game code that runs past the session's time limit.
-
-    It isn't an :class:`Exception`, so game code that catches every
-    ``Exception`` doesn't catch it.
-    """
-
-
-logger = logging.getLogger(__name__)
-
-#: How long the timer keeps raising in game code that catches its exception
-#: and carries on, as a multiple of the time limit, before it ends the process.
-#: Only a loop that catches every exception gets that far, and nothing in the
-#: process can stop it.
-GIVE_UP_AFTER = 2
-
-# While game code runs past its limit, the timer raises again at this interval.
-_REPEAT = 0.05
-
-# While a time limit is running: the message to raise, and the clock time to
-# give up at.
-_running = None
-
-
-@contextmanager
-def _time_limits(seconds):
-    """Yield a function that makes a guard for one time budget."""
-    if seconds is None:
-        yield lambda: _call
-        return
-    if threading.current_thread() is not threading.main_thread():
-        raise RuntimeError("A time limit only works in the main thread.")
-    previous = signal.signal(signal.SIGALRM, _time_out)
-    try:
-        yield lambda: _TimeLimit(seconds)
-    finally:
-        signal.signal(signal.SIGALRM, previous)
-
-
-class _TimeLimit:
-    """Calls the game's methods, giving them ``seconds`` in total."""
-
-    def __init__(self, seconds):
-        self.seconds = seconds
-        self.remaining = seconds
-
-    def __call__(self, what, method, *args):
-        global _running
-        message = "{} was running when the session used up its {} seconds.".format(
-            what, self.seconds
-        )
-        if self.remaining <= 0:
-            raise TimeLimitExceeded(message)
-        started = time.monotonic()
-        give_up = started + self.remaining + (GIVE_UP_AFTER - 1) * self.seconds
-        _running = (message, give_up)
-        signal.setitimer(signal.ITIMER_REAL, self.remaining, _REPEAT)
-        try:
-            result = method(*args)
-        finally:
-            _stop_timer()
-            self.remaining -= time.monotonic() - started
-        return result
-
-
-def _stop_timer():
-    global _running
-    while True:
-        # A signal that arrives before the timer stops raises in here.
-        try:
-            signal.setitimer(signal.ITIMER_REAL, 0)
-            _running = None
-            return
-        except TimeLimitExceeded:
-            pass
-
-
-def _time_out(signum, frame):
-    if _running is None:
-        return
-    message, give_up = _running
-    if time.monotonic() >= give_up:
-        logger.critical(
-            "%s It caught every exception, so the runner is exiting.", message
-        )
-        os._exit(1)
-    raise TimeLimitExceeded(message)
-
-
-def _call(what, method, *args):
-    return method(*args)
+        except _FAILURES as error:
+            failed = _Pass(game, played.saved, now, clock, new_budget)
+            return failed.fail(entries, error)
 
 
 def parse_message(data):
@@ -270,7 +176,7 @@ def parse_message(data):
         envelope = value["envelope"]
         number = envelope.get("number")
         return value["payload"], Sent(
-            number=number if _is_int(number) and 0 <= number <= _MAX_NUMBER else None,
+            number=number if is_int(number) and 0 <= number <= _MAX_NUMBER else None,
             browser_time=_time(envelope.get("browser_time")),
             view_time=_time(envelope.get("view_time")),
         )
@@ -290,10 +196,6 @@ def _finite_float(text):
     return value
 
 
-def _is_int(value):
-    return isinstance(value, int) and not isinstance(value, bool)
-
-
 def _time(value):
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         try:
@@ -303,34 +205,26 @@ def _time(value):
     return None
 
 
-def _dump(value):
-    return json.dumps(value, allow_nan=False)
-
-
-def _round_trip(value):
-    return json.loads(_dump(value))
-
-
-def _copy(value, what):
-    """Round-trip a value game code handed over, naming it if it isn't JSON."""
-    try:
-        return _round_trip(value)
-    except (TypeError, ValueError) as error:
-        raise ValueError("{} isn't JSON: {}".format(what, error)) from error
+def _read_message(entry):
+    payload, sent = parse_message(entry["data"])
+    return entry["participant"], entry["scope"], payload, sent, entry["received"]
 
 
 class _Pass:
-    def __init__(self, game, saved, now, clock, new_guard):
+    def __init__(self, game, saved, now, clock, new_budget):
         self.game = game
         self.name = type(game).__name__
+        # Names the state when the session fails to dump. Everything else in
+        # the session is already JSON, so only the state can fail.
+        self.state_name = "{}'s state".format(self.name)
         self.saved = saved
         self.session = session = json.loads(saved)
         self.state = session["state"]
         self.time = session["time"]
         self.now = max(now, self.time)
         self.clock = clock
-        self.new_guard = new_guard
-        self.guard = new_guard()
+        self.new_budget = new_budget
+        self.budget = new_budget()
         self.pages = {
             (page["participant"], page["scope"]): page for page in session["pages"]
         }
@@ -339,17 +233,21 @@ class _Pass:
         self.ticked = False
         self.end_reason = None
         self.failed = False
-        self.migrating = False
 
     def run(self, entries):
         session = self.session
         if session["ended"] is not None:
             return PassResult(self.saved, [], [], None)
-        before = self.dump(self.state) if not self.game.tick_rate else None
+        before = (
+            dump_json(self.state, self.state_name) if not self.game.tick_rate else None
+        )
         if session["state_version"] != self.game.state_version:
-            self.migrating = True
-            self.migrate()
-            self.migrating = False
+            self.state = session["state"] = self.call(
+                "migrate_state", self.state, session["state_version"], returns=True
+            )
+            session["state_version"] = self.game.state_version
+            # A pass that fails after this starts again from the migrated session.
+            self.saved = dump_json(session, self.state_name)
         if not session["started"]:
             session["started"] = True
             if not self.game.tick_rate:
@@ -380,32 +278,28 @@ class _Pass:
                 self.handle(entry)
                 entry = next(pending, None)
 
-        changed = before is not None and self.dump(self.state) != before
+        changed = before is not None and (
+            dump_json(self.state, self.state_name) != before
+        )
         if self.end_reason is not None:
             self.end()
         else:
             self.time = self.now
             if self.time >= session["next_checkpoint"]:
-                self.record("checkpoint", state=self.state)
+                self.add_record("checkpoint", state=self.state)
                 session["next_checkpoint"] = self.time + CHECKPOINT_INTERVAL
-        return self.result(
+        return self.finish(
             everyone=self.ticked or changed or self.end_reason is not None
         )
 
-    def fail(self, entries, error, migrate):
+    def fail(self, entries, error):
         """End the session at its state from before the pass.
 
         The pass's messages are recorded as failed and its joins and leaves
         open and close pages, up to where the pass would have stopped. No game
-        code runs except ``migrate_state``, unless it's what failed, and
-        ``outcome`` and ``view`` for the ending.
+        code runs except ``outcome`` and ``view`` for the ending.
         """
         self.failed = True
-        if migrate and self.session["state_version"] != self.game.state_version:
-            try:
-                self.migrate()
-            except (Exception, TimeLimitExceeded):
-                pass
         limit = self.game.max_duration
         for entry in entries:
             self.time = self.entry_time(entry)
@@ -413,10 +307,9 @@ class _Pass:
             if kind == "end" or (limit is not None and self.time >= limit):
                 break
             if kind == "message":
-                payload, sent = parse_message(entry["data"])
-                participant, scope = entry["participant"], entry["scope"]
+                participant, scope, payload, sent, received = _read_message(entry)
                 record = self.record_message(
-                    participant, scope, payload, sent, entry["received"], "failed"
+                    participant, scope, payload, sent, received, "failed"
                 )
                 self.note_processed(participant, scope, sent, record)
             elif kind == "join":
@@ -426,38 +319,20 @@ class _Pass:
         self.time = self.now
         self.end_reason = FAILED
         self.end(error="".join(traceback.format_exception(error)))
-        return self.result(everyone=True)
-
-    def migrate(self):
-        session = self.session
-        self.state = session["state"] = self.call(
-            "migrate_state", self.state, session["state_version"], returns=True
-        )
-        session["state_version"] = self.game.state_version
+        return self.finish(everyone=True)
 
     def entry_time(self, entry):
         return min(max(entry["time"], self.time), self.now)
 
-    def result(self, everyone):
+    def finish(self, everyone):
         self.session["time"] = self.now
-        views = self.views(everyone)
-        saved = self.dump(self.session)
-        result = _round_trip({"records": self.records, "ended": self.session["ended"]})
-        return PassResult(saved, views, result["records"], result["ended"])
-
-    def dump(self, value):
-        """Dump the state, or the session holding it. Everything else in the
-        session is already JSON, so only the state can fail.
-        """
-        try:
-            return _dump(value)
-        except (TypeError, ValueError) as error:
-            raise ValueError(
-                "{}'s state isn't JSON: {}".format(self.name, error)
-            ) from error
+        views = self.page_views(everyone)
+        saved = dump_json(self.session, self.state_name)
+        copied = copy_json({"records": self.records, "ended": self.session["ended"]})
+        return PassResult(saved, views, copied["records"], copied["ended"])
 
     def call(self, name, *args, with_effects=False, returns=False):
-        """Call the game's method ``name`` through the guard.
+        """Call the game's method ``name`` within the time budget.
 
         A call ``with_effects`` saves the effects it queues, unless it raises.
         A call that ``returns`` a value the session keeps or sends gets a
@@ -469,15 +344,15 @@ class _Pass:
             effects = []
             token = queued_effects.set(effects)
             try:
-                result = self.guard(what, method, *args)
+                result = self.budget.run(what, method, *args)
             finally:
                 queued_effects.reset(token)
             for effect, payload in effects:
-                self.record("effect", name=effect, payload=payload)
+                self.add_record("effect", name=effect, payload=payload)
         else:
-            result = self.guard(what, method, *args)
+            result = self.budget.run(what, method, *args)
         if returns:
-            result = _copy(result, "{}'s return value".format(what))
+            result = copy_json(result, "{}'s return value".format(what))
         return result
 
     def value_of(self, name, *args):
@@ -492,10 +367,10 @@ class _Pass:
             return None
         try:
             return self.call(name, *args, returns=True)
-        except (Exception, TimeLimitExceeded):
+        except _FAILURES:
             return None
 
-    def record(self, type, **fields):
+    def add_record(self, type, **fields):
         self.session["record_number"] += 1
         record = {
             "sequence": self.session["record_number"],
@@ -541,10 +416,7 @@ class _Pass:
             self.end_reason = reason
             return
         if kind == "message":
-            payload, sent = parse_message(entry["data"])
-            self.apply(
-                entry["participant"], entry["scope"], payload, sent, entry["received"]
-            )
+            self.apply(*_read_message(entry))
         elif kind == "join":
             self.join(entry["participant"], entry["scope"])
         elif kind == "leave":
@@ -570,7 +442,7 @@ class _Pass:
             )
         except Reject as rejection:
             record["status"] = "rejected"
-            record["reason"] = _copy(
+            record["reason"] = copy_json(
                 rejection.reason, "{}.apply's Reject reason".format(self.name)
             )
         self.note_processed(participant, scope, sent, record)
@@ -578,12 +450,12 @@ class _Pass:
         return record["status"] == "accepted"
 
     def record_message(self, participant, scope, payload, sent, received, status):
-        return self.record(
+        return self.add_record(
             "message",
             participant=participant,
             scope=scope,
             # Copied first, since apply may keep the payload and change it.
-            payload=_round_trip(payload),
+            payload=copy_json(payload),
             number=sent.number,
             browser_time=sent.browser_time,
             view_time=sent.view_time,
@@ -708,7 +580,7 @@ class _Pass:
         outcome = self.value_of("outcome", self.state, self.end_reason)
         if self.failed:
             # A slow outcome doesn't cost the players their final views.
-            self.guard = self.new_guard()
+            self.budget = self.new_budget()
         bots = set(self.session["bots"])
         self.session["ended"] = {
             "time": self.time,
@@ -721,7 +593,7 @@ class _Pass:
             },
             "error": error,
         }
-        self.record(
+        self.add_record(
             "end",
             reason=self.end_reason,
             outcome=outcome,
@@ -729,7 +601,7 @@ class _Pass:
             error=error,
         )
 
-    def views(self, everyone):
+    def page_views(self, everyone):
         session = self.session
         pages = [
             page
@@ -751,7 +623,7 @@ class _Pass:
                 )
             view = player_views[participant]
             if participant in shown:
-                view = _round_trip(view)
+                view = copy_json(view)
             shown.add(participant)
             views.append(
                 {

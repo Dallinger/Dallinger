@@ -20,14 +20,12 @@ as keys in the state's dicts. Times are seconds on the session's own clock,
 which starts at 0 and stops while no runner is playing the session.
 """
 
-import json
-import math
-import numbers
 from abc import ABC, abstractmethod
 from contextvars import ContextVar
 from dataclasses import dataclass
 
 from dallinger.db import RESERVED_CHANNELS
+from dallinger.realtime.utils import copy_json, is_number
 
 #: The reason passed to :meth:`RealtimeGame.outcome` when
 #: :meth:`~RealtimeGame.is_over` returned true.
@@ -79,8 +77,8 @@ class Sent:
 class RealtimeGame(ABC):
     """Base class for real-time game types.
 
-    A game type sets :attr:`channel` and implements :meth:`initial_state` and
-    :meth:`apply`. Every other method has a default.
+    A game type sets :attr:`channel` and implements :meth:`initial_state`,
+    :meth:`apply` and :meth:`view`. Every other method has a default.
 
     Methods get the session's ``state``, and ``now``, the current session
     time. :meth:`apply`, :meth:`tick`, :meth:`on_join` and :meth:`on_leave`
@@ -182,13 +180,15 @@ class RealtimeGame(ABC):
         """
         return None
 
+    @abstractmethod
     def view(self, state, player_id):
         """Return what ``player_id`` may see of ``state``.
 
-        The default is the whole state. Override it to hide anything from a
-        player.
+        The view is sent to the player's browser, where they can read all of
+        it, so leave out anything they shouldn't know, such as other players'
+        cards. A game with nothing to hide can return ``state``. A smaller
+        view is also quicker to send.
         """
-        return state
 
     def is_over(self, state):
         """Return whether the game has finished. Checked after every change
@@ -243,7 +243,8 @@ class RealtimeGame(ABC):
         of the game type, such as after a redeploy during the session. That
         can be a newer version, if a deploy is rolled back. Raise for a
         version you don't recognize, which fails the session. By default every
-        other version fails the session.
+        other version fails the session. A session that fails later in the
+        same pass keeps the converted state.
 
         :param from_version: the :attr:`state_version` ``state`` was saved
             with
@@ -274,11 +275,13 @@ class RealtimeGame(ABC):
                 "queue_effect only works in apply, tick, on_join and on_leave, "
                 "called by a runner."
             )
-        effects.append((name, json.loads(json.dumps(payload, allow_nan=False))))
+        effects.append((name, copy_json(payload, "queue_effect's payload")))
 
 
-def _is_number(value):
-    return isinstance(value, numbers.Real) and math.isfinite(value)
+def _and(names):
+    if len(names) == 1:
+        return names[0]
+    return "{} and {}".format(", ".join(names[:-1]), names[-1])
 
 
 def _check_game(name, game):
@@ -294,15 +297,15 @@ def _check_game(name, game):
         raise ValueError(
             "{}'s channel {} is reserved for Dallinger's own use.".format(name, channel)
         )
-    if not _is_number(game.tick_rate) or game.tick_rate < 0:
+    if not is_number(game.tick_rate) or game.tick_rate < 0:
         raise ValueError("{}'s tick_rate must be a number, 0 or more.".format(name))
     if game.max_duration is not None and (
-        not _is_number(game.max_duration) or game.max_duration <= 0
+        not is_number(game.max_duration) or game.max_duration <= 0
     ):
         raise ValueError(
             "{}'s max_duration must be None or a positive number.".format(name)
         )
-    if not _is_number(game.max_messages_per_second) or (
+    if not is_number(game.max_messages_per_second) or (
         game.max_messages_per_second <= 0
     ):
         raise ValueError(
@@ -312,7 +315,7 @@ def _check_game(name, game):
         raise ValueError(
             "{}'s message_burst must be a whole number, 1 or more.".format(name)
         )
-    if not _is_number(game.time_limit) or not 0 < game.time_limit <= 60:
+    if not is_number(game.time_limit) or not 0 < game.time_limit <= 60:
         raise ValueError(
             "{}'s time_limit must be a positive number, at most 60.".format(name)
         )
@@ -334,7 +337,7 @@ def validate_game_types(game_types, experiment_channel=None):
     :param experiment_channel: the experiment's own ``channel``, if it has one
     :returns: a dict mapping each channel to its game type's instance
     :raises ValueError: if a game type isn't a :class:`RealtimeGame`
-        subclass, doesn't define ``initial_state`` and ``apply``, or has an
+        subclass, doesn't define ``initial_state``, ``apply`` and ``view``, or has an
         invalid setting, or if two game types, or a game type and the
         experiment, share a channel
     """
@@ -343,12 +346,12 @@ def validate_game_types(game_types, experiment_channel=None):
         if not (isinstance(game_type, type) and issubclass(game_type, RealtimeGame)):
             raise ValueError("{!r} is not a RealtimeGame subclass.".format(game_type))
         name = game_type.__name__
-        if game_type.__abstractmethods__:
-            raise ValueError(
-                "{} must define {}.".format(
-                    name, " and ".join(sorted(game_type.__abstractmethods__))
-                )
-            )
+        missing = sorted(game_type.__abstractmethods__)
+        if missing:
+            error = "{} must define {}.".format(name, _and(missing))
+            if "view" in missing:
+                error += " A game with nothing to hide can return state from view."
+            raise ValueError(error)
         game = game_type()
         _check_game(name, game)
         if experiment_channel is not None and game.channel == experiment_channel:

@@ -134,6 +134,17 @@ class TestFailure:
 
         assert "{} isn't JSON".format(named) in error(result)
 
+    def test_an_effect_payload_that_is_not_json_fails_naming_queue_effect(self):
+        class Leaky(TurnTally):
+            def apply(self, state, player_id, message, now, sent):
+                self.queue_effect("scored", {1, 2})
+
+        game = Leaky()
+
+        result = play(game, started(game), [message(1, "1", "a")], 1)
+
+        assert "queue_effect's payload isn't JSON" in error(result)
+
     def test_an_initial_state_that_is_not_json_raises_naming_its_method(self):
         game = type("Bad", (TurnTally,), {"initial_state": lambda self, p: {1, 2}})()
 
