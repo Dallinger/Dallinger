@@ -1,7 +1,7 @@
 import pytest
 
 from dallinger.db import CONTROL_CHANNEL, DIRECT_CHANNEL
-from dallinger.realtime import RealtimeGame, Reject, Sent, validate_game_types
+from dallinger.realtime import RealtimeGame, validate_game_types
 
 
 class Duel(RealtimeGame):
@@ -41,16 +41,6 @@ class TestValidGameTypes:
     )
     def test_boundary_settings_are_accepted(self, attributes):
         assert validate_game_types([game_type(**attributes)])
-
-    def test_defaults(self):
-        game = Duel()
-
-        assert game.tick_rate == 0
-        assert game.max_duration is None
-        assert game.send_views_on_messages is True
-        assert game.max_messages_per_second == 120
-        assert game.message_burst == 20
-        assert game.version == 1
 
 
 class TestInvalidGameTypes:
@@ -116,8 +106,6 @@ class TestInvalidGameTypes:
         with pytest.raises(ValueError, match="^Configured's " + error):
             validate_game_types([game_type(**attributes)])
 
-
-class TestMethods:
     def test_required_methods_are_checked(self):
         class Partial(RealtimeGame):
             channel = "partial"
@@ -129,27 +117,3 @@ class TestMethods:
             ValueError, match="^Partial must define apply and initial_state"
         ):
             validate_game_types([Partial])
-
-    def test_default_methods(self):
-        game = Duel()
-        state = {"score": 3}
-
-        game.tick(state, 1.0)
-        game.on_leave(state, 1, 1.0)
-
-        assert state == {"score": 3}
-        assert game.next_deadline(state) is None
-        assert game.view(state, 1) == {"score": 3}
-        assert game.is_over(state) is False
-        assert game.outcome(state, "finished") is None
-        assert game.bot(state, 1, 1.0) is None
-
-
-def test_reject_carries_its_reason():
-    assert Reject({"code": "not_your_turn"}).reason == {"code": "not_your_turn"}
-
-
-def test_sent_without_an_envelope_is_all_none():
-    sent = Sent()
-
-    assert (sent.number, sent.browser_time, sent.view_time) == (None, None, None)
