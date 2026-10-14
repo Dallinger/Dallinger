@@ -1,3 +1,4 @@
+import codecs
 import os
 import re
 import time
@@ -9,6 +10,8 @@ from subprocess import CalledProcessError, check_output
 import click
 import docker
 from jinja2 import Template
+from packaging.requirements import InvalidRequirement, Requirement
+from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 
 from dallinger.docker.wheel_filename import parse_wheel_filename
@@ -247,9 +250,10 @@ _COMMENT_RE = re.compile(r"(^|\s+)#.*$")
 _INCLUDE_RE = re.compile(
     r"^(?:-[rc]\s*|--(?:requirement|constraint)(?:\s+|=))(?P<path>\S+)$"
 )
+_OPTION_RE = re.compile(r"\s+-")
 
 
-def _read_requirement_lines(path: Path) -> list[str]:
+def _read_requirement_lines(path: Path, _including=()) -> list[str]:
     """Return the requirement specifiers in a pip requirements file.
 
     Supports the subset of the pip requirements file format that Dallinger
@@ -257,8 +261,9 @@ def _read_requirement_lines(path: Path) -> list[str]:
     line continuations, ``-r``/``-c`` includes (resolved relative to the
     including file) and per-requirement options such as ``--hash``. Other
     option lines, including editable (``-e``) requirements, are skipped.
-    Files are read as UTF-8, with or without a byte order mark. URL includes
-    are not supported.
+    Files are read as UTF-8, or as UTF-16 when they start with a UTF-16 byte
+    order mark (as written by ``pip freeze >`` in Windows PowerShell 5). URL
+    includes are not supported.
 
     Parameters
     ----------
@@ -270,11 +275,23 @@ def _read_requirement_lines(path: Path) -> list[str]:
     list of str
         Requirement specifiers, e.g. ``"dallinger==7.2.0"``, with trailing
         options removed.
+
+    Raises
+    ------
+    ValueError
+        If ``-r``/``-c`` includes form a cycle.
     """
-    path = Path(path)
+    path = Path(path).resolve()
+    if path in _including:
+        chain = " -> ".join(str(p) for p in (*_including, path))
+        raise ValueError(f"Requirements files include each other in a cycle: {chain}")
+    data = path.read_bytes()
+    is_utf16 = data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE))
+    text = data.decode("utf-16" if is_utf16 else "utf-8-sig")
+
     logical_lines = []
     current = ""
-    for raw_line in path.read_text(encoding="utf-8-sig").splitlines():
+    for raw_line in text.splitlines():
         line = _COMMENT_RE.sub("", raw_line)
         if line.endswith("\\"):
             current += line[:-1] + " "
@@ -291,11 +308,28 @@ def _read_requirement_lines(path: Path) -> list[str]:
             include = _INCLUDE_RE.match(line)
             if include:
                 requirements.extend(
-                    _read_requirement_lines(path.parent / include["path"])
+                    _read_requirement_lines(
+                        path.parent / include["path"], (*_including, path)
+                    )
                 )
             continue
-        requirements.append(re.split(r"\s+-", line, maxsplit=1)[0])
+        requirements.append(_OPTION_RE.split(line, maxsplit=1)[0])
     return requirements
+
+
+def _dallinger_pin(line: str):
+    """Return the Dallinger version pinned by a requirement line, or ``None``."""
+    # In case dallinger is installed in editable mode
+    if line.startswith("file:dallinger-"):
+        return str(parse_wheel_filename(line[len("file:") :]).version)
+    try:
+        requirement = Requirement(line)
+    except InvalidRequirement:
+        return None
+    if canonicalize_name(requirement.name) != "dallinger":
+        return None
+    pins = [spec.version for spec in requirement.specifier if spec.operator == "=="]
+    return pins[0] if pins else None
 
 
 def get_required_dallinger_version(experiment_tmp_path: str) -> str:
@@ -303,15 +337,12 @@ def get_required_dallinger_version(experiment_tmp_path: str) -> str:
     and return the dallinger version required by the experiment.
     """
     requirements_path = Path(experiment_tmp_path) / "requirements.txt"
-    dallinger_requirements = [
-        line
-        for line in _read_requirement_lines(requirements_path)
-        if line.startswith("dallinger==")
-        or line.startswith(
-            "file:dallinger-"
-        )  # In case dallinger is installed in editable mode
+    pinned_versions = [
+        version
+        for version in map(_dallinger_pin, _read_requirement_lines(requirements_path))
+        if version
     ]
-    if not dallinger_requirements:
+    if not pinned_versions:
         print("Could not determine Dallinger version. Using latest")
         return LATEST_VERSION
 
@@ -328,14 +359,7 @@ def get_required_dallinger_version(experiment_tmp_path: str) -> str:
             return LATEST_VERSION
         return version_text
 
-    # The constraints generator should have created a single spec in the form "dallinger==7.2.0"
-    if "==" in dallinger_requirements[0]:
-        return _normalize_version(dallinger_requirements[0].split("==")[1])
-    # Or we might have a requirement like `file:dallinger-7.2.0-py3-none-any.whl`
-    wheel_version = parse_wheel_filename(
-        dallinger_requirements[0][len("file:") :]
-    ).version
-    return _normalize_version(str(wheel_version))
+    return _normalize_version(pinned_versions[0])
 
 
 def get_experiment_image_tag(experiment_tmp_path: str) -> str:

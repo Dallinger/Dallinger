@@ -671,6 +671,47 @@ def test_get_required_dallinger_version_windows_file(tmp_path):
     assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
 
 
+def test_get_required_dallinger_version_utf16_file(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_text(
+        "dallinger==7.2.0\r\n", encoding="utf-16"
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_get_required_dallinger_version_follows_requirement_include(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "base.txt").write_text("dallinger==7.2.0\n")
+    (tmp_path / "requirements.txt").write_text("requests\n-r base.txt\n")
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_get_required_dallinger_version_include_cycle(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "base.txt").write_text("-r requirements.txt\n")
+    (tmp_path / "requirements.txt").write_text("-r base.txt\n")
+
+    with pytest.raises(ValueError, match="cycle"):
+        get_required_dallinger_version(str(tmp_path))
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["dallinger == 7.2.0", 'dallinger==7.2.0 ; python_version>="3.10"'],
+)
+def test_get_required_dallinger_version_parses_specifier(tmp_path, line):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_text(line + "\n")
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
 def test_docker_tools_import_without_pip():
     """``dallinger.docker.tools`` must import in environments without pip, e.g. uv."""
     import subprocess
