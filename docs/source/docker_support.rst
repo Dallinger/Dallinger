@@ -189,12 +189,12 @@ default. Cloudflare apps don't block a classic root-domain deploy.
 Classic ingress needs a server that the internet can reach, because Let's
 Encrypt must reach it to issue TLS certificates. If the SSH host resolves only
 to private IP addresses (for example ``10.x.x.x``, ``172.16.x.x`` to
-``172.31.x.x``, ``192.168.x.x``, or ``100.64.x.x``), a classic-ingress deploy
-stops before building the image; use ``--ingress cloudflare`` for such
-servers. Loopback and ``0.0.0.0`` addresses are allowed. If the server has a
-private address inside its network but its public DNS name points at a public
-IP that forwards ports 80 and 443 to it, pass ``--allow-private-ip`` to deploy
-with classic ingress anyway.
+``172.31.x.x``, ``192.168.x.x``, or ``100.64.x.x``), a new classic-ingress
+deploy stops before building the image; use ``--ingress cloudflare`` for such
+servers. ``--update`` skips this check, and loopback and ``0.0.0.0`` addresses
+are allowed. If the server has a private address inside its network but its
+public DNS name points at a public IP that forwards ports 80 and 443 to it,
+pass ``--allow-private-ip`` to deploy with classic ingress anyway.
 
 The tunnel proxies to the experiment web service. Set the non-secret
 ``cloudflare_account_id``, ``cloudflare_zone_id``, and ``cloudflare_dns_zone``

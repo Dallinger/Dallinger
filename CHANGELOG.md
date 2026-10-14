@@ -122,6 +122,7 @@
   for such servers. ``docker-ssh servers add`` prints the same advice.
   Servers with a private address inside their network but a public DNS name
   that forwards ports 80 and 443 to them can pass ``--allow-private-ip``.
+  ``--update`` deploys of existing apps skip the check.
 
 ### Fixed
 
