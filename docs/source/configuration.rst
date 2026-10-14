@@ -494,9 +494,9 @@ background tasks.
     which still works but is deprecated.
 
 ``worker_processes`` *integer*
-    Number of background worker processes. With Docker SSH deployments, each
-    worker process runs in its own container; on Heroku, this is the number of
-    worker dynos. Default ``1``. Replaces ``num_dynos_worker``, which still
+    Number of background worker processes. With Docker (``dallinger docker``
+    and Docker SSH deployments), each worker process runs in its own
+    container; on Heroku, this is the number of worker dynos. Default ``1``. Replaces ``num_dynos_worker``, which still
     works but is deprecated.
 
 ``worker_greenlets_per_process`` *integer*

@@ -862,6 +862,30 @@ def test_compose_environment_strips_cloudflare_api_token():
     assert "'num_dynos_worker'" in messages and "'threads'" in messages
 
 
+def test_deploy_validates_config_options_before_deploying(monkeypatch):
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.ready = True
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
+    checks = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", checks)
+    with pytest.raises(ValueError, match="non-negative"):
+        docker_ssh_module._deploy_in_mode(
+            app_name="myapp",
+            archive_path=None,
+            config_options=(("worker_processes", "-1"),),
+            dns_host=None,
+            image_name="image",
+            mode="live",
+            server="lab",
+            update=False,
+            local_build=False,
+            push_build=False,
+            preflight_root_clean=False,
+        )
+    checks.assert_not_called()
+
+
 def test_remote_postgres_prefers_pinned_container_name(monkeypatch):
     executor = mock.Mock()
 

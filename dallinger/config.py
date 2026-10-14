@@ -53,6 +53,12 @@ def is_positive_int(value):
         raise ValueError(f"Expected a positive integer, got {value}")
 
 
+def is_non_negative_int(value):
+    """Raise ``ValueError`` if ``value`` is negative."""
+    if value < 0:
+        raise ValueError(f"Expected a non-negative integer, got {value}")
+
+
 def is_auto_or_positive_int(value):
     """Raise ``ValueError`` unless ``value`` is ``"auto"`` or a positive integer."""
     if value.strip() != "auto":
@@ -173,7 +179,7 @@ default_keys = (
     ("whimsical", bool, []),
     ("worker_greenlets_per_process", int, [], False, [is_positive_int]),
     ("worker_multiplier", float, []),
-    ("worker_processes", int, ["num_dynos_worker"]),
+    ("worker_processes", int, ["num_dynos_worker"], False, [is_non_negative_int]),
     ("docker_image_base_name", str, [], ""),
     ("docker_image_name", str, [], ""),
     ("docker_volumes", str, [], ""),

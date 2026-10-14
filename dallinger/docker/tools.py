@@ -119,6 +119,7 @@ class DockerComposeWrapper:
                 f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.11/dist-packages/dallinger/"
             )
         tag = get_experiment_image_tag(self.tmp_dir)
+        worker_processes = int(self.config.get("worker_processes", 1))
         with open(os.path.join(self.tmp_dir, "docker-compose.yml"), "w") as fh:
             fh.write(
                 docker_compose_template.render(
@@ -127,7 +128,8 @@ class DockerComposeWrapper:
                     experiment_image=f"{self.experiment_name}:{tag}",
                     needs_chrome=self.needs_chrome,
                     config=self.config,
-                    worker_cpu_shares=worker_cpu_shares(1),
+                    worker_processes=worker_processes,
+                    worker_cpu_shares=worker_cpu_shares(worker_processes),
                 )
             )
         with open(os.path.join(self.tmp_dir, ".env"), "w") as fh:
@@ -168,7 +170,8 @@ class DockerComposeWrapper:
         # Wait for postgres to complete initialization
         self.wait_postgres_ready()
         try:
-            self.run_compose(["exec", "worker", "dallinger-housekeeper", "initdb"])
+            # ``web`` always exists; ``worker`` may have no replicas.
+            self.run_compose(["exec", "web", "dallinger-housekeeper", "initdb"])
         except CalledProcessError:
             self.out.error("There was a problem initializing the database")
             self.stop()

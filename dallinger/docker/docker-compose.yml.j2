@@ -30,6 +30,8 @@ services:
     image: {{ experiment_image }}
     command: dallinger_heroku_worker
     cpu_shares: {{ worker_cpu_shares }}
+    deploy:
+      replicas: {{ worker_processes }}
     depends_on:
       postgresql:
         condition: service_healthy

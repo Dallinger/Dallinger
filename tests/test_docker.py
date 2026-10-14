@@ -266,7 +266,21 @@ def test_local_compose_gives_worker_low_cpu_weight(tmp_path):
     wrapper.copy_docker_compose_files()
     services = yaml.safe_load((exp_dir / "docker-compose.yml").read_text())["services"]
     assert services["worker"]["cpu_shares"] == 102
+    assert services["worker"]["deploy"]["replicas"] == 1
     assert "cpu_shares" not in services["web"]
+
+
+def test_local_compose_runs_worker_processes_replicas(tmp_path):
+    from dallinger.docker.tools import DockerComposeWrapper
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    wrapper = DockerComposeWrapper(
+        {"worker_processes": 3}, mock.Mock(), str(tmp_path), str(exp_dir)
+    )
+    wrapper.copy_docker_compose_files()
+    services = yaml.safe_load((exp_dir / "docker-compose.yml").read_text())["services"]
+    assert services["worker"]["deploy"]["replicas"] == 3
+    assert services["worker"]["cpu_shares"] == 34
 
 
 def test_deps_image_tag_ignores_experiment_code(tmp_path):

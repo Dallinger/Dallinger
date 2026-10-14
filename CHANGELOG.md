@@ -153,8 +153,8 @@
 - Added Docker-first parallelism settings: ``web_processes`` (number of
   gunicorn web processes, given as a number or ``auto``, the default),
   ``worker_processes`` (number of
-  background worker processes, default ``1``; one container each on
-  docker-ssh, worker dynos on Heroku) and ``worker_greenlets_per_process``
+  background worker processes, default ``1``; one container each with
+  Docker, worker dynos on Heroku) and ``worker_greenlets_per_process``
   (tasks each worker process runs at once, default ``20``). For CPU-heavy
   tasks, set ``worker_greenlets_per_process = 1`` and add worker processes.
   Each worker's Redis connection pool grows with its greenlets, so values
@@ -167,6 +167,8 @@
   weigh about a tenth of the web container. Postgres, pgbouncer, Redis and
   Caddy keep Docker's default weight. ``docker_worker_cpu_shares`` is now
   ignored.
+- ``docker-ssh deploy -c`` values are now type-checked and validated before
+  deployment starts, as values from config files are.
 - The installation and developer setup guides now use Python 3.14, the
   version in Dallinger's Docker images, in their pyenv and virtualenv
   examples.

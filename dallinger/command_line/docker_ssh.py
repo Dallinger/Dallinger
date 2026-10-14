@@ -1297,6 +1297,10 @@ def _deploy_in_mode(
     ingress=None,
 ):
     config = get_config(load=True)
+    config_options = {
+        config.canonical_key(key): value for key, value in dict(config_options).items()
+    }
+    config.extend(config_options, cast_types=True)
 
     run_pre_launch_checks(**locals())
 

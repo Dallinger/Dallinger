@@ -298,6 +298,19 @@ worldwide = false
         with pytest.raises(ValueError, match="positive integer"):
             config.extend({"worker_greenlets_per_process": 0})
 
+    def test_worker_processes_must_not_be_negative(self):
+        config = _default_config()
+        config.extend({"worker_processes": 0})
+        with pytest.raises(ValueError, match="non-negative integer"):
+            config.extend({"worker_processes": -1})
+
+    def test_demo_configs_use_no_deprecated_keys(self):
+        demos = Path(__file__).parent.parent / "demos"
+        for path in demos.glob("**/config.txt"):
+            for line in path.read_text().splitlines():
+                key = line.split("=", 1)[0].strip()
+                assert key not in dallinger.config.DEPRECATED_KEYS, f"{path}: {key}"
+
     def test_package_defaults_and_as_dict_do_not_warn(self):
         config = _default_config()
         with pytest.warns(FutureWarning):
