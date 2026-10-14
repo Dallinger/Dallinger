@@ -85,9 +85,11 @@
   that should not open many connections, such as a bot runner, can set a
   bounded pool; its requests then wait up to ``DATABASE_POOL_TIMEOUT`` for a
   free connection. Invalid values, including a pool size below 1, raise an
-  error that names the variable. Experiment replay
-  (``restore_state_from_replay``) now uses the same pool settings and checks
-  connections before use.
+  error that names the variable. ``create_db_engine`` also accepts
+  ``pool_size``, ``max_overflow`` and ``pool_timeout`` arguments, which
+  override the variables and are checked the same way. Experiment replay
+  (``restore_state_from_replay``) now uses the same pool settings, checks
+  connections before use and closes its temporary engines.
   Idle connections add up to about ``DATABASE_POOL_SIZE`` times the number of
   processes; keep that below PostgreSQL's ``max_connections`` or, on
   docker-ssh, pgbouncer's client limit of 10,000.

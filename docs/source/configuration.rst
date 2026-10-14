@@ -83,9 +83,12 @@ Invalid values stop the process with an error that names the variable. To
 bound a single process, for example a bot runner, set the variables only in
 that process's environment. For docker-ssh apps, the variables must be in
 the experiment containers' environment, for example set with ``ENV`` in the
-experiment image; setting them in the shell that runs ``dallinger
-docker-ssh`` has no effect, because Compose only passes registered config
-keys to the containers.
+experiment image. Setting them in the shell that runs ``dallinger
+docker-ssh`` does not reach the containers, because Compose only passes
+registered config keys to them. They do still apply to engines the local
+command creates, for example when it loads an archive into the remote
+database, and an invalid value there stops any command that imports
+``dallinger.db``.
 
 When budgeting connections, idle connections add up to roughly
 ``DATABASE_POOL_SIZE`` × the number of processes, and busy processes open

@@ -33,20 +33,24 @@ def corrected_db_url(db_url):
     return db_url
 
 
-DEFAULT_POOL_SIZE = 20
-DEFAULT_MAX_OVERFLOW = -1
-DEFAULT_POOL_TIMEOUT = 30
+_DEFAULT_POOL_SIZE = 20
+_DEFAULT_MAX_OVERFLOW = -1
+_DEFAULT_POOL_TIMEOUT = 30
 
 
-def _pool_setting(name, default, minimum, requirement):
-    """Read an integer pool setting from the environment variable ``name``.
+def _pool_setting(value, argument, variable, default, minimum, requirement):
+    """Validate an integer pool setting, reading it from the environment if unset.
 
     Parameters
     ----------
-    name : str
-        Environment variable to read.
+    value : int or None
+        Value passed to :func:`create_db_engine`; ``None`` reads ``variable``.
+    argument : str
+        Name of the :func:`create_db_engine` argument, used in the error message.
+    variable : str
+        Environment variable read when ``value`` is ``None``.
     default : int
-        Value used when the variable is unset or empty.
+        Value used when ``value`` is ``None`` and the variable is unset or empty.
     minimum : int
         Smallest accepted value.
     requirement : str
@@ -60,17 +64,23 @@ def _pool_setting(name, default, minimum, requirement):
     Raises
     ------
     ValueError
-        If the variable is not an integer or is below ``minimum``.
+        If the setting is not an integer or is below ``minimum``.
     """
-    value = os.environ.get(name, "").strip()
-    if not value:
-        return default
-    try:
-        setting = int(value)
-    except ValueError:
-        setting = None
+    if value is None:
+        source = variable
+        value = os.environ.get(variable, "").strip()
+        if not value:
+            return default
+        try:
+            setting = int(value)
+        except ValueError:
+            setting = None
+    else:
+        source = argument
+        is_int = isinstance(value, int) and not isinstance(value, bool)
+        setting = value if is_int else None
     if setting is None or setting < minimum:
-        raise ValueError(f"{name} must be {requirement}, not {value!r}.")
+        raise ValueError(f"{source} must be {requirement}, not {value!r}.")
     return setting
 
 
@@ -91,15 +101,14 @@ def create_db_engine(db_url, pool_size=None, max_overflow=None, pool_timeout=Non
     db_url : str
         Database URL.
     pool_size : int, optional
-        Idle connections kept open. Defaults to ``DATABASE_POOL_SIZE``, or 20.
-        ``DATABASE_POOL_SIZE`` must be at least 1, because SQLAlchemy treats 0
-        as no limit.
+        Idle connections kept open, at least 1, because SQLAlchemy treats 0 as
+        no limit. Defaults to ``DATABASE_POOL_SIZE``, or 20.
     max_overflow : int, optional
         Connections opened beyond ``pool_size`` under load; -1 means no limit.
         Defaults to ``DATABASE_MAX_OVERFLOW``, or -1.
     pool_timeout : int, optional
         Seconds to wait for a connection once ``pool_size + max_overflow`` are
-        in use. Defaults to ``DATABASE_POOL_TIMEOUT``, or 30.
+        in use, at least 1. Defaults to ``DATABASE_POOL_TIMEOUT``, or 30.
 
     Returns
     -------
@@ -109,26 +118,32 @@ def create_db_engine(db_url, pool_size=None, max_overflow=None, pool_timeout=Non
     Raises
     ------
     ValueError
-        If one of the environment variables is invalid.
+        If an argument or one of the environment variables is invalid.
     """
-    if pool_size is None:
-        pool_size = _pool_setting(
-            "DATABASE_POOL_SIZE", DEFAULT_POOL_SIZE, 1, "a positive integer"
-        )
-    if max_overflow is None:
-        max_overflow = _pool_setting(
-            "DATABASE_MAX_OVERFLOW",
-            DEFAULT_MAX_OVERFLOW,
-            -1,
-            "-1 (no limit) or an integer of at least 0",
-        )
-    if pool_timeout is None:
-        pool_timeout = _pool_setting(
-            "DATABASE_POOL_TIMEOUT",
-            DEFAULT_POOL_TIMEOUT,
-            1,
-            "a positive integer",
-        )
+    pool_size = _pool_setting(
+        pool_size,
+        "pool_size",
+        "DATABASE_POOL_SIZE",
+        _DEFAULT_POOL_SIZE,
+        1,
+        "a positive integer",
+    )
+    max_overflow = _pool_setting(
+        max_overflow,
+        "max_overflow",
+        "DATABASE_MAX_OVERFLOW",
+        _DEFAULT_MAX_OVERFLOW,
+        -1,
+        "-1 (no limit) or an integer of at least 0",
+    )
+    pool_timeout = _pool_setting(
+        pool_timeout,
+        "pool_timeout",
+        "DATABASE_POOL_TIMEOUT",
+        _DEFAULT_POOL_TIMEOUT,
+        1,
+        "a positive integer",
+    )
     return create_engine(
         corrected_db_url(db_url),
         pool_size=pool_size,

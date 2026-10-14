@@ -1972,13 +1972,17 @@ class Experiment:
             # Clear the temporary storage and import it
             init_db(drop_all=True, bind=import_engine)
         except Exception:
+            import_engine.dispose()
             admin_engine = create_db_engine(db_url)
-            conn = admin_engine.connect()
-            conn.execute("COMMIT;")
-            conn.execute(
-                'CREATE DATABASE "{}"'.format(specific_db_url.rsplit("/", 1)[1])
-            )
-            conn.close()
+            try:
+                conn = admin_engine.connect()
+                conn.execute("COMMIT;")
+                conn.execute(
+                    'CREATE DATABASE "{}"'.format(specific_db_url.rsplit("/", 1)[1])
+                )
+                conn.close()
+            finally:
+                admin_engine.dispose()
             import_engine = create_db_engine(specific_db_url)
             init_db(drop_all=True, bind=import_engine)
 

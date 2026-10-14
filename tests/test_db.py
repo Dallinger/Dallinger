@@ -156,3 +156,21 @@ def test_create_db_engine_rejects_invalid_pool_settings(monkeypatch, name, value
     monkeypatch.setenv(name, value)
     with pytest.raises(ValueError, match=name):
         create_db_engine(db_url)
+
+
+def test_create_db_engine_arguments_override_the_environment(monkeypatch):
+    from dallinger.db import create_db_engine, db_url
+
+    monkeypatch.setenv("DATABASE_POOL_SIZE", "many")
+    engine = create_db_engine(db_url, pool_size=3)
+    try:
+        assert engine.pool.size() == 3
+    finally:
+        engine.dispose()
+
+
+def test_create_db_engine_rejects_invalid_arguments():
+    from dallinger.db import create_db_engine, db_url
+
+    with pytest.raises(ValueError, match="pool_size"):
+        create_db_engine(db_url, pool_size=0)
