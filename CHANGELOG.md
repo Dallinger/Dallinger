@@ -4,6 +4,11 @@
 
 ### Added
 
+- Worker processes that hang during start-up now exit after
+  `worker_startup_timeout` seconds (default 120; 0 disables) if they
+  haven't registered with the job queue, printing what each greenlet was
+  doing, so Heroku or Docker restarts them instead of leaving them idle.
+
 - `Experiment.publish_to_participants(payload, participant_ids, scope=None)`
   sends a payload to the WebSocket connections of specific participants, across
   gunicorn workers, instead of giving each participant a channel of their own.

@@ -46,10 +46,13 @@ class GeventWorker(Worker):
         self.gevent_pool = gevent.pool.Pool(pool_size)
         self.children = []
         self.gevent_worker = None
+        self.startup_watchdog = kwargs.pop("startup_watchdog", None)
         super(GeventWorker, self).__init__(*args, **kwargs)
 
     def register_birth(self):
         super(GeventWorker, self).register_birth()
+        if self.startup_watchdog is not None:
+            self.startup_watchdog.kill(block=False)
         self.connection.hset(self.key, "pool_size", self.gevent_pool.size)
 
     def heartbeat(self, timeout=0, pipeline=None):
