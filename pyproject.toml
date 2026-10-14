@@ -146,7 +146,6 @@ include = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py313"
 builtins = ["_"]
 include = ["*.py", "*.pyi"]
 extend-exclude = [
