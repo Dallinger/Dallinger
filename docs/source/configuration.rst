@@ -603,7 +603,9 @@ Docker Deployment Configuration
 ``cloudflare_keychain_service`` *unicode*
     Name of the macOS Keychain item that holds the Cloudflare API token.
     Defaults to ``dallinger-cloudflare-api-token``. Set it when your team
-    already stores the token under another name.
+    already stores the token under another name. The default item must be
+    saved under your macOS user name as its account; an item named here is
+    matched by name alone, whatever account it was saved under.
 
 ``cloudflare_account_id`` *unicode*
     Cloudflare account id for named ``dallinger-{app}`` tunnels.

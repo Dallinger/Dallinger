@@ -7,7 +7,8 @@
 - Added the `cloudflare_keychain_service` config key, which names the macOS
   Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
   deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
-  already store the token under another name don't have to copy it.
+  already store the token under another name don't have to copy it. A
+  configured item is found whatever Keychain account it was saved under.
 - `Experiment.publish_to_participants(payload, participant_ids, scope=None)`
   sends a payload to the WebSocket connections of specific participants, across
   gunicorn workers, instead of giving each participant a channel of their own.
