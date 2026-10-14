@@ -80,6 +80,7 @@ dev = [
     "pypandoc",
     "pytest",
     "pytest-rerunfailures",
+    "pytest-timeout",
     "ruff",
     "sphinx",
     "sphinx_rtd_theme",
@@ -122,6 +123,7 @@ Repository = "https://github.com/Dallinger/Dallinger"
 "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2" = "dallinger/docker/ssh_templates/docker-compose-experiment.yml.j2"
 "dallinger/docker/ssh_templates/Caddyfile.frontdoor" = "dallinger/docker/ssh_templates/Caddyfile.frontdoor"
 "dallinger/docker/ssh_templates/front-door-services.yml.j2" = "dallinger/docker/ssh_templates/front-door-services.yml.j2"
+"dallinger/docker/ssh_templates/Dockerfile.controller" = "dallinger/docker/ssh_templates/Dockerfile.controller"
 "dallinger/docker/ssh_templates/docker-compose-server.yml.j2" = "dallinger/docker/ssh_templates/docker-compose-server.yml.j2"
 
 [tool.hatch.build.targets.wheel]
@@ -144,7 +146,6 @@ include = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py313"
 builtins = ["_"]
 include = ["*.py", "*.pyi"]
 extend-exclude = [

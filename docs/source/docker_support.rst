@@ -202,7 +202,7 @@ socket), which host Caddy or the tunnel now reach instead of web, and a
 private controller. The controller holds the Docker socket, which is
 root-equivalent on the host; its code stops and starts only that Compose
 project's expensive services. The controller is a standard-library script run from
-``python:3.12-alpine``, not the experiment image. Only ``docker compose exec``
+a digest-pinned ``python`` Alpine image, not the experiment image. Only ``docker compose exec``
 inside the controller can explicitly hibernate or wake the app; any visitor
 also wakes it. While it sleeps, page loads get a wait page that reloads once
 the app is ready, and other requests get HTTP 503. Manual control::
