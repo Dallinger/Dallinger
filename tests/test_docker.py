@@ -289,6 +289,30 @@ def test_deps_image_tag_changes_when_prepare_script_changes(tmp_path):
     assert get_experiment_image_tag(str(exp_dir)) != tag_before
 
 
+def test_docker_debug_containers_get_the_deployment_flask_secret_key(tmp_path):
+    from dallinger.docker.deployment import DockerDebugDeployment
+    from dallinger.docker.tools import DockerComposeWrapper
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    deployment = DockerDebugDeployment(mock.Mock(), False, False, None, {})
+    wrapper = DockerComposeWrapper(
+        {"docker_worker_cpu_shares": 1024},
+        mock.Mock(),
+        str(exp_dir),
+        str(exp_dir),
+        env=deployment.environ,
+    )
+    wrapper.copy_docker_compose_files()
+
+    dotenv = (exp_dir / ".env").read_text().splitlines()
+    key = deployment.environ["FLASK_SECRET_KEY"]
+    assert f"FLASK_SECRET_KEY={key}" in dotenv
+    compose = yaml.safe_load((exp_dir / "docker-compose.yml").read_text())
+    for service in ("web", "worker", "clock"):
+        environment = compose["services"][service]["environment"]
+        assert environment["FLASK_SECRET_KEY"] == "${FLASK_SECRET_KEY}"
+
+
 def test_custom_dockerfile_reinstalls_a_staged_local_wheel(tmp_path):
     import docker
 
