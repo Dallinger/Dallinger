@@ -3,7 +3,7 @@ import random
 
 import pytest
 
-from dallinger.realtime import RealtimeGame, Reject, Sent, core
+from dallinger.realtime import RealtimeGame, Sent, core
 from dallinger.realtime.core import (
     CHECKPOINT_INTERVAL,
     new_session,
@@ -11,103 +11,22 @@ from dallinger.realtime.core import (
     run_pass,
 )
 from dallinger.realtime.game import FINISHED, MAX_DURATION
-
-CLOCK = 1000.0
-
-
-class Tally(RealtimeGame):
-    """Logs every call, so a test can read the order things happened in."""
-
-    channel = "tally"
-    tick_rate = 4
-
-    def initial_state(self, players):
-        return {"players": players, "log": []}
-
-    def apply(self, state, player_id, message, now, sent):
-        if message in ("effect", "effect and reject"):
-            self.queue_effect("scored", {"by": player_id})
-        if message in ("bad", "effect and reject"):
-            raise Reject({"code": message})
-        state["log"].append([player_id, message, now])
-
-    def tick(self, state, now):
-        state["log"].append(["tick", now])
-
-    def next_deadline(self, state):
-        return state.get("deadline")
-
-    def view(self, state, player_id):
-        return {"for": player_id, "log": state["log"]}
-
-    def is_over(self, state):
-        return any(entry[1] == "stop" for entry in state["log"])
-
-    def outcome(self, state, reason):
-        return {"reason": reason, "moves": len(state["log"])}
-
-    def on_join(self, state, player_id, now):
-        state["log"].append(["join", player_id, now])
-
-    def on_leave(self, state, player_id, now):
-        state["log"].append(["leave", player_id, now])
-
-
-class TurnTally(Tally):
-    tick_rate = 0
-
-
-def message(time, participant, payload, number=None, scope="page"):
-    if number is None:
-        data = json.dumps(payload)
-    else:
-        envelope = {"number": number, "browser_time": 50.0, "view_time": 0.0}
-        data = json.dumps({"envelope": envelope, "payload": payload})
-    return {
-        "type": "message",
-        "time": time,
-        "participant": participant,
-        "scope": scope,
-        "data": data,
-        "received": 100.0 + time,
-    }
-
-
-def join(time, participant, scope="page"):
-    return {"type": "join", "time": time, "participant": participant, "scope": scope}
-
-
-def leave(time, participant, scope="page"):
-    return {"type": "leave", "time": time, "participant": participant, "scope": scope}
-
-
-def started(game, members=("1", "2"), bots=()):
-    """A saved session with a page open for each human member."""
-    saved = new_session(game, members, bots)
-    joins = [join(0, member) for member in members if member not in bots]
-    return run_pass(game, saved, joins, 0, CLOCK).saved
-
-
-def play(game, saved, entries, now):
-    return run_pass(game, saved, entries, now, CLOCK)
-
-
-def session(result):
-    return json.loads(result.saved)
-
-
-def log(result):
-    return session(result)["state"]["log"]
-
-
-def with_deadline(saved, deadline):
-    loaded = json.loads(saved)
-    loaded["state"]["deadline"] = deadline
-    return json.dumps(loaded)
-
-
-def views_by_page(result):
-    return {(each["participant"], each["scope"]): each["view"] for each in result.views}
+from tests.realtime.helpers import (
+    CLOCK,
+    Restless,
+    Tally,
+    TurnTally,
+    error,
+    join,
+    leave,
+    log,
+    message,
+    play,
+    session,
+    started,
+    views_by_page,
+    with_deadline,
+)
 
 
 def test_a_game_with_only_the_required_methods_plays_on_the_defaults():
@@ -146,7 +65,7 @@ class TestNewSession:
         assert loaded["bots"] == ["2"]
         assert loaded["bot_messages"] == {"2": 0}
         assert loaded["next_tick"] == 0.25
-        assert loaded["version"] == 1
+        assert loaded["state_version"] == 1
 
     def test_bots_must_be_members(self):
         with pytest.raises(ValueError, match="Every bot must be a member"):
@@ -431,20 +350,22 @@ class TestJoinAndLeave:
         assert result.views == []
 
 
-def test_an_unknown_entry_raises():
+def test_an_unknown_entry_fails_the_session():
     game = TurnTally()
 
-    with pytest.raises(ValueError, match="Unknown entry type 'spin'"):
-        play(game, started(game), [{"type": "spin", "time": 1}], 1)
+    result = play(game, started(game), [{"type": "spin", "time": 1}], 1)
+
+    assert "Unknown entry type 'spin'" in error(result)
 
 
 @pytest.mark.parametrize("reason", [None, "", 3])
-def test_an_end_entry_without_a_reason_raises(reason):
+def test_an_end_entry_without_a_reason_fails_the_session(reason):
     game = TurnTally()
     entry = {"type": "end", "time": 1, "reason": reason}
 
-    with pytest.raises(ValueError, match="reason must be a non-empty string"):
-        play(game, started(game), [entry], 1)
+    result = play(game, started(game), [entry], 1)
+
+    assert "reason must be a non-empty string" in error(result)
 
 
 class TestEndings:
@@ -471,6 +392,7 @@ class TestEndings:
                 "1": {"for": "1", "log": log(result)},
                 "2": {"for": "2", "log": log(result)},
             },
+            "error": None,
         }
         assert session(result)["ended"] == result.ended
         assert result.records[-1] == {
@@ -480,6 +402,7 @@ class TestEndings:
             "reason": FINISHED,
             "outcome": {"reason": FINISHED, "moves": 2},
             "state": session(result)["state"],
+            "error": None,
         }
         [final] = result.views
         assert final["view"]["ended"] == FINISHED
@@ -553,15 +476,6 @@ class TurnBot(TurnTally):
         moves = [each for each in view["log"] if each[0] not in ("join", "leave")]
         if moves and moves[-1][0] != player_id:
             return {"bot": player_id}
-        return None
-
-
-class Restless(TurnTally):
-    """Moves once at each session time it's asked at."""
-
-    def bot(self, view, player_id, now):
-        if [player_id, "move", now] not in view["log"]:
-            return "move"
         return None
 
 
@@ -651,13 +565,14 @@ class TestBots:
             ("9", "rejected"),
         ]
 
-    def test_bots_that_never_stop_raise(self, monkeypatch):
+    def test_bots_that_never_stop_fail_the_session(self, monkeypatch):
         monkeypatch.setattr(core, "MAX_BOT_ROUNDS", 5)
         game = TurnBot()
         saved = started(game, members=["1", "8", "9"], bots=["8", "9"])
 
-        with pytest.raises(RuntimeError, match="TurnBot's bots were still moving"):
-            play(game, saved, [message(1, "1", "a")], 1)
+        result = play(game, saved, [message(1, "1", "a")], 1)
+
+        assert "TurnBot's bots were still moving after 5 rounds" in error(result)
 
     def test_a_bot_does_not_play_once_the_game_is_over(self):
         game = TurnBot()
@@ -736,10 +651,9 @@ class TestRecords:
         game = type("Querying", (TurnTally,), {method: queueing})()
         saved = new_session(game, ["1", "9"], bots=["9"])
 
-        with pytest.raises(
-            RuntimeError, match="queue_effect only works in apply, tick"
-        ):
-            play(game, saved, [join(1, "1"), message(1, "1", "stop")], 1)
+        result = play(game, saved, [join(1, "1"), message(1, "1", "stop")], 1)
+
+        assert "queue_effect only works in apply, tick" in error(result)
 
     def test_a_checkpoint_is_recorded_every_interval(self):
         game = TurnTally()
@@ -773,23 +687,31 @@ class TestRecords:
 
 
 class TestJsonRoundTrip:
-    def test_a_state_holding_nan_raises(self):
+    def test_a_state_holding_nan_fails_the_session(self):
         class Broken(TurnTally):
             def apply(self, state, player_id, message, now, sent):
                 state["bad"] = float("nan")
 
         game = Broken()
 
-        with pytest.raises(ValueError, match="not JSON compliant"):
-            play(game, started(game), [message(1, "1", "a")], 1)
+        result = play(game, started(game), [message(1, "1", "a")], 1)
+
+        assert "Broken's state isn't JSON: Out of range float" in error(result)
 
     def test_views_and_records_share_nothing(self):
         game = TurnTally()
-        result = play(game, started(game), [message(1, "1", "stop")], 1)
+        entries = [join(1, "1", scope="other"), message(1, "1", "stop")]
+        result = play(game, started(game), entries, 1)
 
         result.records[-1]["state"]["log"].append("later")
+        result.views[0]["view"]["view"]["log"].append("later")
 
-        assert "later" not in result.views[0]["view"]["view"]["log"]
+        assert len(result.views) == 3
+        assert ["later" in each["view"]["view"]["log"] for each in result.views] == [
+            True,
+            False,
+            False,
+        ]
 
 
 class Seeded(Bot):

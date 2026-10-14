@@ -16,13 +16,26 @@ Entries are dicts, each with a ``type`` and a ``time`` on the session clock:
 
 A pass keeps each entry's time between the session's time before the pass and
 the pass's own time.
+
+A pass that raises, or runs out of time in game code, fails its session
+instead. The failed session keeps its state from before the pass, records the
+pass's messages with the status ``"failed"``, and ends with the reason
+:data:`~dallinger.realtime.game.FAILED`.
 """
 
 import json
+import logging
 import math
+import os
+import signal
+import threading
+import time
+import traceback
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 from dallinger.realtime.game import (
+    FAILED,
     FINISHED,
     MAX_DURATION,
     Reject,
@@ -64,15 +77,16 @@ class PassResult:
 
     - ``message``: ``participant``, ``scope``, ``payload``, the envelope's
       ``number``, ``browser_time`` and ``view_time``, the clock time it was
-      ``received``, its ``status`` (``"accepted"`` or ``"rejected"``) and
-      the rejection's ``reason``
+      ``received``, its ``status`` (``"accepted"``, ``"rejected"`` or
+      ``"failed"``) and the rejection's ``reason``
     - ``effect``: the ``name`` and ``payload`` game code queued
     - ``checkpoint``: the ``state``
-    - ``end``: the ``reason``, ``outcome`` and final ``state``
+    - ``end``: the ``reason``, ``outcome``, final ``state`` and ``error``
 
     ``ended`` is the session's ending if this pass ended it, otherwise
-    ``None``. It holds the ending's ``time``, ``reason`` and ``outcome``, and
-    the final ``views`` of the players who aren't bots.
+    ``None``. It holds the ending's ``time``, ``reason`` and ``outcome``, the
+    final ``views`` of the players who aren't bots, and the ``error``: the
+    traceback of a failed session, otherwise ``None``.
     """
 
     saved: str
@@ -95,8 +109,11 @@ def new_session(game, members, bots=()):
         raise ValueError("Every bot must be a member.")
     return _dump(
         {
-            "version": game.version,
-            "state": game.initial_state(list(members)),
+            "state_version": game.state_version,
+            "state": _copy(
+                game.initial_state(list(members)),
+                "{}.initial_state's return value".format(type(game).__name__),
+            ),
             "members": members,
             "bots": bots,
             "time": 0,
@@ -115,7 +132,7 @@ def new_session(game, members, bots=()):
     )
 
 
-def run_pass(game, saved, entries, now, clock):
+def run_pass(game, saved, entries, now, clock, time_limit=None):
     """Apply ``entries`` and any ticks due by ``now`` to the ``saved`` session.
 
     :param saved: a session from :func:`new_session` or an earlier pass
@@ -123,9 +140,112 @@ def run_pass(game, saved, entries, now, clock):
     :param now: the session time of this pass. A time before the saved
         session's counts as the saved session's time.
     :param clock: the runner's clock, in seconds since the epoch
+    :param time_limit: seconds the game's methods may run for in total
+        before the session fails, or ``None`` for no limit. The limit uses
+        ``SIGALRM`` and ``ITIMER_REAL`` while the pass runs, so it only works
+        in the main thread.
     :returns: a :class:`PassResult`
     """
-    return _Pass(game, json.loads(saved), now, clock).run(saved, entries)
+    with _time_limits(time_limit) as new_guard:
+        played = _Pass(game, saved, now, clock, new_guard)
+        try:
+            return played.run(entries)
+        except (Exception, TimeLimitExceeded) as error:
+            failed = _Pass(game, saved, now, clock, new_guard)
+            return failed.fail(entries, error, migrate=not played.migrating)
+
+
+class TimeLimitExceeded(BaseException):
+    """Raised in game code that runs past the session's time limit.
+
+    It isn't an :class:`Exception`, so game code that catches every
+    ``Exception`` doesn't catch it.
+    """
+
+
+logger = logging.getLogger(__name__)
+
+#: How long the timer keeps raising in game code that catches its exception
+#: and carries on, as a multiple of the time limit, before it ends the process.
+#: Only a loop that catches every exception gets that far, and nothing in the
+#: process can stop it.
+GIVE_UP_AFTER = 2
+
+# While game code runs past its limit, the timer raises again at this interval.
+_REPEAT = 0.05
+
+# While a time limit is running: the message to raise, and the clock time to
+# give up at.
+_running = None
+
+
+@contextmanager
+def _time_limits(seconds):
+    """Yield a function that makes a guard for one time budget."""
+    if seconds is None:
+        yield lambda: _call
+        return
+    if threading.current_thread() is not threading.main_thread():
+        raise RuntimeError("A time limit only works in the main thread.")
+    previous = signal.signal(signal.SIGALRM, _time_out)
+    try:
+        yield lambda: _TimeLimit(seconds)
+    finally:
+        signal.signal(signal.SIGALRM, previous)
+
+
+class _TimeLimit:
+    """Calls the game's methods, giving them ``seconds`` in total."""
+
+    def __init__(self, seconds):
+        self.seconds = seconds
+        self.remaining = seconds
+
+    def __call__(self, what, method, *args):
+        global _running
+        message = "{} was running when the session used up its {} seconds.".format(
+            what, self.seconds
+        )
+        if self.remaining <= 0:
+            raise TimeLimitExceeded(message)
+        started = time.monotonic()
+        give_up = started + self.remaining + (GIVE_UP_AFTER - 1) * self.seconds
+        _running = (message, give_up)
+        signal.setitimer(signal.ITIMER_REAL, self.remaining, _REPEAT)
+        try:
+            result = method(*args)
+        finally:
+            _stop_timer()
+            self.remaining -= time.monotonic() - started
+        return result
+
+
+def _stop_timer():
+    global _running
+    while True:
+        # A signal that arrives before the timer stops raises in here.
+        try:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            _running = None
+            return
+        except TimeLimitExceeded:
+            pass
+
+
+def _time_out(signum, frame):
+    if _running is None:
+        return
+    message, give_up = _running
+    if time.monotonic() >= give_up:
+        logger.critical(
+            "%s It caught every exception, so the runner is exiting.", message
+        )
+        os._exit(1)
+    raise TimeLimitExceeded(message)
+
+
+def _call(what, method, *args):
+    return method(*args)
 
 
 def parse_message(data):
@@ -191,14 +311,26 @@ def _round_trip(value):
     return json.loads(_dump(value))
 
 
+def _copy(value, what):
+    """Round-trip a value game code handed over, naming it if it isn't JSON."""
+    try:
+        return _round_trip(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError("{} isn't JSON: {}".format(what, error)) from error
+
+
 class _Pass:
-    def __init__(self, game, session, now, clock):
+    def __init__(self, game, saved, now, clock, new_guard):
         self.game = game
-        self.session = session
+        self.name = type(game).__name__
+        self.saved = saved
+        self.session = session = json.loads(saved)
         self.state = session["state"]
         self.time = session["time"]
         self.now = max(now, self.time)
         self.clock = clock
+        self.new_guard = new_guard
+        self.guard = new_guard()
         self.pages = {
             (page["participant"], page["scope"]): page for page in session["pages"]
         }
@@ -206,12 +338,18 @@ class _Pass:
         self.records = []
         self.ticked = False
         self.end_reason = None
+        self.failed = False
+        self.migrating = False
 
-    def run(self, saved, entries):
+    def run(self, entries):
         session = self.session
         if session["ended"] is not None:
-            return PassResult(saved, [], [], None)
-        before = json.dumps(self.state) if not self.game.tick_rate else None
+            return PassResult(self.saved, [], [], None)
+        before = self.dump(self.state) if not self.game.tick_rate else None
+        if session["state_version"] != self.game.state_version:
+            self.migrating = True
+            self.migrate()
+            self.migrating = False
         if not session["started"]:
             session["started"] = True
             if not self.game.tick_rate:
@@ -219,9 +357,7 @@ class _Pass:
         pending = iter(entries)
         entry = next(pending, None)
         while self.end_reason is None:
-            entry_time = None
-            if entry is not None:
-                entry_time = min(max(entry["time"], self.time), self.now)
+            entry_time = None if entry is None else self.entry_time(entry)
             tick_time = self.due_tick()
             is_tick = tick_time is not None and (
                 entry is None or tick_time < entry_time
@@ -244,7 +380,7 @@ class _Pass:
                 self.handle(entry)
                 entry = next(pending, None)
 
-        changed = before is not None and json.dumps(self.state) != before
+        changed = before is not None and self.dump(self.state) != before
         if self.end_reason is not None:
             self.end()
         else:
@@ -252,31 +388,112 @@ class _Pass:
             if self.time >= session["next_checkpoint"]:
                 self.record("checkpoint", state=self.state)
                 session["next_checkpoint"] = self.time + CHECKPOINT_INTERVAL
-        session["time"] = self.now
-        views = self.views(
+        return self.result(
             everyone=self.ticked or changed or self.end_reason is not None
         )
-        saved = _dump(session)
-        result = _round_trip(
-            {"views": views, "records": self.records, "ended": session["ended"]}
-        )
-        return PassResult(saved, result["views"], result["records"], result["ended"])
 
-    def call(self, method, *args, with_effects=False):
-        """Call game code. A call ``with_effects`` saves the effects it
-        queues, unless it raises.
+    def fail(self, entries, error, migrate):
+        """End the session at its state from before the pass.
+
+        The pass's messages are recorded as failed and its joins and leaves
+        open and close pages, up to where the pass would have stopped. No game
+        code runs except ``migrate_state``, unless it's what failed, and
+        ``outcome`` and ``view`` for the ending.
         """
-        if not with_effects:
-            return method(*args)
-        effects = []
-        token = queued_effects.set(effects)
+        self.failed = True
+        if migrate and self.session["state_version"] != self.game.state_version:
+            try:
+                self.migrate()
+            except (Exception, TimeLimitExceeded):
+                pass
+        limit = self.game.max_duration
+        for entry in entries:
+            self.time = self.entry_time(entry)
+            kind = entry["type"]
+            if kind == "end" or (limit is not None and self.time >= limit):
+                break
+            if kind == "message":
+                payload, sent = parse_message(entry["data"])
+                participant, scope = entry["participant"], entry["scope"]
+                record = self.record_message(
+                    participant, scope, payload, sent, entry["received"], "failed"
+                )
+                self.note_processed(participant, scope, sent, record)
+            elif kind == "join":
+                self.open_page(entry["participant"], entry["scope"])
+            elif kind == "leave":
+                self.close_page(entry["participant"], entry["scope"])
+        self.time = self.now
+        self.end_reason = FAILED
+        self.end(error="".join(traceback.format_exception(error)))
+        return self.result(everyone=True)
+
+    def migrate(self):
+        session = self.session
+        self.state = session["state"] = self.call(
+            "migrate_state", self.state, session["state_version"], returns=True
+        )
+        session["state_version"] = self.game.state_version
+
+    def entry_time(self, entry):
+        return min(max(entry["time"], self.time), self.now)
+
+    def result(self, everyone):
+        self.session["time"] = self.now
+        views = self.views(everyone)
+        saved = self.dump(self.session)
+        result = _round_trip({"records": self.records, "ended": self.session["ended"]})
+        return PassResult(saved, views, result["records"], result["ended"])
+
+    def dump(self, value):
+        """Dump the state, or the session holding it. Everything else in the
+        session is already JSON, so only the state can fail.
+        """
         try:
-            result = method(*args)
-        finally:
-            queued_effects.reset(token)
-        for name, payload in effects:
-            self.record("effect", name=name, payload=payload)
+            return _dump(value)
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                "{}'s state isn't JSON: {}".format(self.name, error)
+            ) from error
+
+    def call(self, name, *args, with_effects=False, returns=False):
+        """Call the game's method ``name`` through the guard.
+
+        A call ``with_effects`` saves the effects it queues, unless it raises.
+        A call that ``returns`` a value the session keeps or sends gets a
+        copy of it.
+        """
+        what = "{}.{}".format(self.name, name)
+        method = getattr(self.game, name)
+        if with_effects:
+            effects = []
+            token = queued_effects.set(effects)
+            try:
+                result = self.guard(what, method, *args)
+            finally:
+                queued_effects.reset(token)
+            for effect, payload in effects:
+                self.record("effect", name=effect, payload=payload)
+        else:
+            result = self.guard(what, method, *args)
+        if returns:
+            result = _copy(result, "{}'s return value".format(what))
         return result
+
+    def value_of(self, name, *args):
+        """Return a copy of what ``view`` or ``outcome`` returns.
+
+        A failed session gets ``None`` instead of failing again, and never
+        calls game code with state from another version.
+        """
+        if not self.failed:
+            return self.call(name, *args, returns=True)
+        if self.session["state_version"] != self.game.state_version:
+            return None
+        try:
+            return self.call(name, *args, returns=True)
+        except (Exception, TimeLimitExceeded):
+            return None
 
     def record(self, type, **fields):
         self.session["record_number"] += 1
@@ -295,7 +512,7 @@ class _Pass:
         next_tick = self.session["next_tick"]
         if next_tick is not None and next_tick <= self.now:
             times.append(next_tick)
-        deadline = self.call(self.game.next_deadline, self.state)
+        deadline = self.call("next_deadline", self.state)
         last_tick = self.session["last_tick"]
         if (
             deadline is not None
@@ -306,7 +523,7 @@ class _Pass:
         return min(times, default=None)
 
     def tick(self):
-        self.call(self.game.tick, self.state, self.time, with_effects=True)
+        self.call("tick", self.state, self.time, with_effects=True)
         self.ticked = True
         self.session["last_tick"] = self.time
         next_tick = self.session["next_tick"]
@@ -338,22 +555,12 @@ class _Pass:
             self.bots_play()
 
     def apply(self, participant, scope, payload, sent, received):
-        record = self.record(
-            "message",
-            participant=participant,
-            scope=scope,
-            # Copied first, since apply may keep the payload and change it.
-            payload=_round_trip(payload),
-            number=sent.number,
-            browser_time=sent.browser_time,
-            view_time=sent.view_time,
-            received=received,
-            status="accepted",
-            reason=None,
+        record = self.record_message(
+            participant, scope, payload, sent, received, "accepted"
         )
         try:
             self.call(
-                self.game.apply,
+                "apply",
                 self.state,
                 participant,
                 payload,
@@ -363,21 +570,64 @@ class _Pass:
             )
         except Reject as rejection:
             record["status"] = "rejected"
-            record["reason"] = rejection.reason
-        page = self.pages.get((participant, scope))
-        if page is not None:
-            if sent.number is not None:
-                page["last_processed"] = sent.number
-                if record["status"] == "rejected":
-                    page["rejected"].append(
-                        {"number": sent.number, "reason": record["reason"]}
-                    )
-            if self.game.send_views_on_messages or not self.game.tick_rate:
-                self.recipients.add((participant, scope))
+            record["reason"] = _copy(
+                rejection.reason, "{}.apply's Reject reason".format(self.name)
+            )
+        self.note_processed(participant, scope, sent, record)
         self.check_over()
         return record["status"] == "accepted"
 
+    def record_message(self, participant, scope, payload, sent, received, status):
+        return self.record(
+            "message",
+            participant=participant,
+            scope=scope,
+            # Copied first, since apply may keep the payload and change it.
+            payload=_round_trip(payload),
+            number=sent.number,
+            browser_time=sent.browser_time,
+            view_time=sent.view_time,
+            received=received,
+            status=status,
+            reason=None,
+        )
+
+    def note_processed(self, participant, scope, sent, record):
+        """Note a message's number, and any rejection, on the page it came
+        from.
+        """
+        page = self.pages.get((participant, scope))
+        if page is None:
+            return
+        if sent.number is not None:
+            page["last_processed"] = sent.number
+            if record["status"] == "rejected":
+                page["rejected"].append(
+                    {"number": sent.number, "reason": record["reason"]}
+                )
+        if self.game.send_views_on_messages or not self.game.tick_rate:
+            self.recipients.add((participant, scope))
+
     def join(self, participant, scope):
+        if self.open_page(participant, scope):
+            self.call("on_join", self.state, participant, self.time, with_effects=True)
+            self.check_over()
+
+    def leave(self, participant, scope):
+        if self.close_page(participant, scope):
+            self.call(
+                "on_leave",
+                self.state,
+                participant,
+                self.time,
+                with_effects=True,
+            )
+            self.check_over()
+
+    def open_page(self, participant, scope):
+        """Count a socket opening, returning whether it's the participant's
+        first open page.
+        """
         first = not self.is_open(participant)
         page = self.pages.get((participant, scope))
         if page is None:
@@ -392,30 +642,21 @@ class _Pass:
             self.session["pages"].append(page)
         page["sockets"] += 1
         self.recipients.add((participant, scope))
-        if first:
-            self.call(
-                self.game.on_join, self.state, participant, self.time, with_effects=True
-            )
-            self.check_over()
+        return first
 
-    def leave(self, participant, scope):
+    def close_page(self, participant, scope):
+        """Count a socket closing, returning whether the participant's last
+        open page closed.
+        """
         page = self.pages.get((participant, scope))
         if page is None:
-            return
+            return False
         page["sockets"] -= 1
         if page["sockets"] > 0:
-            return
+            return False
         del self.pages[participant, scope]
         self.session["pages"].remove(page)
-        if not self.is_open(participant):
-            self.call(
-                self.game.on_leave,
-                self.state,
-                participant,
-                self.time,
-                with_effects=True,
-            )
-            self.check_over()
+        return not self.is_open(participant)
 
     def is_open(self, participant):
         return any(page["participant"] == participant for page in self.pages.values())
@@ -435,7 +676,7 @@ class _Pass:
                 return
         raise RuntimeError(
             "{}'s bots were still moving after {} rounds.".format(
-                type(self.game).__name__, MAX_BOT_ROUNDS
+                self.name, MAX_BOT_ROUNDS
             )
         )
 
@@ -445,8 +686,8 @@ class _Pass:
         for bot in self.session["bots"]:
             if self.end_reason is not None:
                 break
-            view = _round_trip(self.call(self.game.view, self.state, bot))
-            message = self.call(self.game.bot, view, bot, self.time)
+            view = self.call("view", self.state, bot, returns=True)
+            message = self.call("bot", view, bot, self.time, returns=True)
             if message is None:
                 continue
             self.session["bot_messages"][bot] += 1
@@ -455,28 +696,38 @@ class _Pass:
                 browser_time=self.clock,
                 view_time=self.time,
             )
-            if self.apply(bot, None, _round_trip(message), sent, self.clock):
+            if self.apply(bot, None, message, sent, self.clock):
                 accepted = True
         return accepted
 
     def check_over(self):
-        if self.end_reason is None and self.call(self.game.is_over, self.state):
+        if self.end_reason is None and self.call("is_over", self.state):
             self.end_reason = FINISHED
 
-    def end(self):
-        outcome = self.call(self.game.outcome, self.state, self.end_reason)
+    def end(self, error=None):
+        outcome = self.value_of("outcome", self.state, self.end_reason)
+        if self.failed:
+            # A slow outcome doesn't cost the players their final views.
+            self.guard = self.new_guard()
         bots = set(self.session["bots"])
         self.session["ended"] = {
             "time": self.time,
             "reason": self.end_reason,
             "outcome": outcome,
             "views": {
-                member: self.call(self.game.view, self.state, member)
+                member: self.value_of("view", self.state, member)
                 for member in self.session["members"]
                 if member not in bots
             },
+            "error": error,
         }
-        self.record("end", reason=self.end_reason, outcome=outcome, state=self.state)
+        self.record(
+            "end",
+            reason=self.end_reason,
+            outcome=outcome,
+            state=self.state,
+            error=error,
+        )
 
     def views(self, everyone):
         session = self.session
@@ -489,14 +740,19 @@ class _Pass:
             return []
         session["view_number"] += 1
         ended = session["ended"]
-        player_views = ended["views"] if ended is not None else {}
+        player_views = dict(ended["views"]) if ended is not None else {}
         views = []
+        shown = set()
         for page in pages:
             participant = page["participant"]
             if participant not in player_views:
-                player_views[participant] = self.call(
-                    self.game.view, self.state, participant
+                player_views[participant] = self.value_of(
+                    "view", self.state, participant
                 )
+            view = player_views[participant]
+            if participant in shown:
+                view = _round_trip(view)
+            shown.add(participant)
             views.append(
                 {
                     "participant": participant,
@@ -509,7 +765,7 @@ class _Pass:
                         "last_processed": page["last_processed"],
                         "rejected": page["rejected"],
                         "ended": None if ended is None else ended["reason"],
-                        "view": player_views[participant],
+                        "view": view,
                     },
                 }
             )

@@ -36,7 +36,9 @@ class TestValidGameTypes:
             {"max_duration": 0.25},
             {"max_messages_per_second": 0.5},
             {"message_burst": 1},
-            {"version": "2b"},
+            {"time_limit": 0.01},
+            {"time_limit": 60},
+            {"state_version": "2b"},
         ],
     )
     def test_boundary_settings_are_accepted(self, attributes):
@@ -99,7 +101,10 @@ class TestInvalidGameTypes:
             ({"max_messages_per_second": None}, "max_messages_per_second must"),
             ({"message_burst": 0}, "message_burst must be a whole number"),
             ({"message_burst": 2.5}, "message_burst must be a whole number"),
-            ({"version": (1, 2)}, "version must be an integer or a string"),
+            ({"time_limit": 0}, "time_limit must be a positive number"),
+            ({"time_limit": None}, "time_limit must be a positive number"),
+            ({"time_limit": 61}, "time_limit must be a positive number, at most 60"),
+            ({"state_version": (1, 2)}, "state_version must be an integer or a"),
         ],
     )
     def test_setting(self, attributes, error):

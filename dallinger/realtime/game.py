@@ -37,6 +37,9 @@ FINISHED = "finished"
 #: reached :attr:`~RealtimeGame.max_duration`.
 MAX_DURATION = "max_duration"
 
+#: The reason passed to :meth:`RealtimeGame.outcome` when the session failed.
+FAILED = "failed"
+
 # The list effects are queued in while the session core calls game code.
 queued_effects = ContextVar("queued_effects")
 
@@ -84,6 +87,14 @@ class RealtimeGame(ABC):
     change the state in place. The other methods only read it, and the runner
     calls them as often as it needs to. No method may use the database: use
     :meth:`queue_effect` for anything that needs it.
+
+    A session fails if a method raises, other than :meth:`apply` raising
+    :class:`Reject`, or returns a value that isn't JSON, or if its methods run
+    past :attr:`time_limit`. The runner applies messages and ticks in
+    batches, and a failure discards the whole batch: the session goes back to
+    its state from before the batch, the batch's effects are dropped, and the
+    session ends there with the reason :data:`FAILED`. The batch's messages
+    are still saved, marked as failed. Other sessions carry on.
     """
 
     #: The websocket channel the game's pages send messages on. It can't
@@ -113,9 +124,23 @@ class RealtimeGame(ABC):
     #: :attr:`max_messages_per_second`, before the limit applies.
     message_burst = 20
 
-    #: Saved with each session's state. A runner refuses to load state saved
-    #: by a different version, so change it when the state's format changes.
-    version = 1
+    #: Seconds the game type's methods may run for in total each time the
+    #: runner plays a session, before the session fails. It catches code that
+    #: never finishes. A failed session gets the same time again for
+    #: :meth:`outcome`, and again for its final views. A runner plays all of
+    #: its sessions in turn, so a slow session holds up the others. At most
+    #: 60.
+    #:
+    #: Code that catches every exception in a loop, with a bare ``except:``,
+    #: can't be stopped this way. If it's still running after twice the
+    #: limit, the runner process exits, and other runners carry on its
+    #: sessions.
+    time_limit = 1
+
+    #: The format of the game type's state, saved with each session. Change it
+    #: whenever the state's format changes. A runner that loads state saved
+    #: with another version passes it to :meth:`migrate_state`.
+    state_version = 1
 
     @abstractmethod
     def initial_state(self, players):
@@ -176,8 +201,9 @@ class RealtimeGame(ABC):
         ends.
 
         :param reason: why the session ended: :data:`FINISHED`,
-            :data:`MAX_DURATION`, or the reason the experiment gave when it
-            ended the session
+            :data:`MAX_DURATION`, :data:`FAILED`, or the reason the
+            experiment gave when it ended the session. A session that failed
+            passes the state from before the failure.
         """
         return None
 
@@ -208,6 +234,25 @@ class RealtimeGame(ABC):
         :param player_id: the bot's player id
         """
         return None
+
+    def migrate_state(self, state, from_version):
+        """Return ``state``, saved with another :attr:`state_version`,
+        converted to the current format.
+
+        A runner calls this when it loads a session saved by another version
+        of the game type, such as after a redeploy during the session. That
+        can be a newer version, if a deploy is rolled back. Raise for a
+        version you don't recognize, which fails the session. By default every
+        other version fails the session.
+
+        :param from_version: the :attr:`state_version` ``state`` was saved
+            with
+        """
+        raise ValueError(
+            "{} can't read state saved with state_version {!r}.".format(
+                type(self).__name__, from_version
+            )
+        )
 
     def queue_effect(self, name, payload):
         """Queue an effect: work the game needs done outside the runner, such
@@ -267,10 +312,16 @@ def _check_game(name, game):
         raise ValueError(
             "{}'s message_burst must be a whole number, 1 or more.".format(name)
         )
+    if not _is_number(game.time_limit) or not 0 < game.time_limit <= 60:
+        raise ValueError(
+            "{}'s time_limit must be a positive number, at most 60.".format(name)
+        )
     # Saved state is compared with this after a JSON round trip, which turns a
     # tuple into a list that never matches.
-    if not isinstance(game.version, (int, str)):
-        raise ValueError("{}'s version must be an integer or a string.".format(name))
+    if not isinstance(game.state_version, (int, str)):
+        raise ValueError(
+            "{}'s state_version must be an integer or a string.".format(name)
+        )
 
 
 def validate_game_types(game_types, experiment_channel=None):
