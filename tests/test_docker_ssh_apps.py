@@ -254,11 +254,33 @@ def test_destroy_uses_the_cloudflare_ids_recorded_at_deploy(monkeypatch):
     assert ("delete", "myapp", "deploy-acct") in order
 
 
-def test_destroy_keeps_the_app_when_cloudflare_cleanup_fails(monkeypatch):
-    order = _cloudflare_destroy(monkeypatch, removed=TunnelDeletion(False))
+def test_destroy_keeps_the_app_when_cloudflare_cleanup_fails(monkeypatch, capsys):
+    removed = TunnelDeletion(False, hostname="myapp.x.org")
+    order = _cloudflare_destroy(monkeypatch, removed=removed)
     with pytest.raises(click.Abort):
         docker_ssh_module.destroy.callback(server="test-server", app="myapp")
     assert order == ["stop", ("delete", "myapp", "acct"), ("own", "tun")]
+    out = capsys.readouterr().out
+    assert "Deleted DNS record myapp.x.org." in out
+    assert "Cloudflare cleanup failed." in out
+
+
+@pytest.mark.parametrize(
+    "removed, message",
+    [
+        (TunnelDeletion(True), "No Cloudflare tunnel or DNS record left to delete"),
+        (
+            TunnelDeletion(True, skipped_tunnel_name="dallinger-myapp"),
+            "Left Cloudflare tunnel dallinger-myapp in place",
+        ),
+    ],
+)
+def test_destroy_reports_cloudflare_resources_left(
+    monkeypatch, capsys, removed, message
+):
+    _cloudflare_destroy(monkeypatch, removed=removed)
+    docker_ssh_module.destroy.callback(server="test-server", app="myapp")
+    assert message in capsys.readouterr().out
 
 
 def test_monitoring_settings_default_and_override():
@@ -371,10 +393,17 @@ def test_select_running_app_raises_when_multiple_running(monkeypatch):
         ("pc01.lab.example.org", "pc01.lab.example.org"),
         ("pc01", "pc01.lab.example.org"),
         ("10.0.0.5", "10.0.0.5"),
+        ("[::1]:2200", "[::1]:2200"),
     ],
 )
 def test_resolve_server_name(name, expected):
-    hosts = ["pc01.lab.example.org", "pc02.a.org", "pc02.b.org", "10.0.0.5"]
+    hosts = [
+        "pc01.lab.example.org",
+        "pc02.a.org",
+        "pc02.b.org",
+        "10.0.0.5",
+        "[::1]:2200",
+    ]
     assert docker_ssh_module.resolve_server_name(name, hosts) == expected
 
 
@@ -386,8 +415,9 @@ def test_resolve_server_name(name, expected):
         ("10", "Unknown server '10'"),
     ],
 )
-def test_resolve_server_name_errors(name, error):
-    hosts = ["pc01.lab.example.org", "pc02.a.org", "pc02.b.org", "10.0.0.5"]
+@pytest.mark.parametrize("ip_host", ["10.0.0.5", "10.0.0.5:2222"])
+def test_resolve_server_name_errors(name, error, ip_host):
+    hosts = ["pc01.lab.example.org", "pc02.a.org", "pc02.b.org", ip_host]
     with pytest.raises(ValueError, match=error):
         docker_ssh_module.resolve_server_name(name, hosts)
 

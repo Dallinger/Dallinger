@@ -52,11 +52,15 @@ class TunnelDeletion:
         Name of the tunnel this call deleted, if any.
     hostname : str or None
         Hostname whose DNS record this call deleted, if any.
+    skipped_tunnel_name : str or None
+        Name of a same-named tunnel left in place because it belongs to
+        another deploy, if any.
     """
 
     ok: bool
     tunnel_name: str | None = None
     hostname: str | None = None
+    skipped_tunnel_name: str | None = None
 
     def __bool__(self) -> bool:
         return self.ok
@@ -375,7 +379,8 @@ def delete_experiment_tunnel(
     TunnelDeletion
         Truthy when the tunnel is gone or was already absent; falsy when DNS or
         tunnel deletion failed and the named tunnel may still exist. It also
-        records which tunnel and DNS record this call deleted.
+        records which tunnel and DNS record this call deleted, and any
+        same-named tunnel it left for another deploy.
     """
     host = public_hostname(app, dns_zone)
     name = tunnel_name_for_app(app)
@@ -384,7 +389,9 @@ def delete_experiment_tunnel(
     # Look the tunnel up by name so a re-run after it was deleted is a no-op.
     tunnels = list_tunnels(account_id, name, api_token, request_func=request_func)
     named_id = tunnels[0]["id"] if tunnels else None
+    skipped = None
     if own_tunnel_id and named_id and named_id != own_tunnel_id:
+        skipped = name
         logger.warning(
             "Tunnel %s now belongs to another deploy (id %s); leaving it in place",
             name,
@@ -454,4 +461,4 @@ def delete_experiment_tunnel(
             )
             return TunnelDeletion(False, hostname=deleted_host)
         return TunnelDeletion(True, tunnel_name=name, hostname=deleted_host)
-    return TunnelDeletion(True, hostname=deleted_host)
+    return TunnelDeletion(True, hostname=deleted_host, skipped_tunnel_name=skipped)

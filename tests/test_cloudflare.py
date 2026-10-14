@@ -260,7 +260,9 @@ def test_delete_leaves_a_same_named_tunnel_from_another_deploy():
         own_tunnel_id="ours",
         request_func=api,
     )
-    assert removed
+    assert removed == cf.TunnelDeletion(
+        True, skipped_tunnel_name="dallinger-consonance"
+    )
     assert not api.tunnels[0].get("deleted")
     assert [record["id"] for record in api.dns] == ["c1"]
 

@@ -370,9 +370,10 @@ CONFIGURED_HOSTS = get_configured_hosts()
 
 
 def _is_ip_address(host):
+    """Whether ``host`` (optionally ``host:port`` or ``[host]:port``) is an IP."""
     try:
-        ipaddress.ip_address(host)
-    except ValueError:
+        ipaddress.ip_address(split_ssh_host_port(host)[0])
+    except (ValueError, click.UsageError):
         return False
     return True
 
@@ -1348,10 +1349,10 @@ def _deploy_in_mode(
     ingress=None,
 ):
     config = get_config(load=True)
+    server = resolve_server_name(server, CONFIGURED_HOSTS)
 
     run_pre_launch_checks(**locals())
 
-    server = resolve_server_name(server, CONFIGURED_HOSTS)
     server_info = CONFIGURED_HOSTS[server]
     ssh_address = server_info["host"]
     ssh_host, ssh_port = split_ssh_host_port(ssh_address)
@@ -2381,9 +2382,14 @@ def _destroy_cloudflare_resources(app, manifest=None, own_tunnel_id=None):
         deleted.append(f"DNS record {removed.hostname}")
     if deleted:
         print(f"Deleted {' and '.join(deleted)}.")
+    if removed.skipped_tunnel_name:
+        print(
+            f"Left Cloudflare tunnel {removed.skipped_tunnel_name} in place "
+            "because it belongs to another deploy."
+        )
     if not removed:
         print(f"{RED}Cloudflare cleanup failed.{END} See the warnings above.")
-    elif not deleted:
+    elif not deleted and not removed.skipped_tunnel_name:
         print(f"No Cloudflare tunnel or DNS record left to delete for {app}.")
     return bool(removed)
 
