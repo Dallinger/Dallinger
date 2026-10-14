@@ -218,29 +218,23 @@
   Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 - The ``deployment-files`` CLI tests no longer use Click's deprecated
   ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
+- docker-ssh deploys now need an experiment image built with this Dallinger,
+  because they check the app's ``/health``, which Dallinger 12.4.0 and older
+  lack. Rebuild older images before deploying them. The web image also needs
+  ``curl`` (the Dallinger and PsyNet images have it).
 
 ### Fixed
 
-- docker-ssh deploys no longer fail to launch after about a minute when a new
-  Cloudflare tunnel takes several minutes to register. The deploy writes its
-  ``deploy_logs/`` record, checks that the app's own ``/health`` answers 2xx
-  from inside the server, then waits up to 7 minutes until the public
-  ``/health`` answers 2xx. Recruitment therefore does not open while
-  participants would get a Cloudflare error. The deploy then launches the
-  experiment from inside the server by running ``curl`` in the web container,
-  so the app still records its public base URL. The web image needs ``curl``
-  (the Dallinger and PsyNet images have it) and a Dallinger with ``/health``.
-  The deploy stops early, without launching, if ``curl`` is missing, if the
-  app has no ``/health`` (rebuild the image with this Dallinger), or if the
-  app's own ``/health`` keeps failing. If the public URL never answers, the deploy stops with an error
-  without launching, says when Cloudflare has not activated the tunnel yet,
-  and prints how to check the URL again, how to launch once it works, and how
-  to destroy the app. The launch request is sent again only when it could not
-  be delivered (web not running, or curl could not connect). Once it may have
-  reached the app, even if it failed or timed out, it is not sent again: the
-  deploy says recruitment may have started and prints how to check the web
-  logs, launch again by hand, or destroy the app. ``--update`` deploys skip
-  the curl and health checks, the public wait and the launch, as before.
+- docker-ssh deploys no longer fail to launch when a new Cloudflare tunnel
+  takes several minutes to register. After checking the app's ``/health``
+  from inside the server, the deploy waits up to 7 minutes for the public
+  ``/health`` to answer 2xx, so recruitment does not open while participants
+  would see an error page. It then launches from inside the server with
+  ``curl`` in the web container, so the app still records its public URL. If
+  the URL never answers, nothing is launched and the deploy prints how to
+  check it, launch by hand and destroy the app. A launch request that may
+  have reached the app is never sent again; the deploy says recruitment may
+  have started.
 - A WebSocket connection waits for redis to confirm its channel subscription
   before it relays anything. A process subscribes to a channel the first time
   one of its connections names it, and the publish travels on a different redis

@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 import click
+import paramiko
 import pytest
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -39,23 +40,37 @@ class FakeExecutor:
         self.launch_replies = list(launch_replies)
         self.logs = logs
         self.events = [] if events is None else events
-        self.health = health
+        self.health = [health] if isinstance(health, str) else list(health)
 
     def run_with_status(self, cmd):
         if "command -v curl" in cmd:
             self.events.append("health")
-            return 0, self.health + "\n", ""
+            health = self.health.pop(0) if len(self.health) > 1 else self.health[0]
+            return 0, health + "\n", ""
         self.events.append("launch")
-        return self.launch_replies.pop(0)
+        result = self.launch_replies.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
 
     def run(self, cmd, raise_=True):
         return self.logs if "logs" in cmd else ""
 
 
+class FakeClock:
+    def __init__(self):
+        self.now = 0
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
 @pytest.fixture
-def no_sleep():
-    with mock.patch("dallinger.deployment.time.sleep"):
-        yield
+def no_sleep(monkeypatch):
+    monkeypatch.setattr(launch, "time", FakeClock())
 
 
 @pytest.mark.skipif(shutil.which("curl") is None, reason="needs curl")
@@ -135,8 +150,9 @@ def test_proxied_launch_headers_give_the_public_base_url():
         (28, "\n000\n", "curl: (28) Operation timed out"),
         (0, '["not", "an", "object"]\n200\n', ""),
         (1, "", "unexpected failure\n"),
+        paramiko.SSHException("Connection reset"),
     ],
-    ids=["http-500", "timeout", "2xx-not-json-object", "other-exit-1"],
+    ids=["http-500", "timeout", "2xx-not-json-object", "other-exit-1", "ssh-error"],
 )
 def test_a_launch_that_reached_the_app_is_sent_once(result, capsys):
     executor = FakeExecutor([result])
@@ -162,10 +178,15 @@ def deploy_dir(monkeypatch, tmp_path):
     return tmp_path
 
 
-def public_check(events, status, text=""):
-    def get(*args, **kwargs):
+def public_check(events, *statuses, text="", headers=None):
+    """Answer the public probe with ``statuses`` in turn, repeating the last."""
+    statuses = list(statuses)
+
+    def get(url, allow_redirects=True, **kwargs):
+        assert allow_redirects is False
         events.append("check")
-        return mock.Mock(status_code=status, text=text)
+        status = statuses.pop(0) if len(statuses) > 1 else statuses[0]
+        return mock.Mock(status_code=status, text=text, headers=headers or {})
 
     return mock.patch.object(launch.requests, "get", get)
 
@@ -174,22 +195,24 @@ CLOUDFLARE_PENDING = "Cloudflare has not activated the new tunnel yet (cloudflar
 
 
 @pytest.mark.parametrize(
-    "ingress, status, text, reason",
+    "ingress, status, headers, reason",
     [
-        ("cloudflare", 530, "error code: 1033", CLOUDFLARE_PENDING),
-        ("cloudflare", 404, "", CLOUDFLARE_PENDING),
-        ("classic", 502, "", "Caddy may still be getting a TLS certificate"),
+        ("cloudflare", 530, {}, CLOUDFLARE_PENDING),
+        ("cloudflare", 404, {}, CLOUDFLARE_PENDING),
+        ("classic", 502, {}, "Caddy may still be getting a TLS certificate"),
+        ("classic", 302, {"location": "https://x.cloudflareaccess.com"}, "Access"),
+        ("classic", 403, {"cf-mitigated": "challenge"}, "cf-mitigated: challenge"),
     ],
-    ids=["cloudflare-530", "cloudflare-404", "classic-502"],
+    ids=["cloudflare-530", "cloudflare-404", "classic-502", "redirect", "403"],
 )
 def test_deploy_does_not_launch_when_the_public_url_never_answers(
-    ingress, status, text, reason, deploy_dir, capsys
+    ingress, status, headers, reason, deploy_dir, capsys
 ):
     target = dataclasses.replace(TARGET, ingress=ingress)
     events = []
     executor = FakeExecutor(logs="ERR Unauthorized: Tunnel not found", events=events)
 
-    with public_check(events, status, text):
+    with public_check(events, status, headers=headers):
         with pytest.raises(click.ClickException) as error:
             docker_ssh._record_then_launch(executor, target, ["notes"], "pw", False)
 
@@ -224,6 +247,20 @@ def test_deploy_launches_once_the_public_url_answers(deploy_dir, capsys):
 
         docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", True)
         assert events == ["health", "check", "launch"]
+
+
+def test_public_wait_retries_redirects_and_errors_until_2xx(no_sleep):
+    events = []
+    with public_check(events, 302, 530, 200):
+        launch.wait_for_public_url(FakeExecutor(), TARGET)
+    assert events == ["check"] * 3
+    assert launch.time.now == 2 * launch.PUBLIC_CHECK_INTERVAL
+
+
+def test_internal_health_retries_while_the_app_starts(no_sleep):
+    executor = FakeExecutor(health=["health=000", "health=502", "health=200"])
+    launch.check_internal_health(executor, TARGET)
+    assert executor.events == ["health"] * 3
 
 
 @pytest.mark.parametrize(

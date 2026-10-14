@@ -2534,6 +2534,9 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         except Exception:
             spinner.fail("✖ Connection failed")
             raise
+    # Deploys can sit idle for minutes (public URL wait, slow /launch);
+    # keepalives stop NATs and firewalls from dropping the connection.
+    client.get_transport().set_keepalive(30)
 
     try:
         client.save_host_keys(known_hosts_path)

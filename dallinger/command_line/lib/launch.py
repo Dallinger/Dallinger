@@ -37,14 +37,10 @@ from shlex import quote
 from urllib.parse import urlsplit
 
 import click
+import paramiko
 import requests
 
-from dallinger.deployment import (
-    BACKOFF_FACTOR,
-    DEFAULT_DELAY,
-    MAX_ATTEMPTS,
-    handle_launch_data,
-)
+from dallinger.deployment import BACKOFF_FACTOR, DEFAULT_DELAY, MAX_ATTEMPTS
 from dallinger.utils import print_bold
 
 from .app_manifest import INGRESS_CLOUDFLARE
@@ -68,6 +64,7 @@ WEB_NOT_RUNNING_PATTERN = re.compile(
 CURL_TIMEOUT_EXIT_STATUS = 28
 FRONT_DOOR_HEALTH_URL = "http://frontdoor:5000/health"
 HEALTH_STATUS_PATTERN = re.compile(r"(?m)^health=(\d{3})\s*$")
+SSH_ERRORS = (paramiko.SSHException, OSError)
 # Characters that are not literal inside a local double-quoted string.
 _DOUBLE_QUOTE_UNSAFE = re.compile(r'["$`!]|\\[\\"$`\n]|\\$')
 
@@ -102,7 +99,11 @@ class LaunchTarget:
     @property
     def check_command(self):
         """Return a local command that checks the public health URL."""
-        return f"curl -sS -o /dev/null -w '%{{http_code}}\\n' {quote(self.health_url)}"
+        insecure = "" if self.verify else "-k "
+        return (
+            f"curl -sS {insecure}-o /dev/null -w '%{{http_code}}\\n' "
+            f"{quote(self.health_url)}"
+        )
 
     @property
     def destroy_command(self):
@@ -119,20 +120,18 @@ def ssh_command(ssh_prefix, remote_command):
     return f'{ssh_prefix} "{remote_command}"'
 
 
-class _LaunchSent(click.ClickException):
-    """``/launch`` reached the app but did not clearly succeed; never resend it."""
+class _LaunchSent(Exception):
+    """``/launch`` may have reached the app without clearly succeeding; never resend it."""
 
 
-class _CommandResponse:
-    """The parts of ``requests.Response`` that ``handle_launch_data`` reads."""
-
-    def __init__(self, status_code, text):
-        self.status_code = status_code
-        self.text = text
-        self.ok = status_code < 400
-
-    def json(self):
-        return json.loads(self.text)
+def _attempts():
+    """Yield ``MAX_ATTEMPTS`` times, sleeping with exponential backoff in between."""
+    delay = DEFAULT_DELAY
+    for attempt in range(MAX_ATTEMPTS):
+        if attempt:
+            delay *= BACKOFF_FACTOR
+            time.sleep(delay)
+        yield attempt
 
 
 def internal_launch_command(target):
@@ -228,10 +227,15 @@ def check_internal_health(executor, target):
     like the launch.
     """
     command = _internal_health_command(target)
-    delay = DEFAULT_DELAY
-    status = None
-    for attempt in range(MAX_ATTEMPTS):
-        _, stdout, stderr = executor.run_with_status(command)
+    for _ in _attempts():
+        try:
+            _, stdout, stderr = executor.run_with_status(command)
+        except SSH_ERRORS as exc:
+            _stop_before_launch(
+                target,
+                f"The SSH connection failed while checking the app's /health ({exc}).",
+                show_logs=True,
+            )
         if stdout.strip() == "curl-missing":
             _stop_before_launch(
                 target,
@@ -243,17 +247,14 @@ def check_internal_health(executor, target):
         status = int(match.group(1)) if match else None
         if status and status < 500:
             break
-        if attempt < MAX_ATTEMPTS - 1:
-            delay *= BACKOFF_FACTOR
-            time.sleep(delay)
     if status and 200 <= status < 300:
         print("The app answers /health inside the server.")
         return
     if status == 404:
         _stop_before_launch(
             target,
-            "The app has no /health endpoint, so its image was built with a "
-            "Dallinger older than this command. Rebuild the image with this "
+            "The app has no /health endpoint, so its image was built with an "
+            "older Dallinger (12.4.0 or earlier). Rebuild the image with this "
             "Dallinger version (or newer) and deploy again.",
         )
     if status:
@@ -269,70 +270,75 @@ def check_internal_health(executor, target):
 def launch_from_server(executor, target):
     """POST ``/launch`` from inside the app's network and return the launch data.
 
-    Uses ``handle_launch_data``'s retries only while curl could not deliver
-    the request. If the launch fails, prints what to check and run next and raises
+    Sends the request again only while curl could not deliver it. If the
+    launch fails, prints what to check and run next and raises
     ``click.ClickException``.
     """
     command = internal_launch_command(target)
-
-    def post():
-        exit_status, stdout, stderr = executor.run_with_status(command)
-        # Raising a ClickException (not a RequestException) stops
-        # handle_launch_data from sending the request again.
-        body, status = _split_status(stdout)
-        if status is not None:
-            if 200 <= status < 300 and _is_json_object(body):
-                return _CommandResponse(status, body)
-            raise _LaunchSent(
-                f"The launch request to {target.app} returned HTTP {status}:\n{body}"
-            )
-        detail = _last_line(stderr) or f"exit status {exit_status}"
-        if exit_status == CURL_TIMEOUT_EXIT_STATUS:
-            raise _LaunchSent(
-                f"The launch request to {target.app} did not answer within "
-                f"{LAUNCH_REQUEST_TIMEOUT} s and may still be running."
-            )
-        web_not_running = (
-            exit_status == COMPOSE_EXEC_FAILED_EXIT_STATUS
-            and WEB_NOT_RUNNING_PATTERN.search(f"{stderr}\n{stdout}")
-        )
-        if exit_status in NOT_SENT_EXIT_STATUSES or web_not_running:
-            raise requests.exceptions.ConnectionError(detail)
-        raise _LaunchSent(f"The launch request to {target.app} failed: {detail}")
-
+    sent = None
     try:
-        return handle_launch_data(
-            f"{FRONT_DOOR_LAUNCH_URL} inside {target.app}",
-            print,
-            context="ssh",
-            post=post,
-        )
-    except click.ClickException as exc:
-        sent = isinstance(exc, _LaunchSent)
-        if sent:
-            print(exc.message)
-        print_bold("Check the web container logs:")
-        print(target.ssh(f"docker compose -f {target.compose_file} logs web"))
-        if sent:
-            print_bold(
-                "Only if the logs show that recruitment did not open, launch again:"
-            )
-        else:
-            print_bold("Retry the launch:")
-        print(target.ssh(command))
-        print_bold("Or remove the app:")
-        print(target.destroy_command)
-        if sent:
-            raise click.ClickException(
-                f"The launch request reached {target.app} but did not succeed. "
-                "Recruitment may have started: check the web container logs "
-                "before launching again."
-            ) from exc
+        for _ in _attempts():
+            data = _send_launch(executor, target, command)
+            if data is not None:
+                return data
+    except _LaunchSent as exc:
+        sent = exc
+        print(exc)
+    print_bold("Check the web container logs:")
+    print(target.ssh(f"docker compose -f {target.compose_file} logs web"))
+    if sent:
+        print_bold("Only if the logs show that recruitment did not open, launch again:")
+    else:
+        print_bold("Retry the launch:")
+    print(target.ssh(command))
+    print_bold("Or remove the app:")
+    print(target.destroy_command)
+    if sent:
         raise click.ClickException(
-            f"The launch request to {target.app} failed from inside the server. "
-            "The app's containers are running, but the experiment was not "
-            "launched and recruitment has not started."
+            f"The launch request may have reached {target.app} but did not "
+            "clearly succeed. Recruitment may have started: check the web "
+            "container logs before launching again."
+        ) from sent
+    raise click.ClickException(
+        f"The launch request could not reach {target.app} from inside the "
+        f"server after {MAX_ATTEMPTS} attempts. The app's containers are "
+        "running, but the experiment was not launched and recruitment has not "
+        "started."
+    )
+
+
+def _send_launch(executor, target, command):
+    """Send ``/launch`` once; return the launch data, or None if it was not delivered.
+
+    Raises ``_LaunchSent`` if the request may have reached the app.
+    """
+    try:
+        exit_status, stdout, stderr = executor.run_with_status(command)
+    except SSH_ERRORS as exc:
+        raise _LaunchSent(
+            f"The SSH connection failed while launching {target.app}: {exc}"
         ) from exc
+    body, status = _split_status(stdout)
+    if status is not None:
+        if 200 <= status < 300 and _is_json_object(body):
+            return json.loads(body)
+        raise _LaunchSent(
+            f"The launch request to {target.app} returned HTTP {status}:\n{body}"
+        )
+    detail = _last_line(stderr) or f"exit status {exit_status}"
+    if exit_status == CURL_TIMEOUT_EXIT_STATUS:
+        raise _LaunchSent(
+            f"The launch request to {target.app} did not answer within "
+            f"{LAUNCH_REQUEST_TIMEOUT} s and may still be running."
+        )
+    web_not_running = (
+        exit_status == COMPOSE_EXEC_FAILED_EXIT_STATUS
+        and WEB_NOT_RUNNING_PATTERN.search(f"{stderr}\n{stdout}")
+    )
+    if exit_status in NOT_SENT_EXIT_STATUSES or web_not_running:
+        print(f"The launch request did not reach {target.app} yet: {detail}")
+        return None
+    raise _LaunchSent(f"The launch request to {target.app} failed: {detail}")
 
 
 def wait_for_public_url(executor, target, timeout=None, interval=None):
@@ -382,17 +388,32 @@ def _duration(seconds):
 
 
 def _probe(url, verify):
-    """GET ``url`` once; return ``(status_code or None, detail)``."""
+    """GET ``url`` once; return ``(status_code or None, detail)``.
+
+    Redirects are not followed: a Cloudflare Access login page is not the app.
+    """
     try:
-        response = requests.get(url, timeout=REQUEST_TIMEOUT, verify=verify)
+        response = requests.get(
+            url, timeout=REQUEST_TIMEOUT, verify=verify, allow_redirects=False
+        )
     except requests.exceptions.RequestException as exc:
         return None, str(exc)
+    if _is_redirect(response.status_code):
+        return response.status_code, f"redirect to {response.headers.get('location')}"
+    if "cf-mitigated" in response.headers:
+        return response.status_code, f"cf-mitigated: {response.headers['cf-mitigated']}"
     return response.status_code, response.text
+
+
+def _is_redirect(status):
+    return status is not None and 300 <= status < 400
 
 
 def _describe(status, detail):
     if status is None:
         return detail.splitlines()[0] if detail else "no response"
+    if _is_redirect(status) or detail.startswith("cf-mitigated:"):
+        return f"HTTP {status}, {detail}"
     return f"HTTP {status}"
 
 
@@ -405,10 +426,14 @@ def _tunnel_pending(status, detail):
 
 def _connector_reports_tunnel_not_found(executor, target):
     """Search recent ``cloudflared`` logs without printing them."""
-    logs = executor.run(
-        f"docker compose -f {target.compose_file} logs --tail 200 cloudflared 2>&1",
-        raise_=False,
-    )
+    try:
+        logs = executor.run(
+            f"docker compose -f {target.compose_file} logs --tail 200 cloudflared 2>&1",
+            raise_=False,
+        )
+    except SSH_ERRORS as exc:
+        print(f"Could not read the cloudflared logs over SSH: {exc}")
+        return False
     return "tunnel not found" in (logs or "").lower()
 
 
@@ -424,6 +449,18 @@ def _abort_unreachable(executor, target, status, detail, limit):
             "Cloudflare has not activated the new tunnel yet"
             + (" (cloudflared logs say 'Tunnel not found')" if not_found else "")
             + "; new tunnels usually start working within minutes."
+        )
+    elif _is_redirect(status):
+        reason = (
+            f"The public /health answered with a {detail}, so a login such as "
+            "Cloudflare Access may be in front of the app. The deploy launches "
+            "only once /health answers 2xx without a redirect."
+        )
+    elif status == 403:
+        mitigated = f" ({detail})" if detail.startswith("cf-mitigated:") else ""
+        reason = (
+            f"Cloudflare may be blocking the check{mitigated}, with a bot or "
+            "WAF challenge or Cloudflare Access."
         )
     elif cloudflare:
         reason = "The Cloudflare tunnel is not serving the app yet."
