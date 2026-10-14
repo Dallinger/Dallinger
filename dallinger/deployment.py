@@ -565,6 +565,8 @@ class DebugDeployment(HerokuLocalDeployment):
         self.status_thread = None
         self.no_browsers = no_browsers
         self.experiment_files = experiment_files
+        if os.environ.get("FLASK_SECRET_KEY"):
+            self.out.log("Using FLASK_SECRET_KEY from the environment.")
         self.environ = {
             "FLASK_SECRET_KEY": os.environ.get("FLASK_SECRET_KEY")
             or codecs.encode(os.urandom(16), "hex").decode("ascii"),
