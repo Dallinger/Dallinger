@@ -11,7 +11,7 @@ def _checked_startup_timeout(value):
 
     try:
         timeout = int(value)
-    except ValueError:
+    except (TypeError, ValueError):
         timeout = -1
     if timeout < 0:
         print(
