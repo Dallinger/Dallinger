@@ -237,12 +237,14 @@ def test_compose_reads_the_database_password_from_the_app_env():
     )
 
 
-def test_num_dynos():
-    """Make sure the correct number of worker services is created"""
-    n = 3
-    result = get_yaml({"num_dynos_worker": n})
-    for i in range(n):
-        assert f"worker_{i + 1}" in result["services"]
+@pytest.mark.parametrize("n, shares", [(1, 102), (3, 34), (100, 2)])
+def test_worker_processes_get_low_cpu_weight(n, shares):
+    """Each worker process gets its own container, weighted below the web server."""
+    services = get_yaml({"worker_processes": n})["services"]
+    workers = [name for name in services if name.startswith("worker_")]
+    assert len(workers) == n
+    assert {services[name]["cpu_shares"] for name in workers} == {shares}
+    assert "cpu_shares" not in services["web"]
 
 
 def make_experiment_tmp_dir(tmp_path, name="exp"):
@@ -254,6 +256,31 @@ def make_experiment_tmp_dir(tmp_path, name="exp"):
     (exp_dir / "experiment.py").write_text("class Exp:\n    pass\n")
     (exp_dir / "static" / "script.js").write_text("console.log('hi');\n")
     return exp_dir
+
+
+def test_local_compose_gives_worker_low_cpu_weight(tmp_path):
+    from dallinger.docker.tools import DockerComposeWrapper
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    wrapper = DockerComposeWrapper({}, mock.Mock(), str(tmp_path), str(exp_dir))
+    wrapper.copy_docker_compose_files()
+    services = yaml.safe_load((exp_dir / "docker-compose.yml").read_text())["services"]
+    assert services["worker"]["cpu_shares"] == 102
+    assert services["worker"]["deploy"]["replicas"] == 1
+    assert "cpu_shares" not in services["web"]
+
+
+def test_local_compose_runs_worker_processes_replicas(tmp_path):
+    from dallinger.docker.tools import DockerComposeWrapper
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    wrapper = DockerComposeWrapper(
+        {"worker_processes": 3}, mock.Mock(), str(tmp_path), str(exp_dir)
+    )
+    wrapper.copy_docker_compose_files()
+    services = yaml.safe_load((exp_dir / "docker-compose.yml").read_text())["services"]
+    assert services["worker"]["deploy"]["replicas"] == 3
+    assert services["worker"]["cpu_shares"] == 34
 
 
 def test_deps_image_tag_ignores_experiment_code(tmp_path):

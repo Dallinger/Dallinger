@@ -1,6 +1,17 @@
 listen = ["high", "default", "low"]
 
 
+def worker_options(config):
+    """Return the RQ gevent worker's keyword arguments and Redis pool size.
+
+    Each greenlet can hold a Redis connection while RQ also uses some, so the
+    connection pool needs headroom above the greenlet count.
+    """
+    pool_size = config.get("worker_greenlets_per_process")
+    worker_kwargs = {"log_job_description": False, "pool_size": pool_size}
+    return worker_kwargs, max(50, pool_size + 10)
+
+
 def main():
     import gevent.monkey
 
@@ -39,6 +50,7 @@ def main():
         level=LOG_LEVEL,
     )
     attach_json_logger(logging.getLogger())
+    worker_kwargs, max_connections = worker_options(config)
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
     # Specify queue class for improved performance with gevent.
     # see http://carsonip.me/posts/10x-faster-python-gevent-redis-connection-pool/
@@ -46,6 +58,7 @@ def main():
     connection_args = {
         "url": redis_url,
         "queue_class": LifoQueue,
+        "max_connections": max_connections,
     }
     # Since we are generally running on Heroku, and configuring SSL certificates
     # is challenging, we disable cert requirements on secure connections.
@@ -57,7 +70,7 @@ def main():
     worker = Worker(
         [Queue(name, connection=redis_conn) for name in listen],
         connection=redis_conn,
-        log_job_description=False,
+        **worker_kwargs,
     )
     worker.log_result_lifespan = False
     # Default to log.warn because rq logs extremely verbosely at the info

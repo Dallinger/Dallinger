@@ -1311,7 +1311,7 @@ class TestAwaken:
 
     def test_scales_up_dynos(self, awaken, heroku, data, active_config):
         web_count = active_config.get("num_dynos_web")
-        worker_count = active_config.get("num_dynos_worker")
+        worker_count = active_config.get("worker_processes")
         size = active_config.get("dyno_type")
         active_config.set("clock_on", True)
         CliRunner().invoke(awaken, ["--app", "some-app-uid"])

@@ -22,7 +22,7 @@ from rich.progress import (
 
 from dallinger import data, db, heroku, recruiters, registration
 from dallinger.config import get_config
-from dallinger.heroku.tools import HerokuApp, HerokuLocalWrapper
+from dallinger.heroku.tools import HerokuApp, HerokuLocalWrapper, dyno_count
 from dallinger.redis_utils import connect_to_redis
 from dallinger.utils import (
     ExperimentFileSource,
@@ -374,8 +374,7 @@ def deploy_sandbox_shared_setup(
     default_size = config.get("dyno_type")
     for process in ["web", "worker"]:
         size = config.get("dyno_type_" + process, default_size)
-        qty = config.get("num_dynos_" + process)
-        heroku_app.scale_up_dyno(process, qty, size)
+        heroku_app.scale_up_dyno(process, dyno_count(config, process), size)
     if config.get("clock_on"):
         heroku_app.scale_up_dyno("clock", 1, size)
 

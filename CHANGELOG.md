@@ -150,9 +150,25 @@
   A custom experiment Dockerfile gets a final step that installs that wheel.
   Dallinger pins given as Git URLs are replaced by the local wheel as well
   (extras such as ``[docker]`` are dropped from the rewritten line).
+- Added Docker-first parallelism settings: ``web_processes`` (number of
+  gunicorn web processes, given as a number or ``auto``, the default),
+  ``worker_processes`` (number of
+  background worker processes, default ``1``; one container each with
+  Docker, worker dynos on Heroku) and ``worker_greenlets_per_process``
+  (tasks each worker process runs at once, default ``20``). For CPU-heavy
+  tasks, set ``worker_greenlets_per_process = 1`` and add worker processes.
+  Each worker's Redis connection pool grows with its greenlets, so values
+  above 40 don't wait for connections.
 
 ### Changed
 
+- Docker worker containers now get a low CPU weight (``cpu_shares``), so the
+  web server gets priority when the CPU is busy: all the workers together
+  weigh about a tenth of the web container. Postgres, pgbouncer, Redis and
+  Caddy keep Docker's default weight. ``docker_worker_cpu_shares`` is now
+  ignored.
+- ``docker-ssh deploy -c`` values are now type-checked and validated before
+  deployment starts, as values from config files are.
 - The installation and developer setup guides now use Python 3.14, the
   version in Dallinger's Docker images, in their pyenv and virtualenv
   examples.
@@ -218,6 +234,18 @@
   Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 - The ``deployment-files`` CLI tests no longer use Click's deprecated
   ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
+
+### Deprecated
+
+- ``threads`` and ``num_dynos_worker`` are deprecated in favour of
+  ``web_processes`` and ``worker_processes``. The old names still work, but
+  setting or reading them (including with ``docker-ssh deploy -c``) emits a
+  ``FutureWarning``. ``Configuration.canonical_key()`` maps an old name to
+  its replacement. Setting
+  ``worker_multiplier`` (set ``web_processes`` to a number instead) or
+  ``docker_worker_cpu_shares`` (now ignored) also warns. The warning for
+  ``prolific_maximum_allowed_minutes`` is now a ``FutureWarning`` too, and no
+  longer changes the global warnings filter.
 
 ### Fixed
 

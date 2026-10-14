@@ -73,13 +73,12 @@ services:
       {%- endfor %}
     {%- endif %}
 
-  {% set num_dynos = config["num_dynos_worker"] | default('1') | int %}
-  {%- for number in range(num_dynos) %}
+  {%- for number in range(worker_processes) %}
   worker_{{ number + 1 }}:
     restart: unless-stopped
     image: {{ experiment_image }}
     command: dallinger_heroku_worker
-    cpu_shares: {{ config["docker_worker_cpu_shares"] }}
+    cpu_shares: {{ worker_cpu_shares }}
     depends_on:
       <<: *commondepends
 {%- if run_as_ssh_user %}

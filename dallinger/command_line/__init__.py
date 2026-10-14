@@ -43,7 +43,7 @@ from dallinger.deployment import (
     deploy_sandbox_shared_setup,
     setup_experiment,
 )
-from dallinger.heroku.tools import HerokuApp, HerokuInfo
+from dallinger.heroku.tools import HerokuApp, HerokuInfo, dyno_count
 from dallinger.mturk import MTurkService, MTurkServiceException
 from dallinger.notifications import (
     EmailConfig,
@@ -773,8 +773,7 @@ def awaken(app, databaseurl):
     log("Scaling up the dynos...")
     size = config.get("dyno_type")
     for process in ["web", "worker"]:
-        qty = config.get("num_dynos_" + process)
-        heroku_app.scale_up_dyno(process, qty, size)
+        heroku_app.scale_up_dyno(process, dyno_count(config, process), size)
     if config.get("clock_on"):
         heroku_app.scale_up_dyno("clock", 1, size)
 
