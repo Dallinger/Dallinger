@@ -18,6 +18,7 @@ More information for :doc:`running in "sandbox" mode <demos_on_heroku>`.
     demos/function_learning/*
     demos/iterated_drawing/*
     demos/mcmcp/*
+    demos/partner_echo/*
     demos/rogers/*
     demos/sheep_market/*
     demos/snake/*

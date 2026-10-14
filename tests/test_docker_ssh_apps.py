@@ -1,5 +1,6 @@
 import importlib
 import os
+import socket
 import subprocess
 import sys
 import uuid
@@ -859,19 +860,38 @@ def test_remote_postgres_prefers_pinned_container_name(monkeypatch):
         return ""
 
     executor.run.side_effect = run
-    tunnel = mock.Mock(local_bind_port=65432)
+    # A socket pair stands in for the SSH channel; the far end echoes.
+    channel, remote = socket.socketpair()
+    executor.client.get_transport.return_value.open_channel.return_value = channel
     monkeypatch.setattr(docker_ssh_module, "Executor", lambda *a, **k: executor)
-    monkeypatch.setattr(
-        docker_ssh_module, "get_server_pem_path", lambda: "/tmp/key.pem"
-    )
-    fake_sshtunnel = mock.Mock()
-    fake_sshtunnel.SSHTunnelForwarder.return_value = tunnel
-    monkeypatch.setitem(sys.modules, "sshtunnel", fake_sshtunnel)
 
     with docker_ssh_module.remote_postgres(
         {"host": "example.com", "user": "ubuntu"}, "myapp"
     ) as uri:
-        assert uri == "postgresql://myapp:s3cret@localhost:65432/myapp"
+        assert uri.startswith("postgresql://myapp:s3cret@127.0.0.1:")
+        assert uri.endswith("/myapp")
+        port = int(uri.rsplit(":", 1)[1].split("/")[0])
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as client:
+            client.sendall(b"ping")
+            remote.settimeout(5)
+            remote.sendall(remote.recv(4))
+            assert client.recv(4) == b"ping"
+
+    open_channel = executor.client.get_transport.return_value.open_channel
+    assert open_channel.call_args.args[:2] == ("direct-tcpip", ("10.0.0.8", 5432))
+    executor.client.close.assert_called_once()
+    remote.close()
+
+
+def test_forward_local_port_drops_connection_when_server_refuses(caplog):
+    transport = mock.Mock()
+    transport.open_channel.side_effect = docker_ssh_module.paramiko.ChannelException(
+        1, "Administratively prohibited"
+    )
+    with docker_ssh_module._forward_local_port(transport, ("10.0.0.8", 5432)) as port:
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as client:
+            assert client.recv(1) == b""
+    assert "Could not open SSH tunnel to 10.0.0.8:5432" in caplog.text
 
 
 def test_remote_postgres_does_not_fall_back_when_app_db_is_stopped(monkeypatch):
@@ -886,14 +906,12 @@ def test_remote_postgres_does_not_fall_back_when_app_db_is_stopped(monkeypatch):
 
     executor.run.side_effect = run
     monkeypatch.setattr(docker_ssh_module, "Executor", lambda *a, **k: executor)
-    monkeypatch.setattr(
-        docker_ssh_module, "get_server_pem_path", lambda: "/tmp/key.pem"
-    )
     with pytest.raises(docker_ssh_module.ExecuteException, match="not running"):
         with docker_ssh_module.remote_postgres(
             {"host": "example.com", "user": "ubuntu"}, "myapp"
         ):
             pass
+    executor.client.close.assert_called_once()
 
 
 def test_select_running_app_returns_lone_hibernating_app(monkeypatch):
