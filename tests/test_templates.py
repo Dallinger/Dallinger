@@ -7,7 +7,7 @@ import dallinger
 TEMPLATES_DIR = os.path.join(
     os.path.dirname(dallinger.__file__), "frontend", "templates"
 )
-JQUERY = "scripts/jquery-3.7.1.min.js"
+JQUERY = "scripts/jquery-4.0.0.min.js"
 
 
 def render(child_template):

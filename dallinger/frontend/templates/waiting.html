@@ -4,8 +4,8 @@
     <div class="main_div">
         <p>This is a multiplayer experiment and so you must wait for the other players to join.</p>
         <div class="col-md-4">
-            <div class="progress progress-striped active">
-              <div id="waiting-progress-bar" class="progress-bar progress-bar-success" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%;"><span id="progress-percentage">0%</span></div>
+            <div class="progress">
+              <div id="waiting-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%;"><span id="progress-percentage">0%</span></div>
             </div>
         </div>
     </div>
@@ -17,7 +17,7 @@
         dallinger.createParticipant().done(function () {
           dallinger.allowExit();
           if (dallinger.skip_experiment) {
-            $('.main_div').html('<p>The experiment has exceeded the maximum number of participants, your participation is not required. Click the button below to complete the HIT. You will be compensated as if you had completed the task.</p><button type="button" class="button btn-success">Complete</button>')
+            $('.main_div').html('<p>The experiment has exceeded the maximum number of participants, your participation is not required. Click the button below to complete the HIT. You will be compensated as if you had completed the task.</p><button type="button" class="btn btn-success">Complete</button>')
             $('.main_div button').on('click', dallinger.submitAssignment);
           } else {
             dallinger.goToPage("experiment");
