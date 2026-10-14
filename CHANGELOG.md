@@ -4,6 +4,81 @@
 
 ### Added
 
+- `Experiment.publish_to_participants(payload, participant_ids, scope=None)`
+  sends a payload to the WebSocket connections of specific participants, across
+  gunicorn workers, instead of giving each participant a channel of their own.
+  Any connection which supplied a `participant_id` can be addressed, on `/chat`
+  or `/experiment-socket`, and every connection a participant holds receives a
+  copy. The payload arrives on the client prefixed with the reserved
+  `dallinger_direct` channel name. An optional `scope` limits delivery to those
+  connections which supplied the same scope value, allowing an experiment to
+  reach the page a participant is on rather than a tab left open on an earlier
+  one. A protocol-level redis error ends a channel's listener, but the one
+  that relays directed sends between web processes starts over on a new redis
+  connection instead.
+
+- A new `/experiment-socket` route hands each inbound frame to the experiment's new
+  `handle_websocket_message` method on the web process that owns the socket,
+  instead of publishing it to redis for a worker to pick up later. The default
+  implementation reproduces the asynchronous behavior of `/chat`, so opening
+  one without overriding the hook changes nothing. Dallinger removes the
+  database session after every frame: handlers get a fresh identity map, hold no
+  transaction open between frames, and commit their own writes. The frame does
+  not reach the channel, so a handler that also wants subscribers to see it
+  calls `publish_to_subscribers` itself, naming a channel the experiment does
+  not subscribe to. A experiment socket must name a participant that exists, or the
+  server closes it with code `1008`. An optional `scope` parameter is passed to
+  the hook without being interpreted.
+  One experiment instance is built per web process and shared by that
+  process's experiment sockets, matching how the launched experiment is already held
+  for the lifetime of the process that served `/launch`.
+
+- `/chat` control-channel events now report a connection's `scope`, the
+  `channel` parameter is optional rather than building a channel redis refuses
+  to subscribe to, and a binary frame closes the connection with code `1003`
+  instead of raising out of the receive loop.
+
+- `dallinger.stopReconnectingIfRefused(socket, callback)` stops a
+  `ReconnectingWebSocket` retrying a connection the server closed with code
+  `1008`, which the library otherwise reports only on its `connecting` event
+  and retries forever. The socket is left in the `CLOSED` state rather than
+  reporting `CONNECTING` indefinitely.
+
+- `dallinger.openChatSocket(options)` and `dallinger.openExperimentSocket(options)`
+  open a WebSocket connection to `/chat` or `/experiment-socket`, identified
+  from `dallinger.identity`, and return a `dallinger.Socket`. Its
+  `send(channel, payload)` encodes the payload as JSON, and holds a message sent
+  while the connection is down until it reopens, where
+  `ReconnectingWebSocket.send` throws. `onBroadcast` and `onDirect` callbacks
+  receive the parsed payloads of the subscribed channel and of directed
+  messages, and `onOpen` callbacks run on every open, including reconnects. A
+  refused connection is not retried, and `close()` returns a `Deferred` that
+  resolves once the connection has closed. Each connection sends
+  `dallinger.pageScope`, generated once per page load, as its `scope` unless it
+  is given another. `dallinger.waitForQuorum` and the `chatroom_ws` demo use
+  them.
+
+- A `partner_echo` demo pairs two participants, each on an
+  `/experiment-socket` connection, and delivers each one's messages to the other
+  with `publish_to_participants`.
+
+- Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
+  (``paths``, ``names``, ``suffixes``) plus the deterministic
+  experiment-root deployment plan model, with development bulk directory
+  links and ordinary copied materialization for remote staging. Starter
+  ``dallinger deployment-files init`` writes root-relative prefixes in
+  ``paths``, nested junk names such as ``__pycache__`` in ``names``, and
+  ``.db`` / ``.dmg`` in ``suffixes``.
+- Added `dallinger deployment-files list` and `init` for inspecting and creating
+  starter policies.
+- Added opt-in `deploy.toml` experiment-file membership to verification,
+  development staging, copied Docker/classic staging, and Heroku assembly
+  through `ExperimentFileSource`. Experiments without a policy retain legacy
+  selection and Git staging behavior as a compatibility fallback while
+  PsyNet trials `deploy.toml`; Git-based membership may later be
+  deprecated (warning, then removal). Git remains for provenance. Plan
+  traversal uses ordinary POSIX `lstat`/`scandir` containment (rejecting
+  symlinks and special files).
 - Added a `jquery` block inside the `libs` block of `base/layout.html`.
   Templates that already load jQuery in `<head>` can override it with an
   empty block instead of loading jQuery a second time, which replaced the
@@ -91,6 +166,61 @@
   record it deleted, or that there was nothing left to delete.
   ``delete_experiment_tunnel`` returns a ``TunnelDeletion`` that is truthy
   when the tunnel is gone and records what the call deleted.
+- The installation and developer setup guides now use Python 3.14, the
+  version in Dallinger's Docker images, in their pyenv and virtualenv
+  examples.
+- Ruff now takes its target Python from ``requires-python`` (3.11, the
+  oldest supported version) instead of a separate setting of 3.13, so its
+  fixes and formatting stay valid on every supported Python.
+- The docker-ssh hibernation controller now runs on a digest-pinned
+  ``python:3.14-alpine`` image instead of ``python:3.12-alpine``, matching
+  the Python in Dallinger's Docker images. The next deploy or update pulls
+  the new image and recreates the controller; its state is kept. The pin
+  lives in ``dallinger/docker/ssh_templates/Dockerfile.controller``, and
+  Dependabot now opens weekly pull requests to update it and the base image
+  of Dallinger's ``Dockerfile``, including new Python versions.
+- Clients may no longer subscribe to Dallinger's own channels. The `channel`
+  argument may not name `dallinger_control`, which reports every connection's
+  worker and participant ids, nor the new `dallinger_direct`, which carries the
+  directed messages published to every participant on the deployment. A
+  connection naming either is logged and left unsubscribed rather than refused,
+  and may still send and receive otherwise. Client messages addressed to
+  `dallinger_control` were already discarded, and the same now applies to
+  `dallinger_direct`.
+- The `/chat` WebSocket route no longer sleeps between reads. The client
+  receive loop slept for 0.1s (or whatever `?tolerance=` asked for) before
+  each `receive()`, and the redis relay greenlet slept 0.001s per message.
+  Both `receive()` and `PubSub.listen()` already block on gevent-aware
+  waits, so the timed sleeps only added delivery latency. The relay yields
+  with `gevent.sleep(0)` after each message, which runs the senders it just
+  spawned and gives other greenlets a turn without waiting on a timer; a
+  burst already sitting in the socket buffer otherwise reads straight
+  through without reaching the hub.
+- The `tolerance` query parameter on `/chat` is no longer read. Clients may
+  still send it; it has no effect and raises no warning.
+- Upgraded Bootstrap from 4.5.0 to 5.3.8 for experiment pages and the
+  dashboard. Dashboard widgets use Bootstrap 5 data attributes. The
+  dashboard script is the bundle, which includes Popper, so the separate
+  Popper file is gone. The database dashboard loads DataTables' Bootstrap 5
+  styling. ``css/dallinger.css`` now styles only Dallinger's own classes
+  (``main_div``, ``consent_div``, ``margin_div``, ``center_div`` and
+  ``right_div``), so it no longer sets the page font or floats the consent
+  buttons on pages that extend Dallinger's layout with their own markup.
+  The light 13pt text moved to ``main_div``. Dallinger's templates, the
+  demos and the tutorial use ``col-N`` instead of Bootstrap 3's
+  ``col-xs-N``, which Bootstrap 5 would otherwise lay out as full-width rows.
+  Selenium bots ask the browser for reduced motion, which turns off
+  Bootstrap 5's smooth scrolling, so their clicks on buttons below the fold
+  are not intercepted.
+- Upgraded jQuery from 3.7.1 to 4.0.0. ``scripts/jquery-3.7.1.min.js`` is
+  gone; templates that link it directly should link
+  ``scripts/jquery-4.0.0.min.js``, and templates that extend
+  ``base/layout.html`` pick it up automatically. Experiment JavaScript that
+  calls APIs jQuery 4 removed, such as ``$.trim``, ``$.isArray``,
+  ``$.parseJSON`` or ``$.isFunction``, must switch to the native
+  equivalents (see the
+  [jQuery 4.0 upgrade guide](https://jquery.com/upgrade-guide/4.0/)). The sheep market and iterated
+  drawing demos still load jQuery 1.7.2 because Raphael requires it.
 - Skipped the live MTurk integration tests, because Amazon has discontinued
   Mechanical Turk and every call now fails with `AccessDeniedException`.
   Mocked MTurk tests still run.
@@ -104,6 +234,67 @@
 
 ### Fixed
 
+- A WebSocket connection waits for redis to confirm its channel subscription
+  before it relays anything. A process subscribes to a channel the first time
+  one of its connections names it, and the publish travels on a different redis
+  connection, so a client which sent a message as soon as its socket opened
+  could have that message reach every other subscriber and not itself. A lost
+  redis connection arms the wait again, so a connection arriving during an
+  outage waits for the restored subscription. The wait is bounded. If redis
+  cannot confirm a subscription within two seconds, the connection starts
+  relaying anyway instead of waiting for redis to recover. The `connected`
+  control message is sent after the wait and `subscribed` before it, so the
+  WebSocket docs direct an experiment greeting a new connection to reply to
+  `connected`.
+- The `chatroom_ws` demo sends its "has joined the chat" message, which calling
+  `ReconnectingWebSocket.onopen` as a method had silently skipped. Its Leave
+  button now works while the connection is reconnecting, where it used to throw
+  or wait for a close event that never came. Chat messages and log lines are
+  inserted as text rather than HTML.
+- The `/chat` WebSocket route unsubscribes a client from its channels
+  whenever the receive loop exits, not only when `receive()` raises
+  `ConnectionClosed`. A channel left with no clients stops its listener
+  greenlet and is dropped from the per-process backend, so a long-running
+  experiment no longer accumulates idle greenlets and redis pubsub
+  connections.
+- A `/chat` client can no longer publish to the `dallinger_control` channel.
+  `launch` subscribes the experiment to that channel and dispatches what
+  arrives there as a server-sent event, so a participant's browser could forge
+  control events for any participant id. Client frames addressed to it are now
+  logged with the sending client and dropped. Publishing to another
+  participant's own channel is still possible and is tracked separately.
+- A `/chat` message with no `:` separator, or with an empty channel name
+  before it, is logged and discarded. A missing separator previously raised
+  `ValueError`, which killed the client's connection, and an empty name was
+  published to a redis channel nothing subscribes to.
+- `Channel.listen` resumes relaying after a lost redis connection instead of
+  dying with an unhandled greenlet traceback. redis-py reconnects and
+  resubscribes the pubsub before re-raising, but `connect_to_redis` builds
+  connections with redis-py's default of zero retries, so the error still
+  reached the relay and ended it. The loop now re-reads after a delay that
+  doubles from 0.5s to a 10s ceiling, and is not given up on, because `launch`
+  subscribes the experiment to its own channel and to the control channel and
+  never unsubscribes either. The full traceback is logged once per outage and
+  a single line per attempt after that. A redis `TimeoutError` is retried the
+  same way; any other `RedisError` is protocol-level, so it is logged and ends
+  the relay rather than retrying into the same failure. A failed initial
+  `subscribe()` is retried on the same schedule, so a client that connects
+  during an outage relays again once redis returns. A channel whose listener
+  does stop is dropped from the per-process backend, so a later subscriber
+  starts a fresh listener instead of attaching to a dead channel. The pubsub
+  is closed on every exit, including when the greenlet is killed, so its
+  connection returns to the pool.
+- A redis outage no longer strands a `/chat` client. The connect,
+  disconnect, subscribe, and unsubscribe events on `dallinger_control` are
+  notifications, so a failed publish is logged rather than raised. It
+  previously aborted `ChatBackend.unsubscribe` partway, leaving a client
+  registered on a channel whose listener then retried forever.
+- Bots with a ``webdriver_url`` start again. They passed
+  ``desired_capabilities``, which Selenium 4.10 removed, and now pass the
+  same browser options as local bots.
+- On the monitoring dashboard, "Number of networks" and "Freetext search"
+  sit side by side again, and changing the sort order redraws the network
+  once instead of twice.
 - Remote Docker builds work when the SSH username contains ``@``.
 - docker-ssh deploys no longer write the dashboard or Dozzle password into
   ``deploy_logs/`` or the dashboard link; the dashboard password is printed once.
@@ -175,6 +366,23 @@
   caller's, which it never reads. Startup failures also cancel the timeout
   alarm instead of leaving it armed after the original error.
 
+### Updated
+
+- Upgraded Paramiko to 5, which fixes CVE-2026-44405 by removing SHA-1 from
+  RSA signatures and key exchange. docker-ssh and EC2 commands that use an RSA
+  key, or reach a server with an RSA host key, now need OpenSSH 7.2 or newer
+  on the server.
+- Removed the unmaintained `sshtunnel` dependency from the `docker` extra; it
+  does not work with Paramiko 4 or later. The database tunnel used by
+  `docker-ssh export` and archive restores now forwards over Dallinger's own
+  SSH connection, so it uses only the `server_pem` key and the same
+  known-hosts handling as other docker-ssh commands.
+- A DSA `server_pem` no longer works, because Paramiko 5 does not load DSA
+  keys. docker-ssh and EC2 commands now stop before connecting with an error
+  that links to the docker-ssh documentation, instead of failing inside
+  Paramiko with an unrelated message such as `dmq1 must be odd`. To replace
+  the key, check it with `ssh-keygen -l -f`, install a new public key through
+  a login that already works, and point `server_pem` at the new private key.
 ### Removed
 
 - Removed the Vagrant development environment (``Vagrantfile`` and the Vagrant
