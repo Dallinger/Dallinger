@@ -234,11 +234,9 @@ def add(host, user, default_ingress):
     """
     prepare_server(host, user)
     store_host({"host": host, "user": user, "default_ingress": default_ingress})
-    if default_ingress == INGRESS_CLASSIC:
-        ip_addr = _private_network_ip(split_ssh_host_port(host)[0])
-        if ip_addr:
-            message = _private_network_message(host, user, ip_addr)
-            print(f"{RED}Warning: {message}{END}")
+    advice = default_ingress == INGRESS_CLASSIC and _private_network_advice(host, user)
+    if advice:
+        print(f"{RED}Warning: {advice}{END}")
 
 
 @servers.command()
@@ -696,21 +694,20 @@ def _resolve_ingress(server_info, ingress=None):
     return requested
 
 
-def _private_network_ip(host):
-    """Return a private IPv4 address of ``host`` if none of its addresses is public.
+def _private_network_advice(host, user):
+    """Return advice against classic ingress if ``host`` has no public IPv4 address.
 
-    Loopback and unspecified (``0.0.0.0``) addresses count as public, for
-    servers that are tunnelled to locally.
+    ``host`` may include an SSH port. Loopback and unspecified (``0.0.0.0``)
+    addresses count as public, for servers that are tunnelled to locally.
     """
-    ip_addrs = _ipv4_addresses(host)
+    ip_addrs = _ipv4_addresses(split_ssh_host_port(host)[0])
     for ip_addr in ip_addrs:
         address = ipaddress.ip_address(ip_addr)
         if address.is_global or address.is_loopback or address.is_unspecified:
             return None
-    return ip_addrs[0] if ip_addrs else None
-
-
-def _private_network_message(host, user, ip_addr):
+    if not ip_addrs:
+        return None
+    ip_addr = ip_addrs[0]
     user_option = f" --user {user}" if user else ""
     return (
         f"{host} has a private IP address ({ip_addr}), so Let's Encrypt cannot "
@@ -728,11 +725,11 @@ def _check_classic_ingress_reachable(server, ingress=None):
     server_info = CONFIGURED_HOSTS.get(server) or {}
     if _resolve_ingress(server_info, ingress) == INGRESS_CLOUDFLARE:
         return
-    ssh_host = server_info.get("host", server)
-    ip_addr = _private_network_ip(split_ssh_host_port(ssh_host)[0])
-    if ip_addr:
-        message = _private_network_message(ssh_host, server_info.get("user"), ip_addr)
-        print(f"{RED}Error: {message}{END}")
+    advice = _private_network_advice(
+        server_info.get("host", server), server_info.get("user")
+    )
+    if advice:
+        print(f"{RED}Error: {advice}{END}")
         raise click.Abort()
 
 
@@ -1112,7 +1109,8 @@ def build_and_push_image(f):
         from dallinger.command_line.docker import push_image
         from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
 
-        if not kwargs.pop("allow_private_ip", False):
+        # Existing apps already have their certificates, so updates skip the check.
+        if not kwargs.pop("allow_private_ip", False) and not kwargs.get("update"):
             _check_classic_ingress_reachable(kwargs["server"], kwargs.get("ingress"))
         config = get_config(load=True)
         image_name = config.get("docker_image_name", None)
@@ -2874,15 +2872,10 @@ def _ipv4_addresses(hostname):
         return []
 
 
-def _first_ipv4(hostname):
-    """Return the first IPv4 address for hostname, or None if lookup fails."""
-    return next(iter(_ipv4_addresses(hostname)), None)
-
-
 def _check_experiment_hostname_dns(ssh_host, experiment_hostname):
     """Abort unless the experiment hostname resolves to the SSH host IP."""
-    ipaddr_server = _first_ipv4(ssh_host)
-    ipaddr_experiment = _first_ipv4(experiment_hostname)
+    ipaddr_server = next(iter(_ipv4_addresses(ssh_host)), None)
+    ipaddr_experiment = next(iter(_ipv4_addresses(experiment_hostname)), None)
     if ipaddr_server and ipaddr_experiment == ipaddr_server:
         return
 
