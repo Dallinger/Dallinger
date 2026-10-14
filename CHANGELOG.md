@@ -224,7 +224,8 @@
 - `dallinger docker debug` passes the Flask secret key to the web, worker and
   clock containers again. Previously they ran with no secret key, because the
   generated `.env` file prefixed the key with a stray `$` and the compose file
-  did not forward `FLASK_SECRET_KEY` to any service.
+  did not forward `FLASK_SECRET_KEY` to any service. The key is now quoted in
+  `.env`, so a key containing `$` or `#` also reaches the containers unchanged.
 
 - A WebSocket connection waits for redis to confirm its channel subscription
   before it relays anything. A process subscribes to a channel the first time

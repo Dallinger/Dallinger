@@ -34,6 +34,15 @@ RUN python -m pip install --no-cache-dir --force-reinstall --no-deps /tmp/dallin
 """
 
 
+def _quote_dotenv_value(value):
+    """Quote ``value`` so docker compose reads it back from ``.env`` unchanged.
+
+    Unquoted ``.env`` values are interpolated (``$name``) and cut at `` #``.
+    """
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
+    return f'"{escaped}"'
+
+
 class DockerComposeWrapper:
     """Wrapper around a docker compose local daemon, modeled after HerokuLocalWrapper.
 
@@ -111,7 +120,8 @@ class DockerComposeWrapper:
             )
         with open(os.path.join(self.tmp_dir, ".env"), "w") as fh:
             fh.write(f"COMPOSE_PROJECT_NAME={self.experiment_name}\n")
-            fh.write(f"FLASK_SECRET_KEY={self.env.get('FLASK_SECRET_KEY', '')}\n")
+            flask_secret_key = _quote_dotenv_value(self.env.get("FLASK_SECRET_KEY", ""))
+            fh.write(f"FLASK_SECRET_KEY={flask_secret_key}\n")
             fh.write(f"UID={os.getuid()}\n")
             fh.write(f"GID={os.getgid()}\n")
 

@@ -306,11 +306,17 @@ def test_docker_debug_containers_get_the_deployment_flask_secret_key(tmp_path):
 
     dotenv = (exp_dir / ".env").read_text().splitlines()
     key = deployment.environ["FLASK_SECRET_KEY"]
-    assert f"FLASK_SECRET_KEY={key}" in dotenv
+    assert f'FLASK_SECRET_KEY="{key}"' in dotenv
     compose = yaml.safe_load((exp_dir / "docker-compose.yml").read_text())
     for service in ("web", "worker", "clock"):
         environment = compose["services"][service]["environment"]
         assert environment["FLASK_SECRET_KEY"] == "${FLASK_SECRET_KEY}"
+
+
+def test_dotenv_quoting_keeps_compose_special_characters_literal():
+    from dallinger.docker.tools import _quote_dotenv_value
+
+    assert _quote_dotenv_value('a$b #"c\\') == '"a\\$b #\\"c\\\\"'
 
 
 def test_custom_dockerfile_reinstalls_a_staged_local_wheel(tmp_path):
