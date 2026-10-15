@@ -596,6 +596,9 @@ def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypa
         def connect(self, **kwargs):
             pass
 
+        def get_transport(self):
+            return mock.Mock()
+
         def save_host_keys(self, filename):
             assert Path(filename).exists()
 

@@ -47,7 +47,7 @@ from dallinger.command_line.utils import (
 from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
-from dallinger.deployment import handle_launch_data, setup_experiment
+from dallinger.deployment import setup_experiment
 from dallinger.hibernation import STATE_HIBERNATING as HIBERNATING
 from dallinger.hibernation import STATE_WAKING as WAKING
 from dallinger.utils import (
@@ -79,6 +79,13 @@ from .lib.cloudflare import (
 )
 from .lib.cloudflare import config_str as cloudflare_config_str
 from .lib.cloudflare import public_hostname as cloudflare_public_hostname
+from .lib.launch import (
+    LaunchTarget,
+    check_internal_health,
+    launch_from_server,
+    ssh_command,
+    wait_for_public_url,
+)
 from .utils import get_server_pem_path
 
 # Hibernated apps keep stopped Compose containers that ``awaken`` restarts.
@@ -1000,13 +1007,21 @@ def _image_runs_as_ssh_user(executor, image_name):
     return False
 
 
+def _ssh_prefix(ssh_host, ssh_port, ssh_user):
+    """Return the ``ssh`` invocation an operator can use to reach the server."""
+    ssh_port_part = f"-p {ssh_port} " if ssh_port != 22 else ""
+    destination = f"{ssh_user}@{ssh_host}" if ssh_user else ssh_host
+    return (
+        f"ssh {ssh_port_part}-i {quote(str(get_server_pem_path()))} "
+        f"{quote(destination)}"
+    )
+
+
 def _log_command(ssh_host, ssh_port, ssh_user, app):
     """Return the ssh command that follows an app's Compose logs."""
-    ssh_port_part = f"-p {ssh_port} " if ssh_port != 22 else ""
-    return (
-        f"ssh {ssh_port_part}-i {get_server_pem_path()} "
-        f"{(ssh_user + '@') if ssh_user else ''}{ssh_host} "
-        f"docker compose -f '~/dallinger/{app}/docker-compose.yml' logs -f"
+    return ssh_command(
+        _ssh_prefix(ssh_host, ssh_port, ssh_user),
+        f"docker compose -f ~/dallinger/{app}/docker-compose.yml logs -f",
     )
 
 
@@ -1023,6 +1038,26 @@ def _record_deployment_infos(experiment_id, lines, dashboard_password):
     deploy_log_path = Path("deploy_logs") / f"{experiment_id}.txt"
     deploy_log_path.parent.mkdir(exist_ok=True)
     deploy_log_path.write_text("\n".join(lines) + "\n")
+
+
+def _record_then_launch(executor, target, deployment_infos, dashboard_password, update):
+    """Record the deployment, wait for the public URL, then launch the experiment.
+
+    The record comes first so it exists even if the deploy stops here. A
+    missing ``curl`` in the web image, or an app whose own ``/health`` does
+    not answer 2xx, fails before the long public wait.
+    Launching opens recruitment, so it only happens once participants can
+    reach the public URL; if the bounded wait times out, nothing is launched.
+    """
+    _record_deployment_infos(target.app, deployment_infos, dashboard_password)
+    if update:
+        print("Skipping experiment launch logic because we are in update mode.")
+        return
+    check_internal_health(executor, target)
+    wait_for_public_url(executor, target)
+    print("Launching experiment")
+    launch_data = launch_from_server(executor, target)
+    print(launch_data.get("recruitment_msg"))
 
 
 def _install_tunnel_token(executor, sftp, app, connector_token, tunnel_id):
@@ -1679,20 +1714,14 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     # Tell caddy we changed something in the configuration
     executor.reload_caddy()
 
-    if update:
-        print("Skipping experiment launch logic because we are in update mode.")
-    else:
-        print("Launching experiment")
-        launch_data = handle_launch_data(
-            f"https://{experiment_hostname}/launch",
-            print,
-            dns_host=dns_host,
-            dozzle_password=dozzle_password,
-            context="ssh",
-            verify=HAS_TLS,
-        )
-        print(launch_data.get("recruitment_msg"))
-
+    launch_target = LaunchTarget(
+        app=experiment_id,
+        server=server,
+        public_origin=public_origin,
+        ingress=INGRESS_CLASSIC,
+        ssh_prefix=_ssh_prefix(ssh_host, ssh_port, ssh_user),
+        verify=HAS_TLS,
+    )
     dashboard_link = _public_dashboard_url(experiment_hostname)
     log_command = _log_command(ssh_host, ssh_port, ssh_user, experiment_id)
     deployment_infos = []
@@ -1705,7 +1734,9 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         f"Or you can head to {logs_url} (user = dallinger)",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
     ]
-    _record_deployment_infos(experiment_id, deployment_infos, dashboard_password)
+    _record_then_launch(
+        executor, launch_target, deployment_infos, dashboard_password, update
+    )
     return {
         "dashboard_user": dashboard_user,
         "dashboard_password": dashboard_password,
@@ -1885,18 +1916,13 @@ def _deploy_cloudflare_in_mode(
         restore=True,
     )
 
-    if update:
-        print("Skipping experiment launch logic because we are in update mode.")
-    else:
-        print("Launching experiment")
-        launch_data = handle_launch_data(
-            f"{public_origin}/launch",
-            print,
-            dns_host=None,
-            context="ssh",
-        )
-        print(launch_data.get("recruitment_msg"))
-
+    launch_target = LaunchTarget(
+        app=experiment_id,
+        server=server,
+        public_origin=public_origin,
+        ingress=INGRESS_CLOUDFLARE,
+        ssh_prefix=_ssh_prefix(ssh_host, ssh_port, ssh_user),
+    )
     dashboard_link = _public_dashboard_url(hostname)
     log_command = _log_command(ssh_host, ssh_port, ssh_user, experiment_id)
     deployment_infos = []
@@ -1908,7 +1934,9 @@ def _deploy_cloudflare_in_mode(
         f"Public origin: {public_origin}",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
     ]
-    _record_deployment_infos(experiment_id, deployment_infos, dashboard_password)
+    _record_then_launch(
+        executor, launch_target, deployment_infos, dashboard_password, update
+    )
     return {
         "dashboard_user": dashboard_user,
         "dashboard_password": dashboard_password,
@@ -2661,6 +2689,9 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         except Exception:
             spinner.fail("✖ Connection failed")
             raise
+    # Deploys can sit idle for minutes (public URL wait, slow /launch);
+    # keepalives stop NATs and firewalls from dropping the connection.
+    client.get_transport().set_keepalive(30)
 
     try:
         client.save_host_keys(known_hosts_path)
@@ -2715,7 +2746,7 @@ class Executor:
         """Run the given command and block until it completes.
         If `raise` is True and the command fails, print the reason and raise an exception.
         """
-        status, stdout, stderr = self._run_with_status(cmd)
+        status, stdout, stderr = self.run_with_status(cmd)
         if raise_ and status != 0:
             print(f"Error: exit code was not 0 ({status})")
             print(stdout)
@@ -2758,11 +2789,12 @@ class Executor:
         status = channel.recv_exit_status()
         return (
             status,
-            b"".join(stdout_chunks).decode(),
-            b"".join(stderr_chunks).decode(),
+            b"".join(stdout_chunks).decode(errors="replace"),
+            b"".join(stderr_chunks).decode(errors="replace"),
         )
 
-    def _run_with_status(self, cmd):
+    def run_with_status(self, cmd):
+        """Run ``cmd`` and return ``(exit_status, stdout, stderr)`` without raising."""
         channel = self.client.get_transport().open_session()
         channel.exec_command(cmd)
         return self._drain_channel(channel)
@@ -2776,7 +2808,7 @@ class Executor:
         else:
             command = None
         if command:
-            status, logs, _ = self._run_with_status(command)
+            status, logs, _ = self.run_with_status(command)
             if status != 0:
                 print("`docker compose` logs failed to run.")
                 return ""
@@ -2803,7 +2835,7 @@ class Executor:
             ("Remove stopped containers", CONTAINER_PRUNE),
         ):
             print(f"- {description}: {command}")
-            status, stdout, stderr = self._run_with_status(command)
+            status, stdout, stderr = self.run_with_status(command)
             if status != 0:
                 print(f"Cleanup step failed with exit code {status}.")
                 if stdout:

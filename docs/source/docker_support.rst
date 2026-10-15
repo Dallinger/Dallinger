@@ -519,6 +519,34 @@ the DNS label:
         --app consonance --ingress cloudflare \
         --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5
 
+Launching an experiment opens recruitment, so a docker-ssh deploy first checks
+the app's ``/health`` from inside the server, then waits up to 7 minutes for
+the app's public ``/health`` URL to answer with a 2xx. Cloudflare and gateway
+error pages, including the "tunnel not connected" answer (HTTP 530, error
+1033), do not count, and nor do redirects, such as a Cloudflare Access login.
+Waiting does not remove a login, so the deploy stops waiting as soon as
+``/health`` redirects twice in a row. Progress lines name only the kind of
+error, such as ``SSLError``; the final message gives the full last result.
+If the app's own ``/health`` keeps failing, or the app
+has no ``/health`` because its image was built with an older Dallinger, the
+deploy stops before the wait; rebuild the image with the Dallinger you deploy
+with. A new Cloudflare tunnel can take several minutes to start
+working. If ``/health`` still does not answer 2xx, the deploy stops with an
+error and does not launch the experiment: the containers keep running, but
+recruitment has not started. The error gives the likely reason, for example
+that Cloudflare has not activated the new tunnel yet, that a login is in front
+of the app, or that Cloudflare blocked the check. The deploy prints a command
+to check the URL again, the ``cloudflared`` logs command when a Cloudflare
+tunnel may not have connected yet, the command that launches the experiment
+once the URL works, and the ``destroy`` command. The deployment
+notes in ``deploy_logs/<app>.txt`` are written before this wait.
+
+The deploy launches the experiment by running ``curl`` inside the app's web
+container, so the experiment image must include ``curl``. The Dallinger and
+PsyNet images do; for a custom image, add it, for example with
+``apt-get install -y curl`` in the Dockerfile. The deploy checks for ``curl``
+before the wait and stops straight away, without launching, if it is missing.
+
 
 To export the data from an experiment running on a server, run:
 

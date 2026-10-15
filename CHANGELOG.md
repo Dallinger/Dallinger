@@ -262,6 +262,10 @@
   Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 - The ``deployment-files`` CLI tests no longer use Click's deprecated
   ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
+- docker-ssh deploys now need an experiment image built with this Dallinger,
+  because they check the app's ``/health``, which Dallinger 12.4.0 and older
+  lack. Rebuild older images before deploying them. The web image also needs
+  ``curl`` (the Dallinger and PsyNet images have it).
 - docker-ssh apps no longer fail under load with ``no more connections
   allowed (max_client_conn)``: their pgbouncer now accepts up to 10,000
   client connections instead of 100.
@@ -320,6 +324,18 @@
 
 ### Fixed
 
+- docker-ssh deploys no longer fail to launch when a new Cloudflare tunnel
+  takes several minutes to register. After checking the app's ``/health``
+  from inside the server, the deploy waits up to 7 minutes for the public
+  ``/health`` to answer 2xx, so recruitment does not open while participants
+  would see an error page. It then launches from inside the server with
+  ``curl`` in the web container, so the app still records its public URL. If
+  the URL does not answer 2xx in time, or redirects twice in a row (a login
+  such as Cloudflare Access, which waiting does not remove), nothing is
+  launched and the deploy prints how to check it, launch by hand and destroy
+  the app. A launch request that may
+  have reached the app is never sent again; the deploy says recruitment may
+  have started.
 - The web container in `dallinger docker` and `dallinger docker-ssh`
   deployments may now hold 65,536 open files per process instead of the
   Docker default of 1,024. Each open WebSocket connection holds a few file
