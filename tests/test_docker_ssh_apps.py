@@ -992,17 +992,19 @@ def test_start_server_services_waits_only_for_postgres():
     docker_ssh_module._start_server_services(executor)
     commands = [call.args[0] for call in executor.run.call_args_list]
     assert commands[0].endswith("docker-compose.yml up -d")
-    assert commands[-1].endswith("--wait --wait-timeout 360 postgresql")
+    assert commands[-1].startswith("timeout 420 ")
+    assert "up -d --wait postgresql" in commands[-1]
+    assert "--wait-timeout" not in commands[-1]
 
 
-def test_failed_server_command_prints_server_stack_logs(capsys):
+def test_postgres_wait_timeout_prints_server_stack_logs(capsys):
     executor = object.__new__(docker_ssh_module.Executor)
     executor.app, executor.host = "demo", "host"
     executor._run_with_status = mock.Mock(
-        side_effect=[(1, "", "postgresql is unhealthy"), (0, "recovery log", "")]
+        side_effect=[(0, "", ""), (124, "", "not healthy"), (0, "recovery log", "")]
     )
     with pytest.raises(docker_ssh_module.ExecuteException):
-        executor.run(f"{docker_ssh_module.SERVER_COMPOSE} up -d --wait postgresql")
+        docker_ssh_module._start_server_services(executor)
     assert executor._run_with_status.call_args.args[0].startswith(
         f"{docker_ssh_module.SERVER_COMPOSE} logs"
     )

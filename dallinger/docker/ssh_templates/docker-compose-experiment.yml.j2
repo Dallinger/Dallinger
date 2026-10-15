@@ -13,7 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U {{ experiment_id }}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U {{ experiment_id }}"]
       interval: 2s
       timeout: 5s
       retries: 15

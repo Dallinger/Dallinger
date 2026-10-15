@@ -28,7 +28,7 @@ If you have these already created you can remove the existing ones and recreate 
 .. code-block:: shell
 
     # Needed if you want to recreate containers (named volumes are kept)
-    docker rm -f dallinger_redis
+    docker stop dallinger_redis && docker rm dallinger_redis
     docker stop dallinger_postgres && docker rm dallinger_postgres
 
 or you can start the containers you have:

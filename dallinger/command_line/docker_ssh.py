@@ -1208,9 +1208,16 @@ def _start_server_services(executor):
     executor.run(f"{SERVER_COMPOSE} up -d")
     # A changed server compose file recreates the shared Postgres. Waiting
     # only on it keeps a crash-looping Caddy or Dozzle from blocking deploys.
-    # 360 s must exceed the healthcheck's 300 s start_period plus 15 retries
-    # at 2 s in docker-compose-server.yml.j2.
-    executor.run(f"{SERVER_COMPOSE} up -d --wait --wait-timeout 360 postgresql")
+    # coreutils `timeout` replaces `--wait-timeout`, which needs Compose 2.17.
+    # The limit must exceed the worst case of docker-compose-server.yml.j2's
+    # healthcheck: a 300 s start_period, then 15 retries that each cost the
+    # 2 s interval plus the 5 s timeout when pg_isready hangs (405 s).
+    limit = 420
+    executor.run(
+        f"timeout {limit} {SERVER_COMPOSE} up -d --wait postgresql"
+        f" || {{ code=$?; [ $code -ne 124 ] || echo 'The shared PostgreSQL"
+        f" was not healthy after {limit} s.' >&2; exit $code; }}"
+    )
 
 
 def ensure_postgres_schema_permissions(executor, experiment_id):
@@ -2485,9 +2492,7 @@ class Executor:
             print(f"Error: exit code was not 0 ({status})")
             print(stdout)
             print(stderr)
-            compose_logs = self.print_docker_compose_logs(
-                server=cmd.startswith(SERVER_COMPOSE)
-            )
+            compose_logs = self.print_docker_compose_logs(server=SERVER_COMPOSE in cmd)
             if _is_remote_disk_full_error(stdout, stderr, compose_logs):
                 print(get_remote_disk_full_guidance(self.host))
                 self.offer_safe_disk_cleanup()

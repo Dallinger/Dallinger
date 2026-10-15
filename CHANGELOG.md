@@ -93,9 +93,12 @@
   compilation slows down the short queries that experiments make. The next
   classic docker-ssh deploy on each server recreates the shared PostgreSQL
   once, keeping its data but briefly interrupting every classic app on that
-  server, so make that deploy when no classic experiment is live. Classic
-  deploys now wait up to 6 minutes for the shared PostgreSQL to become
-  healthy. To turn JIT off in an existing local ``dallinger_postgres``
+  server, so make that deploy when no classic experiment is live. Each
+  Cloudflare app's PostgreSQL is likewise recreated on its next deploy,
+  including ``--update``. Classic deploys now wait up to 7 minutes for the
+  shared PostgreSQL to become healthy. A failing database now takes about
+  5.5–7 minutes to be reported as unhealthy, which also delays Cloudflare
+  ``up -d`` and ``docker debug`` failures. To turn JIT off in an existing local ``dallinger_postgres``
   container, run ``dallinger docker stop-services`` and then
   ``start-services``; the data volume is kept.
 

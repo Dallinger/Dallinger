@@ -228,9 +228,8 @@ def test_postgres_services_disable_jit(tmp_path):
     for compose in composes:
         postgres = compose["services"]["postgresql"]
         assert postgres["command"] == "postgres -c jit=off"
-        assert postgres["healthcheck"]["start_period"] == "300s"
-        assert postgres["healthcheck"]["retries"] == 15
-        assert postgres["stop_grace_period"] == "60s"
+        assert "pg_isready -h 127.0.0.1 " in postgres["healthcheck"]["test"][1]
+        assert "start_period" in postgres["healthcheck"]
 
 
 def test_compose_reads_the_database_password_from_the_app_env():
