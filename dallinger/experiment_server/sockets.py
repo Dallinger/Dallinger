@@ -26,6 +26,7 @@ from dallinger.db import (
     redis_conn,
     session,
 )
+from dallinger.utils import normalized_participant_id
 
 from .experiment_server import Experiment, app
 from .utils import date_handler
@@ -722,40 +723,6 @@ def publish_to_participants(payload, participant_ids, scope=None):
     # leaving this process's connections served and every other process's not.
     redis_conn.publish(DIRECT_CHANNEL, json.dumps(envelope))
     chat_backend.deliver_direct(envelope)
-
-
-def normalized_participant_id(participant_id):
-    """The string form of the participant id ``participant_id`` names, or ``None``.
-
-    Returns the participant id as a normalized string, or None if the value
-    is not a string or an integer, or cannot be parsed as a whole number.
-
-    The id is parsed as an int and rendered back as a string rather than
-    returned as-is, because int() accepts values the database column does
-    not, such as non-ASCII decimal digits. Without the round-trip, a raw value
-    like "٤٢" would pass the existence check but raise DataError on any
-    subsequent query that uses it as a column value. The round-trip also gives
-    each id a single string form, so "42", " 42 ", "+42" and "042" all come
-    back as "42".
-
-    Values that are neither strings nor integers are refused rather than
-    truncated: int() would read 12.7 as participant 12.
-
-    bool is excluded explicitly: although it is an int subclass and int(True)
-    is 1, a boolean participant_id is almost certainly a bug in the caller.
-
-    numbers.Integral is used instead of int so that numpy integers are
-    accepted (a caller reading participant ids out of a dataframe column
-    gets a numpy integer, not a plain int).
-    """
-    if isinstance(participant_id, bool) or not isinstance(
-        participant_id, (str, bytes, numbers.Integral)
-    ):
-        return None
-    try:
-        return str(int(participant_id))
-    except ValueError:
-        return None
 
 
 def resolve_participant_id(participant_id):
