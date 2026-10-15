@@ -1026,13 +1026,14 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         .one_or_none()
     )
 
+    duplicate_id = None
     if duplicate:
         msg = """
             {} has reused assignment_id while existing participant is
             working. Replacing older participant {}.
         """
         app.logger.warning(msg.format(recruiter_name, duplicate.id))
-        q.enqueue(worker_function, "AssignmentReassigned", None, duplicate.id)
+        duplicate_id = duplicate.id
 
     # Count working or beyond participants.
     nonfailed_count = (
@@ -1093,6 +1094,9 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         result["quorum"] = quorum
 
     session.commit()
+
+    if duplicate_id:
+        q.enqueue(worker_function, "AssignmentReassigned", None, duplicate_id)
 
     # return the data
     return success_response(**result)

@@ -498,3 +498,35 @@ class TestSignupBehavioralInvariants:
             None,
             mock.ANY,  # the first participant's ID
         )
+
+    def test_no_reassignment_enqueue_if_create_participant_fails(self, slow_app):
+        """AssignmentReassigned must not be enqueued if create_participant raises.
+
+        The enqueue must happen after session.commit(). If it were before, a
+        rollback inside create_participant() would still leave the Redis job
+        queued — a phantom notification for a participant that was never created.
+        """
+        from dallinger.experiment import Experiment
+
+        # Establish a working participant with a known assignment_id.
+        resp = slow_app.test_client().post(
+            "/participant/worker0/hit1/shared-assign/debug"
+        )
+        assert resp.status_code == 200
+
+        # A second signup with the same assignment_id enters the duplicate path.
+        # Fail inside create_participant so the transaction rolls back before commit.
+        with mock.patch.object(
+            Experiment,
+            "create_participant",
+            side_effect=RuntimeError("simulated failure"),
+        ):
+            with mock.patch(
+                "dallinger.experiment_server.experiment_server.q"
+            ) as mock_q:
+                resp = slow_app.test_client().post(
+                    "/participant/worker1/hit1/shared-assign/debug"
+                )
+
+        assert resp.status_code == 400
+        mock_q.enqueue.assert_not_called()
