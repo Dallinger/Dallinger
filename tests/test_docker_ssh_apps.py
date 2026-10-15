@@ -1052,6 +1052,30 @@ def test_classic_bring_up_does_not_restore_twice(monkeypatch):
     assert not any("initdb" in command for command in commands)
 
 
+def test_start_server_services_waits_only_for_postgres():
+    executor = mock.Mock()
+    docker_ssh_module._start_server_services(executor)
+    commands = [call.args[0] for call in executor.run.call_args_list]
+    assert commands[0].endswith("docker-compose.yml up -d")
+    assert commands[-1].startswith("timeout 420 ")
+    assert "up -d --wait postgresql" in commands[-1]
+    assert "--wait-timeout" not in commands[-1]
+
+
+def test_postgres_wait_timeout_prints_server_stack_logs(capsys):
+    executor = object.__new__(docker_ssh_module.Executor)
+    executor.app, executor.host = "demo", "host"
+    executor._run_with_status = mock.Mock(
+        side_effect=[(0, "", ""), (124, "", "not healthy"), (0, "recovery log", "")]
+    )
+    with pytest.raises(docker_ssh_module.ExecuteException):
+        docker_ssh_module._start_server_services(executor)
+    assert executor._run_with_status.call_args.args[0].startswith(
+        f"{docker_ssh_module.SERVER_COMPOSE} logs"
+    )
+    assert "recovery log" in capsys.readouterr().out
+
+
 def test_write_experiment_compose_env_appends_ids_and_creates_home_dirs(tmp_path):
     app_dir = tmp_path / "dallinger" / "demo"
     app_dir.mkdir(parents=True)

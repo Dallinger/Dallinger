@@ -82,6 +82,7 @@ from .utils import get_server_pem_path
 
 # Hibernated apps keep stopped Compose containers that ``awaken`` restarts.
 CONTAINER_PRUNE = "docker container prune -f --filter label!=com.docker.compose.project"
+SERVER_COMPOSE = "docker compose -f ~/dallinger/docker-compose.yml"
 
 
 @dataclass(frozen=True)
@@ -1225,11 +1226,28 @@ def set_dozzle_password(executor, sftp, new_password):
         executor.restart_dozzle()
 
 
+def _start_server_services(executor):
+    """Start the shared server services and wait until Postgres is healthy."""
+    executor.run(f"{SERVER_COMPOSE} up -d")
+    # A changed server compose file recreates the shared Postgres. Waiting
+    # only on it keeps a crash-looping Caddy or Dozzle from blocking deploys.
+    # coreutils `timeout` replaces `--wait-timeout`, which needs Compose 2.17.
+    # The limit must exceed the worst case of docker-compose-server.yml.j2's
+    # healthcheck: a 300 s start_period, then 15 retries that each cost the
+    # 2 s interval plus the 5 s timeout when pg_isready hangs (405 s).
+    limit = 420
+    executor.run(
+        f"timeout {limit} {SERVER_COMPOSE} up -d --wait postgresql"
+        f" || {{ code=$?; [ $code -ne 124 ] || echo 'The shared PostgreSQL"
+        f" was not healthy after {limit} s.' >&2; exit $code; }}"
+    )
+
+
 def ensure_postgres_schema_permissions(executor, experiment_id):
     # PostgreSQL 15+ no longer grants CREATE on schema public to all users.
     grant_schema_script = f'GRANT USAGE, CREATE ON SCHEMA public TO "{experiment_id}"'
     executor.run(
-        "docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql "
+        f"{SERVER_COMPOSE} exec -T postgresql "
         f'psql -U dallinger -d "{experiment_id}" -c {quote(grant_schema_script)}'
     )
 
@@ -1430,7 +1448,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     set_dozzle_password(executor, sftp, dozzle_password)
 
     print("Launching http, postgresql and dozzle servers.")
-    executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
+    _start_server_services(executor)
 
     if not update:
         print("Starting experiment.")
@@ -1465,9 +1483,9 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         ingress=INGRESS_CLASSIC,
         secrets=app_secrets,
     )
-    # We invoke the "ls" command in the context of the `web` container.
-    # `docker compose` will honour `web`'s dependencies and block
-    # until postgresql is ready. This way we can be sure we can start creating the database.
+    # Running "ls" in the `web` container blocks until `web`'s own dependencies
+    # (redis and pgbouncer) are healthy. The shared Postgres belongs to another
+    # compose project; the `up --wait` above already waited for it.
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
     )
@@ -1477,14 +1495,14 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     if not update:
         print("Cleaning up db/user")
         executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
+            rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
         )
         executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
+            rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
         )
         print(f"Creating database {experiment_id}")
         executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
+            rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
         )
 
         if archive_path is not None:
@@ -1503,24 +1521,24 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         rf"""SELECT FROM pg_catalog.pg_roles WHERE rolname = '{experiment_id}'"""
     )
     query_user_result = executor.run(
-        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(test_user_script)}",
+        f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(test_user_script)}",
         raise_=False,
     )
     if "0 rows" in query_user_result:
         # Create the user: it doesn't exist yet
         create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
         executor.run(
-            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
+            f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
         )
     else:
         # Change the password of the existing user
         change_password_script = f"""ALTER USER "{experiment_id}" WITH ENCRYPTED PASSWORD '{postgresql_password}'"""
         executor.run(
-            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(change_password_script)}"
+            f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(change_password_script)}"
         )
 
     executor.run(
-        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
+        f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
     )
     ensure_postgres_schema_permissions(executor, experiment_id)
 
@@ -2574,7 +2592,7 @@ class Executor:
             print(f"Error: exit code was not 0 ({status})")
             print(stdout)
             print(stderr)
-            compose_logs = self.print_docker_compose_logs()
+            compose_logs = self.print_docker_compose_logs(server=SERVER_COMPOSE in cmd)
             if _is_remote_disk_full_error(stdout, stderr, compose_logs):
                 print(get_remote_disk_full_guidance(self.host))
                 self.offer_safe_disk_cleanup()
@@ -2621,13 +2639,16 @@ class Executor:
         channel.exec_command(cmd)
         return self._drain_channel(channel)
 
-    def print_docker_compose_logs(self):
-        if self.app:
-            channel = self.client.get_transport().open_session()
-            channel.exec_command(
-                f'docker compose -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
-            )
-            status, logs, _ = self._drain_channel(channel)
+    def print_docker_compose_logs(self, server=False):
+        """Print and return the app's Compose logs, or the server stack's if ``server``."""
+        if server:
+            command = f"{SERVER_COMPOSE} logs --tail 200"
+        elif self.app:
+            command = f'docker compose -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
+        else:
+            command = None
+        if command:
+            status, logs, _ = self._run_with_status(command)
             if status != 0:
                 print("`docker compose` logs failed to run.")
                 return ""
@@ -2679,13 +2700,13 @@ class Executor:
     def reload_caddy(self):
         with yaspin(text="Reloading Caddy config file", color="green"):
             self.run(
-                "docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
+                f"{SERVER_COMPOSE} exec -T httpserver "
                 "caddy reload --config /etc/caddy/Caddyfile"
             )
 
     def restart_dozzle(self):
         with yaspin(text="Restarting Dozzle", color="green"):
-            self.run("docker compose -f ~/dallinger/docker-compose.yml restart dozzle")
+            self.run(f"{SERVER_COMPOSE} restart dozzle")
 
     def run_and_echo(self, cmd):  # pragma: no cover
         """Execute the given command on the remote host and prints its output
