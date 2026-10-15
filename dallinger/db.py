@@ -91,6 +91,8 @@ def create_db_engine(db_url, pool_size=None, max_overflow=None, pool_timeout=Non
     worker can serve many requests at once, so the pool may grow without limit,
     and connections beyond ``pool_size`` are closed when returned rather than
     kept idle, where they would count against the database's client limit.
+    Because overflow is unlimited, a session leak keeps opening connections until
+    Postgres or pgbouncer refuses them, rather than hitting a pool timeout.
 
     Each checkout first pings the connection and replaces it if the server has
     dropped it, for example after pgbouncer or Postgres restarts while the web

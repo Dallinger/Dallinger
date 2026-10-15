@@ -103,41 +103,31 @@
   Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 - The ``deployment-files`` CLI tests no longer use Click's deprecated
   ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
-- docker-ssh apps' pgbouncer now accepts up to 10,000 client connections
-  instead of its default of 100, with a file-descriptor limit of 16,384.
-  Under load, gevent web workers exceeded 100 and requests failed with
-  ``no more connections allowed (max_client_conn)``. Client connections are
-  cheap, and Postgres only sees pgbouncer's server pool. Idle clients, such as
-  SQLAlchemy's idle pooled connections, just hold a client slot. A connected
-  client whose query is waiting for a pooled Postgres connection waits up to
-  pgbouncer's ``query_wait_timeout`` (120 seconds). New clients beyond the
-  limit are still refused. Each web or worker process keeps up to 20 idle
-  connections, so the limit leaves room for many processes on large hosts.
+- docker-ssh apps no longer fail under load with ``no more connections
+  allowed (max_client_conn)``: their pgbouncer now accepts up to 10,000
+  client connections instead of 100.
 - docker-ssh apps with their own Postgres (Cloudflare ingress) now let
-  pgbouncer keep up to 80 Postgres connections instead of its default of 20.
-  pgbouncer holds a connection for each request's whole transaction, so 20
-  connections queued requests at about 200 participants. On a 16-thread
-  server, p95 response time at 320 participants fell from 438 ms to 65 ms,
-  and 480 participants ran with a p95 of about 100 ms. Classic-ingress apps
-  share one server-wide Postgres, so they keep 20 connections each.
-  Already-running apps pick up the new pgbouncer limits after
-  ``dallinger docker-ssh deploy --update``.
+  pgbouncer keep up to 80 Postgres connections instead of 20, so requests no
+  longer queue at about 200 participants. On a 16-thread server, p95 response
+  time at 320 participants fell from 438 ms to 65 ms. Classic-ingress apps
+  share the server's Postgres, so they keep 20 connections each. Running apps
+  pick up the new limits after ``dallinger docker-ssh deploy --update``.
 - Each process now keeps at most 20 idle database connections instead of up
-  to 1,000. Busy web workers still open as many connections as they need,
-  but close the extra ones afterwards, so idle connections no longer pile up
-  after heavy load and use up the database's or pgbouncer's client limit.
-- Idle pooled database connections are now checked when they are next used
-  and replaced if the server dropped them. Before, after a docker-ssh app's
-  pgbouncer or Postgres container restarted while the web container kept
-  running, later requests failed with ``server closed the connection
-  unexpectedly``. Requests in flight during the restart can still fail.
+  to 1,000, so idle connections no longer pile up after heavy load and use up
+  the database's or pgbouncer's client limit. Busy processes still open as
+  many connections as they need.
+- After a docker-ssh app's pgbouncer or Postgres container restarts, requests
+  no longer fail with ``server closed the connection unexpectedly``; dropped
+  idle connections are replaced when next used. Requests in flight during the
+  restart can still fail.
 - Classic-ingress docker-ssh deploys to a server whose SSH host resolves only
   to private IP addresses now stop before building the image and suggest
   ``--ingress cloudflare``, because Let's Encrypt cannot issue certificates
   for such servers. ``docker-ssh servers add`` prints the same advice.
-  Servers with a private address inside their network but a public DNS name
-  that forwards ports 80 and 443 to them can pass ``--allow-private-ip``.
-  ``--update`` deploys of existing apps skip the check.
+  ``--update`` deploys of existing apps skip the check. For a server whose
+  public DNS name points at a public IP that forwards ports 80 and 443 to it,
+  pass ``--allow-private-ip``: the deploy then only checks that the
+  experiment hostname resolves, not that it matches the SSH host's address.
 
 ### Fixed
 

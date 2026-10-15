@@ -465,7 +465,9 @@ option_allow_private_ip = click.option(
     help=(
         "Deploy with classic ingress even though the SSH host resolves to a "
         "private IP address, for servers whose public DNS name points at a "
-        "public IP that forwards ports 80 and 443 to them."
+        "public IP that forwards ports 80 and 443 to them. The experiment "
+        "hostname must still resolve, but is not compared with the SSH host's "
+        "address."
     ),
 )
 
@@ -1110,7 +1112,7 @@ def build_and_push_image(f):
         from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
 
         # Existing apps already have their certificates, so updates skip the check.
-        if not kwargs.pop("allow_private_ip", False) and not kwargs.get("update"):
+        if not kwargs.get("allow_private_ip") and not kwargs.get("update"):
             _check_classic_ingress_reachable(kwargs["server"], kwargs.get("ingress"))
         config = get_config(load=True)
         image_name = config.get("docker_image_name", None)
@@ -1329,6 +1331,7 @@ def _deploy_in_mode(
     push_build,
     preflight_root_clean,
     ingress=None,
+    allow_private_ip=False,
 ):
     config = get_config(load=True)
 
@@ -1421,7 +1424,7 @@ You can override this by creating a DNS A record pointing to
 you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}""")
     experiment_hostname = f"{experiment_id}.{dns_host}" if use_subdomain else dns_host
 
-    _check_experiment_hostname_dns(ssh_host, experiment_hostname)
+    _check_experiment_hostname_dns(ssh_host, experiment_hostname, allow_private_ip)
 
     executor = Executor(ssh_address, user=ssh_user, app=app_identifier)
     executor.run("mkdir -p ~/dallinger/caddy.d")
@@ -2872,10 +2875,29 @@ def _ipv4_addresses(hostname):
         return []
 
 
-def _check_experiment_hostname_dns(ssh_host, experiment_hostname):
-    """Abort unless the experiment hostname resolves to the SSH host IP."""
-    ipaddr_server = next(iter(_ipv4_addresses(ssh_host)), None)
+def _check_experiment_hostname_dns(
+    ssh_host, experiment_hostname, allow_private_ip=False
+):
+    """Abort unless the experiment hostname resolves to the SSH host IP.
+
+    Parameters
+    ----------
+    ssh_host : str
+        Host name or IP address used for SSH, without a port.
+    experiment_hostname : str
+        Public host name participants will use.
+    allow_private_ip : bool
+        If true, the SSH host's address may differ from the public one, so only
+        require that ``experiment_hostname`` resolves.
+    """
     ipaddr_experiment = next(iter(_ipv4_addresses(experiment_hostname)), None)
+    if allow_private_ip and ipaddr_experiment:
+        print(
+            f"{experiment_hostname} resolves to {ipaddr_experiment}. Because of "
+            "--allow-private-ip, this was not compared with the SSH host's address."
+        )
+        return
+    ipaddr_server = next(iter(_ipv4_addresses(ssh_host)), None)
     if ipaddr_server and ipaddr_experiment == ipaddr_server:
         return
 
@@ -2886,9 +2908,13 @@ def _check_experiment_hostname_dns(ssh_host, experiment_hostname):
 
     checker_url = f"https://dnschecker.org/#A/{experiment_hostname}"
     print(f"{RED}DNS resolution error:{END}")
-    if ipaddr_server:
+    if allow_private_ip or ipaddr_server:
+        if allow_private_ip:
+            expected = "the public IP that forwards ports 80 and 443 to the server"
+        else:
+            expected = ipaddr_server
         print(
-            f"  The experiment hostname ({experiment_hostname}) should resolve to {ipaddr_server}."
+            f"  The experiment hostname ({experiment_hostname}) should resolve to {expected}."
         )
         print(f"  It currently resolves to {current_text}.")
         print("  Check that --dns-host is correct.")
