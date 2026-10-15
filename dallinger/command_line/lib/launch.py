@@ -407,14 +407,20 @@ def _probe(url, verify):
     """GET ``url`` once; return ``(status_code or None, detail)``.
 
     Redirects are not followed: a Cloudflare Access login page is not the app.
-    If the request fails, ``detail`` is ``"<requests exception class>: <message>"``.
+    If the request fails, ``detail`` is ``"<requests exception class>: <message>"``,
+    with urllib3's cause added to a bare ``ConnectionError`` (for example
+    ``NameResolutionError`` or ``NewConnectionError``).
     """
     try:
         response = requests.get(
             url, timeout=REQUEST_TIMEOUT, verify=verify, allow_redirects=False
         )
     except requests.exceptions.RequestException as exc:
-        return None, f"{type(exc).__name__}: {exc}"
+        name = type(exc).__name__
+        cause = getattr(exc.args[0], "reason", None) if exc.args else None
+        if type(exc) is requests.exceptions.ConnectionError and cause is not None:
+            name += f" ({type(cause).__name__})"
+        return None, f"{name}: {exc}"
     if _is_redirect(response.status_code):
         return response.status_code, f"redirect to {response.headers.get('location')}"
     if "cf-mitigated" in response.headers:
@@ -519,7 +525,7 @@ def _abort_unreachable(executor, target, status, detail, waited):
         )
     print_bold("Check the public URL again (expect 2xx):")
     print(target.check_command)
-    if cloudflare:
+    if cloudflare and not (_is_redirect(status) or status == 403):
         print_bold("Inspect the tunnel connector logs:")
         print(target.ssh(f"docker compose -f {target.compose_file} logs cloudflared"))
     print_bold("Once the public URL works, launch the experiment:")
@@ -531,4 +537,3 @@ def _abort_unreachable(executor, target, status, detail, waited):
         "launched. The app's containers are running, but recruitment has not "
         f"started. {reason}"
     )
-

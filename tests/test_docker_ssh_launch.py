@@ -13,6 +13,7 @@ import click
 import paramiko
 import pytest
 import requests
+import urllib3
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.test import Client
@@ -278,7 +279,7 @@ def test_deploy_does_not_launch_when_the_public_url_never_answers(
     cloudflared_logs = target.ssh(
         f"docker compose -f {target.compose_file} logs cloudflared"
     )
-    assert (cloudflared_logs in out) is (ingress == "cloudflare")
+    assert (cloudflared_logs in out) is (reason == CLOUDFLARE_PENDING)
 
 
 def test_deploy_launches_once_the_public_url_answers(deploy_dir, capsys):
@@ -311,19 +312,38 @@ def test_public_wait_stops_early_on_a_second_redirect_in_a_row(no_sleep, capsys)
         with pytest.raises(click.ClickException, match="Access"):
             launch.wait_for_public_url(FakeExecutor(), TARGET)
     assert events == ["check"] * 2
-    assert launch.time.now < launch.PUBLIC_CHECK_TIMEOUT
+    assert launch.time.now == launch.PUBLIC_CHECK_INTERVAL
     assert "redirected twice in a row" in capsys.readouterr().out
 
 
-def test_progress_lines_name_the_request_error(no_sleep, capsys):
+@pytest.mark.parametrize(
+    "error, name",
+    [
+        (
+            requests.exceptions.SSLError("HTTPSConnectionPool(...): " + "x" * 200),
+            "SSLError",
+        ),
+        (
+            requests.exceptions.ConnectionError(
+                urllib3.exceptions.MaxRetryError(
+                    None,
+                    "/health",
+                    urllib3.exceptions.NewConnectionError(None, "refused"),
+                )
+            ),
+            "ConnectionError (NewConnectionError)",
+        ),
+    ],
+)
+def test_progress_lines_name_the_request_error(error, name, no_sleep, capsys):
     def get(url, **kwargs):
         if launch.time.now < launch.PROGRESS_INTERVAL + 10:
-            raise requests.exceptions.SSLError("HTTPSConnectionPool(...): " + "x" * 200)
+            raise error
         return mock.Mock(status_code=200, text="", headers={})
 
     with mock.patch.object(launch.requests, "get", get):
         launch.wait_for_public_url(FakeExecutor(), TARGET)
-    assert "Still waiting after 60 s: SSLError\n" in capsys.readouterr().out
+    assert f"Still waiting after 60 s: {name}\n" in capsys.readouterr().out
 
 
 def test_internal_health_retries_while_the_app_starts(no_sleep):

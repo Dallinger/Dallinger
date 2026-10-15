@@ -509,9 +509,10 @@ working. If ``/health`` still does not answer 2xx, the deploy stops with an
 error and does not launch the experiment: the containers keep running, but
 recruitment has not started. The error gives the likely reason, for example
 that Cloudflare has not activated the new tunnel yet, that a login is in front
-of the app, or that Cloudflare blocked the check. The deploy prints a command to check the URL again, the
-``cloudflared`` logs command for Cloudflare deploys, the command that launches
-the experiment once the URL works, and the ``destroy`` command. The deployment
+of the app, or that Cloudflare blocked the check. The deploy prints a command
+to check the URL again, the ``cloudflared`` logs command when a Cloudflare
+tunnel may not have connected yet, the command that launches the experiment
+once the URL works, and the ``destroy`` command. The deployment
 notes in ``deploy_logs/<app>.txt`` are written before this wait.
 
 The deploy launches the experiment by running ``curl`` inside the app's web
