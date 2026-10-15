@@ -89,12 +89,22 @@ def ingress_payload(hostname: str) -> dict[str, Any]:
     }
 
 
+def config_str(config: Any | None, key: str) -> str:
+    """Return a config value as a stripped string, or ``""`` if it is unset."""
+    if config is None:
+        return ""
+    return str(config.get(key, "") or "").strip()
+
+
 def load_api_token(config: Any | None = None) -> str:
-    """Load the Cloudflare API token from env, Dallinger config, or macOS Keychain."""
-    token = os.environ.get("CLOUDFLARE_API_TOKEN") or (
-        config.get("cloudflare_api_token", "") if config is not None else ""
+    """Load the Cloudflare API token from env, Dallinger config, or macOS Keychain.
+
+    The default Keychain item must belong to the current user's account. An
+    item named by ``cloudflare_keychain_service`` matches under any account.
+    """
+    token = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip() or config_str(
+        config, "cloudflare_api_token"
     )
-    token = str(token or "").strip()
     if token:
         return token
     security = shutil.which("security")
@@ -102,18 +112,15 @@ def load_api_token(config: Any | None = None) -> str:
         raise CloudflareError(
             "Set CLOUDFLARE_API_TOKEN in the environment before a Cloudflare docker-ssh deploy."
         )
-    account = os.environ.get("USER") or getpass.getuser()
+    service = config_str(config, "cloudflare_keychain_service")
+    if service:
+        account_args = []
+    else:
+        service = KEYCHAIN_SERVICE
+        account_args = ["-a", os.environ.get("USER") or getpass.getuser()]
     try:
         result = subprocess.run(
-            [
-                security,
-                "find-generic-password",
-                "-a",
-                account,
-                "-s",
-                KEYCHAIN_SERVICE,
-                "-w",
-            ],
+            [security, "find-generic-password", *account_args, "-s", service, "-w"],
             text=True,
             capture_output=True,
             check=True,
@@ -121,7 +128,7 @@ def load_api_token(config: Any | None = None) -> str:
     except subprocess.CalledProcessError as exc:
         raise CloudflareError(
             "CLOUDFLARE_API_TOKEN is unset and the Keychain item "
-            f"{KEYCHAIN_SERVICE!r} could not be read."
+            f"{service!r} could not be read."
         ) from exc
     token = result.stdout.strip()
     if not token:

@@ -77,6 +77,7 @@ from .lib.cloudflare import (
     tunnel_name_for_app,
     validate_app_dns_label,
 )
+from .lib.cloudflare import config_str as cloudflare_config_str
 from .lib.cloudflare import public_hostname as cloudflare_public_hostname
 from .utils import get_server_pem_path
 
@@ -711,8 +712,8 @@ def _cloudflare_settings(config, dns_zone=None):
     Cloudflare DNS zone. ``dns_zone`` overrides config (destroy passes the
     zone recorded in the manifest).
     """
-    account_id = str(config.get("cloudflare_account_id", "") or "").strip()
-    zone_id = str(config.get("cloudflare_zone_id", "") or "").strip()
+    account_id = cloudflare_config_str(config, "cloudflare_account_id")
+    zone_id = cloudflare_config_str(config, "cloudflare_zone_id")
     dns_zone = str(dns_zone or config.get("cloudflare_dns_zone", "") or "")
     dns_zone = dns_zone.strip().lower().rstrip(".")
     missing = [

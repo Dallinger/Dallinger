@@ -4,6 +4,11 @@
 
 ### Added
 
+- Added the `cloudflare_keychain_service` config key, which names the macOS
+  Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
+  deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
+  already store the token under another name don't have to copy it. A
+  configured item is found whatever Keychain account it was saved under.
 - Worker processes that hang during start-up now exit after
   `worker_startup_timeout` seconds (default 120; 0 disables) if they
   haven't registered with the job queue, printing what each greenlet was
