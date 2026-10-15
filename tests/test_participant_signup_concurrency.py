@@ -39,6 +39,7 @@ advisory lock in experiment_server.acquire_participant_signup_lock().
 
 import os
 import threading
+import time
 from unittest import mock
 
 import gevent
@@ -377,13 +378,21 @@ class TestSignupBehavioralInvariants:
 
     def test_concurrent_signups_at_quorum_produce_correct_result(self, slow_app):
         """Two concurrent signups at quorum=1 produce exactly one 'working'
-        participant and one 'overrecruited'.
+        participant and one 'overrecruited', and finish within a lock-wait
+        latency budget rather than retry-backoff latency.
+
+        ZSlowTestExperiment sleeps 50ms inside create_participant, so two
+        serialized signups take ~100ms of intentional work. The 2s bound
+        excludes the old expovariate(0.5) retry approach (mean ~2s per retry)
+        while giving reasonable headroom for a loaded CI machine.
         """
+        start = time.monotonic()
         results = run_concurrent_requests(
             slow_app,
             [f"/participant/worker{i}/hit1/assign{i}/debug" for i in range(2)],
             timeout=30,
         )
+        elapsed = time.monotonic() - start
 
         assert all(s == 200 for s, _ in results), (
             f"Expected HTTP 200 from all signups, got {[s for s, _ in results]}"
@@ -391,6 +400,10 @@ class TestSignupBehavioralInvariants:
         statuses = sorted(d["participant"]["status"] for _, d in results)
         assert statuses == ["overrecruited", "working"], (
             f"Expected one 'working' + one 'overrecruited', got {statuses!r}"
+        )
+        assert elapsed < 2.0, (
+            f"Concurrent signups took {elapsed:.2f}s; expected advisory-lock "
+            f"serialization (< 2s), not retry-backoff latency."
         )
 
     def test_concurrent_signups_same_worker_id_rejected(self, slow_app):
