@@ -262,6 +262,19 @@
   Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 - The ``deployment-files`` CLI tests no longer use Click's deprecated
   ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
+- Dallinger's Docker PostgreSQL containers (docker-ssh, ``docker debug`` and
+  ``docker start-services``) now run with ``jit = off``, because JIT
+  compilation slows down the short queries that experiments make. The next
+  classic docker-ssh deploy on each server recreates the shared PostgreSQL
+  once, keeping its data but briefly interrupting every classic app on that
+  server, so make that deploy when no classic experiment is live. Each
+  Cloudflare app's PostgreSQL is likewise recreated on its next deploy,
+  including ``--update``. Classic deploys now wait up to 7 minutes for the
+  shared PostgreSQL to become healthy. A failing database now takes about
+  5.5–7 minutes to be reported as unhealthy, which also delays Cloudflare
+  ``up -d`` and ``docker debug`` failures. To turn JIT off in an existing local ``dallinger_postgres``
+  container, run ``dallinger docker stop-services`` and then
+  ``start-services``; the data volume is kept.
 
 ### Deprecated
 
@@ -286,6 +299,16 @@
   process's limit. That process then failed new connections, and any
   `/health` or `/dashboard/login` request routed to it, with
   `OSError: [Errno 24] Too many open files`.
+- `dallinger docker debug` passes the Flask secret key to the web, worker and
+  clock containers again. Previously they ran with no secret key, because the
+  generated `.env` file prefixed the key with a stray `$` and the compose file
+  did not forward `FLASK_SECRET_KEY` to any service. The key is now quoted in
+  `.env`, so a key containing `$` or `#` also reaches the containers unchanged,
+  and an empty `FLASK_SECRET_KEY` in the host shell no longer replaces it. The
+  `.env` file is readable by its owner only and is written after the debug
+  image is built, so the key is not baked into the image, and compose refuses
+  to start the containers without a key.
+
 - Dallinger's Docker commands no longer import pip's private internals to
   read an experiment's ``requirements.txt``, so they work in uv-created
   environments without pip. ``packaging`` is now a declared dependency.

@@ -1,4 +1,5 @@
 import importlib
+import os
 import re
 import sys
 import time
@@ -228,6 +229,27 @@ def get_yaml(config, ingress="classic"):
     return yaml.safe_load(yaml_contents)
 
 
+def test_postgres_services_disable_jit(tmp_path, stub_config):
+    from dallinger.command_line.docker_ssh import DOCKER_COMPOSE_SERVER_TPL
+    from dallinger.docker.tools import DockerComposeWrapper
+
+    wrapper = DockerComposeWrapper(stub_config, None, str(tmp_path), str(tmp_path))
+    with mock.patch(
+        "dallinger.docker.tools.get_experiment_image_tag", return_value="tag"
+    ):
+        wrapper.copy_docker_compose_files()
+    composes = [
+        get_yaml({}, ingress="cloudflare"),
+        yaml.safe_load(DOCKER_COMPOSE_SERVER_TPL.render(dozzle_base="")),
+        yaml.safe_load((tmp_path / "docker-compose.yml").read_text()),
+    ]
+    for compose in composes:
+        postgres = compose["services"]["postgresql"]
+        assert postgres["command"] == "postgres -c jit=off"
+        assert "pg_isready -h 127.0.0.1 " in postgres["healthcheck"]["test"][1]
+        assert "start_period" in postgres["healthcheck"]
+
+
 def test_compose_reads_the_database_password_from_the_app_env():
     result = get_yaml({})
     database_url = result["services"]["web"]["environment"]["DATABASE_URL"]
@@ -336,6 +358,103 @@ def test_deps_image_tag_changes_when_prepare_script_changes(tmp_path):
     tag_before = get_experiment_image_tag(str(exp_dir))
     (exp_dir / "prepare_docker_image.sh").write_text("#!/bin/sh\necho other\n")
     assert get_experiment_image_tag(str(exp_dir)) != tag_before
+
+
+def make_docker_debug_wrapper(config, exp_dir, environ):
+    """Build the compose wrapper the way ``HerokuLocalDeployment.run`` does."""
+    from dallinger.docker.tools import DockerComposeWrapper
+
+    return DockerComposeWrapper(
+        config,
+        mock.Mock(),
+        str(exp_dir),
+        str(exp_dir),
+        env={**os.environ, **environ},
+    )
+
+
+def test_docker_debug_containers_get_the_deployment_flask_secret_key(
+    tmp_path, stub_config
+):
+    from dallinger.docker.deployment import DockerDebugDeployment
+    from dallinger.docker.tools import _quote_dotenv_value
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    deployment = DockerDebugDeployment(mock.Mock(), False, False, None, {})
+    dotenv_path = exp_dir / ".env"
+    dotenv_path.touch()
+    dotenv_path.chmod(0o644)
+    make_docker_debug_wrapper(
+        stub_config, exp_dir, deployment.environ
+    ).copy_docker_compose_files()
+
+    key = deployment.environ["FLASK_SECRET_KEY"]
+    assert (
+        f"FLASK_SECRET_KEY={_quote_dotenv_value(key)}"
+        in dotenv_path.read_text().splitlines()
+    )
+    assert dotenv_path.stat().st_mode & 0o777 == 0o600
+    compose = yaml.safe_load((exp_dir / "docker-compose.yml").read_text())
+    for service in ("web", "worker", "clock"):
+        environment = compose["services"][service]["environment"]
+        assert environment["FLASK_SECRET_KEY"].startswith("${FLASK_SECRET_KEY:?")
+
+
+def test_docker_debug_compose_calls_override_an_empty_host_secret_key(
+    tmp_path, stub_config
+):
+    from dallinger.docker import tools
+
+    with mock.patch.dict(os.environ, {"FLASK_SECRET_KEY": ""}):
+        wrapper = make_docker_debug_wrapper(
+            stub_config, tmp_path, {"FLASK_SECRET_KEY": "k"}
+        )
+    with (
+        mock.patch.object(tools, "check_output") as check_output,
+        mock.patch.object(tools, "call") as call,
+    ):
+        wrapper.run_compose(["up", "-d"])
+        wrapper.stop()
+    assert check_output.call_args.kwargs["env"]["FLASK_SECRET_KEY"] == "k"
+    assert call.call_args.kwargs["env"]["FLASK_SECRET_KEY"] == "k"
+
+
+def test_docker_debug_image_build_context_has_no_dotenv(tmp_path, stub_config):
+    from dallinger.docker import tools
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    wrapper = make_docker_debug_wrapper(stub_config, exp_dir, {"FLASK_SECRET_KEY": "k"})
+    dotenv_seen_by_build = []
+    with (
+        mock.patch.object(
+            tools,
+            "build_image",
+            side_effect=lambda *args: dotenv_seen_by_build.append(
+                (exp_dir / ".env").exists()
+            ),
+        ),
+        mock.patch.object(wrapper, "run_compose", side_effect=RuntimeError),
+        pytest.raises(RuntimeError),
+    ):
+        wrapper.start()
+    assert dotenv_seen_by_build == [False]
+    assert (exp_dir / ".env").exists()
+
+
+def test_dotenv_quoting_keeps_compose_special_characters_literal():
+    from dallinger.docker.tools import _quote_dotenv_value
+
+    assert _quote_dotenv_value('a$b #"c\\') == '"a\\$b #\\"c\\\\"'
+
+
+def test_docker_debug_dotenv_treats_a_none_secret_key_as_empty(tmp_path, stub_config):
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    wrapper = make_docker_debug_wrapper(
+        stub_config, exp_dir, {"FLASK_SECRET_KEY": None}
+    )
+    wrapper.copy_docker_compose_files()
+    assert 'FLASK_SECRET_KEY=""' in (exp_dir / ".env").read_text().splitlines()
+    assert wrapper.env["FLASK_SECRET_KEY"] == ""
 
 
 def test_custom_dockerfile_reinstalls_a_staged_local_wheel(tmp_path):

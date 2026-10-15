@@ -1,6 +1,7 @@
 services:
   postgresql:
     image: postgres:12
+    command: postgres -c jit=off
     environment:
       POSTGRES_USER: dallinger
       POSTGRES_PASSWORD: dallinger
@@ -8,9 +9,12 @@ services:
     volumes:
       - dallinger_{{ experiment_name }}_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER}"]
       interval: 2s
       timeout: 5s
+      retries: 15
+      start_period: 300s
+    stop_grace_period: 60s
     ports:
       # bots might need to communicate with postgresql
       - "5432:5432"
@@ -59,6 +63,7 @@ services:
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://dallinger:dallinger@postgresql/dallinger
       HOME: /tmp
+      FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:?FLASK_SECRET_KEY is required}"
   web:
     image: {{ experiment_image }}
     user: "${UID}:${GID}"
