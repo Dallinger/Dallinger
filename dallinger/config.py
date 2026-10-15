@@ -160,6 +160,7 @@ default_keys = (
     ("webdriver_url", str, []),
     ("whimsical", bool, []),
     ("worker_multiplier", float, []),
+    ("worker_startup_timeout", int, []),
     ("docker_image_base_name", str, [], ""),
     ("docker_image_name", str, [], ""),
     ("docker_volumes", str, [], ""),
