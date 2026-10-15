@@ -586,7 +586,10 @@ Connection Limits
 
 Each web process holds one Redis connection for every channel that has at
 least one client in that process, and releases it when the last client leaves.
-Channels that the experiment itself subscribes to stay open for the whole run.
+Channels that the experiment itself subscribes to stay open for the whole run,
+and the listener for directed sends (``dallinger_direct``) keeps running after
+its last client leaves, so each process also holds one connection for it
+alongside the experiment and control channels.
 With one channel per participant, the number of Redis connections is therefore
 about the number of participants connected at once.
 

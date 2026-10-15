@@ -36,6 +36,8 @@ sock = Sock(app)
 #: Channel listeners hold a connection each for as long as their channel has
 #: clients, so they get their own pool. Otherwise enough busy channels would
 #: make every other Redis call in the process wait for a free connection.
+#: It is built independently of ``dallinger.db.redis_conn``, so replacing that
+#: client redirects publishes but not subscriptions; replace both together.
 pubsub_conn = connect_to_redis()
 
 # Send a ping on the websocket channel every 25 seconds
@@ -353,8 +355,8 @@ class Channel:
 class DirectChannel(Channel):
     """Relays directed sends published by other processes to local clients.
 
-    A process runs one of these while it holds any connection that named a
-    participant. It has no subscribers of its own: an envelope names
+    A process starts one of these with its first connection that names a
+    participant and keeps it running after that connection leaves. It has no subscribers of its own: an envelope names
     participants, and the backend looks up their connections, so a client is
     addressable without having subscribed to anything.
     """

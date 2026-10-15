@@ -45,10 +45,11 @@ def redis(pubsub):
 
 
 @pytest.fixture
-def sockets(redis):
+def sockets(redis, monkeypatch):
     from dallinger.experiment_server import sockets
 
-    sockets.redis_conn = sockets.pubsub_conn = redis
+    monkeypatch.setattr(sockets, "redis_conn", redis)
+    monkeypatch.setattr(sockets, "pubsub_conn", redis)
     # use a separate ChatBackend for each test
     sockets.chat_backend = sockets.ChatBackend()
     sockets._process_experiment = None
