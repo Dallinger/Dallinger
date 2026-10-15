@@ -1,5 +1,6 @@
 import os
 import time
+import warnings
 from hashlib import sha256
 from pathlib import Path
 from shutil import which
@@ -39,6 +40,33 @@ def worker_cpu_shares(worker_processes):
     return max(
         MIN_CPU_SHARES, round(WORKERS_COMBINED_CPU_SHARES / max(worker_processes, 1))
     )
+
+
+def docker_worker_processes(config):
+    """Return the number of worker containers for a Docker deployment.
+
+    Uses ``worker_processes`` if it is set explicitly. Otherwise, an
+    explicitly set ``num_dynos_worker`` (which used to size Docker workers
+    too) is used with a ``FutureWarning``.
+
+    Parameters
+    ----------
+    config : dallinger.config.Configuration
+        The loaded configuration.
+    """
+    if not config.is_set_explicitly("worker_processes") and config.is_set_explicitly(
+        "num_dynos_worker"
+    ):
+        count = config.get("num_dynos_worker")
+        warnings.warn(
+            "Docker deployments now use 'worker_processes' for the number of "
+            f"worker containers; using num_dynos_worker = {count} instead. "
+            "Set 'worker_processes' to silence this warning.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        return count
+    return config.get("worker_processes", 1)
 
 
 docker_compose_template = Template(
@@ -119,7 +147,7 @@ class DockerComposeWrapper:
                 f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.11/dist-packages/dallinger/"
             )
         tag = get_experiment_image_tag(self.tmp_dir)
-        worker_processes = int(self.config.get("worker_processes", 1))
+        worker_processes = docker_worker_processes(self.config)
         with open(os.path.join(self.tmp_dir, "docker-compose.yml"), "w") as fh:
             fh.write(
                 docker_compose_template.render(

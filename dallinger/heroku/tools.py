@@ -23,16 +23,6 @@ def app_name(experiment_uuid):
     return "dlgr-" + experiment_uuid[:18]
 
 
-def dyno_count(config, process, default=1):
-    """Return the configured number of dynos for a Heroku process type.
-
-    Worker dynos are sized by ``worker_processes``; other process types by
-    ``num_dynos_<process>``.
-    """
-    key = "worker_processes" if process == "worker" else f"num_dynos_{process}"
-    return config.get(key, default)
-
-
 def auth_token():
     """A Heroku authenication token."""
     return check_output(["heroku", "auth:token"]).rstrip().decode("utf8")
@@ -606,8 +596,8 @@ class HerokuLocalWrapper:
             raise HerokuStartupError('"HOME" environment not set... aborting.')
 
         port = self.config.get("base_port")
-        web_dynos = dyno_count(self.config, "web")
-        worker_dynos = dyno_count(self.config, "worker")
+        web_dynos = self.config.get("num_dynos_web")
+        worker_dynos = self.config.get("num_dynos_worker")
         clock_dyno = self.config.get("clock_on")
         dyno_options = "web={},worker={}{}".format(
             web_dynos, worker_dynos, ",clock" if clock_dyno else ""

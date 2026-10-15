@@ -148,6 +148,7 @@ default_keys = (
     ("mturk_qualification_blocklist", str, ["qualification_blacklist"]),
     ("mturk_qualification_requirements", str, [], False, [is_valid_json]),
     ("num_dynos_web", int, []),
+    ("num_dynos_worker", int, []),
     ("organization_name", str, []),
     ("port", int, ["PORT"]),
     ("prolific_api_token", str, ["PROLIFIC_RESEARCHER_API_TOKEN"], True),
@@ -179,7 +180,7 @@ default_keys = (
     ("whimsical", bool, []),
     ("worker_greenlets_per_process", int, [], False, [is_positive_int]),
     ("worker_multiplier", float, []),
-    ("worker_processes", int, ["num_dynos_worker"], False, [is_non_negative_int]),
+    ("worker_processes", int, [], False, [is_non_negative_int]),
     ("docker_image_base_name", str, [], ""),
     ("docker_image_name", str, [], ""),
     ("docker_volumes", str, [], ""),
@@ -283,11 +284,27 @@ class Configuration:
         ``source`` defaults to :attr:`ConfigSource.RUNTIME`, the highest
         priority, so ad-hoc writes always win over file-based sources.
         """
+        return self._extend(mapping, cast_types, strict, source)
+
+    def _extend(self, mapping, cast_types, strict, source, filename=None):
+        """Add a layer, warning once about any deprecated keys in ``mapping``.
+
+        ``filename`` names the config file that ``mapping`` came from.
+        """
         if source is None:
             source = ConfigSource.RUNTIME
         normalized_mapping = {}
+        warning_messages = []
         for key, value in mapping.items():
-            key = self.canonical_key(key)
+            name = key
+            key = self.synonyms.get(name, name)
+            if name in DEPRECATED_KEYS:
+                warning_messages.append(DEPRECATED_KEYS[name])
+                if key != name and key in mapping:
+                    warning_messages.append(
+                        f"'{name}' is ignored because '{key}' is also set."
+                    )
+                    continue
             if key not in self.types:
                 # This key hasn't been registered, we ignore it
                 if strict:
@@ -323,6 +340,18 @@ class Configuration:
                     e.dallinger_config_value = value
                     raise e
             normalized_mapping[key] = value
+        # One warning per mapping: ``show_warnings_once`` keeps only the
+        # first warning from each source line.
+        if warning_messages and filename is not None:
+            warnings.warn_explicit(
+                f"{filename} sets deprecated config variables. "
+                + " ".join(warning_messages),
+                FutureWarning,
+                str(filename),
+                0,
+            )
+        elif warning_messages:
+            warnings.warn(" ".join(warning_messages), FutureWarning, stacklevel=3)
         layer = ConfigLayer(normalized_mapping, source)
         loading = self._loading_layers.get()
         target = self._added if loading is None else loading
@@ -401,6 +430,15 @@ class Configuration:
             warnings.warn(DEPRECATED_KEYS[key], FutureWarning, stacklevel=3)
         return self.synonyms.get(key, key)
 
+    def is_set_explicitly(self, key):
+        """Return whether a source above the package defaults sets ``key``."""
+        key = self.synonyms.get(key, key)
+        return any(
+            key in layer
+            for layer in self.data
+            if layer.source > ConfigSource.PACKAGE_DEFAULTS
+        )
+
     def __getitem__(self, key):
         return self.get(key)
 
@@ -452,7 +490,7 @@ class Configuration:
         data = {}
         for section in parser.sections():
             data.update(dict(parser.items(section)))
-        self.extend(data, cast_types=True, strict=strict, source=source)
+        self._extend(data, True, strict, source, filename=filename)
 
     def write(self, filter_sensitive=False, directory=None):
         parser = configparser.ConfigParser()
@@ -701,10 +739,6 @@ DEPRECATED_KEYS = {
     "threads": (
         "The 'threads' config variable is deprecated; use 'web_processes' "
         "instead. It sets the number of web server processes, not threads."
-    ),
-    "num_dynos_worker": (
-        "The 'num_dynos_worker' config variable is deprecated; use "
-        "'worker_processes' instead."
     ),
     "worker_multiplier": (
         "The 'worker_multiplier' config variable is deprecated; set "

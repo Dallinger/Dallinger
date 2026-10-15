@@ -1590,6 +1590,8 @@ def _compose_environment(
     config, config_options, mode, experiment_uuid, image_name, flask_secret_key
 ):
     """Build the Compose environment map shared by classic and tunnel stacks."""
+    from dallinger.docker.tools import docker_worker_processes
+
     cfg = config.as_dict(include_sensitive=True)
     for key in "aws_access_key_id", "aws_secret_access_key":
         cfg[key.upper()] = cfg.pop(key, None)
@@ -1608,6 +1610,7 @@ def _compose_environment(
     )
     for key, value in dict(config_options).items():
         cfg[config.canonical_key(key)] = value
+    cfg["worker_processes"] = docker_worker_processes(config)
     # ``HOST`` is set by the template; the rest are secrets the app must not get.
     for key in "host", "database_url", "heroku_auth_token", "cloudflare_api_token":
         cfg.pop(key, None)

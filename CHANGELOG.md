@@ -152,13 +152,16 @@
   (extras such as ``[docker]`` are dropped from the rewritten line).
 - Added Docker-first parallelism settings: ``web_processes`` (number of
   gunicorn web processes, given as a number or ``auto``, the default),
-  ``worker_processes`` (number of
-  background worker processes, default ``1``; one container each with
-  Docker, worker dynos on Heroku) and ``worker_greenlets_per_process``
-  (tasks each worker process runs at once, default ``20``). For CPU-heavy
-  tasks, set ``worker_greenlets_per_process = 1`` and add worker processes.
-  Each worker's Redis connection pool grows with its greenlets, so values
-  above 40 don't wait for connections.
+  ``worker_processes`` (number of worker containers in ``dallinger docker``
+  and Docker SSH deployments, default ``1``) and
+  ``worker_greenlets_per_process`` (tasks each worker process runs at once,
+  on Heroku and Docker, default ``20``). For CPU-heavy tasks, set
+  ``worker_greenlets_per_process = 1`` and add worker processes. Each
+  worker's Redis connection pool grows with its greenlets, so values above
+  40 don't wait for connections. Heroku still sizes worker dynos with
+  ``num_dynos_worker``. Docker deployments used to read ``num_dynos_worker``
+  too; if only ``num_dynos_worker`` is set, they still use it, with a
+  ``FutureWarning`` asking for ``worker_processes``.
 
 ### Changed
 
@@ -237,13 +240,14 @@
 
 ### Deprecated
 
-- ``threads`` and ``num_dynos_worker`` are deprecated in favour of
-  ``web_processes`` and ``worker_processes``. The old names still work, but
-  setting or reading them (including with ``docker-ssh deploy -c``) emits a
-  ``FutureWarning``. ``Configuration.canonical_key()`` maps an old name to
-  its replacement. Setting
-  ``worker_multiplier`` (set ``web_processes`` to a number instead) or
-  ``docker_worker_cpu_shares`` (now ignored) also warns. The warning for
+- ``threads`` is deprecated in favour of ``web_processes``. The old name
+  still works, but setting or reading it (including with
+  ``docker-ssh deploy -c``) emits a ``FutureWarning``; if both names are
+  set in one place, ``web_processes`` wins. ``Configuration.canonical_key()``
+  maps an old name to its replacement. Setting ``worker_multiplier`` (set
+  ``web_processes`` to a number instead) or ``docker_worker_cpu_shares``
+  (now ignored) also warns. A config file with deprecated settings gets one
+  warning that names the file and all of them. The warning for
   ``prolific_maximum_allowed_minutes`` is now a ``FutureWarning`` too, and no
   longer changes the global warnings filter.
 

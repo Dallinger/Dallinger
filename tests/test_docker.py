@@ -2,6 +2,7 @@ import importlib
 import re
 import sys
 import time
+import warnings
 from pathlib import Path
 from unittest import mock
 
@@ -258,29 +259,39 @@ def make_experiment_tmp_dir(tmp_path, name="exp"):
     return exp_dir
 
 
-def test_local_compose_gives_worker_low_cpu_weight(tmp_path):
+@pytest.mark.parametrize(
+    "settings, replicas, shares", [({}, 1, 102), ({"worker_processes": 3}, 3, 34)]
+)
+def test_local_compose_runs_low_weight_worker_replicas(
+    tmp_path, stub_config, settings, replicas, shares
+):
     from dallinger.docker.tools import DockerComposeWrapper
 
-    exp_dir = make_experiment_tmp_dir(tmp_path)
-    wrapper = DockerComposeWrapper({}, mock.Mock(), str(tmp_path), str(exp_dir))
-    wrapper.copy_docker_compose_files()
-    services = yaml.safe_load((exp_dir / "docker-compose.yml").read_text())["services"]
-    assert services["worker"]["cpu_shares"] == 102
-    assert services["worker"]["deploy"]["replicas"] == 1
-    assert "cpu_shares" not in services["web"]
-
-
-def test_local_compose_runs_worker_processes_replicas(tmp_path):
-    from dallinger.docker.tools import DockerComposeWrapper
-
+    stub_config.extend(settings)
     exp_dir = make_experiment_tmp_dir(tmp_path)
     wrapper = DockerComposeWrapper(
-        {"worker_processes": 3}, mock.Mock(), str(tmp_path), str(exp_dir)
+        stub_config, mock.Mock(), str(tmp_path), str(exp_dir)
     )
     wrapper.copy_docker_compose_files()
     services = yaml.safe_load((exp_dir / "docker-compose.yml").read_text())["services"]
-    assert services["worker"]["deploy"]["replicas"] == 3
-    assert services["worker"]["cpu_shares"] == 34
+    assert services["worker"]["deploy"]["replicas"] == replicas
+    assert services["worker"]["cpu_shares"] == shares
+    assert "cpu_shares" not in services["web"]
+
+
+def test_docker_worker_processes_falls_back_to_num_dynos_worker(stub_config):
+    from dallinger.docker.tools import docker_worker_processes
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert docker_worker_processes(stub_config) == 1
+    stub_config.extend({"num_dynos_worker": 3})
+    with pytest.warns(FutureWarning, match="worker_processes"):
+        assert docker_worker_processes(stub_config) == 3
+    stub_config.extend({"worker_processes": 2})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert docker_worker_processes(stub_config) == 2
 
 
 def test_deps_image_tag_ignores_experiment_code(tmp_path):

@@ -29,7 +29,7 @@ from dallinger.command_line.utils import (
 )
 from dallinger.config import get_config
 from dallinger.deployment import handle_launch_data
-from dallinger.heroku.tools import HerokuApp, dyno_count
+from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import (
     GitClient,
     abspath_from_egg,
@@ -325,7 +325,7 @@ def deploy_image(image_name, mode, config_options):
         "updates": [
             dict(
                 type=type,
-                quantity=dyno_count(config, type),
+                quantity=config.get(f"num_dynos_{type}", 1),
                 size=config.get("dyno_type", "basic"),
             )
             for type in services
@@ -463,7 +463,8 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     default_size = config.get("dyno_type")
     for service in services:
         size = config.get("dyno_type_" + service, default_size)
-        heroku_app.scale_up_dyno(service, dyno_count(config, service), size)
+        qty = config.get("num_dynos_" + service, 1)
+        heroku_app.scale_up_dyno(service, qty, size)
 
     log("Waiting for addons to be ready...")
     ready = False

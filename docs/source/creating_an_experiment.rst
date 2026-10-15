@@ -459,7 +459,8 @@ a non standard location.
     logfile = -
 
 Finally, the `Server` section contains Heroku related parameters, along
-with ``worker_processes``, the number of background worker processes.
+with ``worker_processes``, the number of background worker containers in
+Docker deployments (Heroku uses ``num_dynos_worker`` instead).
 Depending on the number of participants and size of the experiment,
 you might need to set the `dyno_type` and `num_dynos_web` parameters
 to something else, but be aware that most dyno types require a paid

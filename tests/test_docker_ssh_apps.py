@@ -817,8 +817,11 @@ def test_compose_environment_notes_idle_sleep_waits_for_auto_recruit(
 
 def test_compose_environment_strips_cloudflare_api_token():
     class Config:
-        synonyms = {"num_dynos_worker": "worker_processes", "threads": "web_processes"}
+        synonyms = {"threads": "web_processes"}
         canonical_key = Configuration.canonical_key
+
+        def is_set_explicitly(self, key):
+            return False
 
         def as_dict(self, include_sensitive=False):
             return {
@@ -831,18 +834,17 @@ def test_compose_environment_strips_cloudflare_api_token():
             }
 
         def get(self, key, default=None):
-            return None
+            return default
 
         def __getitem__(self, key):
             return self.as_dict()[key]
 
-    with pytest.warns(FutureWarning) as warned:
+    with pytest.warns(FutureWarning, match="'threads'"):
         env = docker_ssh_module._compose_environment(
             Config(),
             {
                 "cloudflare_api_token": "from-cli",
                 "host": "smuggled",
-                "num_dynos_worker": "3",
                 "threads": "2",
             },
             "live",
@@ -855,11 +857,17 @@ def test_compose_environment_strips_cloudflare_api_token():
     assert "from-cli" not in env.values()
     assert env["AWS_ACCESS_KEY_ID"] == "id"
     assert "host" not in env
-    assert env["worker_processes"] == "3"
     assert env["web_processes"] == "2"
     assert "threads" not in env
-    messages = " ".join(str(warning.message) for warning in warned)
-    assert "'num_dynos_worker'" in messages and "'threads'" in messages
+
+
+def test_compose_environment_falls_back_to_num_dynos_worker(stub_config):
+    stub_config.extend({"num_dynos_worker": 3})
+    with pytest.warns(FutureWarning, match="worker_processes"):
+        env = docker_ssh_module._compose_environment(
+            stub_config, {}, "live", "uuid", "image:tag", "flask-key"
+        )
+    assert env["worker_processes"] == 3
 
 
 def test_deploy_validates_config_options_before_deploying(monkeypatch):

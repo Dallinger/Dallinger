@@ -632,7 +632,7 @@ def test_heroku_local_does_not_inherit_stdin():
 
     from dallinger.heroku.tools import HerokuLocalWrapper
 
-    settings = {"base_port": 5000, "num_dynos_web": 1, "worker_processes": 1}
+    settings = {"base_port": 5000, "num_dynos_web": 1, "num_dynos_worker": 1}
     config = mock.Mock(get=settings.get)
     wrapper = HerokuLocalWrapper(config, mock.Mock(), env={"HOME": "/tmp"})
     with mock.patch("dallinger.heroku.tools.subprocess.Popen") as popen:

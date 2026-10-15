@@ -1,4 +1,5 @@
 listen = ["high", "default", "low"]
+DEFAULT_GREENLETS_PER_PROCESS = 20
 
 
 def worker_options(config):
@@ -7,7 +8,9 @@ def worker_options(config):
     Each greenlet can hold a Redis connection while RQ also uses some, so the
     connection pool needs headroom above the greenlet count.
     """
-    pool_size = config.get("worker_greenlets_per_process")
+    pool_size = config.get(
+        "worker_greenlets_per_process", DEFAULT_GREENLETS_PER_PROCESS
+    )
     worker_kwargs = {"log_job_description": False, "pool_size": pool_size}
     return worker_kwargs, max(50, pool_size + 10)
 

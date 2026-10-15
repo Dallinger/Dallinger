@@ -40,6 +40,7 @@ clock_on = False
 sentry = False
 redis_size = premium-0
 num_dynos_web = 1
+num_dynos_worker = 1
 
 [Parallelism]
 web_processes = auto

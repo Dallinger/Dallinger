@@ -262,20 +262,51 @@ worldwide = false
         config.ready = True
         assert config.get("num_participants") == 1
 
+    def test_threads_warns_and_maps_to_web_processes(self):
+        config = _default_config()
+        with pytest.warns(FutureWarning, match="threads"):
+            config.extend({"threads": "3"})
+        assert config.get("web_processes") == "3"
+        with pytest.warns(FutureWarning, match="threads"):
+            assert config.get("threads") == "3"
+
     @pytest.mark.parametrize(
-        "old, new, value",
+        "mapping",
         [
-            ("threads", "web_processes", "3"),
-            ("num_dynos_worker", "worker_processes", 3),
+            {"threads": "2", "web_processes": "4"},
+            {"web_processes": "4", "threads": "2"},
         ],
     )
-    def test_old_parallelism_names_warn_and_map_to_new_names(self, old, new, value):
+    def test_new_name_wins_over_old_name_in_one_mapping(self, mapping):
         config = _default_config()
-        with pytest.warns(FutureWarning, match=old):
-            config.extend({old: value})
-        assert config.get(new) == value
-        with pytest.warns(FutureWarning, match=old):
-            assert config.get(old) == value
+        with pytest.warns(FutureWarning, match="'threads' is ignored"):
+            config.extend(mapping)
+        assert config.get("web_processes") == "4"
+
+    def test_config_files_report_all_deprecated_keys_through_warn_once_hook(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        from dallinger import utils
+
+        monkeypatch.setattr(utils, "local_warning_cache", {})
+        monkeypatch.setattr(utils.db, "redis_conn", mock.Mock(exists=lambda key: False))
+        config = _default_config()
+        paths = [tmp_path / "a.txt", tmp_path / "b.txt"]
+        for path in paths:
+            path.write_text(
+                "[Parameters]\nthreads = 2\nworker_multiplier = 2.0\n"
+                "docker_worker_cpu_shares = 512\n"
+            )
+        with warnings.catch_warnings():
+            warnings.simplefilter("default")
+            warnings.showwarning = utils.show_warnings_once
+            for path in paths:
+                config.load_from_file(path)
+        out = capsys.readouterr().out
+        for path in paths:
+            report = out.split(f"{path}:0:")[1].split("\n")[0]
+            for key in ("threads", "worker_multiplier", "docker_worker_cpu_shares"):
+                assert f"'{key}'" in report
 
     @pytest.mark.parametrize(
         "key, value", [("worker_multiplier", 2.0), ("docker_worker_cpu_shares", 512)]

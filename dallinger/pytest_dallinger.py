@@ -169,6 +169,7 @@ def stub_config():
         "loglevel_worker": 2,
         "mode": "debug",
         "num_dynos_web": 1,
+        "num_dynos_worker": 1,
         "organization_name": "Monsters University",
         "prolific_completion_config": "{}",
         "publish_experiment": True,

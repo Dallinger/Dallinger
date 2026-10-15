@@ -453,6 +453,10 @@ Deployment Configuration
     Number of Heroku dynos to use for processing incoming HTTP requests. It is
     recommended that you use at least two.
 
+``num_dynos_worker`` *integer*
+    Number of Heroku dynos to use for background tasks. Heroku only; Docker
+    deployments use ``worker_processes``. Default ``1``.
+
 ``host`` *unicode*
     IP address of the host.
 
@@ -483,7 +487,21 @@ Parallelism Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 These settings control how many processes serve web requests and run
-background tasks.
+background tasks. Some apply only on Heroku, some only with Docker
+(``dallinger docker`` and Docker SSH deployments):
+
+================================  ============================================
+Setting                           What it sets
+================================  ============================================
+``num_dynos_web``                 Heroku web dynos.
+``num_dynos_worker``              Heroku worker dynos.
+``web_processes``                 Gunicorn processes per web dyno, or in the
+                                  web container.
+``worker_processes``              Docker worker containers. Falls back to
+                                  ``num_dynos_worker``, with a warning, if
+                                  only that is set.
+``worker_greenlets_per_process``  Tasks per worker, on both platforms.
+================================  ============================================
 
 ``web_processes`` *unicode* or *integer*
     Number of web server (gunicorn) processes, or ``auto``. Each process uses gevent, so it
@@ -494,14 +512,14 @@ background tasks.
     which still works but is deprecated.
 
 ``worker_processes`` *integer*
-    Number of background worker processes. With Docker (``dallinger docker``
-    and Docker SSH deployments), each worker process runs in its own
-    container; on Heroku, this is the number of worker dynos. Default ``1``. Replaces ``num_dynos_worker``, which still
-    works but is deprecated.
+    Number of background worker containers in Docker deployments. Default
+    ``1``. Docker deployments used to read ``num_dynos_worker``; if
+    ``worker_processes`` is not set but ``num_dynos_worker`` is, Docker uses
+    ``num_dynos_worker`` and warns. Heroku uses ``num_dynos_worker``.
 
 ``worker_greenlets_per_process`` *integer*
-    Number of tasks that each worker process runs at the same time, as gevent
-    greenlets. Default ``20``.
+    Number of tasks that each worker process (a worker dyno or container)
+    runs at the same time, as gevent greenlets. Default ``20``.
 
 Worker containers in Docker deployments get a low CPU weight, so the web
 server gets priority when the CPU is busy. Together, the workers get about a
@@ -528,17 +546,19 @@ very large difference to how the application behaves.
     The optimum value differs between experiments, but a good rule of thumb is 1 web
     dyno for every 10-20 simultaneous human users.
 
-``worker_processes`` and ``worker_greenlets_per_process``
+``num_dynos_worker``, ``worker_processes`` and ``worker_greenlets_per_process``
     Worker processes pull tasks from a queue and execute them in the background.
+    On Heroku, ``num_dynos_worker`` sets how many run; with Docker,
+    ``worker_processes`` does.
     They are optimized for many short tasks, but they are also used to run bots which
     are very long-lived. Each worker process runs up to
     ``worker_greenlets_per_process`` tasks at once (default 20). These tasks share
     the process cooperatively, so a task that computes for a long time without
     waiting on the network or the database blocks all the others in its process.
-    For CPU-heavy tasks, set ``worker_greenlets_per_process = 1`` and increase
-    ``worker_processes`` instead.
-    When running with bots, the total number of tasks,
-    ``worker_processes * worker_greenlets_per_process``, must be at least the
+    For CPU-heavy tasks, set ``worker_greenlets_per_process = 1`` and add
+    worker processes instead.
+    When running with bots, the total number of tasks (worker processes times
+    ``worker_greenlets_per_process``) must be at least the
     number of bots, otherwise the experiment is guaranteed to fail. In practice,
     there may well be experiment-specific tasks that also need to execute, and bots are
     more performant on underloaded workers, so a better heuristic is to allow
