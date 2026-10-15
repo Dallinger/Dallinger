@@ -56,6 +56,55 @@ or ``config.txt`` from loading. A working directory containing another
 writes may differ between processes.
 
 
+Database connection pool
+------------------------
+
+Each Dallinger process (every web worker, RQ worker and the clock) keeps its
+own pool of database connections. By default a process keeps up to 20 idle
+connections and opens as many more as its concurrent requests need, closing
+the extra ones when they are returned, so requests never wait for the pool.
+Each connection is checked before use and replaced if the server dropped it.
+The pool is created before the configuration is loaded, so it is set with
+environment variables rather than config parameters:
+
+``DATABASE_POOL_SIZE``
+    Idle connections kept per process, at least 1 (default 20).
+
+``DATABASE_MAX_OVERFLOW``
+    Extra connections a process may open under load, or -1 for no limit
+    (default -1).
+
+``DATABASE_POOL_TIMEOUT``
+    Seconds to wait for a free connection once ``DATABASE_POOL_SIZE +
+    DATABASE_MAX_OVERFLOW`` are in use, before raising an error (default 30).
+    Fractions such as ``0.5`` are allowed.
+    It only applies when ``DATABASE_MAX_OVERFLOW`` is not -1.
+
+Invalid values stop the process with an error that names the variable. To
+bound a single process, for example a bot runner, set the variables only in
+that process's environment. On Heroku, set them on the app, for example
+``heroku config:set DATABASE_POOL_SIZE=10 --app <app>``; the dynos restart
+with the new values. For docker-ssh apps, the variables must be in
+the experiment containers' environment, for example set with ``ENV`` in the
+experiment image. Setting them in the shell that runs ``dallinger
+docker-ssh`` does not reach the containers, because Compose only passes
+registered config keys to them. They do still apply to engines the local
+command creates, for example when it loads an archive into the remote
+database. Because the engine is created when Dallinger is imported, an
+invalid value there breaks every ``dallinger`` command.
+
+When budgeting connections, idle connections add up to roughly
+``DATABASE_POOL_SIZE`` × the number of processes, and busy processes open
+more. Without PgBouncer, keep this below PostgreSQL's ``max_connections``
+(100 by default). docker-ssh deployments put PgBouncer in front of
+PostgreSQL: it accepts up to 10,000 client connections and passes them
+through a smaller server pool (80 connections for Cloudflare-ingress apps, 20
+for classic-ingress apps). Idle clients, such as idle pooled connections,
+just hold a client slot. A query waiting for a server connection waits up to
+PgBouncer's ``query_wait_timeout`` (120 seconds). New clients beyond 10,000
+are refused.
+
+
 Built-in configuration
 ----------------------
 
