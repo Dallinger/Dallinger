@@ -215,7 +215,9 @@ def test_delete_experiment_tunnel_is_idempotent():
         api_token="tok",
         request_func=api,
     )
-    assert removed is True
+    assert removed == cf.TunnelDeletion(
+        True, "dallinger-consonance", "consonance.science-of-music.org"
+    )
     deletes = [path for method, path, _payload in api.calls if method == "DELETE"]
     connection_delete = next(
         index for index, path in enumerate(deletes) if path.endswith("/connections")
@@ -227,7 +229,7 @@ def test_delete_experiment_tunnel_is_idempotent():
     )
     assert connection_delete < tunnel_delete
     assert api.dns == []
-    cf.delete_experiment_tunnel(
+    again = cf.delete_experiment_tunnel(
         account_id="acct",
         zone_id="zone",
         app="consonance",
@@ -235,6 +237,7 @@ def test_delete_experiment_tunnel_is_idempotent():
         api_token="tok",
         request_func=api,
     )
+    assert again == cf.TunnelDeletion(True)
     assert all(item.get("deleted") for item in api.tunnels)
 
 
@@ -259,7 +262,9 @@ def test_delete_leaves_a_same_named_tunnel_from_another_deploy():
         own_tunnel_id="ours",
         request_func=api,
     )
-    assert removed is True
+    assert removed == cf.TunnelDeletion(
+        True, skipped_tunnel_name="dallinger-consonance"
+    )
     assert not api.tunnels[0].get("deleted")
     assert [record["id"] for record in api.dns] == ["c1"]
 
@@ -354,7 +359,7 @@ def test_delete_experiment_tunnel_logs_dns_failures(caplog):
             api_token="tok",
             request_func=api,
         )
-    assert removed is False
+    assert not removed
     assert "Could not delete Cloudflare DNS record dns1" in caplog.text
     assert "Leaving Cloudflare tunnel tid in place" in caplog.text
     assert api.dns[0]["id"] == "dns1"
@@ -376,7 +381,7 @@ def test_delete_experiment_tunnel_logs_tunnel_failures(caplog):
             api_token="tok",
             request_func=api,
         )
-    assert removed is False
+    assert not removed
     assert "Could not delete Cloudflare tunnel tid" in caplog.text
     assert not api.tunnels[0].get("deleted")
 

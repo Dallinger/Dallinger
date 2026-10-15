@@ -175,6 +175,21 @@
 
 ### Changed
 
+- docker-ssh ``--server`` options also accept a server's short hostname,
+  such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
+  several configured servers is rejected with a list of the matches, and
+  servers registered by IP address (with or without a port) only match their
+  full address. Python
+  callers of ``get_apps``, ``select_running_app``, ``awaken_app``,
+  ``ensure_root_domain_ready`` and the ``destroy`` and ``set-dozzle-password``
+  command callbacks can pass short names too. ``--help`` no longer
+  lists the configured servers; use ``dallinger docker-ssh servers list`` or
+  shell completion.
+- ``dallinger docker-ssh destroy`` now reports the Cloudflare tunnel and DNS
+  record it deleted, any same-named tunnel it left in place because it
+  belongs to another deploy, or that there was nothing left to delete.
+  ``delete_experiment_tunnel`` returns a ``TunnelDeletion`` that is truthy
+  when the tunnel is gone and records what the call deleted or skipped.
 - Docker worker containers now get a low CPU weight (``cpu_shares``), so the
   web server gets priority when the CPU is busy: all the workers together
   weigh about a tenth of the web container. Postgres, pgbouncer, Redis and
