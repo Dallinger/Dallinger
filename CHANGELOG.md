@@ -258,6 +258,13 @@
 
 ### Fixed
 
+- RQ workers no longer hang at start-up about once in 75 to 100 starts.
+  The worker imported ``rq.cli`` to colour one log line, which loaded
+  ``croniter``; at import time ``croniter`` runs ``file`` in a subprocess,
+  and under gevent waiting for it sometimes never returned. The worker now
+  takes the colour helper from ``rq.logutils``. The unused ``main()`` in
+  ``dallinger.heroku.rq_gevent_worker``, which also imported ``rq.cli``, is
+  removed; the ``dallinger_heroku_worker`` command is unchanged.
 - A WebSocket connection waits for redis to confirm its channel subscription
   before it relays anything. A process subscribes to a channel the first time
   one of its connections names it, and the publish travels on a different redis
