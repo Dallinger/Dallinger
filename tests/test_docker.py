@@ -337,6 +337,28 @@ def test_docker_debug_compose_calls_override_an_empty_host_secret_key(tmp_path):
     assert call.call_args.kwargs["env"]["FLASK_SECRET_KEY"] == "k"
 
 
+def test_docker_debug_image_build_context_has_no_dotenv(tmp_path):
+    from dallinger.docker import tools
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    wrapper = make_docker_debug_wrapper(exp_dir, {"FLASK_SECRET_KEY": "k"})
+    dotenv_seen_by_build = []
+    with (
+        mock.patch.object(
+            tools,
+            "build_image",
+            side_effect=lambda *args: dotenv_seen_by_build.append(
+                (exp_dir / ".env").exists()
+            ),
+        ),
+        mock.patch.object(wrapper, "run_compose", side_effect=RuntimeError),
+        pytest.raises(RuntimeError),
+    ):
+        wrapper.start()
+    assert dotenv_seen_by_build == [False]
+    assert (exp_dir / ".env").exists()
+
+
 def test_dotenv_quoting_keeps_compose_special_characters_literal():
     from dallinger.docker.tools import _quote_dotenv_value
 

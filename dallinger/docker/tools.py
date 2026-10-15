@@ -88,7 +88,12 @@ class DockerComposeWrapper:
         self.needs_chrome = needs_chrome
 
     def copy_docker_compose_files(self):
-        """Prepare a docker-compose.yml file and place it in the experiment tmp dir"""
+        """Prepare a docker-compose.yml file and place it in the experiment tmp dir.
+
+        Dallinger's own compose calls pass the key via ``env=self.env``; the
+        ``.env`` copy serves manual ``docker compose logs`` or ``down`` in the
+        tmp dir, which fail without it because the template requires the key.
+        """
         logger_filename = JSON_LOGFILE
         volumes = [
             f"{self.original_dir}:{self.original_dir}",
@@ -159,8 +164,13 @@ class DockerComposeWrapper:
         self.out.blather("Postgresql ready\n")
 
     def start(self):
-        self.copy_docker_compose_files()
+        """Build the image, then write the compose files and start the services.
+
+        The image is built first because ``COPY . /experiment`` would
+        otherwise bake ``.env``, and with it the Flask secret key, into it.
+        """
         build_image(self.tmp_dir, self.experiment_name, self.out, self.needs_chrome)
+        self.copy_docker_compose_files()
         self.run_compose(["up", "-d"])
         # Wait for postgres to complete initialization
         self.wait_postgres_ready()
