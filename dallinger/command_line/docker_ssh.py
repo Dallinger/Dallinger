@@ -265,6 +265,9 @@ def add(host, user, default_ingress):
     """
     prepare_server(host, user)
     store_host({"host": host, "user": user, "default_ingress": default_ingress})
+    advice = default_ingress == INGRESS_CLASSIC and _private_network_advice(host, user)
+    if advice:
+        print(f"{RED}Warning: {advice}{END}")
 
 
 @servers.command()
@@ -484,6 +487,18 @@ option_ingress = click.option(
     help=(
         "How participants reach the experiment: classic host Caddy or a per-app "
         "Cloudflare tunnel. Defaults to the server's default_ingress, or classic."
+    ),
+)
+option_allow_private_ip = click.option(
+    "--allow-private-ip",
+    is_flag=True,
+    default=False,
+    help=(
+        "Deploy with classic ingress even though the SSH host resolves to a "
+        "private IP address, for servers whose public DNS name points at a "
+        "public IP that forwards ports 80 and 443 to them. The experiment "
+        "hostname must still resolve, but is not compared with the SSH host's "
+        "address."
     ),
 )
 
@@ -710,6 +725,45 @@ def _resolve_ingress(server_info, ingress=None):
             f"Unknown ingress mode {requested!r}; expected classic or cloudflare."
         )
     return requested
+
+
+def _private_network_advice(host, user):
+    """Return advice against classic ingress if ``host`` has no public IPv4 address.
+
+    ``host`` may include an SSH port. Loopback and unspecified (``0.0.0.0``)
+    addresses count as public, for servers that are tunnelled to locally.
+    """
+    ip_addrs = _ipv4_addresses(split_ssh_host_port(host)[0])
+    for ip_addr in ip_addrs:
+        address = ipaddress.ip_address(ip_addr)
+        if address.is_global or address.is_loopback or address.is_unspecified:
+            return None
+    if not ip_addrs:
+        return None
+    ip_addr = ip_addrs[0]
+    user_option = f" --user {user}" if user else ""
+    return (
+        f"{host} has a private IP address ({ip_addr}), so Let's Encrypt cannot "
+        "issue TLS certificates for it and participants outside its network "
+        "cannot reach classic ingress. Deploy with --ingress cloudflare, or "
+        "re-register the server with `dallinger docker-ssh servers add "
+        f"--host {host}{user_option} --default-ingress cloudflare`. If the "
+        "server's public DNS name points at a public IP that forwards ports 80 "
+        "and 443 to it, deploy with --allow-private-ip instead."
+    )
+
+
+def _check_classic_ingress_reachable(server, ingress=None):
+    """Abort classic-ingress deploys to servers on a private network."""
+    server_info = CONFIGURED_HOSTS.get(server) or {}
+    if _resolve_ingress(server_info, ingress) == INGRESS_CLOUDFLARE:
+        return
+    advice = _private_network_advice(
+        server_info.get("host", server), server_info.get("user")
+    )
+    if advice:
+        print(f"{RED}Error: {advice}{END}")
+        raise click.Abort()
 
 
 def _cloudflare_settings(config, dns_zone=None):
@@ -1116,6 +1170,9 @@ def build_and_push_image(f):
         from dallinger.command_line.docker import push_image
         from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
 
+        # Existing apps already have their certificates, so updates skip the check.
+        if not kwargs.get("allow_private_ip") and not kwargs.get("update"):
+            _check_classic_ingress_reachable(kwargs["server"], kwargs.get("ingress"))
         config = get_config(load=True)
         image_name = config.get("docker_image_name", None)
         local_build = kwargs.get("local_build", False)
@@ -1311,6 +1368,7 @@ def set_dozzle_password_cmd(server, password):
 @option_local_build
 @option_push_build
 @option_ingress
+@option_allow_private_ip
 @validate_update
 @build_and_push_image
 def sandbox(**kwargs):  # pragma: no cover
@@ -1328,6 +1386,7 @@ def sandbox(**kwargs):  # pragma: no cover
 @option_local_build
 @option_push_build
 @option_ingress
+@option_allow_private_ip
 @validate_update
 @build_and_push_image
 def deploy(**kwargs):  # pragma: no cover
@@ -1348,6 +1407,7 @@ def _deploy_in_mode(
     push_build,
     preflight_root_clean,
     ingress=None,
+    allow_private_ip=False,
 ):
     config = get_config(load=True)
     config_options = {
@@ -1444,7 +1504,7 @@ You can override this by creating a DNS A record pointing to
 you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}""")
     experiment_hostname = f"{experiment_id}.{dns_host}" if use_subdomain else dns_host
 
-    _check_experiment_hostname_dns(ssh_host, experiment_hostname)
+    _check_experiment_hostname_dns(ssh_host, experiment_hostname, allow_private_ip)
 
     executor = Executor(ssh_address, user=ssh_user, app=app_identifier)
     executor.run("mkdir -p ~/dallinger/caddy.d")
@@ -2964,20 +3024,39 @@ def get_retrying_http_client():
     return http
 
 
-def _first_ipv4(hostname):
-    """Return the first IPv4 address for hostname, or None if lookup fails."""
+def _ipv4_addresses(hostname):
+    """Return the IPv4 addresses for hostname, or an empty list if lookup fails."""
     try:
-        return gethostbyname_ex(hostname)[2][0]
+        return gethostbyname_ex(hostname)[2]
     except (OSError, UnicodeError):
         # UnicodeError comes from the idna codec for malformed names,
         # for example a label longer than 63 characters.
-        return None
+        return []
 
 
-def _check_experiment_hostname_dns(ssh_host, experiment_hostname):
-    """Abort unless the experiment hostname resolves to the SSH host IP."""
-    ipaddr_server = _first_ipv4(ssh_host)
-    ipaddr_experiment = _first_ipv4(experiment_hostname)
+def _check_experiment_hostname_dns(
+    ssh_host, experiment_hostname, allow_private_ip=False
+):
+    """Abort unless the experiment hostname resolves to the SSH host IP.
+
+    Parameters
+    ----------
+    ssh_host : str
+        Host name or IP address used for SSH, without a port.
+    experiment_hostname : str
+        Public host name participants will use.
+    allow_private_ip : bool
+        If true, the SSH host's address may differ from the public one, so only
+        require that ``experiment_hostname`` resolves.
+    """
+    ipaddr_experiment = next(iter(_ipv4_addresses(experiment_hostname)), None)
+    if allow_private_ip and ipaddr_experiment:
+        print(
+            f"{experiment_hostname} resolves to {ipaddr_experiment}. Because of "
+            "--allow-private-ip, this was not compared with the SSH host's address."
+        )
+        return
+    ipaddr_server = next(iter(_ipv4_addresses(ssh_host)), None)
     if ipaddr_server and ipaddr_experiment == ipaddr_server:
         return
 
@@ -2988,9 +3067,13 @@ def _check_experiment_hostname_dns(ssh_host, experiment_hostname):
 
     checker_url = f"https://dnschecker.org/#A/{experiment_hostname}"
     print(f"{RED}DNS resolution error:{END}")
-    if ipaddr_server:
+    if allow_private_ip or ipaddr_server:
+        if allow_private_ip:
+            expected = "the public IP that forwards ports 80 and 443 to the server"
+        else:
+            expected = ipaddr_server
         print(
-            f"  The experiment hostname ({experiment_hostname}) should resolve to {ipaddr_server}."
+            f"  The experiment hostname ({experiment_hostname}) should resolve to {expected}."
         )
         print(f"  It currently resolves to {current_text}.")
         print("  Check that --dns-host is correct.")

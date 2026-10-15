@@ -272,6 +272,31 @@
   ``up -d`` and ``docker debug`` failures. To turn JIT off in an existing local ``dallinger_postgres``
   container, run ``dallinger docker stop-services`` and then
   ``start-services``; the data volume is kept.
+- docker-ssh apps no longer fail under load with ``no more connections
+  allowed (max_client_conn)``: their pgbouncer now accepts up to 10,000
+  client connections instead of 100.
+- docker-ssh apps with their own Postgres (Cloudflare ingress) now let
+  pgbouncer keep up to 80 Postgres connections instead of 20, so requests no
+  longer queue at about 200 participants. On a 16-thread server, p95 response
+  time at 320 participants fell from 438 ms to 65 ms. Classic-ingress apps
+  share the server's Postgres, so they keep 20 connections each. Running apps
+  pick up the new limits after ``dallinger docker-ssh deploy --update``.
+- Each process now keeps at most 20 idle database connections instead of up
+  to 1,000, so idle connections no longer pile up after heavy load and use up
+  the database's or pgbouncer's client limit. Busy processes still open as
+  many connections as they need.
+- After a docker-ssh app's pgbouncer or Postgres container restarts, requests
+  no longer fail with ``server closed the connection unexpectedly``; dropped
+  idle connections are replaced when next used. Requests in flight during the
+  restart can still fail.
+- Classic-ingress docker-ssh deploys to a server whose SSH host resolves only
+  to private IP addresses now stop before building the image and suggest
+  ``--ingress cloudflare``, because Let's Encrypt cannot issue certificates
+  for such servers. ``docker-ssh servers add`` prints the same advice.
+  ``--update`` deploys of existing apps skip the check. For a server whose
+  public DNS name points at a public IP that forwards ports 80 and 443 to it,
+  pass ``--allow-private-ip``: the deploy then only checks that the
+  experiment hostname resolves, not that it matches the SSH host's address.
 
 ### Fixed
 
