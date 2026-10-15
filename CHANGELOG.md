@@ -307,6 +307,16 @@
   the app. A launch request that may
   have reached the app is never sent again; the deploy says recruitment may
   have started.
+- `dallinger docker debug` passes the Flask secret key to the web, worker and
+  clock containers again. Previously they ran with no secret key, because the
+  generated `.env` file prefixed the key with a stray `$` and the compose file
+  did not forward `FLASK_SECRET_KEY` to any service. The key is now quoted in
+  `.env`, so a key containing `$` or `#` also reaches the containers unchanged,
+  and an empty `FLASK_SECRET_KEY` in the host shell no longer replaces it. The
+  `.env` file is readable by its owner only and is written after the debug
+  image is built, so the key is not baked into the image, and compose refuses
+  to start the containers without a key.
+
 - Dallinger's Docker commands no longer import pip's private internals to
   read an experiment's ``requirements.txt``, so they work in uv-created
   environments without pip. ``packaging`` is now a declared dependency.
