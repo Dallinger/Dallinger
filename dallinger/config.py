@@ -30,6 +30,7 @@ import logging
 import os
 import sys
 import threading
+import warnings
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
@@ -44,6 +45,24 @@ SENSITIVE_KEY_NAMES = ("access_id", "access_key", "password", "secret", "token")
 
 def is_valid_json(value):
     json.loads(value)
+
+
+def is_positive_int(value):
+    """Raise ``ValueError`` unless ``value`` is at least 1."""
+    if value < 1:
+        raise ValueError(f"Expected a positive integer, got {value}")
+
+
+def is_non_negative_int(value):
+    """Raise ``ValueError`` if ``value`` is negative."""
+    if value < 0:
+        raise ValueError(f"Expected a non-negative integer, got {value}")
+
+
+def is_auto_or_positive_int(value):
+    """Raise ``ValueError`` unless ``value`` is ``"auto"`` or a positive integer."""
+    if value.strip() != "auto":
+        is_positive_int(int(value))
 
 
 def strtobool(val: str) -> int:
@@ -152,14 +171,17 @@ default_keys = (
     ("smtp_host", str, []),
     ("smtp_username", str, []),
     ("smtp_password", str, ["dallinger_email_password"], True),
-    ("threads", str, []),
     ("title", str, []),
     ("question_max_length", int, []),
     ("us_only", bool, []),
     ("webdriver_type", str, []),
     ("webdriver_url", str, []),
+    ("web_processes", str, ["threads"], False, [is_auto_or_positive_int]),
     ("whimsical", bool, []),
+    ("worker_greenlets_per_process", int, [], False, [is_positive_int]),
     ("worker_multiplier", float, []),
+    ("worker_processes", int, [], False, [is_non_negative_int]),
+    ("worker_startup_timeout", int, []),
     ("docker_image_base_name", str, [], ""),
     ("docker_image_name", str, [], ""),
     ("docker_volumes", str, [], ""),
@@ -175,6 +197,9 @@ default_keys = (
     ("cloudflare_dns_zone", str, ["CLOUDFLARE_DNS_ZONE"]),
     ("server_pem", str, []),
 )
+
+# String settings that also take a number, stored in its string form.
+NUMBER_OR_AUTO_KEYS = {"web_processes"}
 
 
 class ConfigSource(enum.IntEnum):
@@ -261,12 +286,27 @@ class Configuration:
         ``source`` defaults to :attr:`ConfigSource.RUNTIME`, the highest
         priority, so ad-hoc writes always win over file-based sources.
         """
+        return self._extend(mapping, cast_types, strict, source)
+
+    def _extend(self, mapping, cast_types, strict, source, filename=None):
+        """Add a layer, warning once about any deprecated keys in ``mapping``.
+
+        ``filename`` names the config file that ``mapping`` came from.
+        """
         if source is None:
             source = ConfigSource.RUNTIME
         normalized_mapping = {}
+        warning_messages = []
         for key, value in mapping.items():
-            key = self.synonyms.get(key, key)
-            test_deprecation(key)
+            name = key
+            key = self.synonyms.get(name, name)
+            if name in DEPRECATED_KEYS:
+                warning_messages.append(DEPRECATED_KEYS[name])
+                if key != name and key in mapping:
+                    warning_messages.append(
+                        f"'{name}' is ignored because '{key}' is also set."
+                    )
+                    continue
             if key not in self.types:
                 # This key hasn't been registered, we ignore it
                 if strict:
@@ -285,6 +325,8 @@ class Configuration:
                     value = expected_type(value)
                 except ValueError:
                     pass
+            if key in NUMBER_OR_AUTO_KEYS and type(value) is int:
+                value = str(value)
             if not isinstance(value, expected_type):
                 raise TypeError(
                     "Got {value} for {key}, expected {expected_type}".format(
@@ -300,6 +342,18 @@ class Configuration:
                     e.dallinger_config_value = value
                     raise e
             normalized_mapping[key] = value
+        # One warning per mapping: ``show_warnings_once`` keeps only the
+        # first warning from each source line.
+        if warning_messages and filename is not None:
+            warnings.warn_explicit(
+                f"{filename} sets deprecated config variables. "
+                + " ".join(warning_messages),
+                FutureWarning,
+                str(filename),
+                0,
+            )
+        elif warning_messages:
+            warnings.warn(" ".join(warning_messages), FutureWarning, stacklevel=3)
         layer = ConfigLayer(normalized_mapping, source)
         loading = self._loading_layers.get()
         target = self._added if loading is None else loading
@@ -352,6 +406,8 @@ class Configuration:
                     return bool(int(auto_recruit))
         if not self.ready:
             raise RuntimeError("Config not loaded")
+        if key in self.synonyms:
+            key = self.canonical_key(key)
         for layer in self._layers_by_priority():
             try:
                 value = layer[key]
@@ -366,6 +422,24 @@ class Configuration:
                 error_text += " Prolific projects will be created automatically if they don't exist already."
             raise KeyError(error_text)
         return default
+
+    def canonical_key(self, key):
+        """Return the registered name for ``key``, mapping synonyms.
+
+        Emits a ``FutureWarning`` if ``key`` is a deprecated config variable.
+        """
+        if key in DEPRECATED_KEYS:
+            warnings.warn(DEPRECATED_KEYS[key], FutureWarning, stacklevel=3)
+        return self.synonyms.get(key, key)
+
+    def is_set_explicitly(self, key):
+        """Return whether a source above the package defaults sets ``key``."""
+        key = self.synonyms.get(key, key)
+        return any(
+            key in layer
+            for layer in self.data
+            if layer.source > ConfigSource.PACKAGE_DEFAULTS
+        )
 
     def __getitem__(self, key):
         return self.get(key)
@@ -418,7 +492,7 @@ class Configuration:
         data = {}
         for section in parser.sections():
             data.update(dict(parser.items(section)))
-        self.extend(data, cast_types=True, strict=strict, source=source)
+        self._extend(data, True, strict, source, filename=filename)
 
     def write(self, filter_sensitive=False, directory=None):
         parser = configparser.ConfigParser()
@@ -659,13 +733,22 @@ def raise_invalid_key_error(key):
     raise KeyError(error_text)
 
 
-def test_deprecation(key):
-    if key == "prolific_maximum_allowed_minutes":
-        import warnings
-
-        warnings.simplefilter("always", DeprecationWarning)
-        warnings.warn(
-            "The 'prolific_maximum_allowed_minutes' config variable has no effect "
-            + "as it is currently ignored by the Prolific API.",
-            DeprecationWarning,
-        )
+DEPRECATED_KEYS = {
+    "prolific_maximum_allowed_minutes": (
+        "The 'prolific_maximum_allowed_minutes' config variable has no effect "
+        "as it is currently ignored by the Prolific API."
+    ),
+    "threads": (
+        "The 'threads' config variable is deprecated; use 'web_processes' "
+        "instead. It sets the number of web server processes, not threads."
+    ),
+    "worker_multiplier": (
+        "The 'worker_multiplier' config variable is deprecated; set "
+        "'web_processes' to a number instead."
+    ),
+    "docker_worker_cpu_shares": (
+        "The 'docker_worker_cpu_shares' config variable has no effect. "
+        "Docker deployments now give the web server priority over the workers "
+        "when CPU is short."
+    ),
+}
