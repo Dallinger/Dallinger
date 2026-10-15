@@ -287,16 +287,6 @@ def test_local_compose_runs_low_weight_worker_replicas(
     assert services["worker"]["deploy"]["replicas"] == replicas
     assert services["worker"]["cpu_shares"] == shares
     assert "cpu_shares" not in services["web"]
-
-
-def test_local_web_container_can_hold_many_open_files(tmp_path, stub_config):
-    from dallinger.docker.tools import DockerComposeWrapper
-
-    exp_dir = make_experiment_tmp_dir(tmp_path)
-    DockerComposeWrapper(
-        stub_config, mock.Mock(), str(tmp_path), str(exp_dir)
-    ).copy_docker_compose_files()
-    services = yaml.safe_load((exp_dir / "docker-compose.yml").read_text())["services"]
     assert services["web"]["ulimits"] == WEB_NOFILE
 
 
