@@ -291,6 +291,9 @@
   takes the colour helper from ``rq.logutils``. The unused ``main()`` in
   ``dallinger.heroku.rq_gevent_worker``, which also imported ``rq.cli``, is
   removed; the ``dallinger_heroku_worker`` command is unchanged.
+- Fixed an intermittent failure of the ``docker debug`` CI test without
+  bots. With ``--verbose``, each recruitment URL is printed twice, and the
+  test sometimes sent its second bot to the first participant's URL.
 - A WebSocket connection waits for redis to confirm its channel subscription
   before it relays anything. A process subscribes to a channel the first time
   one of its connections names it, and the publish travels on a different redis
