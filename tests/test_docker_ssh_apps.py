@@ -10,6 +10,7 @@ from unittest import mock
 import click
 import pytest
 
+from dallinger.command_line.lib.cloudflare import TunnelDeletion
 from dallinger.config import Configuration
 from dallinger.docker.tools import docker_tag_from_experiment_id
 
@@ -228,10 +229,17 @@ def _cloudflare_destroy(monkeypatch, removed, cloudflare=None):
     return order
 
 
-def test_destroy_cloudflare_stops_connector_before_deleting_the_tunnel(monkeypatch):
-    order = _cloudflare_destroy(monkeypatch, removed=True)
+def test_destroy_cloudflare_stops_connector_before_deleting_the_tunnel(
+    monkeypatch, capsys
+):
+    removed = TunnelDeletion(True, "dallinger-myapp", "myapp.science-of-music.org")
+    order = _cloudflare_destroy(monkeypatch, removed=removed)
     docker_ssh_module.destroy.callback(server="test-server", app="myapp")
     assert order == ["stop", ("delete", "myapp", "acct"), ("own", "tun"), "down", "rm"]
+    assert (
+        "Deleted Cloudflare tunnel dallinger-myapp and DNS record "
+        "myapp.science-of-music.org." in capsys.readouterr().out
+    )
 
 
 def test_destroy_uses_the_cloudflare_ids_recorded_at_deploy(monkeypatch):
@@ -240,16 +248,40 @@ def test_destroy_uses_the_cloudflare_ids_recorded_at_deploy(monkeypatch):
         "zone_id": "deploy-zone",
         "dns_zone": "x.org",
     }
-    order = _cloudflare_destroy(monkeypatch, removed=True, cloudflare=recorded)
+    order = _cloudflare_destroy(
+        monkeypatch, removed=TunnelDeletion(True), cloudflare=recorded
+    )
     docker_ssh_module.destroy.callback(server="test-server", app="myapp")
     assert ("delete", "myapp", "deploy-acct") in order
 
 
-def test_destroy_keeps_the_app_when_cloudflare_cleanup_fails(monkeypatch):
-    order = _cloudflare_destroy(monkeypatch, removed=False)
+def test_destroy_keeps_the_app_when_cloudflare_cleanup_fails(monkeypatch, capsys):
+    removed = TunnelDeletion(False, hostname="myapp.x.org")
+    order = _cloudflare_destroy(monkeypatch, removed=removed)
     with pytest.raises(click.Abort):
         docker_ssh_module.destroy.callback(server="test-server", app="myapp")
     assert order == ["stop", ("delete", "myapp", "acct"), ("own", "tun")]
+    out = capsys.readouterr().out
+    assert "Deleted DNS record myapp.x.org." in out
+    assert "Cloudflare cleanup failed." in out
+
+
+@pytest.mark.parametrize(
+    "removed, message",
+    [
+        (TunnelDeletion(True), "No Cloudflare tunnel or DNS record left to delete"),
+        (
+            TunnelDeletion(True, skipped_tunnel_name="dallinger-myapp"),
+            "Left Cloudflare tunnel dallinger-myapp in place",
+        ),
+    ],
+)
+def test_destroy_reports_cloudflare_resources_left(
+    monkeypatch, capsys, removed, message
+):
+    _cloudflare_destroy(monkeypatch, removed=removed)
+    docker_ssh_module.destroy.callback(server="test-server", app="myapp")
+    assert message in capsys.readouterr().out
 
 
 def test_monitoring_settings_default_and_override():
@@ -354,6 +386,73 @@ def test_select_running_app_raises_when_multiple_running(monkeypatch):
     )
     with pytest.raises(ValueError, match="Multiple running apps found"):
         docker_ssh_module.select_running_app("irrelevant")
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("pc01.lab.example.org", "pc01.lab.example.org"),
+        ("pc01", "pc01.lab.example.org"),
+        ("10.0.0.5", "10.0.0.5"),
+        ("[::1]:2200", "[::1]:2200"),
+    ],
+)
+def test_resolve_server_name(name, expected):
+    hosts = [
+        "pc01.lab.example.org",
+        "pc02.a.org",
+        "pc02.b.org",
+        "10.0.0.5",
+        "[::1]:2200",
+    ]
+    assert docker_ssh_module.resolve_server_name(name, hosts) == expected
+
+
+@pytest.mark.parametrize(
+    "name, error",
+    [
+        ("pc02", "ambiguous. It matches: pc02.a.org, pc02.b.org"),
+        ("pc03", "Unknown server 'pc03'. Configured servers:"),
+        ("10", "Unknown server '10'"),
+    ],
+)
+@pytest.mark.parametrize("ip_host", ["10.0.0.5", "10.0.0.5:2222"])
+def test_resolve_server_name_errors(name, error, ip_host):
+    hosts = ["pc01.lab.example.org", "pc02.a.org", "pc02.b.org", ip_host]
+    with pytest.raises(ValueError, match=error):
+        docker_ssh_module.resolve_server_name(name, hosts)
+
+
+def test_server_option_accepts_short_name(monkeypatch):
+    from click.testing import CliRunner
+
+    hosts = {"pc01.lab.example.org": {"host": "pc01.lab.example.org"}, "other": {}}
+    monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: hosts)
+    get_apps = mock.Mock(return_value=[])
+    monkeypatch.setattr(docker_ssh_module, "get_apps", get_apps)
+
+    result = CliRunner().invoke(docker_ssh_module.apps, ["--server", "pc01"])
+
+    assert result.exit_code == 0, result.output
+    get_apps.assert_called_once_with("pc01.lab.example.org")
+
+
+def test_root_domain_auto_destroy_uses_full_server_name(monkeypatch):
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"pc01.lab.example.org": {"host": "pc01.lab.example.org"}},
+    )
+    monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module, "_host_caddy_apps", mock.Mock(side_effect=[["old"], []])
+    )
+    monkeypatch.setattr(docker_ssh_module.click, "confirm", lambda *a, **k: True)
+    destroy = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module.destroy, "callback", destroy)
+
+    assert docker_ssh_module.ensure_root_domain_ready("pc01", update=False)
+    destroy.assert_called_once_with(server="pc01.lab.example.org", app="old")
 
 
 def test_get_apps_raises_for_unknown_server(monkeypatch):
@@ -875,6 +974,7 @@ def test_deploy_validates_config_options_before_deploying(monkeypatch):
     config._reset(register_defaults=True)
     config.ready = True
     monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
+    monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab"}})
     checks = mock.Mock()
     monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", checks)
     with pytest.raises(ValueError, match="non-negative"):
@@ -1119,7 +1219,7 @@ def test_awaken_app_optional_when_compose_missing(monkeypatch):
     monkeypatch.setattr(
         docker_ssh_module,
         "CONFIGURED_HOSTS",
-        {"s": {"host": "example.com", "user": "ubuntu"}},
+        {"s.example.com": {"host": "s.example.com", "user": "ubuntu"}},
     )
     monkeypatch.setattr(docker_ssh_module, "Executor", lambda *a, **k: executor)
     assert docker_ssh_module.awaken_app("s", "demo", required=False) is False

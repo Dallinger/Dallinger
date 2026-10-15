@@ -4,6 +4,11 @@
 
 ### Added
 
+- Added the `cloudflare_keychain_service` config key, which names the macOS
+  Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
+  deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
+  already store the token under another name don't have to copy it. A
+  configured item is found whatever Keychain account it was saved under.
 - Worker processes that hang during start-up now exit after
   `worker_startup_timeout` seconds (default 120; 0 disables) if they
   haven't registered with the job queue, printing what each greenlet was
@@ -170,6 +175,21 @@
 
 ### Changed
 
+- docker-ssh ``--server`` options also accept a server's short hostname,
+  such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
+  several configured servers is rejected with a list of the matches, and
+  servers registered by IP address (with or without a port) only match their
+  full address. Python
+  callers of ``get_apps``, ``select_running_app``, ``awaken_app``,
+  ``ensure_root_domain_ready`` and the ``destroy`` and ``set-dozzle-password``
+  command callbacks can pass short names too. ``--help`` no longer
+  lists the configured servers; use ``dallinger docker-ssh servers list`` or
+  shell completion.
+- ``dallinger docker-ssh destroy`` now reports the Cloudflare tunnel and DNS
+  record it deleted, any same-named tunnel it left in place because it
+  belongs to another deploy, or that there was nothing left to delete.
+  ``delete_experiment_tunnel`` returns a ``TunnelDeletion`` that is truthy
+  when the tunnel is gone and records what the call deleted or skipped.
 - Docker worker containers now get a low CPU weight (``cpu_shares``), so the
   web server gets priority when the CPU is busy: all the workers together
   weigh about a tenth of the web container. Postgres, pgbouncer, Redis and
@@ -268,6 +288,12 @@
   image is built, so the key is not baked into the image, and compose refuses
   to start the containers without a key.
 
+- Dallinger's Docker commands no longer import pip's private internals to
+  read an experiment's ``requirements.txt``, so they work in uv-created
+  environments without pip. ``packaging`` is now a declared dependency.
+  The Docker base image tag is now also found for ``dallinger == X`` pins and
+  pins with environment markers, and for UTF-16 requirements files written by
+  Windows PowerShell 5. ``-r``/``-c`` include cycles raise a clear error.
 - RQ workers no longer hang at start-up about once in 75 to 100 starts.
   The worker imported ``rq.cli`` to colour one log line, which loaded
   ``croniter``; at import time ``croniter`` runs ``file`` in a subprocess,
@@ -275,6 +301,9 @@
   takes the colour helper from ``rq.logutils``. The unused ``main()`` in
   ``dallinger.heroku.rq_gevent_worker``, which also imported ``rq.cli``, is
   removed; the ``dallinger_heroku_worker`` command is unchanged.
+- Fixed an intermittent failure of the ``docker debug`` CI test without
+  bots. With ``--verbose``, each recruitment URL is printed twice, and the
+  test sometimes sent its second bot to the first participant's URL.
 - A WebSocket connection waits for redis to confirm its channel subscription
   before it relays anything. A process subscribes to a channel the first time
   one of its connections names it, and the publish travels on a different redis
