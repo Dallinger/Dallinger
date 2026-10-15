@@ -260,6 +260,19 @@ def test_compose_reads_the_database_password_from_the_app_env():
     )
 
 
+def test_pgbouncer_allows_more_connections_than_its_defaults():
+    pgbouncer = get_yaml({}, ingress="cloudflare")["services"]["pgbouncer"]
+    assert "PGBOUNCER_MAX_CLIENT_CONN=10000" in pgbouncer["environment"]
+    assert "PGBOUNCER_DEFAULT_POOL_SIZE=80" in pgbouncer["environment"]
+    assert pgbouncer["ulimits"]["nofile"] == {"soft": 16384, "hard": 16384}
+
+
+def test_pgbouncer_keeps_a_small_pool_on_the_shared_postgres():
+    pgbouncer = get_yaml({}, ingress="classic")["services"]["pgbouncer"]
+    assert "PGBOUNCER_MAX_CLIENT_CONN=10000" in pgbouncer["environment"]
+    assert "PGBOUNCER_DEFAULT_POOL_SIZE=20" in pgbouncer["environment"]
+
+
 @pytest.mark.parametrize("n, shares", [(1, 102), (3, 34), (100, 2)])
 def test_worker_processes_get_low_cpu_weight(n, shares):
     """Each worker process gets its own container, weighted below the web server."""
