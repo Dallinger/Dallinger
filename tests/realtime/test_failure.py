@@ -7,7 +7,7 @@ import time
 import pytest
 
 from dallinger.realtime import Reject
-from dallinger.realtime.core import new_session, run_pass
+from dallinger.realtime.core import fail_session, new_session, run_pass
 from dallinger.realtime.game import FAILED
 from tests.realtime.helpers import (
     CLOCK,
@@ -40,6 +40,8 @@ class TestFailure:
             message(1, "1", "effect", number=4),
             message(2, "1", "crash", number=5),
             join(3, "3"),
+            join(3, "3", scope="tab"),
+            leave(3, "3", scope="tab"),
             leave(3, "2"),
             message(4, "1", "a", number=6),
         ]
@@ -217,6 +219,69 @@ class TestFailure:
         assert result.ended["views"] == {"1": None, "2": None}
         assert session(result)["state"] == json.loads(saved)["state"]
 
+    def test_a_session_can_be_failed_without_a_pass(self):
+        game = TurnTally()
+        saved = started(game)
+        entries = [message(1, "1", "a", number=1)]
+
+        result = fail_session(
+            game, saved, entries, 3, CLOCK, RuntimeError("lost entries")
+        )
+
+        assert error(result) == "RuntimeError: lost entries\n"
+        assert result.next_due is None
+        assert result.ended["time"] == 3
+        assert result.ended["outcome"] == {"reason": FAILED, "moves": 2}
+        assert session(result)["state"] == json.loads(saved)["state"]
+        assert [(each["type"], each.get("status")) for each in result.records] == [
+            ("message", "failed"),
+            ("end", None),
+        ]
+        views = views_by_page(result)
+        assert set(views) == {("1", "page"), ("2", "page")}
+        assert views["1", "page"]["last_processed"] == 1
+
+    def test_entries_that_cannot_be_read_are_left_out_of_the_failure(self):
+        game = TurnTally()
+
+        result = fail_session(
+            game, started(game), [{"type": "message"}], 3, CLOCK, RuntimeError("x")
+        )
+
+        assert [each["type"] for each in result.records] == ["end"]
+        assert set(views_by_page(result)) == {("1", "page"), ("2", "page")}
+
+    def test_a_session_without_its_game_type_fails_without_game_code(self):
+        saved = started(TurnTally())
+
+        result = fail_session(None, saved, [], 3, CLOCK, RuntimeError("no game"))
+
+        assert result.records == [
+            {
+                "sequence": 1,
+                "type": "end",
+                "time": 0,
+                "reason": FAILED,
+                "outcome": None,
+                "state": json.loads(saved)["state"],
+                "error": "RuntimeError: no game\n",
+            }
+        ]
+        assert result.ended["views"] == {}
+        assert session(result)["ended"] == result.ended
+        assert session(result)["record_number"] == 1
+        assert result.views == []
+
+    def test_a_session_that_cannot_be_read_is_kept_as_it_is(self):
+        result = fail_session(TurnTally(), "[]", [], 3, CLOCK, RuntimeError("x"))
+
+        assert result.saved == "[]"
+        assert (result.records[0]["sequence"], result.records[0]["time"]) == (
+            None,
+            None,
+        )
+        assert result.ended["reason"] == FAILED
+
     def test_a_time_limit_outside_the_main_thread_raises(self):
         game = TurnTally()
         raised = []
@@ -229,8 +294,9 @@ class TestFailure:
 
         thread = threading.Thread(target=play_in_thread)
         thread.start()
-        thread.join()
+        thread.join(10)
 
+        assert not thread.is_alive()
         assert raised == ["A time limit only works in the main thread."]
 
 
@@ -283,6 +349,20 @@ def play_with_time_limit(sessions, game_type=Slow):
     return results
 
 
+def fail_with_time_limit():
+    game = SlowEnding()
+    result = fail_session(
+        game, started(game), [], 5, CLOCK, RuntimeError("lost"), game.time_limit
+    )
+    time.sleep(game.time_limit)
+    return result
+
+
+def trap_when_ready(ready):
+    ready.set()
+    play_with_time_limit([["trap"]])
+
+
 def previous_handler():
     pass
 
@@ -293,12 +373,19 @@ def handler_after_a_pass():
     return signal.getsignal(signal.SIGALRM) is previous_handler
 
 
+#: Seconds a spawned process may take to import Dallinger and the tests.
+IMPORT_WAIT = 120
+
+
 @pytest.fixture(scope="module")
 def in_main_thread():
     """Run a function in another process's main thread, where the time
     limit's signal works.
     """
     with multiprocessing.get_context("spawn").Pool(1) as pool:
+        # The worker imports Dallinger first, which a loaded machine slows down,
+        # so each test's own wait covers only its own work.
+        pool.apply_async(previous_handler).get(IMPORT_WAIT)
         yield lambda function, *args: pool.apply_async(function, args).get(10)
 
 
@@ -331,13 +418,16 @@ class TestTimeLimit:
         )
 
     def test_game_code_that_catches_every_exception_ends_the_process(self):
-        process = multiprocessing.get_context("spawn").Process(
-            target=play_with_time_limit, args=([["trap"]],)
-        )
+        context = multiprocessing.get_context("spawn")
+        ready = context.Event()
+        process = context.Process(target=trap_when_ready, args=(ready,))
         process.start()
-        process.join(10)
-        if process.exitcode is None:
-            process.kill()
+        try:
+            assert ready.wait(IMPORT_WAIT)
+            process.join(10)
+        finally:
+            if process.exitcode is None:
+                process.kill()
 
         assert process.exitcode == 1
 
@@ -351,6 +441,12 @@ class TestTimeLimit:
 
     def test_a_spinning_outcome_leaves_the_final_views(self, in_main_thread):
         [result] = in_main_thread(play_with_time_limit, [["crash"]], SlowEnding)
+
+        assert result.ended["outcome"] is None
+        assert result.ended["views"]["1"] == {"for": "1", "log": log(result)}
+
+    def test_a_session_failed_without_a_pass_has_the_limit_too(self, in_main_thread):
+        result = in_main_thread(fail_with_time_limit)
 
         assert result.ended["outcome"] is None
         assert result.ended["views"]["1"] == {"for": "1", "log": log(result)}

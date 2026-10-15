@@ -8,6 +8,16 @@ from dallinger.realtime.game import FAILED
 
 CLOCK = 1000.0
 
+#: Far more calls to a game's ``next_deadline`` than any test makes. The
+#: session core calls it on every turn of its event loop, so a pass whose
+#: ticks never stop coming due fails its session here, rather than hanging the
+#: test or running the machine out of memory.
+MAX_DEADLINE_CHECKS = 2500
+
+#: Each guard hit, so a test whose assertions accept a failed session still
+#: fails when the guard is what failed it.
+runaway_passes = []
+
 
 class Tally(RealtimeGame):
     """Logs every call, so a test can read the order things happened in."""
@@ -29,6 +39,13 @@ class Tally(RealtimeGame):
         state["log"].append(["tick", now])
 
     def next_deadline(self, state):
+        self.deadline_checks = getattr(self, "deadline_checks", 0) + 1
+        if self.deadline_checks > MAX_DEADLINE_CHECKS:
+            message = "next_deadline ran more than {} times.".format(
+                MAX_DEADLINE_CHECKS
+            )
+            runaway_passes.append(message)
+            raise RuntimeError(message)
         return state.get("deadline")
 
     def view(self, state, player_id):
@@ -67,12 +84,23 @@ def message(time, participant, payload, number=None, scope="page"):
     }
 
 
-def join(time, participant, scope="page"):
-    return {"type": "join", "time": time, "participant": participant, "scope": scope}
+def join(time, participant, scope="page", socket=None):
+    return socket_entry("join", time, participant, scope, socket)
 
 
-def leave(time, participant, scope="page"):
-    return {"type": "leave", "time": time, "participant": participant, "scope": scope}
+def leave(time, participant, scope="page", socket=None):
+    return socket_entry("leave", time, participant, scope, socket)
+
+
+def socket_entry(kind, time, participant, scope, socket):
+    """A join or leave, by default for one socket per page."""
+    return {
+        "type": kind,
+        "time": time,
+        "participant": participant,
+        "scope": scope,
+        "socket": "{}/{}".format(participant, scope) if socket is None else socket,
+    }
 
 
 def started(game, members=("1", "2"), bots=()):

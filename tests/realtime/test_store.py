@@ -1,4 +1,5 @@
 import json
+import threading
 import time
 
 import pytest
@@ -7,9 +8,9 @@ from redis.client import Pipeline
 from dallinger.realtime import store
 from dallinger.realtime.core import run_pass
 from dallinger.realtime.game import RealtimeGame
-from tests.realtime.helpers import CLOCK, TurnTally, message
+from tests.realtime.helpers import CLOCK, Tally, TurnTally, message
 
-pytestmark = pytest.mark.usefixtures("redis_conn")
+pytestmark = pytest.mark.usefixtures("redis_conn", "realtime_experiment")
 
 
 def entries_of(session_id):
@@ -89,14 +90,16 @@ class TestSessions:
 
         assert json.loads(store.load_session(session_id)["saved"])["bots"] == bots
 
-    def test_an_invalid_game_type_is_refused(self):
-        class Unchanneled(TurnTally):
-            channel = None
+    def test_only_the_experiments_game_types_can_start(self, realtime_experiment):
+        class SameChannel(TurnTally):
+            pass
 
-        with pytest.raises(ValueError, match="channel"):
-            store.create_realtime_session(Unchanneled, ["1"])
-        with pytest.raises(ValueError):
-            store.create_realtime_session(RealtimeGame, ["1"])
+        for game_type in (SameChannel, Tally, RealtimeGame, "tally"):
+            with pytest.raises(ValueError, match="isn't one of the experiment's"):
+                store.create_realtime_session(game_type, ["1"])
+        realtime_experiment.channel = "tally"
+        with pytest.raises(ValueError, match="is the experiment's channel"):
+            store.create_realtime_session(TurnTally, ["1"])
         assert store.running_sessions() == []
 
     def test_a_session_needs_distinct_participant_ids(self):
@@ -152,20 +155,17 @@ class TestSessions:
 class TestClaims:
     def test_a_held_claim_cannot_be_taken(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
-        token = store.claim(session_id, "a", 30)
+        store.claim(session_id, "a", 30)
 
         assert store.claim(session_id, "b", 30) is None
         assert 29000 < claim_ttl(session_id) <= 30000
-        assert store.renew(session_id, token, 60)
-        assert claim_ttl(session_id) > 59000
 
-    def test_a_renewal_after_another_runners_claim_fails(self):
+    def test_only_the_runner_holding_a_claim_can_release_it(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
         stale = store.claim(session_id, "a", 30)
         expire_claim(session_id)
         token = store.claim(session_id, "b", 30)
 
-        assert not store.renew(session_id, stale, 60)
         assert not store.release(session_id, stale)
         assert claim_ttl(session_id) <= 30000
         assert store.release(session_id, token)
@@ -179,6 +179,27 @@ class TestClaims:
         second = store.claim(session_id, "a", 30)
 
         assert epoch(second) == epoch(first) + 1
+
+    def test_claims_are_extended_together_and_lost_ones_named(self):
+        kept, stolen = [store.create_realtime_session(TurnTally, ["1"]) for _ in "ab"]
+        tokens = {
+            session_id: store.claim(session_id, "a", 30)
+            for session_id in (kept, stolen)
+        }
+        expire_claim(stolen)
+        store.claim(stolen, "b", 30)
+
+        assert store.extend_session_claims(tokens, 60) == [stolen]
+        assert claim_ttl(kept) > 59000
+        assert claim_ttl(stolen) <= 30000
+
+    def test_the_server_clock_is_the_one_that_stamps_entries(self):
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        before = store.server_time()
+        entry_id = add_message(session_id, "1", "a")
+
+        received = store.read_entry(entry_id, {b"entry": b"{}"})["received"]
+        assert before - 0.001 <= received <= store.server_time()
 
     def test_an_expired_claim_can_be_taken(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
@@ -200,10 +221,11 @@ class TestSave:
         unapplied = add_message(session_id, "1", "late")
         result = play_entries(session_id, applied)
 
-        assert store.save_passes([(session_id, token, applied[-1], result)], 60) == []
+        assert store.save_passes([(session_id, token, applied, result)], 60) == []
         loaded = store.load_session(session_id)
         assert loaded["saved"] == result.saved
         assert loaded["position"] == applied[-1]
+        assert loaded["applied"] == 2
         assert store.realtime_state(session_id)["log"] == [["1", "up", 1], ["2", 1, 1]]
         assert entries_of(session_id) == [unapplied]
         assert records_of(session_id) == result.records
@@ -215,12 +237,13 @@ class TestSave:
         token = store.claim(session_id, "a", 30)
         applied = add_message(session_id, "1", "up")
         store.save_passes(
-            [(session_id, token, applied, play_entries(session_id, [applied]))], 30
+            [(session_id, token, [applied], play_entries(session_id, [applied]))], 30
         )
         result = play_entries(session_id, [], now=2)
 
-        store.save_passes([(session_id, token, None, result)], 30)
+        store.save_passes([(session_id, token, [], result)], 30)
         assert store.load_session(session_id)["position"] == applied
+        assert store.load_session(session_id)["applied"] == 1
         assert json.loads(store.load_session(session_id)["saved"])["time"] == 2
 
     def test_a_session_that_ended_leaves_the_running_set_with_its_final_views(self):
@@ -229,8 +252,10 @@ class TestSave:
         store.end_realtime_session(session_id, "abandoned")
         result = play_entries(session_id, entries_of(session_id))
 
-        store.save_passes([(session_id, token, entries_of(session_id)[0], result)], 30)
+        store.save_passes([(session_id, token, entries_of(session_id), result)], 30)
         assert store.running_sessions() == []
+        assert claim_ttl(session_id) == -2
+        assert store.claim(session_id, "b", 30) is None
         final = store.redis_conn.get(store.session_key(session_id, "final"))
         assert json.loads(final) == {
             "reason": "abandoned",
@@ -248,7 +273,7 @@ class TestSave:
         expire_claim(session_id)
         store.claim(session_id, "a", 30)
 
-        assert store.save_passes([(session_id, stale, applied, result)], 60) == [
+        assert store.save_passes([(session_id, stale, [applied], result)], 60) == [
             session_id
         ]
         assert store.load_session(session_id) == before
@@ -264,7 +289,7 @@ class TestSave:
         assert store.save_passes([(session_id, None, applied, result)], 60) == [
             session_id
         ]
-        assert entries_of(session_id) == [applied]
+        assert entries_of(session_id) == applied
 
     def test_a_claim_stolen_during_the_save_aborts_it(self, monkeypatch):
         """Of three sessions, the second has lost its claim before the save
@@ -298,13 +323,117 @@ class TestSave:
         assert store.load_session(session_id) == before
 
 
+class TestReading:
+    def test_one_read_returns_each_sessions_entries_after_its_position(self):
+        first, second, quiet = [
+            store.create_realtime_session(TurnTally, ["1"]) for _ in range(3)
+        ]
+        old = add_message(second, "1", "old")
+        added = {first: [add_message(first, "1", n) for n in range(2)]}
+        added[second] = [add_message(second, "1", "new")]
+
+        read = store.read_entries({first: None, second: old, quiet: None}, 1)
+
+        assert {
+            session_id: [entry_id for entry_id, _ in items]
+            for session_id, items in read.items()
+        } == added
+        assert store.read_entry(*read[second][0])["data"] == '"new"'
+
+    def test_a_read_waits_for_the_first_entry(self):
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        adding = threading.Timer(0.2, add_message, (session_id, "1", "late"))
+        started = time.monotonic()
+        adding.start()
+
+        read = store.read_entries({session_id: None}, 5)
+
+        assert len(read[session_id]) == 1
+        assert 0.15 < time.monotonic() - started < 2
+
+    @pytest.mark.timeout(10)
+    @pytest.mark.parametrize("timeout", [0.2, 0])
+    def test_a_read_with_nothing_new_returns_after_its_timeout(self, timeout):
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        started = time.monotonic()
+
+        assert store.read_entries({session_id: None}, timeout) == {}
+        assert max(timeout, 0) <= time.monotonic() - started < max(timeout, 0) + 0.5
+
+    def test_a_read_shorter_than_a_millisecond_still_returns(self):
+        """Redis takes a block of 0 to mean no timeout at all."""
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        reader = threading.Thread(
+            target=store.read_entries, args=({session_id: None}, 0.0001), daemon=True
+        )
+
+        reader.start()
+        reader.join(1)
+
+        assert not reader.is_alive()
+
+    def test_entries_dropped_unapplied_are_counted(self, monkeypatch):
+        monkeypatch.setattr(store, "MAX_ENTRIES", 10)
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        token = store.claim(session_id, "a", 30)
+        applied = [add_message(session_id, "1", n) for n in range(5)]
+        result = play_entries(session_id, applied)
+        store.save_passes([(session_id, token, applied, result)], 30)
+        assert store.lost_entries({session_id: 5}) == {session_id: 0}
+
+        for n in range(300):
+            add_message(session_id, "1", n)
+
+        assert store.lost_entries({session_id: 5}) == {
+            session_id: 300 - len(entries_of(session_id))
+        }
+
+    def test_a_handover_neither_loses_nor_repeats_an_entry(self):
+        """Runner a saves one pass, then plays another whose save fails
+        because b has taken the session. b starts from a's last save.
+        """
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        sent = iter(range(100))
+
+        def send(count):
+            for _ in range(count):
+                add_message(session_id, "1", next(sent))
+
+        def play(token):
+            loaded = store.load_session(session_id)
+            items = store.read_entries({session_id: loaded["position"]}, 0)
+            entries = [store.read_entry(*item) for item in items[session_id]]
+            for entry in entries:
+                entry["time"] = 1
+            result = run_pass(TurnTally(), loaded["saved"], entries, 1, CLOCK)
+            applied = [entry_id for entry_id, _ in items[session_id]]
+            return store.save_passes([(session_id, token, applied, result)], 30)
+
+        a = store.claim(session_id, "a", 30)
+        send(3)
+        assert play(a) == []
+        send(4)
+        expire_claim(session_id)
+        b = store.claim(session_id, "b", 30)
+        assert play(a) == [session_id]
+        send(2)
+        assert play(b) == []
+
+        moves = [each[1] for each in store.realtime_state(session_id)["log"]]
+        assert moves == list(range(9))
+        assert store.load_session(session_id)["applied"] == 9
+        assert entries_of(session_id) == []
+
+
 def claimed_passes(sessions):
     """Claim each session and play a pass over one new message."""
     passes = []
     for session_id in sessions:
         token = store.claim(session_id, "a", 30)
         applied = add_message(session_id, "1", "up")
-        passes.append((session_id, token, applied, play_entries(session_id, [applied])))
+        passes.append(
+            (session_id, token, [applied], play_entries(session_id, [applied]))
+        )
     return passes
 
 

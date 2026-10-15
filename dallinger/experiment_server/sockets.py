@@ -363,9 +363,10 @@ def parsed_envelope(data):
     """The envelope ``data`` carries, or ``None`` if it carries no envelope.
 
     An envelope holds the ``origin`` that published it and its ``items``, a
-    list of directed sends, so one publish can carry many.
-    :func:`publish_to_participants` publishes one. An item that isn't a send
-    is logged and dropped, and the rest are kept.
+    list of directed sends: one from
+    :func:`publish_to_participants`, or every view of a step from a real-time
+    runner (:func:`dallinger.realtime.delivery.view_batch`). An item that
+    isn't a send is logged and dropped, and the rest are kept.
 
     Every field ``deliver_direct`` reads is checked here, because this is where
     an envelope enters the process. Neither clients nor
@@ -494,9 +495,10 @@ class ChatBackend:
 
         A send carrying a ``scope`` reaches only the connections opened with
         that same scope. One without reaches every connection of the
-        participants it names, whatever their scopes. Every process sees
-        every envelope, so naming participants who are connected elsewhere,
-        or nowhere, is ordinary.
+        participants it names, whatever their scopes, so a real-time view for
+        a page opened without a scope reaches every page that participant
+        has open. Every process sees every envelope, so naming participants
+        who are connected elsewhere, or nowhere, is ordinary.
         """
         scope = send["scope"]
         frame = "{}:{}".format(DIRECT_CHANNEL, send["payload"])

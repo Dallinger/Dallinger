@@ -11,16 +11,20 @@ Entries are dicts, each with a ``type`` and a ``time`` on the session clock:
 
 - ``message``: ``participant``, ``scope``, ``data`` (the frame's text after
   the channel prefix) and ``received`` (the server clock when it arrived)
-- ``join`` and ``leave``: ``participant`` and ``scope``, for one socket
+- ``join`` and ``leave``: ``participant``, ``scope`` and ``socket``, a string
+  naming one socket, different for every socket in the deployment
 - ``end``: ``reason``, a non-empty string
 
 A pass keeps each entry's time between the session's time before the pass and
-the pass's own time.
+the pass's own time. A page stays open while any of its sockets is, so a
+repeated join or leave, or a leave for a socket that isn't open, changes
+nothing.
 
 A pass that raises, or runs out of time in game code, fails its session
 instead. The failed session keeps its state from before the pass, records the
 pass's messages with the status ``"failed"``, and ends with the reason
-:data:`~dallinger.realtime.game.FAILED`.
+:data:`~dallinger.realtime.game.FAILED`. :func:`fail_session` ends a session
+the same way, for a problem the runner finds outside a pass.
 """
 
 import json
@@ -60,19 +64,13 @@ class PassResult:
     ``saved`` is the session after the pass, as JSON text.
 
     ``views`` lists a ``{"participant", "scope", "view"}`` dict for each open
-    page the pass sent a view to. ``view`` is the view envelope:
-
-    - ``kind``: ``"tick"`` if the pass ran a tick, otherwise ``"message"``
-    - ``number``: counts the passes that sent views
-    - ``time`` and ``clock``: the pass's session time and runner clock
-    - ``last_processed``: the number of the page's last processed message
-    - ``rejected``: a ``{"number", "reason"}`` dict for each of the page's
-      messages rejected since its last view
-    - ``ended``: the ending's reason, or ``None``
-    - ``view``: the player's view of the state
+    page the pass sent a view to. ``view`` is the view envelope, as
+    :mod:`dallinger.realtime.delivery` describes it. Its ``number`` counts
+    the passes that sent views, and its ``time`` and ``clock`` are the pass's.
 
     ``records`` are for Postgres, in order. Each has a ``sequence`` number, a
-    ``type`` and a session ``time``. The types are:
+    ``type`` and a session ``time``, except the end record of a session
+    :func:`fail_session` can't read. The types are:
 
     - ``message``: ``participant``, ``scope``, ``payload``, the envelope's
       ``number``, ``browser_time`` and ``view_time``, the clock time it was
@@ -86,12 +84,18 @@ class PassResult:
     ``None``. It holds the ending's ``time``, ``reason`` and ``outcome``, the
     final ``views`` of the players who aren't bots, and the ``error``: the
     traceback of a failed session, otherwise ``None``.
+
+    ``next_due`` is the session time of the session's next tick, or of its
+    :attr:`~dallinger.realtime.game.RealtimeGame.max_duration` if that comes
+    first: the time by which the session needs another pass even if no entry
+    arrives. It's ``None`` if neither is coming, or the session has ended.
     """
 
     saved: str
     views: list
     records: list
     ended: dict | None
+    next_due: float | None
 
 
 def new_session(game, members, bots=()):
@@ -121,7 +125,7 @@ def new_session(game, members, bots=()):
             "next_checkpoint": CHECKPOINT_INTERVAL,
             "view_number": 0,
             "record_number": 0,
-            # Open pages, each with its socket count, the number of the last
+            # Open pages, each with its open sockets, the number of the last
             # message processed from it, and rejections it hasn't been sent.
             "pages": [],
             "bot_messages": {bot: 0 for bot in bots},
@@ -152,6 +156,67 @@ def run_pass(game, saved, entries, now, clock, time_limit=None):
         except _FAILURES as error:
             failed = _Pass(game, played.saved, now, clock, new_budget)
             return failed.fail(entries, error)
+
+
+def fail_session(game, saved, entries, now, clock, error, time_limit=None):
+    """End the ``saved`` session as failed with ``error``, an exception, for a
+    problem found outside a pass, recording ``entries`` as a failing pass does.
+
+    ``game`` is ``None`` when no game type has the session's channel. Then, or
+    if the saved session or its entries can't be read, the session ends
+    without game code: the ending has no outcome and no final views, and no
+    entries are recorded. A saved session that can't be read is kept as it is,
+    and its end record's ``sequence`` and ``time`` are ``None``.
+
+    The other arguments are those of :func:`run_pass`.
+    """
+    if game is not None:
+        with time_limits(time_limit) as new_budget:
+            for recorded in (entries, []):
+                try:
+                    failed = _Pass(game, saved, now, clock, new_budget)
+                    return failed.fail(recorded, error)
+                except Exception:
+                    pass
+    return _bare_failure(saved, error)
+
+
+def session_time(saved):
+    """Return a saved session's time, or 0 if it can't be read."""
+    try:
+        return json.loads(saved)["time"]
+    except (ValueError, KeyError, TypeError):
+        return 0
+
+
+def _bare_failure(saved, error):
+    text = "".join(traceback.format_exception(error))
+    ended = {
+        "time": None,
+        "reason": FAILED,
+        "outcome": None,
+        "views": {},
+        "error": text,
+    }
+    record = {
+        "sequence": None,
+        "type": "end",
+        "time": None,
+        "reason": FAILED,
+        "outcome": None,
+        "state": None,
+        "error": text,
+    }
+    try:
+        session = json.loads(saved)
+        ended["time"] = record["time"] = session["time"]
+        record["sequence"] = session["record_number"] + 1
+        record["state"] = session["state"]
+    except (ValueError, KeyError, TypeError):
+        return PassResult(saved, [], [record], ended, None)
+    session["record_number"] = record["sequence"]
+    session["ended"] = ended
+    return PassResult(dump_json(session), [], [record], ended, None)
 
 
 def parse_message(data):
@@ -210,6 +275,10 @@ def _read_message(entry):
     return entry["participant"], entry["scope"], payload, sent, entry["received"]
 
 
+def _read_socket(entry):
+    return entry["participant"], entry["scope"], entry["socket"]
+
+
 class _Pass:
     def __init__(self, game, saved, now, clock, new_budget):
         self.game = game
@@ -237,7 +306,7 @@ class _Pass:
     def run(self, entries):
         session = self.session
         if session["ended"] is not None:
-            return PassResult(self.saved, [], [], None)
+            return PassResult(self.saved, [], [], None, None)
         before = (
             dump_json(self.state, self.state_name) if not self.game.tick_rate else None
         )
@@ -254,11 +323,14 @@ class _Pass:
                 self.bots_play()
         pending = iter(entries)
         entry = next(pending, None)
+        tick_time = None
         while self.end_reason is None:
             entry_time = None if entry is None else self.entry_time(entry)
-            tick_time = self.due_tick()
-            is_tick = tick_time is not None and (
-                entry is None or tick_time < entry_time
+            tick_time = self.next_tick()
+            is_tick = (
+                tick_time is not None
+                and tick_time <= self.now
+                and (entry is None or tick_time < entry_time)
             )
             event_time = tick_time if is_tick else entry_time
             limit = self.game.max_duration
@@ -281,6 +353,7 @@ class _Pass:
         changed = before is not None and (
             dump_json(self.state, self.state_name) != before
         )
+        next_due = None
         if self.end_reason is not None:
             self.end()
         else:
@@ -288,8 +361,12 @@ class _Pass:
             if self.time >= session["next_checkpoint"]:
                 self.add_record("checkpoint", state=self.state)
                 session["next_checkpoint"] = self.time + CHECKPOINT_INTERVAL
+            # The loop stopped at a tick still to come, if there is one.
+            due = [tick_time, self.game.max_duration]
+            next_due = min((each for each in due if each is not None), default=None)
         return self.finish(
-            everyone=self.ticked or changed or self.end_reason is not None
+            everyone=self.ticked or changed or self.end_reason is not None,
+            next_due=next_due,
         )
 
     def fail(self, entries, error):
@@ -313,23 +390,23 @@ class _Pass:
                 )
                 self.note_processed(participant, scope, sent, record)
             elif kind == "join":
-                self.open_page(entry["participant"], entry["scope"])
+                self.open_page(*_read_socket(entry))
             elif kind == "leave":
-                self.close_page(entry["participant"], entry["scope"])
+                self.close_page(*_read_socket(entry))
         self.time = self.now
         self.end_reason = FAILED
         self.end(error="".join(traceback.format_exception(error)))
-        return self.finish(everyone=True)
+        return self.finish(everyone=True, next_due=None)
 
     def entry_time(self, entry):
         return min(max(entry["time"], self.time), self.now)
 
-    def finish(self, everyone):
+    def finish(self, everyone, next_due):
         self.session["time"] = self.now
         views = self.page_views(everyone)
         saved = dump_json(self.session, self.state_name)
         copied = copy_json({"records": self.records, "ended": self.session["ended"]})
-        return PassResult(saved, views, copied["records"], copied["ended"])
+        return PassResult(saved, views, copied["records"], copied["ended"], next_due)
 
     def call(self, name, *args, with_effects=False, returns=False):
         """Call the game's method ``name`` within the time budget.
@@ -381,19 +458,15 @@ class _Pass:
         self.records.append(record)
         return record
 
-    def due_tick(self):
-        """The time of the next tick due by now, or ``None``."""
+    def next_tick(self):
+        """The time of the next tick, or ``None``."""
         times = []
         next_tick = self.session["next_tick"]
-        if next_tick is not None and next_tick <= self.now:
+        if next_tick is not None:
             times.append(next_tick)
         deadline = self.call("next_deadline", self.state)
         last_tick = self.session["last_tick"]
-        if (
-            deadline is not None
-            and deadline <= self.now
-            and (last_tick is None or deadline > last_tick)
-        ):
+        if deadline is not None and (last_tick is None or deadline > last_tick):
             times.append(max(deadline, self.time))
         return min(times, default=None)
 
@@ -418,9 +491,9 @@ class _Pass:
         if kind == "message":
             self.apply(*_read_message(entry))
         elif kind == "join":
-            self.join(entry["participant"], entry["scope"])
+            self.join(*_read_socket(entry))
         elif kind == "leave":
-            self.leave(entry["participant"], entry["scope"])
+            self.leave(*_read_socket(entry))
         else:
             raise ValueError("Unknown entry type {!r}.".format(kind))
         if not self.game.tick_rate:
@@ -480,13 +553,13 @@ class _Pass:
         if self.game.send_views_on_messages or not self.game.tick_rate:
             self.recipients.add((participant, scope))
 
-    def join(self, participant, scope):
-        if self.open_page(participant, scope):
+    def join(self, participant, scope, socket):
+        if self.open_page(participant, scope, socket):
             self.call("on_join", self.state, participant, self.time, with_effects=True)
             self.check_over()
 
-    def leave(self, participant, scope):
-        if self.close_page(participant, scope):
+    def leave(self, participant, scope, socket):
+        if self.close_page(participant, scope, socket):
             self.call(
                 "on_leave",
                 self.state,
@@ -496,8 +569,8 @@ class _Pass:
             )
             self.check_over()
 
-    def open_page(self, participant, scope):
-        """Count a socket opening, returning whether it's the participant's
+    def open_page(self, participant, scope, socket):
+        """Note a socket opening, returning whether it's the participant's
         first open page.
         """
         first = not self.is_open(participant)
@@ -506,25 +579,26 @@ class _Pass:
             page = {
                 "participant": participant,
                 "scope": scope,
-                "sockets": 0,
+                "sockets": [],
                 "last_processed": None,
                 "rejected": [],
             }
             self.pages[participant, scope] = page
             self.session["pages"].append(page)
-        page["sockets"] += 1
+        if socket not in page["sockets"]:
+            page["sockets"].append(socket)
         self.recipients.add((participant, scope))
         return first
 
-    def close_page(self, participant, scope):
-        """Count a socket closing, returning whether the participant's last
+    def close_page(self, participant, scope, socket):
+        """Note a socket closing, returning whether the participant's last
         open page closed.
         """
         page = self.pages.get((participant, scope))
-        if page is None:
+        if page is None or socket not in page["sockets"]:
             return False
-        page["sockets"] -= 1
-        if page["sockets"] > 0:
+        page["sockets"].remove(socket)
+        if page["sockets"]:
             return False
         del self.pages[participant, scope]
         self.session["pages"].remove(page)

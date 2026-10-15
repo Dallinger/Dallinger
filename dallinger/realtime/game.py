@@ -243,8 +243,8 @@ class RealtimeGame(ABC):
         of the game type, such as after a redeploy during the session. That
         can be a newer version, if a deploy is rolled back. Raise for a
         version you don't recognize, which fails the session. By default every
-        other version fails the session. A session that fails later in the
-        same pass keeps the converted state.
+        other version fails the session. A session that fails after the
+        conversion keeps the converted state.
 
         :param from_version: the :attr:`state_version` ``state`` was saved
             with

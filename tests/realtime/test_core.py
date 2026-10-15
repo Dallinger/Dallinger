@@ -23,6 +23,7 @@ from tests.realtime.helpers import (
     message,
     play,
     session,
+    socket_entry,
     started,
     views_by_page,
     with_deadline,
@@ -172,6 +173,33 @@ class TestTimeOrder:
         assert log(first)[2:] == [["tick", 1.5]]
         assert log(second) == log(first)
 
+    @pytest.mark.parametrize(
+        "game_type, deadline, max_duration, next_due",
+        [
+            (Tally, None, None, 0.5),
+            (Tally, 0.4, None, 0.4),
+            (Tally, None, 0.45, 0.45),
+            (TurnTally, None, None, None),
+            (TurnTally, 2, 9, 2),
+        ],
+    )
+    def test_a_pass_says_when_the_next_tick_is_due(
+        self, game_type, deadline, max_duration, next_due
+    ):
+        game = type("Timed", (game_type,), {"max_duration": max_duration})()
+        first = play(game, with_deadline(started(game), 0.25), [], 0.25)
+
+        result = play(game, with_deadline(first.saved, deadline), [], 0.3)
+
+        assert result.next_due == next_due
+
+    def test_an_ended_session_has_nothing_due(self):
+        game = Tally()
+
+        result = play(game, started(game), [message(0.1, "1", "stop")], 0.1)
+
+        assert result.next_due is None
+
     def test_a_deadline_in_the_past_ticks_at_once(self):
         game = TurnTally()
         saved = play(game, started(game), [], 4).saved
@@ -316,14 +344,17 @@ class TestJoinAndLeave:
             game,
             new_session(game, ["1", "2"]),
             [
-                join(1, "1"),
-                join(2, "1"),
-                join(3, "1", scope="tab"),
-                leave(4, "1"),
-                leave(5, "1", scope="tab"),
-                leave(6, "1"),
-                leave(7, "1"),
-                join(8, "1"),
+                join(1, "1", socket="a"),
+                join(2, "1", socket="b"),
+                join(2, "1", socket="b"),
+                join(3, "1", scope="tab", socket="c"),
+                leave(4, "1", socket="a"),
+                leave(4, "1", socket="a"),
+                leave(5, "1", scope="tab", socket="c"),
+                leave(5, "1", socket="c"),
+                leave(6, "1", socket="b"),
+                leave(7, "1", socket="b"),
+                join(8, "1", socket="d"),
             ],
             8,
         )
@@ -333,7 +364,7 @@ class TestJoinAndLeave:
             {
                 "participant": "1",
                 "scope": "page",
-                "sockets": 1,
+                "sockets": ["d"],
                 "last_processed": None,
                 "rejected": [],
             }
@@ -463,6 +494,7 @@ class TestEndings:
 
         assert result.saved == ended
         assert (result.views, result.records, result.ended) == ([], [], None)
+        assert result.next_due is None
 
 
 class Bot(Tally):
@@ -764,9 +796,8 @@ def script(seed):
                 message(time, player, payload, numbers[player, scope], scope)
             )
         else:
-            entries.append(
-                {"type": kind, "time": time, "participant": player, "scope": scope}
-            )
+            socket = rng.choice(["a", "b"])
+            entries.append(socket_entry(kind, time, player, scope, socket))
     if seed % 2:
         at = rng.randrange(len(entries))
         end = {"type": "end", "time": entries[at]["time"], "reason": "ended"}

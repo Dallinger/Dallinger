@@ -51,8 +51,9 @@ redis_conn = connect_to_redis()
 CONTROL_CHANNEL = "dallinger_control"
 
 #: Carries directed sends between processes, and prefixes the frame one arrives
-#: in at the browser. The two are different shapes: an envelope naming
-#: recipients over redis, and the payload alone on the wire to the browser.
+#: in at the browser. The two are different shapes: over redis, an envelope
+#: holding its publisher's ``origin`` and a list of ``items``, each naming its
+#: recipients, and on the wire to the browser, one item's payload alone.
 DIRECT_CHANNEL = "dallinger_direct"
 
 #: Channels Dallinger owns. A client may neither subscribe to one nor address
