@@ -18,7 +18,6 @@ contact_email_on_error = ???
 dallinger_email_address = dallinger@mailinator.com
 
 [Experiment]
-docker_worker_cpu_shares = 1024
 enable_global_experiment_registry = False
 language = en
 lock_table_when_creating_participant = True
@@ -40,9 +39,14 @@ chrome-path = /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 clock_on = False
 sentry = False
 redis_size = premium-0
-worker_multiplier = 1.5
 num_dynos_web = 1
 num_dynos_worker = 1
+worker_startup_timeout = 120
+
+[Parallelism]
+web_processes = auto
+worker_processes = 1
+worker_greenlets_per_process = 20
 
 [Prolific]
 prolific_api_token = Set your Prolific API token in ~/.dallingerconfig!
