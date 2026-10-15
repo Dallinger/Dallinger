@@ -181,11 +181,19 @@ The app's database password lives in ``~/dallinger/<app>/.env`` (mode
 dashboard password, so it is private (mode ``0600``) too. ``--update`` keeps the
 password.
 
+Dallinger's PostgreSQL containers run with ``jit = off``, because JIT
+compilation slows down the short queries that experiments make. A heavy
+analytic query can enable it for its session with ``SET jit = on``.
+
 ``--ingress classic`` keeps host Caddy and the shared server Postgres.
 Each classic app's pgbouncer may open up to 20 Postgres connections, and all
 classic apps on a server share that Postgres's ~97 non-superuser connection
 slots, so a few busy classic apps can exhaust it; use ``--ingress cloudflare``
 for an app that needs its own Postgres.
+When the server Postgres settings change, as with ``jit = off``, the next
+classic deploy on that server recreates the shared Postgres once, keeping its
+data volume. This briefly interrupts every classic app on the server, so make
+that deploy when no classic experiment is live.
 ``--ingress cloudflare`` starts an isolated Compose stack and a per-app
 tunnel; ``servers add --default-ingress cloudflare`` makes it a server's
 default. Cloudflare apps don't block a classic root-domain deploy.
@@ -205,8 +213,9 @@ with the SSH host's private address.
 The tunnel proxies to the experiment web service. Set the non-secret
 ``cloudflare_account_id``, ``cloudflare_zone_id``, and ``cloudflare_dns_zone``
 in Dallinger config. The API token is read from ``CLOUDFLARE_API_TOKEN``, then
-Dallinger config, then the macOS Keychain item
-``dallinger-cloudflare-api-token``. It is never written to host records, the
+Dallinger config, then a macOS Keychain item: the one named by
+``cloudflare_keychain_service``, or ``dallinger-cloudflare-api-token`` if that
+is unset. It is never written to host records, the
 manifest, or the app's Compose file. Tunnel names do not include the server,
 so a deploy refuses an app name whose tunnel already exists, unless it is the
 tunnel this server recorded for that app (in its manifest, or next to the

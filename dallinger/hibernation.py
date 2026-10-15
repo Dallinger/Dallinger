@@ -163,9 +163,9 @@ class _UnixHTTPConnection(http.client.HTTPConnection):
 
     def connect(self):
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        # Longer than the 30 s stop grace period, so a hung daemon cannot
+        # Longer than the 60 s stop grace period, so a hung daemon cannot
         # hold the controller lock forever.
-        self.sock.settimeout(60)
+        self.sock.settimeout(90)
         self.sock.connect(self.socket_path)
 
 
@@ -190,8 +190,8 @@ class DockerEngine:
         ]
 
     def stop(self, container_id: str) -> None:
-        # Give Postgres time to shut down cleanly instead of Docker's 10 s.
-        self._request("POST", f"/containers/{container_id}/stop?t=30", ignore_404=True)
+        # Matches Postgres's Compose stop_grace_period, instead of Docker's 10 s.
+        self._request("POST", f"/containers/{container_id}/stop?t=60", ignore_404=True)
 
     def start(self, container_id: str) -> None:
         self._request("POST", f"/containers/{container_id}/start", ignore_404=True)
