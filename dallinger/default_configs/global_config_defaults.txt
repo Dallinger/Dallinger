@@ -41,6 +41,7 @@ sentry = False
 redis_size = premium-0
 num_dynos_web = 1
 num_dynos_worker = 1
+worker_startup_timeout = 120
 
 [Parallelism]
 web_processes = auto

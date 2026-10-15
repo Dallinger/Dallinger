@@ -181,6 +181,7 @@ default_keys = (
     ("worker_greenlets_per_process", int, [], False, [is_positive_int]),
     ("worker_multiplier", float, []),
     ("worker_processes", int, [], False, [is_non_negative_int]),
+    ("worker_startup_timeout", int, []),
     ("docker_image_base_name", str, [], ""),
     ("docker_image_name", str, [], ""),
     ("docker_volumes", str, [], ""),
