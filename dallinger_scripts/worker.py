@@ -10,6 +10,7 @@ def main():
     # (which has the side effect of applying gevent monkey patches)
     # in the worker process. This way other processes can import the
     # redis connection without that side effect.
+    # tests/test_rq_gevent_worker.py mirrors these imports; keep it in sync.
     import logging
     import os
     from urllib.parse import urlparse
