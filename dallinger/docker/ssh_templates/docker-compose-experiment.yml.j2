@@ -4,6 +4,7 @@ services:
   postgresql:
     restart: unless-stopped
     image: postgres:12
+    command: postgres -c jit=off
     container_name: {{ experiment_id }}_postgresql
     environment:
       POSTGRES_USER: {{ experiment_id }}
@@ -12,9 +13,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U {{ experiment_id }}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U {{ experiment_id }}"]
       interval: 2s
       timeout: 5s
+      retries: 15
+      start_period: 300s
+    stop_grace_period: 60s
     networks:
       app:
         aliases:
@@ -73,13 +77,12 @@ services:
       {%- endfor %}
     {%- endif %}
 
-  {% set num_dynos = config["num_dynos_worker"] | default('1') | int %}
-  {%- for number in range(num_dynos) %}
+  {%- for number in range(worker_processes) %}
   worker_{{ number + 1 }}:
     restart: unless-stopped
     image: {{ experiment_image }}
     command: dallinger_heroku_worker
-    cpu_shares: {{ config["docker_worker_cpu_shares"] }}
+    cpu_shares: {{ worker_cpu_shares }}
     depends_on:
       <<: *commondepends
 {%- if run_as_ssh_user %}

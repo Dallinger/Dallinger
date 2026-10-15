@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import io
 import ipaddress
@@ -76,11 +77,13 @@ from .lib.cloudflare import (
     tunnel_name_for_app,
     validate_app_dns_label,
 )
+from .lib.cloudflare import config_str as cloudflare_config_str
 from .lib.cloudflare import public_hostname as cloudflare_public_hostname
 from .utils import get_server_pem_path
 
 # Hibernated apps keep stopped Compose containers that ``awaken`` restarts.
 CONTAINER_PRUNE = "docker container prune -f --filter label!=com.docker.compose.project"
+SERVER_COMPOSE = "docker compose -f ~/dallinger/docker-compose.yml"
 
 
 @dataclass(frozen=True)
@@ -137,6 +140,28 @@ FRONTDOOR_CADDYFILE = abspath_from_egg(
 HIBERNATION_CONTROLLER = abspath_from_egg(
     "dallinger", "dallinger/hibernation.py"
 ).read_text()
+
+
+def _read_controller_image(dockerfile: Path | None) -> str:
+    """Return the image named on the ``FROM`` line of ``Dockerfile.controller``."""
+    if dockerfile is None:
+        raise RuntimeError(
+            "Dallinger's docker-ssh controller image file "
+            "(dallinger/docker/ssh_templates/Dockerfile.controller) is missing."
+        )
+    match = re.search(r"(?m)^FROM\s+(\S+)", dockerfile.read_text())
+    if match is None:
+        raise RuntimeError(
+            f"{dockerfile} has no FROM line naming the controller image."
+        )
+    return match.group(1)
+
+
+CONTROLLER_IMAGE = _read_controller_image(
+    abspath_from_egg(
+        "dallinger", "dallinger/docker/ssh_templates/Dockerfile.controller"
+    )
+)
 
 
 CADDYFILE_SUBDOMAIN = """
@@ -346,6 +371,60 @@ def copy_docker_config(host, user):
 CONFIGURED_HOSTS = get_configured_hosts()
 
 
+def _is_ip_address(host):
+    """Whether ``host`` (optionally ``host:port`` or ``[host]:port``) is an IP."""
+    try:
+        ipaddress.ip_address(split_ssh_host_port(host)[0])
+    except (ValueError, click.UsageError):
+        return False
+    return True
+
+
+def resolve_server_name(name, hosts):
+    """Return the configured server that ``name`` refers to.
+
+    Parameters
+    ----------
+    name : str
+        A full configured server name, or its short hostname (the part before
+        the first dot), e.g. ``rr-pc02`` for ``rr-pc02.example.ac.uk``.
+        Servers registered by IP address only match their full address.
+    hosts : iterable of str
+        Configured server names.
+
+    Returns
+    -------
+    str
+        The full configured server name.
+
+    Raises
+    ------
+    ValueError
+        If ``name`` matches no configured server, or is a short hostname
+        shared by several of them.
+    """
+    hosts = tuple(hosts)
+    if name in hosts:
+        return name
+    matches = [
+        host
+        for host in hosts
+        if host.split(".", 1)[0] == name and not _is_ip_address(host)
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    if matches:
+        raise ValueError(
+            f"Server '{name}' is ambiguous. It matches: {', '.join(matches)}"
+        )
+    choices = ", ".join(hosts) if hosts else "<none>"
+    raise ValueError(f"Unknown server '{name}'. Configured servers: {choices}")
+
+
+def _complete_server_name(ctx, param, incomplete):
+    return [host for host in get_configured_hosts() if host.startswith(incomplete)]
+
+
 def resolve_server_option(ctx, param, value):
     hosts = tuple(get_configured_hosts().keys())
     option_name = (
@@ -354,13 +433,10 @@ def resolve_server_option(ctx, param, value):
     action = ctx.command.name if ctx is not None and ctx.command is not None else None
 
     if value is not None:
-        if value not in hosts:
-            choices = ", ".join(hosts) if hosts else "<none>"
-            raise click.BadParameter(
-                f"Unknown server '{value}'. Configured servers: {choices}",
-                param=param,
-            )
-        return value
+        try:
+            return resolve_server_name(value, hosts)
+        except ValueError as exc:
+            raise click.BadParameter(str(exc), param=param) from exc
 
     if len(hosts) == 1:
         return hosts[0]
@@ -423,8 +499,10 @@ option_server = click.option(
     "--server",
     required=False,
     default=None,
-    help="Name of the remote server",
-    type=click.Choice(tuple(CONFIGURED_HOSTS.keys())),
+    help="Name of the remote server, or its short hostname "
+    "(see `dallinger docker-ssh servers list`)",
+    type=str,
+    shell_complete=_complete_server_name,
     callback=resolve_server_option,
 )
 option_update = click.option(
@@ -569,12 +647,7 @@ def docker_host_uri(host, user=None, port=22):
 
 
 def _resolve_server_info(server):
-    try:
-        return CONFIGURED_HOSTS[server]
-    except KeyError as exc:
-        raise ValueError(
-            f"Unknown server '{server}', expected one of {list(CONFIGURED_HOSTS.keys())}."
-        ) from exc
+    return CONFIGURED_HOSTS[resolve_server_name(server, CONFIGURED_HOSTS)]
 
 
 def _build_executor(server_info, app=None):
@@ -664,7 +737,10 @@ def _root_domain_preflight_required(server, app_name, archive_path, ingress):
     """
     if should_use_subdomain(app_name, archive_path):
         return False
-    server_info = CONFIGURED_HOSTS.get(server) or {}
+    try:
+        server_info = _resolve_server_info(server)
+    except ValueError:
+        server_info = {}
     if _resolve_ingress(server_info, ingress) == INGRESS_CLOUDFLARE:
         return False
     return True
@@ -688,8 +764,8 @@ def _cloudflare_settings(config, dns_zone=None):
     Cloudflare DNS zone. ``dns_zone`` overrides config (destroy passes the
     zone recorded in the manifest).
     """
-    account_id = str(config.get("cloudflare_account_id", "") or "").strip()
-    zone_id = str(config.get("cloudflare_zone_id", "") or "").strip()
+    account_id = cloudflare_config_str(config, "cloudflare_account_id")
+    zone_id = cloudflare_config_str(config, "cloudflare_zone_id")
     dns_zone = str(dns_zone or config.get("cloudflare_dns_zone", "") or "")
     dns_zone = dns_zone.strip().lower().rstrip(".")
     missing = [
@@ -922,6 +998,7 @@ def ensure_root_domain_ready(server, update):
     if update:
         return True
 
+    server = resolve_server_name(server, CONFIGURED_HOSTS)
     executor = _executor_for_server(server)
     conflicts = _host_caddy_apps(executor)
     if not conflicts:
@@ -1083,7 +1160,7 @@ def build_and_push_image(f):
         try:
             if not local_build:
                 # Set DOCKER_HOST to point to the remote server via SSH
-                server_info = CONFIGURED_HOSTS[kwargs["server"]]
+                server_info = _resolve_server_info(kwargs["server"])
                 ssh_host, ssh_port = split_ssh_host_port(server_info["host"])
                 ssh_user = server_info.get("user")
                 ensure_remote_host_in_known_hosts(server_info["host"], ssh_user)
@@ -1202,11 +1279,28 @@ def set_dozzle_password(executor, sftp, new_password):
         executor.restart_dozzle()
 
 
+def _start_server_services(executor):
+    """Start the shared server services and wait until Postgres is healthy."""
+    executor.run(f"{SERVER_COMPOSE} up -d")
+    # A changed server compose file recreates the shared Postgres. Waiting
+    # only on it keeps a crash-looping Caddy or Dozzle from blocking deploys.
+    # coreutils `timeout` replaces `--wait-timeout`, which needs Compose 2.17.
+    # The limit must exceed the worst case of docker-compose-server.yml.j2's
+    # healthcheck: a 300 s start_period, then 15 retries that each cost the
+    # 2 s interval plus the 5 s timeout when pg_isready hangs (405 s).
+    limit = 420
+    executor.run(
+        f"timeout {limit} {SERVER_COMPOSE} up -d --wait postgresql"
+        f" || {{ code=$?; [ $code -ne 124 ] || echo 'The shared PostgreSQL"
+        f" was not healthy after {limit} s.' >&2; exit $code; }}"
+    )
+
+
 def ensure_postgres_schema_permissions(executor, experiment_id):
     # PostgreSQL 15+ no longer grants CREATE on schema public to all users.
     grant_schema_script = f'GRANT USAGE, CREATE ON SCHEMA public TO "{experiment_id}"'
     executor.run(
-        "docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql "
+        f"{SERVER_COMPOSE} exec -T postgresql "
         f'psql -U dallinger -d "{experiment_id}" -c {quote(grant_schema_script)}'
     )
 
@@ -1215,7 +1309,7 @@ def ensure_postgres_schema_permissions(executor, experiment_id):
 @option_server
 @click.password_option()
 def set_dozzle_password_cmd(server, password):
-    server_info = CONFIGURED_HOSTS[server]
+    server_info = _resolve_server_info(server)
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
 
@@ -1274,6 +1368,11 @@ def _deploy_in_mode(
     ingress=None,
 ):
     config = get_config(load=True)
+    server = resolve_server_name(server, CONFIGURED_HOSTS)
+    config_options = {
+        config.canonical_key(key): value for key, value in dict(config_options).items()
+    }
+    config.extend(config_options, cast_types=True)
 
     run_pre_launch_checks(**locals())
 
@@ -1403,7 +1502,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     set_dozzle_password(executor, sftp, dozzle_password)
 
     print("Launching http, postgresql and dozzle servers.")
-    executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
+    _start_server_services(executor)
 
     if not update:
         print("Starting experiment.")
@@ -1438,9 +1537,9 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         ingress=INGRESS_CLASSIC,
         secrets=app_secrets,
     )
-    # We invoke the "ls" command in the context of the `web` container.
-    # `docker compose` will honour `web`'s dependencies and block
-    # until postgresql is ready. This way we can be sure we can start creating the database.
+    # Running "ls" in the `web` container blocks until `web`'s own dependencies
+    # (redis and pgbouncer) are healthy. The shared Postgres belongs to another
+    # compose project; the `up --wait` above already waited for it.
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
     )
@@ -1450,14 +1549,14 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     if not update:
         print("Cleaning up db/user")
         executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
+            rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
         )
         executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
+            rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
         )
         print(f"Creating database {experiment_id}")
         executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
+            rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
         )
 
         if archive_path is not None:
@@ -1476,24 +1575,24 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         rf"""SELECT FROM pg_catalog.pg_roles WHERE rolname = '{experiment_id}'"""
     )
     query_user_result = executor.run(
-        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(test_user_script)}",
+        f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(test_user_script)}",
         raise_=False,
     )
     if "0 rows" in query_user_result:
         # Create the user: it doesn't exist yet
         create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
         executor.run(
-            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
+            f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
         )
     else:
         # Change the password of the existing user
         change_password_script = f"""ALTER USER "{experiment_id}" WITH ENCRYPTED PASSWORD '{postgresql_password}'"""
         executor.run(
-            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(change_password_script)}"
+            f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(change_password_script)}"
         )
 
     executor.run(
-        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
+        f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
     )
     ensure_postgres_schema_permissions(executor, experiment_id)
 
@@ -1563,6 +1662,8 @@ def _compose_environment(
     config, config_options, mode, experiment_uuid, image_name, flask_secret_key
 ):
     """Build the Compose environment map shared by classic and tunnel stacks."""
+    from dallinger.docker.tools import docker_worker_processes
+
     cfg = config.as_dict(include_sensitive=True)
     for key in "aws_access_key_id", "aws_secret_access_key":
         cfg[key.upper()] = cfg.pop(key, None)
@@ -1579,7 +1680,9 @@ def _compose_environment(
             "docker_image_name": image_name,
         }
     )
-    cfg.update(config_options)
+    for key, value in dict(config_options).items():
+        cfg[config.canonical_key(key)] = value
+    cfg["worker_processes"] = docker_worker_processes(config)
     # ``HOST`` is set by the template; the rest are secrets the app must not get.
     for key in "host", "database_url", "heroku_auth_token", "cloudflare_api_token":
         cfg.pop(key, None)
@@ -2036,18 +2139,69 @@ def _remote_hibernation_states(executor):
 
 
 @contextmanager
+def _forward_local_port(transport, remote_address):
+    """Forward connections on a free localhost port to ``remote_address``.
+
+    Each accepted connection gets its own ``direct-tcpip`` channel on
+    ``transport``. Yields the local port; forwarding stops on exit.
+    """
+    listener = socket.create_server(("127.0.0.1", 0))
+    listener.settimeout(0.5)
+    stopping = threading.Event()
+
+    def pipe(conn):
+        try:
+            chan = transport.open_channel(
+                "direct-tcpip", remote_address, conn.getpeername()
+            )
+        except paramiko.SSHException as exc:
+            logging.getLogger(__name__).warning(
+                "Could not open SSH tunnel to %s:%s: %s", *remote_address, exc
+            )
+            conn.close()
+            return
+        with conn, chan:
+            try:
+                while not stopping.is_set():
+                    readable, _, _ = select.select([conn, chan], [], [], 0.5)
+                    for source, dest in ((conn, chan), (chan, conn)):
+                        if source in readable:
+                            data = source.recv(65536)
+                            if not data:
+                                return
+                            dest.sendall(data)
+            except OSError:
+                return  # Either side dropped the connection.
+
+    def accept():
+        while not stopping.is_set():
+            try:
+                conn, _ = listener.accept()
+            except TimeoutError:
+                continue
+            threading.Thread(target=pipe, args=(conn,), daemon=True).start()
+
+    acceptor = threading.Thread(target=accept, daemon=True)
+    acceptor.start()
+    try:
+        yield listener.getsockname()[1]
+    finally:
+        stopping.set()
+        # Closing the listener while accept() is blocked on it does not
+        # stop new connections on all platforms, so wait for the loop first.
+        acceptor.join()
+        listener.close()
+
+
+@contextmanager
 def remote_postgres(server_info, app):
     """A context manager that opens an ssh tunnel to the remote host and
     returns a database URI to connect to it.
     """
-    from sshtunnel import SSHTunnelForwarder
-
-    tunnel = None
+    executor = None
     try:
-        ssh_address = server_info["host"]
-        ssh_host, ssh_port = split_ssh_host_port(ssh_address)
         ssh_user = server_info.get("user")
-        executor = Executor(ssh_address, user=ssh_user, app=app)
+        executor = Executor(server_info["host"], user=ssh_user, app=app)
         container, remote_ip, isolated = _resolve_remote_postgres(executor, app)
         if isolated:
             env = _inspect_container_env(executor, container)
@@ -2065,21 +2219,16 @@ def remote_postgres(server_info, app):
             uri_user = "dallinger"
             uri_password = "dallinger"
             uri_db = url_quote(app, safe="")
-        pem_path = get_server_pem_path()
-        tunnel = SSHTunnelForwarder(
-            (ssh_host, ssh_port),
-            ssh_username=ssh_user,
-            ssh_pkey=str(pem_path),
-            remote_bind_address=(remote_ip, 5432),
-        )
-        tunnel.start()
-        yield (
-            f"postgresql://{uri_user}:{uri_password}"
-            f"@localhost:{tunnel.local_bind_port}/{uri_db}"
-        )
+        with _forward_local_port(
+            executor.client.get_transport(), (remote_ip, 5432)
+        ) as local_port:
+            yield (
+                f"postgresql://{uri_user}:{uri_password}"
+                f"@127.0.0.1:{local_port}/{uri_db}"
+            )
     finally:
-        if tunnel is not None:
-            tunnel.stop()
+        if executor is not None:
+            executor.client.close()
 
 
 def _resolve_remote_postgres(executor, app):
@@ -2140,7 +2289,7 @@ def _inspect_container_env(executor, container):
 @option_server
 def destroy(server, app):
     """Tear down an experiment run on a server you control via ssh."""
-    server_info = CONFIGURED_HOSTS[server]
+    server_info = _resolve_server_info(server)
     ssh_address = server_info["host"]
     ssh_host, _ = split_ssh_host_port(ssh_address)
     ssh_user = server_info.get("user")
@@ -2253,9 +2402,23 @@ def _destroy_cloudflare_resources(app, manifest=None, own_tunnel_id=None):
     except (CloudflareError, click.UsageError) as exc:
         print(f"{RED}Cloudflare cleanup failed:{END} {exc}")
         return False
+    deleted = []
+    if removed.tunnel_name:
+        deleted.append(f"Cloudflare tunnel {removed.tunnel_name}")
+    if removed.hostname:
+        deleted.append(f"DNS record {removed.hostname}")
+    if deleted:
+        print(f"Deleted {' and '.join(deleted)}.")
+    if removed.skipped_tunnel_name:
+        print(
+            f"Left Cloudflare tunnel {removed.skipped_tunnel_name} in place "
+            "because it belongs to another deploy."
+        )
     if not removed:
         print(f"{RED}Cloudflare cleanup failed.{END} See the warnings above.")
-    return removed
+    elif not deleted and not removed.skipped_tunnel_name:
+        print(f"No Cloudflare tunnel or DNS record left to delete for {app}.")
+    return bool(removed)
 
 
 @docker_ssh.command()
@@ -2282,7 +2445,7 @@ def awaken_app(server, app, required=True):
 def _run_hibernation_action(server, app, action, required=True):
     if not APP_NAME_PATTERN.fullmatch(app):
         raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
-    server_info = CONFIGURED_HOSTS[server]
+    server_info = _resolve_server_info(server)
     ssh_address = server_info["host"]
     ssh_user = server_info.get("user")
     executor = Executor(ssh_address, user=ssh_user, app=app)
@@ -2320,6 +2483,31 @@ def _run_hibernation_action(server, app, action, required=True):
     return True
 
 
+def _is_dsa_key(path):
+    """Return whether the private key file at ``path`` holds a DSA key.
+
+    Recognizes PEM (``BEGIN DSA PRIVATE KEY``) and OpenSSH formats. The
+    public key in an OpenSSH file is not encrypted, so this also works for
+    passphrase-protected keys.
+    """
+    try:
+        text = Path(path).read_text()
+    except (OSError, UnicodeDecodeError):
+        return False
+    if "-----BEGIN DSA PRIVATE KEY-----" in text:
+        return True
+    match = re.search(
+        r"-----BEGIN OPENSSH PRIVATE KEY-----(.*?)-----END", text, re.DOTALL
+    )
+    if match is None:
+        return False
+    try:
+        blob = base64.b64decode("".join(match.group(1).split()))
+    except ValueError:
+        return False
+    return b"\x00\x00\x00\x07ssh-dss" in blob
+
+
 def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
     """Create and connect an SSH client with proper authentication.
 
@@ -2337,6 +2525,13 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
     """
     ssh_host, ssh_port = split_ssh_host_port(host)
     pem_path = get_server_pem_path()
+    if _is_dsa_key(pem_path):
+        raise click.ClickException(
+            f"The server_pem key at {pem_path} is a DSA key, which Dallinger "
+            "can no longer use. Replace it with an Ed25519, RSA, or ECDSA key: "
+            "https://dallinger.readthedocs.io/en/latest/docker_support.html"
+            "#replacing-a-dsa-key"
+        )
     client = paramiko.SSHClient()
 
     known_hosts_path = os.path.expanduser("~/.ssh/known_hosts")
@@ -2403,15 +2598,6 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         except paramiko.AuthenticationException:
             spinner.fail("✖ Authentication failed")
             raise
-        except ValueError as ex:
-            if "q must be exactly" in str(ex):
-                raise ValueError(
-                    f"The PEM key file at {pem_path} is not compatible with this EC2 instance.\n"
-                    "Make sure you're using the correct EC2 key pair file that matches this instance.\n"
-                    "Check your 'server_pem' configuration or use the correct key file."
-                )
-            else:
-                raise
         except Exception:
             spinner.fail("✖ Connection failed")
             raise
@@ -2474,7 +2660,7 @@ class Executor:
             print(f"Error: exit code was not 0 ({status})")
             print(stdout)
             print(stderr)
-            compose_logs = self.print_docker_compose_logs()
+            compose_logs = self.print_docker_compose_logs(server=SERVER_COMPOSE in cmd)
             if _is_remote_disk_full_error(stdout, stderr, compose_logs):
                 print(get_remote_disk_full_guidance(self.host))
                 self.offer_safe_disk_cleanup()
@@ -2521,13 +2707,16 @@ class Executor:
         channel.exec_command(cmd)
         return self._drain_channel(channel)
 
-    def print_docker_compose_logs(self):
-        if self.app:
-            channel = self.client.get_transport().open_session()
-            channel.exec_command(
-                f'docker compose -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
-            )
-            status, logs, _ = self._drain_channel(channel)
+    def print_docker_compose_logs(self, server=False):
+        """Print and return the app's Compose logs, or the server stack's if ``server``."""
+        if server:
+            command = f"{SERVER_COMPOSE} logs --tail 200"
+        elif self.app:
+            command = f'docker compose -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
+        else:
+            command = None
+        if command:
+            status, logs, _ = self._run_with_status(command)
             if status != 0:
                 print("`docker compose` logs failed to run.")
                 return ""
@@ -2579,13 +2768,13 @@ class Executor:
     def reload_caddy(self):
         with yaspin(text="Reloading Caddy config file", color="green"):
             self.run(
-                "docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
+                f"{SERVER_COMPOSE} exec -T httpserver "
                 "caddy reload --config /etc/caddy/Caddyfile"
             )
 
     def restart_dozzle(self):
         with yaspin(text="Restarting Dozzle", color="green"):
-            self.run("docker compose -f ~/dallinger/docker-compose.yml restart dozzle")
+            self.run(f"{SERVER_COMPOSE} restart dozzle")
 
     def run_and_echo(self, cmd):  # pragma: no cover
         """Execute the given command on the remote host and prints its output
@@ -2633,7 +2822,10 @@ def get_docker_compose_yml(
     run_as_ssh_user: bool = True,
 ) -> str:
     """Render an app's docker-compose.yml. Secrets come from the app's ``.env``."""
+    from dallinger.docker.tools import worker_cpu_shares
+
     docker_volumes = config.get("docker_volumes", "")
+    worker_processes = int(config.get("worker_processes", 1))
     logger_filename = JSON_LOGFILE
     if logger_filename:
         new_volume = f"./{logger_filename}:/experiment/{logger_filename}"
@@ -2649,8 +2841,11 @@ def get_docker_compose_yml(
         experiment_image=experiment_image,
         config=config_str,
         docker_volumes=docker_volumes,
+        worker_processes=worker_processes,
+        worker_cpu_shares=worker_cpu_shares(worker_processes),
         idle_enabled=str(idle_enabled).lower(),
         idle_minutes=idle_minutes,
+        controller_image=CONTROLLER_IMAGE,
         # Compose's own project-name normalization, which its labels use.
         compose_project=re.sub(r"[^a-z0-9_-]", "", experiment_id.lower()),
         run_as_ssh_user=run_as_ssh_user,
