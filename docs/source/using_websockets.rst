@@ -607,8 +607,8 @@ the instant a client connects; have the client request the current state once
 it is connected instead.
 
 The 1,000-connection limits apply to each web process separately, so all the
-gunicorn processes of an app together can open more connections than Redis
-accepts. Redis's own client limit, ``maxclients``, is shared by every process
+web processes of an app (see ``web_processes``) together can open more
+connections than Redis accepts. Redis's own client limit, ``maxclients``, is shared by every process
 and defaults to 10,000, but Redis lowers it at startup when its own open-file
 limit is too low. Hosted Redis plans, such as those on Heroku, often allow far
 fewer clients. Run ``CONFIG GET maxclients`` in ``redis-cli`` to check the
