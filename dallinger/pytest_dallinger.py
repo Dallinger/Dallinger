@@ -15,7 +15,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from dallinger import db, information, models, networks, nodes
-from dallinger.bots import BotBase
+from dallinger.bots import BotBase, webdriver_options
 from dallinger.recruiters import CLOSE_RECRUITMENT_LOG_PREFIX, NEW_RECRUIT_LOG_PREFIX
 
 
@@ -177,13 +177,14 @@ def stub_config():
         "smtp_host": "smtp.fakehost.com:587",
         "smtp_username": "fake email username",
         "smtp_password": "fake email password",
-        "threads": "1",
         "title": "fake experiment title",
         "us_only": True,
         "webdriver_type": "chrome_headless",
+        "web_processes": "1",
         "whimsical": True,
+        "worker_greenlets_per_process": 20,
+        "worker_processes": 1,
         "replay": False,
-        "worker_multiplier": 1.5,
     }
     from dallinger.config import ConfigSource, Configuration, default_keys
 
@@ -566,15 +567,8 @@ def pytest_generate_tests(metafunc):
 def selenium_recruits(request, recruitment_loop):
     def recruits():
         for url in recruitment_loop:
-            kwargs = {}
             driver_class = DRIVER_MAP.get(request.param, webdriver.Chrome)
-            if request.param == "chrome_headless":
-                from selenium.webdriver.chrome.options import Options
-
-                chrome_options = Options()
-                chrome_options.add_argument("--headless")
-                kwargs = {"options": chrome_options}
-            driver = driver_class(**kwargs)
+            driver = driver_class(options=webdriver_options(request.param))
             driver.get(url)
             try:
                 yield driver

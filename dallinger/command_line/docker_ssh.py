@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import io
 import ipaddress
@@ -137,6 +138,28 @@ FRONTDOOR_CADDYFILE = abspath_from_egg(
 HIBERNATION_CONTROLLER = abspath_from_egg(
     "dallinger", "dallinger/hibernation.py"
 ).read_text()
+
+
+def _read_controller_image(dockerfile: Path | None) -> str:
+    """Return the image named on the ``FROM`` line of ``Dockerfile.controller``."""
+    if dockerfile is None:
+        raise RuntimeError(
+            "Dallinger's docker-ssh controller image file "
+            "(dallinger/docker/ssh_templates/Dockerfile.controller) is missing."
+        )
+    match = re.search(r"(?m)^FROM\s+(\S+)", dockerfile.read_text())
+    if match is None:
+        raise RuntimeError(
+            f"{dockerfile} has no FROM line naming the controller image."
+        )
+    return match.group(1)
+
+
+CONTROLLER_IMAGE = _read_controller_image(
+    abspath_from_egg(
+        "dallinger", "dallinger/docker/ssh_templates/Dockerfile.controller"
+    )
+)
 
 
 CADDYFILE_SUBDOMAIN = """
@@ -1334,6 +1357,10 @@ def _deploy_in_mode(
     allow_private_ip=False,
 ):
     config = get_config(load=True)
+    config_options = {
+        config.canonical_key(key): value for key, value in dict(config_options).items()
+    }
+    config.extend(config_options, cast_types=True)
 
     run_pre_launch_checks(**locals())
 
@@ -1623,6 +1650,8 @@ def _compose_environment(
     config, config_options, mode, experiment_uuid, image_name, flask_secret_key
 ):
     """Build the Compose environment map shared by classic and tunnel stacks."""
+    from dallinger.docker.tools import docker_worker_processes
+
     cfg = config.as_dict(include_sensitive=True)
     for key in "aws_access_key_id", "aws_secret_access_key":
         cfg[key.upper()] = cfg.pop(key, None)
@@ -1639,7 +1668,9 @@ def _compose_environment(
             "docker_image_name": image_name,
         }
     )
-    cfg.update(config_options)
+    for key, value in dict(config_options).items():
+        cfg[config.canonical_key(key)] = value
+    cfg["worker_processes"] = docker_worker_processes(config)
     # ``HOST`` is set by the template; the rest are secrets the app must not get.
     for key in "host", "database_url", "heroku_auth_token", "cloudflare_api_token":
         cfg.pop(key, None)
@@ -2096,18 +2127,69 @@ def _remote_hibernation_states(executor):
 
 
 @contextmanager
+def _forward_local_port(transport, remote_address):
+    """Forward connections on a free localhost port to ``remote_address``.
+
+    Each accepted connection gets its own ``direct-tcpip`` channel on
+    ``transport``. Yields the local port; forwarding stops on exit.
+    """
+    listener = socket.create_server(("127.0.0.1", 0))
+    listener.settimeout(0.5)
+    stopping = threading.Event()
+
+    def pipe(conn):
+        try:
+            chan = transport.open_channel(
+                "direct-tcpip", remote_address, conn.getpeername()
+            )
+        except paramiko.SSHException as exc:
+            logging.getLogger(__name__).warning(
+                "Could not open SSH tunnel to %s:%s: %s", *remote_address, exc
+            )
+            conn.close()
+            return
+        with conn, chan:
+            try:
+                while not stopping.is_set():
+                    readable, _, _ = select.select([conn, chan], [], [], 0.5)
+                    for source, dest in ((conn, chan), (chan, conn)):
+                        if source in readable:
+                            data = source.recv(65536)
+                            if not data:
+                                return
+                            dest.sendall(data)
+            except OSError:
+                return  # Either side dropped the connection.
+
+    def accept():
+        while not stopping.is_set():
+            try:
+                conn, _ = listener.accept()
+            except TimeoutError:
+                continue
+            threading.Thread(target=pipe, args=(conn,), daemon=True).start()
+
+    acceptor = threading.Thread(target=accept, daemon=True)
+    acceptor.start()
+    try:
+        yield listener.getsockname()[1]
+    finally:
+        stopping.set()
+        # Closing the listener while accept() is blocked on it does not
+        # stop new connections on all platforms, so wait for the loop first.
+        acceptor.join()
+        listener.close()
+
+
+@contextmanager
 def remote_postgres(server_info, app):
     """A context manager that opens an ssh tunnel to the remote host and
     returns a database URI to connect to it.
     """
-    from sshtunnel import SSHTunnelForwarder
-
-    tunnel = None
+    executor = None
     try:
-        ssh_address = server_info["host"]
-        ssh_host, ssh_port = split_ssh_host_port(ssh_address)
         ssh_user = server_info.get("user")
-        executor = Executor(ssh_address, user=ssh_user, app=app)
+        executor = Executor(server_info["host"], user=ssh_user, app=app)
         container, remote_ip, isolated = _resolve_remote_postgres(executor, app)
         if isolated:
             env = _inspect_container_env(executor, container)
@@ -2125,21 +2207,16 @@ def remote_postgres(server_info, app):
             uri_user = "dallinger"
             uri_password = "dallinger"
             uri_db = url_quote(app, safe="")
-        pem_path = get_server_pem_path()
-        tunnel = SSHTunnelForwarder(
-            (ssh_host, ssh_port),
-            ssh_username=ssh_user,
-            ssh_pkey=str(pem_path),
-            remote_bind_address=(remote_ip, 5432),
-        )
-        tunnel.start()
-        yield (
-            f"postgresql://{uri_user}:{uri_password}"
-            f"@localhost:{tunnel.local_bind_port}/{uri_db}"
-        )
+        with _forward_local_port(
+            executor.client.get_transport(), (remote_ip, 5432)
+        ) as local_port:
+            yield (
+                f"postgresql://{uri_user}:{uri_password}"
+                f"@127.0.0.1:{local_port}/{uri_db}"
+            )
     finally:
-        if tunnel is not None:
-            tunnel.stop()
+        if executor is not None:
+            executor.client.close()
 
 
 def _resolve_remote_postgres(executor, app):
@@ -2380,6 +2457,31 @@ def _run_hibernation_action(server, app, action, required=True):
     return True
 
 
+def _is_dsa_key(path):
+    """Return whether the private key file at ``path`` holds a DSA key.
+
+    Recognizes PEM (``BEGIN DSA PRIVATE KEY``) and OpenSSH formats. The
+    public key in an OpenSSH file is not encrypted, so this also works for
+    passphrase-protected keys.
+    """
+    try:
+        text = Path(path).read_text()
+    except (OSError, UnicodeDecodeError):
+        return False
+    if "-----BEGIN DSA PRIVATE KEY-----" in text:
+        return True
+    match = re.search(
+        r"-----BEGIN OPENSSH PRIVATE KEY-----(.*?)-----END", text, re.DOTALL
+    )
+    if match is None:
+        return False
+    try:
+        blob = base64.b64decode("".join(match.group(1).split()))
+    except ValueError:
+        return False
+    return b"\x00\x00\x00\x07ssh-dss" in blob
+
+
 def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
     """Create and connect an SSH client with proper authentication.
 
@@ -2397,6 +2499,13 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
     """
     ssh_host, ssh_port = split_ssh_host_port(host)
     pem_path = get_server_pem_path()
+    if _is_dsa_key(pem_path):
+        raise click.ClickException(
+            f"The server_pem key at {pem_path} is a DSA key, which Dallinger "
+            "can no longer use. Replace it with an Ed25519, RSA, or ECDSA key: "
+            "https://dallinger.readthedocs.io/en/latest/docker_support.html"
+            "#replacing-a-dsa-key"
+        )
     client = paramiko.SSHClient()
 
     known_hosts_path = os.path.expanduser("~/.ssh/known_hosts")
@@ -2463,15 +2572,6 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         except paramiko.AuthenticationException:
             spinner.fail("✖ Authentication failed")
             raise
-        except ValueError as ex:
-            if "q must be exactly" in str(ex):
-                raise ValueError(
-                    f"The PEM key file at {pem_path} is not compatible with this EC2 instance.\n"
-                    "Make sure you're using the correct EC2 key pair file that matches this instance.\n"
-                    "Check your 'server_pem' configuration or use the correct key file."
-                )
-            else:
-                raise
         except Exception:
             spinner.fail("✖ Connection failed")
             raise
@@ -2693,7 +2793,10 @@ def get_docker_compose_yml(
     run_as_ssh_user: bool = True,
 ) -> str:
     """Render an app's docker-compose.yml. Secrets come from the app's ``.env``."""
+    from dallinger.docker.tools import worker_cpu_shares
+
     docker_volumes = config.get("docker_volumes", "")
+    worker_processes = int(config.get("worker_processes", 1))
     logger_filename = JSON_LOGFILE
     if logger_filename:
         new_volume = f"./{logger_filename}:/experiment/{logger_filename}"
@@ -2709,8 +2812,11 @@ def get_docker_compose_yml(
         experiment_image=experiment_image,
         config=config_str,
         docker_volumes=docker_volumes,
+        worker_processes=worker_processes,
+        worker_cpu_shares=worker_cpu_shares(worker_processes),
         idle_enabled=str(idle_enabled).lower(),
         idle_minutes=idle_minutes,
+        controller_image=CONTROLLER_IMAGE,
         # Compose's own project-name normalization, which its labels use.
         compose_project=re.sub(r"[^a-z0-9_-]", "", experiment_id.lower()),
         run_as_ssh_user=run_as_ssh_user,
