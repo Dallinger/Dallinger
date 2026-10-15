@@ -2123,13 +2123,16 @@ class TestDockerServer:
             encoding="utf-8",
         )
         p.logfile = sys.stdout
+        # --verbose also echoes the server's own "New participant requested: <url>"
+        # line, so match only the debugger's double-colon line to see each URL once.
+        new_recruit = r"{}: (http://\S+)".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
         try:
             p.expect_exact("Server is running", timeout=180)
             p.expect_exact("Initial recruitment list:", timeout=30)
-            p.expect("New participant requested.*", 50)
-            Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
-            p.expect("New participant requested.*", 50)
-            Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
+            p.expect(new_recruit, 50)
+            Bot(p.match.group(1)).run_experiment()
+            p.expect(new_recruit, 50)
+            Bot(p.match.group(1)).run_experiment()
             p.expect_exact("Recruitment is complete", timeout=240)
             p.expect_exact("'status': 'success'", timeout=120)
             p.expect_exact("Experiment completed", timeout=20)
