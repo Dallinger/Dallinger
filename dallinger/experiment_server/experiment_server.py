@@ -66,9 +66,10 @@ PARTICIPANT_SIGNUP_LOCK_KEY = 7759314749901988
 
 # Maximum time to wait for the signup advisory lock before giving up.
 # Protection against a wedged holder blocking all signups indefinitely.
-# Transaction-local; applies to lock waits for the remainder of this
-# signup transaction, but does not affect other connections.
-PARTICIPANT_SIGNUP_LOCK_TIMEOUT = "30s"
+# 5s is ~50x a typical signup; tight enough to fail fast before gunicorn's
+# worker timeout intervenes, but generous enough for slow create_participant
+# overrides. Transaction-local; does not affect other connections.
+PARTICIPANT_SIGNUP_LOCK_TIMEOUT = "5s"
 
 
 def acquire_participant_signup_lock(connection):
