@@ -295,6 +295,14 @@
 
 ### Fixed
 
+- The web container in `dallinger docker` and `dallinger docker-ssh`
+  deployments may now hold 65,536 open files per process instead of the
+  Docker default of 1,024. Each open WebSocket connection holds a few file
+  descriptors in one gunicorn process, and connections do not spread evenly
+  across processes, so about 2,000 idle connections could exhaust one
+  process's limit. That process then failed new connections, and any
+  `/health` or `/dashboard/login` request routed to it, with
+  `OSError: [Errno 24] Too many open files`.
 - `dallinger docker debug` passes the Flask secret key to the web, worker and
   clock containers again. Previously they ran with no secret key, because the
   generated `.env` file prefixed the key with a stray `$` and the compose file
