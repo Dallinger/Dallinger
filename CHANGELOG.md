@@ -263,6 +263,12 @@
 
 ### Fixed
 
+- Dallinger's Docker commands no longer import pip's private internals to
+  read an experiment's ``requirements.txt``, so they work in uv-created
+  environments without pip. ``packaging`` is now a declared dependency.
+  The Docker base image tag is now also found for ``dallinger == X`` pins and
+  pins with environment markers, and for UTF-16 requirements files written by
+  Windows PowerShell 5. ``-r``/``-c`` include cycles raise a clear error.
 - RQ workers no longer hang at start-up about once in 75 to 100 starts.
   The worker imported ``rq.cli`` to colour one log line, which loaded
   ``croniter``; at import time ``croniter`` runs ``file`` in a subprocess,
