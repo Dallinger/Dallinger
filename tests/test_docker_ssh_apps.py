@@ -10,6 +10,7 @@ from unittest import mock
 import click
 import pytest
 
+from dallinger.config import Configuration
 from dallinger.docker.tools import docker_tag_from_experiment_id
 
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
@@ -583,9 +584,8 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
 def test_experiment_image_from_compose_reads_web_not_infra_images():
     yml = docker_ssh_module.get_docker_compose_yml(
         {
-            "num_dynos_worker": 2,
+            "worker_processes": 2,
             "clock_on": True,
-            "docker_worker_cpu_shares": 1024,
             "docker_image_name": "ghcr.io/org/exp:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
         },
         "my-app",
@@ -801,6 +801,7 @@ def test_compose_environment_notes_idle_sleep_waits_for_auto_recruit(
     capsys, auto_recruit, noticed
 ):
     config = mock.MagicMock()
+    config.canonical_key.side_effect = lambda key: key
     config.as_dict.return_value = {}
     config.__getitem__.side_effect = {"aws_region": "x", "auto_recruit": False}.get
     docker_ssh_module._compose_environment(
@@ -816,6 +817,12 @@ def test_compose_environment_notes_idle_sleep_waits_for_auto_recruit(
 
 def test_compose_environment_strips_cloudflare_api_token():
     class Config:
+        synonyms = {"threads": "web_processes"}
+        canonical_key = Configuration.canonical_key
+
+        def is_set_explicitly(self, key):
+            return False
+
         def as_dict(self, include_sensitive=False):
             return {
                 "aws_access_key_id": "id",
@@ -827,24 +834,64 @@ def test_compose_environment_strips_cloudflare_api_token():
             }
 
         def get(self, key, default=None):
-            return None
+            return default
 
         def __getitem__(self, key):
             return self.as_dict()[key]
 
-    env = docker_ssh_module._compose_environment(
-        Config(),
-        {"cloudflare_api_token": "from-cli", "host": "smuggled"},
-        "live",
-        "uuid",
-        "image:tag",
-        "flask-key",
-    )
+    with pytest.warns(FutureWarning, match="'threads'"):
+        env = docker_ssh_module._compose_environment(
+            Config(),
+            {
+                "cloudflare_api_token": "from-cli",
+                "host": "smuggled",
+                "threads": "2",
+            },
+            "live",
+            "uuid",
+            "image:tag",
+            "flask-key",
+        )
     assert env["FLASK_SECRET_KEY"] == "flask-key"
     assert "cloudflare_api_token" not in env
     assert "from-cli" not in env.values()
     assert env["AWS_ACCESS_KEY_ID"] == "id"
     assert "host" not in env
+    assert env["web_processes"] == "2"
+    assert "threads" not in env
+
+
+def test_compose_environment_falls_back_to_num_dynos_worker(stub_config):
+    stub_config.extend({"num_dynos_worker": 3})
+    with pytest.warns(FutureWarning, match="worker_processes"):
+        env = docker_ssh_module._compose_environment(
+            stub_config, {}, "live", "uuid", "image:tag", "flask-key"
+        )
+    assert env["worker_processes"] == 3
+
+
+def test_deploy_validates_config_options_before_deploying(monkeypatch):
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.ready = True
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
+    checks = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", checks)
+    with pytest.raises(ValueError, match="non-negative"):
+        docker_ssh_module._deploy_in_mode(
+            app_name="myapp",
+            archive_path=None,
+            config_options=(("worker_processes", "-1"),),
+            dns_host=None,
+            image_name="image",
+            mode="live",
+            server="lab",
+            update=False,
+            local_build=False,
+            push_build=False,
+            preflight_root_clean=False,
+        )
+    checks.assert_not_called()
 
 
 def test_remote_postgres_prefers_pinned_container_name(monkeypatch):

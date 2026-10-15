@@ -4,6 +4,11 @@
 
 ### Added
 
+- Worker processes that hang during start-up now exit after
+  `worker_startup_timeout` seconds (default 120; 0 disables) if they
+  haven't registered with the job queue, printing what each greenlet was
+  doing, so Heroku or Docker restarts them instead of leaving them idle.
+
 - `Experiment.publish_to_participants(payload, participant_ids, scope=None)`
   sends a payload to the WebSocket connections of specific participants, across
   gunicorn workers, instead of giving each participant a channel of their own.
@@ -150,9 +155,28 @@
   A custom experiment Dockerfile gets a final step that installs that wheel.
   Dallinger pins given as Git URLs are replaced by the local wheel as well
   (extras such as ``[docker]`` are dropped from the rewritten line).
+- Added Docker-first parallelism settings: ``web_processes`` (number of
+  gunicorn web processes, given as a number or ``auto``, the default),
+  ``worker_processes`` (number of worker containers in ``dallinger docker``
+  and Docker SSH deployments, default ``1``) and
+  ``worker_greenlets_per_process`` (tasks each worker process runs at once,
+  on Heroku and Docker, default ``20``). For CPU-heavy tasks, set
+  ``worker_greenlets_per_process = 1`` and add worker processes. Each
+  worker's Redis connection pool grows with its greenlets, so values above
+  40 don't wait for connections. Heroku still sizes worker dynos with
+  ``num_dynos_worker``. Docker deployments used to read ``num_dynos_worker``
+  too; if only ``num_dynos_worker`` is set, they still use it, with a
+  ``FutureWarning`` asking for ``worker_processes``.
 
 ### Changed
 
+- Docker worker containers now get a low CPU weight (``cpu_shares``), so the
+  web server gets priority when the CPU is busy: all the workers together
+  weigh about a tenth of the web container. Postgres, pgbouncer, Redis and
+  Caddy keep Docker's default weight. ``docker_worker_cpu_shares`` is now
+  ignored.
+- ``docker-ssh deploy -c`` values are now type-checked and validated before
+  deployment starts, as values from config files are.
 - The installation and developer setup guides now use Python 3.14, the
   version in Dallinger's Docker images, in their pyenv and virtualenv
   examples.
@@ -219,6 +243,19 @@
 - The ``deployment-files`` CLI tests no longer use Click's deprecated
   ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
 
+### Deprecated
+
+- ``threads`` is deprecated in favour of ``web_processes``. The old name
+  still works, but setting or reading it (including with
+  ``docker-ssh deploy -c``) emits a ``FutureWarning``; if both names are
+  set in one place, ``web_processes`` wins. ``Configuration.canonical_key()``
+  maps an old name to its replacement. Setting ``worker_multiplier`` (set
+  ``web_processes`` to a number instead) or ``docker_worker_cpu_shares``
+  (now ignored) also warns. A config file with deprecated settings gets one
+  warning that names the file and all of them. The warning for
+  ``prolific_maximum_allowed_minutes`` is now a ``FutureWarning`` too, and no
+  longer changes the global warnings filter.
+
 ### Fixed
 
 - `dallinger docker debug` passes the Flask secret key to the web, worker and
@@ -231,6 +268,13 @@
   image is built, so the key is not baked into the image, and compose refuses
   to start the containers without a key.
 
+- RQ workers no longer hang at start-up about once in 75 to 100 starts.
+  The worker imported ``rq.cli`` to colour one log line, which loaded
+  ``croniter``; at import time ``croniter`` runs ``file`` in a subprocess,
+  and under gevent waiting for it sometimes never returned. The worker now
+  takes the colour helper from ``rq.logutils``. The unused ``main()`` in
+  ``dallinger.heroku.rq_gevent_worker``, which also imported ``rq.cli``, is
+  removed; the ``dallinger_heroku_worker`` command is unchanged.
 - A WebSocket connection waits for redis to confirm its channel subscription
   before it relays anything. A process subscribes to a channel the first time
   one of its connections names it, and the publish travels on a different redis

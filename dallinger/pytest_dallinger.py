@@ -177,13 +177,14 @@ def stub_config():
         "smtp_host": "smtp.fakehost.com:587",
         "smtp_username": "fake email username",
         "smtp_password": "fake email password",
-        "threads": "1",
         "title": "fake experiment title",
         "us_only": True,
         "webdriver_type": "chrome_headless",
+        "web_processes": "1",
         "whimsical": True,
+        "worker_greenlets_per_process": 20,
+        "worker_processes": 1,
         "replay": False,
-        "worker_multiplier": 1.5,
     }
     from dallinger.config import ConfigSource, Configuration, default_keys
 
