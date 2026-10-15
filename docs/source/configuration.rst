@@ -454,8 +454,27 @@ Deployment Configuration
     recommended that you use at least two.
 
 ``num_dynos_worker`` *integer*
-    Number of Heroku dynos to use for performing other computations,
-    or (when deploying via Docker SSH) the number of worker Docker containers.
+    Number of Heroku dynos to use for background tasks. Heroku only; Docker
+    deployments use ``worker_processes``. Default ``1``.
+
+``worker_startup_timeout`` *integer*
+    Seconds a worker process may take to start up and register with the
+    job queue. A worker that hasn't registered by then prints what each
+    greenlet was doing and exits, so Heroku or Docker restarts it. Set to 0
+    to disable, for example while stepping through worker start-up in a
+    debugger. A negative value prints a warning and the default is used.
+    Default is 120.
+
+    The time is counted from process start. If the value is set in the
+    worker's environment, as docker-ssh does for every config key, it
+    applies from the start. If it is only set in a config file, the
+    built-in 120 s applies until the config has loaded, and a value of 0
+    can't disable that.
+
+    The timeout can't fire if start-up blocks without yielding to gevent
+    (a blocking C call, an unpatched system call or a CPU-bound loop).
+    Locally, the exit ends a ``dallinger debug`` session, and
+    ``dallinger develop`` doesn't restart the worker.
 
 ``worker_startup_timeout`` *integer*
     Seconds a worker process may take to start up and register with the
@@ -501,10 +520,48 @@ Deployment Configuration
     This is useful for centralized billing. Note, however, that it will prevent
     you from using free-tier dynos.
 
-``worker_multiplier`` *float*
-    Multiplier used to determine the number of gunicorn web worker processes
-    started per Heroku CPU count. Reduce this if you see Heroku warnings
-    about memory limits for your experiment. Default is `1.5`
+
+Parallelism Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+These settings control how many processes serve web requests and run
+background tasks. Some apply only on Heroku, some only with Docker
+(``dallinger docker`` and Docker SSH deployments):
+
+================================  ============================================
+Setting                           What it sets
+================================  ============================================
+``num_dynos_web``                 Heroku web dynos.
+``num_dynos_worker``              Heroku worker dynos.
+``web_processes``                 Gunicorn processes per web dyno, or in the
+                                  web container.
+``worker_processes``              Docker worker containers. Falls back to
+                                  ``num_dynos_worker``, with a warning, if
+                                  only that is set.
+``worker_greenlets_per_process``  Tasks per worker, on both platforms.
+================================  ============================================
+
+``web_processes`` *unicode* or *integer*
+    Number of web server (gunicorn) processes, or ``auto``. Each process uses gevent, so it
+    can serve many requests at once while they wait on the network or the
+    database. Default ``auto``, which starts ``round(1.5 * CPU count) + 1``
+    processes. Set a number instead if you need to limit memory use. On Heroku
+    this is the number of processes in each web dyno. Replaces ``threads``,
+    which still works but is deprecated.
+
+``worker_processes`` *integer*
+    Number of background worker containers in Docker deployments. Default
+    ``1``. Docker deployments used to read ``num_dynos_worker``; if
+    ``worker_processes`` is not set but ``num_dynos_worker`` is, Docker uses
+    ``num_dynos_worker`` and warns. Heroku uses ``num_dynos_worker``.
+
+``worker_greenlets_per_process`` *integer*
+    Number of tasks that each worker process (a worker dyno or container)
+    runs at the same time, as gevent greenlets. Default ``20``.
+
+Worker containers in Docker deployments get a low CPU weight, so the web
+server gets priority when the CPU is busy. Together, the workers get about a
+tenth of the web container's CPU share.
 
 
 Choosing configuration values
@@ -527,16 +584,23 @@ very large difference to how the application behaves.
     The optimum value differs between experiments, but a good rule of thumb is 1 web
     dyno for every 10-20 simultaneous human users.
 
-``num_dynos_worker``
-    Workers are dynos that pull tasks from a queue and execute them in the background.
+``num_dynos_worker``, ``worker_processes`` and ``worker_greenlets_per_process``
+    Worker processes pull tasks from a queue and execute them in the background.
+    On Heroku, ``num_dynos_worker`` sets how many run; with Docker,
+    ``worker_processes`` does.
     They are optimized for many short tasks, but they are also used to run bots which
-    are very long-lived. Each worker can run up to 20 concurrent tasks, however they
-    are co-operatively multitasked so a poorly behaving task can cause all others
-    sharing its host to block.
-    When running with bots, you should always pick a value of ``num_dynos_worker` that
-    is at least ``0.05*number_of_bots``, otherwise it is guaranteed to fail. In practice,
+    are very long-lived. Each worker process runs up to
+    ``worker_greenlets_per_process`` tasks at once (default 20). These tasks share
+    the process cooperatively, so a task that computes for a long time without
+    waiting on the network or the database blocks all the others in its process.
+    For CPU-heavy tasks, set ``worker_greenlets_per_process = 1`` and add
+    worker processes instead.
+    When running with bots, the total number of tasks (worker processes times
+    ``worker_greenlets_per_process``) must be at least the
+    number of bots, otherwise the experiment is guaranteed to fail. In practice,
     there may well be experiment-specific tasks that also need to execute, and bots are
-    more performant on underloaded dynos, so a better heuristic is ``0.25*number_of_bots``.
+    more performant on underloaded workers, so a better heuristic is to allow
+    about four times as many tasks as bots.
 
 ``dyno_type``
     This determines how powerful the heroku dynos started by Dallinger are. It is applied
@@ -606,11 +670,6 @@ Docker Deployment Configuration
     Additional list of volumes to mount when deploying using docker.
 
     Example: ``/host/path:/container_path,/another-path:/another-container-path``
-
-``docker_worker_cpu_shares``
-    An integer value which specify `Docker --cpu-shares option <https://docs.docker.com/config/containers/resource_constraints/#configure-the-default-cfs-scheduler>`_ for worker containers.
-
-    Defaults to ``1024``, lower this value to limit worker containers CPU usage when CPU cycles are constrained.
 
 ``cloudflare_api_token`` *unicode*
     API token used by ``dallinger docker-ssh`` Cloudflare tunnel deploys.

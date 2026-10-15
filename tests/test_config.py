@@ -1,16 +1,28 @@
 import os
+import warnings
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import mock
 
 import pytest
 from redis.exceptions import ConnectionError as RedisConnectionError
 
-from dallinger.config import LOCAL_CONFIG, Configuration, get_config
+import dallinger.config
+from dallinger.config import LOCAL_CONFIG, Configuration, default_keys, get_config
 
 
 def _layer_count(config):
     """Count config layers as a plain int, so a failing assert can't print secrets."""
     return len(config.data)
+
+
+def _default_config():
+    """Return a ready configuration with Dallinger's default keys registered."""
+    config = Configuration()
+    for registration in default_keys:
+        config.register(*registration)
+    config.ready = True
+    return config
 
 
 class TestConfigurationUnitTests:
@@ -249,6 +261,97 @@ worldwide = false
             del os.environ["num_participants"]
         config.ready = True
         assert config.get("num_participants") == 1
+
+    def test_threads_warns_and_maps_to_web_processes(self):
+        config = _default_config()
+        with pytest.warns(FutureWarning, match="threads"):
+            config.extend({"threads": "3"})
+        assert config.get("web_processes") == "3"
+        with pytest.warns(FutureWarning, match="threads"):
+            assert config.get("threads") == "3"
+
+    @pytest.mark.parametrize(
+        "mapping",
+        [
+            {"threads": "2", "web_processes": "4"},
+            {"web_processes": "4", "threads": "2"},
+        ],
+    )
+    def test_new_name_wins_over_old_name_in_one_mapping(self, mapping):
+        config = _default_config()
+        with pytest.warns(FutureWarning, match="'threads' is ignored"):
+            config.extend(mapping)
+        assert config.get("web_processes") == "4"
+
+    def test_config_files_report_all_deprecated_keys_through_warn_once_hook(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        from dallinger import utils
+
+        monkeypatch.setattr(utils, "local_warning_cache", {})
+        monkeypatch.setattr(utils.db, "redis_conn", mock.Mock(exists=lambda key: False))
+        config = _default_config()
+        paths = [tmp_path / "a.txt", tmp_path / "b.txt"]
+        for path in paths:
+            path.write_text(
+                "[Parameters]\nthreads = 2\nworker_multiplier = 2.0\n"
+                "docker_worker_cpu_shares = 512\n"
+            )
+        with warnings.catch_warnings():
+            warnings.simplefilter("default")
+            warnings.showwarning = utils.show_warnings_once
+            for path in paths:
+                config.load_from_file(path)
+        out = capsys.readouterr().out
+        for path in paths:
+            report = out.split(f"{path}:0:")[1].split("\n")[0]
+            for key in ("threads", "worker_multiplier", "docker_worker_cpu_shares"):
+                assert f"'{key}'" in report
+
+    @pytest.mark.parametrize(
+        "key, value", [("worker_multiplier", 2.0), ("docker_worker_cpu_shares", 512)]
+    )
+    def test_retired_parallelism_settings_warn_when_set(self, key, value):
+        config = _default_config()
+        with pytest.warns(FutureWarning, match=key):
+            config.extend({key: value})
+
+    def test_web_processes_accepts_numbers_and_auto(self):
+        config = _default_config()
+        config.extend({"web_processes": 4})
+        assert config.get("web_processes") == "4"
+        config.extend({"web_processes": "auto"})
+        with pytest.raises(ValueError):
+            config.extend({"web_processes": "lots"})
+
+    def test_worker_greenlets_per_process_must_be_positive(self):
+        config = _default_config()
+        with pytest.raises(ValueError, match="positive integer"):
+            config.extend({"worker_greenlets_per_process": 0})
+
+    def test_worker_processes_must_not_be_negative(self):
+        config = _default_config()
+        config.extend({"worker_processes": 0})
+        with pytest.raises(ValueError, match="non-negative integer"):
+            config.extend({"worker_processes": -1})
+
+    def test_demo_configs_use_no_deprecated_keys(self):
+        demos = Path(__file__).parent.parent / "demos"
+        for path in demos.glob("**/config.txt"):
+            for line in path.read_text().splitlines():
+                key = line.split("=", 1)[0].strip()
+                assert key not in dallinger.config.DEPRECATED_KEYS, f"{path}: {key}"
+
+    def test_package_defaults_and_as_dict_do_not_warn(self):
+        config = _default_config()
+        with pytest.warns(FutureWarning):
+            config.extend({"worker_multiplier": 2.0, "docker_worker_cpu_shares": 512})
+        defaults = Path(dallinger.config.__file__).parent / "default_configs"
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            for name in ("global_config_defaults.txt", "local_config_defaults.txt"):
+                config.load_from_file(defaults / name)
+            config.as_dict()
 
     def test_loading_auto_recruit_from_redis(self, active_config, redis_conn):
         active_config.set("auto_recruit", False)

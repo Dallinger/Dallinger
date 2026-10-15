@@ -1,8 +1,21 @@
 listen = ["high", "default", "low"]
-
+DEFAULT_GREENLETS_PER_PROCESS = 20
 # Applies until the config is loaded, unless the environment sets
 # worker_startup_timeout; keep in step with global_config_defaults.txt.
 DEFAULT_STARTUP_TIMEOUT = 120
+
+
+def worker_options(config):
+    """Return the RQ gevent worker's keyword arguments and Redis pool size.
+
+    Each greenlet can hold a Redis connection while RQ also uses some, so the
+    connection pool needs headroom above the greenlet count.
+    """
+    pool_size = config.get(
+        "worker_greenlets_per_process", DEFAULT_GREENLETS_PER_PROCESS
+    )
+    worker_kwargs = {"log_job_description": False, "pool_size": pool_size}
+    return worker_kwargs, max(50, pool_size + 10)
 
 
 def _checked_startup_timeout(value):
@@ -120,6 +133,7 @@ def main():
         level=LOG_LEVEL,
     )
     attach_json_logger(logging.getLogger())
+    worker_kwargs, max_connections = worker_options(config)
 
     # The environment overrides config files, so an env value was already checked.
     if "worker_startup_timeout" not in os.environ:
@@ -146,6 +160,7 @@ def main():
     connection_args = {
         "url": redis_url,
         "queue_class": LifoQueue,
+        "max_connections": max_connections,
     }
     # Since we are generally running on Heroku, and configuring SSL certificates
     # is challenging, we disable cert requirements on secure connections.
@@ -157,8 +172,8 @@ def main():
     worker = Worker(
         [Queue(name, connection=redis_conn) for name in listen],
         connection=redis_conn,
-        log_job_description=False,
         startup_watchdog=startup_watchdog,
+        **worker_kwargs,
     )
     worker.log_result_lifespan = False
     # Default to log.warn because rq logs extremely verbosely at the info
