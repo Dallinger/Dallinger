@@ -228,13 +228,11 @@ def get_yaml(config, ingress="classic"):
     return yaml.safe_load(yaml_contents)
 
 
-def test_postgres_services_disable_jit(tmp_path):
+def test_postgres_services_disable_jit(tmp_path, stub_config):
     from dallinger.command_line.docker_ssh import DOCKER_COMPOSE_SERVER_TPL
     from dallinger.docker.tools import DockerComposeWrapper
 
-    wrapper = DockerComposeWrapper(
-        {"docker_worker_cpu_shares": 1024}, None, str(tmp_path), str(tmp_path)
-    )
+    wrapper = DockerComposeWrapper(stub_config, None, str(tmp_path), str(tmp_path))
     with mock.patch(
         "dallinger.docker.tools.get_experiment_image_tag", return_value="tag"
     ):
