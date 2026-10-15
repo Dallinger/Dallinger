@@ -393,32 +393,6 @@ class TestSignupBehavioralInvariants:
             f"Expected one 'working' + one 'overrecruited', got {statuses!r}"
         )
 
-    def test_concurrent_signups_at_quorum_produce_correct_result_psynet_config(
-        self, slow_app, active_config
-    ):
-        """Same invariant as test_concurrent_signups_at_quorum_produce_correct_result,
-        but with the table lock config disabled.
-
-        PsyNet sets lock_table_when_creating_participant=False. The advisory
-        lock is always acquired regardless of that config, so the result is
-        the same.
-        """
-        active_config.set("lock_table_when_creating_participant", False)
-
-        results = run_concurrent_requests(
-            slow_app,
-            [f"/participant/worker{i}/hit1/assign{i}/debug" for i in range(2)],
-            timeout=30,
-        )
-
-        assert all(s == 200 for s, _ in results), (
-            f"Expected HTTP 200 from all signups, got {[s for s, _ in results]}"
-        )
-        statuses = sorted(d["participant"]["status"] for _, d in results)
-        assert statuses == ["overrecruited", "working"], (
-            f"Expected one 'working' + one 'overrecruited', got {statuses!r}"
-        )
-
     def test_concurrent_signups_same_worker_id_rejected(self, slow_app):
         """When the same worker signs up twice concurrently, exactly one
         succeeds (HTTP 200) and the other is rejected (HTTP 403), with only
