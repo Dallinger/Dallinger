@@ -36,8 +36,8 @@ sock = Sock(app)
 # Send a ping on the websocket channel every 25 seconds
 app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
 
-#: Every field an envelope carries. ``deliver_direct`` indexes all four.
-ENVELOPE_FIELDS = frozenset({"participant_ids", "scope", "origin", "payload"})
+#: Every field a directed send carries. ``deliver_direct`` indexes all three.
+SEND_FIELDS = frozenset({"participant_ids", "scope", "payload"})
 
 #: Seconds a connection waits for redis to confirm its subscriptions before it
 #: starts relaying. Only an outage reaches it; a healthy subscription is
@@ -339,7 +339,9 @@ class DirectChannel(Channel):
         self.backend = backend
 
     def relay(self, message):
-        """Hand one envelope to the backend, unless this process published it."""
+        """Hand an envelope's sends to the backend, unless this process
+        published it.
+        """
         if message["type"] != "message":
             return
         envelope = parsed_envelope(message.get("data"))
@@ -353,11 +355,17 @@ class DirectChannel(Channel):
             return
         if envelope["origin"] == process_token():
             return
-        self.backend.deliver_direct(envelope)
+        for send in envelope["items"]:
+            self.backend.deliver_direct(send)
 
 
 def parsed_envelope(data):
-    """The directed send ``data`` carries, or ``None`` if it carries no envelope.
+    """The envelope ``data`` carries, or ``None`` if it carries no envelope.
+
+    An envelope holds the ``origin`` that published it and its ``items``, a
+    list of directed sends, so one publish can carry many.
+    :func:`publish_to_participants` publishes one. An item that isn't a send
+    is logged and dropped, and the rest are kept.
 
     Every field ``deliver_direct`` reads is checked here, because this is where
     an envelope enters the process. Neither clients nor
@@ -366,27 +374,44 @@ def parsed_envelope(data):
     exception raised in a relay unwinds
     ``Channel.listen``, which catches redis errors only, and the process is
     then left with no listener until its next addressable connection.
-
-    A participant id has to be a string because it is looked up as a dict key,
-    and an unhashable one raises rather than missing.
     """
     try:
         envelope = json.loads(data)
     except (TypeError, ValueError):
         return None
-    if not isinstance(envelope, dict) or not ENVELOPE_FIELDS <= envelope.keys():
+    if not isinstance(envelope, dict) or not isinstance(envelope.get("origin"), str):
         return None
-    if not isinstance(envelope["origin"], str):
+    if not isinstance(envelope.get("items"), list):
         return None
-    if not isinstance(envelope["payload"], str):
-        return None
-    if envelope["scope"] is not None and not isinstance(envelope["scope"], str):
-        return None
-    if not isinstance(envelope["participant_ids"], list):
-        return None
-    if not all(isinstance(each, str) for each in envelope["participant_ids"]):
-        return None
-    return envelope
+    sends = []
+    for item in envelope["items"]:
+        if _is_send(item):
+            sends.append(item)
+        else:
+            log(
+                "Discarding an unreadable send on the {} channel.".format(
+                    DIRECT_CHANNEL
+                ),
+                level="warning",
+            )
+    return {"origin": envelope["origin"], "items": sends}
+
+
+def _is_send(value):
+    """Whether ``value`` holds every field of a send that ``deliver_direct``
+    reads.
+
+    A participant id has to be a string because it is looked up as a dict key,
+    and an unhashable one raises rather than missing.
+    """
+    return (
+        isinstance(value, dict)
+        and SEND_FIELDS <= value.keys()
+        and isinstance(value["payload"], str)
+        and (value["scope"] is None or isinstance(value["scope"], str))
+        and isinstance(value["participant_ids"], list)
+        and all(isinstance(each, str) for each in value["participant_ids"])
+    )
 
 
 class ChatBackend:
@@ -464,16 +489,18 @@ class ChatBackend:
         if not clients:
             del self.clients_by_participant[addressable_id]
 
-    def deliver_direct(self, envelope):
-        """Send one directed payload to this process's matching connections.
+    def deliver_direct(self, send):
+        """Deliver one directed send to this process's matching connections.
 
-        An envelope carrying a ``scope`` reaches only the connections opened
-        with that same scope. Every process sees every envelope, so naming
-        participants who are connected elsewhere, or nowhere, is ordinary.
+        A send carrying a ``scope`` reaches only the connections opened with
+        that same scope. One without reaches every connection of the
+        participants it names, whatever their scopes. Every process sees
+        every envelope, so naming participants who are connected elsewhere,
+        or nowhere, is ordinary.
         """
-        scope = envelope["scope"]
-        frame = "{}:{}".format(DIRECT_CHANNEL, envelope["payload"])
-        for participant_id in envelope["participant_ids"]:
+        scope = send["scope"]
+        frame = "{}:{}".format(DIRECT_CHANNEL, send["payload"])
+        for participant_id in send["participant_ids"]:
             for client in list(self.clients_by_participant.get(participant_id, ())):
                 if scope is not None and client.scope != scope:
                     continue
@@ -708,12 +735,11 @@ def publish_to_participants(payload, participant_ids, scope=None):
             addressable_ids.append(addressable_id)
     if not addressable_ids:
         return
-    envelope = {
+    send = {
         "participant_ids": addressable_ids,
         # A connection names its scope in a query string, so the value it is
         # compared against is text on that side whatever the caller passed.
         "scope": None if scope is None else str(scope),
-        "origin": process_token(),
         # Serialized here so that every recipient of one send is delivered the
         # same bytes.
         "payload": json.dumps(payload, default=date_handler),
@@ -721,8 +747,10 @@ def publish_to_participants(payload, participant_ids, scope=None):
     # Published first: ``deliver_direct`` only spawns senders, so the order
     # costs nothing, and a redis failure then reaches nobody rather than
     # leaving this process's connections served and every other process's not.
-    redis_conn.publish(DIRECT_CHANNEL, json.dumps(envelope))
-    chat_backend.deliver_direct(envelope)
+    redis_conn.publish(
+        DIRECT_CHANNEL, json.dumps({"origin": process_token(), "items": [send]})
+    )
+    chat_backend.deliver_direct(send)
 
 
 def resolve_participant_id(participant_id):

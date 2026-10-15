@@ -1363,19 +1363,29 @@ def published_envelopes(sockets):
     ]
 
 
-def sockets_envelope_fields():
-    from dallinger.experiment_server import sockets
+def published_sends(sockets):
+    """Every directed send published to redis, from all their envelopes."""
+    return [
+        send
+        for envelope in published_envelopes(sockets)
+        for send in json.loads(envelope)["items"]
+    ]
 
-    return sockets.ENVELOPE_FIELDS
 
-
-#: A well formed envelope from another process, for tests that vary one field.
-DIRECT_ENVELOPE = {
+#: A well formed send, for tests that vary one field.
+DIRECT_SEND = {
     "participant_ids": ["42"],
     "scope": None,
-    "origin": "another process",
     "payload": '{"type": "wake"}',
 }
+
+
+def envelope_of(*sends):
+    """An envelope from another process carrying ``sends``."""
+    return {"origin": "another process", "items": list(sends)}
+
+
+DIRECT_ENVELOPE = envelope_of(DIRECT_SEND)
 
 
 def envelope_message(sockets, envelope):
@@ -1651,7 +1661,7 @@ class TestDirectedSend:
 
         sockets.publish_to_participants({"type": "wake"}, [42], scope=7)
 
-        assert json.loads(published_envelopes(sockets)[0])["scope"] == "7"
+        assert published_sends(sockets)[0]["scope"] == "7"
 
     def test_no_scope_reaches_every_connection(self, sockets, registered):
         scoped = registered("42", scope="page-7")
@@ -1669,10 +1679,11 @@ class TestDirectedSend:
         sockets.publish_to_participants({"type": "wake"}, [42, 43], scope="page-7")
 
         envelope = json.loads(published_envelopes(sockets)[0])
-        assert envelope["participant_ids"] == ["42", "43"]
-        assert envelope["scope"] == "page-7"
         assert envelope["origin"] == sockets.process_token()
-        assert json.loads(envelope["payload"]) == {"type": "wake"}
+        [send] = envelope["items"]
+        assert send["participant_ids"] == ["42", "43"]
+        assert send["scope"] == "page-7"
+        assert json.loads(send["payload"]) == {"type": "wake"}
 
     def test_a_failed_publish_reaches_nobody(self, sockets, registered):
         client = registered("42")
@@ -1692,9 +1703,9 @@ class TestDirectedSend:
         sockets.publish_to_participants({"type": "wake", "token": "abc"}, [42])
         gevent.wait(timeout=1)
 
-        envelope = json.loads(published_envelopes(sockets)[0])
+        [send] = published_sends(sockets)
         frame = client.ws.send.mock_calls[0].args[0]
-        assert frame == "{}:{}".format(sockets.DIRECT_CHANNEL, envelope["payload"])
+        assert frame == "{}:{}".format(sockets.DIRECT_CHANNEL, send["payload"])
 
     def test_a_datetime_in_the_payload_is_serialized(self, sockets, registered):
         client = registered("42")
@@ -1712,7 +1723,7 @@ class TestDirectedSend:
         gevent.wait(timeout=1)
 
         assert client.ws.send.call_count == 1
-        assert json.loads(published_envelopes(sockets)[0])["participant_ids"] == ["42"]
+        assert published_sends(sockets)[0]["participant_ids"] == ["42"]
 
     def test_a_send_no_one_can_receive_publishes_nothing(self, sockets, registered):
         registered("42")
@@ -1729,7 +1740,7 @@ class TestDirectedSend:
         sockets.publish_to_participants({"type": "wake"}, [43])
         gevent.wait(timeout=1)
 
-        assert json.loads(published_envelopes(sockets)[0])["participant_ids"] == ["43"]
+        assert published_sends(sockets)[0]["participant_ids"] == ["43"]
 
 
 class TestDirectChannelListener:
@@ -1738,14 +1749,7 @@ class TestDirectChannelListener:
 
     def test_an_envelope_from_another_process_is_delivered(self, sockets, registered):
         client = registered("42")
-        envelope = json.dumps(
-            {
-                "participant_ids": ["42"],
-                "scope": None,
-                "origin": "another process",
-                "payload": '{"type": "wake"}',
-            }
-        )
+        envelope = json.dumps(DIRECT_ENVELOPE)
 
         self.listener(sockets).relay(envelope_message(sockets, envelope))
         gevent.wait(timeout=1)
@@ -1766,14 +1770,7 @@ class TestDirectChannelListener:
 
     def test_a_scope_is_honoured_across_processes(self, sockets, registered):
         stale = registered("42", scope="page-6")
-        envelope = json.dumps(
-            {
-                "participant_ids": ["42"],
-                "scope": "page-7",
-                "origin": "another process",
-                "payload": '{"type": "wake"}',
-            }
-        )
+        envelope = json.dumps(envelope_of(dict(DIRECT_SEND, scope="page-7")))
 
         self.listener(sockets).relay(envelope_message(sockets, envelope))
         gevent.wait(timeout=1)
@@ -1792,7 +1789,7 @@ class TestDirectChannelListener:
         # Iterating "42" yields "4", which is a participant the send did not
         # name and this process holds a connection for.
         client = registered("4")
-        envelope = dict(DIRECT_ENVELOPE, participant_ids="42")
+        envelope = envelope_of(dict(DIRECT_SEND, participant_ids="42"))
 
         self.listener(sockets).relay(envelope_message(sockets, json.dumps(envelope)))
         gevent.wait(timeout=1)
@@ -1800,19 +1797,19 @@ class TestDirectChannelListener:
         client.ws.send.assert_not_called()
 
     @pytest.mark.parametrize(
-        "field, value",
+        "envelope",
         [
-            # An unhashable id raises on the registry lookup rather than missing.
-            pytest.param("participant_ids", [["42"]], id="an-id-unhashable"),
-            pytest.param("payload", {"type": "wake"}, id="payload-not-text"),
-            pytest.param("origin", 7, id="origin-not-text"),
+            pytest.param(
+                envelope_of(dict(DIRECT_SEND, payload={"type": "wake"})),
+                id="payload-not-text",
+            ),
+            pytest.param(dict(DIRECT_ENVELOPE, origin=7), id="origin-not-text"),
         ],
     )
     def test_an_envelope_that_is_not_one_reaches_nobody(
-        self, sockets, registered, field, value
+        self, sockets, registered, envelope
     ):
         client = registered("42")
-        envelope = dict(DIRECT_ENVELOPE, **{field: value})
 
         self.listener(sockets).relay(envelope_message(sockets, json.dumps(envelope)))
         gevent.wait(timeout=1)
@@ -1833,6 +1830,42 @@ class TestDirectChannelListener:
         # The envelope behind the bad frame still arrived, so the greenlet
         # that reads them did not unwind on the first one.
         client.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+
+    def test_each_send_in_a_batch_reaches_its_own_pages(self, sockets, registered):
+        current = registered("42", scope="page-7")
+        stale = registered("42", scope="page-6")
+        other = registered("43", scope="page-2")
+        batch = envelope_of(
+            dict(DIRECT_SEND, scope="page-7", payload="for 42"),
+            dict(DIRECT_SEND, participant_ids=["43"], payload="for 43"),
+        )
+
+        self.listener(sockets).relay(envelope_message(sockets, json.dumps(batch)))
+        gevent.wait(timeout=1)
+
+        current.ws.send.assert_called_once_with("dallinger_direct:for 42")
+        stale.ws.send.assert_not_called()
+        other.ws.send.assert_called_once_with("dallinger_direct:for 43")
+
+    def test_an_unreadable_send_in_a_batch_leaves_the_listener_reading(
+        self, sockets, pubsub, registered
+    ):
+        batch = envelope_of(
+            dict(DIRECT_SEND, participant_ids=[["42"]]),
+            dict(DIRECT_SEND, payload='{"type": "view"}'),
+        )
+        pubsub.listen.return_value = [
+            envelope_message(sockets, json.dumps(batch)),
+            envelope_message(sockets, json.dumps(DIRECT_ENVELOPE)),
+        ]
+
+        client = registered("42")
+        gevent.wait(timeout=1)
+
+        assert [call.args[0] for call in client.ws.send.mock_calls] == [
+            'dallinger_direct:{"type": "view"}',
+            'dallinger_direct:{"type": "wake"}',
+        ]
 
     def test_a_subscribe_confirmation_is_not_an_envelope(self, sockets, registered):
         client = registered("42")
@@ -1928,12 +1961,32 @@ class TestProcessToken:
 
 class TestParsedEnvelope:
     def test_a_well_formed_envelope_comes_back(self, sockets):
-        assert sockets.parsed_envelope(json.dumps(DIRECT_ENVELOPE)) == DIRECT_ENVELOPE
-
-    def test_a_scope_of_text_comes_back(self, sockets):
-        envelope = dict(DIRECT_ENVELOPE, scope="page-7")
+        envelope = envelope_of(DIRECT_SEND, dict(DIRECT_SEND, scope="page-7"))
 
         assert sockets.parsed_envelope(json.dumps(envelope)) == envelope
+
+    def test_unreadable_sends_are_dropped_and_the_rest_kept(self, sockets):
+        first = dict(DIRECT_SEND, scope="page-7")
+        second = dict(DIRECT_SEND, participant_ids=["43"])
+        items = [first, dict(DIRECT_SEND, scope=7), second, "not a send", {}]
+
+        with patch.object(sockets, "log") as log:
+            parsed = sockets.parsed_envelope(json.dumps(envelope_of(*items)))
+
+        assert parsed == envelope_of(first, second)
+        assert log.call_count == 3
+
+    @pytest.mark.parametrize(
+        "envelope",
+        [
+            pytest.param({"items": [DIRECT_SEND]}, id="no-origin"),
+            pytest.param(dict(DIRECT_ENVELOPE, origin=7), id="origin-not-text"),
+            pytest.param({"origin": "another process"}, id="no-items"),
+            pytest.param(dict(DIRECT_ENVELOPE, items=DIRECT_SEND), id="not-a-list"),
+        ],
+    )
+    def test_an_envelope_needs_an_origin_and_a_list_of_items(self, sockets, envelope):
+        assert sockets.parsed_envelope(json.dumps(envelope)) is None
 
     @pytest.mark.parametrize(
         "data",
@@ -1949,31 +2002,29 @@ class TestParsedEnvelope:
     def test_a_frame_carrying_no_envelope_is_refused(self, sockets, data):
         assert sockets.parsed_envelope(data) is None
 
-    @pytest.mark.parametrize("field", sorted(sockets_envelope_fields()))
-    def test_an_envelope_missing_a_field_is_refused(self, sockets, field):
-        envelope = dict(DIRECT_ENVELOPE)
-        del envelope[field]
+    @pytest.mark.parametrize("field", ["participant_ids", "payload", "scope"])
+    def test_a_send_missing_a_field_is_dropped(self, sockets, field):
+        send = dict(DIRECT_SEND)
+        del send[field]
 
-        assert sockets.parsed_envelope(json.dumps(envelope)) is None
+        assert sockets.parsed_envelope(json.dumps(envelope_of(send)))["items"] == []
 
     @pytest.mark.parametrize(
         "field, value",
         [
             pytest.param("participant_ids", "42", id="ids-not-a-list"),
             pytest.param("participant_ids", [42], id="an-id-not-text"),
-            pytest.param("participant_ids", [["42"]], id="an-id-unhashable"),
             pytest.param("payload", {"type": "wake"}, id="payload-not-text"),
             pytest.param("payload", None, id="payload-null"),
-            pytest.param("origin", 7, id="origin-not-text"),
             pytest.param("scope", 7, id="scope-not-text"),
         ],
     )
-    def test_an_envelope_with_a_field_of_the_wrong_type_is_refused(
+    def test_a_send_with_a_field_of_the_wrong_type_is_dropped(
         self, sockets, field, value
     ):
-        envelope = dict(DIRECT_ENVELOPE, **{field: value})
+        envelope = envelope_of(dict(DIRECT_SEND, **{field: value}))
 
-        assert sockets.parsed_envelope(json.dumps(envelope)) is None
+        assert sockets.parsed_envelope(json.dumps(envelope))["items"] == []
 
 
 class TestReservedChannels:
