@@ -41,26 +41,33 @@ worker.main()
 """
 
 
-def run_worker(tmp_path, work_body="pass", startup_timeout="1", before_main=""):
+def run_worker(
+    tmp_path, work_body="pass", startup_timeout="1", before_main="", extra_config=""
+):
     """Run the worker's ``main`` with ``GeventWorker.work`` replaced by ``work_body``.
 
     ``work_body`` can call the original as ``real_work``. The worker listens
     on a fresh queue, so it doesn't pick up other tests' jobs.
+    ``startup_timeout=None`` leaves ``worker_startup_timeout`` out of the
+    environment; ``extra_config`` is appended to the experiment's config.txt.
     """
     experiment_dir = shutil.copytree(EXPERIMENT_DIR, tmp_path / "experiment")
+    with open(experiment_dir / "config.txt", "a") as config_txt:
+        config_txt.write(extra_config)
     script = WORKER_SCRIPT.format(
         queue=f"test_worker_{uuid.uuid4().hex}",
         work_body=textwrap.indent(textwrap.dedent(work_body).strip(), " " * 8),
         before_main=before_main,
     )
+    env = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
+    if startup_timeout is None:
+        env.pop("worker_startup_timeout", None)
+    else:
+        env["worker_startup_timeout"] = startup_timeout
     return subprocess.run(
         [sys.executable, "-c", script],
         cwd=experiment_dir,
-        env={
-            **os.environ,
-            "PYTHONPATH": str(REPO_ROOT),
-            "worker_startup_timeout": startup_timeout,
-        },
+        env=env,
         capture_output=True,
         text=True,
         timeout=60,
@@ -74,6 +81,18 @@ def test_worker_that_never_registers_exits_after_startup_timeout(tmp_path):
         "Worker will exit if it hasn't registered with RQ within 5 s" in result.stderr
     )
     assert "hasn't registered with RQ within 5 s; exiting" in result.stderr
+
+
+def test_startup_timeout_from_config_txt(tmp_path):
+    result = run_worker(
+        tmp_path,
+        "time.sleep(30)",
+        startup_timeout=None,
+        extra_config="worker_startup_timeout = 1\n",
+    )
+    assert result.returncode == 1
+    assert "hasn't registered with RQ within 1 s; exiting" in result.stderr
+    assert "Raise worker_startup_timeout" in result.stderr
 
 
 def test_startup_timeout_from_environment_covers_config_loading(tmp_path):

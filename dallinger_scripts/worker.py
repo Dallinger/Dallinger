@@ -63,7 +63,8 @@ def _exit_unless_registered_within(timeout, started):
         from gevent.util import print_run_info
 
         print(
-            f"Worker hasn't registered with RQ within {timeout} s; exiting.",
+            f"Worker hasn't registered with RQ within {timeout} s; exiting. "
+            "Raise worker_startup_timeout if start-up is legitimately slower.",
             file=sys.stderr,
         )
         print_run_info(file=sys.stderr)
@@ -119,7 +120,13 @@ def main():
     )
     attach_json_logger(logging.getLogger())
 
-    configured_timeout = _checked_startup_timeout(config.get("worker_startup_timeout"))
+    # The environment overrides config files, so an env value was already checked.
+    if "worker_startup_timeout" not in os.environ:
+        configured_timeout = _checked_startup_timeout(
+            config.get("worker_startup_timeout")
+        )
+    else:
+        configured_timeout = startup_timeout
     if configured_timeout != startup_timeout:
         if startup_watchdog is not None:
             startup_watchdog.kill()
