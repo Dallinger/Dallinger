@@ -41,6 +41,10 @@ import os
 import threading
 from unittest import mock
 
+import gevent
+import gevent.event
+import psycogreen.gevent
+import psycopg2.extensions
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
@@ -50,6 +54,19 @@ from dallinger import db, models
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def psycogreen_active():
+    """Apply psycogreen for the duration of one test, then restore blocking mode.
+
+    psycogreen works by registering a gevent-aware wait callback with psycopg2.
+    Setting the callback to None restores synchronous blocking behavior, so this
+    fixture is safe to use in a test suite that otherwise uses OS threads.
+    """
+    psycogreen.gevent.patch_psycopg()
+    yield
+    psycopg2.extensions.set_wait_callback(None)
 
 
 @pytest.fixture
@@ -119,6 +136,105 @@ def run_concurrent_requests(app, urls, timeout=15):
     assert len(results) == len(urls)
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Gevent cooperative-scheduling regression suite
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.usefixtures("db_session")
+@pytest.mark.slow
+class TestGeventCooperativeness:
+    """Verify that psycopg2 lock waits are gevent-cooperative under psycogreen.
+
+    These tests use gevent greenlets directly (no monkey.patch_all) and the
+    psycogreen_active fixture, which sets psycopg2's wait callback for one test
+    then restores blocking mode. The OS-thread-based tests in
+    TestSignupBehavioralInvariants are unaffected.
+    """
+
+    def test_post_worker_init_applies_psycogreen(self):
+        """post_worker_init registers psycogreen's wait callback with psycopg2.
+
+        Catches regressions where psycogreen is removed from gunicorn.py —
+        the gevent cooperative-scheduling test passes regardless because it
+        applies psycogreen via fixture; this test catches the deployment gap.
+        """
+        from dallinger.experiment_server.gunicorn import post_worker_init
+
+        try:
+            post_worker_init(worker=None)
+            assert psycopg2.extensions.get_wait_callback() is not None, (
+                "post_worker_init must register psycogreen's wait callback so "
+                "that psycopg2 lock waits are gevent-cooperative in gunicorn workers."
+            )
+        finally:
+            psycopg2.extensions.set_wait_callback(None)
+
+    def test_advisory_lock_wait_does_not_block_other_greenlets(self, psycogreen_active):
+        """While one greenlet waits for the advisory lock, others make progress.
+
+        Without psycogreen, pg_advisory_xact_lock parks the OS thread. No other
+        greenlet in the process can run until PostgreSQL responds. With psycogreen
+        the wait is handed to gevent's hub, so unrelated greenlets proceed normally.
+
+        This is the gevent analogue of test_signup_not_blocked_by_unrelated_participant_update:
+        that test uses OS threads and a row lock; this one uses greenlets and the
+        advisory lock itself.
+        """
+        import dallinger.experiment_server.experiment_server as server_mod
+
+        lock_held = gevent.event.Event()
+        release_lock = gevent.event.Event()
+        unrelated_ran = gevent.event.Event()
+
+        def hold_advisory_lock():
+            with db.engine.connect() as conn:
+                with conn.begin():
+                    conn.execute(
+                        text("SELECT pg_advisory_xact_lock(:key)"),
+                        {"key": server_mod.PARTICIPANT_SIGNUP_LOCK_KEY},
+                    )
+                    lock_held.set()
+                    release_lock.wait()
+
+        def wait_for_advisory_lock():
+            with db.engine.connect() as conn:
+                with conn.begin():
+                    conn.execute(text("SET LOCAL lock_timeout = '10s'"))
+                    conn.execute(
+                        text("SELECT pg_advisory_xact_lock(:key)"),
+                        {"key": server_mod.PARTICIPANT_SIGNUP_LOCK_KEY},
+                    )
+
+        def unrelated_work():
+            # A lightweight greenlet that should be schedulable even while
+            # another greenlet is blocked waiting for the advisory lock.
+            gevent.sleep(0)
+            unrelated_ran.set()
+
+        holder = gevent.spawn(hold_advisory_lock)
+        assert lock_held.wait(timeout=5), "Lock-holder greenlet did not start"
+
+        waiter = gevent.spawn(wait_for_advisory_lock)
+        unrelated = gevent.spawn(unrelated_work)
+
+        # Give the event loop a moment to run unrelated_work.
+        # Without psycogreen: waiter's pg_advisory_xact_lock call parks the OS
+        # thread; unrelated never gets scheduled.
+        # With psycogreen: waiter suspends cooperatively; unrelated runs.
+        gevent.sleep(0.1)
+
+        assert unrelated_ran.is_set(), (
+            "An unrelated greenlet was blocked while another greenlet waited "
+            "for the advisory lock. psycogreen must be active so that "
+            "pg_advisory_xact_lock suspends the greenlet cooperatively rather "
+            "than parking the OS thread."
+        )
+
+        release_lock.set()
+        gevent.joinall([holder, waiter, unrelated], timeout=10)
 
 
 # ---------------------------------------------------------------------------
