@@ -292,6 +292,25 @@
   UTF-8 is dropped with a warning instead of ending its channel's listener
   and leaving the channel's clients without messages, and an error while closing a channel's
   pubsub is logged instead of keeping the stopped channel registered.
+- docker-ssh deploys now need an experiment image built with this Dallinger,
+  because they check the app's ``/health``, which Dallinger 12.4.0 and older
+  lack. Rebuild older images before deploying them. The web image also needs
+  ``curl`` (the Dallinger and PsyNet images have it).
+
+### Fixed
+
+- docker-ssh deploys no longer fail to launch when a new Cloudflare tunnel
+  takes several minutes to register. After checking the app's ``/health``
+  from inside the server, the deploy waits up to 7 minutes for the public
+  ``/health`` to answer 2xx, so recruitment does not open while participants
+  would see an error page. It then launches from inside the server with
+  ``curl`` in the web container, so the app still records its public URL. If
+  the URL does not answer 2xx in time, or redirects twice in a row (a login
+  such as Cloudflare Access, which waiting does not remove), nothing is
+  launched and the deploy prints how to check it, launch by hand and destroy
+  the app. A launch request that may
+  have reached the app is never sent again; the deploy says recruitment may
+  have started.
 - A WebSocket connection waits for redis to confirm its channel subscription
   before it relays anything. A process subscribes to a channel the first time
   one of its connections names it, and the publish travels on a different redis
