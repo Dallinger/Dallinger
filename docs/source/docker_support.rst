@@ -182,6 +182,10 @@ dashboard password, so it is private (mode ``0600``) too. ``--update`` keeps the
 password.
 
 ``--ingress classic`` keeps host Caddy and the shared server Postgres.
+Each classic app's pgbouncer may open up to 20 Postgres connections, and all
+classic apps on a server share that Postgres's ~97 non-superuser connection
+slots, so a few busy classic apps can exhaust it; use ``--ingress cloudflare``
+for an app that needs its own Postgres.
 ``--ingress cloudflare`` starts an isolated Compose stack and a per-app
 tunnel; ``servers add --default-ingress cloudflare`` makes it a server's
 default. Cloudflare apps don't block a classic root-domain deploy.
@@ -194,7 +198,9 @@ deploy stops before building the image; use ``--ingress cloudflare`` for such
 servers. ``--update`` skips this check, and loopback and ``0.0.0.0`` addresses
 are allowed. If the server has a private address inside its network but its
 public DNS name points at a public IP that forwards ports 80 and 443 to it,
-pass ``--allow-private-ip`` to deploy with classic ingress anyway.
+pass ``--allow-private-ip`` to deploy with classic ingress anyway. The deploy
+then only checks that the experiment hostname resolves, without comparing it
+with the SSH host's private address.
 
 The tunnel proxies to the experiment web service. Set the non-secret
 ``cloudflare_account_id``, ``cloudflare_zone_id``, and ``cloudflare_dns_zone``

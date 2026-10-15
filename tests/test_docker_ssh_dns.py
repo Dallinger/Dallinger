@@ -34,6 +34,25 @@ def test_dns_check_passes_when_hostname_matches_server():
         )
 
 
+def test_dns_check_with_allow_private_ip_only_requires_hostname_to_resolve(capsys):
+    with mock.patch.object(
+        docker_ssh_module,
+        "gethostbyname_ex",
+        _ipv4_lookup({"lab-pc": "10.0.0.5", "app.lab.example.com": "203.0.113.7"}),
+    ):
+        docker_ssh_module._check_experiment_hostname_dns(
+            "lab-pc", "app.lab.example.com", allow_private_ip=True
+        )
+        with pytest.raises(click.Abort):
+            docker_ssh_module._check_experiment_hostname_dns(
+                "lab-pc", "missing.lab.example.com", allow_private_ip=True
+            )
+
+    output = capsys.readouterr().out
+    assert "not compared with the SSH host's address" in output
+    assert "public IP that forwards ports 80 and 443" in output
+
+
 def test_dns_check_reports_unresolved_hostname_instead_of_true(capsys):
     with mock.patch.object(
         docker_ssh_module,
