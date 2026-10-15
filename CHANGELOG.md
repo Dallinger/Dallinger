@@ -269,6 +269,16 @@
   takes the colour helper from ``rq.logutils``. The unused ``main()`` in
   ``dallinger.heroku.rq_gevent_worker``, which also imported ``rq.cli``, is
   removed; the ``dallinger_heroku_worker`` command is unchanged.
+- Redis calls no longer fail with ``MaxConnectionsError`` once a process has
+  100 connections in use, redis-py's default limit since 8.0. Under load,
+  for example many participants waiting on their own websocket channel,
+  ``connect_to_redis()`` now waits up to 20 seconds for a free connection in
+  a pool of 1,000. Websocket channel subscriptions use a separate pool, so
+  many open channels no longer hold up publishing, job queueing and other
+  Redis calls in the same process. A websocket message that is not valid
+  UTF-8 is dropped with a warning instead of ending its channel's listener
+  and leaving the channel's clients without messages, and an error while closing a channel's
+  pubsub is logged instead of keeping the stopped channel registered.
 - A WebSocket connection waits for redis to confirm its channel subscription
   before it relays anything. A process subscribes to a channel the first time
   one of its connections names it, and the publish travels on a different redis

@@ -45,10 +45,11 @@ def redis(pubsub):
 
 
 @pytest.fixture
-def sockets(redis):
+def sockets(redis, monkeypatch):
     from dallinger.experiment_server import sockets
 
-    sockets.redis_conn = redis
+    monkeypatch.setattr(sockets, "redis_conn", redis)
+    monkeypatch.setattr(sockets, "pubsub_conn", redis)
     # use a separate ChatBackend for each test
     sockets.chat_backend = sockets.ChatBackend()
     sockets._process_experiment = None
@@ -176,7 +177,7 @@ class TestChannel:
         pubsub.subscribe.assert_called_once_with([b"custom"])
 
     def test_listen(self, sockets, mockclient):
-        sockets.redis_conn.pubsub.return_value = pubsub = Mock()
+        sockets.pubsub_conn.pubsub.return_value = pubsub = Mock()
         pubsub.listen.return_value = [
             {"type": "message", "channel": b"quorum", "data": b"Calloo! Callay!"}
         ]
@@ -299,6 +300,38 @@ class TestChannel:
         channel.stop()
 
         pubsub.close.assert_called_once_with()
+
+    @pytest.mark.timeout(10)
+    def test_stop_tolerates_a_failing_close(self, sockets, chat, pubsub, mockclient):
+        errors = []
+        with patch.object(
+            gevent.get_hub(), "handle_error", lambda *args: errors.append(args)
+        ):
+            pubsub.listen.side_effect = parking_listen
+            pubsub.close.side_effect = OSError("already gone")
+            channel = chat.subscribe(mockclient, "custom")
+            gevent.sleep(0)
+            greenlet = channel.greenlet
+
+            chat.unsubscribe(mockclient)
+            gevent.sleep(0)
+
+        assert greenlet.dead and errors == []
+        assert "custom" not in chat.channels
+
+    @pytest.mark.timeout(10)
+    def test_listen_skips_messages_that_are_not_utf8(self, sockets, pubsub, mockclient):
+        pubsub.listen.return_value = [
+            {"type": "message", "channel": b"custom", "data": b"\xff"},
+            {"type": "message", "channel": b"custom", "data": b"after"},
+        ]
+        channel = sockets.Channel("custom")
+        channel.subscribe(mockclient)
+
+        channel.start()
+        gevent.wait(timeout=1)
+
+        mockclient.send.assert_called_once_with("custom:after")
 
     def test_one_traceback_per_outage(self, sockets, pubsub, mockclient):
         def flaky_stream():
@@ -428,7 +461,7 @@ class TestChannel:
         monkeypatch.setattr(
             gevent.get_hub(), "handle_error", lambda *args: errors.append(args)
         )
-        sockets.redis_conn.pubsub.return_value = pubsub = Mock()
+        sockets.pubsub_conn.pubsub.return_value = pubsub = Mock()
         pubsub.listen.return_value = [
             {"type": "message", "channel": b"quorum", "data": b"Calloo! Callay!"}
         ]
