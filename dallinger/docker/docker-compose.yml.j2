@@ -63,6 +63,11 @@ services:
     image: {{ experiment_image }}
     user: "${UID}:${GID}"
     command: dallinger_heroku_web
+    # Each open websocket holds file descriptors in one gunicorn process.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     depends_on:
       postgresql:
         condition: service_healthy

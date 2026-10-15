@@ -248,6 +248,16 @@ def test_worker_processes_get_low_cpu_weight(n, shares):
     assert "cpu_shares" not in services["web"]
 
 
+WEB_NOFILE = {"nofile": {"soft": 65536, "hard": 65536}}
+
+
+@pytest.mark.parametrize("ingress", ["classic", "cloudflare"])
+def test_web_container_can_hold_many_open_files(ingress):
+    """Idle websockets must not exhaust the web container's file descriptors."""
+    services = get_yaml({}, ingress=ingress)["services"]
+    assert services["web"]["ulimits"] == WEB_NOFILE
+
+
 def make_experiment_tmp_dir(tmp_path, name="exp"):
     """Create a minimal assembled experiment directory for tag hashing tests."""
     exp_dir = tmp_path / name
@@ -277,6 +287,17 @@ def test_local_compose_runs_low_weight_worker_replicas(
     assert services["worker"]["deploy"]["replicas"] == replicas
     assert services["worker"]["cpu_shares"] == shares
     assert "cpu_shares" not in services["web"]
+
+
+def test_local_web_container_can_hold_many_open_files(tmp_path, stub_config):
+    from dallinger.docker.tools import DockerComposeWrapper
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    DockerComposeWrapper(
+        stub_config, mock.Mock(), str(tmp_path), str(exp_dir)
+    ).copy_docker_compose_files()
+    services = yaml.safe_load((exp_dir / "docker-compose.yml").read_text())["services"]
+    assert services["web"]["ulimits"] == WEB_NOFILE
 
 
 def test_docker_worker_processes_falls_back_to_num_dynos_worker(stub_config):

@@ -258,6 +258,13 @@
 
 ### Fixed
 
+- The web container in `dallinger docker` and `dallinger docker-ssh`
+  deployments may now hold 65,536 open files per process instead of the
+  Docker default of 1,024. Each open WebSocket connection holds a few file
+  descriptors in one gunicorn process, and connections do not spread evenly
+  across processes, so about 2,000 idle connections could exhaust one
+  process's limit, failing new connections, `/health` and
+  `/dashboard/login` with `OSError: [Errno 24] Too many open files`.
 - RQ workers no longer hang at start-up about once in 75 to 100 starts.
   The worker imported ``rq.cli`` to colour one log line, which loaded
   ``croniter``; at import time ``croniter`` runs ``file`` in a subprocess,
