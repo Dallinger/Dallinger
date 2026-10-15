@@ -17,6 +17,7 @@ import subprocess
 import urllib.error
 import urllib.parse
 import urllib.request
+from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
 API_BASE = "https://api.cloudflare.com/client/v4"
@@ -37,6 +38,32 @@ PUBLIC_RESOURCE_KEYS = (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class TunnelDeletion:
+    """Outcome of :func:`delete_experiment_tunnel`; truthy when the tunnel is gone.
+
+    Attributes
+    ----------
+    ok : bool
+        True when the tunnel is gone or was already absent.
+    tunnel_name : str or None
+        Name of the tunnel this call deleted, if any.
+    hostname : str or None
+        Hostname whose DNS record this call deleted, if any.
+    skipped_tunnel_name : str or None
+        Name of a same-named tunnel left in place because it belongs to
+        another deploy, if any.
+    """
+
+    ok: bool
+    tunnel_name: str | None = None
+    hostname: str | None = None
+    skipped_tunnel_name: str | None = None
+
+    def __bool__(self) -> bool:
+        return self.ok
 
 
 class CloudflareError(RuntimeError):
@@ -89,12 +116,22 @@ def ingress_payload(hostname: str) -> dict[str, Any]:
     }
 
 
+def config_str(config: Any | None, key: str) -> str:
+    """Return a config value as a stripped string, or ``""`` if it is unset."""
+    if config is None:
+        return ""
+    return str(config.get(key, "") or "").strip()
+
+
 def load_api_token(config: Any | None = None) -> str:
-    """Load the Cloudflare API token from env, Dallinger config, or macOS Keychain."""
-    token = os.environ.get("CLOUDFLARE_API_TOKEN") or (
-        config.get("cloudflare_api_token", "") if config is not None else ""
+    """Load the Cloudflare API token from env, Dallinger config, or macOS Keychain.
+
+    The default Keychain item must belong to the current user's account. An
+    item named by ``cloudflare_keychain_service`` matches under any account.
+    """
+    token = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip() or config_str(
+        config, "cloudflare_api_token"
     )
-    token = str(token or "").strip()
     if token:
         return token
     security = shutil.which("security")
@@ -102,18 +139,15 @@ def load_api_token(config: Any | None = None) -> str:
         raise CloudflareError(
             "Set CLOUDFLARE_API_TOKEN in the environment before a Cloudflare docker-ssh deploy."
         )
-    account = os.environ.get("USER") or getpass.getuser()
+    service = config_str(config, "cloudflare_keychain_service")
+    if service:
+        account_args = []
+    else:
+        service = KEYCHAIN_SERVICE
+        account_args = ["-a", os.environ.get("USER") or getpass.getuser()]
     try:
         result = subprocess.run(
-            [
-                security,
-                "find-generic-password",
-                "-a",
-                account,
-                "-s",
-                KEYCHAIN_SERVICE,
-                "-w",
-            ],
+            [security, "find-generic-password", *account_args, "-s", service, "-w"],
             text=True,
             capture_output=True,
             check=True,
@@ -121,7 +155,7 @@ def load_api_token(config: Any | None = None) -> str:
     except subprocess.CalledProcessError as exc:
         raise CloudflareError(
             "CLOUDFLARE_API_TOKEN is unset and the Keychain item "
-            f"{KEYCHAIN_SERVICE!r} could not be read."
+            f"{service!r} could not be read."
         ) from exc
     token = result.stdout.strip()
     if not token:
@@ -337,7 +371,7 @@ def delete_experiment_tunnel(
     api_token: str,
     own_tunnel_id: str | None = None,
     request_func: RequestFunc = request,
-) -> bool:
+) -> TunnelDeletion:
     """Delete the experiment CNAME then the named tunnel. Idempotent if already gone.
 
     ``own_tunnel_id`` is the tunnel this server recorded for the app. When it
@@ -349,17 +383,22 @@ def delete_experiment_tunnel(
 
     Returns
     -------
-    bool
-        True when the tunnel is gone or was already absent. False when DNS or
-        tunnel deletion failed and the named tunnel may still exist.
+    TunnelDeletion
+        Truthy when the tunnel is gone or was already absent; falsy when DNS or
+        tunnel deletion failed and the named tunnel may still exist. It also
+        records which tunnel and DNS record this call deleted, and any
+        same-named tunnel it left for another deploy.
     """
     host = public_hostname(app, dns_zone)
     name = tunnel_name_for_app(app)
     dns_failed = False
+    deleted_host = None
     # Look the tunnel up by name so a re-run after it was deleted is a no-op.
     tunnels = list_tunnels(account_id, name, api_token, request_func=request_func)
     named_id = tunnels[0]["id"] if tunnels else None
+    skipped = None
     if own_tunnel_id and named_id and named_id != own_tunnel_id:
+        skipped = name
         logger.warning(
             "Tunnel %s now belongs to another deploy (id %s); leaving it in place",
             name,
@@ -380,6 +419,7 @@ def delete_experiment_tunnel(
                 api_token,
                 None,
             )
+            deleted_host = host
         except CloudflareError as exc:
             logger.warning(
                 "Could not delete Cloudflare DNS record %s for %s: %s",
@@ -394,7 +434,7 @@ def delete_experiment_tunnel(
             tunnel_id,
             host,
         )
-        return False
+        return TunnelDeletion(False, hostname=deleted_host)
     # Delete only a tunnel the name lookup still finds, so re-running destroy
     # after the tunnel is gone succeeds instead of failing on a 404.
     tunnel_id = named_id
@@ -426,5 +466,6 @@ def delete_experiment_tunnel(
                 host,
                 exc,
             )
-            return False
-    return True
+            return TunnelDeletion(False, hostname=deleted_host)
+        return TunnelDeletion(True, tunnel_name=name, hostname=deleted_host)
+    return TunnelDeletion(True, hostname=deleted_host, skipped_tunnel_name=skipped)
