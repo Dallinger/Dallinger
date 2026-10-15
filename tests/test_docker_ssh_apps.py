@@ -974,6 +974,7 @@ def test_deploy_validates_config_options_before_deploying(monkeypatch):
     config._reset(register_defaults=True)
     config.ready = True
     monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
+    monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab"}})
     checks = mock.Mock()
     monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", checks)
     with pytest.raises(ValueError, match="non-negative"):
