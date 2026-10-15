@@ -1,6 +1,7 @@
 import json
 import multiprocessing
 import signal
+import sys
 import threading
 import time
 
@@ -71,6 +72,16 @@ class TestFailure:
             ("3", "page"): ("failed", None, {"for": "3", "log": log(result)}),
             ("4", "page"): ("failed", None, {"for": "4", "log": log(result)}),
         }
+
+    def test_game_code_calling_sys_exit_fails_only_its_session(self):
+        class Exiting(Crashing):
+            def apply(self, state, player_id, message, now, sent):
+                sys.exit(3)
+
+        result = play(Exiting(), started(Crashing()), [message(1, "1", "a")], 1)
+
+        assert "SystemExit: 3" in error(result)
+        assert result.ended["outcome"] == {"reason": FAILED, "moves": 2}
 
     @pytest.mark.parametrize(
         "method, outcome, view",
@@ -240,6 +251,40 @@ class TestFailure:
         views = views_by_page(result)
         assert set(views) == {("1", "page"), ("2", "page")}
         assert views["1", "page"]["last_processed"] == 1
+
+    def test_a_failed_pass_runs_the_hook_before_each_time_limit(self):
+        """A failed pass gets the time limit again for outcome and the final
+        views.
+        """
+        calls = []
+
+        run_pass(
+            Crashing(),
+            started(Crashing()),
+            [message(1, "1", "crash")],
+            1,
+            CLOCK,
+            before_each_time_limit=lambda: calls.append(1),
+        )
+
+        assert len(calls) == 3
+
+    def test_a_session_failed_without_a_pass_runs_the_hook_before_each_time_limit(
+        self,
+    ):
+        calls = []
+
+        fail_session(
+            TurnTally(),
+            started(TurnTally()),
+            [],
+            1,
+            CLOCK,
+            RuntimeError("lost entries"),
+            before_each_time_limit=lambda: calls.append(1),
+        )
+
+        assert len(calls) == 2
 
     def test_entries_that_cannot_be_read_are_left_out_of_the_failure(self):
         game = TurnTally()

@@ -38,6 +38,11 @@ MAX_DURATION = "max_duration"
 #: The reason passed to :meth:`RealtimeGame.outcome` when the session failed.
 FAILED = "failed"
 
+#: The largest :attr:`RealtimeGame.time_limit` allowed, in seconds. Game code
+#: can run for up to twice its limit before the runner gives up on it, and
+#: that has to end before the runner's claims on its sessions expire.
+MAX_TIME_LIMIT = 1
+
 # The list effects are queued in while the session core calls game code.
 queued_effects = ContextVar("queued_effects")
 
@@ -87,12 +92,13 @@ class RealtimeGame(ABC):
     :meth:`queue_effect` for anything that needs it.
 
     A session fails if a method raises, other than :meth:`apply` raising
-    :class:`Reject`, or returns a value that isn't JSON, or if its methods run
-    past :attr:`time_limit`. The runner applies messages and ticks in
-    batches, and a failure discards the whole batch: the session goes back to
-    its state from before the batch, the batch's effects are dropped, and the
-    session ends there with the reason :data:`FAILED`. The batch's messages
-    are still saved, marked as failed. Other sessions carry on.
+    :class:`Reject`, calls ``sys.exit()``, or returns a value that isn't
+    JSON, or if its methods run past :attr:`time_limit`. The runner applies
+    messages and ticks in batches, and a failure discards the whole batch:
+    the session goes back to its state from before the batch, the batch's
+    effects are dropped, and the session ends there with the reason
+    :data:`FAILED`. The batch's messages are still saved, marked as failed.
+    Other sessions carry on.
     """
 
     #: The websocket channel the game's pages send messages on. It can't
@@ -127,12 +133,15 @@ class RealtimeGame(ABC):
     #: never finishes. A failed session gets the same time again for
     #: :meth:`outcome`, and again for its final views. A runner plays all of
     #: its sessions in turn, so a slow session holds up the others. At most
-    #: 60.
+    #: :data:`MAX_TIME_LIMIT`.
     #:
     #: Code that catches every exception in a loop, with a bare ``except:``,
     #: can't be stopped this way. If it's still running after twice the
     #: limit, the runner process exits, and other runners carry on its
-    #: sessions.
+    #: sessions. A session that keeps stopping its runners this way fails
+    #: once it has changed runners
+    #: :data:`~dallinger.realtime.runner.MAX_HANDOVERS` times within
+    #: :data:`~dallinger.realtime.runner.HANDOVER_WINDOW` seconds.
     time_limit = 1
 
     #: The format of the game type's state, saved with each session. Change it
@@ -315,9 +324,11 @@ def _check_game(name, game):
         raise ValueError(
             "{}'s message_burst must be a whole number, 1 or more.".format(name)
         )
-    if not is_number(game.time_limit) or not 0 < game.time_limit <= 60:
+    if not is_number(game.time_limit) or not 0 < game.time_limit <= MAX_TIME_LIMIT:
         raise ValueError(
-            "{}'s time_limit must be a positive number, at most 60.".format(name)
+            "{}'s time_limit must be a positive number, at most {}.".format(
+                name, MAX_TIME_LIMIT
+            )
         )
     # Saved state is compared with this after a JSON round trip, which turns a
     # tuple into a list that never matches.

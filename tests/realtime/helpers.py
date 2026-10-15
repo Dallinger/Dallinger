@@ -1,8 +1,8 @@
-"""Game types and entry builders shared by the session core's tests."""
+"""Game types, entry builders and store readers for the real-time tests."""
 
 import json
 
-from dallinger.realtime import RealtimeGame, Reject
+from dallinger.realtime import RealtimeGame, Reject, store
 from dallinger.realtime.core import new_session, run_pass
 from dallinger.realtime.game import FAILED
 
@@ -101,6 +101,18 @@ def socket_entry(kind, time, participant, scope, socket):
         "scope": scope,
         "socket": "{}/{}".format(participant, scope) if socket is None else socket,
     }
+
+
+def add(session_id, entry):
+    """Add an entry to the session's stream, as a socket would."""
+    store.add_entry(
+        session_id,
+        {key: value for key, value in entry.items() if key not in ("time", "received")},
+    )
+
+
+def handovers(session_id):
+    return store.redis_conn.zcard(store.session_key(session_id, "handovers"))
 
 
 def started(game, members=("1", "2"), bots=()):

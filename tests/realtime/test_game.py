@@ -39,7 +39,7 @@ class TestValidGameTypes:
             {"max_messages_per_second": 0.5},
             {"message_burst": 1},
             {"time_limit": 0.01},
-            {"time_limit": 60},
+            {"time_limit": 1},
             {"state_version": "2b"},
         ],
     )
@@ -91,7 +91,7 @@ class TestInvalidGameTypes:
             ({"message_burst": 2.5}, "message_burst must be a whole number"),
             ({"time_limit": 0}, "time_limit must be a positive number"),
             ({"time_limit": None}, "time_limit must be a positive number"),
-            ({"time_limit": 61}, "time_limit must be a positive number, at most 60"),
+            ({"time_limit": 1.5}, "time_limit must be a positive number, at most 1"),
             ({"state_version": (1, 2)}, "state_version must be an integer or a"),
         ],
     )

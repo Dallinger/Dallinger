@@ -35,6 +35,11 @@ def claim_ttl(session_id):
     return store.redis_conn.pttl(store.session_key(session_id, "claim"))
 
 
+def claim_token(session_id, runner, ttl):
+    claimed = store.claim(session_id, runner, ttl, 60)
+    return None if claimed is None else claimed[0]
+
+
 def expire_claim(session_id):
     store.redis_conn.delete(store.session_key(session_id, "claim"))
 
@@ -155,43 +160,83 @@ class TestSessions:
 class TestClaims:
     def test_a_held_claim_cannot_be_taken(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
-        store.claim(session_id, "a", 30)
+        claim_token(session_id, "a", 30)
 
-        assert store.claim(session_id, "b", 30) is None
+        assert claim_token(session_id, "b", 30) is None
         assert 29000 < claim_ttl(session_id) <= 30000
 
-    def test_only_the_runner_holding_a_claim_can_release_it(self):
-        session_id = store.create_realtime_session(TurnTally, ["1"])
-        stale = store.claim(session_id, "a", 30)
-        expire_claim(session_id)
-        token = store.claim(session_id, "b", 30)
+    def test_claims_are_released_together_and_lost_ones_named(self):
+        held, stolen = [store.create_realtime_session(TurnTally, ["1"]) for _ in "ab"]
+        tokens = {
+            session_id: claim_token(session_id, "a", 30)
+            for session_id in (held, stolen)
+        }
+        expire_claim(stolen)
+        claim_token(stolen, "b", 30)
 
-        assert not store.release(session_id, stale)
-        assert claim_ttl(session_id) <= 30000
-        assert store.release(session_id, token)
-        assert claim_ttl(session_id) == -2
+        assert store.release_session_claims(tokens) == [stolen]
+        assert claim_ttl(held) == -2
+        assert claim_ttl(stolen) > 29000
 
     def test_the_epoch_counts_claims(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
-        first = store.claim(session_id, "a", 30)
-        assert store.claim(session_id, "a", 30) is None
-        store.release(session_id, first)
-        second = store.claim(session_id, "a", 30)
+        first = claim_token(session_id, "a", 30)
+        assert claim_token(session_id, "a", 30) is None
+        store.release_session_claims({session_id: first})
+        second = claim_token(session_id, "a", 30)
 
         assert epoch(second) == epoch(first) + 1
+
+    def test_only_a_claim_another_runner_took_after_it_expired_is_a_handover(
+        self,
+    ):
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        released, counted = store.claim(session_id, "a", 30, 60)
+        store.release_session_claims({session_id: released})
+        counts = [counted, store.claim(session_id, "b", 30, 60)[1]]
+        expire_claim(session_id)
+        counts.append(store.claim(session_id, "b", 30, 60)[1])
+        expire_claim(session_id)
+        counts.append(store.claim(session_id, "c", 30, 60)[1])
+
+        assert counts == [0, 0, 0, 1]
+
+    def test_a_claim_counts_the_handovers_within_its_window(self):
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        for runner in "ab":
+            store.claim(session_id, runner, 30, 60)
+            expire_claim(session_id)
+        time.sleep(0.2)
+        since = store.server_time()
+        store.claim(session_id, "c", 30, 60)
+        expire_claim(session_id)
+
+        assert store.claim(session_id, "d", 30, 0.1)[1] == 2
+        assert store.count_handovers(session_id, since) == 2
+        expire_claim(session_id)
+        assert store.claim(session_id, "e", 30, 60)[1] == 4
 
     def test_claims_are_extended_together_and_lost_ones_named(self):
         kept, stolen = [store.create_realtime_session(TurnTally, ["1"]) for _ in "ab"]
         tokens = {
-            session_id: store.claim(session_id, "a", 30)
+            session_id: claim_token(session_id, "a", 30)
             for session_id in (kept, stolen)
         }
         expire_claim(stolen)
-        store.claim(stolen, "b", 30)
+        claim_token(stolen, "b", 30)
 
         assert store.extend_session_claims(tokens, 60) == [stolen]
         assert claim_ttl(kept) > 59000
         assert claim_ttl(stolen) <= 30000
+
+    def test_runners_count_until_their_heartbeats_expire_or_they_stop(self):
+        clock = store.server_time()
+        store.mark_runner_alive("a", clock, 5)
+        store.mark_runner_alive("b", clock, 1)
+        assert store.mark_runner_alive("c", clock, 5) == ["a", "b", "c"]
+        store.remove_runner("c")
+
+        assert store.mark_runner_alive("a", clock + 2, 5) == ["a"]
 
     def test_the_server_clock_is_the_one_that_stamps_entries(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
@@ -203,11 +248,11 @@ class TestClaims:
 
     def test_an_expired_claim_can_be_taken(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
-        stale = store.claim(session_id, "a", 0.05)
+        stale = claim_token(session_id, "a", 0.05)
         deadline = time.monotonic() + 2
         while claim_ttl(session_id) != -2 and time.monotonic() < deadline:
             time.sleep(0.01)
-        token = store.claim(session_id, "b", 30)
+        token = claim_token(session_id, "b", 30)
 
         assert token is not None
         assert epoch(token) > epoch(stale)
@@ -216,7 +261,7 @@ class TestClaims:
 class TestSave:
     def test_a_save_writes_the_pass_and_trims_applied_entries(self):
         session_id = store.create_realtime_session(TurnTally, ["1", "2"])
-        token = store.claim(session_id, "a", 30)
+        token = claim_token(session_id, "a", 30)
         applied = [add_message(session_id, "1", "up"), add_message(session_id, "2", 1)]
         unapplied = add_message(session_id, "1", "late")
         result = play_entries(session_id, applied)
@@ -234,7 +279,7 @@ class TestSave:
 
     def test_a_pass_without_entries_keeps_the_position(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
-        token = store.claim(session_id, "a", 30)
+        token = claim_token(session_id, "a", 30)
         applied = add_message(session_id, "1", "up")
         store.save_passes(
             [(session_id, token, [applied], play_entries(session_id, [applied]))], 30
@@ -248,14 +293,15 @@ class TestSave:
 
     def test_a_session_that_ended_leaves_the_running_set_with_its_final_views(self):
         session_id = store.create_realtime_session(TurnTally, ["1", "9"], bots=["9"])
-        token = store.claim(session_id, "a", 30)
+        token = claim_token(session_id, "a", 30)
         store.end_realtime_session(session_id, "abandoned")
         result = play_entries(session_id, entries_of(session_id))
 
         store.save_passes([(session_id, token, entries_of(session_id), result)], 30)
         assert store.running_sessions() == []
         assert claim_ttl(session_id) == -2
-        assert store.claim(session_id, "b", 30) is None
+        assert not store.redis_conn.exists(store.session_key(session_id, "unreleased"))
+        assert claim_token(session_id, "b", 30) is None
         final = store.redis_conn.get(store.session_key(session_id, "final"))
         assert json.loads(final) == {
             "reason": "abandoned",
@@ -266,12 +312,12 @@ class TestSave:
 
     def test_a_save_holding_a_stale_epoch_fails(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
-        stale = store.claim(session_id, "a", 30)
+        stale = claim_token(session_id, "a", 30)
         applied = add_message(session_id, "1", "up")
         result = play_entries(session_id, [applied])
         before = store.load_session(session_id)
         expire_claim(session_id)
-        store.claim(session_id, "a", 30)
+        claim_token(session_id, "a", 30)
 
         assert store.save_passes([(session_id, stale, [applied], result)], 60) == [
             session_id
@@ -284,7 +330,7 @@ class TestSave:
     def test_a_save_without_a_claim_fails(self):
         (session_id,) = sessions = [store.create_realtime_session(TurnTally, ["1"])]
         ((_, token, applied, result),) = claimed_passes(sessions)
-        store.release(session_id, token)
+        store.release_session_claims({session_id: token})
 
         assert store.save_passes([(session_id, None, applied, result)], 60) == [
             session_id
@@ -375,7 +421,7 @@ class TestReading:
     def test_entries_dropped_unapplied_are_counted(self, monkeypatch):
         monkeypatch.setattr(store, "MAX_ENTRIES", 10)
         session_id = store.create_realtime_session(TurnTally, ["1"])
-        token = store.claim(session_id, "a", 30)
+        token = claim_token(session_id, "a", 30)
         applied = [add_message(session_id, "1", n) for n in range(5)]
         result = play_entries(session_id, applied)
         store.save_passes([(session_id, token, applied, result)], 30)
@@ -409,12 +455,12 @@ class TestReading:
             applied = [entry_id for entry_id, _ in items[session_id]]
             return store.save_passes([(session_id, token, applied, result)], 30)
 
-        a = store.claim(session_id, "a", 30)
+        a = claim_token(session_id, "a", 30)
         send(3)
         assert play(a) == []
         send(4)
         expire_claim(session_id)
-        b = store.claim(session_id, "b", 30)
+        b = claim_token(session_id, "b", 30)
         assert play(a) == [session_id]
         send(2)
         assert play(b) == []
@@ -429,7 +475,7 @@ def claimed_passes(sessions):
     """Claim each session and play a pass over one new message."""
     passes = []
     for session_id in sessions:
-        token = store.claim(session_id, "a", 30)
+        token = claim_token(session_id, "a", 30)
         applied = add_message(session_id, "1", "up")
         passes.append(
             (session_id, token, [applied], play_entries(session_id, [applied]))
@@ -447,7 +493,7 @@ def steal_on_first_call(monkeypatch, name, session_id):
     def steal_first(pipe, *args):
         if not thieves:
             expire_claim(session_id)
-            thieves.append(store.claim(session_id, "b", 30))
+            thieves.append(claim_token(session_id, "b", 30))
         return method(pipe, *args)
 
     monkeypatch.setattr(Pipeline, name, steal_first)

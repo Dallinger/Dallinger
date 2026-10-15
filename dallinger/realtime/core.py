@@ -20,11 +20,12 @@ the pass's own time. A page stays open while any of its sockets is, so a
 repeated join or leave, or a leave for a socket that isn't open, changes
 nothing.
 
-A pass that raises, or runs out of time in game code, fails its session
-instead. The failed session keeps its state from before the pass, records the
-pass's messages with the status ``"failed"``, and ends with the reason
-:data:`~dallinger.realtime.game.FAILED`. :func:`fail_session` ends a session
-the same way, for a problem the runner finds outside a pass.
+A pass that raises, game code calling ``sys.exit()`` included, or runs out
+of time in game code, fails its session instead. The failed session keeps its
+state from before the pass, records the pass's messages with the status
+``"failed"``, and ends with the reason :data:`~dallinger.realtime.game.FAILED`.
+:func:`fail_session` ends a session the same way, for a problem the runner
+finds outside a pass.
 """
 
 import json
@@ -53,8 +54,9 @@ MAX_BOT_ROUNDS = 1000
 # Envelope numbers are recorded in a Postgres integer column.
 _MAX_NUMBER = 2**31 - 1
 
-# What game code or the core can raise that fails a session.
-_FAILURES = (Exception, TimeLimitExceeded)
+# What game code or the core can raise that fails a session. The runner's own
+# shutdown never raises SystemExit, so one raised here came from game code.
+_FAILURES = (Exception, SystemExit, TimeLimitExceeded)
 
 
 @dataclass
@@ -135,7 +137,9 @@ def new_session(game, members, bots=()):
     )
 
 
-def run_pass(game, saved, entries, now, clock, time_limit=None):
+def run_pass(
+    game, saved, entries, now, clock, time_limit=None, before_each_time_limit=None
+):
     """Apply ``entries`` and any ticks due by ``now`` to the ``saved`` session.
 
     :param saved: a session from :func:`new_session` or an earlier pass
@@ -147,9 +151,18 @@ def run_pass(game, saved, entries, now, clock, time_limit=None):
         before the session fails, or ``None`` for no limit. The limit uses
         ``SIGALRM`` and ``ITIMER_REAL`` while the pass runs, so it only works
         in the main thread.
+    :param before_each_time_limit: a function to call each time the game's
+        time limit starts again: once for the pass, and for a session that
+        fails, once more for ``outcome`` and once for its final views. It
+        runs outside the time limit, so a caller can do its own work between
+        stretches of game code, such as renewing a lease that a pass and a
+        failure together could outlast. It mustn't raise an
+        :class:`Exception`. To stop the pass, it can raise a
+        :class:`BaseException`, which leaves the core.
     :returns: a :class:`PassResult`
     """
     with time_limits(time_limit) as new_budget:
+        new_budget = _announced(new_budget, before_each_time_limit)
         played = _Pass(game, saved, now, clock, new_budget)
         try:
             return played.run(entries)
@@ -158,7 +171,16 @@ def run_pass(game, saved, entries, now, clock, time_limit=None):
             return failed.fail(entries, error)
 
 
-def fail_session(game, saved, entries, now, clock, error, time_limit=None):
+def fail_session(
+    game,
+    saved,
+    entries,
+    now,
+    clock,
+    error,
+    time_limit=None,
+    before_each_time_limit=None,
+):
     """End the ``saved`` session as failed with ``error``, an exception, for a
     problem found outside a pass, recording ``entries`` as a failing pass does.
 
@@ -172,6 +194,7 @@ def fail_session(game, saved, entries, now, clock, error, time_limit=None):
     """
     if game is not None:
         with time_limits(time_limit) as new_budget:
+            new_budget = _announced(new_budget, before_each_time_limit)
             for recorded in (entries, []):
                 try:
                     failed = _Pass(game, saved, now, clock, new_budget)
@@ -179,6 +202,17 @@ def fail_session(game, saved, entries, now, clock, error, time_limit=None):
                 except Exception:
                     pass
     return _bare_failure(saved, error)
+
+
+def _announced(new_budget, before_each_time_limit):
+    if before_each_time_limit is None:
+        return new_budget
+
+    def announced():
+        before_each_time_limit()
+        return new_budget()
+
+    return announced
 
 
 def session_time(saved):
@@ -409,7 +443,7 @@ class _Pass:
         return PassResult(saved, views, copied["records"], copied["ended"], next_due)
 
     def call(self, name, *args, with_effects=False, returns=False):
-        """Call the game's method ``name`` within the time budget.
+        """Call the game's method ``name`` within the time limit.
 
         A call ``with_effects`` saves the effects it queues, unless it raises.
         A call that ``returns`` a value the session keeps or sends gets a

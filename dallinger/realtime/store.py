@@ -21,14 +21,20 @@ The real-time engine needs redis 7.0 or later.
 #   unless the runner renews it, and goes when the session ends.
 # - epoch: counts the claims made on the session, so each claim's number is
 #   higher than every earlier claim's.
+# - unreleased: the token of the last claim, until its runner gives it up or
+#   the session ends.
+# - handovers: a sorted set of the tokens of claims that expired rather than
+#   being given up, each scored by the time another runner next claimed the
+#   session.
 # - records: a stream of the session's records for Postgres, each a JSON dict
 #   in the field "record".
 # - final: once the session has ended, its ending's "reason" and the final
 #   "views" of the players who aren't bots, as JSON.
 # - dropped: how many of the session's messages were over the rate limit.
 #
-# realtime:session_ids counts the sessions created, and realtime:running is
-# the set of sessions that haven't ended.
+# realtime:session_ids counts the sessions created, realtime:running is the
+# set of sessions that haven't ended, and realtime:runners is a sorted set of
+# the runners, each scored by the time its heartbeat expires.
 #
 # Redis 7.0 is needed for XINFO STREAM's count of the entries ever added. The
 # save relies on a watched key that expires aborting the transaction that
@@ -52,6 +58,7 @@ MAX_ENTRIES = 10000
 
 SESSION_IDS = "realtime:session_ids"
 RUNNING = "realtime:running"
+RUNNERS = "realtime:runners"
 
 # Redis runs each script as one command, so nothing else reaches its keys
 # between the script's check and its change. KEYS and ARGV count from 1.
@@ -62,11 +69,21 @@ _claim = redis_conn.register_script(
         or redis.call("sismember", KEYS[3], ARGV[3]) == 0 then
         return false
     end
+    -- TIME returns the server clock as seconds and microseconds.
+    local time = redis.call("time")
+    local now = time[1] + time[2] / 1e6
+    -- With no claim held, a claim not given up has expired.
+    local expired = redis.call("get", KEYS[4])
+    if expired and string.match(expired, "^%d+:(.*)$") ~= ARGV[1] then
+        redis.call("zadd", KEYS[5], now, expired)
+    end
     -- INCR starts a missing counter at 0, so the first epoch is 1.
     local token = redis.call("incr", KEYS[2]) .. ":" .. ARGV[1]
     -- PX: the key expires after this many milliseconds.
     redis.call("set", KEYS[1], token, "px", ARGV[2])
-    return token
+    redis.call("set", KEYS[4], token)
+    -- ZCOUNT counts the members with scores in a range.
+    return {token, redis.call("zcount", KEYS[5], now - tonumber(ARGV[4]), "+inf")}
     """
 )
 _extend = redis_conn.register_script(
@@ -81,7 +98,7 @@ _extend = redis_conn.register_script(
 _release = redis_conn.register_script(
     """
     if redis.call("get", KEYS[1]) == ARGV[1] then
-        return redis.call("del", KEYS[1])
+        return redis.call("del", KEYS[1], KEYS[2])
     end
     return 0
     """
@@ -247,11 +264,13 @@ def add_entry(session_id, entry):
     return entry_id.decode()
 
 
-def read_entries(positions, timeout):
+def read_entries(positions, timeout, count=None):
     """Wait up to ``timeout`` seconds for entries after the given positions,
     in one ``XREAD`` across the sessions' streams.
 
     :param positions: a dict from each session id to its stream position
+    :param count: the most entries to read from each session's stream, or
+        ``None`` for all of them
     :returns: a dict from each session id with new entries to a list of its
         ``(entry_id, fields)`` stream items, in order. An entry ID is a
         string.
@@ -263,7 +282,8 @@ def read_entries(positions, timeout):
     # block of 0 as no timeout at all.
     block = _ms(timeout) if timeout > 0 else None
     read = {}
-    for key, items in redis_conn.xread(streams, block=block) or []:
+    # COUNT applies to each stream.
+    for key, items in redis_conn.xread(streams, count=count, block=block) or []:
         read[keys[key.decode()]] = [
             (entry_id.decode(), fields) for entry_id, fields in items
         ]
@@ -308,24 +328,34 @@ def count_dropped(session_id, count=1):
     return redis_conn.incrby(session_key(session_id, "dropped"), count)
 
 
-def claim(session_id, runner, ttl):
+def claim(session_id, runner, ttl, window):
     """Claim a session for ``runner`` for ``ttl`` seconds.
 
     The checks, the new epoch and the claim run as one redis script, so
     they're atomic.
 
-    :returns: the claim's token, a string, or ``None`` if another claim holds
-        the session or it has ended
+    A claim by another runner after the previous one expired, rather than
+    being given up with :func:`release_session_claims`, is a handover.
+
+    :returns: ``None`` if another claim holds the session or it has ended.
+        Otherwise the claim's token, a string, and the number of the
+        session's handovers in the last ``window`` seconds, this claim's
+        included.
     """
-    token = _claim(
+    claimed = _claim(
         keys=[
             session_key(session_id, "claim"),
             session_key(session_id, "epoch"),
             RUNNING,
+            session_key(session_id, "unreleased"),
+            session_key(session_id, "handovers"),
         ],
-        args=[runner, _ms(ttl), session_id],
+        args=[runner, _ms(ttl), session_id, window],
     )
-    return None if token is None else token.decode()
+    if claimed is None:
+        return None
+    token, handovers = claimed
+    return token.decode(), handovers
 
 
 def extend_session_claims(tokens, ttl):
@@ -364,12 +394,53 @@ def server_time():
     return seconds + microseconds / 1e6
 
 
-def release(session_id, token):
-    """Give up a claim, returning whether it was still held.
+def release_session_claims(tokens):
+    """Give up each claim still held, in one round trip, and return the ids of
+    the sessions whose claims were lost.
 
-    The check and the change run as one redis script, so they're atomic.
+    Each claim's check and change run as one redis script, so they're atomic.
+
+    :param tokens: a dict from each session id to its claim's token
     """
-    return bool(_release(keys=[session_key(session_id, "claim")], args=[token]))
+    with redis_conn.pipeline(transaction=False) as pipe:
+        for session_id, token in tokens.items():
+            _release(
+                keys=[
+                    session_key(session_id, "claim"),
+                    session_key(session_id, "unreleased"),
+                ],
+                args=[token],
+                client=pipe,
+            )
+        released = pipe.execute()
+    return [session_id for session_id, held in zip(tokens, released) if not held]
+
+
+def count_handovers(session_id, since):
+    """Count the session's handovers at or after ``since``, a time on redis's
+    clock, as :func:`claim` describes them.
+    """
+    # ZCOUNT counts the members of a sorted set with scores in a range.
+    return redis_conn.zcount(session_key(session_id, "handovers"), since, "+inf")
+
+
+def mark_runner_alive(runner, clock, ttl):
+    """Record that ``runner`` is running until ``ttl`` seconds after
+    ``clock``, a time on redis's clock, and return the names of the runners
+    that are.
+    """
+    with redis_conn.pipeline(transaction=False) as pipe:
+        pipe.zadd(RUNNERS, {runner: clock + ttl})
+        # ZREMRANGEBYSCORE removes the members with scores in a range.
+        pipe.zremrangebyscore(RUNNERS, "-inf", clock)
+        # ZRANGE 0 -1 returns every member.
+        pipe.zrange(RUNNERS, 0, -1)
+        return sorted(name.decode() for name in pipe.execute()[-1])
+
+
+def remove_runner(runner):
+    """Record that ``runner`` has stopped."""
+    redis_conn.zrem(RUNNERS, runner)
 
 
 def save_passes(passes, ttl):
@@ -386,10 +457,9 @@ def save_passes(passes, ttl):
     Each session's saved session, position and count of applied entries are
     written, its records added, and its applied entries removed. A session
     the pass ended leaves the running set, gets its final views, and gives up
-    its claim. A claim that changes while the
-    transaction is prepared aborts it, and it's tried again without the
-    sessions whose claims were lost. Extending one of these claims elsewhere
-    during the save also changes it, so the save is tried again.
+    its claim. A claim that changes or expires while the transaction is
+    prepared aborts it, and it's tried again without the sessions whose
+    claims were lost.
     """
     pending = list(passes)
     lost = []
@@ -442,7 +512,9 @@ def _write_pass(pipe, session_id, applied, result, px):
         # PEXPIRE sets a new expiry, in milliseconds.
         pipe.pexpire(session_key(session_id, "claim"), px)
     else:
-        pipe.delete(session_key(session_id, "claim"))
+        pipe.delete(
+            session_key(session_id, "claim"), session_key(session_id, "unreleased")
+        )
         # SREM takes the session out of the running set.
         pipe.srem(RUNNING, session_id)
         pipe.set(
