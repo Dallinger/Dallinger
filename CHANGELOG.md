@@ -262,6 +262,10 @@
   Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 - The ``deployment-files`` CLI tests no longer use Click's deprecated
   ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
+- ``dallinger debug`` now keeps a ``FLASK_SECRET_KEY`` that is already set in
+  the environment, and generates a random one only when it is unset or empty.
+  Tools that restart the local server can set the key themselves so that
+  dashboard logins stay valid across restarts.
 - Dallinger's Docker PostgreSQL containers (docker-ssh, ``docker debug`` and
   ``docker start-services``) now run with ``jit = off``, because JIT
   compilation slows down the short queries that experiments make. The next
