@@ -1067,12 +1067,12 @@ def test_start_server_services_waits_only_for_postgres():
 def test_postgres_wait_timeout_prints_server_stack_logs(capsys):
     executor = object.__new__(docker_ssh_module.Executor)
     executor.app, executor.host = "demo", "host"
-    executor._run_with_status = mock.Mock(
+    executor.run_with_status = mock.Mock(
         side_effect=[(0, "", ""), (124, "", "not healthy"), (0, "recovery log", "")]
     )
     with pytest.raises(docker_ssh_module.ExecuteException):
         docker_ssh_module._start_server_services(executor)
-    assert executor._run_with_status.call_args.args[0].startswith(
+    assert executor.run_with_status.call_args.args[0].startswith(
         f"{docker_ssh_module.SERVER_COMPOSE} logs"
     )
     assert "recovery log" in capsys.readouterr().out

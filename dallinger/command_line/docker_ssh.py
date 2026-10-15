@@ -2740,7 +2740,7 @@ class Executor:
         else:
             command = None
         if command:
-            status, logs, _ = self._run_with_status(command)
+            status, logs, _ = self.run_with_status(command)
             if status != 0:
                 print("`docker compose` logs failed to run.")
                 return ""
