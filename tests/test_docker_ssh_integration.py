@@ -1,5 +1,6 @@
 import shutil
 import time
+import zipfile
 
 import pytest
 import requests
@@ -54,6 +55,33 @@ def test_docker_ssh_apps_lists_deployed_app(fresh_docker_ssh_server):
     assert app_id in fresh_docker_ssh_server.list_apps()
 
     fresh_docker_ssh_server.destroy_app(app_id)
+
+
+@pytest.mark.docker
+@pytest.mark.slow
+@pytest.mark.docker_ssh_smoke
+def test_docker_ssh_export_downloads_app_database(fresh_docker_ssh_server):
+    app_id = fresh_docker_ssh_server.deploy_sandbox()
+    try:
+        fresh_docker_ssh_server.run_dallinger(
+            [
+                "docker-ssh",
+                "export",
+                "--server",
+                fresh_docker_ssh_server.server,
+                "--app",
+                app_id,
+                "--local",
+            ]
+        )
+        archive = fresh_docker_ssh_server.experiment_dir / "data" / f"{app_id}-data.zip"
+        with zipfile.ZipFile(archive) as zf:
+            names = [n for n in zf.namelist() if n.endswith("network.csv")]
+            assert names, zf.namelist()
+            rows = zf.read(names[0]).decode().splitlines()
+        assert len(rows) > 1, "the exported network table is empty"
+    finally:
+        fresh_docker_ssh_server.destroy_app(app_id)
 
 
 @pytest.mark.docker

@@ -28,7 +28,7 @@
     restart: unless-stopped
     # Not the experiment image: only this standard-library script sits next
     # to the Docker socket.
-    image: python:3.12-alpine@sha256:c4634f578a412db396771b61b064c6e546c9d6414c7fb5b1b05d5871f1885f7b
+    image: {{ controller_image }}
     user: "${UID}:${GID}"
     group_add:
       - "${DOCKER_GID}"

@@ -1,6 +1,8 @@
 import importlib
+import re
 import sys
 import time
+import warnings
 from pathlib import Path
 from unittest import mock
 
@@ -54,7 +56,10 @@ def test_get_docker_compose_yml_uses_app_scoped_redis():
     assert services["frontdoor"]["restart"] == "unless-stopped"
     assert services["frontdoor"]["user"] == "${UID}:${GID}"
     assert services["frontdoor"]["environment"]["XDG_DATA_HOME"] == "/state/caddy-data"
-    assert services["controller"]["image"].startswith("python:3.12-alpine@sha256:")
+    from dallinger.command_line.docker_ssh import CONTROLLER_IMAGE
+
+    assert services["controller"]["image"] == CONTROLLER_IMAGE
+    assert re.fullmatch(r"python:3\.\d+-alpine@sha256:[0-9a-f]{64}", CONTROLLER_IMAGE)
     assert services["controller"]["command"] == [
         "python",
         "/app/hibernation.py",
@@ -64,6 +69,20 @@ def test_get_docker_compose_yml_uses_app_scoped_redis():
         "./hibernation.py:/app/hibernation.py:ro" in services["controller"]["volumes"]
     )
     assert services["pgbouncer"]["healthcheck"]["test"][0] == "CMD-SHELL"
+
+
+def test_controller_image_needs_a_from_line(tmp_path):
+    from dallinger.command_line.docker_ssh import _read_controller_image
+
+    dockerfile = tmp_path / "Dockerfile.controller"
+    dockerfile.write_text("# comment\nFROM python:3.14-alpine@sha256:abc\n")
+    assert _read_controller_image(dockerfile) == "python:3.14-alpine@sha256:abc"
+
+    dockerfile.write_text("# FROM python:3.14-alpine\n")
+    with pytest.raises(RuntimeError, match="FROM line"):
+        _read_controller_image(dockerfile)
+    with pytest.raises(RuntimeError, match="Dockerfile.controller"):
+        _read_controller_image(None)
 
 
 def test_tunnel_compose_has_isolated_postgres_and_no_published_ports():
@@ -219,12 +238,14 @@ def test_compose_reads_the_database_password_from_the_app_env():
     )
 
 
-def test_num_dynos():
-    """Make sure the correct number of worker services is created"""
-    n = 3
-    result = get_yaml({"num_dynos_worker": n})
-    for i in range(n):
-        assert f"worker_{i + 1}" in result["services"]
+@pytest.mark.parametrize("n, shares", [(1, 102), (3, 34), (100, 2)])
+def test_worker_processes_get_low_cpu_weight(n, shares):
+    """Each worker process gets its own container, weighted below the web server."""
+    services = get_yaml({"worker_processes": n})["services"]
+    workers = [name for name in services if name.startswith("worker_")]
+    assert len(workers) == n
+    assert {services[name]["cpu_shares"] for name in workers} == {shares}
+    assert "cpu_shares" not in services["web"]
 
 
 def make_experiment_tmp_dir(tmp_path, name="exp"):
@@ -236,6 +257,41 @@ def make_experiment_tmp_dir(tmp_path, name="exp"):
     (exp_dir / "experiment.py").write_text("class Exp:\n    pass\n")
     (exp_dir / "static" / "script.js").write_text("console.log('hi');\n")
     return exp_dir
+
+
+@pytest.mark.parametrize(
+    "settings, replicas, shares", [({}, 1, 102), ({"worker_processes": 3}, 3, 34)]
+)
+def test_local_compose_runs_low_weight_worker_replicas(
+    tmp_path, stub_config, settings, replicas, shares
+):
+    from dallinger.docker.tools import DockerComposeWrapper
+
+    stub_config.extend(settings)
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    wrapper = DockerComposeWrapper(
+        stub_config, mock.Mock(), str(tmp_path), str(exp_dir)
+    )
+    wrapper.copy_docker_compose_files()
+    services = yaml.safe_load((exp_dir / "docker-compose.yml").read_text())["services"]
+    assert services["worker"]["deploy"]["replicas"] == replicas
+    assert services["worker"]["cpu_shares"] == shares
+    assert "cpu_shares" not in services["web"]
+
+
+def test_docker_worker_processes_falls_back_to_num_dynos_worker(stub_config):
+    from dallinger.docker.tools import docker_worker_processes
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert docker_worker_processes(stub_config) == 1
+    stub_config.extend({"num_dynos_worker": 3})
+    with pytest.warns(FutureWarning, match="worker_processes"):
+        assert docker_worker_processes(stub_config) == 3
+    stub_config.extend({"worker_processes": 2})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert docker_worker_processes(stub_config) == 2
 
 
 def test_deps_image_tag_ignores_experiment_code(tmp_path):
@@ -405,6 +461,37 @@ def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypa
     client = docker_ssh.get_connected_ssh_client("localhost:2222", user="root")
     assert isinstance(client, DummyClient)
     assert (tmp_path / ".ssh" / "known_hosts").exists()
+
+
+@pytest.mark.parametrize("key_format", ["TraditionalOpenSSL", "OpenSSH"])
+def test_get_connected_ssh_client_rejects_dsa_key(tmp_path, monkeypatch, key_format):
+    import click
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import dsa, ed25519
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    def write_key(private_key, name, key_format):
+        path = tmp_path / name
+        path.write_bytes(
+            private_key.private_bytes(
+                serialization.Encoding.PEM,
+                getattr(serialization.PrivateFormat, key_format),
+                serialization.NoEncryption(),
+            )
+        )
+        return path
+
+    dsa_path = write_key(dsa.generate_private_key(key_size=1024), "dsa.pem", key_format)
+    monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: dsa_path)
+    monkeypatch.setattr(docker_ssh.paramiko, "SSHClient", mock.Mock())
+
+    with pytest.raises(click.ClickException, match="#replacing-a-dsa-key"):
+        docker_ssh.get_connected_ssh_client("example.com", user="root")
+    docker_ssh.paramiko.SSHClient.assert_not_called()
+    assert not docker_ssh._is_dsa_key(
+        write_key(ed25519.Ed25519PrivateKey.generate(), "ed25519.pem", "OpenSSH")
+    )
 
 
 def test_option_update_parses_as_boolean():
@@ -587,6 +674,89 @@ def test_get_required_dallinger_version_prerelease_falls_back_to_latest(tmp_path
     requirements.write_text("dallinger==12.2.0a1\n")
 
     assert get_required_dallinger_version(str(tmp_path)) == LATEST_VERSION
+
+
+def test_get_required_dallinger_version_follows_includes_and_options(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "constraints.txt").write_text(
+        "# pinned\ndallinger==7.2.0 \\\n    --hash=sha256:abc  # trailing comment\n"
+    )
+    (tmp_path / "requirements.txt").write_text(
+        "-e ./local-package\n\n--index-url https://example.org\nrequests\n-c constraints.txt\n"
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_get_required_dallinger_version_from_wheel_file(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_text(
+        "file:dallinger-7.3.0-py3-none-any.whl\n"
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.3.0"
+
+
+def test_get_required_dallinger_version_windows_file(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_bytes(
+        "\ufeffdallinger==7.2.0\r\n    # via -r requirements.txt\r\n".encode()
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_get_required_dallinger_version_utf16_file(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_text(
+        "dallinger==7.2.0\r\n", encoding="utf-16"
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_get_required_dallinger_version_follows_requirement_include(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "base.txt").write_text("dallinger==7.2.0\n")
+    (tmp_path / "requirements.txt").write_text("requests\n-r base.txt\n")
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_get_required_dallinger_version_include_cycle(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "base.txt").write_text("-r requirements.txt\n")
+    (tmp_path / "requirements.txt").write_text("-r base.txt\n")
+
+    with pytest.raises(ValueError, match="cycle"):
+        get_required_dallinger_version(str(tmp_path))
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["dallinger == 7.2.0", 'dallinger==7.2.0 ; python_version>="3.10"'],
+)
+def test_get_required_dallinger_version_parses_specifier(tmp_path, line):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_text(line + "\n")
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_docker_tools_import_without_pip():
+    """``dallinger.docker.tools`` must import in environments without pip, e.g. uv."""
+    import subprocess
+    import sys
+
+    code = "import sys; sys.modules['pip'] = None; import dallinger.docker.tools"
+    subprocess.run([sys.executable, "-c", code], check=True)
 
 
 def test_get_required_dallinger_version_dev_release_falls_back_to_latest(tmp_path):
@@ -787,6 +957,8 @@ def frontdoor(tmp_path):
     import urllib.error
     import urllib.request
 
+    from dallinger.command_line.docker_ssh import CONTROLLER_IMAGE
+
     if not shutil.which("docker"):
         pytest.skip("docker is required to exercise the front door")
     (tmp_path / "echo.py").write_text(ECHO_SERVER)
@@ -804,7 +976,7 @@ def frontdoor(tmp_path):
             _docker(
                 *("run", "-d", "--rm", "--name", names[-1], "--network", net),
                 *("--network-alias", alias, "-e", f"PORT={port}", "-e", f"ROLE={role}"),
-                *("-v", f"{tmp_path / 'echo.py'}:/echo.py:ro", "python:3.12-alpine"),
+                *("-v", f"{tmp_path / 'echo.py'}:/echo.py:ro", CONTROLLER_IMAGE),
                 *("python", "/echo.py"),
             )
         names.append(f"{net}-frontdoor")

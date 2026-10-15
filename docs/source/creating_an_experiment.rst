@@ -453,12 +453,14 @@ a non standard location.
     [Server]
     dyno_type = free
     num_dynos_web = 1
-    num_dynos_worker = 1
+    worker_processes = 1
     host = 0.0.0.0
     clock_on = false
     logfile = -
 
-Finally, the `Server` section contains Heroku related parameters.
+Finally, the `Server` section contains Heroku related parameters, along
+with ``worker_processes``, the number of background worker containers in
+Docker deployments (Heroku uses ``num_dynos_worker`` instead).
 Depending on the number of participants and size of the experiment,
 you might need to set the `dyno_type` and `num_dynos_web` parameters
 to something else, but be aware that most dyno types require a paid
@@ -739,8 +741,7 @@ mechanisms.
 
             <div>
                 <div class="row">
-                    <div class="col-xs-10"></div>
-                    <div class="col-xs-2">
+                    <div class="col-12">
                         <button type="button" class="btn btn-success btn-lg"
                             onClick="dallinger.allowExit(); dallinger.goToPage('exp');">
                         Begin</button>
@@ -1471,8 +1472,7 @@ Next comes the ``instructions.html`` template:
 
 			<div>
 				<div class="row">
-					<div class="col-xs-10"></div>
-					<div class="col-xs-2">
+					<div class="col-12">
 						<button id="go-to-experiment" type="button" class="btn btn-success btn-lg">
 						Begin</button>
 					</div>
