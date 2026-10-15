@@ -903,9 +903,10 @@ def _image_runs_as_ssh_user(executor, image_name):
 def _ssh_prefix(ssh_host, ssh_port, ssh_user):
     """Return the ``ssh`` invocation an operator can use to reach the server."""
     ssh_port_part = f"-p {ssh_port} " if ssh_port != 22 else ""
+    destination = f"{ssh_user}@{ssh_host}" if ssh_user else ssh_host
     return (
-        f"ssh {ssh_port_part}-i {get_server_pem_path()} "
-        f"{(ssh_user + '@') if ssh_user else ''}{ssh_host}"
+        f"ssh {ssh_port_part}-i {quote(str(get_server_pem_path()))} "
+        f"{quote(destination)}"
     )
 
 

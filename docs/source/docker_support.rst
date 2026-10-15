@@ -498,14 +498,18 @@ the app's ``/health`` from inside the server, then waits up to 7 minutes for
 the app's public ``/health`` URL to answer with a 2xx. Cloudflare and gateway
 error pages, including the "tunnel not connected" answer (HTTP 530, error
 1033), do not count, and nor do redirects, such as a Cloudflare Access login.
+Waiting does not remove a login, so the deploy stops waiting as soon as
+``/health`` redirects twice in a row. Progress lines name only the kind of
+error, such as ``SSLError``; the final message gives the full last result.
 If the app's own ``/health`` keeps failing, or the app
 has no ``/health`` because its image was built with an older Dallinger, the
 deploy stops before the wait; rebuild the image with the Dallinger you deploy
 with. A new Cloudflare tunnel can take several minutes to start
-working. If the URL still does not answer, the deploy stops with an error and
-does not launch the experiment: the containers keep running, but recruitment
-has not started. The error says when Cloudflare has not activated the new
-tunnel yet. The deploy prints a command to check the URL again, the
+working. If ``/health`` still does not answer 2xx, the deploy stops with an
+error and does not launch the experiment: the containers keep running, but
+recruitment has not started. The error gives the likely reason, for example
+that Cloudflare has not activated the new tunnel yet, that a login is in front
+of the app, or that Cloudflare blocked the check. The deploy prints a command to check the URL again, the
 ``cloudflared`` logs command for Cloudflare deploys, the command that launches
 the experiment once the URL works, and the ``destroy`` command. The deployment
 notes in ``deploy_logs/<app>.txt`` are written before this wait.

@@ -231,8 +231,10 @@
   ``/health`` to answer 2xx, so recruitment does not open while participants
   would see an error page. It then launches from inside the server with
   ``curl`` in the web container, so the app still records its public URL. If
-  the URL never answers, nothing is launched and the deploy prints how to
-  check it, launch by hand and destroy the app. A launch request that may
+  the URL does not answer 2xx in time, or redirects twice in a row (a login
+  such as Cloudflare Access, which waiting does not remove), nothing is
+  launched and the deploy prints how to check it, launch by hand and destroy
+  the app. A launch request that may
   have reached the app is never sent again; the deploy says recruitment may
   have started.
 - A WebSocket connection waits for redis to confirm its channel subscription

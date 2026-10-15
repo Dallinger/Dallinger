@@ -12,6 +12,7 @@ from unittest import mock
 import click
 import paramiko
 import pytest
+import requests
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.test import Client
@@ -143,32 +144,69 @@ def test_proxied_launch_headers_give_the_public_base_url():
     assert response.get_data(as_text=True) == "https://myapp.x.org"
 
 
-@pytest.mark.parametrize(
-    "result",
-    [
-        (0, reply(500, {"status": "error"}), ""),
-        (28, "\n000\n", "curl: (28) Operation timed out"),
-        (0, '["not", "an", "object"]\n200\n', ""),
-        (1, "", "unexpected failure\n"),
-        paramiko.SSHException("Connection reset"),
-    ],
-    ids=["http-500", "timeout", "2xx-not-json-object", "other-exit-1", "ssh-error"],
-)
-def test_a_launch_that_reached_the_app_is_sent_once(result, capsys):
-    executor = FakeExecutor([result])
+SENT = ("Recruitment may have started", "Only if the logs show")
 
-    with pytest.raises(click.ClickException, match="Recruitment may have started"):
+
+@pytest.mark.parametrize(
+    "results, expected",
+    [
+        ([(0, reply(500, {"status": "error"}), "")], SENT),
+        ([(28, "\n000\n", "curl: (28) Operation timed out")], SENT),
+        ([(0, '["not", "an", "object"]\n200\n', "")], SENT),
+        ([(1, "", "unexpected failure\n")], SENT),
+        ([paramiko.SSHException("Connection reset")], SENT),
+        (
+            [(1, "", 'service "web" is not running\n')] * launch.MAX_ATTEMPTS,
+            ("could not reach myapp from inside the server after", "Retry the launch:"),
+        ),
+    ],
+    ids=[
+        "http-500",
+        "timeout",
+        "2xx-not-json-object",
+        "other-exit-1",
+        "ssh-error",
+        "never-delivered",
+    ],
+)
+def test_a_failed_launch_is_not_resent_once_it_may_have_arrived(
+    results, expected, no_sleep, capsys
+):
+    message, heading = expected
+    executor = FakeExecutor(results)
+
+    with pytest.raises(click.ClickException, match=message):
         launch.launch_from_server(executor, TARGET)
 
-    assert executor.events == ["launch"]
+    assert executor.events == ["launch"] * len(results)
     out = capsys.readouterr().out
+    assert heading in out
     assert TARGET.ssh(f"docker compose -f {TARGET.compose_file} logs web") in out
     assert TARGET.ssh(launch.internal_launch_command(TARGET)) in out
     assert TARGET.destroy_command in out
 
 
-def test_ssh_command_leaves_tilde_for_the_server():
-    assert launch.ssh_command("ssh lab", "ls ~/dallinger") == 'ssh lab "ls ~/dallinger"'
+@pytest.mark.parametrize(
+    "remote, local",
+    [
+        ("ls ~/dallinger", 'ssh lab "ls ~/dallinger"'),
+        ('echo "$HOME"', "ssh lab 'echo \"$HOME\"'"),
+    ],
+)
+def test_ssh_command_keeps_the_remote_command_intact(remote, local):
+    assert launch.ssh_command("ssh lab", remote) == local
+
+
+@pytest.mark.parametrize(
+    "pem, port, expected",
+    [
+        ("/keys/key.pem", 2222, "ssh -p 2222 -i /keys/key.pem me@lab"),
+        ("/my keys/key.pem", 22, "ssh -i '/my keys/key.pem' me@lab"),
+    ],
+)
+def test_printed_ssh_commands_quote_the_key_path(pem, port, expected, monkeypatch):
+    monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: Path(pem))
+    assert docker_ssh._ssh_prefix("lab", port, "me") == expected
 
 
 @pytest.fixture
@@ -201,9 +239,17 @@ CLOUDFLARE_PENDING = "Cloudflare has not activated the new tunnel yet (cloudflar
         ("cloudflare", 404, {}, CLOUDFLARE_PENDING),
         ("classic", 502, {}, "Caddy may still be getting a TLS certificate"),
         ("classic", 302, {"location": "https://x.cloudflareaccess.com"}, "Access"),
+        ("cloudflare", 302, {"location": "https://x.cloudflareaccess.com"}, "Access"),
         ("classic", 403, {"cf-mitigated": "challenge"}, "cf-mitigated: challenge"),
     ],
-    ids=["cloudflare-530", "cloudflare-404", "classic-502", "redirect", "403"],
+    ids=[
+        "cloudflare-530",
+        "cloudflare-404",
+        "classic-502",
+        "redirect",
+        "cloudflare-redirect",
+        "403",
+    ],
 )
 def test_deploy_does_not_launch_when_the_public_url_never_answers(
     ingress, status, headers, reason, deploy_dir, capsys
@@ -218,8 +264,9 @@ def test_deploy_does_not_launch_when_the_public_url_never_answers(
 
     assert events == ["health", "check"]
     assert Path("deploy_logs/myapp.txt").read_text() == "notes\n"
-    assert "was not launched" in error.value.message
+    assert "/health did not answer 2xx" in error.value.message
     assert reason in error.value.message
+    assert ("Tunnel not found" in error.value.message) is (reason == CLOUDFLARE_PENDING)
     out = capsys.readouterr().out
     assert "(expect 2xx)" in out
     for command in (
@@ -249,12 +296,34 @@ def test_deploy_launches_once_the_public_url_answers(deploy_dir, capsys):
         assert events == ["health", "check", "launch"]
 
 
-def test_public_wait_retries_redirects_and_errors_until_2xx(no_sleep):
+def test_public_wait_retries_errors_and_one_redirect_until_2xx(no_sleep):
     events = []
-    with public_check(events, 302, 530, 200):
+    with public_check(events, 530, 302, 530, 200):
         launch.wait_for_public_url(FakeExecutor(), TARGET)
-    assert events == ["check"] * 3
-    assert launch.time.now == 2 * launch.PUBLIC_CHECK_INTERVAL
+    assert events == ["check"] * 4
+
+
+def test_public_wait_stops_early_on_a_second_redirect_in_a_row(no_sleep, capsys):
+    events = []
+    with public_check(
+        events, 302, headers={"location": "https://x.cloudflareaccess.com"}
+    ):
+        with pytest.raises(click.ClickException, match="Access"):
+            launch.wait_for_public_url(FakeExecutor(), TARGET)
+    assert events == ["check"] * 2
+    assert launch.time.now < launch.PUBLIC_CHECK_TIMEOUT
+    assert "redirected twice in a row" in capsys.readouterr().out
+
+
+def test_progress_lines_name_the_request_error(no_sleep, capsys):
+    def get(url, **kwargs):
+        if launch.time.now < launch.PROGRESS_INTERVAL + 10:
+            raise requests.exceptions.SSLError("HTTPSConnectionPool(...): " + "x" * 200)
+        return mock.Mock(status_code=200, text="", headers={})
+
+    with mock.patch.object(launch.requests, "get", get):
+        launch.wait_for_public_url(FakeExecutor(), TARGET)
+    assert "Still waiting after 60 s: SSLError\n" in capsys.readouterr().out
 
 
 def test_internal_health_retries_while_the_app_starts(no_sleep):
