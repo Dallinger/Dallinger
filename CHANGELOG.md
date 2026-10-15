@@ -80,19 +80,20 @@
 
 - Each process's database connection pool can now be set with the
   ``DATABASE_POOL_SIZE`` (default 20), ``DATABASE_MAX_OVERFLOW`` (default -1,
-  no limit) and ``DATABASE_POOL_TIMEOUT`` (default 30 seconds) environment
-  variables. With the defaults, requests never wait for the pool. A process
-  that should not open many connections, such as a bot runner, can set a
-  bounded pool; its requests then wait up to ``DATABASE_POOL_TIMEOUT`` for a
-  free connection. Invalid values, including a pool size below 1, raise an
-  error that names the variable. ``create_db_engine`` also accepts
-  ``pool_size``, ``max_overflow`` and ``pool_timeout`` arguments, which
-  override the variables and are checked the same way. Experiment replay
+  no limit) and ``DATABASE_POOL_TIMEOUT`` (default 30 seconds; fractions such
+  as 0.5 are allowed) environment variables. With the defaults, requests
+  never wait for the pool. A process that should not open many connections,
+  such as a bot runner, can set a bounded pool; its requests then wait up to
+  ``DATABASE_POOL_TIMEOUT`` for a free connection. An invalid value, including
+  a pool size below 1, makes every ``dallinger`` command fail with an error
+  that names the variable. ``create_db_engine`` also accepts ``pool_size``,
+  ``max_overflow`` and ``pool_timeout`` arguments, which override the
+  variables and are checked the same way. Experiment replay
   (``restore_state_from_replay``) now uses the same pool settings, checks
-  connections before use and closes its temporary engines.
-  Idle connections add up to about ``DATABASE_POOL_SIZE`` times the number of
-  processes; keep that below PostgreSQL's ``max_connections`` or, on
-  docker-ssh, pgbouncer's client limit of 10,000.
+  connections before use and closes its temporary engines. Idle connections
+  add up to about ``DATABASE_POOL_SIZE`` times the number of processes; keep
+  that below PostgreSQL's ``max_connections`` or, on docker-ssh, pgbouncer's
+  client limit of 10,000.
 - Skipped the live MTurk integration tests, because Amazon has discontinued
   Mechanical Turk and every call now fails with `AccessDeniedException`.
   Mocked MTurk tests still run.

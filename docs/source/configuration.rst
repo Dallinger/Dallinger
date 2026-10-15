@@ -77,18 +77,21 @@ environment variables rather than config parameters:
 ``DATABASE_POOL_TIMEOUT``
     Seconds to wait for a free connection once ``DATABASE_POOL_SIZE +
     DATABASE_MAX_OVERFLOW`` are in use, before raising an error (default 30).
+    Fractions such as ``0.5`` are allowed.
     It only applies when ``DATABASE_MAX_OVERFLOW`` is not -1.
 
 Invalid values stop the process with an error that names the variable. To
 bound a single process, for example a bot runner, set the variables only in
-that process's environment. For docker-ssh apps, the variables must be in
+that process's environment. On Heroku, set them on the app, for example
+``heroku config:set DATABASE_POOL_SIZE=10 --app <app>``; the dynos restart
+with the new values. For docker-ssh apps, the variables must be in
 the experiment containers' environment, for example set with ``ENV`` in the
 experiment image. Setting them in the shell that runs ``dallinger
 docker-ssh`` does not reach the containers, because Compose only passes
 registered config keys to them. They do still apply to engines the local
 command creates, for example when it loads an archive into the remote
-database, and an invalid value there stops any command that imports
-``dallinger.db``.
+database. Because the engine is created when Dallinger is imported, an
+invalid value there breaks every ``dallinger`` command.
 
 When budgeting connections, idle connections add up to roughly
 ``DATABASE_POOL_SIZE`` × the number of processes, and busy processes open

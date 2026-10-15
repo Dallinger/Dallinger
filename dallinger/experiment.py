@@ -2016,6 +2016,7 @@ class Experiment:
         # Clear up global state
         self.import_session.rollback()
         self.import_session.close()
+        import_engine.dispose()
         db.session.rollback()
         db.session.close()
         config._reset(register_defaults=True)

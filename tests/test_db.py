@@ -127,7 +127,7 @@ def test_create_db_engine_reads_a_bounded_pool_from_the_environment(monkeypatch)
 
     monkeypatch.setenv("DATABASE_POOL_SIZE", "1")
     monkeypatch.setenv("DATABASE_MAX_OVERFLOW", "1")
-    monkeypatch.setenv("DATABASE_POOL_TIMEOUT", "1")
+    monkeypatch.setenv("DATABASE_POOL_TIMEOUT", "0.5")
     engine = create_db_engine(db_url)
     try:
         connections = [engine.connect() for _ in range(2)]
@@ -144,10 +144,11 @@ def test_create_db_engine_reads_a_bounded_pool_from_the_environment(monkeypatch)
     [
         ("DATABASE_POOL_SIZE", "many"),
         ("DATABASE_POOL_SIZE", "0"),
+        ("DATABASE_POOL_SIZE", "1.5"),
         ("DATABASE_MAX_OVERFLOW", "-2"),
         ("DATABASE_MAX_OVERFLOW", "lots"),
         ("DATABASE_POOL_TIMEOUT", "0"),
-        ("DATABASE_POOL_TIMEOUT", "1.5"),
+        ("DATABASE_POOL_TIMEOUT", "nan"),
     ],
 )
 def test_create_db_engine_rejects_invalid_pool_settings(monkeypatch, name, value):
