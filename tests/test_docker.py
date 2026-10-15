@@ -228,6 +228,27 @@ def get_yaml(config, ingress="classic"):
     return yaml.safe_load(yaml_contents)
 
 
+def test_postgres_services_disable_jit(tmp_path, stub_config):
+    from dallinger.command_line.docker_ssh import DOCKER_COMPOSE_SERVER_TPL
+    from dallinger.docker.tools import DockerComposeWrapper
+
+    wrapper = DockerComposeWrapper(stub_config, None, str(tmp_path), str(tmp_path))
+    with mock.patch(
+        "dallinger.docker.tools.get_experiment_image_tag", return_value="tag"
+    ):
+        wrapper.copy_docker_compose_files()
+    composes = [
+        get_yaml({}, ingress="cloudflare"),
+        yaml.safe_load(DOCKER_COMPOSE_SERVER_TPL.render(dozzle_base="")),
+        yaml.safe_load((tmp_path / "docker-compose.yml").read_text()),
+    ]
+    for compose in composes:
+        postgres = compose["services"]["postgresql"]
+        assert postgres["command"] == "postgres -c jit=off"
+        assert "pg_isready -h 127.0.0.1 " in postgres["healthcheck"]["test"][1]
+        assert "start_period" in postgres["healthcheck"]
+
+
 def test_compose_reads_the_database_password_from_the_app_env():
     result = get_yaml({})
     database_url = result["services"]["web"]["environment"]["DATABASE_URL"]
@@ -677,6 +698,89 @@ def test_get_required_dallinger_version_prerelease_falls_back_to_latest(tmp_path
     requirements.write_text("dallinger==12.2.0a1\n")
 
     assert get_required_dallinger_version(str(tmp_path)) == LATEST_VERSION
+
+
+def test_get_required_dallinger_version_follows_includes_and_options(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "constraints.txt").write_text(
+        "# pinned\ndallinger==7.2.0 \\\n    --hash=sha256:abc  # trailing comment\n"
+    )
+    (tmp_path / "requirements.txt").write_text(
+        "-e ./local-package\n\n--index-url https://example.org\nrequests\n-c constraints.txt\n"
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_get_required_dallinger_version_from_wheel_file(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_text(
+        "file:dallinger-7.3.0-py3-none-any.whl\n"
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.3.0"
+
+
+def test_get_required_dallinger_version_windows_file(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_bytes(
+        "\ufeffdallinger==7.2.0\r\n    # via -r requirements.txt\r\n".encode()
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_get_required_dallinger_version_utf16_file(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_text(
+        "dallinger==7.2.0\r\n", encoding="utf-16"
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_get_required_dallinger_version_follows_requirement_include(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "base.txt").write_text("dallinger==7.2.0\n")
+    (tmp_path / "requirements.txt").write_text("requests\n-r base.txt\n")
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_get_required_dallinger_version_include_cycle(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "base.txt").write_text("-r requirements.txt\n")
+    (tmp_path / "requirements.txt").write_text("-r base.txt\n")
+
+    with pytest.raises(ValueError, match="cycle"):
+        get_required_dallinger_version(str(tmp_path))
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["dallinger == 7.2.0", 'dallinger==7.2.0 ; python_version>="3.10"'],
+)
+def test_get_required_dallinger_version_parses_specifier(tmp_path, line):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_text(line + "\n")
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_docker_tools_import_without_pip():
+    """``dallinger.docker.tools`` must import in environments without pip, e.g. uv."""
+    import subprocess
+    import sys
+
+    code = "import sys; sys.modules['pip'] = None; import dallinger.docker.tools"
+    subprocess.run([sys.executable, "-c", code], check=True)
 
 
 def test_get_required_dallinger_version_dev_release_falls_back_to_latest(tmp_path):
