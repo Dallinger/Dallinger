@@ -287,6 +287,10 @@
   public DNS name points at a public IP that forwards ports 80 and 443 to it,
   pass ``--allow-private-ip``: the deploy then only checks that the
   experiment hostname resolves, not that it matches the SSH host's address.
+- ``dallinger debug`` now keeps a ``FLASK_SECRET_KEY`` that is already set in
+  the environment, and generates a random one only when it is unset or empty.
+  Tools that restart the local server can set the key themselves so that
+  dashboard logins stay valid across restarts.
 - Dallinger's Docker PostgreSQL containers (docker-ssh, ``docker debug`` and
   ``docker start-services``) now run with ``jit = off``, because JIT
   compilation slows down the short queries that experiments make. The next
@@ -315,6 +319,16 @@
   longer changes the global warnings filter.
 
 ### Fixed
+
+- `dallinger docker debug` passes the Flask secret key to the web, worker and
+  clock containers again. Previously they ran with no secret key, because the
+  generated `.env` file prefixed the key with a stray `$` and the compose file
+  did not forward `FLASK_SECRET_KEY` to any service. The key is now quoted in
+  `.env`, so a key containing `$` or `#` also reaches the containers unchanged,
+  and an empty `FLASK_SECRET_KEY` in the host shell no longer replaces it. The
+  `.env` file is readable by its owner only and is written after the debug
+  image is built, so the key is not baked into the image, and compose refuses
+  to start the containers without a key.
 
 - Dallinger's Docker commands no longer import pip's private internals to
   read an experiment's ``requirements.txt``, so they work in uv-created
