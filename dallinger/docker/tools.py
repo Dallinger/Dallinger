@@ -6,7 +6,7 @@ import warnings
 from hashlib import sha256
 from pathlib import Path
 from shutil import which
-from subprocess import CalledProcessError, check_output
+from subprocess import CalledProcessError, call, check_output
 
 import click
 import docker
@@ -84,6 +84,20 @@ RUN python -m pip install --no-cache-dir --force-reinstall --no-deps /tmp/dallin
 """
 
 
+def _quote_dotenv_value(value):
+    """Quote ``value`` so docker compose reads it back from ``.env`` unchanged.
+
+    Unquoted ``.env`` values are interpolated (``$name``) and cut at `` #``.
+    """
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
+    return f'"{escaped}"'
+
+
+def _private_opener(path, flags):
+    """Open ``path`` readable and writable by the owner only."""
+    return os.open(path, flags, 0o600)
+
+
 class DockerComposeWrapper:
     """Wrapper around a docker compose local daemon, modeled after HerokuLocalWrapper.
 
@@ -116,6 +130,7 @@ class DockerComposeWrapper:
         self.out = output
         self.verbose = verbose
         self.env = env if env is not None else os.environ.copy()
+        self.env["FLASK_SECRET_KEY"] = self.env.get("FLASK_SECRET_KEY") or ""
         self.tmp_dir = tmp_dir
         self.original_dir = original_dir
         self.experiment_name = Path(self.original_dir).name
@@ -123,7 +138,12 @@ class DockerComposeWrapper:
         self.needs_chrome = needs_chrome
 
     def copy_docker_compose_files(self):
-        """Prepare a docker-compose.yml file and place it in the experiment tmp dir"""
+        """Prepare a docker-compose.yml file and place it in the experiment tmp dir.
+
+        Dallinger's own compose calls pass the key via ``env=self.env``; the
+        ``.env`` copy serves manual ``docker compose logs`` or ``down`` in the
+        tmp dir, which fail without it because the template requires the key.
+        """
         logger_filename = JSON_LOGFILE
         volumes = [
             f"{self.original_dir}:{self.original_dir}",
@@ -162,9 +182,12 @@ class DockerComposeWrapper:
                     worker_cpu_shares=worker_cpu_shares(worker_processes),
                 )
             )
-        with open(os.path.join(self.tmp_dir, ".env"), "w") as fh:
+        dotenv_path = os.path.join(self.tmp_dir, ".env")
+        with open(dotenv_path, "w", opener=_private_opener) as fh:
+            os.fchmod(fh.fileno(), 0o600)
             fh.write(f"COMPOSE_PROJECT_NAME={self.experiment_name}\n")
-            fh.write(f"FLASK_SECRET_KEY=${self.env.get('FLASK_SECRET_KEY')}\n")
+            flask_secret_key = _quote_dotenv_value(self.env["FLASK_SECRET_KEY"])
+            fh.write(f"FLASK_SECRET_KEY={flask_secret_key}\n")
             fh.write(f"UID={os.getuid()}\n")
             fh.write(f"GID={os.getgid()}\n")
 
@@ -194,9 +217,14 @@ class DockerComposeWrapper:
         self.out.blather("Postgresql ready\n")
 
     def start(self):
-        self.copy_docker_compose_files()
+        """Build the image, then write the compose files and start the services.
+
+        The image is built first because ``COPY . /experiment`` would
+        otherwise bake ``.env``, and with it the Flask secret key, into it.
+        """
         build_image(self.tmp_dir, self.experiment_name, self.out, self.needs_chrome)
-        check_output("docker compose up -d".split())
+        self.copy_docker_compose_files()
+        self.run_compose(["up", "-d"])
         # Wait for postgres to complete initialization
         self.wait_postgres_ready()
         try:
@@ -239,7 +267,7 @@ class DockerComposeWrapper:
         self.stop()
 
     def stop(self):
-        os.system(f"docker compose -f '{self.tmp_dir}/docker-compose.yml' stop")
+        call(self._compose_command() + ["stop"], env=self.env)
 
     def get_container_name(self, service_name):
         """Return the name of the first container for the given service name
@@ -270,11 +298,16 @@ class DockerComposeWrapper:
         compose_commands = ["ps"]
         # Run `redis-cli ping` inside the `redis` container and return its output
         compose_commands = ["exec", "redis", "redis-cli", "ping"]
+
+        Compose prefers process variables over ``.env``, so commands run with
+        ``self.env``; otherwise a host ``FLASK_SECRET_KEY`` would replace the
+        deployment's key.
         """
-        return check_output(
-            ["docker", "compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
-            + compose_commands,
-        )
+        return check_output(self._compose_command() + compose_commands, env=self.env)
+
+    def _compose_command(self):
+        """Return the ``docker compose`` invocation for this experiment's file."""
+        return ["docker", "compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
 
 
 class DockerStartupError(click.Abort):

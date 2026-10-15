@@ -63,6 +63,7 @@ services:
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://dallinger:dallinger@postgresql/dallinger
       HOME: /tmp
+      FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:?FLASK_SECRET_KEY is required}"
   web:
     image: {{ experiment_image }}
     user: "${UID}:${GID}"
