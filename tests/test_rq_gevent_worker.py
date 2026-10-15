@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 
-def test_worker_import_does_not_load_croniter():
+def test_worker_startup_imports_skip_rq_cli():
     """Importing croniter runs ``file`` in a subprocess, which can hang under gevent."""
     code = (
         "import sys, dallinger.heroku.rq_gevent_worker; "
