@@ -266,6 +266,35 @@
   because they check the app's ``/health``, which Dallinger 12.4.0 and older
   lack. Rebuild older images before deploying them. The web image also needs
   ``curl`` (the Dallinger and PsyNet images have it).
+- docker-ssh apps no longer fail under load with ``no more connections
+  allowed (max_client_conn)``: their pgbouncer now accepts up to 10,000
+  client connections instead of 100.
+- docker-ssh apps with their own Postgres (Cloudflare ingress) now let
+  pgbouncer keep up to 80 Postgres connections instead of 20, so requests no
+  longer queue at about 200 participants. On a 16-thread server, p95 response
+  time at 320 participants fell from 438 ms to 65 ms. Classic-ingress apps
+  share the server's Postgres, so they keep 20 connections each. Running apps
+  pick up the new limits after ``dallinger docker-ssh deploy --update``.
+- Each process now keeps at most 20 idle database connections instead of up
+  to 1,000, so idle connections no longer pile up after heavy load and use up
+  the database's or pgbouncer's client limit. Busy processes still open as
+  many connections as they need.
+- After a docker-ssh app's pgbouncer or Postgres container restarts, requests
+  no longer fail with ``server closed the connection unexpectedly``; dropped
+  idle connections are replaced when next used. Requests in flight during the
+  restart can still fail.
+- Classic-ingress docker-ssh deploys to a server whose SSH host resolves only
+  to private IP addresses now stop before building the image and suggest
+  ``--ingress cloudflare``, because Let's Encrypt cannot issue certificates
+  for such servers. ``docker-ssh servers add`` prints the same advice.
+  ``--update`` deploys of existing apps skip the check. For a server whose
+  public DNS name points at a public IP that forwards ports 80 and 443 to it,
+  pass ``--allow-private-ip``: the deploy then only checks that the
+  experiment hostname resolves, not that it matches the SSH host's address.
+- ``dallinger debug`` now keeps a ``FLASK_SECRET_KEY`` that is already set in
+  the environment, and generates a random one only when it is unset or empty.
+  Tools that restart the local server can set the key themselves so that
+  dashboard logins stay valid across restarts.
 - Dallinger's Docker PostgreSQL containers (docker-ssh, ``docker debug`` and
   ``docker start-services``) now run with ``jit = off``, because JIT
   compilation slows down the short queries that experiments make. The next
@@ -307,6 +336,14 @@
   the app. A launch request that may
   have reached the app is never sent again; the deploy says recruitment may
   have started.
+- The web container in `dallinger docker` and `dallinger docker-ssh`
+  deployments may now hold 65,536 open files per process instead of the
+  Docker default of 1,024. Each open WebSocket connection holds a few file
+  descriptors in one gunicorn process, and connections do not spread evenly
+  across processes, so about 2,000 idle connections could exhaust one
+  process's limit. That process then failed new connections, and any
+  `/health` or `/dashboard/login` request routed to it, with
+  `OSError: [Errno 24] Too many open files`.
 - `dallinger docker debug` passes the Flask secret key to the web, worker and
   clock containers again. Previously they ran with no secret key, because the
   generated `.env` file prefixed the key with a stray `$` and the compose file

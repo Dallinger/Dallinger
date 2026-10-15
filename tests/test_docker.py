@@ -260,6 +260,19 @@ def test_compose_reads_the_database_password_from_the_app_env():
     )
 
 
+def test_pgbouncer_allows_more_connections_than_its_defaults():
+    pgbouncer = get_yaml({}, ingress="cloudflare")["services"]["pgbouncer"]
+    assert "PGBOUNCER_MAX_CLIENT_CONN=10000" in pgbouncer["environment"]
+    assert "PGBOUNCER_DEFAULT_POOL_SIZE=80" in pgbouncer["environment"]
+    assert pgbouncer["ulimits"]["nofile"] == {"soft": 16384, "hard": 16384}
+
+
+def test_pgbouncer_keeps_a_small_pool_on_the_shared_postgres():
+    pgbouncer = get_yaml({}, ingress="classic")["services"]["pgbouncer"]
+    assert "PGBOUNCER_MAX_CLIENT_CONN=10000" in pgbouncer["environment"]
+    assert "PGBOUNCER_DEFAULT_POOL_SIZE=20" in pgbouncer["environment"]
+
+
 @pytest.mark.parametrize("n, shares", [(1, 102), (3, 34), (100, 2)])
 def test_worker_processes_get_low_cpu_weight(n, shares):
     """Each worker process gets its own container, weighted below the web server."""
@@ -268,6 +281,16 @@ def test_worker_processes_get_low_cpu_weight(n, shares):
     assert len(workers) == n
     assert {services[name]["cpu_shares"] for name in workers} == {shares}
     assert "cpu_shares" not in services["web"]
+
+
+WEB_NOFILE = {"nofile": {"soft": 65536, "hard": 65536}}
+
+
+@pytest.mark.parametrize("ingress", ["classic", "cloudflare"])
+def test_web_container_can_hold_many_open_files(ingress):
+    """Idle websockets must not exhaust the web container's file descriptors."""
+    services = get_yaml({}, ingress=ingress)["services"]
+    assert services["web"]["ulimits"] == WEB_NOFILE
 
 
 def make_experiment_tmp_dir(tmp_path, name="exp"):
@@ -299,6 +322,7 @@ def test_local_compose_runs_low_weight_worker_replicas(
     assert services["worker"]["deploy"]["replicas"] == replicas
     assert services["worker"]["cpu_shares"] == shares
     assert "cpu_shares" not in services["web"]
+    assert services["web"]["ulimits"] == WEB_NOFILE
 
 
 def test_docker_worker_processes_falls_back_to_num_dynos_worker(stub_config):
