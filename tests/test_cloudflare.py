@@ -435,12 +435,19 @@ def test_load_api_token_defaults_to_the_users_dallinger_item(security_calls, ser
     assert "-a" in args
 
 
-def test_load_api_token_failure_names_the_configured_item(security_calls, monkeypatch):
+def test_load_api_token_failure_names_the_item_and_the_reason(
+    security_calls, monkeypatch
+):
     def run(args, **kwargs):
-        raise subprocess.CalledProcessError(44, args)
+        raise subprocess.CalledProcessError(
+            44, args, stderr="security: SecKeychainSearchCopyNext: not found.\n"
+        )
 
     monkeypatch.setattr(cf.subprocess, "run", run)
-    with pytest.raises(cf.CloudflareError, match="'org.example.cloudflare-token'"):
+    with pytest.raises(
+        cf.CloudflareError,
+        match="'org.example.cloudflare-token' could not be read: security: .*not found",
+    ):
         cf.load_api_token(_keychain_config("org.example.cloudflare-token"))
 
 

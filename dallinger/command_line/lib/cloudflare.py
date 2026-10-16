@@ -153,13 +153,16 @@ def load_api_token(config: Any | None = None) -> str:
             check=True,
         )
     except subprocess.CalledProcessError as exc:
+        reason = (exc.stderr or "").strip()
         raise CloudflareError(
             "CLOUDFLARE_API_TOKEN is unset and the Keychain item "
-            f"{service!r} could not be read."
+            f"{service!r} could not be read" + (f": {reason}" if reason else ".")
         ) from exc
     token = result.stdout.strip()
     if not token:
-        raise CloudflareError("The Cloudflare Keychain item contained no token.")
+        raise CloudflareError(
+            f"The Cloudflare Keychain item {service!r} contained no token."
+        )
     return token
 
 
