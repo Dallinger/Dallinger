@@ -573,8 +573,11 @@ class DebugDeployment(HerokuLocalDeployment):
         self._stop_status_checks = threading.Event()
         self.no_browsers = no_browsers
         self.experiment_files = experiment_files
+        if os.environ.get("FLASK_SECRET_KEY"):
+            self.out.log("Using FLASK_SECRET_KEY from the environment.")
         self.environ = {
-            "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
+            "FLASK_SECRET_KEY": os.environ.get("FLASK_SECRET_KEY")
+            or codecs.encode(os.urandom(16), "hex").decode("ascii"),
         }
 
     def with_proxy_port(self, url):

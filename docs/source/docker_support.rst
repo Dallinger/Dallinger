@@ -181,10 +181,35 @@ The app's database password lives in ``~/dallinger/<app>/.env`` (mode
 dashboard password, so it is private (mode ``0600``) too. ``--update`` keeps the
 password.
 
+Dallinger's PostgreSQL containers run with ``jit = off``, because JIT
+compilation slows down the short queries that experiments make. A heavy
+analytic query can enable it for its session with ``SET jit = on``.
+
 ``--ingress classic`` keeps host Caddy and the shared server Postgres.
+Each classic app's pgbouncer may open up to 20 Postgres connections, and all
+classic apps on a server share that Postgres's ~97 non-superuser connection
+slots, so a few busy classic apps can exhaust it; use ``--ingress cloudflare``
+for an app that needs its own Postgres.
+When the server Postgres settings change, as with ``jit = off``, the next
+classic deploy on that server recreates the shared Postgres once, keeping its
+data volume. This briefly interrupts every classic app on the server, so make
+that deploy when no classic experiment is live.
 ``--ingress cloudflare`` starts an isolated Compose stack and a per-app
 tunnel; ``servers add --default-ingress cloudflare`` makes it a server's
 default. Cloudflare apps don't block a classic root-domain deploy.
+
+Classic ingress needs a server that the internet can reach, because Let's
+Encrypt must reach it to issue TLS certificates. If the SSH host resolves only
+to private IP addresses (for example ``10.x.x.x``, ``172.16.x.x`` to
+``172.31.x.x``, ``192.168.x.x``, or ``100.64.x.x``), a new classic-ingress
+deploy stops before building the image; use ``--ingress cloudflare`` for such
+servers. ``--update`` skips this check, and loopback and ``0.0.0.0`` addresses
+are allowed. If the server has a private address inside its network but its
+public DNS name points at a public IP that forwards ports 80 and 443 to it,
+pass ``--allow-private-ip`` to deploy with classic ingress anyway. The deploy
+then only checks that the experiment hostname resolves, without comparing it
+with the SSH host's private address.
+
 The tunnel proxies to the experiment web service. Set the non-secret
 ``cloudflare_account_id``, ``cloudflare_zone_id``, and ``cloudflare_dns_zone``
 in Dallinger config. The API token is read from ``CLOUDFLARE_API_TOKEN``, then
@@ -493,6 +518,34 @@ the DNS label:
     CLOUDFLARE_API_TOKEN=... dallinger docker-ssh deploy \
         --app consonance --ingress cloudflare \
         --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5
+
+Launching an experiment opens recruitment, so a docker-ssh deploy first checks
+the app's ``/health`` from inside the server, then waits up to 7 minutes for
+the app's public ``/health`` URL to answer with a 2xx. Cloudflare and gateway
+error pages, including the "tunnel not connected" answer (HTTP 530, error
+1033), do not count, and nor do redirects, such as a Cloudflare Access login.
+Waiting does not remove a login, so the deploy stops waiting as soon as
+``/health`` redirects twice in a row. Progress lines name only the kind of
+error, such as ``SSLError``; the final message gives the full last result.
+If the app's own ``/health`` keeps failing, or the app
+has no ``/health`` because its image was built with an older Dallinger, the
+deploy stops before the wait; rebuild the image with the Dallinger you deploy
+with. A new Cloudflare tunnel can take several minutes to start
+working. If ``/health`` still does not answer 2xx, the deploy stops with an
+error and does not launch the experiment: the containers keep running, but
+recruitment has not started. The error gives the likely reason, for example
+that Cloudflare has not activated the new tunnel yet, that a login is in front
+of the app, or that Cloudflare blocked the check. The deploy prints a command
+to check the URL again, the ``cloudflared`` logs command when a Cloudflare
+tunnel may not have connected yet, the command that launches the experiment
+once the URL works, and the ``destroy`` command. The deployment
+notes in ``deploy_logs/<app>.txt`` are written before this wait.
+
+The deploy launches the experiment by running ``curl`` inside the app's web
+container, so the experiment image must include ``curl``. The Dallinger and
+PsyNet images do; for a custom image, add it, for example with
+``apt-get install -y curl`` in the Dockerfile. The deploy checks for ``curl``
+before the wait and stops straight away, without launching, if it is missing.
 
 
 To export the data from an experiment running on a server, run:
