@@ -357,8 +357,8 @@ class TestTimeLimit:
         [result] = in_main_thread(play_with_time_limit, [["dodge"]])
 
         assert (
-            "TimeLimitExceeded: Slow.is_over was running when the session used up"
-            in error(result)
+            "TimeLimitExceeded: The session had used up its 0.5 seconds before "
+            "Slow.save_message ran." in error(result)
         )
 
     def test_game_code_that_catches_every_exception_ends_the_process(self):

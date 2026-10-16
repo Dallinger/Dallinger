@@ -40,6 +40,8 @@ class TestValidGameTypes:
             {"message_burst": 1},
             {"time_limit": 0.01},
             {"time_limit": 1},
+            {"checkpoint_interval": 0.25},
+            {"checkpoint_interval": None},
         ],
     )
     def test_boundary_settings_are_accepted(self, attributes):
@@ -91,6 +93,8 @@ class TestInvalidGameTypes:
             ({"time_limit": 0}, "time_limit must be a positive number"),
             ({"time_limit": None}, "time_limit must be a positive number"),
             ({"time_limit": 1.5}, "time_limit must be a positive number, at most 1"),
+            ({"checkpoint_interval": 0}, "checkpoint_interval must be None or a"),
+            ({"checkpoint_interval": "5"}, "checkpoint_interval must be None or a"),
         ],
     )
     def test_setting(self, attributes, error):

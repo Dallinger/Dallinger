@@ -51,9 +51,10 @@ class Reject(Exception):
     """Raise from :meth:`RealtimeGame.apply` to refuse a message.
 
     A refused message still counts as processed. It's saved with ``reason``,
-    and the sender's page gets the message's number and ``reason`` with its
-    next view. The runner can't undo changes ``apply`` made before raising, so
-    check everything before changing the state.
+    unless :meth:`RealtimeGame.save_message` leaves it out, and the sender's
+    page gets the message's number and ``reason`` with its next view. The
+    runner can't undo changes ``apply`` made before raising, so check
+    everything before changing the state.
 
     :param reason: why the message was refused, as a JSON value
     """
@@ -99,6 +100,19 @@ class RealtimeGame(ABC):
     effects are dropped, and the session ends there with the reason
     :data:`FAILED`. The batch's messages are still saved, marked as failed.
     Other sessions carry on.
+
+    Each session keeps a record in Postgres, in the order things happened:
+
+    - messages, each with its sender, its payload, the page's envelope values
+      and whether it was accepted, rejected with a reason, or failed
+    - effects, each with its name and payload
+    - checkpoints: copies of the state, at most every
+      :attr:`checkpoint_interval`
+    - the ending, with its reason, the :meth:`outcome` and the final state
+
+    Effects that aren't dropped, the ending and the messages of a failed
+    batch are always saved. :meth:`save_message` decides which other messages
+    are saved. Views aren't saved.
     """
 
     #: The websocket channel the game's pages send messages on. It can't
@@ -143,6 +157,12 @@ class RealtimeGame(ABC):
     #: :data:`~dallinger.realtime.runner.MAX_HANDOVERS` times without being
     #: saved.
     time_limit = 1
+
+    #: The least time, in seconds on the session clock, between checkpoints of
+    #: the state in the session's record. A checkpoint is taken the first time
+    #: the runner plays the session after that. ``None`` saves no
+    #: checkpoints, leaving the state saved only when the session ends.
+    checkpoint_interval = 5
 
     @abstractmethod
     def initial_state(self, players):
@@ -223,6 +243,25 @@ class RealtimeGame(ABC):
         By default the game carries on without them.
         """
 
+    def save_message(self, state, player_id, message, rejection):
+        """Return ``True`` to save a message in the session's record, or
+        ``False`` to leave it out. Any other value fails the session.
+
+        Called after :meth:`apply` accepts or rejects each message, a bot's
+        included, with the state ``apply`` left. Leaving out messages a game
+        gets many of, like moves into a wall, keeps the record small. Leaving
+        out accepted messages means the record can't replay the game between
+        checkpoints. An accepted message's effects are saved whatever this
+        returns, so the record can hold effects without the message that
+        queued them.
+
+        :param message: the message as the player's page or bot sent it, a
+            copy that ``apply`` hasn't changed
+        :param rejection: the :class:`Reject` that ``apply`` raised, or
+            ``None`` if it accepted the message
+        """
+        return True
+
     def bot(self, view, player_id, now):
         """Return a bot's next message, or ``None`` to send nothing.
 
@@ -243,8 +282,9 @@ class RealtimeGame(ABC):
         """Queue an effect: work the game needs done outside the runner, such
         as writing to the database.
 
-        Effects are saved with the session's records, and handled later in a
-        job that can use the database. Only :meth:`apply`, :meth:`tick`,
+        Effects are saved with the session's records, whatever
+        :meth:`save_message` returns, and handled later in a job that can use
+        the database. Only :meth:`apply`, :meth:`tick`,
         :meth:`on_join` and :meth:`on_leave` can queue effects, because the
         runner calls the other methods as often as it needs to. The effects of
         a call that raises, such as an ``apply`` that raises :class:`Reject`,
@@ -298,6 +338,12 @@ def _check_game(name, game):
     if not isinstance(game.message_burst, int) or game.message_burst < 1:
         raise ValueError(
             "{}'s message_burst must be a whole number, 1 or more.".format(name)
+        )
+    if game.checkpoint_interval is not None and (
+        not is_number(game.checkpoint_interval) or game.checkpoint_interval <= 0
+    ):
+        raise ValueError(
+            "{}'s checkpoint_interval must be None or a positive number.".format(name)
         )
     if not is_number(game.time_limit) or not 0 < game.time_limit <= MAX_TIME_LIMIT:
         raise ValueError(

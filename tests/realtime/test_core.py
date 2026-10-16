@@ -4,13 +4,8 @@ import random
 import pytest
 
 from dallinger.realtime import RealtimeGame, Sent, core
-from dallinger.realtime.core import (
-    CHECKPOINT_INTERVAL,
-    new_session,
-    parse_message,
-    run_pass,
-)
-from dallinger.realtime.game import FINISHED, MAX_DURATION
+from dallinger.realtime.core import new_session, parse_message, run_pass
+from dallinger.realtime.game import FAILED, FINISHED, MAX_DURATION
 from tests.realtime.helpers import (
     CLOCK,
     Restless,
@@ -675,7 +670,8 @@ class TestRecords:
         ]
 
     @pytest.mark.parametrize(
-        "method", ["next_deadline", "view", "is_over", "outcome", "bot"]
+        "method",
+        ["next_deadline", "view", "is_over", "outcome", "bot", "save_message"],
     )
     def test_only_methods_that_change_the_state_can_queue_effects(self, method):
         def queueing(self, *args):
@@ -689,28 +685,119 @@ class TestRecords:
         assert "queue_effect only works in apply, tick" in error(result)
 
     def test_a_checkpoint_is_recorded_every_interval(self):
-        game = TurnTally()
+        class Often(TurnTally):
+            checkpoint_interval = 2
 
-        early = play(game, started(game), [], CHECKPOINT_INTERVAL - 1)
-        first = play(game, early.saved, [], CHECKPOINT_INTERVAL + 1)
-        soon_after = play(game, first.saved, [], CHECKPOINT_INTERVAL + 2)
+        game = Often()
+
+        early = play(game, started(game), [], 1)
+        first = play(game, early.saved, [], 3)
+        soon_after = play(game, first.saved, [], 4)
+        second = play(game, soon_after.saved, [], 5)
 
         assert early.records == []
         assert first.records == [
             {
                 "sequence": 1,
                 "type": "checkpoint",
-                "time": CHECKPOINT_INTERVAL + 1,
+                "time": 3,
                 "state": session(first)["state"],
             }
         ]
         assert soon_after.records == []
+        assert [(each["type"], each["time"]) for each in second.records] == [
+            ("checkpoint", 5)
+        ]
+
+    def test_checkpoints_can_be_turned_off(self):
+        class Unchecked(TurnTally):
+            checkpoint_interval = None
+
+        game = Unchecked()
+
+        result = play(game, started(game), [], 1000)
+
+        assert result.records == []
+
+    def test_save_message_decides_which_messages_are_saved(self):
+        class Picky(TurnTally):
+            def save_message(self, state, player_id, message, rejection):
+                if rejection is not None:
+                    return rejection.reason == {"code": "bad"}
+                return state["log"][-1][1] in ("keep", "stop")
+
+        game = Picky()
+        entries = [
+            message(1, "1", "a"),
+            message(2, "1", "keep"),
+            message(3, "2", "effect", number=1),
+            message(4, "2", "bad", number=2),
+            message(5, "2", "effect and reject", number=3),
+            message(6, "1", "stop"),
+        ]
+
+        result = play(game, started(game), entries, 6)
+
+        assert [
+            (each["sequence"], each["type"], each["time"], each.get("status"))
+            for each in result.records
+        ] == [
+            (1, "message", 2, "accepted"),
+            (2, "effect", 3, None),
+            (3, "message", 4, "rejected"),
+            (4, "message", 6, "accepted"),
+            (5, "end", 6, None),
+        ]
+        assert session(result)["record_number"] == 5
+        view = views_by_page(result)["2", "page"]
+        assert view["last_processed"] == 3
+        assert view["rejected"] == [
+            {"number": 2, "reason": {"code": "bad"}},
+            {"number": 3, "reason": {"code": "effect and reject"}},
+        ]
+
+    @pytest.mark.parametrize("answer", [None, 1])
+    def test_save_message_must_answer_true_or_false(self, answer):
+        class Vague(TurnTally):
+            def save_message(self, state, player_id, message, rejection):
+                return answer
+
+        game = Vague()
+
+        result = play(game, started(game), [message(1, "1", "a")], 1)
+
+        assert "Vague.save_message returned {!r}, not True".format(answer) in (
+            error(result)
+        )
+
+    def test_a_failed_pass_saves_its_messages_whatever_save_message_says(self):
+        class Forgetful(TurnTally):
+            def save_message(self, state, player_id, message, rejection):
+                if message == "boom":
+                    raise RuntimeError("boom")
+                return False
+
+        game = Forgetful()
+        entries = [message(1, "1", "a"), message(2, "1", "boom")]
+
+        result = play(game, started(game), entries, 2)
+
+        assert "RuntimeError: boom" in error(result)
+        assert [(each["type"], each.get("status")) for each in result.records] == [
+            ("message", "failed"),
+            ("message", "failed"),
+            ("end", None),
+        ]
+        assert result.records[-1]["reason"] == FAILED
 
     def test_a_message_is_recorded_as_it_arrived(self):
         class Keeper(TurnTally):
             def apply(self, state, player_id, message, now, sent):
                 message["kept"] = True
                 state["kept"] = message
+
+            def save_message(self, state, player_id, message, rejection):
+                return message == {"move": 1}
 
         game = Keeper()
         result = play(game, started(game), [message(1, "1", {"move": 1})], 1)

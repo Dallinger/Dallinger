@@ -44,9 +44,6 @@ from dallinger.realtime.game import (
 from dallinger.realtime.time_limit import TimeLimitExceeded, time_budget
 from dallinger.realtime.utils import copy_json, dump_json, is_int
 
-#: Seconds on the session clock between checkpoints of the state.
-CHECKPOINT_INTERVAL = 5
-
 #: How many rounds of bot messages may follow one event in a game without
 #: ticks. A pass whose bots are still sending messages after that raises.
 MAX_BOT_ROUNDS = 1000
@@ -123,7 +120,7 @@ def new_session(game, members, bots=()):
             "time": 0,
             "next_tick": 1 / game.tick_rate if game.tick_rate else None,
             "last_tick": None,
-            "next_checkpoint": CHECKPOINT_INTERVAL,
+            "last_checkpoint": 0,
             "view_number": 0,
             "record_number": 0,
             # Open pages, each with its open sockets, the number of the last
@@ -357,9 +354,12 @@ class _Pass:
             self.end()
         else:
             self.time = self.now
-            if self.time >= session["next_checkpoint"]:
+            interval = self.game.checkpoint_interval
+            if interval is not None and (
+                self.time >= session["last_checkpoint"] + interval
+            ):
                 self.add_record("checkpoint", state=self.state)
-                session["next_checkpoint"] = self.time + CHECKPOINT_INTERVAL
+                session["last_checkpoint"] = self.time
             # The loop stopped at a tick still to come, if there is one.
             due = [tick_time, self.game.max_duration]
             next_due = min((each for each in due if each is not None), default=None)
@@ -384,9 +384,10 @@ class _Pass:
                 break
             if kind == "message":
                 participant, scope, payload, sent, received = _read_message(entry)
-                record = self.record_message(
+                record = self.message_record(
                     participant, scope, payload, sent, received, "failed"
                 )
+                self.add_record("message", **record)
                 self.note_processed(participant, scope, sent, record)
             elif kind == "join":
                 self.open_page(*_read_socket(entry))
@@ -407,29 +408,31 @@ class _Pass:
         copied = copy_json({"records": self.records, "ended": self.session["ended"]})
         return PassResult(saved, views, copied["records"], copied["ended"], next_due)
 
-    def call(self, name, *args, with_effects=False, returns=False):
+    def call(self, name, *args, returns=False):
         """Call the game's method ``name`` within the time limit.
 
-        A call ``with_effects`` saves the effects it queues, unless it raises.
         A call that ``returns`` a value the session keeps or sends gets a
         copy of it.
         """
         what = "{}.{}".format(self.name, name)
-        method = getattr(self.game, name)
-        if with_effects:
-            effects = []
-            token = queued_effects.set(effects)
-            try:
-                result = self.budget.run(what, method, *args)
-            finally:
-                queued_effects.reset(token)
-            for effect, payload in effects:
-                self.add_record("effect", name=effect, payload=payload)
-        else:
-            result = self.budget.run(what, method, *args)
+        result = self.budget.run(what, getattr(self.game, name), *args)
         if returns:
             result = copy_json(result, "{}'s return value".format(what))
         return result
+
+    def effects_of(self, name, *args):
+        """Call the game's method ``name`` and return the effects it queued."""
+        effects = []
+        token = queued_effects.set(effects)
+        try:
+            self.call(name, *args)
+        finally:
+            queued_effects.reset(token)
+        return effects
+
+    def record_effects(self, effects):
+        for name, payload in effects:
+            self.add_record("effect", name=name, payload=payload)
 
     def value_of(self, name, *args):
         """Return a copy of what ``view`` or ``outcome`` returns.
@@ -467,7 +470,7 @@ class _Pass:
         return min(times, default=None)
 
     def tick(self):
-        self.call("tick", self.state, self.time, with_effects=True)
+        self.record_effects(self.effects_of("tick", self.state, self.time))
         self.ticked = True
         self.session["last_tick"] = self.time
         next_tick = self.session["next_tick"]
@@ -496,31 +499,40 @@ class _Pass:
             self.bots_play()
 
     def apply(self, participant, scope, payload, sent, received):
-        record = self.record_message(
+        record = self.message_record(
             participant, scope, payload, sent, received, "accepted"
         )
+        rejection = None
+        effects = []
         try:
-            self.call(
-                "apply",
-                self.state,
-                participant,
-                payload,
-                self.time,
-                sent,
-                with_effects=True,
+            effects = self.effects_of(
+                "apply", self.state, participant, payload, self.time, sent
             )
-        except Reject as rejection:
+        except Reject as raised:
+            rejection = raised
             record["status"] = "rejected"
             record["reason"] = copy_json(
-                rejection.reason, "{}.apply's Reject reason".format(self.name)
+                raised.reason, "{}.apply's Reject reason".format(self.name)
             )
+        keep = self.call(
+            "save_message", self.state, participant, record["payload"], rejection
+        )
+        if keep is not True and keep is not False:
+            raise TypeError(
+                "{}.save_message returned {!r}, not True or False.".format(
+                    self.name, keep
+                )
+            )
+        if keep:
+            self.add_record("message", **record)
+        self.record_effects(effects)
         self.note_processed(participant, scope, sent, record)
         self.check_over()
-        return record["status"] == "accepted"
+        return rejection is None
 
-    def record_message(self, participant, scope, payload, sent, received, status):
-        return self.add_record(
-            "message",
+    def message_record(self, participant, scope, payload, sent, received, status):
+        """A message record's fields, before it has a sequence number."""
+        return dict(
             participant=participant,
             scope=scope,
             # Copied first, since apply may keep the payload and change it.
@@ -551,17 +563,15 @@ class _Pass:
 
     def join(self, participant, scope, socket):
         if self.open_page(participant, scope, socket):
-            self.call("on_join", self.state, participant, self.time, with_effects=True)
+            self.record_effects(
+                self.effects_of("on_join", self.state, participant, self.time)
+            )
             self.check_over()
 
     def leave(self, participant, scope, socket):
         if self.close_page(participant, scope, socket):
-            self.call(
-                "on_leave",
-                self.state,
-                participant,
-                self.time,
-                with_effects=True,
+            self.record_effects(
+                self.effects_of("on_leave", self.state, participant, self.time)
             )
             self.check_over()
 

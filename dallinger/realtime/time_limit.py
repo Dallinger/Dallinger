@@ -62,11 +62,15 @@ class _Budget:
 
     def run(self, what, method, *args):
         global _running
+        if self.remaining <= 0:
+            raise TimeLimitExceeded(
+                "The session had used up its {} seconds before {} ran.".format(
+                    self.seconds, what
+                )
+            )
         message = "{} was running when the session used up its {} seconds.".format(
             what, self.seconds
         )
-        if self.remaining <= 0:
-            raise TimeLimitExceeded(message)
         started = time.monotonic()
         give_up = started + self.remaining + (GIVE_UP_AFTER - 1) * self.seconds
         _running = (message, give_up)
