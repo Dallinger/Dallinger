@@ -42,13 +42,14 @@ import paramiko
 import requests
 
 from dallinger.deployment import BACKOFF_FACTOR, DEFAULT_DELAY, MAX_ATTEMPTS
+from dallinger.hibernation import STATE_HIBERNATING, STATE_WAKING
 from dallinger.utils import print_bold
 
 from .app_manifest import INGRESS_CLOUDFLARE
 
 FRONT_DOOR_LAUNCH_URL = "http://frontdoor:5000/launch"
 # /launch can be slow (database setup, recruiter API calls).
-LAUNCH_REQUEST_TIMEOUT = 300
+LAUNCH_REQUEST_TIMEOUT = 900
 PUBLIC_CHECK_TIMEOUT = 420
 PUBLIC_CHECK_INTERVAL = 10
 PROGRESS_INTERVAL = 60
@@ -350,7 +351,8 @@ def wait_for_public_url(executor, target, timeout=None, interval=None):
     """Wait until the public ``/health`` answers 2xx, or stop the deploy.
 
     Waits up to ``timeout`` seconds (default ``PUBLIC_CHECK_TIMEOUT``). Edge
-    pages, gateway errors and Cloudflare's pending-tunnel 530 keep waiting.
+    pages, gateway errors, Cloudflare's pending-tunnel 530 and the hibernation
+    controller's 2xx for a sleeping or waking app keep waiting.
     A redirect, such as a Cloudflare Access login, does not go away by
     waiting, so two redirects in a row stop the wait early. If the URL does
     not answer 2xx, prints why and what to run next, and raises
@@ -375,7 +377,7 @@ def wait_for_public_url(executor, target, timeout=None, interval=None):
     redirected = False
     while True:
         status, detail = _probe(target.health_url, target.verify)
-        if status is not None and 200 <= status < 300:
+        if status is not None and 200 <= status < 300 and not _is_asleep(detail):
             print(f"{target.public_origin} is reachable.")
             return
         if redirected and _is_redirect(status):
@@ -430,6 +432,22 @@ def _probe(url, verify):
 
 def _is_redirect(status):
     return status is not None and 300 <= status < 400
+
+
+def _is_asleep(body):
+    """True if ``body`` is the hibernation controller's answer for a stopped app.
+
+    The controller answers ``/health`` with 200 while the app sleeps or wakes,
+    so ``/launch`` would reach the controller instead of the app.
+    """
+    try:
+        data = json.loads(body)
+    except ValueError:
+        return False
+    return isinstance(data, dict) and data.get("status") in (
+        STATE_HIBERNATING,
+        STATE_WAKING,
+    )
 
 
 def _describe(status, detail, short=False):
@@ -508,6 +526,8 @@ def _abort_unreachable(executor, target, status, detail, waited):
             "Cloudflare Access may be in front of the app. The deploy launches "
             "only once /health answers 2xx without a redirect."
         )
+    elif status is not None and 200 <= status < 300:
+        reason = f"The app is hibernating or waking up ({detail.strip()})."
     elif status == 403:
         mitigated = f" ({detail})" if detail.startswith("cf-mitigated:") else ""
         reason = (

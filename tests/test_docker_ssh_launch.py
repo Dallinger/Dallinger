@@ -304,6 +304,14 @@ def test_public_wait_retries_errors_and_one_redirect_until_2xx(no_sleep):
     assert events == ["check"] * 4
 
 
+def test_public_wait_does_not_launch_a_hibernating_app(no_sleep):
+    events = []
+    with public_check(events, 200, text='{"status": "hibernating"}'):
+        with pytest.raises(click.ClickException, match="hibernating"):
+            launch.wait_for_public_url(FakeExecutor(), TARGET)
+    assert len(events) > 1
+
+
 def test_public_wait_stops_early_on_a_second_redirect_in_a_row(no_sleep, capsys):
     events = []
     with public_check(
