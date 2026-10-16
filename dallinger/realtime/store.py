@@ -27,6 +27,9 @@ The real-time engine needs redis 7.0 or later.
 #   being given up, with no save in between.
 # - records: a stream of the session's records for Postgres, each a JSON dict
 #   in the field "record".
+# - records_queued: there while a job to write the session's records is
+#   queued or waiting for another to finish. It expires, so a lost job doesn't
+#   stop the next one being queued.
 # - final: once the session has ended, its ending's "reason" and the final
 #   "views" of the players who aren't bots, as JSON.
 # - dropped: how many of the session's messages were over the rate limit.
@@ -346,6 +349,57 @@ def count_dropped(session_id, count=1):
     """Add ``count`` to the session's dropped messages and return the total."""
     # INCRBY starts a missing counter at 0.
     return redis_conn.incrby(session_key(session_id, "dropped"), count)
+
+
+def mark_records_queued(session_id, ttl):
+    """Note that a job to write the session's records is queued, for ``ttl``
+    seconds, and return whether one wasn't already.
+    """
+    # NX sets the key only if it's missing, and SET then returns None.
+    return bool(
+        redis_conn.set(
+            session_key(session_id, "records_queued"), 1, nx=True, px=_ms(ttl)
+        )
+    )
+
+
+def start_writing_records(session_id):
+    """Note that a job writing the session's records is about to read them,
+    so records added from now on need another job.
+    """
+    redis_conn.delete(session_key(session_id, "records_queued"))
+
+
+def read_records(session_id, after=None):
+    """Return the session's records after the stream ID ``after``, or all of
+    them, as a list of ``(record_id, record)`` pairs in order. A record ID is
+    a string.
+    """
+    # XRANGE's "(" makes the start exclusive, and "-" and "+" are the
+    # stream's first and last IDs.
+    items = redis_conn.xrange(
+        session_key(session_id, "records"),
+        min="-" if after is None else "(" + after,
+        max="+",
+    )
+    return [
+        (record_id.decode(), json.loads(fields[b"record"]))
+        for record_id, fields in items
+    ]
+
+
+def trim_records(session_id, through):
+    """Remove the session's records up to and including the stream ID
+    ``through``.
+    """
+    redis_conn.xtrim(
+        session_key(session_id, "records"), minid=_next_id(through), approximate=False
+    )
+
+
+def delete_records(session_id):
+    """Remove all of the session's records."""
+    redis_conn.delete(session_key(session_id, "records"))
 
 
 def claim(session_id, runner, ttl):

@@ -1939,6 +1939,14 @@ class RealtimeSession(Base):
     #: how many of the session's messages were over the rate limit
     dropped = Column(Integer, nullable=False, server_default="0", default=0)
 
+    #: the traceback of the error that stopped the session's record being
+    #: written
+    error = Column(Text)
+
+    #: the redis stream ID of the last of the session's records written to
+    #: :class:`RealtimeEvent`
+    last_written_record = Column(String)
+
 
 class RealtimeEvent(Base):
     """One saved message, effect, checkpoint or ending of a

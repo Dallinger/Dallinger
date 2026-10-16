@@ -85,6 +85,11 @@ MAX_PASS_ENTRIES = 100
 #: records.
 RECORDS_INTERVAL = 2
 
+#: Seconds a records job that is queued, or waiting for another to finish,
+#: keeps the runner from queuing another for its session. A job lost before
+#: it reads the records holds them up this long.
+RECORDS_QUEUED_TTL = 60
+
 #: The longest a player's message, or a page opening or closing, may wait for
 #: a runner, in seconds, before its session fails. A runner taking over a
 #: session from one that stopped takes up to about :data:`CLAIM_TTL`.
@@ -284,7 +289,8 @@ class Runner:
     def queue_records(self):
         for session_id, session in self.sessions.items():
             if session.records:
-                get_queue("default").enqueue(write_records, session_id)
+                if store.mark_records_queued(session_id, RECORDS_QUEUED_TTL):
+                    get_queue("default").enqueue(write_records, session_id)
                 session.records = False
 
     def play(self, read):
@@ -380,7 +386,9 @@ class Runner:
             session.position = applied[-1]
             session.applied += len(applied)
         if result.ended is not None:
-            if result.ended["reason"] == FAILED:
+            # An ending from end_realtime_session has no error. Code that
+            # fails a session that way, like the records job, logs its own.
+            if result.ended["reason"] == FAILED and result.ended["error"]:
                 logger.error(
                     "Session %s of %s failed:\n%s",
                     session.id,

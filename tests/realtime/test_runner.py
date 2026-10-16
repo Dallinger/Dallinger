@@ -218,6 +218,8 @@ class TestPlaying:
         runner.step()
         # A runner taking over a session queues a job for it at once.
         assert jobs("default") == [(job, (quiet,)), (job, (busy,))]
+        for session_id in (quiet, busy):
+            store.start_writing_records(session_id)
         add(busy, message(0, "1", "a"))
         runner.step()
         assert list(published[-1]) == [busy]
@@ -232,6 +234,25 @@ class TestPlaying:
         runner.step()
 
         assert jobs("default")[2:] == [(job, (busy,))]
+
+    def test_a_session_gets_no_second_job_until_its_first_starts_or_expires(
+        self, runner, published, monkeypatch
+    ):
+        monkeypatch.setattr(runner_module, "RECORDS_INTERVAL", 0)
+        monkeypatch.setattr(runner_module, "RECORDS_QUEUED_TTL", 0.3)
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        runner.step()
+        add(session_id, message(0, "1", "a"))
+        runner.step()
+        runner.step()
+        assert len(jobs("default")) == 1
+
+        time.sleep(0.3)
+        add(session_id, message(0, "1", "b"))
+        runner.step()
+        runner.step()
+
+        assert len(jobs("default")) == 2
 
     def test_an_idle_runner_waits_to_claim_new_sessions(
         self, runner, published, monkeypatch
@@ -384,6 +405,18 @@ class TestFailures:
             "Session {} of crasher failed:".format(failing)
         )
         assert "KeyError: 'no such move'" in logged.getMessage()
+
+    def test_a_session_ended_as_failed_from_outside_isnt_logged_again(
+        self, runner, published, caplog
+    ):
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        store.end_realtime_session(session_id, FAILED)
+
+        with caplog.at_level(logging.ERROR, logger=runner_module.__name__):
+            runner.step()
+
+        assert store.running_sessions() == []
+        assert caplog.records == []
 
     @pytest.mark.parametrize("handovers, outcome", [(2, None), (3, True), (4, False)])
     def test_a_session_that_changes_runners_too_often_fails(

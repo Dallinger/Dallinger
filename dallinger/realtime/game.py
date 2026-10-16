@@ -283,12 +283,12 @@ class RealtimeGame(ABC):
         as writing to the database.
 
         Effects are saved with the session's records, whatever
-        :meth:`save_message` returns, and handled later in a job that can use
-        the database. Only :meth:`apply`, :meth:`tick`,
-        :meth:`on_join` and :meth:`on_leave` can queue effects, because the
-        runner calls the other methods as often as it needs to. The effects of
-        a call that raises, such as an ``apply`` that raises :class:`Reject`,
-        are dropped.
+        :meth:`save_message` returns, and handled later by
+        :meth:`handle_effect`, in a job that can use the database. Only
+        :meth:`apply`, :meth:`tick`, :meth:`on_join` and :meth:`on_leave` can
+        queue effects, because the runner calls the other methods as often as
+        it needs to. The effects of a call that raises, such as an ``apply``
+        that raises :class:`Reject`, are dropped.
 
         :param name: a string naming the effect
         :param payload: a JSON value, copied when it's queued
@@ -300,6 +300,35 @@ class RealtimeGame(ABC):
                 "called by a runner."
             )
         effects.append((name, copy_json(payload, "queue_effect's payload")))
+
+    def handle_effect(self, name, payload, session_row):
+        """Do the work of an effect from :meth:`queue_effect`.
+
+        Runs in a job on one of the experiment's worker processes, a few
+        seconds after the effect was queued, and can use the database. Each
+        effect is handled once, in the order the session queued them, in the
+        same transaction that saves it in the session's record, while the
+        session's row is locked. Don't commit, roll back or close the
+        session: the job commits once every new record is saved, and a
+        handler that does any of these fails the session. Code that should
+        run only once the record is saved, such as sending a message, can
+        use :func:`dallinger.db.run_after_commit`.
+
+        If this raises, nothing from the job is saved, and the session fails:
+        its record stops there, and a game still being played ends with the
+        reason :data:`FAILED`. By default it raises :class:`NotImplementedError`, so a
+        game type that queues effects has to define it.
+
+        :param name: the effect's name
+        :param payload: the effect's payload
+        :param session_row: the session's
+            :class:`~dallinger.models.RealtimeSession`
+        """
+        raise NotImplementedError(
+            "{} queued the effect {!r} but doesn't define handle_effect.".format(
+                type(self).__name__, name
+            )
+        )
 
 
 def _and(names):
