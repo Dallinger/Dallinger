@@ -229,7 +229,9 @@ python3 scripts/update_experiments_constraints.py
 The script reads `dallinger.version.__version__` and regenerates
 `constraints.txt` for each demo in `demos/dlgr/demos/` and for
 `tests/experiment/` (a committed fixture). Each file pins
-`dallinger==X.Y.Z`. Expect a large diff.
+`dallinger==X.Y.Z`. The script refreshes dependencies that are not
+pinned by Dallinger's dev requirements, so those move to the newest
+version the demo's requirements allow. Expect a large diff.
 
 ```bash
 grep -h "^dallinger==" demos/dlgr/demos/*/constraints.txt \
