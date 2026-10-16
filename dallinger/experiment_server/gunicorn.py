@@ -39,6 +39,11 @@ def worker_exit(server, worker):
 
 
 def post_worker_init(worker):
+    # Make psycopg2 socket waits gevent-cooperative so that advisory-lock
+    # and FOR UPDATE waits do not park the entire OS thread.
+    import psycogreen.gevent
+
+    psycogreen.gevent.patch_psycopg()
     return experiment_hook("gunicorn_post_worker_init", worker)
 
 

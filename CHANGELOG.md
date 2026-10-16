@@ -172,6 +172,19 @@
   ``num_dynos_worker``. Docker deployments used to read ``num_dynos_worker``
   too; if only ``num_dynos_worker`` is set, they still use it, with a
   ``FutureWarning`` asking for ``worker_processes``.
+### Fixed
+
+- Fixed a race condition in `POST /participant` where two concurrent signup
+  requests could both be recorded as `"working"` when only one should be
+  (write-skew at the occupancy count). Also fixed the related issue where a
+  routine participant status update (e.g. `"submitted"`) could block a new
+  signup due to a table-wide `LOCK TABLE ... EXCLUSIVE MODE` conflict. The
+  fix replaces both the table lock and `@db.serialized` on this route with a
+  PostgreSQL transaction-level advisory lock (`pg_advisory_xact_lock`) that
+  serializes signup decisions without interfering with unrelated participant
+  writes. A 5-second `lock_timeout` prevents a wedged holder from blocking
+  all signups indefinitely. The `lock_table_when_creating_participant`
+  configuration option is now ignored; the advisory lock is always used.
 
 ### Changed
 
