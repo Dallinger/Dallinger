@@ -178,6 +178,8 @@
 - Dependency lockfiles are compiled for the latest patch of the oldest
   supported Python, currently 3.11.17. This refresh includes ``soupsieve`` 3.0.3
   and bumps the ruff pre-commit hook to v0.17.1.
+- The chatroom and chatroom_ws constraints lock NLTK 3.10.3 instead of 3.6.3.
+  Their requirements name ``nltk`` with no version.
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and
