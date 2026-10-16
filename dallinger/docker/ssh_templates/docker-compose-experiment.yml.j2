@@ -4,6 +4,7 @@ services:
   postgresql:
     restart: unless-stopped
     image: postgres:12
+    command: postgres -c jit=off
     container_name: {{ experiment_id }}_postgresql
     environment:
       POSTGRES_USER: {{ experiment_id }}
@@ -12,9 +13,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U {{ experiment_id }}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U {{ experiment_id }}"]
       interval: 2s
       timeout: 5s
+      retries: 15
+      start_period: 300s
+    stop_grace_period: 60s
     networks:
       app:
         aliases:
@@ -43,6 +47,11 @@ services:
     user: "${UID}:${GID}"
 {%- endif %}
     command: dallinger_heroku_web
+    # Each open websocket holds file descriptors in one gunicorn process.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     depends_on: &commondepends
       redis:
         condition: service_healthy
@@ -128,8 +137,28 @@ services:
       - PGBOUNCER_PORT=5432
       - PGBOUNCER_DATABASE={{ experiment_id }}
       - PGBOUNCER_POOL_MODE=transaction
+      # Each web and worker process keeps up to DATABASE_POOL_SIZE (default
+      # 20) idle client connections (more while busy), so the default of 100
+      # refuses connections under load. Client connections are cheap; Postgres
+      # only sees the server pool below. A connected client whose query is
+      # waiting for a server connection waits up to query_wait_timeout
+      # (120 s). See "Database connection pool" in
+      # docs/source/configuration.rst for the connection budget.
+      - PGBOUNCER_MAX_CLIENT_CONN=10000
+      # A server connection stays tied to a request for its whole transaction,
+      # including the Python work between queries, so the default pool of 20
+      # queues requests at about 200 participants while the CPU is mostly
+      # idle. An app with its own Postgres gets 80, below max_connections (100)
+      # to leave room for exports and admin sessions. Classic-ingress apps
+      # share one server-wide Postgres, so they keep the default of 20.
+      - PGBOUNCER_DEFAULT_POOL_SIZE={{ 80 if tunnel else 20 }}
       # Connections to postgres will be closed after 60 seconds of inactivity
       - PGBOUNCER_SERVER_IDLE_TIMEOUT=60
+    ulimits:
+      # Every client and server connection uses a file descriptor.
+      nofile:
+        soft: 16384
+        hard: 16384
 
 {%- if config["clock_on"] %}
   clock:

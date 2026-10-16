@@ -1,6 +1,7 @@
 services:
   postgresql:
     image: postgres:12
+    command: postgres -c jit=off
     restart: unless-stopped
     environment:
       POSTGRES_USER: dallinger
@@ -9,9 +10,12 @@ services:
     volumes:
       - dallinger_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER}"]
       interval: 2s
       timeout: 5s
+      retries: 15
+      start_period: 300s
+    stop_grace_period: 60s
     networks:
       - dallinger
 
