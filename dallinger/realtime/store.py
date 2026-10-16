@@ -32,9 +32,9 @@ The real-time engine needs redis 7.0 or later.
 #   "views" of the players who aren't bots, as JSON.
 # - dropped: how many of the session's messages were over the rate limit.
 #
-# realtime:session_ids counts the sessions created, realtime:running is the
-# set of sessions that haven't ended, and realtime:runners is a sorted set of
-# the runners, each scored by the time its heartbeat expires.
+# realtime:running is the set of sessions that haven't ended, and
+# realtime:runners is a sorted set of the runners, each scored by the time its
+# heartbeat expires.
 #
 # Redis 7.0 is needed for XINFO STREAM's count of the entries ever added. The
 # save relies on a watched key that expires aborting the transaction that
@@ -44,8 +44,9 @@ import json
 
 from redis import WatchError
 
-from dallinger import experiment
+from dallinger import db, experiment
 from dallinger.db import redis_conn
+from dallinger.models import RealtimeSession
 from dallinger.realtime.core import new_session
 from dallinger.realtime.game import validate_game_types
 from dallinger.realtime.utils import dump_json
@@ -56,7 +57,6 @@ from dallinger.utils import normalized_participant_id
 #: unapplied, whatever their type, and :func:`lost_entries` counts them.
 MAX_ENTRIES = 10000
 
-SESSION_IDS = "realtime:session_ids"
 RUNNING = "realtime:running"
 RUNNERS = "realtime:runners"
 
@@ -127,7 +127,10 @@ def create_realtime_session(game_type, players, bots=()):
     """Start a session of ``game_type`` and return its session id, an
     integer.
 
-    A runner picks up the new session and plays it until it ends.
+    The session's :class:`~dallinger.models.RealtimeSession` row is
+    committed in a transaction of its own, so the session has started when
+    this returns, whatever happens to the caller's transaction. A runner
+    picks it up and plays it until it ends.
     :mod:`dallinger.realtime.runner` says how to start one.
 
     :param game_type: one of the experiment's
@@ -153,8 +156,15 @@ def create_realtime_session(game_type, players, bots=()):
         raise ValueError("A session needs at least one player.")
     bots = _participant_ids(bots, "bots")
     saved = new_session(game, players, bots)
-    # INCR is atomic, so no two sessions get the same id.
-    session_id = redis_conn.incr(SESSION_IDS)
+    with db.session_factory() as own:
+        row = RealtimeSession(
+            game_type=channel,
+            members=[int(player) for player in players],
+            bots=[int(bot) for bot in bots],
+        )
+        own.add(row)
+        own.commit()
+        session_id = row.id
     # A pipeline runs as one transaction, so a runner never finds the session
     # in the running set before its state is there.
     with redis_conn.pipeline() as pipe:
@@ -168,6 +178,21 @@ def create_realtime_session(game_type, players, bots=()):
         pipe.sadd(RUNNING, session_id)
         pipe.execute()
     return session_id
+
+
+def clear_realtime_sessions():
+    """Delete every session from redis, ended or not, keeping the runners'
+    heartbeats. :func:`dallinger.db.init_db` calls this when it recreates the
+    database, since session ids then start again at 1.
+    """
+    # SCAN walks the keyspace a batch at a time without blocking redis.
+    keys = [
+        key
+        for key in redis_conn.scan_iter(match="realtime:*", count=1000)
+        if key != RUNNERS.encode()
+    ]
+    for start in range(0, len(keys), 1000):
+        redis_conn.delete(*keys[start : start + 1000])
 
 
 def _participant_ids(values, what):

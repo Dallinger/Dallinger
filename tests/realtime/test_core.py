@@ -435,6 +435,7 @@ class TestEndings:
             "reason": FINISHED,
             "outcome": {"reason": FINISHED, "moves": 2},
             "state": session(result)["state"],
+            "state_version": 1,
             "error": None,
         }
         [final] = result.views
@@ -703,6 +704,7 @@ class TestRecords:
                 "type": "checkpoint",
                 "time": CHECKPOINT_INTERVAL + 1,
                 "state": session(first)["state"],
+                "state_version": 1,
             }
         ]
         assert soon_after.records == []

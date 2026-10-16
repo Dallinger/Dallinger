@@ -201,6 +201,7 @@ class TestFailure:
 
         assert result.ended["outcome"] == {"reason": FAILED, "moves": 1}
         assert session(result)["state_version"] == 2
+        assert result.records[-1]["state_version"] == 2
 
     def test_state_from_another_version_fails_without_reading_it(self):
         class Calling(TurnTally):
@@ -226,6 +227,7 @@ class TestFailure:
 
         assert "Calling can't read state saved with state_version 1" in error(result)
         assert game.migrations == [1]
+        assert result.records[-1]["state_version"] == 1
         assert result.ended["outcome"] is None
         assert result.ended["views"] == {"1": None, "2": None}
         assert session(result)["state"] == json.loads(saved)["state"]
@@ -309,6 +311,7 @@ class TestFailure:
                 "reason": FAILED,
                 "outcome": None,
                 "state": json.loads(saved)["state"],
+                "state_version": 1,
                 "error": "RuntimeError: no game\n",
             }
         ]
@@ -321,10 +324,12 @@ class TestFailure:
         result = fail_session(TurnTally(), "[]", [], 3, CLOCK, RuntimeError("x"))
 
         assert result.saved == "[]"
-        assert (result.records[0]["sequence"], result.records[0]["time"]) == (
+        [record] = result.records
+        assert [record[key] for key in ("sequence", "time", "state_version")] == [
             None,
             None,
-        )
+            None,
+        ]
         assert result.ended["reason"] == FAILED
 
     def test_a_time_limit_outside_the_main_thread_raises(self):

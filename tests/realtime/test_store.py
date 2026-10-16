@@ -5,6 +5,8 @@ import time
 import pytest
 from redis.client import Pipeline
 
+from dallinger import db
+from dallinger.models import RealtimeSession
 from dallinger.realtime import store
 from dallinger.realtime.core import run_pass
 from dallinger.realtime.game import RealtimeGame
@@ -88,6 +90,39 @@ class TestSessions:
             "2": False,
             "9": True,
         }
+        row = db.session.get(RealtimeSession, session_id)
+        assert (row.game_type, row.members, row.bots, row.status) == (
+            "tally",
+            [1, 2, 9],
+            [9],
+            "running",
+        )
+
+    def test_a_session_starts_whatever_the_callers_transaction_does(self):
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        db.session.rollback()
+
+        assert store.running_sessions() == [session_id]
+        assert db.session.get(RealtimeSession, session_id).status == "running"
+
+    def test_recreating_the_database_deletes_the_sessions_but_not_the_runners(self):
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        add_message(session_id, "1", "a")
+        claim_token(session_id, "runner", 30)
+        store.mark_runner_alive("runner", store.server_time(), 30)
+
+        db.init_db(drop_all=True).commit()
+
+        assert store.redis_conn.keys("realtime:*") == [store.RUNNERS.encode()]
+
+    def test_recreating_another_database_keeps_the_sessions(self):
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        other = db.create_db_engine(db.db_url)
+
+        db.init_db(drop_all=True, bind=other)
+        other.dispose()
+
+        assert store.running_sessions() == [session_id]
 
     def test_bots_move_in_the_order_given(self):
         bots = ["7", "3", "5", "2", "6", "4"]
@@ -118,7 +153,7 @@ class TestSessions:
         for players, bots, error in refused:
             with pytest.raises(ValueError, match=error):
                 store.create_realtime_session(TurnTally, players, bots)
-        assert store.redis_conn.get(store.SESSION_IDS) is None
+        assert RealtimeSession.query.count() == 0
 
     def test_an_unknown_session_has_no_state(self):
         with pytest.raises(KeyError) as raised:

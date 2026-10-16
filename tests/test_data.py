@@ -244,6 +244,90 @@ class TestDataLocally:
             row1 = next(reader)
             assert row1[header.index("worker_id")] == "1"
 
+    def test_realtime_tables_round_trip_with_pii_scrubbed(self, db_session, cleanup):
+        from dallinger.models import RealtimeEvent, RealtimeSession
+
+        db_session.add(
+            RealtimeSession(
+                game_type="duel",
+                members=[1, 2],
+                bots=[2],
+                status="ended",
+                end_time=datetime(2026, 10, 16, 12, 0, 5),
+                end_reason="finished",
+                outcome={"winner": 1},
+                final_state={"scores": [3, 1]},
+                checkpoint={"scores": [2, 1]},
+                state_version=2,
+                dropped=4,
+            )
+        )
+        db_session.flush()
+        db_session.add_all(
+            [
+                RealtimeEvent(
+                    session_id=1,
+                    sequence=1,
+                    event_type="message",
+                    session_time=0.5,
+                    participant_id=1,
+                    scope="page",
+                    payload={"text": "my name is Ada"},
+                    number=1,
+                    browser_time=1760616000123.5,
+                    view_time=0.45,
+                    receive_time=datetime(2026, 10, 16, 12, 0, 0, 500000),
+                    status="rejected",
+                    reason={"code": "late"},
+                ),
+                RealtimeEvent(
+                    session_id=1,
+                    sequence=2,
+                    event_type="end",
+                    session_time=5.0,
+                    reason="finished",
+                    outcome={"winner": 1},
+                    state={"scores": [3, 1]},
+                    state_version=1,
+                ),
+            ]
+        )
+        db_session.commit()
+
+        def rows(model):
+            return [
+                {column.name: getattr(row, column.name) for column in model.__table__.c}
+                for row in model.query.order_by(model.id)
+            ]
+
+        saved = {model: rows(model) for model in (RealtimeSession, RealtimeEvent)}
+        db_session.commit()
+        path = dallinger.data.export("test_export", local=True, scrub_pii=True)
+        dallinger.db.init_db(drop_all=True).commit()
+        dallinger.data.ingest_zip(path)
+
+        assert {model: rows(model) for model in saved} == saved
+        assert [RealtimeSession.query.one().state_version] + [
+            event.state_version for event in RealtimeEvent.query.order_by("sequence")
+        ] == [2, None, 1]
+
+    def test_a_database_without_the_realtime_tables_exports_without_them(
+        self, db_session
+    ):
+        db_session.execute("DROP TABLE realtime_event, realtime_session")
+        db_session.commit()
+        export_dir = tempfile.mkdtemp()
+
+        dallinger.data.copy_db_to_csv(
+            "postgresql://dallinger:dallinger@localhost/dallinger", export_dir
+        )
+
+        assert sorted(os.listdir(export_dir)) == sorted(
+            "{}.csv".format(table)
+            for table in dallinger.data.table_names
+            if not table.startswith("realtime_")
+        )
+
 
 class TestImport:
     @pytest.fixture

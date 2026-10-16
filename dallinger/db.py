@@ -6,7 +6,7 @@ import random
 import sys
 import time
 from contextlib import contextmanager
-from functools import wraps
+from functools import partial, wraps
 from typing import Union
 
 import psycopg2
@@ -158,7 +158,12 @@ def _compile_drop_table(element, compiler, **kwargs):
 
 
 def init_db(drop_all=False, bind=engine):
-    """Initialize the database, optionally dropping existing tables."""
+    """Initialize the database, optionally dropping existing tables.
+
+    Dropping the experiment's own tables also deletes its real-time sessions
+    from redis, as :func:`~dallinger.realtime.store.clear_realtime_sessions`
+    describes.
+    """
     # To create the db structure according to the experiment configuration
     # we need to import the experiment code, so that sqlalchemy has a chance
     # to update its metadata
@@ -171,6 +176,11 @@ def init_db(drop_all=False, bind=engine):
     try:
         if drop_all:
             Base.metadata.drop_all(bind=bind)
+            if bind is engine:
+                # Imported here because the store imports this module.
+                from dallinger.realtime.store import clear_realtime_sessions
+
+                clear_realtime_sessions()
         Base.metadata.create_all(bind=bind)
     except OperationalError as err:
         msg = 'password authentication failed for user "dallinger"'
@@ -320,28 +330,81 @@ def serialized(func):
     return wrapper
 
 
-# Reset outbox when session begins
-@event.listens_for(Session, "after_begin")
-def after_begin(session, transaction, connection):
-    session.info["outbox"] = []
+def run_after_commit(callback):
+    """Call ``callback`` with no arguments once the session's transaction
+    commits. It's never called if the transaction, or the savepoint it was
+    added in, rolls back. A callback that raises is logged, and the rest
+    still run.
 
-
-# Reset outbox after rollback
-@event.listens_for(Session, "after_soft_rollback")
-def after_soft_rollback(session, previous_transaction):
-    session.info["outbox"] = []
+    A callback still waiting when its transaction ends without a commit, as
+    when the session is closed, is dropped with a warning.
+    """
+    current = session()
+    # Begins the transaction if none has begun.
+    current.connection()
+    transaction = current.get_nested_transaction() or current.get_transaction()
+    session.info.setdefault("after_commit", []).append((transaction, callback))
 
 
 def queue_message(channel, message):
+    """Publish ``message`` to the redis ``channel`` once the session's
+    transaction commits, as :func:`run_after_commit` does.
+    """
     logger.debug("Enqueueing message to {}: {}".format(channel, message))
-    if "outbox" not in session.info:
-        session.info["outbox"] = []
-    session.info["outbox"].append((channel, message))
+    run_after_commit(partial(_publish, channel, message))
 
 
-# Publish messages to redis after commit
+def _publish(channel, message):
+    logger.debug("Publishing message to {}: {}".format(channel, message))
+    redis_conn.publish(channel, message)
+
+
 @event.listens_for(Session, "after_commit")
 def after_commit(session):
-    for channel, message in session.info.get("outbox", ()):
-        logger.debug("Publishing message to {}: {}".format(channel, message))
-        redis_conn.publish(channel, message)
+    # after_commit also fires when a savepoint is released.
+    if session.in_nested_transaction():
+        return
+    for _, callback in session.info.pop("after_commit", ()):
+        # An exception here would leave the session unusable, even by
+        # rollback, since SQLAlchemy closes the transaction only after this
+        # event.
+        try:
+            callback()
+        except Exception:
+            logger.exception("A callback run after a commit failed.")
+
+
+@event.listens_for(Session, "after_rollback")
+def after_rollback(session):
+    # A rollback of the outermost transaction fires this before
+    # after_transaction_end, and a savepoint's fires after_soft_rollback.
+    if not session.in_nested_transaction():
+        session.info["after_commit"] = []
+
+
+@event.listens_for(Session, "after_soft_rollback")
+def after_soft_rollback(session, previous_transaction):
+    session.info["after_commit"] = [
+        (transaction, callback)
+        for transaction, callback in session.info.get("after_commit", ())
+        if not _within(transaction, previous_transaction)
+    ]
+
+
+def _within(transaction, outer):
+    while transaction is not None:
+        if transaction is outer:
+            return True
+        transaction = transaction.parent
+    return False
+
+
+@event.listens_for(Session, "after_transaction_end")
+def after_transaction_end(session, transaction):
+    if transaction.parent is None and session.info.get("after_commit"):
+        logger.warning(
+            "Dropped %s callbacks waiting for a commit, because their "
+            "transaction ended without one.",
+            len(session.info["after_commit"]),
+        )
+        session.info["after_commit"] = []

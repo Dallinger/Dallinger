@@ -6,7 +6,7 @@ from tests.realtime.helpers import TurnTally
 
 
 @pytest.fixture
-def realtime_experiment(monkeypatch):
+def realtime_experiment(monkeypatch, db_session):
     """Load an experiment whose only game type is TurnTally, and return its
     class, so a test can change its game types.
     """

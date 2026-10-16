@@ -79,8 +79,9 @@ class PassResult:
       ``received``, its ``status`` (``"accepted"``, ``"rejected"`` or
       ``"failed"``) and the rejection's ``reason``
     - ``effect``: the ``name`` and ``payload`` game code queued
-    - ``checkpoint``: the ``state``
-    - ``end``: the ``reason``, ``outcome``, final ``state`` and ``error``
+    - ``checkpoint``: the ``state`` and its ``state_version``
+    - ``end``: the ``reason``, ``outcome``, final ``state``, its
+      ``state_version``, and the ``error``
 
     ``ended`` is the session's ending if this pass ended it, otherwise
     ``None``. It holds the ending's ``time``, ``reason`` and ``outcome``, the
@@ -239,6 +240,7 @@ def _bare_failure(saved, error):
         "reason": FAILED,
         "outcome": None,
         "state": None,
+        "state_version": None,
         "error": text,
     }
     try:
@@ -246,6 +248,7 @@ def _bare_failure(saved, error):
         ended["time"] = record["time"] = session["time"]
         record["sequence"] = session["record_number"] + 1
         record["state"] = session["state"]
+        record["state_version"] = session["state_version"]
     except (ValueError, KeyError, TypeError):
         return PassResult(saved, [], [record], ended, None)
     session["record_number"] = record["sequence"]
@@ -393,7 +396,11 @@ class _Pass:
         else:
             self.time = self.now
             if self.time >= session["next_checkpoint"]:
-                self.add_record("checkpoint", state=self.state)
+                self.add_record(
+                    "checkpoint",
+                    state=self.state,
+                    state_version=session["state_version"],
+                )
                 session["next_checkpoint"] = self.time + CHECKPOINT_INTERVAL
             # The loop stopped at a tick still to come, if there is one.
             due = [tick_time, self.game.max_duration]
@@ -706,6 +713,7 @@ class _Pass:
             reason=self.end_reason,
             outcome=outcome,
             state=self.state,
+            state_version=self.session["state_version"],
             error=error,
         )
 
