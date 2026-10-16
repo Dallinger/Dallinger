@@ -282,9 +282,6 @@
   because they check the app's ``/health``, which Dallinger 12.4.0 and older
   lack. Rebuild older images before deploying them. The web image also needs
   ``curl`` (the Dallinger and PsyNet images have it).
-- docker-ssh apps no longer fail under load with ``no more connections
-  allowed (max_client_conn)``: their pgbouncer now accepts up to 10,000
-  client connections instead of 100.
 - docker-ssh apps with their own Postgres (Cloudflare ingress) now let
   pgbouncer keep up to 80 Postgres connections instead of 20, so requests no
   longer queue at about 200 participants. On a 16-thread server, p95 response
@@ -295,10 +292,6 @@
   to 1,000, so idle connections no longer pile up after heavy load and use up
   the database's or pgbouncer's client limit. Busy processes still open as
   many connections as they need.
-- After a docker-ssh app's pgbouncer or Postgres container restarts, requests
-  no longer fail with ``server closed the connection unexpectedly``; dropped
-  idle connections are replaced when next used. Requests in flight during the
-  restart can still fail.
 - Classic-ingress docker-ssh deploys to a server whose SSH host resolves only
   to private IP addresses now stop before building the image and suggest
   ``--ingress cloudflare``, because Let's Encrypt cannot issue certificates
@@ -307,8 +300,9 @@
   public DNS name points at a public IP that forwards ports 80 and 443 to it,
   pass ``--allow-private-ip``: the deploy then only checks that the
   experiment hostname resolves, not that it matches the SSH host's address.
-- ``dallinger debug`` now keeps a ``FLASK_SECRET_KEY`` that is already set in
-  the environment, and generates a random one only when it is unset or empty.
+- ``dallinger debug`` and ``dallinger docker debug`` now keep a
+  ``FLASK_SECRET_KEY`` that is already set in the environment, and generate a
+  random one only when it is unset or empty.
   Tools that restart the local server can set the key themselves so that
   dashboard logins stay valid across restarts.
 - Dallinger's Docker PostgreSQL containers (docker-ssh, ``docker debug`` and
@@ -340,6 +334,23 @@
 
 ### Fixed
 
+- docker-ssh deploys now wait up to 15 minutes for ``/launch`` instead of 5,
+  and do not launch while the public ``/health`` reports a hibernating or
+  waking app. ``--server`` also accepts the short
+  name of a server registered as ``host:port``, such as ``pc04`` for
+  ``pc04:2200``. Hibernation gives PostgreSQL 60 seconds to stop and other
+  containers 30. ``dallinger debug`` counts an HTTP error from ``/summary``
+  as a failed status check. ``restore_state_from_replay`` closes its import
+  database connections when it fails. The Cloudflare Keychain error includes
+  what ``security`` reported, and invalid database pool settings name their
+  smallest allowed value, for example ``at least -1 (no limit)``.
+- docker-ssh apps no longer fail under load with ``no more connections
+  allowed (max_client_conn)``: their pgbouncer now accepts up to 10,000
+  client connections instead of 100.
+- After a docker-ssh app's pgbouncer or Postgres container restarts, requests
+  no longer fail with ``server closed the connection unexpectedly``; dropped
+  idle connections are replaced when next used. Requests in flight during the
+  restart can still fail.
 - `dallinger debug` no longer prints "Error fetching experiment status" while
   the server shuts down or after a single failed request. Once recruitment
   closes, it reports an error only after three failed status checks in a row,
