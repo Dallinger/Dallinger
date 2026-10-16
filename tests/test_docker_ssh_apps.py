@@ -555,6 +555,7 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
     def build(config, experiment_files, *args):
         events.append("build")
         assert experiment_files is source
+        assert config.get("docker_image_name") == "registry.example/exp:1"
         raise click.Abort()
 
     monkeypatch.setattr(
@@ -575,7 +576,12 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
     monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
 
     with pytest.raises(click.Abort):
-        docker_ssh_module._deploy_in_mode(**_deploy_kwargs(server="lab"))
+        docker_ssh_module._deploy_in_mode(
+            **_deploy_kwargs(
+                server="lab",
+                config_options=(("docker_image_name", "registry.example/exp:1"),),
+            )
+        )
 
     assert events == [
         "policy",
