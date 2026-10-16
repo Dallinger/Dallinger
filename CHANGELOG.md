@@ -340,6 +340,9 @@
 
 ### Fixed
 
+- Stopping `dallinger develop debug` no longer prints a
+  `TypeError: 'NoneType' object is not callable` traceback from gevent
+  during interpreter shutdown on Python 3.13.
 - docker-ssh deploys no longer fail to launch when a new Cloudflare tunnel
   takes several minutes to register. After checking the app's ``/health``
   from inside the server, the deploy waits up to 7 minutes for the public
