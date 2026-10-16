@@ -23,9 +23,8 @@ The real-time engine needs redis 7.0 or later.
 #   higher than every earlier claim's.
 # - unreleased: the token of the last claim, until its runner gives it up or
 #   the session ends.
-# - handovers: a sorted set of the tokens of claims that expired rather than
-#   being given up, each scored by the time another runner next claimed the
-#   session.
+# - handovers: how many claims on the session in a row expired rather than
+#   being given up, with no save in between.
 # - records: a stream of the session's records for Postgres, each a JSON dict
 #   in the field "record".
 # - final: once the session has ended, its ending's "reason" and the final
@@ -69,21 +68,17 @@ _claim = redis_conn.register_script(
         or redis.call("sismember", KEYS[3], ARGV[3]) == 0 then
         return false
     end
-    -- TIME returns the server clock as seconds and microseconds.
-    local time = redis.call("time")
-    local now = time[1] + time[2] / 1e6
     -- With no claim held, a claim not given up has expired.
-    local expired = redis.call("get", KEYS[4])
-    if expired and string.match(expired, "^%d+:(.*)$") ~= ARGV[1] then
-        redis.call("zadd", KEYS[5], now, expired)
+    if redis.call("exists", KEYS[4]) == 1 then
+        redis.call("incr", KEYS[5])
     end
     -- INCR starts a missing counter at 0, so the first epoch is 1.
     local token = redis.call("incr", KEYS[2]) .. ":" .. ARGV[1]
     -- PX: the key expires after this many milliseconds.
     redis.call("set", KEYS[1], token, "px", ARGV[2])
     redis.call("set", KEYS[4], token)
-    -- ZCOUNT counts the members with scores in a range.
-    return {token, redis.call("zcount", KEYS[5], now - tonumber(ARGV[4]), "+inf")}
+    -- GET returns false for a missing key.
+    return {token, tonumber(redis.call("get", KEYS[5]) or 0)}
     """
 )
 _extend = redis_conn.register_script(
@@ -353,19 +348,18 @@ def count_dropped(session_id, count=1):
     return redis_conn.incrby(session_key(session_id, "dropped"), count)
 
 
-def claim(session_id, runner, ttl, window):
+def claim(session_id, runner, ttl):
     """Claim a session for ``runner`` for ``ttl`` seconds.
 
     The checks, the new epoch and the claim run as one redis script, so
     they're atomic.
 
-    A claim by another runner after the previous one expired, rather than
-    being given up with :func:`release_session_claims`, is a handover.
+    A claim made after the previous one expired, rather than being given up
+    with :func:`release_session_claims`, is a handover.
 
     :returns: ``None`` if another claim holds the session or it has ended.
         Otherwise the claim's token, a string, and the number of the
-        session's handovers in the last ``window`` seconds, this claim's
-        included.
+        session's handovers since it was last saved, this claim's included.
     """
     claimed = _claim(
         keys=[
@@ -375,7 +369,7 @@ def claim(session_id, runner, ttl, window):
             session_key(session_id, "unreleased"),
             session_key(session_id, "handovers"),
         ],
-        args=[runner, _ms(ttl), session_id, window],
+        args=[runner, _ms(ttl), session_id],
     )
     if claimed is None:
         return None
@@ -441,14 +435,6 @@ def release_session_claims(tokens):
     return [session_id for session_id, held in zip(tokens, released) if not held]
 
 
-def count_handovers(session_id, since):
-    """Count the session's handovers at or after ``since``, a time on redis's
-    clock, as :func:`claim` describes them.
-    """
-    # ZCOUNT counts the members of a sorted set with scores in a range.
-    return redis_conn.zcount(session_key(session_id, "handovers"), since, "+inf")
-
-
 def mark_runner_alive(runner, clock, ttl):
     """Record that ``runner`` is running until ``ttl`` seconds after
     ``clock``, a time on redis's clock, and return the names of the runners
@@ -480,7 +466,8 @@ def save_passes(passes, ttl):
         saved
 
     Each session's saved session, position and count of applied entries are
-    written, its records added, and its applied entries removed. A session
+    written, its records added, its applied entries removed, and its count
+    of handovers started again. A session
     the pass ended leaves the running set, gets its final views, and gives up
     its claim. A claim that changes or expires while the transaction is
     prepared aborts it, and it's tried again without the sessions whose
@@ -531,6 +518,7 @@ def _write_pass(pipe, session_id, applied, result, px):
         # HINCRBY adds to a number in a hash field, starting a missing one at 0.
         pipe.hincrby(state_key, "applied", len(applied))
     pipe.hset(state_key, mapping=state)
+    pipe.delete(session_key(session_id, "handovers"))
     for record in result.records:
         pipe.xadd(session_key(session_id, "records"), {"record": dump_json(record)})
     if result.ended is None:

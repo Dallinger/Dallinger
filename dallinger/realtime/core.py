@@ -41,7 +41,7 @@ from dallinger.realtime.game import (
     Sent,
     queued_effects,
 )
-from dallinger.realtime.time_limit import TimeLimitExceeded, time_limits
+from dallinger.realtime.time_limit import TimeLimitExceeded, time_budget
 from dallinger.realtime.utils import copy_json, dump_json, is_int
 
 #: Seconds on the session clock between checkpoints of the state.
@@ -79,9 +79,8 @@ class PassResult:
       ``received``, its ``status`` (``"accepted"``, ``"rejected"`` or
       ``"failed"``) and the rejection's ``reason``
     - ``effect``: the ``name`` and ``payload`` game code queued
-    - ``checkpoint``: the ``state`` and its ``state_version``
-    - ``end``: the ``reason``, ``outcome``, final ``state``, its
-      ``state_version``, and the ``error``
+    - ``checkpoint``: the ``state``
+    - ``end``: the ``reason``, ``outcome``, final ``state`` and ``error``
 
     ``ended`` is the session's ending if this pass ended it, otherwise
     ``None``. It holds the ending's ``time``, ``reason`` and ``outcome``, the
@@ -115,7 +114,6 @@ def new_session(game, members, bots=()):
         raise ValueError("Every bot must be a member.")
     return dump_json(
         {
-            "state_version": game.state_version,
             "state": copy_json(
                 game.initial_state(list(members)),
                 "{}.initial_state's return value".format(type(game).__name__),
@@ -138,9 +136,7 @@ def new_session(game, members, bots=()):
     )
 
 
-def run_pass(
-    game, saved, entries, now, clock, time_limit=None, before_each_time_limit=None
-):
+def run_pass(game, saved, entries, now, clock, time_limit=None):
     """Apply ``entries`` and any ticks due by ``now`` to the ``saved`` session.
 
     :param saved: a session from :func:`new_session` or an earlier pass
@@ -149,27 +145,17 @@ def run_pass(
         session's counts as the saved session's time.
     :param clock: the runner's clock, in seconds since the epoch
     :param time_limit: seconds the game's methods may run for in total
-        before the session fails, or ``None`` for no limit. The limit uses
-        ``SIGALRM`` and ``ITIMER_REAL`` while the pass runs, so it only works
-        in the main thread.
-    :param before_each_time_limit: a function to call each time the game's
-        time limit starts again: once for the pass, and for a session that
-        fails, once more for ``outcome`` and once for its final views. It
-        runs outside the time limit, so a caller can do its own work between
-        stretches of game code, such as renewing a lease that a pass and a
-        failure together could outlast. It mustn't raise an
-        :class:`Exception`. To stop the pass, it can raise a
-        :class:`BaseException`, which leaves the core.
+        before the session fails, or ``None`` for no limit. A session that
+        fails gets ``outcome`` and its final views from what's left of it.
+        The limit uses ``SIGALRM`` and ``ITIMER_REAL`` while the pass runs,
+        so it only works in the main thread.
     :returns: a :class:`PassResult`
     """
-    with time_limits(time_limit) as new_budget:
-        new_budget = _announced(new_budget, before_each_time_limit)
-        played = _Pass(game, saved, now, clock, new_budget)
+    with time_budget(time_limit) as budget:
         try:
-            return played.run(entries)
+            return _Pass(game, saved, now, clock, budget).run(entries)
         except _FAILURES as error:
-            failed = _Pass(game, played.saved, now, clock, new_budget)
-            return failed.fail(entries, error)
+            return _Pass(game, saved, now, clock, budget).fail(entries, error)
 
 
 def fail_session(
@@ -180,7 +166,6 @@ def fail_session(
     clock,
     error,
     time_limit=None,
-    before_each_time_limit=None,
 ):
     """End the ``saved`` session as failed with ``error``, an exception, for a
     problem found outside a pass, recording ``entries`` as a failing pass does.
@@ -194,26 +179,13 @@ def fail_session(
     The other arguments are those of :func:`run_pass`.
     """
     if game is not None:
-        with time_limits(time_limit) as new_budget:
-            new_budget = _announced(new_budget, before_each_time_limit)
+        with time_budget(time_limit) as budget:
             for recorded in (entries, []):
                 try:
-                    failed = _Pass(game, saved, now, clock, new_budget)
-                    return failed.fail(recorded, error)
+                    return _Pass(game, saved, now, clock, budget).fail(recorded, error)
                 except Exception:
                     pass
     return _bare_failure(saved, error)
-
-
-def _announced(new_budget, before_each_time_limit):
-    if before_each_time_limit is None:
-        return new_budget
-
-    def announced():
-        before_each_time_limit()
-        return new_budget()
-
-    return announced
 
 
 def session_time(saved):
@@ -240,7 +212,6 @@ def _bare_failure(saved, error):
         "reason": FAILED,
         "outcome": None,
         "state": None,
-        "state_version": None,
         "error": text,
     }
     try:
@@ -248,7 +219,6 @@ def _bare_failure(saved, error):
         ended["time"] = record["time"] = session["time"]
         record["sequence"] = session["record_number"] + 1
         record["state"] = session["state"]
-        record["state_version"] = session["state_version"]
     except (ValueError, KeyError, TypeError):
         return PassResult(saved, [], [record], ended, None)
     session["record_number"] = record["sequence"]
@@ -317,7 +287,7 @@ def _read_socket(entry):
 
 
 class _Pass:
-    def __init__(self, game, saved, now, clock, new_budget):
+    def __init__(self, game, saved, now, clock, budget):
         self.game = game
         self.name = type(game).__name__
         # Names the state when the session fails to dump. Everything else in
@@ -329,8 +299,7 @@ class _Pass:
         self.time = session["time"]
         self.now = max(now, self.time)
         self.clock = clock
-        self.new_budget = new_budget
-        self.budget = new_budget()
+        self.budget = budget
         self.pages = {
             (page["participant"], page["scope"]): page for page in session["pages"]
         }
@@ -347,13 +316,6 @@ class _Pass:
         before = (
             dump_json(self.state, self.state_name) if not self.game.tick_rate else None
         )
-        if session["state_version"] != self.game.state_version:
-            self.state = session["state"] = self.call(
-                "migrate_state", self.state, session["state_version"], returns=True
-            )
-            session["state_version"] = self.game.state_version
-            # A pass that fails after this starts again from the migrated session.
-            self.saved = dump_json(session, self.state_name)
         if not session["started"]:
             session["started"] = True
             if not self.game.tick_rate:
@@ -396,11 +358,7 @@ class _Pass:
         else:
             self.time = self.now
             if self.time >= session["next_checkpoint"]:
-                self.add_record(
-                    "checkpoint",
-                    state=self.state,
-                    state_version=session["state_version"],
-                )
+                self.add_record("checkpoint", state=self.state)
                 session["next_checkpoint"] = self.time + CHECKPOINT_INTERVAL
             # The loop stopped at a tick still to come, if there is one.
             due = [tick_time, self.game.max_duration]
@@ -476,13 +434,10 @@ class _Pass:
     def value_of(self, name, *args):
         """Return a copy of what ``view`` or ``outcome`` returns.
 
-        A failed session gets ``None`` instead of failing again, and never
-        calls game code with state from another version.
+        A failed session gets ``None`` instead of failing again.
         """
         if not self.failed:
             return self.call(name, *args, returns=True)
-        if self.session["state_version"] != self.game.state_version:
-            return None
         try:
             return self.call(name, *args, returns=True)
         except _FAILURES:
@@ -693,9 +648,6 @@ class _Pass:
 
     def end(self, error=None):
         outcome = self.value_of("outcome", self.state, self.end_reason)
-        if self.failed:
-            # A slow outcome doesn't cost the players their final views.
-            self.budget = self.new_budget()
         bots = set(self.session["bots"])
         self.session["ended"] = {
             "time": self.time,
@@ -713,7 +665,6 @@ class _Pass:
             reason=self.end_reason,
             outcome=outcome,
             state=self.state,
-            state_version=self.session["state_version"],
             error=error,
         )
 

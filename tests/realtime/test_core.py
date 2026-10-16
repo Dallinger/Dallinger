@@ -69,7 +69,6 @@ class TestNewSession:
         assert loaded["bots"] == ["2"]
         assert loaded["bot_messages"] == {"2": 0}
         assert loaded["next_tick"] == 0.25
-        assert loaded["state_version"] == 1
 
     def test_bots_must_be_members(self):
         with pytest.raises(ValueError, match="Every bot must be a member"):
@@ -435,7 +434,6 @@ class TestEndings:
             "reason": FINISHED,
             "outcome": {"reason": FINISHED, "moves": 2},
             "state": session(result)["state"],
-            "state_version": 1,
             "error": None,
         }
         [final] = result.views
@@ -704,7 +702,6 @@ class TestRecords:
                 "type": "checkpoint",
                 "time": CHECKPOINT_INTERVAL + 1,
                 "state": session(first)["state"],
-                "state_version": 1,
             }
         ]
         assert soon_after.records == []

@@ -10,7 +10,6 @@ import signal
 import threading
 import time
 from contextlib import contextmanager
-from functools import partial
 
 logger = logging.getLogger(__name__)
 
@@ -38,18 +37,18 @@ _running = None
 
 
 @contextmanager
-def time_limits(seconds):
-    """Yield a function that returns a new budget of ``seconds``, or an
-    unlimited budget if ``seconds`` is ``None``.
+def time_budget(seconds):
+    """Yield a budget of ``seconds``, or an unlimited budget if ``seconds`` is
+    ``None``.
     """
     if seconds is None:
-        yield _Unlimited
+        yield _Unlimited()
         return
     if threading.current_thread() is not threading.main_thread():
         raise RuntimeError("A time limit only works in the main thread.")
     previous = signal.signal(signal.SIGALRM, _time_out)
     try:
-        yield partial(_Budget, seconds)
+        yield _Budget(seconds)
     finally:
         signal.signal(signal.SIGALRM, previous)
 

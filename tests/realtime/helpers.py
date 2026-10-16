@@ -112,7 +112,7 @@ def add(session_id, entry):
 
 
 def handovers(session_id):
-    return store.redis_conn.zcard(store.session_key(session_id, "handovers"))
+    return int(store.redis_conn.get(store.session_key(session_id, "handovers")) or 0)
 
 
 def started(game, members=("1", "2"), bots=()):

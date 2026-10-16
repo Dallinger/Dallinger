@@ -13,27 +13,18 @@ runners split the sessions about evenly without coordinating. When a runner
 starts or stops, only the sessions that belong to it move. A session's time
 stops while no runner is playing it.
 
-A runner that gets ``SIGTERM`` or ``SIGINT`` plays and saves its sessions one
-last time, for up to :data:`SHUTDOWN_PLAY_TIME` seconds, and gives them up as
-it stops. Other runners take them over at once, from that moment, and a
-runner giving sessions to one that started does the same. A runner that stops
-any other way, because it was killed or game code caught every exception in a
-loop, leaves its sessions to be taken over after about :data:`CLAIM_TTL`
-seconds. A session that changes runners that way
-:data:`MAX_HANDOVERS` times within :data:`HANDOVER_WINDOW` seconds fails, so
-one session can't stop every runner in turn.
+A runner that gets ``SIGTERM`` or ``SIGINT`` gives up its sessions as it
+stops, and other runners take them over at once from where they were last
+saved. A runner giving sessions to one that started does the same. A runner
+that stops any other way leaves its sessions to be taken over after about
+:data:`CLAIM_TTL` seconds: it was killed, game code caught every exception in
+a loop, or it lost its connection to redis, which ends the runner with the
+error. A session that changes runners that way :data:`MAX_HANDOVERS` times
+in a row, without being saved in between, fails, so one session can't stop
+every runner in turn.
 
 The runner logs at the experiment's ``loglevel_worker``. It logs each session
 that fails, with its error.
-
-If the runner loses its connection to redis, it logs that, stops playing, and
-tries again every :data:`REDIS_RETRY_INTERVAL` seconds. Once redis is back, it
-goes on playing its sessions from where they were last saved. An outage
-affects every runner alike, so a runner that's back waits
-:data:`HEARTBEAT_TTL` seconds before claiming sessions it didn't hold, for
-the others to say they're running again. A session whose claim expired during
-the outage then goes back to the runner it belongs to, and a runner taking back
-a claim it held itself doesn't count toward :data:`MAX_HANDOVERS`.
 
 The runner also warns when it isn't keeping up: when playing its sessions
 once and sending their views takes longer than the time between ticks of the
@@ -50,10 +41,6 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
-
-from redis import ConnectionError as RedisConnectionError
-from redis import RedisError
-from redis import TimeoutError as RedisTimeoutError
 
 from dallinger.db import get_queue
 from dallinger.realtime import store
@@ -84,25 +71,15 @@ CLAIM_INTERVAL = 0.5
 #: take its sessions over.
 HEARTBEAT_TTL = CLAIM_TTL
 
-#: How many times a session may change runners within
-#: :data:`HANDOVER_WINDOW` seconds before it fails. Only runners that stopped
-#: without giving the session up count.
+#: How many times in a row a session may change runners before it fails.
+#: Only runners that stopped without giving the session up count, and saving
+#: the session starts the count again.
 MAX_HANDOVERS = 3
-
-#: Seconds over which a session's changes of runner are counted.
-HANDOVER_WINDOW = 60
 
 #: The most entries a pass applies to one session. A session with more
 #: waiting, after a takeover or a slow pass, gets the rest in the passes that
 #: follow, so a backlog doesn't use up its game type's time limit.
 MAX_PASS_ENTRIES = 100
-
-#: Seconds a stopping runner spends playing its sessions one last time. It
-#: gives up the ones it hasn't played as they were last saved. A pass that
-#: starts before then can still run its three time limits, so this and those
-#: fit in the ten seconds Docker waits after ``SIGTERM`` before it kills a
-#: process.
-SHUTDOWN_PLAY_TIME = 3
 
 #: Seconds between the jobs a runner queues to write each session's new
 #: records.
@@ -119,20 +96,6 @@ SLOW = 1
 
 #: The fewest seconds between two of the runner's warnings about slow steps.
 SLOW_LOG_INTERVAL = 10
-
-#: Seconds a runner that lost its connection to redis waits before trying
-#: again.
-REDIS_RETRY_INTERVAL = 1
-
-
-class _BetweenTimeLimits(BaseException):
-    """Carries a redis error out of the core, which fails the session being
-    played on an :class:`Exception`.
-    """
-
-    def __init__(self, error):
-        super().__init__(error)
-        self.error = error
 
 
 @dataclass
@@ -176,27 +139,19 @@ class Runner:
             socket.gethostname(), os.getpid(), uuid.uuid4().hex[:8]
         )
         self.sessions = {}
-        # Claims the runner holds on sessions it isn't playing, by session id:
-        # the ones it held when it lost redis, and one it's adding.
-        self.held = {}
         self.stopping = threading.Event()
         self.limited = False
         # Redis's clock less this host's, so session times match entry IDs.
         self.offset = 0
         self.next_claim = 0
-        # When the runner may claim sessions it doesn't hold. None after it
-        # loses redis, until it balances its sessions again.
-        self.next_new_claims = 0
         self.next_records = 0
         self.next_slow_log = 0
-        self.redis_lost = False
         self.last_heartbeat = 0
 
     def stop(self):
         """Stop the runner once it has finished what it's doing, which takes
         at most :data:`CLAIM_INTERVAL` seconds while it waits for messages.
-        It then plays its sessions one last time, for up to
-        :data:`SHUTDOWN_PLAY_TIME` seconds, and gives them up.
+        It then gives up its sessions.
         """
         self.stopping.set()
 
@@ -214,58 +169,18 @@ class Runner:
             "" if self.limited else ", without time limits",
         )
         while not self.stopping.is_set():
-            try:
-                self.step()
-            except (RedisConnectionError, RedisTimeoutError) as error:
-                self.lose_redis(error)
-                continue
-            if self.redis_lost:
-                self.redis_lost = False
-                logger.info("Runner %s reached redis again.", self.name)
+            self.step()
         self.let_go()
 
     def let_go(self):
-        """Play every session the runner holds one last time, give them up,
-        and stop counting as running.
+        """Give up every session the runner holds, and stop counting as
+        running.
         """
-        try:
-            self.play_now(list(self.sessions), time.monotonic() + SHUTDOWN_PLAY_TIME)
-            # Playing can renew the runner's heartbeat.
-            store.remove_runner(self.name)
-            store.release_session_claims(
-                {
-                    **self.held,
-                    **{
-                        session_id: session.token
-                        for session_id, session in self.sessions.items()
-                    },
-                }
-            )
-        except (RedisConnectionError, RedisTimeoutError) as error:
-            logger.warning(
-                "Runner %s couldn't give up its sessions, and other runners "
-                "take them over once its claims expire: %s",
-                self.name,
-                error,
-            )
-        self.sessions = {}
-
-    def lose_redis(self, error):
-        if not self.redis_lost:
-            self.redis_lost = True
-            logger.warning(
-                "Runner %s lost its connection to redis, and stops playing its "
-                "sessions until it's back: %s",
-                self.name,
-                error,
-            )
-        self.held.update(
+        store.remove_runner(self.name)
+        store.release_session_claims(
             {session_id: session.token for session_id, session in self.sessions.items()}
         )
         self.sessions = {}
-        self.next_claim = 0
-        self.next_new_claims = None
-        self.stopping.wait(REDIS_RETRY_INTERVAL)
 
     def clock(self):
         return time.time() + self.offset
@@ -299,11 +214,6 @@ class Runner:
         """Claim the running sessions that belong to this runner, and give up
         the ones that belong to another.
         """
-        if self.next_new_claims is None:
-            # The other runners lost redis too, and their heartbeats may have
-            # expired before they reach it again.
-            self.next_new_claims = clock + HEARTBEAT_TTL
-        self.resume_sessions(clock)
         runners = self.mark_alive(clock)
         owned = {
             session_id
@@ -311,35 +221,15 @@ class Runner:
             if owner(session_id, runners) == self.name
         }
         self.release_sessions([each for each in self.sessions if each not in owned])
-        if clock >= self.next_new_claims:
-            self.claim_sessions(sorted(owned.difference(self.sessions)), clock)
+        self.claim_sessions(sorted(owned.difference(self.sessions)), clock)
 
     def mark_alive(self, clock):
         self.last_heartbeat = clock
         return store.mark_runner_alive(self.name, clock, HEARTBEAT_TTL)
 
-    def resume_sessions(self, clock):
-        """Play on the sessions whose claims the runner still holds after
-        losing redis, from what redis saved.
-        """
-        if not self.held:
-            return
-        lost = store.extend_session_claims(self.held, CLAIM_TTL)
-        for session_id, token in list(self.held.items()):
-            if session_id in lost:
-                logger.warning(
-                    "Runner %s lost its claim on session %s.", self.name, session_id
-                )
-            else:
-                handovers = store.count_handovers(session_id, clock - HANDOVER_WINDOW)
-                self.add_session(session_id, token, clock, handovers)
-            del self.held[session_id]
-
     def release_sessions(self, session_ids):
         if not session_ids:
             return
-        self.play_now(session_ids)
-        session_ids = [each for each in session_ids if each in self.sessions]
         store.release_session_claims(
             {session_id: self.sessions[session_id].token for session_id in session_ids}
         )
@@ -351,46 +241,19 @@ class Runner:
             len(session_ids),
         )
 
-    def play_now(self, session_ids, deadline=None):
-        """Play the sessions with the entries they have, so that what's saved
-        is from now, and the runner taking them over goes on from now. No
-        pass starts after ``deadline``, a ``time.monotonic()`` time.
-        """
-        if not session_ids:
-            return
-        for session_id in session_ids:
-            self.sessions[session_id].next_pass = 0
-        self.play(
-            store.read_entries(
-                {
-                    session_id: self.sessions[session_id].position
-                    for session_id in session_ids
-                },
-                0,
-                MAX_PASS_ENTRIES,
-            ),
-            deadline,
-        )
-
     def claim_sessions(self, session_ids, clock):
         for session_id in session_ids:
-            claimed = store.claim(session_id, self.name, CLAIM_TTL, HANDOVER_WINDOW)
-            if claimed is None:
-                continue
-            token, handovers = claimed
-            # Until the session is added, a lost connection to redis keeps
-            # the claim with the others the runner resumes.
-            self.held[session_id] = token
-            self.add_session(session_id, token, clock, handovers)
-            del self.held[session_id]
+            claimed = store.claim(session_id, self.name, CLAIM_TTL)
+            if claimed is not None:
+                self.add_session(session_id, *claimed, clock)
 
-    def add_session(self, session_id, token, clock, handovers):
+    def add_session(self, session_id, token, handovers, clock):
         error = None
         if handovers >= MAX_HANDOVERS:
             error = RuntimeError(
-                "The session changed runners {} times in {} seconds, each "
-                "time because the runner playing it stopped without giving "
-                "it up.".format(handovers, HANDOVER_WINDOW)
+                "The session changed runners {} times without being saved, each "
+                "time because the runner playing it stopped without giving it "
+                "up.".format(handovers)
             )
         try:
             loaded = store.load_session(session_id)
@@ -424,10 +287,9 @@ class Runner:
                 get_queue("default").enqueue(write_records, session_id)
                 session.records = False
 
-    def play(self, read, deadline=None):
+    def play(self, read):
         """Play the sessions that have new entries or are due, save them, and
-        send their views. No pass starts after ``deadline``, a
-        ``time.monotonic()`` time.
+        send their views.
         """
         started = time.monotonic()
         clock = self.clock()
@@ -437,8 +299,6 @@ class Runner:
         passes = []
         timings = []
         for session_id, session in list(self.sessions.items()):
-            if deadline is not None and time.monotonic() >= deadline:
-                break
             items = read.get(session_id, [])
             if not items and clock < session.next_pass:
                 continue
@@ -446,12 +306,7 @@ class Runner:
             if session_id not in self.sessions:
                 continue
             began = time.monotonic()
-            try:
-                result = self.play_session(
-                    session, items, lost.get(session_id, 0), clock
-                )
-            except _BetweenTimeLimits as raised:
-                raise raised.error from None
+            result = self.play_session(session, items, lost.get(session_id, 0), clock)
             timings.append((time.monotonic() - began, session))
             applied = [entry_id for entry_id, _ in items]
             passes.append((session_id, session.token, applied, result))
@@ -497,12 +352,6 @@ class Runner:
             else:
                 self.sessions[session_id].renewed = clock
 
-    def extend_claims_between_time_limits(self):
-        try:
-            self.extend_stale_claims()
-        except RedisError as error:
-            raise _BetweenTimeLimits(error)
-
     def drop(self, session_id):
         if self.sessions.pop(session_id, None) is not None:
             logger.warning(
@@ -520,27 +369,10 @@ class Runner:
                 entry["time"] = entry["received"] - session.origin
             error = _problem(session, entries, lost, clock)
             if error is None:
-                return run_pass(
-                    game,
-                    session.saved,
-                    entries,
-                    now,
-                    clock,
-                    time_limit,
-                    self.extend_claims_between_time_limits,
-                )
+                return run_pass(game, session.saved, entries, now, clock, time_limit)
         except Exception as raised:
             error = raised
-        return fail_session(
-            game,
-            session.saved,
-            entries,
-            now,
-            clock,
-            error,
-            time_limit,
-            self.extend_claims_between_time_limits,
-        )
+        return fail_session(game, session.saved, entries, now, clock, error, time_limit)
 
     def after_save(self, session, applied, result, saved_at):
         session.renewed = saved_at

@@ -40,7 +40,6 @@ class TestValidGameTypes:
             {"message_burst": 1},
             {"time_limit": 0.01},
             {"time_limit": 1},
-            {"state_version": "2b"},
         ],
     )
     def test_boundary_settings_are_accepted(self, attributes):
@@ -92,7 +91,6 @@ class TestInvalidGameTypes:
             ({"time_limit": 0}, "time_limit must be a positive number"),
             ({"time_limit": None}, "time_limit must be a positive number"),
             ({"time_limit": 1.5}, "time_limit must be a positive number, at most 1"),
-            ({"state_version": (1, 2)}, "state_version must be an integer or a"),
         ],
     )
     def test_setting(self, attributes, error):

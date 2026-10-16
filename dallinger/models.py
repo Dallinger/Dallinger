@@ -1936,12 +1936,6 @@ class RealtimeSession(Base):
     #: the state at the latest checkpoint
     checkpoint = Column(JSONB)
 
-    #: the game type's
-    #: :attr:`~dallinger.realtime.game.RealtimeGame.state_version` for
-    #: :attr:`final_state` once the session has ended, and for
-    #: :attr:`checkpoint` until then
-    state_version = Column(JSONB)
-
     #: how many of the session's messages were over the rate limit
     dropped = Column(Integer, nullable=False, server_default="0", default=0)
 
@@ -2006,11 +2000,6 @@ class RealtimeEvent(Base):
 
     #: the state at a checkpoint, or when the session ended
     state = Column(JSONB)
-
-    #: the game type's
-    #: :attr:`~dallinger.realtime.game.RealtimeGame.state_version` for
-    #: :attr:`state`
-    state_version = Column(JSONB)
 
     #: the traceback of the error that failed the session, for an ending
     error = Column(Text)

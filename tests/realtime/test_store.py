@@ -38,7 +38,7 @@ def claim_ttl(session_id):
 
 
 def claim_token(session_id, runner, ttl):
-    claimed = store.claim(session_id, runner, ttl, 60)
+    claimed = store.claim(session_id, runner, ttl)
     return None if claimed is None else claimed[0]
 
 
@@ -222,34 +222,27 @@ class TestClaims:
 
         assert epoch(second) == epoch(first) + 1
 
-    def test_only_a_claim_another_runner_took_after_it_expired_is_a_handover(
-        self,
-    ):
+    def test_only_a_claim_made_after_one_expired_is_a_handover(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
-        released, counted = store.claim(session_id, "a", 30, 60)
+        released, counted = store.claim(session_id, "a", 30)
         store.release_session_claims({session_id: released})
-        counts = [counted, store.claim(session_id, "b", 30, 60)[1]]
+        counts = [counted, store.claim(session_id, "b", 30)[1]]
         expire_claim(session_id)
-        counts.append(store.claim(session_id, "b", 30, 60)[1])
+        counts.append(store.claim(session_id, "b", 30)[1])
         expire_claim(session_id)
-        counts.append(store.claim(session_id, "c", 30, 60)[1])
+        counts.append(store.claim(session_id, "c", 30)[1])
 
-        assert counts == [0, 0, 0, 1]
+        assert counts == [0, 0, 1, 2]
 
-    def test_a_claim_counts_the_handovers_within_its_window(self):
+    def test_a_save_starts_the_count_of_handovers_again(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
-        for runner in "ab":
-            store.claim(session_id, runner, 30, 60)
-            expire_claim(session_id)
-        time.sleep(0.2)
-        since = store.server_time()
-        store.claim(session_id, "c", 30, 60)
+        claim_token(session_id, "a", 30)
+        expire_claim(session_id)
+        token, counted = store.claim(session_id, "b", 30)
+        store.save_passes([(session_id, token, [], play_entries(session_id, []))], 30)
         expire_claim(session_id)
 
-        assert store.claim(session_id, "d", 30, 0.1)[1] == 2
-        assert store.count_handovers(session_id, since) == 2
-        expire_claim(session_id)
-        assert store.claim(session_id, "e", 30, 60)[1] == 4
+        assert [counted, store.claim(session_id, "c", 30)[1]] == [1, 1]
 
     def test_claims_are_extended_together_and_lost_ones_named(self):
         kept, stolen = [store.create_realtime_session(TurnTally, ["1"]) for _ in "ab"]
@@ -280,17 +273,6 @@ class TestClaims:
 
         received = store.read_entry(entry_id, {b"entry": b"{}"})["received"]
         assert before - 0.001 <= received <= store.server_time()
-
-    def test_an_expired_claim_can_be_taken(self):
-        session_id = store.create_realtime_session(TurnTally, ["1"])
-        stale = claim_token(session_id, "a", 0.05)
-        deadline = time.monotonic() + 2
-        while claim_ttl(session_id) != -2 and time.monotonic() < deadline:
-            time.sleep(0.01)
-        token = claim_token(session_id, "b", 30)
-
-        assert token is not None
-        assert epoch(token) > epoch(stale)
 
 
 class TestSave:

@@ -164,74 +164,6 @@ class TestFailure:
         with pytest.raises(ValueError, match="Bad.initial_state's return value"):
             new_session(game, ["1"])
 
-    def test_state_from_another_version_is_migrated(self):
-        class Renamed(TurnTally):
-            state_version = 2
-
-            def migrate_state(self, state, from_version):
-                return {"log": state["moves"] + [["migrated from", from_version]]}
-
-        old = json.loads(started(TurnTally()))
-        old["state"] = {"moves": [["1", "a", 0]]}
-
-        result = play(Renamed(), json.dumps(old), [], 1)
-
-        assert session(result)["state_version"] == 2
-        assert log(result) == [["1", "a", 0], ["migrated from", 1]]
-        assert {
-            page: view["view"]["log"] for page, view in views_by_page(result).items()
-        } == {
-            ("1", "page"): log(result),
-            ("2", "page"): log(result),
-        }
-
-    def test_a_session_that_fails_after_migrating_is_scored_on_the_migrated_state(
-        self,
-    ):
-        class Renamed(Crashing):
-            state_version = 2
-
-            def migrate_state(self, state, from_version):
-                return {"log": state["moves"]}
-
-        old = json.loads(started(TurnTally()))
-        old["state"] = {"moves": [["1", "a", 0]]}
-
-        result = play(Renamed(), json.dumps(old), [message(1, "1", "crash")], 1)
-
-        assert result.ended["outcome"] == {"reason": FAILED, "moves": 1}
-        assert session(result)["state_version"] == 2
-        assert result.records[-1]["state_version"] == 2
-
-    def test_state_from_another_version_fails_without_reading_it(self):
-        class Calling(TurnTally):
-            state_version = 2
-
-            def __init__(self):
-                self.migrations = []
-
-            def migrate_state(self, state, from_version):
-                self.migrations.append(from_version)
-                return super().migrate_state(state, from_version)
-
-            def outcome(self, state, reason):
-                return "read the old state"
-
-            def view(self, state, player_id):
-                return "read the old state"
-
-        game = Calling()
-        saved = started(TurnTally())
-
-        result = play(game, saved, [message(1, "1", "a")], 1)
-
-        assert "Calling can't read state saved with state_version 1" in error(result)
-        assert game.migrations == [1]
-        assert result.records[-1]["state_version"] == 1
-        assert result.ended["outcome"] is None
-        assert result.ended["views"] == {"1": None, "2": None}
-        assert session(result)["state"] == json.loads(saved)["state"]
-
     def test_a_session_can_be_failed_without_a_pass(self):
         game = TurnTally()
         saved = started(game)
@@ -253,40 +185,6 @@ class TestFailure:
         views = views_by_page(result)
         assert set(views) == {("1", "page"), ("2", "page")}
         assert views["1", "page"]["last_processed"] == 1
-
-    def test_a_failed_pass_runs_the_hook_before_each_time_limit(self):
-        """A failed pass gets the time limit again for outcome and the final
-        views.
-        """
-        calls = []
-
-        run_pass(
-            Crashing(),
-            started(Crashing()),
-            [message(1, "1", "crash")],
-            1,
-            CLOCK,
-            before_each_time_limit=lambda: calls.append(1),
-        )
-
-        assert len(calls) == 3
-
-    def test_a_session_failed_without_a_pass_runs_the_hook_before_each_time_limit(
-        self,
-    ):
-        calls = []
-
-        fail_session(
-            TurnTally(),
-            started(TurnTally()),
-            [],
-            1,
-            CLOCK,
-            RuntimeError("lost entries"),
-            before_each_time_limit=lambda: calls.append(1),
-        )
-
-        assert len(calls) == 2
 
     def test_entries_that_cannot_be_read_are_left_out_of_the_failure(self):
         game = TurnTally()
@@ -311,7 +209,6 @@ class TestFailure:
                 "reason": FAILED,
                 "outcome": None,
                 "state": json.loads(saved)["state"],
-                "state_version": 1,
                 "error": "RuntimeError: no game\n",
             }
         ]
@@ -325,11 +222,7 @@ class TestFailure:
 
         assert result.saved == "[]"
         [record] = result.records
-        assert [record[key] for key in ("sequence", "time", "state_version")] == [
-            None,
-            None,
-            None,
-        ]
+        assert [record[key] for key in ("sequence", "time")] == [None, None]
         assert result.ended["reason"] == FAILED
 
     def test_a_time_limit_outside_the_main_thread_raises(self):
@@ -442,7 +335,7 @@ def in_main_thread():
 # Each test starts a process that imports Dallinger and runs past real time limits.
 @pytest.mark.slow
 class TestTimeLimit:
-    def test_a_spinning_session_fails_and_is_scored_while_the_next_plays_on(
+    def test_a_spinning_session_fails_unscored_while_the_next_plays_on(
         self, in_main_thread
     ):
         spinning, next_one = in_main_thread(
@@ -453,7 +346,8 @@ class TestTimeLimit:
             "TimeLimitExceeded: Slow.apply was running when the session used up "
             "its 0.5 seconds." in error(spinning)
         )
-        assert spinning.ended["outcome"] == {"reason": FAILED, "moves": 2}
+        assert spinning.ended["outcome"] is None
+        assert spinning.ended["views"] == {"1": None, "2": None}
         assert next_one.ended is None
         assert log(next_one)[2:] == [["1", "a", 1], ["1", "b", 2]]
 
@@ -489,17 +383,19 @@ class TestTimeLimit:
         assert once.ended is None
         assert "TimeLimitExceeded" in error(four_times)
 
-    def test_a_spinning_outcome_leaves_the_final_views(self, in_main_thread):
+    def test_a_spinning_outcome_leaves_no_time_for_the_final_views(
+        self, in_main_thread
+    ):
         [result] = in_main_thread(play_with_time_limit, [["crash"]], SlowEnding)
 
         assert result.ended["outcome"] is None
-        assert result.ended["views"]["1"] == {"for": "1", "log": log(result)}
+        assert result.ended["views"] == {"1": None, "2": None}
 
     def test_a_session_failed_without_a_pass_has_the_limit_too(self, in_main_thread):
         result = in_main_thread(fail_with_time_limit)
 
         assert result.ended["outcome"] is None
-        assert result.ended["views"]["1"] == {"for": "1", "log": log(result)}
+        assert result.ended["views"] == {"1": None, "2": None}
 
     def test_the_previous_signal_handler_is_restored(self, in_main_thread):
         assert in_main_thread(handler_after_a_pass)

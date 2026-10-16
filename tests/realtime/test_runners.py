@@ -203,7 +203,6 @@ def test_a_killed_runners_sessions_play_on_without_losing_a_message(start_runner
     sessions = new_sessions(Counter, 6)
     wait_until(lambda: settled(sessions, started))
     killed, survivor = sorted(started, key=lambda each: each.pid != holder(sessions[0]))
-    held_by_killed = [holder(each) == killed.pid for each in sessions]
     send(sessions, range(1, 21))
 
     killed.kill()
@@ -212,7 +211,7 @@ def test_a_killed_runners_sessions_play_on_without_losing_a_message(start_runner
     wait_until(lambda: all(seen(each) == list(range(1, 41)) for each in sessions))
     assert {holder(each) for each in sessions} == {survivor.pid}
     assert store.running_sessions() == sessions
-    assert [handovers(each) == 1 for each in sessions] == held_by_killed
+    assert [handovers(each) for each in sessions] == [0] * 6
 
 
 def test_a_runner_that_wakes_after_its_claims_expired_cannot_save_or_send(
@@ -221,7 +220,7 @@ def test_a_runner_that_wakes_after_its_claims_expired_cannot_save_or_send(
     """The runner is frozen partway through a pass, and the other runner
     takes the session over. Nothing from that pass reaches redis or the
     pages. The session belongs to the frozen runner once it's running again,
-    so it takes the session back with a new claim, which isn't a handover.
+    so it takes the session back with a new claim.
     """
     started = [start_runner(), start_runner()]
     [session_id] = new_sessions(Counter, 1)
@@ -257,12 +256,11 @@ def test_a_runner_that_wakes_after_its_claims_expired_cannot_save_or_send(
     assert [
         clock for pid, clock in sent if pid == frozen.pid and clock < frozen_at
     ] == []
-    assert handovers(session_id) == 1
 
 
 def test_a_restarted_runner_gets_its_sessions_back(start_runner):
     """A runner stopped while game code runs finishes the pass, saves it and
-    gives its sessions up, so none counts a handover.
+    gives its sessions up before it exits.
     """
     started = [start_runner(), start_runner()]
     sessions = new_sessions(Counter, 12)
@@ -273,6 +271,7 @@ def test_a_restarted_runner_gets_its_sessions_back(start_runner):
 
     stopped.send_signal(signal.SIGTERM)
     assert stopped.wait(10) == 0
+    assert stopped.pid not in {holder(each) for each in sessions}
     wait_until(lambda: {holder(each) for each in sessions} == {kept.pid})
     restarted = start_runner()
     wait_until(lambda: settled(sessions, [kept, restarted]))
@@ -282,7 +281,6 @@ def test_a_restarted_runner_gets_its_sessions_back(start_runner):
     assert seen(sessions[0]) == ["nap", 1]
     assert {holder(each) for each in sessions} == {kept.pid, restarted.pid}
     assert store.running_sessions() == sessions
-    assert [handovers(each) for each in sessions] == [0] * 12
 
 
 def test_a_session_that_keeps_stopping_its_runners_fails(start_runner):
@@ -306,7 +304,7 @@ def test_a_session_that_keeps_stopping_its_runners_fails(start_runner):
     final = json.loads(store.redis_conn.get(store.session_key(looping, "final")))
     assert final["reason"] == FAILED
     logs = "".join(each.log_path.read_text() for each in exited + running)
-    assert "changed runners 3 times in 60 seconds" in logs
+    assert "changed runners 3 times without" in logs
     [later] = new_sessions(Counter, 1)
     send([later], [1])
     wait_until(lambda: seen(later) == [1])

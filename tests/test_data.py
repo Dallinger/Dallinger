@@ -258,7 +258,6 @@ class TestDataLocally:
                 outcome={"winner": 1},
                 final_state={"scores": [3, 1]},
                 checkpoint={"scores": [2, 1]},
-                state_version=2,
                 dropped=4,
             )
         )
@@ -288,7 +287,6 @@ class TestDataLocally:
                     reason="finished",
                     outcome={"winner": 1},
                     state={"scores": [3, 1]},
-                    state_version=1,
                 ),
             ]
         )
@@ -307,9 +305,6 @@ class TestDataLocally:
         dallinger.data.ingest_zip(path)
 
         assert {model: rows(model) for model in saved} == saved
-        assert [RealtimeSession.query.one().state_version] + [
-            event.state_version for event in RealtimeEvent.query.order_by("sequence")
-        ] == [2, None, 1]
 
     def test_a_database_without_the_realtime_tables_exports_without_them(
         self, db_session

@@ -130,24 +130,19 @@ class RealtimeGame(ABC):
 
     #: Seconds the game type's methods may run for in total each time the
     #: runner plays a session, before the session fails. It catches code that
-    #: never finishes. A failed session gets the same time again for
-    #: :meth:`outcome`, and again for its final views. A runner plays all of
-    #: its sessions in turn, so a slow session holds up the others. At most
-    #: :data:`MAX_TIME_LIMIT`.
+    #: never finishes. A failed session gets :meth:`outcome` and its final
+    #: views from the time that's left, and gets ``None`` for any it runs
+    #: out of time for. A runner plays all of its sessions in turn, so a slow
+    #: session holds up the others. At most :data:`MAX_TIME_LIMIT`.
     #:
     #: Code that catches every exception in a loop, with a bare ``except:``,
     #: can't be stopped this way. If it's still running after twice the
     #: limit, the runner process exits, and other runners carry on its
     #: sessions. A session that keeps stopping its runners this way fails
     #: once it has changed runners
-    #: :data:`~dallinger.realtime.runner.MAX_HANDOVERS` times within
-    #: :data:`~dallinger.realtime.runner.HANDOVER_WINDOW` seconds.
+    #: :data:`~dallinger.realtime.runner.MAX_HANDOVERS` times without being
+    #: saved.
     time_limit = 1
-
-    #: The format of the game type's state, saved with each session. Change it
-    #: whenever the state's format changes. A runner that loads state saved
-    #: with another version passes it to :meth:`migrate_state`.
-    state_version = 1
 
     @abstractmethod
     def initial_state(self, players):
@@ -244,26 +239,6 @@ class RealtimeGame(ABC):
         """
         return None
 
-    def migrate_state(self, state, from_version):
-        """Return ``state``, saved with another :attr:`state_version`,
-        converted to the current format.
-
-        A runner calls this when it loads a session saved by another version
-        of the game type, such as after a redeploy during the session. That
-        can be a newer version, if a deploy is rolled back. Raise for a
-        version you don't recognize, which fails the session. By default every
-        other version fails the session. A session that fails after the
-        conversion keeps the converted state.
-
-        :param from_version: the :attr:`state_version` ``state`` was saved
-            with
-        """
-        raise ValueError(
-            "{} can't read state saved with state_version {!r}.".format(
-                type(self).__name__, from_version
-            )
-        )
-
     def queue_effect(self, name, payload):
         """Queue an effect: work the game needs done outside the runner, such
         as writing to the database.
@@ -329,12 +304,6 @@ def _check_game(name, game):
             "{}'s time_limit must be a positive number, at most {}.".format(
                 name, MAX_TIME_LIMIT
             )
-        )
-    # Saved state is compared with this after a JSON round trip, which turns a
-    # tuple into a list that never matches.
-    if not isinstance(game.state_version, (int, str)):
-        raise ValueError(
-            "{}'s state_version must be an integer or a string.".format(name)
         )
 
 
