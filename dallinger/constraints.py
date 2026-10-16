@@ -154,7 +154,7 @@ def generate(group_extras, extras):
     _run_with_cli_errors(generate_constraints, extras=extras)
 
 
-def generate_constraints(extras: Optional[List[str]] = None):
+def generate_constraints(extras: Optional[List[str]] = None, upgrade: bool = False):
     """
     Generate a constraints.txt file for the current working directory.
 
@@ -176,7 +176,14 @@ def generate_constraints(extras: Optional[List[str]] = None):
     ``--upgrade-package dallinger`` so an existing constraints.txt cannot keep a
     stale Dallinger pin. Implied version ranges therefore lock the latest
     compatible patch. An explicit ``dallinger==X.Y.Z`` in the input file is
-    still honored.
+    still honored. Other pins in an existing constraints.txt are kept, so a
+    demo-only package such as NLTK stays where it was.
+
+    Pass ``upgrade=True`` to let those other packages move to the newest
+    version their requirements allow. Packages pinned in Dallinger's dev
+    requirements stay at those pins, because that file is passed as a
+    constraint. ``dallinger constraints generate`` does not set this.
+    ``scripts/update_experiments_constraints.py`` does.
 
     If the constraints.txt file exists already it will be overwritten.
     For a version of this function that does not automatically overwrite the constraints.txt file,
@@ -187,6 +194,9 @@ def generate_constraints(extras: Optional[List[str]] = None):
     extras : list of str, optional
         Optional extras to include (requires pyproject.toml). When provided, pyproject.toml
         is preferred over requirements.txt if both exist.
+    upgrade : bool, optional
+        When true, ignore pins in an existing constraints.txt except where
+        Dallinger's dev requirements constrain them.
 
     """
     extras = extras or []
@@ -211,6 +221,7 @@ def generate_constraints(extras: Optional[List[str]] = None):
         constraints=[dallinger_dev_requirements_path],
         extras=extras,
         upgrade_packages=["dallinger"],
+        upgrade=upgrade,
     )
 
     _make_constraints_paths_relative()
@@ -476,10 +487,13 @@ def _compile_with_uv(
     constraints: Optional[list] = None,
     extras: Optional[List[str]] = None,
     upgrade_packages: Optional[List[str]] = None,
+    upgrade: bool = False,
 ):
     """Compile *in_file* to *out_file* with ``uv pip compile``.
 
     upgrade_packages: names passed through to ``--upgrade-package``.
+    upgrade: pass ``--upgrade``, which ignores every pin in an existing output
+    file. Constraint files still apply.
     """
     in_file = Path(in_file)
     out_file = Path(out_file)
@@ -508,6 +522,8 @@ def _compile_with_uv(
     ]
     for extra in extras:
         cmd += ["--extra", extra]
+    if upgrade:
+        cmd.append("--upgrade")
     for package in upgrade_packages:
         cmd += ["--upgrade-package", package]
     cmd += [
