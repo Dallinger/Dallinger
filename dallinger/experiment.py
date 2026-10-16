@@ -2129,10 +2129,16 @@ class Experiment:
                 yield Scrubber(self, session=self.import_session)
                 self.replay_finish()
         finally:
-            if self.import_session is not None:
-                self.import_session.rollback()
-                self.import_session.close()
-            import_engine.dispose()
+            try:
+                if self.import_session is not None:
+                    self.import_session.rollback()
+                    self.import_session.close()
+            except Exception:
+                logger.warning(
+                    "Could not close the replay import session", exc_info=True
+                )
+            finally:
+                import_engine.dispose()
 
         # Clear up global state
         db.session.rollback()

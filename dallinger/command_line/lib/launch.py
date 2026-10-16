@@ -458,6 +458,8 @@ def _describe(status, detail, short=False):
         return detail.splitlines()[0] if detail else "no response"
     if _is_redirect(status) or detail.startswith("cf-mitigated:"):
         return f"HTTP {status}, {detail}"
+    if 200 <= status < 300 and _is_asleep(detail):
+        return f"HTTP {status}, app hibernating or waking up"
     return f"HTTP {status}"
 
 
@@ -543,7 +545,11 @@ def _abort_unreachable(executor, target, status, detail, waited):
             "Caddy may still be getting a TLS certificate, or DNS may not "
             "point at the server yet."
         )
-    print_bold("Check the public URL again (expect 2xx):")
+    asleep = status is not None and 200 <= status < 300
+    if asleep:
+        print_bold("Check the public URL again (expect the app's own /health):")
+    else:
+        print_bold("Check the public URL again (expect 2xx):")
     print(target.check_command)
     if cloudflare and not (_is_redirect(status) or status == 403):
         print_bold("Inspect the tunnel connector logs:")
@@ -552,8 +558,9 @@ def _abort_unreachable(executor, target, status, detail, waited):
     print(target.ssh(internal_launch_command(target)))
     print_bold("Or remove the app:")
     print(target.destroy_command)
+    answer = "answered for a stopped app" if asleep else "did not answer 2xx"
     raise click.ClickException(
-        f"{target.health_url} did not answer 2xx, so the experiment was not "
+        f"{target.health_url} {answer}, so the experiment was not "
         "launched. The app's containers are running, but recruitment has not "
         f"started. {reason}"
     )
