@@ -1492,7 +1492,8 @@ def _deploy_in_mode(
 
     Building the image can take minutes, so every check that does not need
     the image runs first. The root-domain cleanup, which can destroy apps,
-    is the last of them.
+    follows the other checks. Only the app-name check comes after it, since
+    the cleanup can free that name.
     """
     experiment_files = get_experiment_files(os.getcwd())
     server = resolve_server_name(server, CONFIGURED_HOSTS)
@@ -1523,12 +1524,17 @@ def _deploy_in_mode(
     if not APP_NAME_PATTERN.fullmatch(experiment_id):
         raise click.UsageError(f"Invalid docker-ssh app name {experiment_id!r}.")
 
-    if _resolve_ingress(server_info, ingress) == INGRESS_CLOUDFLARE:
+    resolved_ingress = _resolve_ingress(server_info, ingress)
+    if resolved_ingress == INGRESS_CLOUDFLARE:
         try:
             validate_app_dns_label(experiment_id)
         except CloudflareError as exc:
             _abort_cloudflare(exc)
         cloudflare_settings = _cloudflare_settings(config)
+        try:
+            api_token = load_api_token(config)
+        except CloudflareError as exc:
+            _abort_cloudflare(exc)
     else:
         cloudflare_settings = None
         tls, dns_host = _classic_tls_and_dns_host(config, ssh_host, dns_host)
@@ -1540,6 +1546,12 @@ def _deploy_in_mode(
     if _root_domain_preflight_required(server, app_name, archive_path, ingress):
         ensure_root_domain_ready(server=server, update=update)
 
+    slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
+    try:
+        _check_app_slot(slot_executor, experiment_id, update, resolved_ingress)
+    finally:
+        slot_executor.client.close()
+
     image_name = _build_and_push_image(
         config, experiment_files, app_name, server, local_build, push_build
     )
@@ -1549,6 +1561,7 @@ def _deploy_in_mode(
 
     if cloudflare_settings is not None:
         return _deploy_cloudflare_in_mode(
+            api_token=api_token,
             archive_path=archive_path,
             config=config,
             config_options=config_options,
@@ -1569,7 +1582,6 @@ def _deploy_in_mode(
     executor = Executor(ssh_address, user=ssh_user, app=app_identifier)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
-    _check_app_slot(executor, app_identifier, update, INGRESS_CLASSIC)
     if not update:
         print("Removing any pre-existing Redis volumes.")
         remove_redis_volumes(app_identifier, executor)
@@ -1783,6 +1795,7 @@ def _compose_environment(
 
 def _deploy_cloudflare_in_mode(
     *,
+    api_token,
     archive_path,
     config,
     config_options,
@@ -1801,6 +1814,8 @@ def _deploy_cloudflare_in_mode(
     """Deploy an isolated Cloudflare-tunnel experiment on a docker-ssh host.
 
     ``settings`` are the account and zone from ``_cloudflare_settings``.
+    The caller has already checked that the app slot is free (or exists,
+    for ``--update``) and loaded ``api_token``.
     """
     hostname = cloudflare_public_hostname(experiment_id, settings["dns_zone"])
     public_origin = public_origin_for_hostname(hostname)
@@ -1809,7 +1824,6 @@ def _deploy_cloudflare_in_mode(
     ssh_user = server_info.get("user")
     executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
 
-    _check_app_slot(executor, experiment_id, update, INGRESS_CLOUDFLARE)
     if not update:
         print("Removing any pre-existing Redis and Postgres volumes.")
         remove_named_volume(f"{experiment_id}_redis_data", executor)
@@ -1830,7 +1844,6 @@ def _deploy_cloudflare_in_mode(
         own_tunnel_id = (manifest.cloudflare.get("tunnel_id") if manifest else "") or ""
     sftp = get_sftp(ssh_address, user=ssh_user)
     try:
-        api_token = load_api_token(config)
         tunnel = ensure_experiment_tunnel(
             account_id=settings["account_id"],
             zone_id=settings["zone_id"],

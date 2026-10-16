@@ -177,7 +177,8 @@
 
 - ``dallinger docker-ssh deploy`` and ``sandbox`` now check recruiter
   config, ``-c`` values, ``contact_email_on_error``, ``--dns-host`` and DNS,
-  and Cloudflare settings before they build the experiment image, so these
+  Cloudflare settings and API token, and whether the app name is already
+  taken on the server before they build the experiment image, so these
   mistakes are reported in seconds rather than after a build of several
   minutes. The offer to destroy experiments for a root-domain deploy comes
   after these checks. Because ``-c`` values are applied before the build,

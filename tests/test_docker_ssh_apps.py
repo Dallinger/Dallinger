@@ -144,10 +144,8 @@ def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch)
 
     deleted = []
     monkeypatch.setattr(docker_ssh_module, "Executor", Executor)
-    monkeypatch.setattr(docker_ssh_module, "_check_app_slot", lambda *args: None)
     monkeypatch.setattr(docker_ssh_module, "remove_named_volume", lambda *args: None)
     monkeypatch.setattr(docker_ssh_module, "get_sftp", lambda *args, **kwargs: None)
-    monkeypatch.setattr(docker_ssh_module, "load_api_token", lambda config: "token")
     monkeypatch.setattr(
         docker_ssh_module,
         "ensure_experiment_tunnel",
@@ -165,6 +163,7 @@ def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch)
     )
     with pytest.raises(OSError):
         docker_ssh_module._deploy_cloudflare_in_mode(
+            api_token="token",
             archive_path=None,
             config={},
             config_options={},
@@ -569,14 +568,57 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         ("_classic_tls_and_dns_host", "tls", ("tls internal", "lab.example.org")),
         ("_check_experiment_hostname_dns", "dns", None),
         ("ensure_root_domain_ready", "root-domain", True),
+        ("_check_app_slot", "app-slot", None),
     ):
         monkeypatch.setattr(docker_ssh_module, name, step(event, result))
+    monkeypatch.setattr(docker_ssh_module, "Executor", mock.Mock())
     monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
 
     with pytest.raises(click.Abort):
         docker_ssh_module._deploy_in_mode(**_deploy_kwargs(server="lab"))
 
-    assert events == ["policy", "recruiter", "tls", "dns", "root-domain", "build"]
+    assert events == [
+        "policy",
+        "recruiter",
+        "tls",
+        "dns",
+        "root-domain",
+        "app-slot",
+        "build",
+    ]
+
+
+def test_cloudflare_deploy_without_api_token_stops_before_the_build(monkeypatch):
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.ready = True
+    config.extend(
+        {
+            "cloudflare_account_id": "acct",
+            "cloudflare_zone_id": "zone",
+            "cloudflare_dns_zone": "x.org",
+        }
+    )
+    build = mock.Mock()
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"lab": {"host": "lab.example", "default_ingress": "cloudflare"}},
+    )
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: None)
+    monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "load_api_token",
+        mock.Mock(side_effect=docker_ssh_module.CloudflareError("no token")),
+    )
+    monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
+
+    with pytest.raises(click.Abort):
+        docker_ssh_module._deploy_in_mode(**_deploy_kwargs(server="lab"))
+
+    build.assert_not_called()
 
 
 def test_docker_ssh_build_assembles_the_validated_source(tmp_path, monkeypatch):
