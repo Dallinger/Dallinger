@@ -102,7 +102,7 @@ defusedxml==0.7.1
     # via
     #   nbconvert
     #   odfpy
-distlib==0.4.3
+distlib==0.4.4
     # via virtualenv
 docker==7.2.0
     # via dallinger
