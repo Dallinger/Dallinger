@@ -19,7 +19,7 @@ from typing import Any, List, Optional, Union
 
 import requests
 from flask import Blueprint, url_for
-from sqlalchemy import String, Table, and_, asc, cast, create_engine, desc, func, or_
+from sqlalchemy import String, Table, and_, asc, cast, desc, func, or_
 from sqlalchemy.orm import scoped_session, sessionmaker, undefer
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
@@ -42,6 +42,7 @@ from dallinger.data import (
 from dallinger.data import load as data_load
 from dallinger.db import (
     Base,
+    create_db_engine,
     db_url,
     get_mapped_class,
     get_polymorphic_mapping,
@@ -458,6 +459,14 @@ class Experiment:
         hand off any state synchronization and database writes to async worker
         events.
 
+        This method also backs the default
+        :func:`~dallinger.experiment.Experiment.handle_websocket_message`, so a
+        ``/experiment-socket`` connection reaches it on the web process that owns the
+        socket rather than on the one subscribed to the channel. An
+        ``immediate`` payload is therefore processed on that web process, and
+        blocks every other websocket and request it is serving until
+        :func:`~dallinger.experiment.Experiment.receive_message` returns.
+
         :param raw_message: a formatted message string ``'$channel_name:$data'``
         :type raw_message: str
         """
@@ -500,6 +509,56 @@ class Experiment:
             },
             queue_name="high",
         )
+
+    def handle_websocket_message(
+        self,
+        message,
+        *,
+        channel_name,
+        participant_id=None,
+        scope=None,
+        receive_time=None,
+    ):
+        """Handle one message from a ``/experiment-socket`` connection.
+
+        Unlike :func:`~dallinger.experiment.Experiment.send`, this runs on the
+        web process that owns the websocket, before the next message is read.
+        Use it for messages the experiment must act on immediately. The default
+        implementation passes the message to ``send()``, so an experiment that
+        does not override this keeps the asynchronous handling it had.
+
+        The session is removed once this returns, and one experiment instance
+        serves every experiment socket on the process, so load what you
+        need per call, commit your own writes, and keep per-participant state
+        off ``self``.
+
+        A handler blocks the whole web process while it waits on the database.
+        The message does not reach ``channel_name`` either. See
+        :doc:`Using WebSockets in Dallinger Experiments <using_websockets>` for
+        the query budget and for broadcasting from a handler.
+
+        :param message: the payload, with the channel prefix already stripped
+        :type message: str
+        :param channel_name: the channel prefix the payload arrived with
+        :type channel_name: str
+        :param participant_id: the id of an existing participant, as named by
+            the connection. ``/experiment-socket`` is unauthenticated, so this says
+            which participant the connection claims to be, not who is sending
+        :type participant_id: str
+        :param scope: opaque string from the connection's query string, passed
+            through without being interpreted. It is how an experiment tells
+            apart two connections from the same participant, which are
+            otherwise identical
+        :type scope: str or None
+        :param receive_time: when the message was read off the socket, naive and
+            in local time, as :func:`~dallinger.models.timenow` and every
+            Dallinger ``DateTime`` column are. Read the arrival time from this
+            argument. The default implementation does not forward it, and
+            :func:`~dallinger.experiment.Experiment.send` stamps its own, which
+            is when it ran rather than when the message arrived
+        :type receive_time: datetime.datetime
+        """
+        self.send("{}:{}".format(channel_name, message))
 
     @classmethod
     def handle_recruitment_error(cls, error, **kwargs):
@@ -572,10 +631,66 @@ class Experiment:
         :type data: str
         :param channel_name: the name of the channel to publish the data to
         :type channel_name: str
+        :raises ValueError: if ``channel_name`` is ``dallinger_control`` or
+            ``dallinger_direct``, which are reserved for Dallinger's own use
         """
         if channel_name is None:
             channel_name = self.channel
+        if channel_name in db.RESERVED_CHANNELS:
+            raise ValueError(
+                "The {} channel is reserved for Dallinger's own use.".format(
+                    channel_name
+                )
+            )
         db.redis_conn.publish(channel_name, data)
+
+    def publish_to_participants(self, payload, participant_ids, scope=None):
+        """Send a payload to the WebSocket connections of specific participants.
+
+        Where
+        :func:`~dallinger.experiment.Experiment.publish_to_subscribers`
+        broadcasts to everyone subscribed to a channel, this method addresses
+        participants. The recipients need no subscription and no channel of
+        their own: any connection to ``/chat`` or ``/experiment-socket`` which
+        supplied a ``participant_id`` can be addressed, and the payload will be
+        delivered to every connection that participant holds, on whichever web
+        process is holding it. The method may be called from anywhere,
+        including a worker event or a WebSocket handler.
+
+        The payload arrives on the client prefixed with the reserved
+        ``dallinger_direct`` channel name, in the same ``<channel>:<payload>``
+        format as every other message, so a client can distinguish a directed
+        message from a channel broadcast. Experiments should neither publish to
+        that channel nor subscribe to it.
+
+        Naming a participant who has no open connection, or who is not
+        connected to this deployment at all, delivers nothing and is not an
+        error. Delivery is best effort, as it is for a broadcast: a payload
+        published while a participant is reconnecting will not be replayed to
+        their new connection.
+
+        A redis failure is the exception, and raises. The payload will have
+        reached nobody when it does, so the whole call can be retried.
+
+        :param payload: the message to deliver, as anything ``json.dumps``
+            accepts. It is serialized once, so every recipient of a single call
+            is sent identical bytes
+        :type payload: dict, list, str, or other JSON-serializable object
+        :param participant_ids: the participants to deliver to. A single id may
+            be given in place of a sequence, and an id which is not a whole
+            number is logged and skipped
+        :type participant_ids: list of int or str, or a single int or str
+        :param scope: deliver only to those connections which supplied this
+            same ``scope`` value, the opaque string a connection may name in
+            its query string. The default of ``None`` delivers to all of a
+            participant's connections. It allows an experiment to reach the
+            page a participant is on rather than a tab left open on an earlier
+            one
+        :type scope: str or None
+        """
+        from dallinger.experiment_server.sockets import publish_to_participants
+
+        publish_to_participants(payload, participant_ids, scope=scope)
 
     def client_info(self):
         """Returns a JSON compatible dictionary with data about this client to
@@ -981,6 +1096,21 @@ class Experiment:
         if not self.networks(full=False):
             self.log("All networks full: closing recruitment", "-----")
             self.recruiter.close_recruitment()
+
+    def reason_to_stay_awake(self):
+        """Return why docker-ssh idle sleep must not stop the app, or ``None``.
+
+        While the app sleeps, the clock and recruiter callbacks stop, so
+        nothing times out abandoned participants or recruits replacements.
+        Override this to add conditions, calling the parent method first.
+
+        :returns: a short reason for the deploy logs, or ``None`` to allow sleep
+        """
+        if get_config().get("auto_recruit", False):
+            return "auto_recruit is on"
+        if Participant.query.filter_by(status="working").first() is not None:
+            return "participants are still working"
+        return None
 
     def log(self, text, key="?????", force=False):
         """Print a string to the logs."""
@@ -1951,19 +2081,23 @@ class Experiment:
         # of the experiment to be replayed and selectively import events
         # into the main database
         specific_db_url = db_url + "-import-" + app_id
-        import_engine = create_engine(specific_db_url)
+        import_engine = create_db_engine(specific_db_url)
         try:
             # Clear the temporary storage and import it
             init_db(drop_all=True, bind=import_engine)
         except Exception:
-            create_db_engine = create_engine(db_url)
-            conn = create_db_engine.connect()
-            conn.execute("COMMIT;")
-            conn.execute(
-                'CREATE DATABASE "{}"'.format(specific_db_url.rsplit("/", 1)[1])
-            )
-            conn.close()
-            import_engine = create_engine(specific_db_url)
+            import_engine.dispose()
+            admin_engine = create_db_engine(db_url)
+            try:
+                conn = admin_engine.connect()
+                conn.execute("COMMIT;")
+                conn.execute(
+                    'CREATE DATABASE "{}"'.format(specific_db_url.rsplit("/", 1)[1])
+                )
+                conn.close()
+            finally:
+                admin_engine.dispose()
+            import_engine = create_db_engine(specific_db_url)
             init_db(drop_all=True, bind=import_engine)
 
         self.import_session = scoped_session(
@@ -1996,6 +2130,7 @@ class Experiment:
         # Clear up global state
         self.import_session.rollback()
         self.import_session.close()
+        import_engine.dispose()
         db.session.rollback()
         db.session.close()
         config._reset(register_defaults=True)

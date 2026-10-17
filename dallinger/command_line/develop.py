@@ -60,7 +60,12 @@ def develop():
     is_flag=True,
     help="Skip launching Flask, so that Flask can be managed externally",
 )
-def debug(port, skip_flask):
+@click.option(
+    "--no-browsers",
+    is_flag=True,
+    help="Skip opening browsers; log the recruitment message and dashboard login",
+)
+def debug(port, skip_flask, no_browsers=False):
     from dallinger.command_line.utils import verify_package
 
     files = get_experiment_files()
@@ -82,7 +87,10 @@ def debug(port, skip_flask):
     _bootstrap(experiment_files=files)
 
     q = Queue("default", connection=redis_conn)
-    job = q.enqueue_call(launch_app_and_open_browser, kwargs={"port": port})
+    if no_browsers:
+        job = q.enqueue_call(launch_app_without_browsers, kwargs={"port": port})
+    else:
+        job = q.enqueue_call(launch_app_and_open_browser, kwargs={"port": port})
 
     if not skip_flask:
         config = get_config()
@@ -118,9 +126,27 @@ def launch_app_and_open_browser(port):
     _async_browser("ad", port)
 
 
+def launch_app_without_browsers(port):
+    """Launch the app and log what the browsers would otherwise show.
+
+    Matches the output of ``dallinger debug --no-browsers``.
+    """
+    launch_data = _launch_app(port)
+    if launch_data.get("recruitment_msg"):
+        log(launch_data["recruitment_msg"])
+    config = get_config(load=True)
+    log("Experiment dashboard: {}".format(BASE_URL.format(port) + "dashboard/develop"))
+    log(
+        "Dashboard user: {} password: {}".format(
+            config.get("dashboard_user"),
+            config.get("dashboard_password"),
+        )
+    )
+
+
 def _launch_app(port):
     url = BASE_URL.format(port) + "launch"
-    handle_launch_data(url, error=log, delay=1.0, context="local")
+    return handle_launch_data(url, error=log, delay=1.0, context="local")
 
 
 @develop.command()

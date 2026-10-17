@@ -432,7 +432,8 @@ class LocalProcfileWrapper:
     int_signal = signal.SIGINT
     stop_grace_secs = 5
     MONITOR_STOP = object()
-    STREAM_SENTINEL = ""
+    # The subprocess stdout is a binary pipe, so readline() returns b"" at EOF.
+    STREAM_SENTINEL = b""
 
     def __init__(
         self,
@@ -452,6 +453,7 @@ class LocalProcfileWrapper:
         self._process = None
         self._runner = None
         self._leaders = []
+        self._stop_requested = False
         # needs_chrome, tmp_dir and experiment_name are here just for simmetry with the Docker wrapper
         self.needs_chrome = needs_chrome
         self.experiment_name = experiment_name
@@ -474,10 +476,11 @@ class LocalProcfileWrapper:
             self.out.log("Local server is already running.")
             return
 
+        self._stop_requested = False
         signal.signal(signal.SIGALRM, _handle_timeout)
         signal.alarm(timeout_secs)
-        self._boot()
         try:
+            self._boot()
             success = self._verify_startup()
         except HerokuTimeoutError:
             self.stop()
@@ -508,6 +511,9 @@ class LocalProcfileWrapper:
         default, which makes gunicorn shut down quickly). Anything still alive
         after ``stop_grace_secs`` is killed.
         """
+        # Set before signalling, so a monitor() thread that sees the output end
+        # knows the exit was requested.
+        self._stop_requested = True
         signal = signal or self.int_signal
         self.out.log("Cleaning up local server processes...")
         process, self._process = self._process, None
@@ -579,6 +585,13 @@ class LocalProcfileWrapper:
                 self.out.blather(line)
             if listener(line) is self.MONITOR_STOP:
                 return
+        if self._stop_requested:
+            return
+        process = self._process
+        exit_code = process.poll() if process is not None else None
+        self.out.error(
+            "Local server stopped producing output (exit code: {}).".format(exit_code)
+        )
 
     def _verify_startup(self):
         port = self.config.get("base_port")
@@ -656,6 +669,7 @@ class LocalProcfileWrapper:
         ]
         try:
             options = {
+                "stdin": subprocess.DEVNULL,
                 "stdout": subprocess.PIPE,
                 "stderr": subprocess.STDOUT,
                 "env": self._runner_env(),
@@ -763,6 +777,53 @@ def _session_leaders(processes):
 
 # Backwards-compatible name from when this wrapped ``heroku local``.
 HerokuLocalWrapper = LocalProcfileWrapper
+
+
+def local_worker_processes(database_url=None):
+    """Return running local ``dallinger_heroku_*`` processes for one database.
+
+    Parameters
+    ----------
+    database_url : str, optional
+        Database the processes must use. Defaults to this process's
+        ``DATABASE_URL``, or Dallinger's default database if it is unset.
+
+    Returns
+    -------
+    list of psutil.Process
+        Web and worker processes started by the local Procfile runner whose
+        ``DATABASE_URL`` matches. Processes whose details can't be read are
+        treated as someone else's and left out.
+    """
+    from dallinger.db import corrected_db_url, db_url_default
+
+    if database_url is None:
+        database_url = os.environ.get("DATABASE_URL", db_url_default)
+    database_url = corrected_db_url(database_url)
+
+    processes = []
+    for process in psutil.process_iter():
+        try:
+            if not _is_local_worker_process(process):
+                continue
+            url = process.environ().get("DATABASE_URL", db_url_default)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+        if corrected_db_url(url) == database_url:
+            processes.append(process)
+    return processes
+
+
+def _is_local_worker_process(process):
+    name = process.name()
+    # Linux names the process after its truncated entry-point script.
+    if name.startswith("dallinger_herok"):
+        return True
+    # macOS names it after the Python interpreter running the script.
+    return "python" in name.lower() and any(
+        os.path.basename(argument).startswith("dallinger_heroku_")
+        for argument in process.cmdline()[:2]
+    )
 
 
 def sanity_check(config):

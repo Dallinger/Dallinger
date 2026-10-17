@@ -79,6 +79,8 @@ idna==3.20
     # via
     #   requests
     #   trio
+invoke==3.0.3
+    # via paramiko
 itsdangerous==2.2.0
     # via
     #   flask
@@ -106,8 +108,9 @@ outcome==1.3.0.post0
 packaging==26.3
     # via
     #   build
+    #   dallinger
     #   gunicorn
-paramiko==3.5.1
+paramiko==5.0.0
     # via dallinger
 pexpect==4.9.0
     # via dallinger

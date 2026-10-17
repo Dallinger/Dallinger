@@ -74,8 +74,8 @@ Instead, we recommend one of the following approaches:
    ::
 
        brew install pyenv
-       pyenv install 3.12
-       pyenv local 3.12
+       pyenv install 3.14
+       pyenv local 3.14
 
    For setup instructions, follow the `pyenv installation guide <https://github.com/pyenv/pyenv#installation>`__.
 
@@ -261,7 +261,7 @@ If you're already familiar with `virtualenv` and `virtualenvwrapper`, you can st
     pip3 install virtualenvwrapper
     export WORKON_HOME=$HOME/.virtualenvs
     mkdir -p $WORKON_HOME
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.14)
     source $(which virtualenvwrapper.sh)
 
 
@@ -276,7 +276,7 @@ Example:
 ::
 
 
-    mkvirtualenv dlgr_env --python /usr/local/bin/python3.12
+    mkvirtualenv dlgr_env --python /usr/local/bin/python3.14
 
 Virtualenvwrapper provides an easy way to switch between virtual environments
 by simply typing: ``workon [virtual environment name]``.
@@ -305,7 +305,7 @@ The how-to:
 In the future, you can work on your virtual environment by running:
 ::
 
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.14)
     source $(which virtualenvwrapper.sh)
     workon dlgr_env
 
@@ -319,7 +319,7 @@ execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
 do that type:
 ::
 
-    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)" >> ~/.bash_profile
+    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.14)" >> ~/.bash_profile
     echo "source $(which virtualenvwrapper.sh)" >> ~/.bash_profile
 
 
@@ -403,8 +403,8 @@ Instead, use one of the following approaches:
    ::
 
        curl -fsSL https://pyenv.run | bash
-       pyenv install 3.12
-       pyenv local 3.12
+       pyenv install 3.14
+       pyenv local 3.14
 
    For setup instructions, follow the `pyenv installation guide <https://github.com/pyenv/pyenv#installation>`__.
 
@@ -582,7 +582,7 @@ If you're already familiar with `virtualenv` and `virtualenvwrapper`, you can st
     pip3 install virtualenvwrapper
     export WORKON_HOME=$HOME/.virtualenvs
     mkdir -p $WORKON_HOME
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.14)
     source $(which virtualenvwrapper.sh)
 
 
@@ -597,7 +597,7 @@ Example:
 ::
 
 
-    mkvirtualenv dlgr_env --python /usr/local/bin/python3.12
+    mkvirtualenv dlgr_env --python /usr/local/bin/python3.14
 
 Virtualenvwrapper provides an easy way to switch between virtual environments
 by simply typing: ``workon [virtual environment name]``.
@@ -626,7 +626,7 @@ The how-to:
 In the future, you can work on your virtual environment by running:
 ::
 
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.14)
     source $(which virtualenvwrapper.sh)
     workon dlgr_env
 
@@ -640,7 +640,7 @@ execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
 do that type:
 ::
 
-    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)" >> ~/.bash_profile
+    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.14)" >> ~/.bash_profile
     echo "source $(which virtualenvwrapper.sh)" >> ~/.bash_profile
 
 
