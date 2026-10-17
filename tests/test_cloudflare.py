@@ -437,11 +437,17 @@ def test_load_api_token_defaults_to_the_users_dallinger_item(security_calls, ser
 
 def test_load_api_token_failure_names_the_configured_item(security_calls, monkeypatch):
     def run(args, **kwargs):
-        raise subprocess.CalledProcessError(44, args)
+        raise subprocess.CalledProcessError(44, args, stderr="item not found\n")
 
     monkeypatch.setattr(cf.subprocess, "run", run)
-    with pytest.raises(cf.CloudflareError, match="'org.example.cloudflare-token'"):
+    with pytest.raises(cf.CloudflareError) as excinfo:
         cf.load_api_token(_keychain_config("org.example.cloudflare-token"))
+    message = str(excinfo.value)
+    assert "'org.example.cloudflare-token' could not be read (item not found)" in (
+        message
+    )
+    assert "Set CLOUDFLARE_API_TOKEN" in message
+    assert "add-generic-password -s org.example.cloudflare-token -w" in message
 
 
 def test_load_api_token_requires_a_source(monkeypatch):

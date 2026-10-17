@@ -153,9 +153,16 @@ def load_api_token(config: Any | None = None) -> str:
             check=True,
         )
     except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or "").strip()
         raise CloudflareError(
             "CLOUDFLARE_API_TOKEN is unset and the Keychain item "
-            f"{service!r} could not be read."
+            f"{service!r} could not be read"
+            + (f" ({detail})" if detail else "")
+            + ". Set CLOUDFLARE_API_TOKEN in the environment, set "
+            "cloudflare_api_token in your Dallinger config, or store the token "
+            "with `security add-generic-password "
+            + "".join(f"{arg} " for arg in account_args)
+            + f"-s {service} -w`."
         ) from exc
     token = result.stdout.strip()
     if not token:

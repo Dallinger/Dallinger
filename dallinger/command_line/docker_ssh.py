@@ -1079,8 +1079,7 @@ def _install_tunnel_token(executor, sftp, app, connector_token, tunnel_id):
 
 
 def _abort_cloudflare(exc):
-    print(f"{RED}Cloudflare error:{END} {exc}")
-    raise click.Abort()
+    raise click.ClickException(f"Cloudflare error: {exc}") from exc
 
 
 def ensure_root_domain_ready(server, update):
@@ -1804,6 +1803,7 @@ def _deploy_cloudflare_in_mode(
     """Deploy an isolated Cloudflare-tunnel experiment on a docker-ssh host."""
     try:
         validate_app_dns_label(experiment_id)
+        api_token = load_api_token(config)
     except CloudflareError as exc:
         _abort_cloudflare(exc)
 
@@ -1836,7 +1836,6 @@ def _deploy_cloudflare_in_mode(
         own_tunnel_id = (manifest.cloudflare.get("tunnel_id") if manifest else "") or ""
     sftp = get_sftp(ssh_address, user=ssh_user)
     try:
-        api_token = load_api_token(config)
         tunnel = ensure_experiment_tunnel(
             account_id=settings["account_id"],
             zone_id=settings["zone_id"],

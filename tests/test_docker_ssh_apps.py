@@ -10,7 +10,7 @@ from unittest import mock
 import click
 import pytest
 
-from dallinger.command_line.lib.cloudflare import TunnelDeletion
+from dallinger.command_line.lib.cloudflare import CloudflareError, TunnelDeletion
 from dallinger.config import Configuration
 from dallinger.docker.tools import docker_tag_from_experiment_id
 
@@ -133,6 +133,34 @@ def test_root_domain_conflicts_ignore_cloudflare_apps():
             return "cf\t" + cloudflare.to_json().replace("\n", "") + "\n"
 
     assert docker_ssh_module._host_caddy_apps(Executor()) == ["classic"]
+
+
+def test_cloudflare_deploy_without_token_explains_before_touching_the_server(
+    monkeypatch,
+):
+    def missing_token(config):
+        raise CloudflareError("CLOUDFLARE_API_TOKEN is unset")
+
+    monkeypatch.setattr(docker_ssh_module, "load_api_token", missing_token)
+    monkeypatch.setattr(
+        docker_ssh_module, "Executor", mock.Mock(side_effect=AssertionError)
+    )
+    with pytest.raises(click.ClickException, match="CLOUDFLARE_API_TOKEN is unset"):
+        docker_ssh_module._deploy_cloudflare_in_mode(
+            archive_path=None,
+            config={},
+            config_options={},
+            dashboard_password="pw",
+            dashboard_user="admin",
+            experiment_id="myapp",
+            experiment_uuid="uuid",
+            image_name="image",
+            mode="sandbox",
+            push_build=False,
+            server="lab",
+            server_info={"host": "lab.example"},
+            update=False,
+        )
 
 
 def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch):

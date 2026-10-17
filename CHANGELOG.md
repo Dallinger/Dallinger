@@ -340,6 +340,12 @@
 
 ### Fixed
 
+- A docker-ssh Cloudflare deploy that can't find the Cloudflare API token now
+  stops before it connects to the server or removes the app's Redis and
+  Postgres volumes. It fails with an `Error:` line that says how to provide
+  the token (`CLOUDFLARE_API_TOKEN`, `cloudflare_api_token` or a Keychain
+  item) instead of ending with a bare "Aborted!". Previously the reason went
+  to stdout and, when output was piped, could appear after "Aborted!".
 - `dallinger debug` no longer prints "Error fetching experiment status" while
   the server shuts down or after a single failed request. Once recruitment
   closes, it reports an error only after three failed status checks in a row,
