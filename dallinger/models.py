@@ -1920,7 +1920,7 @@ class RealtimeSession(Base):
     #: the time the session was created
     start_time = Column(DateTime, nullable=False, default=timenow)
 
-    #: the time the session's ending was recorded
+    #: the time the runner saved the session's ending
     end_time = Column(DateTime)
 
     #: why the session ended, as
@@ -1939,8 +1939,8 @@ class RealtimeSession(Base):
     #: how many of the session's messages were over the rate limit
     dropped = Column(Integer, nullable=False, server_default="0", default=0)
 
-    #: the traceback of the error that stopped the session's record being
-    #: written
+    #: the traceback of the error that failed the session, or that stopped
+    #: its record being written
     error = Column(Text)
 
     #: the redis stream ID of the last of the session's records written to

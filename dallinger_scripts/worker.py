@@ -18,26 +18,15 @@ def main():
     from redis import BlockingConnectionPool, StrictRedis
     from rq import Queue
 
-    from dallinger.config import get_config, initialize_experiment_package
+    from dallinger.config import LOG_LEVELS, get_config, initialize_experiment_package
     from dallinger.heroku.rq_gevent_worker import GeventWorker as Worker
     from dallinger.utils import attach_json_logger
 
     initialize_experiment_package(os.getcwd())
 
     config = get_config(load=True)
-
-    LOG_LEVELS = [
-        logging.DEBUG,
-        logging.INFO,
-        logging.WARNING,
-        logging.ERROR,
-        logging.CRITICAL,
-    ]
-    LOG_LEVEL = LOG_LEVELS[config.get("loglevel_worker")]
-    logging.basicConfig(
-        format="%(asctime)s %(message)s",
-        level=LOG_LEVEL,
-    )
+    log_level = LOG_LEVELS[config.get("loglevel_worker")]
+    logging.basicConfig(format="%(asctime)s %(message)s", level=log_level)
     attach_json_logger(logging.getLogger())
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
     # Specify queue class for improved performance with gevent.
@@ -63,7 +52,7 @@ def main():
     # Default to log.warn because rq logs extremely verbosely at the info
     # level
     worker.log.info = worker.log.debug
-    worker.work(logging_level=LOG_LEVEL)
+    worker.work(logging_level=log_level)
 
 
 if __name__ == "__main__":  # pragma: nocover

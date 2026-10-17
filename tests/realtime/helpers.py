@@ -2,6 +2,8 @@
 
 import json
 
+from rq import Queue
+
 from dallinger.realtime import RealtimeGame, Reject, store
 from dallinger.realtime.core import new_session, run_pass
 from dallinger.realtime.game import FAILED
@@ -108,6 +110,24 @@ def add(session_id, entry):
     store.add_entry(
         session_id,
         {key: value for key, value in entry.items() if key not in ("time", "received")},
+    )
+
+
+def jobs(queue):
+    """The function and arguments of each job on an RQ queue."""
+    return [
+        (job.func_name, job.args)
+        for job in Queue(queue, connection=store.redis_conn).jobs
+    ]
+
+
+def keys_expire(session_id):
+    """Whether the session has keys in redis, and all of them expire within
+    ENDED_SESSION_TTL.
+    """
+    keys = list(store.redis_conn.scan_iter(match=store.session_key(session_id, "*")))
+    return bool(keys) and all(
+        0 < store.redis_conn.ttl(key) <= store.ENDED_SESSION_TTL for key in keys
     )
 
 

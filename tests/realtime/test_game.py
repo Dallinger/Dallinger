@@ -36,6 +36,8 @@ class TestValidGameTypes:
         [
             {"tick_rate": 0.5},
             {"max_duration": 0.25},
+            {"join_timeout": 0.25},
+            {"join_timeout": None},
             {"max_messages_per_second": 0.5},
             {"message_burst": 1},
             {"time_limit": 0.01},
@@ -86,6 +88,8 @@ class TestInvalidGameTypes:
             ({"tick_rate": "20"}, "tick_rate must be a number"),
             ({"max_duration": 0}, "max_duration must be None or a positive"),
             ({"max_duration": float("inf")}, "max_duration must be None"),
+            ({"join_timeout": 0}, "join_timeout must be None or a positive"),
+            ({"join_timeout": "60"}, "join_timeout must be None or a positive"),
             ({"max_messages_per_second": 0}, "max_messages_per_second must be a"),
             ({"max_messages_per_second": None}, "max_messages_per_second must"),
             ({"message_burst": 0}, "message_burst must be a whole number"),

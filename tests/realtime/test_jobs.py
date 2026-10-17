@@ -4,7 +4,7 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 from redis import ConnectionError as RedisConnectionError
@@ -15,9 +15,9 @@ from dallinger import db
 from dallinger.models import Notification, RealtimeEvent, RealtimeSession
 from dallinger.realtime import store
 from dallinger.realtime.core import fail_session, run_pass
-from dallinger.realtime.jobs import write_records
+from dallinger.realtime.jobs import write_ending, write_records
 from dallinger.realtime.utils import dump_json
-from tests.realtime.helpers import CLOCK, TurnTally, message
+from tests.realtime.helpers import CLOCK, TurnTally, keys_expire, message
 
 pytestmark = pytest.mark.usefixtures("redis_conn", "realtime_experiment")
 
@@ -209,7 +209,14 @@ class TestWritingRecords:
             {"players": ["1"], "log": [["1", "up", 1]]},
         )
         assert "KeyError: 'down'" in end.error
-        assert row(session_id).status == "running"
+        ended = row(session_id)
+        assert (ended.status, ended.end_reason, ended.outcome, ended.final_state) == (
+            "failed",
+            "failed",
+            end.outcome,
+            end.state,
+        )
+        assert ended.error == end.error
 
     def test_records_a_job_wrote_but_couldnt_remove_arent_written_again(
         self, monkeypatch
@@ -268,6 +275,66 @@ class TestWritingRecords:
         assert waiting_job_kept_the_flag
         assert [each.sequence for each in events(session_id)] == [1, 2, 3]
         assert row(session_id).status == "running"
+
+
+class TestEnding:
+    def test_the_final_job_tells_the_players_pages_and_expires_the_sessions_keys(
+        self, saved_frames
+    ):
+        session_id = store.create_realtime_session(
+            TurnTally, ["1", "2", "9"], bots=["9"]
+        )
+        before = datetime.now()
+        save(session_id, [message(1, "1", "up"), message(2, "1", "stop")], now=2)
+        after = datetime.now()
+        store.add_entry(session_id, {"type": "message", "participant": "1"})
+        time.sleep(0.05)
+        store.count_dropped(session_id)
+        assert store.realtime_result(session_id) is None
+
+        write_ending(session_id)
+
+        ended = row(session_id)
+        assert (ended.status, ended.end_reason, ended.final_state, ended.error) == (
+            "ended",
+            "finished",
+            {"players": ["1", "2", "9"], "log": [["1", "up", 1], ["1", "stop", 2]]},
+            None,
+        )
+        # Stream IDs count whole milliseconds.
+        assert before - timedelta(milliseconds=1) <= ended.end_time <= after
+        assert store.realtime_result(session_id) == {"reason": "finished", "moves": 2}
+        log = [["1", "up", 1], ["1", "stop", 2]]
+        assert saved_frames() == [
+            (
+                [player],
+                None,
+                {
+                    "type": "realtime_saved",
+                    "session_id": session_id,
+                    "status": "ended",
+                    "reason": "finished",
+                    "view": {"for": player, "log": log},
+                },
+            )
+            for player in ("1", "2")
+        ]
+        assert keys_expire(session_id)
+
+    def test_a_final_job_that_fails_still_tells_the_pages_and_expires_the_keys(
+        self, saved_frames
+    ):
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        save(session_id, [message(1, "1", "effect"), message(2, "1", "stop")], now=2)
+
+        with pytest.raises(NotImplementedError):
+            write_ending(session_id)
+
+        failed = row(session_id)
+        assert (failed.status, failed.end_reason) == ("failed", None)
+        assert store.realtime_result(session_id) is None
+        assert [payload["status"] for _, _, payload in saved_frames()] == ["failed"]
+        assert keys_expire(session_id)
 
 
 @pytest.mark.slow
@@ -361,6 +428,25 @@ class TestFailing:
 
         assert entries(session_id) == [{"type": "end", "reason": "failed"}]
 
+    def test_a_job_that_fails_once_the_ending_is_saved_leaves_it_saved(self):
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        save(session_id, [message(1, "1", "stop")], now=1)
+        write_records(session_id)
+        store.redis_conn.xadd(
+            store.session_key(session_id, "records"),
+            {"record": dump_json({"sequence": 3, "type": "checkpoint"})},
+        )
+
+        with pytest.raises(KeyError):
+            write_records(session_id)
+
+        ended = row(session_id)
+        assert (ended.status, ended.end_reason, ended.error) == (
+            "ended",
+            "finished",
+            None,
+        )
+
     def test_records_that_repeat_written_sequence_numbers_fail_the_session(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
         save(session_id, [message(1, "1", "up")], now=1)
@@ -380,8 +466,9 @@ class TestFailing:
         assert "duplicate key" in row(session_id).error
         assert entries(session_id) == [{"type": "end", "reason": "failed"}]
 
-    def test_a_session_whose_state_cant_be_read_fails_without_an_end_record(self):
+    def test_a_session_whose_state_cant_be_read_fails_without_an_end_event(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
+        save(session_id, [message(1, "1", "up")], now=1)
         result = fail_session(
             None, "unreadable", [], 0, CLOCK, RuntimeError("no saved state")
         )
@@ -390,9 +477,9 @@ class TestFailing:
             {"record": dump_json(result.records[0])},
         )
 
-        with pytest.raises(RuntimeError):
-            write_records(session_id)
+        write_records(session_id)
 
-        assert events(session_id) == []
-        assert row(session_id).status == "failed"
-        assert "RuntimeError: no saved state" in row(session_id).error
+        assert [each.payload for each in events(session_id)] == ["up"]
+        failed = row(session_id)
+        assert (failed.status, failed.end_reason) == ("failed", "failed")
+        assert "RuntimeError: no saved state" in failed.error

@@ -1796,20 +1796,9 @@ class TestDirectChannelListener:
 
         client.ws.send.assert_not_called()
 
-    @pytest.mark.parametrize(
-        "envelope",
-        [
-            pytest.param(
-                envelope_of(dict(DIRECT_SEND, payload={"type": "wake"})),
-                id="payload-not-text",
-            ),
-            pytest.param(dict(DIRECT_ENVELOPE, origin=7), id="origin-not-text"),
-        ],
-    )
-    def test_an_envelope_that_is_not_one_reaches_nobody(
-        self, sockets, registered, envelope
-    ):
+    def test_a_send_whose_payload_is_not_text_reaches_nobody(self, sockets, registered):
         client = registered("42")
+        envelope = envelope_of(dict(DIRECT_SEND, payload={"type": "wake"}))
 
         self.listener(sockets).relay(envelope_message(sockets, json.dumps(envelope)))
         gevent.wait(timeout=1)

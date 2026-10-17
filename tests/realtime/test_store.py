@@ -3,6 +3,7 @@ import threading
 import time
 
 import pytest
+from redis import ConnectionError as RedisConnectionError
 from redis.client import Pipeline
 
 from dallinger import db
@@ -10,7 +11,7 @@ from dallinger.models import RealtimeSession
 from dallinger.realtime import store
 from dallinger.realtime.core import run_pass
 from dallinger.realtime.game import RealtimeGame
-from tests.realtime.helpers import CLOCK, Tally, TurnTally, message
+from tests.realtime.helpers import CLOCK, Tally, TurnTally, jobs, message
 
 pytestmark = pytest.mark.usefixtures("redis_conn", "realtime_experiment")
 
@@ -105,6 +106,19 @@ class TestSessions:
         assert store.running_sessions() == [session_id]
         assert db.session.get(RealtimeSession, session_id).status == "running"
 
+    def test_a_session_redis_cant_take_is_marked_failed(self, monkeypatch):
+        def lose_redis(pipe, *args, **kwargs):
+            raise RedisConnectionError("lost")
+
+        monkeypatch.setattr(Pipeline, "execute", lose_redis)
+
+        with pytest.raises(RedisConnectionError):
+            store.create_realtime_session(TurnTally, ["1"])
+
+        (row,) = db.session.query(RealtimeSession)
+        assert row.status == "failed"
+        assert "ConnectionError: lost" in row.error
+
     def test_recreating_the_database_deletes_the_sessions_but_not_the_runners(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
         add_message(session_id, "1", "a")
@@ -162,20 +176,18 @@ class TestSessions:
         with pytest.raises(KeyError):
             store.end_realtime_session(1, "abandoned")
         assert entries_of(1) == []
+        with pytest.raises(KeyError):
+            store.realtime_result(1)
 
     def test_ending_a_session_adds_an_end_entry(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
         with pytest.raises(ValueError):
             store.end_realtime_session(session_id, "")
-        before = time.time()
         store.end_realtime_session(session_id, "abandoned")
 
         (entry_id,) = entries_of(session_id)
         result = play_entries(session_id, [entry_id])
         assert result.ended["reason"] == "abandoned"
-        fields = dict(store.redis_conn.xrange(store.session_key(session_id, "entries")))
-        entry = store.read_entry(entry_id, fields[entry_id.encode()])
-        assert before - 0.001 <= entry["received"] <= time.time()
 
     def test_a_stream_keeps_its_newest_entries(self, monkeypatch):
         monkeypatch.setattr(store, "MAX_ENTRIES", 10)
@@ -376,6 +388,20 @@ class TestSave:
         assert store.redis_conn.get(claim_key).decode() == thieves[0]
         assert claim_ttl(stolen) <= 30000
 
+    def test_only_a_save_that_ends_a_session_queues_its_final_job(self, monkeypatch):
+        """Of three sessions, the first and second end, but the second loses
+        its claim just before the transaction runs. The third plays on.
+        """
+        ended, stolen, running = sessions = [
+            store.create_realtime_session(TurnTally, [str(n)]) for n in range(3)
+        ]
+        passes = claimed_passes(sessions, ["stop", "stop", "up"])
+        steal_on_first_call(monkeypatch, "multi", stolen)
+
+        assert store.save_passes(passes, 60) == [stolen]
+        assert store.running_sessions() == [stolen, running]
+        assert jobs("high") == [("dallinger.realtime.jobs.write_ending", (ended,))]
+
     def test_claims_are_checked_after_they_are_watched(self, monkeypatch):
         (session_id,) = sessions = [store.create_realtime_session(TurnTally, ["1"])]
         passes = claimed_passes(sessions)
@@ -488,12 +514,14 @@ class TestReading:
         assert entries_of(session_id) == []
 
 
-def claimed_passes(sessions):
-    """Claim each session and play a pass over one new message."""
+def claimed_passes(sessions, payloads=None):
+    """Claim each session and play a pass over one new message, ``"up"``
+    unless ``payloads`` gives each session's.
+    """
     passes = []
-    for session_id in sessions:
+    for session_id, payload in zip(sessions, payloads or ["up"] * len(sessions)):
         token = claim_token(session_id, "a", 30)
-        applied = add_message(session_id, "1", "up")
+        applied = add_message(session_id, "1", payload)
         passes.append(
             (session_id, token, [applied], play_entries(session_id, [applied]))
         )

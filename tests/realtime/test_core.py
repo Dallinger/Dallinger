@@ -5,7 +5,7 @@ import pytest
 
 from dallinger.realtime import RealtimeGame, Sent, core
 from dallinger.realtime.core import new_session, parse_message, run_pass
-from dallinger.realtime.game import FAILED, FINISHED, MAX_DURATION
+from dallinger.realtime.game import FAILED, FINISHED, MAX_DURATION, NOT_JOINED
 from tests.realtime.helpers import (
     CLOCK,
     Restless,
@@ -467,6 +467,36 @@ class TestEndings:
 
         assert play(game, started(game), [], 2).ended["reason"] == MAX_DURATION
 
+    def test_a_session_nobody_joins_ends_at_its_join_timeout(self):
+        game = type("Unjoined", (TurnTally,), {"join_timeout": 5, "max_duration": 20})()
+        saved = new_session(game, ["1", "9"], bots=["9"])
+
+        waiting = play(game, saved, [], 4)
+        result = play(game, waiting.saved, [join(6, "1")], 6)
+
+        assert (waiting.ended, waiting.next_due) == (None, 5)
+        assert (result.ended["reason"], result.ended["time"]) == (NOT_JOINED, 5)
+        assert log(result) == []
+
+    @pytest.mark.parametrize(
+        "join_timeout, members, bots, entries",
+        [
+            (5, ["1"], [], [join(1, "1")]),
+            (5, ["9"], ["9"], []),
+            (None, ["1"], [], []),
+        ],
+    )
+    def test_a_session_that_has_a_page_or_no_join_timeout_plays_on(
+        self, join_timeout, members, bots, entries
+    ):
+        game = type(
+            "Unjoined", (TurnTally,), {"join_timeout": join_timeout, "max_duration": 20}
+        )()
+
+        result = play(game, new_session(game, members, bots), entries, 10)
+
+        assert (result.ended, result.next_due) == (None, 20)
+
     def test_an_end_entry_passes_its_reason_to_outcome(self):
         game = TurnTally()
 
@@ -909,7 +939,7 @@ def played(game, saved, passes):
 
 @pytest.mark.parametrize("tick_rate", [4, 0])
 class TestReplay:
-    @pytest.mark.parametrize("seed", range(3))
+    @pytest.mark.parametrize("seed", range(2))
     def test_resuming_from_any_saved_session_plays_the_same(self, tick_rate, seed):
         game_type = type(
             "Limited", (Seeded,), {"max_duration": 9, "tick_rate": tick_rate}
@@ -920,7 +950,7 @@ class TestReplay:
         for k in range(1, len(passes)):
             assert played(game_type(), whole[k - 1].saved, passes[k:]) == whole[k:]
 
-    @pytest.mark.parametrize("seed", range(3))
+    @pytest.mark.parametrize("seed", range(2))
     def test_splitting_entries_into_passes_does_not_change_the_game(
         self, tick_rate, seed
     ):

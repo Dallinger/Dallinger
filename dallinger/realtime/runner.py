@@ -396,7 +396,6 @@ class Runner:
                     result.ended["error"],
                 )
             del self.sessions[session.id]
-            get_queue("high").enqueue(write_records, session.id)
             return
         session.saved = result.saved
         session.records = session.records or bool(result.records)

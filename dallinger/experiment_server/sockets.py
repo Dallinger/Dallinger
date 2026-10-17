@@ -23,6 +23,7 @@ from dallinger.db import (
     CONTROL_CHANNEL,
     DIRECT_CHANNEL,
     RESERVED_CHANNELS,
+    direct_envelope,
     redis_conn,
     session,
 )
@@ -749,9 +750,7 @@ def publish_to_participants(payload, participant_ids, scope=None):
     # Published first: ``deliver_direct`` only spawns senders, so the order
     # costs nothing, and a redis failure then reaches nobody rather than
     # leaving this process's connections served and every other process's not.
-    redis_conn.publish(
-        DIRECT_CHANNEL, json.dumps({"origin": process_token(), "items": [send]})
-    )
+    redis_conn.publish(DIRECT_CHANNEL, direct_envelope(process_token(), [send]))
     chat_backend.deliver_direct(send)
 
 

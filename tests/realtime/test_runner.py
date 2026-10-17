@@ -8,7 +8,6 @@ from unittest.mock import Mock
 import gevent
 import pytest
 from redis import ConnectionError as RedisConnectionError
-from rq import Queue
 
 from dallinger.db import DIRECT_CHANNEL
 from dallinger.experiment_server import sockets
@@ -17,7 +16,7 @@ from dallinger.realtime import store
 from dallinger.realtime.game import FAILED, MAX_TIME_LIMIT
 from dallinger.realtime.runner import Runner
 from dallinger.realtime.time_limit import GIVE_UP_AFTER
-from tests.realtime.helpers import Tally, TurnTally, add, join, message
+from tests.realtime.helpers import Tally, TurnTally, add, jobs, join, message
 
 pytestmark = pytest.mark.usefixtures("redis_conn")
 
@@ -75,13 +74,6 @@ def published(monkeypatch):
 
 def moves(session_id):
     return [each[1] for each in store.realtime_state(session_id)["log"]]
-
-
-def jobs(queue):
-    return [
-        (job.func_name, job.args)
-        for job in Queue(queue, connection=store.redis_conn).jobs
-    ]
 
 
 class TestPlaying:
@@ -204,9 +196,7 @@ class TestPlaying:
 
         assert session_id not in runner.sessions
         assert store.running_sessions() == []
-        assert jobs("high") == [
-            ("dallinger.realtime.jobs.write_records", (session_id,))
-        ]
+        assert jobs("high") == [("dallinger.realtime.jobs.write_ending", (session_id,))]
 
     def test_records_are_queued_every_interval(self, runner, published, monkeypatch):
         monkeypatch.setattr(runner_module, "RECORDS_INTERVAL", 0.3)
@@ -554,27 +544,17 @@ def test_a_runner_refuses_redis_before_7(runner, monkeypatch):
 
 
 class TestSlowPasses:
-    @pytest.mark.parametrize(
-        "game_type, slow, logged",
-        [(TurnTally, 0, True), (TurnTally, 30, False), (Paced, 30, True)],
-    )
-    def test_a_pass_longer_than_a_tick_names_its_slowest_sessions(
-        self, runner, published, monkeypatch, caplog, game_type, slow, logged
+    def test_a_pass_within_its_tick_logs_nothing(
+        self, runner, published, monkeypatch, caplog
     ):
-        monkeypatch.setattr(runner_module, "SLOW", slow)
-        session_id = store.create_realtime_session(game_type, ["1"])
+        monkeypatch.setattr(runner_module, "SLOW", 30)
+        session_id = store.create_realtime_session(TurnTally, ["1"])
         add(session_id, message(0, "1", "a"))
 
         with caplog.at_level(logging.WARNING, logger=runner_module.__name__):
             runner.step()
 
-        warnings = [record.getMessage() for record in caplog.records]
-        if logged:
-            [warning] = warnings
-            name = "session {} of {}".format(session_id, game_type.channel)
-            assert name in warning
-        else:
-            assert warnings == []
+        assert caplog.records == []
 
     def test_the_shortest_tick_sets_the_limit_and_the_slowest_three_are_named(
         self, runner, published, monkeypatch, caplog

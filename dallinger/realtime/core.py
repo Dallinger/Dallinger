@@ -37,6 +37,7 @@ from dallinger.realtime.game import (
     FAILED,
     FINISHED,
     MAX_DURATION,
+    NOT_JOINED,
     Reject,
     Sent,
     queued_effects,
@@ -84,8 +85,10 @@ class PassResult:
     final ``views`` of the players who aren't bots, and the ``error``: the
     traceback of a failed session, otherwise ``None``.
 
-    ``next_due`` is the session time of the session's next tick, or of its
-    :attr:`~dallinger.realtime.game.RealtimeGame.max_duration` if that comes
+    ``next_due`` is the session time of the session's next tick, or of the
+    time it ends at, from
+    :attr:`~dallinger.realtime.game.RealtimeGame.max_duration` or
+    :attr:`~dallinger.realtime.game.RealtimeGame.join_timeout`, if that comes
     first: the time by which the session needs another pass even if no entry
     arrives. It's ``None`` if neither is coming, or the session has ended.
     """
@@ -128,6 +131,8 @@ def new_session(game, members, bots=()):
             "pages": [],
             "bot_messages": {bot: 0 for bot in bots},
             "started": False,
+            # Whether a page has opened. Bots have no pages.
+            "joined": False,
             "ended": None,
         }
     )
@@ -329,13 +334,13 @@ class _Pass:
                 and (entry is None or tick_time < entry_time)
             )
             event_time = tick_time if is_tick else entry_time
-            limit = self.game.max_duration
+            limit, reason = self.time_up()
             if (
                 limit is not None
                 and (self.now if event_time is None else event_time) >= limit
             ):
                 self.time = max(limit, self.time)
-                self.end_reason = MAX_DURATION
+                self.end_reason = reason
                 break
             if event_time is None:
                 break
@@ -361,7 +366,7 @@ class _Pass:
                 self.add_record("checkpoint", state=self.state)
                 session["last_checkpoint"] = self.time
             # The loop stopped at a tick still to come, if there is one.
-            due = [tick_time, self.game.max_duration]
+            due = [tick_time, self.time_up()[0]]
             next_due = min((each for each in due if each is not None), default=None)
         return self.finish(
             everyone=self.ticked or changed or self.end_reason is not None,
@@ -376,10 +381,10 @@ class _Pass:
         code runs except ``outcome`` and ``view`` for the ending.
         """
         self.failed = True
-        limit = self.game.max_duration
         for entry in entries:
             self.time = self.entry_time(entry)
             kind = entry["type"]
+            limit, _ = self.time_up()
             if kind == "end" or (limit is not None and self.time >= limit):
                 break
             if kind == "message":
@@ -400,6 +405,22 @@ class _Pass:
 
     def entry_time(self, entry):
         return min(max(entry["time"], self.time), self.now)
+
+    def time_up(self):
+        """Return the session time the session ends at, if nothing ends it
+        first, and the reason, or ``(None, None)``.
+        """
+        ends = []
+        if self.game.max_duration is not None:
+            ends.append((self.game.max_duration, MAX_DURATION))
+        session = self.session
+        if (
+            self.game.join_timeout is not None
+            and not session["joined"]
+            and set(session["members"]) - set(session["bots"])
+        ):
+            ends.append((self.game.join_timeout, NOT_JOINED))
+        return min(ends, default=(None, None))
 
     def finish(self, everyone, next_due):
         self.session["time"] = self.now
@@ -593,6 +614,7 @@ class _Pass:
             self.session["pages"].append(page)
         if socket not in page["sockets"]:
             page["sockets"].append(socket)
+        self.session["joined"] = True
         self.recipients.add((participant, scope))
         return first
 

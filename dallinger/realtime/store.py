@@ -1,9 +1,10 @@
 """Real-time sessions, kept in redis while they're played.
 
 Experiment code starts a session with :func:`create_realtime_session`, reads
-its state with :func:`realtime_state` and ends it early with
-:func:`end_realtime_session`. The rest of this module is for the web process
-and the runners.
+its state with :func:`realtime_state`, ends it early with
+:func:`end_realtime_session` and reads its saved outcome with
+:func:`realtime_result`. The rest of this module is for the web process and
+the runners.
 
 The real-time engine needs redis 7.0 or later.
 """
@@ -34,6 +35,8 @@ The real-time engine needs redis 7.0 or later.
 #   "views" of the players who aren't bots, as JSON.
 # - dropped: how many of the session's messages were over the rate limit.
 #
+# Once an ended session's final job has run, the keys it still has expire.
+#
 # realtime:running is the set of sessions that haven't ended, and
 # realtime:runners is a sorted set of the runners, each scored by the time its
 # heartbeat expires.
@@ -43,11 +46,12 @@ The real-time engine needs redis 7.0 or later.
 # watches it.
 
 import json
+import traceback
 
 from redis import WatchError
 
 from dallinger import db, experiment
-from dallinger.db import redis_conn
+from dallinger.db import get_queue, redis_conn
 from dallinger.models import RealtimeSession
 from dallinger.realtime.core import new_session
 from dallinger.realtime.game import validate_game_types
@@ -61,6 +65,22 @@ MAX_ENTRIES = 10000
 
 RUNNING = "realtime:running"
 RUNNERS = "realtime:runners"
+
+#: Seconds an ended session stays in redis after
+#: :func:`~dallinger.realtime.jobs.write_ending` runs.
+ENDED_SESSION_TTL = 3600
+
+# The keys an ended session can have. The save that ends it deletes the
+# others.
+_ENDED_SESSION_KEYS = (
+    "entries",
+    "state",
+    "members",
+    "epoch",
+    "records",
+    "final",
+    "dropped",
+)
 
 # Redis runs each script as one command, so nothing else reaches its keys
 # between the script's check and its change. KEYS and ARGV count from 1.
@@ -128,7 +148,8 @@ def create_realtime_session(game_type, players, bots=()):
     The session's :class:`~dallinger.models.RealtimeSession` row is
     committed in a transaction of its own, so the session has started when
     this returns, whatever happens to the caller's transaction. A runner
-    picks it up and plays it until it ends.
+    picks it up and plays it until it ends. If the session can't then be
+    added to redis, its row is marked failed and the error is raised.
     :mod:`dallinger.realtime.runner` says how to start one.
 
     :param game_type: one of the experiment's
@@ -163,18 +184,30 @@ def create_realtime_session(game_type, players, bots=()):
         own.add(row)
         own.commit()
         session_id = row.id
-    # A pipeline runs as one transaction, so a runner never finds the session
-    # in the running set before its state is there.
-    with redis_conn.pipeline() as pipe:
-        pipe.hset(
-            session_key(session_id, "state"), mapping={"game": channel, "saved": saved}
-        )
-        pipe.hset(
-            session_key(session_id, "members"),
-            mapping={player: int(player in bots) for player in players},
-        )
-        pipe.sadd(RUNNING, session_id)
-        pipe.execute()
+    try:
+        # A pipeline runs as one transaction, so a runner never finds the
+        # session in the running set before its state is there.
+        with redis_conn.pipeline() as pipe:
+            pipe.hset(
+                session_key(session_id, "state"),
+                mapping={"game": channel, "saved": saved},
+            )
+            pipe.hset(
+                session_key(session_id, "members"),
+                mapping={player: int(player in bots) for player in players},
+            )
+            pipe.sadd(RUNNING, session_id)
+            pipe.execute()
+    except Exception as error:
+        with db.session_factory() as own:
+            own.query(RealtimeSession).filter_by(id=session_id).update(
+                {
+                    "status": "failed",
+                    "error": "".join(traceback.format_exception(error)),
+                }
+            )
+            own.commit()
+        raise
     return session_id
 
 
@@ -217,7 +250,9 @@ def end_realtime_session(session_id, reason):
 
     :param reason: why the session ended, a non-empty string
     :raises ValueError: if ``reason`` isn't a non-empty string
-    :raises KeyError: if there is no session ``session_id``
+    :raises KeyError: if there is no session ``session_id`` in redis. An
+        ended session's keys expire :data:`ENDED_SESSION_TTL` seconds after
+        its record is written.
     """
     if not isinstance(reason, str) or not reason:
         raise ValueError("An ending's reason must be a non-empty string.")
@@ -227,9 +262,30 @@ def end_realtime_session(session_id, reason):
         add_entry(session_id, {"type": "end", "reason": reason})
 
 
+def realtime_result(session_id):
+    """Return a session's outcome, as
+    :meth:`~dallinger.realtime.game.RealtimeGame.outcome` returned it, once
+    its ending is saved in Postgres. Until then, and for a session whose
+    record couldn't be written, return ``None``. An outcome can be ``None``
+    too, so the session's :attr:`~dallinger.models.RealtimeSession.status`
+    says whether its ending is saved.
+
+    :raises KeyError: if there is no session ``session_id``
+    """
+    # A column query reads the row again rather than an object the caller's
+    # session already loaded.
+    row = (
+        db.session.query(RealtimeSession.outcome).filter_by(id=session_id).one_or_none()
+    )
+    if row is None:
+        raise KeyError(session_id)
+    return row.outcome
+
+
 def realtime_state(session_id):
     """Return a session's state as a runner last saved it, which can be a
-    moment behind the game.
+    moment behind the game. An ended session's state is kept for
+    :data:`ENDED_SESSION_TTL` seconds after its record is written.
 
     :raises KeyError: if there is no session ``session_id``
     """
@@ -241,6 +297,15 @@ def session_members(session_id):
     # HGETALL returns every field of a hash, or {} if there's no such key.
     members = redis_conn.hgetall(session_key(session_id, "members"))
     return {player.decode(): flag == b"1" for player, flag in members.items()}
+
+
+def load_ending(session_id):
+    """Return an ended session's ``reason`` and the final ``views`` of its
+    players who aren't bots, a dict from each participant id, or ``None`` if
+    the session hasn't ended.
+    """
+    final = redis_conn.get(session_key(session_id, "final"))
+    return None if final is None else json.loads(final)
 
 
 def running_sessions():
@@ -318,8 +383,16 @@ def read_entry(entry_id, fields):
     was ``received``.
     """
     entry = json.loads(fields[b"entry"])
-    entry["received"] = int(_id_text(entry_id).split("-")[0]) / 1000
+    entry["received"] = stream_id_time(entry_id)
     return entry
+
+
+def stream_id_time(stream_id):
+    """Return the time on redis's clock, in seconds since the epoch, that a
+    stream ID was given out.
+    """
+    # A stream ID is "<milliseconds>-<sequence>".
+    return int(_id_text(stream_id).split("-")[0]) / 1000
 
 
 def lost_entries(applied):
@@ -400,6 +473,16 @@ def trim_records(session_id, through):
 def delete_records(session_id):
     """Remove all of the session's records."""
     redis_conn.delete(session_key(session_id, "records"))
+
+
+def expire_session(session_id):
+    """Set every key of an ended session to expire after
+    :data:`ENDED_SESSION_TTL` seconds.
+    """
+    with redis_conn.pipeline(transaction=False) as pipe:
+        for name in _ENDED_SESSION_KEYS:
+            pipe.expire(session_key(session_id, name), ENDED_SESSION_TTL)
+        pipe.execute()
 
 
 def claim(session_id, runner, ttl):
@@ -521,9 +604,11 @@ def save_passes(passes, ttl):
 
     Each session's saved session, position and count of applied entries are
     written, its records added, its applied entries removed, and its count
-    of handovers started again. A session
-    the pass ended leaves the running set, gets its final views, and gives up
-    its claim. A claim that changes or expires while the transaction is
+    of handovers started again. A session the pass ended leaves the running
+    set, gets its final views, gives up its claim, and has a
+    :func:`~dallinger.realtime.jobs.write_ending` job queued on the ``high``
+    queue, in the same transaction, so the job is queued exactly when the
+    ending is saved. A claim that changes or expires while the transaction is
     prepared aborts it, and it's tried again without the sessions whose
     claims were lost.
     """
@@ -589,6 +674,11 @@ def _write_pass(pipe, session_id, applied, result, px):
             dump_json(
                 {"reason": result.ended["reason"], "views": result.ended["views"]}
             ),
+        )
+        # Given the pipeline, RQ adds the job's writes to the transaction.
+        # Named by its path, since jobs.py imports this module.
+        get_queue("high").enqueue_call(
+            "dallinger.realtime.jobs.write_ending", args=(session_id,), pipeline=pipe
         )
 
 

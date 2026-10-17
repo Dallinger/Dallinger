@@ -6,20 +6,14 @@ def main():
     import os
     import signal
 
-    from dallinger.config import get_config, initialize_experiment_package
+    from dallinger.config import LOG_LEVELS, get_config, initialize_experiment_package
     from dallinger.utils import attach_json_logger
 
     initialize_experiment_package(os.getcwd())
     config = get_config(load=True)
     logging.basicConfig(
         format="%(asctime)s %(message)s",
-        level=[
-            logging.DEBUG,
-            logging.INFO,
-            logging.WARNING,
-            logging.ERROR,
-            logging.CRITICAL,
-        ][config.get("loglevel_worker")],
+        level=LOG_LEVELS[config.get("loglevel_worker")],
     )
     attach_json_logger(logging.getLogger())
 

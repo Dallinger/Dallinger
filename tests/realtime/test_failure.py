@@ -123,6 +123,18 @@ class TestFailure:
             ("end", 5),
         ]
 
+    def test_a_failure_opens_no_page_after_the_join_timeout(self):
+        class Unjoined(Crashing):
+            join_timeout = 3
+
+        game = Unjoined()
+
+        result = fail_session(
+            game, new_session(game, ["1"]), [join(4, "1")], 5, CLOCK, KeyError("x")
+        )
+
+        assert session(result)["pages"] == []
+
     @pytest.mark.parametrize(
         "method, returned, named",
         [

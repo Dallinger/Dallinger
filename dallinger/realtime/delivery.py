@@ -29,6 +29,20 @@ a frame whose payload is a JSON object:
 A message's number is the one the client helpers put in its envelope, as
 :class:`~dallinger.realtime.game.Sent` describes.
 
+Once a session's ending is saved in Postgres, each player who isn't a bot gets
+one more frame, on every page they have open:
+
+- ``type``: ``"realtime_saved"``
+- ``session_id``: the session that ended
+- ``status``: the session's
+  :attr:`~dallinger.models.RealtimeSession.status`, ``"ended"`` or
+  ``"failed"``
+- ``reason``: why the session ended
+- ``view``: the player's final view
+
+It can arrive before the player's last ``realtime_view``, so a page can end on
+it alone.
+
 A view goes to the page it's for, named by the participant id and the scope
 the page's socket gave. A page that gave no scope is fine while a player has
 one page open at a time, as in a single-page experiment, but its views reach
@@ -37,17 +51,13 @@ every page that player has open, whatever their scopes.
 
 import json
 
-from dallinger.db import DIRECT_CHANNEL, redis_conn
+from dallinger.db import DIRECT_CHANNEL, direct_envelope, redis_conn
 
 
 def view_batch(origin, passes):
-    """Return the batch envelope for passes' views, as JSON text, or ``None``
-    if they have no views.
-
-    A batch envelope is a JSON dict holding the ``origin`` of the message and
-    its ``items``, a list of directed sends. Each send holds a list of
-    ``participant_ids``, a ``scope`` (a string, or ``None`` for every page),
-    and the ``payload`` to send them, as JSON text.
+    """Return the envelope for passes' views, with one send for each page's
+    view, as :func:`~dallinger.db.direct_envelope` makes it, or ``None`` if
+    they have no views.
 
     :param origin: names the runner, a string
     :param passes: a ``(session_id, views)`` pair for each session, where
@@ -71,7 +81,34 @@ def view_batch(origin, passes):
     ]
     if not items:
         return None
-    return json.dumps({"origin": origin, "items": items})
+    return direct_envelope(origin, items)
+
+
+def publish_saved(origin, session_id, status, ending):
+    """Tell each player's pages that the session's ending is saved, with the
+    session's ``status``, the ending's reason and the player's final view.
+
+    :param origin: names the sender, a string
+    :param ending: the ``reason`` and final ``views`` of the session, as
+        :func:`~dallinger.realtime.store.load_ending` returns them
+    """
+    items = [
+        {
+            "participant_ids": [player],
+            "scope": None,
+            "payload": json.dumps(
+                {
+                    "type": "realtime_saved",
+                    "session_id": session_id,
+                    "status": status,
+                    "reason": ending["reason"],
+                    "view": view,
+                }
+            ),
+        }
+        for player, view in ending["views"].items()
+    ]
+    redis_conn.publish(DIRECT_CHANNEL, direct_envelope(origin, items))
 
 
 def publish_views(origin, passes):

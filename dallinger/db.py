@@ -1,5 +1,6 @@
 """Create a connection to the database."""
 
+import json
 import logging
 import os
 import random
@@ -55,6 +56,19 @@ CONTROL_CHANNEL = "dallinger_control"
 #: holding its publisher's ``origin`` and a list of ``items``, each naming its
 #: recipients, and on the wire to the browser, one item's payload alone.
 DIRECT_CHANNEL = "dallinger_direct"
+
+
+def direct_envelope(origin, sends):
+    """Return the JSON text of a :data:`DIRECT_CHANNEL` envelope.
+
+    :param origin: names the publisher, a string. A web process ignores the
+        envelopes it published itself.
+    :param sends: dicts, each holding the ``participant_ids`` to send to, as
+        strings, the ``scope`` of the pages to send to, or ``None`` for every
+        page, and the ``payload`` text
+    """
+    return json.dumps({"origin": origin, "items": list(sends)})
+
 
 #: Channels Dallinger owns. A client may neither subscribe to one nor address
 #: a frame to it.

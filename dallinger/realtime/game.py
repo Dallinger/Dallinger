@@ -35,6 +35,10 @@ FINISHED = "finished"
 #: reached :attr:`~RealtimeGame.max_duration`.
 MAX_DURATION = "max_duration"
 
+#: The reason passed to :meth:`RealtimeGame.outcome` when no player other than
+#: a bot opened the game's page within :attr:`~RealtimeGame.join_timeout`.
+NOT_JOINED = "not_joined"
+
 #: The reason passed to :meth:`RealtimeGame.outcome` when the session failed.
 FAILED = "failed"
 
@@ -127,6 +131,12 @@ class RealtimeGame(ABC):
     #: Seconds on the session clock after which the session ends, whatever
     #: :meth:`is_over` says. ``None`` means no limit.
     max_duration = None
+
+    #: Seconds on the session clock within which a player who isn't a bot
+    #: must open the game's page, or the session ends, so a session whose
+    #: players never load the page doesn't run forever. A session whose
+    #: players are all bots never ends this way. ``None`` means no limit.
+    join_timeout = 60
 
     #: Whether a player's page gets a view as soon as the player's message is
     #: applied, rather than with the next tick. A game with a
@@ -225,9 +235,9 @@ class RealtimeGame(ABC):
         ends.
 
         :param reason: why the session ended: :data:`FINISHED`,
-            :data:`MAX_DURATION`, :data:`FAILED`, or the reason the
-            experiment gave when it ended the session. A session that failed
-            passes the state from before the failure.
+            :data:`MAX_DURATION`, :data:`NOT_JOINED`, :data:`FAILED`, or the
+            reason the experiment gave when it ended the session. A session
+            that failed passes the state from before the failure.
         """
         return None
 
@@ -357,6 +367,12 @@ def _check_game(name, game):
     ):
         raise ValueError(
             "{}'s max_duration must be None or a positive number.".format(name)
+        )
+    if game.join_timeout is not None and (
+        not is_number(game.join_timeout) or game.join_timeout <= 0
+    ):
+        raise ValueError(
+            "{}'s join_timeout must be None or a positive number.".format(name)
         )
     if not is_number(game.max_messages_per_second) or (
         game.max_messages_per_second <= 0
