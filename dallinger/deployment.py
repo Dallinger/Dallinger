@@ -696,6 +696,7 @@ class DebugDeployment(HerokuLocalDeployment):
             error = None
             try:
                 resp = requests.get(status_url, timeout=self.status_request_timeout)
+                resp.raise_for_status()
                 exp_data = resp.json()
             except (ValueError, requests.exceptions.RequestException) as e:
                 error = e

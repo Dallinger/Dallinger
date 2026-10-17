@@ -42,13 +42,14 @@ import paramiko
 import requests
 
 from dallinger.deployment import BACKOFF_FACTOR, DEFAULT_DELAY, MAX_ATTEMPTS
+from dallinger.hibernation import STATE_HIBERNATING, STATE_WAKING
 from dallinger.utils import print_bold
 
 from .app_manifest import INGRESS_CLOUDFLARE
 
 FRONT_DOOR_LAUNCH_URL = "http://frontdoor:5000/launch"
 # /launch can be slow (database setup, recruiter API calls).
-LAUNCH_REQUEST_TIMEOUT = 300
+LAUNCH_REQUEST_TIMEOUT = 900
 PUBLIC_CHECK_TIMEOUT = 420
 PUBLIC_CHECK_INTERVAL = 10
 PROGRESS_INTERVAL = 60
@@ -350,9 +351,10 @@ def wait_for_public_url(executor, target, timeout=None, interval=None):
     """Wait until the public ``/health`` answers 2xx, or stop the deploy.
 
     Waits up to ``timeout`` seconds (default ``PUBLIC_CHECK_TIMEOUT``). Edge
-    pages, gateway errors and Cloudflare's pending-tunnel 530 keep waiting.
-    A redirect, such as a Cloudflare Access login, does not go away by
-    waiting, so two redirects in a row stop the wait early. If the URL does
+    pages, gateway errors, Cloudflare's pending-tunnel 530 and the hibernation
+    controller's 2xx for a waking app keep waiting. A redirect, such as a
+    Cloudflare Access login, or a hibernating app does not go away by
+    waiting, so two such answers in a row stop the wait early. If the URL does
     not answer 2xx, prints why and what to run next, and raises
     ``click.ClickException`` so the experiment is not launched.
     """
@@ -372,16 +374,17 @@ def wait_for_public_url(executor, target, timeout=None, interval=None):
 
     started = time.monotonic()
     next_report = PROGRESS_INTERVAL
-    redirected = False
+    previous = None
     while True:
         status, detail = _probe(target.health_url, target.verify)
-        if status is not None and 200 <= status < 300:
+        if status is not None and 200 <= status < 300 and not _is_asleep(detail):
             print(f"{target.public_origin} is reachable.")
             return
-        if redirected and _is_redirect(status):
+        stuck = _stuck_reason(status, detail)
+        if stuck and stuck == previous:
             waited = None
             break
-        redirected = _is_redirect(status)
+        previous = stuck
         elapsed = time.monotonic() - started
         if elapsed + interval > timeout:
             waited = limit
@@ -432,6 +435,32 @@ def _is_redirect(status):
     return status is not None and 300 <= status < 400
 
 
+def _is_asleep(body, states=(STATE_HIBERNATING, STATE_WAKING)):
+    """True if ``body`` is the hibernation controller's answer for a stopped app.
+
+    The controller answers ``/health`` with 200 while the app sleeps or wakes,
+    so ``/launch`` would reach the controller instead of the app.
+    """
+    try:
+        data = json.loads(body)
+    except ValueError:
+        return False
+    return isinstance(data, dict) and data.get("status") in states
+
+
+def _stuck_reason(status, detail):
+    """Return ``"redirect"`` or ``"hibernating"`` for answers waiting cannot fix.
+
+    The public ``/health`` does not wake a hibernating app, unlike a waking one.
+    """
+    if _is_redirect(status):
+        return "redirect"
+    if status is not None and 200 <= status < 300:
+        if _is_asleep(detail, (STATE_HIBERNATING,)):
+            return "hibernating"
+    return None
+
+
 def _describe(status, detail, short=False):
     """Summarise a probe result; ``short`` gives only the class of a request error."""
     if status is None:
@@ -440,6 +469,8 @@ def _describe(status, detail, short=False):
         return detail.splitlines()[0] if detail else "no response"
     if _is_redirect(status) or detail.startswith("cf-mitigated:"):
         return f"HTTP {status}, {detail}"
+    if 200 <= status < 300 and _is_asleep(detail):
+        return f"HTTP {status}, app hibernating or waking up"
     return f"HTTP {status}"
 
 
@@ -491,7 +522,16 @@ def _abort_unreachable(executor, target, status, detail, waited):
     """
     cloudflare = target.ingress == INGRESS_CLOUDFLARE
     last = _describe(status, detail)
-    if waited is None:
+    asleep = _is_asleep(detail)
+    hibernating = _stuck_reason(status, detail) == "hibernating"
+    awaken = f"dallinger docker-ssh awaken --server {target.server} --app {target.app}"
+    if waited is None and asleep:
+        print(
+            f"{target.health_url} reported a hibernating app twice in a row. "
+            "The public /health does not wake the app, so the deploy stopped "
+            "waiting."
+        )
+    elif waited is None:
         print(
             f"{target.health_url} redirected twice in a row (last result: "
             f"{last}). Waiting does not remove a redirect, so the deploy "
@@ -508,6 +548,14 @@ def _abort_unreachable(executor, target, status, detail, waited):
             "Cloudflare Access may be in front of the app. The deploy launches "
             "only once /health answers 2xx without a redirect."
         )
+    elif hibernating:
+        reason = (
+            f"The app is hibernating ({detail.strip()}); a hibernation marker "
+            "left by an earlier app with the same name can cause this. Wake it "
+            f"with `{awaken}`."
+        )
+    elif asleep:
+        reason = f"The app is hibernating or waking up ({detail.strip()})."
     elif status == 403:
         mitigated = f" ({detail})" if detail.startswith("cf-mitigated:") else ""
         reason = (
@@ -523,7 +571,13 @@ def _abort_unreachable(executor, target, status, detail, waited):
             "Caddy may still be getting a TLS certificate, or DNS may not "
             "point at the server yet."
         )
-    print_bold("Check the public URL again (expect 2xx):")
+    if hibernating:
+        print_bold("Wake the app:")
+        print(awaken)
+    if asleep:
+        print_bold("Check the public URL again (expect the app's own /health):")
+    else:
+        print_bold("Check the public URL again (expect 2xx):")
     print(target.check_command)
     if cloudflare and not (_is_redirect(status) or status == 403):
         print_bold("Inspect the tunnel connector logs:")
@@ -532,8 +586,9 @@ def _abort_unreachable(executor, target, status, detail, waited):
     print(target.ssh(internal_launch_command(target)))
     print_bold("Or remove the app:")
     print(target.destroy_command)
+    answer = "answered for a stopped app" if asleep else "did not answer 2xx"
     raise click.ClickException(
-        f"{target.health_url} did not answer 2xx, so the experiment was not "
+        f"{target.health_url} {answer}, so the experiment was not "
         "launched. The app's containers are running, but recruitment has not "
         f"started. {reason}"
     )

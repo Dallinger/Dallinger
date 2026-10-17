@@ -35,13 +35,15 @@ class FakeDocker:
     def __init__(self, containers):
         self._containers = containers
         self.stopped = []
+        self.stop_timeouts = {}
         self.started = []
 
     def containers(self):
         return list(self._containers)
 
-    def stop(self, container_id):
+    def stop(self, container_id, timeout=None):
         self.stopped.append(container_id)
+        self.stop_timeouts[container_id] = timeout
         for item in self._containers:
             if item["id"] == container_id:
                 item["state"] = "exited"
@@ -385,14 +387,20 @@ def test_hibernate_writes_marker_before_stopping_containers(tmp_path):
     controller = _controller(tmp_path, docker)
     marker_during_stop = {}
 
-    def stop(container_id):
+    def stop(container_id, timeout=None):
         marker_during_stop["present"] = (tmp_path / "hibernating").exists()
-        docker.__class__.stop(docker, container_id)
+        docker.__class__.stop(docker, container_id, timeout)
 
     docker.stop = stop
     controller.hibernate()
     assert marker_during_stop["present"] is True
     assert controller.current_state() == "hibernating"
+
+
+def test_hibernate_gives_only_postgres_the_longer_stop_timeout(tmp_path):
+    docker = FakeDocker([_container("web"), _container("postgresql")])
+    _controller(tmp_path, docker).hibernate()
+    assert docker.stop_timeouts == {"id-web": 30, "id-postgresql": 60}
 
 
 def test_controller_start_does_not_infer_sleep_from_a_down_backend(tmp_path):
