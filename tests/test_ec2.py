@@ -5,7 +5,7 @@ import pandas as pd
 import paramiko
 import pytest
 import requests
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, EndpointConnectionError
 
 from dallinger.command_line.lib.ec2 import (
     DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER,
@@ -633,6 +633,7 @@ def test_teardown_deletes_this_instances_records_then_terminates():
     "records, dns_error",
     [
         (ALICE_RECORDS, ClientError({"Error": {"Code": "Throttling"}}, "Change")),
+        (ALICE_RECORDS, EndpointConnectionError(endpoint_url="https://route53")),
         ([*ALICE_RECORDS, {"Name": "alice.example.org.", "Type": "NS"}], None),
     ],
 )

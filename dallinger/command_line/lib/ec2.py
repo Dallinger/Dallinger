@@ -13,7 +13,7 @@ import click
 import pandas as pd
 import paramiko
 import requests
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from paramiko import ssh_exception as pse
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from tenacity import (
@@ -1199,7 +1199,7 @@ def teardown(region_name, instance_id, public_dns_name, dns_host):
     dns_host = dns_host or next(filter(None, saved), None)
     try:
         remove_dns_record(dns_host, remove_dallinger_host=False, target=public_dns_name)
-    except (ClientError, click.ClickException) as e:
+    except (BotoCoreError, ClientError, click.ClickException) as e:
         logger.warning(
             f"Could not delete the Route 53 records for {dns_host} ({e}). Delete "
             f"{dns_host} and *.{dns_host} by hand if they point at {public_dns_name}."
