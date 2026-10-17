@@ -149,7 +149,7 @@ def test_cloudflare_deploy_without_token_stops_before_contacting_the_server(
         {"lab": {"host": "lab.example", "default_ingress": "cloudflare"}},
     )
     monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
-    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: mock.Mock())
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: mock.MagicMock())
     monkeypatch.setattr(docker_ssh_module, "load_api_token", missing_token)
     monkeypatch.setattr(
         docker_ssh_module,
@@ -186,6 +186,7 @@ def test_preload_cloudflare_token_reads_file_override(
         config, "lab", None, (("cloudflare_api_token", f"file:{token_file}"),)
     )
     assert token == expected
+    assert config.get("cloudflare_api_token") == "from-config"
 
 
 def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch):

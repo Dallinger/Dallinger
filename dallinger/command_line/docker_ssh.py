@@ -1087,13 +1087,14 @@ def _preload_cloudflare_token(config, server, ingress, config_options):
 
     Called before the deploy connects to the server or builds an image there,
     so a missing token stops it before anything changes. ``-c`` overrides
-    apply to ``config`` here exactly as they do later in the deploy.
+    apply here as they do later in the deploy, but only for this check, so
+    they don't leak into the image build.
     """
     if _resolve_ingress(_resolve_server_info(server), ingress) != INGRESS_CLOUDFLARE:
         return None
-    _apply_config_options(config, config_options)
     try:
-        return load_api_token(config)
+        with config.override(dict(config_options or ()), cast_types=True):
+            return load_api_token(config)
     except CloudflareError as exc:
         _abort_cloudflare(exc)
 
