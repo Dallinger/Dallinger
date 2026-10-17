@@ -7,6 +7,7 @@ import re
 import signal
 import subprocess
 import sys
+import threading
 import time
 from functools import cached_property
 from shlex import quote
@@ -454,6 +455,7 @@ class LocalProcfileWrapper:
         self._runner = None
         self._leaders = []
         self._stop_requested = False
+        self._stop_lock = threading.Lock()
         # needs_chrome, tmp_dir and experiment_name are here just for simmetry with the Docker wrapper
         self.needs_chrome = needs_chrome
         self.experiment_name = experiment_name
@@ -482,7 +484,8 @@ class LocalProcfileWrapper:
         try:
             self._boot()
             success = self._verify_startup()
-        except HerokuTimeoutError:
+        except BaseException:
+            # Includes Ctrl-C, which would otherwise skip __exit__ and leak.
             self.stop()
             raise
         finally:
@@ -491,7 +494,7 @@ class LocalProcfileWrapper:
         if success:
             # Remember the Procfile processes so stop() can reach them even if
             # honcho dies first (its children are then reparented).
-            self._leaders = _session_leaders(self._runner.children(recursive=True))
+            self._leaders = _session_leaders(_children(self._runner))
         else:
             self._log_failure()
             self.stop()
@@ -508,12 +511,17 @@ class LocalProcfileWrapper:
         """Stop the Procfile runner and all of its descendant processes.
 
         Each Procfile process group, then honcho, gets ``signal`` (SIGINT by
-        default, which makes gunicorn shut down quickly). Anything still alive
-        after ``stop_grace_secs`` is killed.
+        default, which makes gunicorn shut down quickly). Procfile processes
+        still alive after ``stop_grace_secs`` are killed. Concurrent calls
+        (e.g. from a status thread and ``__exit__``) run one at a time.
         """
         # Set before signalling, so a monitor() thread that sees the output end
         # knows the exit was requested.
         self._stop_requested = True
+        with self._stop_lock:
+            self._stop(signal)
+
+    def _stop(self, signal):
         signal = signal or self.int_signal
         self.out.log("Cleaning up local server processes...")
         process, self._process = self._process, None
@@ -551,18 +559,16 @@ class LocalProcfileWrapper:
                 pass
 
         _, alive = psutil.wait_procs(descendants, timeout=self.stop_grace_secs)
-        for child in alive:
-            try:
-                child.kill()
-            except psutil.Error:
-                pass
-
+        # Spare honcho's own helpers (its session) so honcho can exit normally;
+        # they are only killed below if honcho leaves them behind.
+        _kill([child for child in alive if not _in_session(child, runner)])
         try:
             process.wait(timeout=5)
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait()
         process.stdout.close()
+        _kill(alive)
 
         # Killed processes can linger briefly as zombies until reaped.
         _, survivors = psutil.wait_procs(alive, timeout=5)
@@ -761,6 +767,22 @@ def _children(process):
         return process.children(recursive=True)
     except psutil.NoSuchProcess:
         return []
+
+
+def _in_session(process, leader):
+    """Whether ``process`` belongs to the session led by ``leader``."""
+    try:
+        return leader is not None and os.getsid(process.pid) == leader.pid
+    except OSError:
+        return False
+
+
+def _kill(processes):
+    for process in processes:
+        try:
+            process.kill()
+        except psutil.Error:
+            pass
 
 
 def _session_leaders(processes):

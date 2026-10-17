@@ -1937,6 +1937,20 @@ def test_debug_deployment_keeps_preset_flask_secret_key(monkeypatch, preset):
         assert len(key) == 32
 
 
+def test_sigterm_stops_local_server_like_ctrl_c():
+    import signal
+    import time
+
+    from dallinger.deployment import _sigterm_raises_keyboard_interrupt
+
+    if signal.getsignal(signal.SIGTERM) != signal.SIG_DFL:
+        pytest.skip("SIGTERM already has a handler")
+    with raises(KeyboardInterrupt), _sigterm_raises_keyboard_interrupt():
+        os.kill(os.getpid(), signal.SIGTERM)
+        time.sleep(5)
+    assert signal.getsignal(signal.SIGTERM) == signal.SIG_DFL
+
+
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
 class TestDebugServer:
@@ -2280,7 +2294,7 @@ class TestLoad:
 
         loader.out.log.assert_has_calls(
             [
-                mock.call("Starting up the honcho Local server..."),
+                mock.call("Starting up the local server..."),
                 mock.call("Ingesting dataset from some_experiment_id-data.zip..."),
                 mock.call(
                     "Server is running on http://localhost:{}. Press Ctrl+C to exit.".format(
@@ -2304,7 +2318,7 @@ class TestLoad:
 
         replay_loader.out.log.assert_has_calls(
             [
-                mock.call("Starting up the honcho Local server..."),
+                mock.call("Starting up the local server..."),
                 mock.call("Ingesting dataset from some_experiment_id-data.zip..."),
                 mock.call(
                     "Server is running on http://localhost:{}. Press Ctrl+C to exit.".format(
