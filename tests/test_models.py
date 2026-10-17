@@ -759,6 +759,21 @@ class TestModels:
         assert "unique_id" not in participant_json
         assert "worker_id" not in participant_json
 
+    def test_get_all_mapped_classes_includes_realtime_events(self, db_session):
+        session = models.RealtimeSession(game_type="duel", members=[1])
+        db_session.add(session)
+        db_session.flush()
+        db_session.add(
+            models.RealtimeEvent(session_id=session.id, sequence=1, event_type="end")
+        )
+        db_session.commit()
+
+        assert get_all_mapped_classes()["RealtimeEvent"] == {
+            "cls": models.RealtimeEvent,
+            "table": "realtime_event",
+            "polymorphic_identity": None,
+        }
+
     def test_get_all_mapped_classes(self, db_session):
         net = models.Network()
         participant = models.Participant(

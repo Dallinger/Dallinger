@@ -23,9 +23,12 @@ from dallinger.db import (
     CONTROL_CHANNEL,
     DIRECT_CHANNEL,
     RESERVED_CHANNELS,
+    direct_envelope,
     redis_conn,
     session,
 )
+from dallinger.realtime import session_sockets, store
+from dallinger.utils import normalized_participant_id
 
 from .experiment_server import Experiment, app
 from .utils import date_handler
@@ -35,8 +38,8 @@ sock = Sock(app)
 # Send a ping on the websocket channel every 25 seconds
 app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
 
-#: Every field an envelope carries. ``deliver_direct`` indexes all four.
-ENVELOPE_FIELDS = frozenset({"participant_ids", "scope", "origin", "payload"})
+#: Every field a directed send carries. ``deliver_direct`` indexes all three.
+SEND_FIELDS = frozenset({"participant_ids", "scope", "payload"})
 
 #: Seconds a connection waits for redis to confirm its subscriptions before it
 #: starts relaying. Only an outage reaches it; a healthy subscription is
@@ -68,6 +71,10 @@ def process_token():
         _process_token_pid = pid
     return _process_token
 
+
+#: RFC 6455 going away. Sent to every connection when the web process shuts
+#: down, so the browser reconnects to another one.
+GOING_AWAY_CLOSE_CODE = 1001
 
 #: RFC 6455 policy violation, reported to the browser as ``event.code`` on
 #: ``onclose``. Dallinger's bundled ``ReconnectingWebSocket`` stops retrying on
@@ -113,6 +120,20 @@ def process_experiment():
             finally:
                 session.remove()
     return _process_experiment
+
+
+_process_games = None
+
+
+def process_games():
+    """The experiment's game types, as
+    :func:`~dallinger.realtime.store.experiment_games` returns them, loaded
+    once per process, when its gunicorn worker starts.
+    """
+    global _process_games
+    if _process_games is None:
+        _process_games = store.experiment_games()
+    return _process_games
 
 
 def publish_control_event(payload):
@@ -338,7 +359,9 @@ class DirectChannel(Channel):
         self.backend = backend
 
     def relay(self, message):
-        """Hand one envelope to the backend, unless this process published it."""
+        """Hand an envelope's sends to the backend, unless this process
+        published it.
+        """
         if message["type"] != "message":
             return
         envelope = parsed_envelope(message.get("data"))
@@ -352,11 +375,18 @@ class DirectChannel(Channel):
             return
         if envelope["origin"] == process_token():
             return
-        self.backend.deliver_direct(envelope)
+        for send in envelope["items"]:
+            self.backend.deliver_direct(send)
 
 
 def parsed_envelope(data):
-    """The directed send ``data`` carries, or ``None`` if it carries no envelope.
+    """The envelope ``data`` carries, or ``None`` if it carries no envelope.
+
+    An envelope holds the ``origin`` that published it and its ``items``, a
+    list of directed sends: one from
+    :func:`publish_to_participants`, or every view of a step from a real-time
+    runner (:func:`dallinger.realtime.delivery.view_batch`). An item that
+    isn't a send is logged and dropped, and the rest are kept.
 
     Every field ``deliver_direct`` reads is checked here, because this is where
     an envelope enters the process. Neither clients nor
@@ -365,27 +395,44 @@ def parsed_envelope(data):
     exception raised in a relay unwinds
     ``Channel.listen``, which catches redis errors only, and the process is
     then left with no listener until its next addressable connection.
-
-    A participant id has to be a string because it is looked up as a dict key,
-    and an unhashable one raises rather than missing.
     """
     try:
         envelope = json.loads(data)
     except (TypeError, ValueError):
         return None
-    if not isinstance(envelope, dict) or not ENVELOPE_FIELDS <= envelope.keys():
+    if not isinstance(envelope, dict) or not isinstance(envelope.get("origin"), str):
         return None
-    if not isinstance(envelope["origin"], str):
+    if not isinstance(envelope.get("items"), list):
         return None
-    if not isinstance(envelope["payload"], str):
-        return None
-    if envelope["scope"] is not None and not isinstance(envelope["scope"], str):
-        return None
-    if not isinstance(envelope["participant_ids"], list):
-        return None
-    if not all(isinstance(each, str) for each in envelope["participant_ids"]):
-        return None
-    return envelope
+    sends = []
+    for item in envelope["items"]:
+        if _is_send(item):
+            sends.append(item)
+        else:
+            log(
+                "Discarding an unreadable send on the {} channel.".format(
+                    DIRECT_CHANNEL
+                ),
+                level="warning",
+            )
+    return {"origin": envelope["origin"], "items": sends}
+
+
+def _is_send(value):
+    """Whether ``value`` holds every field of a send that ``deliver_direct``
+    reads.
+
+    A participant id has to be a string because it is looked up as a dict key,
+    and an unhashable one raises rather than missing.
+    """
+    return (
+        isinstance(value, dict)
+        and SEND_FIELDS <= value.keys()
+        and isinstance(value["payload"], str)
+        and (value["scope"] is None or isinstance(value["scope"], str))
+        and isinstance(value["participant_ids"], list)
+        and all(isinstance(each, str) for each in value["participant_ids"])
+    )
 
 
 class ChatBackend:
@@ -399,6 +446,11 @@ class ChatBackend:
         #: socket times out.
         self.clients_by_participant = {}
         self.direct_channel = None
+        #: Every client connected to this process, to close when it shuts
+        #: down.
+        self.open_clients = set()
+        #: Set by :meth:`close_all`, after which every connection is closed.
+        self.closing = False
 
     def subscribe(self, client, channel_name):
         """Register a new client to receive messages on a channel.
@@ -463,20 +515,38 @@ class ChatBackend:
         if not clients:
             del self.clients_by_participant[addressable_id]
 
-    def deliver_direct(self, envelope):
-        """Send one directed payload to this process's matching connections.
+    def deliver_direct(self, send):
+        """Deliver one directed send to this process's matching connections.
 
-        An envelope carrying a ``scope`` reaches only the connections opened
-        with that same scope. Every process sees every envelope, so naming
-        participants who are connected elsewhere, or nowhere, is ordinary.
+        A send carrying a ``scope`` reaches only the connections opened with
+        that same scope. One without reaches every connection of the
+        participants it names, whatever their scopes, so a real-time view for
+        a page opened without a scope reaches every page that participant
+        has open. Every process sees every envelope, so naming participants
+        who are connected elsewhere, or nowhere, is ordinary.
         """
-        scope = envelope["scope"]
-        frame = "{}:{}".format(DIRECT_CHANNEL, envelope["payload"])
-        for participant_id in envelope["participant_ids"]:
+        scope = send["scope"]
+        frame = "{}:{}".format(DIRECT_CHANNEL, send["payload"])
+        for participant_id in send["participant_ids"]:
             for client in list(self.clients_by_participant.get(participant_id, ())):
                 if scope is not None and client.scope != scope:
                     continue
                 gevent.spawn(Channel._relay, client, frame)
+
+    def close_all(self):
+        """Close every connection this process holds, and every one it
+        accepts from now on, as it shuts down.
+
+        Each connection's handler then finishes, so its session gets its
+        leave, and the browser reconnects to another web process. Gunicorn's
+        worker goes on accepting connections for up to a second after
+        SIGTERM.
+        """
+        self.closing = True
+        for client in list(self.open_clients):
+            # A relay blocked on a browser that stopped reading holds that
+            # client's send lock, which its close waits for.
+            gevent.spawn(client.close_going_away)
 
     def forget(self, channel):
         """Drop a channel whose listener has stopped.
@@ -500,8 +570,10 @@ chat_backend = ChatBackend()
 class Client:
     """Represents a single websocket client.
 
-    A client holding an ``experiment`` hands it each inbound message. One
-    without publishes to redis for a subscriber to pick up.
+    A frame on one of the experiment's game channels goes to the client's
+    real-time session, if it has one. Otherwise a client holding an
+    ``experiment`` hands it each inbound message, and one without publishes to
+    redis for a subscriber to pick up.
     """
 
     def __init__(
@@ -511,6 +583,7 @@ class Client:
         participant_id=None,
         scope=None,
         experiment=None,
+        games=None,
     ):
         self.ws = ws
         self.worker_id = worker_id
@@ -518,6 +591,11 @@ class Client:
         self.addressable_id = normalized_participant_id(participant_id)
         self.scope = scope
         self.experiment = experiment
+        #: The experiment's game types, a dict from each channel to its game
+        #: type's instance.
+        self.games = games or {}
+        #: Takes the connection's frames on game channels.
+        self.session = session_sockets.NoSession(self.client_info())
 
         # This lock is used to make sure that multiple greenlets
         # cannot send to the same socket concurrently.
@@ -547,6 +625,17 @@ class Client:
                     raise
                 raise ConnectionClosed(self.ws.close_reason, self.ws.close_message)
             # log('Sent to {}: {}'.format(self, message), level='debug')
+
+    def close_going_away(self):
+        """Close the connection because the web process is shutting down."""
+        try:
+            with self.send_lock:
+                self.ws.close(GOING_AWAY_CLOSE_CODE, "server shutting down")
+        except ConnectionClosed:
+            return
+        # receive() waits on this event, and simple_websocket's reader thread
+        # sets it only once the browser answers the close.
+        self.ws.event.set()
 
     def subscribe(self, channel):
         """Start listening to messages on ``channel``, if there is one.
@@ -624,7 +713,9 @@ class Client:
                         level="warning",
                     )
                     continue
-                if self.experiment is not None:
+                if channel_name in self.games:
+                    self.session.send(channel_name, data)
+                elif self.experiment is not None:
                     self.handle(channel_name, data)
                 else:
                     redis_conn.publish(channel_name, data)
@@ -707,12 +798,11 @@ def publish_to_participants(payload, participant_ids, scope=None):
             addressable_ids.append(addressable_id)
     if not addressable_ids:
         return
-    envelope = {
+    send = {
         "participant_ids": addressable_ids,
         # A connection names its scope in a query string, so the value it is
         # compared against is text on that side whatever the caller passed.
         "scope": None if scope is None else str(scope),
-        "origin": process_token(),
         # Serialized here so that every recipient of one send is delivered the
         # same bytes.
         "payload": json.dumps(payload, default=date_handler),
@@ -720,42 +810,8 @@ def publish_to_participants(payload, participant_ids, scope=None):
     # Published first: ``deliver_direct`` only spawns senders, so the order
     # costs nothing, and a redis failure then reaches nobody rather than
     # leaving this process's connections served and every other process's not.
-    redis_conn.publish(DIRECT_CHANNEL, json.dumps(envelope))
-    chat_backend.deliver_direct(envelope)
-
-
-def normalized_participant_id(participant_id):
-    """The string form of the participant id ``participant_id`` names, or ``None``.
-
-    Returns the participant id as a normalized string, or None if the value
-    is not a string or an integer, or cannot be parsed as a whole number.
-
-    The id is parsed as an int and rendered back as a string rather than
-    returned as-is, because int() accepts values the database column does
-    not, such as non-ASCII decimal digits. Without the round-trip, a raw value
-    like "٤٢" would pass the existence check but raise DataError on any
-    subsequent query that uses it as a column value. The round-trip also gives
-    each id a single string form, so "42", " 42 ", "+42" and "042" all come
-    back as "42".
-
-    Values that are neither strings nor integers are refused rather than
-    truncated: int() would read 12.7 as participant 12.
-
-    bool is excluded explicitly: although it is an int subclass and int(True)
-    is 1, a boolean participant_id is almost certainly a bug in the caller.
-
-    numbers.Integral is used instead of int so that numpy integers are
-    accepted (a caller reading participant ids out of a dataframe column
-    gets a numpy integer, not a plain int).
-    """
-    if isinstance(participant_id, bool) or not isinstance(
-        participant_id, (str, bytes, numbers.Integral)
-    ):
-        return None
-    try:
-        return str(int(participant_id))
-    except ValueError:
-        return None
+    redis_conn.publish(DIRECT_CHANNEL, direct_envelope(process_token(), [send]))
+    chat_backend.deliver_direct(send)
 
 
 def resolve_participant_id(participant_id):
@@ -799,18 +855,76 @@ def wait_until_listening(*channels):
 
 
 def _serve(ws, participant_id=None, experiment=None):
-    """Subscribe a connection to its channel and relay until it closes."""
+    """Subscribe a connection to its channel and relay until it closes.
+
+    A connection that asks for a real-time ``session`` is refused unless its
+    participant is one of the session's players. Its session gets a join
+    once the connection's direct listener is confirmed, so the view the
+    runner answers with can't miss it, and a leave when it closes.
+    """
+    try:
+        games = process_games()
+    except Exception:
+        log("Could not load the experiment's game types.", level="exception")
+        ws.close(UNAVAILABLE_CLOSE_CODE, "experiment unavailable")
+        return
     client = Client(
         ws,
         worker_id=request.args.get("worker_id"),
         participant_id=participant_id,
         scope=request.args.get("scope"),
         experiment=experiment,
+        games=games,
     )
+    requested_session = request.args.get("session")
+    if requested_session is not None:
+        try:
+            session = session_sockets.open_session_socket(
+                requested_session,
+                client.addressable_id,
+                client.scope,
+                games,
+                client.client_info(),
+            )
+        except RedisError:
+            log("Could not look up a real-time session.", level="exception")
+            ws.close(UNAVAILABLE_CLOSE_CODE, "session lookup failed")
+            return
+        if session is None:
+            log(
+                "Refusing {} for real-time session {!r}.".format(
+                    client.client_info(), requested_session
+                ),
+                level="warning",
+            )
+            ws.close(REFUSED_CLOSE_CODE, "not a player in this session")
+            return
+        client.session = session
     subscribed = client.subscribe(request.args.get("channel"))
     direct = chat_backend.register(client)
+    chat_backend.open_clients.add(client)
+    joined = False
     try:
+        # Checked only once the client is in open_clients, so a shutdown that
+        # began while the connection was being set up closes it either way.
+        if chat_backend.closing:
+            client.close_going_away()
+            return
         wait_until_listening(subscribed, direct)
+        if isinstance(client.session, session_sockets.SessionSocket):
+            if not ws.connected:
+                # Closed during the wait, by the browser or by a shutdown.
+                return
+            try:
+                client.session.join()
+            except RedisError:
+                log(
+                    "Could not add the join of {}.".format(client.client_info()),
+                    level="exception",
+                )
+                ws.close(UNAVAILABLE_CLOSE_CODE, "session join failed")
+                return
+            joined = True
         client.publish()
     finally:
         # The client is registered by the two calls above, and the wait hands
@@ -818,6 +932,15 @@ def _serve(ws, participant_id=None, experiment=None):
         # registrations behind. ``unsubscribe`` also runs in ``publish``, and
         # tolerates being called twice.
         chat_backend.unsubscribe(client)
+        chat_backend.open_clients.discard(client)
+        if joined:
+            try:
+                client.session.leave()
+            except RedisError:
+                log(
+                    "Could not add the leave of {}.".format(client.client_info()),
+                    level="exception",
+                )
 
 
 def chat(ws):

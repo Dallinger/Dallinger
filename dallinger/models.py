@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     and_,
     func,
     or_,
@@ -1887,6 +1888,126 @@ class Recruitment(Base, SharedMixin):
 
     #: A String, the nickname of the recruiter used.
     recruiter_id = Column(String(50), nullable=True)
+
+
+class RealtimeSession(Base):
+    """A session of a real-time game, as Postgres records it. Redis holds the
+    session while it's played, as :mod:`dallinger.realtime.store` describes.
+    """
+
+    __tablename__ = "realtime_session"
+
+    #: the session id
+    id = Column(Integer, primary_key=True)
+
+    #: the channel of the session's game type
+    game_type = Column(String, nullable=False)
+
+    #: the participant ids of the session's players, bots included, as a list
+    members = Column(JSONB, nullable=False)
+
+    #: the participant ids of the players the runner plays for
+    bots = Column(JSONB, nullable=False, server_default="[]", default=lambda: [])
+
+    #: ``running``, ``ended`` or ``failed``
+    status = Column(
+        Enum("running", "ended", "failed", name="realtime_session_status"),
+        nullable=False,
+        default="running",
+        index=True,
+    )
+
+    #: the time the session was created
+    start_time = Column(DateTime, nullable=False, default=timenow)
+
+    #: the time the runner saved the session's ending
+    end_time = Column(DateTime)
+
+    #: why the session ended, as
+    #: :meth:`~dallinger.realtime.game.RealtimeGame.outcome` receives it
+    end_reason = Column(String)
+
+    #: what :meth:`~dallinger.realtime.game.RealtimeGame.outcome` returned
+    outcome = Column(JSONB)
+
+    #: the state when the session ended
+    final_state = Column(JSONB)
+
+    #: the state at the latest checkpoint
+    checkpoint = Column(JSONB)
+
+    #: the traceback of the error that failed the session, or that stopped
+    #: its record being written
+    error = Column(Text)
+
+    #: the redis stream ID of the last of the session's records written to
+    #: :class:`RealtimeEvent`
+    last_written_record = Column(String)
+
+
+class RealtimeEvent(Base):
+    """One saved message, effect, checkpoint or ending of a
+    :class:`RealtimeSession`. The columns an event type doesn't use are null.
+    """
+
+    __tablename__ = "realtime_event"
+    __table_args__ = (UniqueConstraint("session_id", "sequence"),)
+
+    id = Column(Integer, primary_key=True)
+
+    #: the :class:`RealtimeSession` it belongs to
+    session_id = Column(Integer, ForeignKey("realtime_session.id"), nullable=False)
+
+    #: its order among the session's events, counting from 1
+    sequence = Column(Integer)
+
+    #: ``message``, ``effect``, ``checkpoint`` or ``end``
+    event_type = Column(String, nullable=False)
+
+    #: the session time it happened at
+    session_time = Column(Float)
+
+    #: a message's sender
+    participant_id = Column(Integer)
+
+    #: the scope of the page that sent a message
+    scope = Column(String)
+
+    #: an effect's name
+    name = Column(String)
+
+    #: a message's or an effect's payload
+    payload = Column(JSONB)
+
+    #: the number the page gave a message
+    number = Column(Integer)
+
+    #: the browser's clock when the page sent a message, as the page sent it
+    browser_time = Column(Float)
+
+    #: the session time of the view the page was showing when it sent a
+    #: message
+    view_time = Column(Float)
+
+    #: the time a message reached the server
+    receive_time = Column(DateTime)
+
+    #: whether a message was ``accepted``, ``rejected``, or ``failed`` because
+    #: the game code applying it raised an error
+    status = Column(String)
+
+    #: why a message was rejected, or why the session ended
+    reason = Column(JSONB)
+
+    #: what :meth:`~dallinger.realtime.game.RealtimeGame.outcome` returned,
+    #: for an ending
+    outcome = Column(JSONB)
+
+    #: the state at a checkpoint, or when the session ended
+    state = Column(JSONB)
+
+    #: the traceback of the error that failed the session, for an ending
+    error = Column(Text)
 
 
 Network.n_pending_infos = column_property(

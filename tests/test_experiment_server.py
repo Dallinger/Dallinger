@@ -88,6 +88,45 @@ class TestAppConfiguration:
                 server.load_user_config()
                 assert server.options["workers"] == "2"
 
+    def test_each_worker_loads_the_game_types_and_closes_sockets_on_sigterm(
+        self, webapp
+    ):
+        from dallinger.experiment_server import gunicorn
+
+        with (
+            mock.patch(
+                "dallinger.experiment_server.sockets.process_games"
+            ) as process_games,
+            mock.patch.object(gunicorn, "close_sockets_on_sigterm") as on_sigterm,
+            mock.patch.object(gunicorn, "experiment_hook"),
+        ):
+            gunicorn.post_worker_init(mock.Mock())
+
+        process_games.assert_called_once_with()
+        on_sigterm.assert_called_once_with()
+
+    @pytest.mark.timeout(10)
+    def test_sigterm_runs_the_workers_handler_and_closes_the_sockets(self, webapp):
+        import os
+        import signal
+
+        import gevent
+
+        from dallinger.experiment_server import gunicorn, sockets
+
+        previous = mock.Mock()
+        original = signal.signal(signal.SIGTERM, previous)
+        try:
+            gunicorn.close_sockets_on_sigterm()
+            with mock.patch.object(sockets, "chat_backend") as chat_backend:
+                os.kill(os.getpid(), signal.SIGTERM)
+                gevent.sleep(0.05)
+        finally:
+            signal.signal(signal.SIGTERM, original)
+
+        previous.assert_called_once()
+        chat_backend.close_all.assert_called_once_with()
+
     def test_flask_secret_loaded_from_environ(self, webapp):
         with mock.patch("os.environ", {"FLASK_SECRET_KEY": "A TEST SECRET KEY"}):
             webapp.get("/")
