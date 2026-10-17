@@ -1078,6 +1078,9 @@ def _install_tunnel_token(executor, sftp, app, connector_token, tunnel_id):
     executor.run(f"chmod 600 ~/dallinger/{app}/secrets/cloudflare-tunnel-token")
 
 
+_CLOUDFLARE_TOKEN_KEYS = ("cloudflare_api_token", "cloudflare_keychain_service")
+
+
 def _abort_cloudflare(exc):
     raise click.ClickException(f"Cloudflare error: {exc}") from exc
 
@@ -1086,14 +1089,19 @@ def _preload_cloudflare_token(config, server, ingress, config_options):
     """Return the API token for a Cloudflare deploy, or ``None`` for classic ingress.
 
     Called before the deploy connects to the server or builds an image there,
-    so a missing token stops it before anything changes. ``-c`` overrides
-    apply here as they do later in the deploy, but only for this check, so
-    they don't leak into the image build.
+    so a missing token stops it before anything changes. ``-c`` overrides of
+    the token settings apply here as they do later in the deploy, but only
+    for this check, so they don't leak into the image build.
     """
     if _resolve_ingress(_resolve_server_info(server), ingress) != INGRESS_CLOUDFLARE:
         return None
+    token_options = {}
+    for key, value in dict(config_options or ()).items():
+        key = config.synonyms.get(key, key)
+        if key in _CLOUDFLARE_TOKEN_KEYS:
+            token_options[key] = value
     try:
-        with config.override(dict(config_options or ()), cast_types=True):
+        with config.override(token_options, cast_types=True):
             return load_api_token(config)
     except CloudflareError as exc:
         _abort_cloudflare(exc)
@@ -1502,7 +1510,9 @@ def _deploy_in_mode(
     server = resolve_server_name(server, CONFIGURED_HOSTS)
     config_options = _apply_config_options(config, config_options)
 
-    run_pre_launch_checks(**locals())
+    pre_launch_kwargs = dict(locals())
+    pre_launch_kwargs.pop("cloudflare_api_token")
+    run_pre_launch_checks(**pre_launch_kwargs)
 
     server_info = CONFIGURED_HOSTS[server]
     ssh_address = server_info["host"]

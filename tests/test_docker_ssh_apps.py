@@ -164,6 +164,27 @@ def test_cloudflare_deploy_without_token_stops_before_contacting_the_server(
     deploy.assert_not_called()
 
 
+def test_cloudflare_error_prints_one_error_line(monkeypatch):
+    from click.testing import CliRunner
+
+    pytest.importorskip("docker")
+    hosts = {"lab": {"host": "lab.example", "default_ingress": "cloudflare"}}
+    monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", hosts)
+    monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: hosts)
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: mock.MagicMock())
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "load_api_token",
+        mock.Mock(side_effect=CloudflareError("no token")),
+    )
+
+    result = CliRunner().invoke(docker_ssh_module.deploy, ["--server", "lab"])
+
+    assert result.exit_code == 1
+    assert result.output == "Error: Cloudflare error: no token\n"
+
+
 @pytest.mark.parametrize(
     "default_ingress, expected", [("cloudflare", "from-file"), ("classic", None)]
 )
@@ -179,11 +200,18 @@ def test_preload_cloudflare_token_reads_file_override(
     token_file = tmp_path / "token"
     token_file.write_text("from-file\n")
     config = Configuration()
-    config.register("cloudflare_api_token", str)
+    config.register("cloudflare_api_token", str, ["CLOUDFLARE_API_TOKEN"])
+    config.register("other", str)
     config.extend({"cloudflare_api_token": "from-config"})
     config.ready = True
     token = docker_ssh_module._preload_cloudflare_token(
-        config, "lab", None, (("cloudflare_api_token", f"file:{token_file}"),)
+        config,
+        "lab",
+        None,
+        (
+            ("CLOUDFLARE_API_TOKEN", f"file:{token_file}"),
+            ("other", f"file:{tmp_path / 'missing'}"),
+        ),
     )
     assert token == expected
     assert config.get("cloudflare_api_token") == "from-config"
