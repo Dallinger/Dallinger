@@ -132,6 +132,9 @@ def test_dns_check_treats_malformed_hostname_as_unresolved(capsys):
         ({"host": "lab.example.org:2222"}, None, "lab.example.org"),
         ({"host": "1.2.3.4"}, None, None),
         ({"host": "1.2.3.4:2222"}, None, None),
+        ({"host": "::1"}, None, None),
+        ({"host": "[::1]:2222"}, None, None),
+        ({"host": "[2001:db8::1]"}, None, None),
         ({"host": "1.2.3.4", "dns_host": "lab.example.org"}, None, "lab.example.org"),
         (
             {"host": "lab.example.org", "dns_host": "saved.example.org"},
@@ -147,6 +150,22 @@ def test_dns_check_treats_malformed_hostname_as_unresolved(capsys):
 )
 def test_resolve_dns_host(server_info, dns_host, expected):
     assert docker_ssh_module.resolve_dns_host(server_info, dns_host) == expected
+
+
+@pytest.mark.parametrize(
+    "host, record, offers_nip_io",
+    [("1.2.3.4:2222", "A", True), ("[2001:db8::1]:2222", "AAAA", False)],
+)
+def test_missing_dns_host_advice_suits_the_address_family(host, record, offers_nip_io):
+    advice = docker_ssh_module._missing_dns_host_advice(
+        {"host": host, "user": "ubuntu", "default_ingress": "classic"}
+    )
+    assert f"Create a DNS {record} record" in advice
+    assert ("nip.io" in advice) == offers_nip_io
+    assert (
+        f"servers add --host {host} --user ubuntu --default-ingress classic "
+        "--dns-host my-custom-domain.example.com" in advice
+    )
 
 
 def test_servers_add_saves_dns_host():
@@ -186,7 +205,7 @@ def test_servers_add_saves_dns_host():
 def test_classic_ingress_requires_a_public_server(
     monkeypatch, capsys, ip_addr, ingress, default_ingress, aborts
 ):
-    host_record = {"host": "lab-pc:2222", "user": "ubuntu"}
+    host_record = {"host": "lab-pc:2222", "user": "ubuntu", "dns_host": "lab.org"}
     if default_ingress:
         host_record["default_ingress"] = default_ingress
     monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", {"lab-pc": host_record})
@@ -198,7 +217,10 @@ def test_classic_ingress_requires_a_public_server(
             docker_ssh_module._check_classic_ingress_reachable("lab-pc", ingress)
         output = capsys.readouterr().out
         assert "--ingress cloudflare" in output
-        assert "--host lab-pc:2222 --user ubuntu " in output
+        assert (
+            "servers add --host lab-pc:2222 --user ubuntu "
+            "--default-ingress cloudflare --dns-host lab.org`" in output
+        )
         assert "--allow-private-ip" in output
     else:
         docker_ssh_module._check_classic_ingress_reachable("lab-pc", ingress)

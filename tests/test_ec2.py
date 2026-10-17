@@ -502,7 +502,13 @@ class TestRegisterKeyPair:
 
 @pytest.mark.parametrize(
     "dns_host, registered",
-    [("alice.example.org", "alice.example.org"), (None, "ec2-1-2-3-4.example.com")],
+    [
+        (
+            "alice.example.org",
+            {"host": "alice.example.org", "dns_host": "alice.example.org"},
+        ),
+        (None, {"host": "ec2-1-2-3-4.example.com"}),
+    ],
 )
 def test_provision_registers_one_server(dns_host, registered):
     from dallinger.command_line.lib import ec2
@@ -521,32 +527,37 @@ def test_provision_registers_one_server(dns_host, registered):
             "1.2.3.4",
             mock.Mock(),
             dns_host=dns_host,
+            instance_id="i-123",
         )
-    store_host.assert_called_once_with({"host": registered, "user": "ubuntu"})
+    store_host.assert_called_once_with(
+        {**registered, "user": "ubuntu", "ec2_instance_id": "i-123"}
+    )
 
 
-def test_teardown_skips_remove_host_when_aws_hostname_not_configured():
+@pytest.mark.parametrize("dns_host", [None, "alice.example.org"])
+def test_teardown_removes_the_registered_server_and_its_dns_records(dns_host):
     from dallinger.command_line.lib import ec2
 
+    hosts = {
+        "alice.example.org": {
+            "host": "alice.example.org",
+            "dns_host": "alice.example.org",
+            "ec2_instance_id": "i-123",
+        },
+        "bob.example.org": {"host": "bob.example.org", "ec2_instance_id": "i-456"},
+    }
     with (
         mock.patch.object(ec2, "get_ec2_client") as get_ec2_client,
-        mock.patch.object(
-            ec2,
-            "get_configured_hosts",
-            return_value={"alice.example.org": {"host": "alice.example.org"}},
-        ),
+        mock.patch.object(ec2, "get_configured_hosts", return_value=hosts),
         mock.patch.object(ec2, "dallinger_remove_host") as remove_host,
         mock.patch.object(ec2, "remove_dns_record") as remove_dns,
     ):
         ec2.teardown(
-            "eu-west-1",
-            "i-123",
-            "ec2-1-2-3-4.compute.amazonaws.com",
-            "alice.example.org",
+            "eu-west-1", "i-123", "ec2-1-2-3-4.compute.amazonaws.com", dns_host
         )
 
     get_ec2_client.return_value.terminate_instances.assert_called_once_with(
         InstanceIds=["i-123"]
     )
-    remove_host.assert_not_called()
-    remove_dns.assert_called_once_with("alice.example.org", remove_dallinger_host=True)
+    remove_host.assert_called_once_with("alice.example.org")
+    remove_dns.assert_called_once_with("alice.example.org", remove_dallinger_host=False)

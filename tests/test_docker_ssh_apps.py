@@ -776,7 +776,21 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
         assert not any(forbidden in cmd for cmd in rmi_commands)
 
 
-def test_destroy_restores_caddyfile_using_saved_dns_host(monkeypatch):
+@pytest.mark.parametrize(
+    "dns_host, public_origin, expected",
+    [
+        ("lab.example.org", None, "lab.example.org"),
+        ("nip.io", "https://1.2.3.4.nip.io", "1.2.3.4.nip.io"),
+        (
+            "lab.example.org",
+            "https://deploy-time.example.org",
+            "deploy-time.example.org",
+        ),
+    ],
+)
+def test_destroy_restores_caddyfile_under_the_deployed_dns_host(
+    monkeypatch, dns_host, public_origin, expected
+):
     uploaded = []
 
     def run(cmd, raise_=True):
@@ -791,7 +805,15 @@ def test_destroy_restores_caddyfile_using_saved_dns_host(monkeypatch):
     _patch_destroy_executor(
         monkeypatch,
         run,
-        {"host": "1.2.3.4", "user": "ubuntu", "dns_host": "lab.example.org"},
+        {"host": "1.2.3.4", "user": "ubuntu", "dns_host": dns_host},
+    )
+    manifests = {}
+    if public_origin:
+        manifests["myapp"] = docker_ssh_module.DeploymentManifest(
+            app="myapp", server="test-server", public_origin=public_origin
+        )
+    monkeypatch.setattr(
+        docker_ssh_module, "_load_remote_manifests", lambda executor, apps: manifests
     )
     sftp = mock.Mock()
     sftp.putfo.side_effect = lambda buf, path: uploaded.append((buf.getvalue(), path))
@@ -805,9 +827,7 @@ def test_destroy_restores_caddyfile_using_saved_dns_host(monkeypatch):
     assert len(uploaded) == 1
     restored, path = uploaded[0]
     assert path == "dallinger/Caddyfile"
-    text = restored.decode()
-    assert "lab.example.org" in text
-    assert "1.2.3.4" not in text
+    assert f"\n{expected} {{" in restored.decode()
 
 
 class _LocalDockerExecutor:

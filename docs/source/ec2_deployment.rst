@@ -208,13 +208,18 @@ teardown the instance make sure:
     * The experiment is stopped on the recruiter, e.g. in Prolific the experiment should be STOPPED and thus not active
     * Make sure you exported your data and run export.py to make sure your data is not faulty
 
-To teardown an on-demand EC2 instance ny server name::
+To teardown an on-demand EC2 instance by server name::
 
     dallinger ec2 teardown --name <server_name> --region <region>
 
-Or by DNS name::
+Or by the instance's public AWS hostname::
 
-    dallinger ec2 teardown --dns <subdomain>.my-experiments.org --region <region>
+    dallinger ec2 teardown --dns <aws_public_hostname> --region <region>
+
+Teardown removes the server from Dallinger's server list and deletes the
+Route 53 records for the ``--dns-host`` it was provisioned with. Servers
+provisioned with older Dallinger versions also need
+``--dns-host <subdomain>.my-experiments.org`` to delete the Route 53 records.
 
 
 Listing Available Regions and Instance Types

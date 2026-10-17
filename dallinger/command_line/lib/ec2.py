@@ -953,7 +953,9 @@ def prepare_instance(
         instance_id, instance_name, storage_in_gb, ec2
     )
     if callback is not None:
-        callback(host, user, ip_address, executor, dns_host, instance_name)
+        callback(
+            host, user, ip_address, executor, dns_host, instance_name, instance_id
+        )
 
     duration = time.time() - start
     print(
@@ -977,7 +979,7 @@ def remove_dns_record(dns_host, remove_dallinger_host=True):
 
 
 def prepare_docker_experiment_setup(
-    host, user, ip_address, executor, dns_host=None, instance_name=None
+    host, user, ip_address, executor, dns_host=None, instance_name=None, instance_id=None
 ):
     from dallinger.config import get_config
 
@@ -995,7 +997,11 @@ def prepare_docker_experiment_setup(
     with yaspin(text="Registering host in Dallinger...", color="green") as sp:
         # One entry per server: its DNS name if it has one, so deployments
         # infer the DNS host and there is no second entry to choose between.
-        dallinger_store_host(dict(host=dns_host or host, user=user))
+        # ``teardown`` finds the entry by instance id.
+        server_info = dict(host=dns_host or host, user=user, ec2_instance_id=instance_id)
+        if dns_host:
+            server_info["dns_host"] = dns_host
+        dallinger_store_host(server_info)
         sp.ok("✔")
 
 
@@ -1130,9 +1136,21 @@ def stop(region_name, instance_id):
 
 
 def teardown(region_name, instance_id, public_dns_name, dns_host):
+    """Terminate an instance and remove its Dallinger server entries and DNS records.
+
+    Entries are found by the instance id saved at provisioning, or by the
+    instance's public AWS hostname (as registered by older versions). Without
+    ``dns_host``, the DNS host saved in a found entry is used.
+    """
     logger.info(f"Terminating {instance_id} ({public_dns_name})...")
     get_ec2_client(region_name).terminate_instances(InstanceIds=[instance_id])
-    if public_dns_name in get_configured_hosts():  # registered by older versions
-        dallinger_remove_host(public_dns_name)
-    remove_dns_record(dns_host, remove_dallinger_host=True)
+    registered = {
+        host: info
+        for host, info in get_configured_hosts().items()
+        if host == public_dns_name or info.get("ec2_instance_id") == instance_id
+    }
+    for host, info in registered.items():
+        dallinger_remove_host(host)
+        dns_host = dns_host or info.get("dns_host")
+    remove_dns_record(dns_host, remove_dallinger_host=dns_host not in registered)
     logger.info(f"Termination of {instance_id} complete!")
