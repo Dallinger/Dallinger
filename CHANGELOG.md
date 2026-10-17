@@ -340,6 +340,10 @@
 
 ### Fixed
 
+- Building the Docker image for an experiment with its own `Dockerfile` no
+  longer prints "Could not determine Dallinger version. Using latest". That
+  message is about the Dallinger base image, which is only used when the
+  experiment has no `Dockerfile`.
 - `dallinger debug` no longer prints "Error fetching experiment status" while
   the server shuts down or after a single failed request. Once recruitment
   closes, it reports an error only after three failed status checks in a row,

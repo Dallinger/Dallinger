@@ -470,27 +470,48 @@ def test_docker_debug_dotenv_treats_a_none_secret_key_as_empty(tmp_path, stub_co
     assert wrapper.env["FLASK_SECRET_KEY"] == ""
 
 
-def test_custom_dockerfile_reinstalls_a_staged_local_wheel(tmp_path):
+def test_custom_dockerfile_reinstalls_a_staged_local_wheel_without_base_image(
+    tmp_path, capsys
+):
     import docker
 
     from dallinger.docker import tools
 
     (tmp_path / "Dockerfile").write_text("FROM python:3.12\nCOPY . /experiment\n")
-    (tmp_path / "requirements.txt").write_text("dallinger==12.0.0\n")
+    (tmp_path / "requirements.txt").write_text("psynet\n")
     (tmp_path / "dallinger-1-py3-none-any.whl").write_bytes(b"wheel")
     client = mock.Mock()
     client.api.inspect_image.side_effect = docker.errors.ImageNotFound("missing")
     with (
         mock.patch("docker.client.from_env", return_value=client),
-        mock.patch.object(tools, "get_base_image", return_value="base"),
         mock.patch.object(tools, "check_output") as check_output,
     ):
         tools.build_image(tmp_path, "exp", mock.Mock(), image_tag="t")
+    assert "Could not determine Dallinger version" not in capsys.readouterr().out
     build_args = check_output.call_args.args[0]
     assert f"{tools.RUNS_AS_SSH_USER_LABEL}=1" in build_args
     dockerfile = (tmp_path / "Dockerfile").read_text()
     assert tools.LOCAL_DALLINGER_WHEEL_SNIPPET in dockerfile
     assert "--force-reinstall --no-deps" in tools.LOCAL_DALLINGER_WHEEL_SNIPPET
+
+
+def test_generated_dockerfile_uses_the_pinned_base_image(tmp_path):
+    import docker
+
+    from dallinger.docker import tools
+
+    (tmp_path / "requirements.txt").write_text("dallinger==12.0.0\n")
+    client = mock.Mock()
+    client.api.inspect_image.side_effect = docker.errors.ImageNotFound("missing")
+    with (
+        mock.patch("docker.client.from_env", return_value=client),
+        mock.patch.object(tools, "check_output"),
+    ):
+        tools.build_image(
+            tmp_path, "exp", mock.Mock(), needs_chrome=True, image_tag="t"
+        )
+    dockerfile = (tmp_path / "Dockerfile").read_text()
+    assert "FROM ghcr.io/dallinger/dallinger-bot:12.0.0" in dockerfile
 
 
 def test_deploy_image_tag_is_unique_per_launch():
