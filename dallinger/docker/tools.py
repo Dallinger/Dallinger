@@ -99,7 +99,7 @@ def _private_opener(path, flags):
 
 
 class DockerComposeWrapper:
-    """Wrapper around a docker compose local daemon, modeled after HerokuLocalWrapper.
+    """Wrapper around a docker compose local daemon, modeled after LocalProcfileWrapper.
 
     Provides for verified startup and shutdown, and allows observers to register
     to recieve subprocess output via 'monitor()'.

@@ -1937,6 +1937,20 @@ def test_debug_deployment_keeps_preset_flask_secret_key(monkeypatch, preset):
         assert len(key) == 32
 
 
+def test_sigterm_stops_local_server_like_ctrl_c():
+    import signal
+    import time
+
+    from dallinger.deployment import _sigterm_raises_keyboard_interrupt
+
+    if signal.getsignal(signal.SIGTERM) != signal.SIG_DFL:
+        pytest.skip("SIGTERM already has a handler")
+    with raises(KeyboardInterrupt), _sigterm_raises_keyboard_interrupt():
+        os.kill(os.getpid(), signal.SIGTERM)
+        time.sleep(5)
+    assert signal.getsignal(signal.SIGTERM) == signal.SIG_DFL
+
+
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
 class TestDebugServer:
@@ -1969,10 +1983,10 @@ class TestDebugServer:
 
     @pytest.fixture
     def debugger(self, debugger_unpatched):
-        from dallinger.heroku.tools import HerokuLocalWrapper
+        from dallinger.heroku.tools import LocalProcfileWrapper
 
         debugger = debugger_unpatched
-        debugger.notify = mock.Mock(return_value=HerokuLocalWrapper.MONITOR_STOP)
+        debugger.notify = mock.Mock(return_value=LocalProcfileWrapper.MONITOR_STOP)
         return debugger
 
     def test_startup(self, debugger):
@@ -2119,7 +2133,7 @@ class TestDebugServer:
             p.expect_exact("Server is running", timeout=300)
             p.expect_exact("Recruitment is complete", timeout=600)
             p.expect_exact("Experiment completed", timeout=60)
-            p.expect_exact("Local Heroku process terminated", timeout=10)
+            p.expect_exact("Local server processes terminated", timeout=10)
         finally:
             try:
                 p.sendcontrol("c")
@@ -2247,10 +2261,10 @@ class TestLoad:
     @pytest.fixture
     def loader(self, db_session, output, clear_workers):
         from dallinger.deployment import LoaderDeployment
-        from dallinger.heroku.tools import HerokuLocalWrapper
+        from dallinger.heroku.tools import LocalProcfileWrapper
 
         loader = LoaderDeployment(self.exp_id, output, verbose=True, exp_config={})
-        loader.notify = mock.Mock(return_value=HerokuLocalWrapper.MONITOR_STOP)
+        loader.notify = mock.Mock(return_value=LocalProcfileWrapper.MONITOR_STOP)
 
         yield loader
 
@@ -2264,10 +2278,10 @@ class TestLoad:
         loader.keep_running = mock.Mock(return_value=False)
 
         def launch_and_finish(self):
-            from dallinger.heroku.tools import HerokuLocalWrapper
+            from dallinger.heroku.tools import LocalProcfileWrapper
 
             loader.out.log("Launching replay browser...")
-            return HerokuLocalWrapper.MONITOR_STOP
+            return LocalProcfileWrapper.MONITOR_STOP
 
         loader.start_replay = mock.Mock(
             return_value=None, side_effect=launch_and_finish
@@ -2280,7 +2294,7 @@ class TestLoad:
 
         loader.out.log.assert_has_calls(
             [
-                mock.call("Starting up the Heroku Local server..."),
+                mock.call("Starting up the local server..."),
                 mock.call("Ingesting dataset from some_experiment_id-data.zip..."),
                 mock.call(
                     "Server is running on http://localhost:{}. Press Ctrl+C to exit.".format(
@@ -2288,8 +2302,8 @@ class TestLoad:
                     )
                 ),
                 mock.call("Terminating dataset load for experiment some_experiment_id"),
-                mock.call("Cleaning up local Heroku process..."),
-                mock.call("Local Heroku process terminated."),
+                mock.call("Cleaning up local server processes..."),
+                mock.call("Local server processes terminated."),
             ]
         )
 
@@ -2304,7 +2318,7 @@ class TestLoad:
 
         replay_loader.out.log.assert_has_calls(
             [
-                mock.call("Starting up the Heroku Local server..."),
+                mock.call("Starting up the local server..."),
                 mock.call("Ingesting dataset from some_experiment_id-data.zip..."),
                 mock.call(
                     "Server is running on http://localhost:{}. Press Ctrl+C to exit.".format(
@@ -2314,7 +2328,7 @@ class TestLoad:
                 mock.call("Launching the experiment..."),
                 mock.call("Launching replay browser..."),
                 mock.call("Terminating dataset load for experiment some_experiment_id"),
-                mock.call("Cleaning up local Heroku process..."),
-                mock.call("Local Heroku process terminated."),
+                mock.call("Cleaning up local server processes..."),
+                mock.call("Local server processes terminated."),
             ]
         )

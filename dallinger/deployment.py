@@ -2,9 +2,11 @@ import codecs
 import json
 import os
 import re
+import signal
 import sys
 import threading
 import time
+from contextlib import contextmanager
 from shlex import quote
 from urllib.parse import urlparse, urlunparse
 
@@ -22,7 +24,7 @@ from rich.progress import (
 
 from dallinger import data, db, heroku, recruiters, registration
 from dallinger.config import get_config
-from dallinger.heroku.tools import HerokuApp, HerokuLocalWrapper
+from dallinger.heroku.tools import HerokuApp, LocalProcfileWrapper
 from dallinger.redis_utils import connect_to_redis
 from dallinger.utils import (
     ExperimentFileSource,
@@ -456,6 +458,29 @@ class DevelopmentDeployment:
         db.init_db(drop_all=True)
 
 
+@contextmanager
+def _sigterm_raises_keyboard_interrupt():
+    """Treat SIGTERM like Ctrl-C, so ``kill <pid>`` also stops the local server.
+
+    Does nothing outside the main thread or if SIGTERM already has a handler.
+    """
+    if (
+        threading.current_thread() is not threading.main_thread()
+        or signal.getsignal(signal.SIGTERM) != signal.SIG_DFL
+    ):
+        yield
+        return
+
+    def _interrupt(signum, frame):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, _interrupt)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+
+
 class HerokuLocalDeployment:
     exp_id = None
     tmp_dir = None
@@ -463,8 +488,8 @@ class HerokuLocalDeployment:
     environ = None
     bot = False
     experiment_files = None
-    DEPLOY_NAME = "Heroku"
-    WRAPPER_CLASS = HerokuLocalWrapper
+    DEPLOY_NAME = "local"
+    WRAPPER_CLASS = LocalProcfileWrapper
     DO_INIT_DB = True
 
     def configure(self):
@@ -480,7 +505,7 @@ class HerokuLocalDeployment:
 
     def update_dir(self):
         # FIXME: this call is used for implicit communication between classes in this file
-        # and service wrappers (HerokuLocalWrapper, DockerComposeWrapper).
+        # and service wrappers (LocalProcfileWrapper, DockerComposeWrapper).
         # This communication should be made explicit, passing this path around instead of
         # changing a global state.
         os.chdir(self.tmp_dir)
@@ -506,16 +531,19 @@ class HerokuLocalDeployment:
         if self.environ:
             environ = os.environ.copy()
             environ.update(self.environ)
-        self.out.log(f"Starting up the {self.DEPLOY_NAME} Local server...")
-        with self.WRAPPER_CLASS(
-            config,
-            self.out,
-            self.original_dir,
-            self.tmp_dir,
-            verbose=self.verbose,
-            env=environ,
-            needs_chrome=self.bot,
-        ) as wrapper:
+        self.out.log(f"Starting up the {self.DEPLOY_NAME} server...")
+        with (
+            _sigterm_raises_keyboard_interrupt(),
+            self.WRAPPER_CLASS(
+                config,
+                self.out,
+                self.original_dir,
+                self.tmp_dir,
+                verbose=self.verbose,
+                env=environ,
+                needs_chrome=self.bot,
+            ) as wrapper,
+        ):
             try:
                 self.execute(wrapper)
             except KeyboardInterrupt:
@@ -617,12 +645,12 @@ class DebugDeployment(HerokuLocalDeployment):
 
                 self.heroku = heroku
                 self.out.log(
-                    "Monitoring the Heroku Local server for recruitment or completion..."
+                    f"Monitoring the {self.DEPLOY_NAME} server for recruitment or completion..."
                 )
                 heroku.monitor(listener=self.notify)
 
     def launch_request_complete(self, match):
-        return HerokuLocalWrapper.MONITOR_STOP
+        return LocalProcfileWrapper.MONITOR_STOP
 
     def cleanup(self):
         self.complete = True
@@ -727,7 +755,7 @@ class DebugDeployment(HerokuLocalDeployment):
         has determined that the experiment is complete.
         """
         if self.complete:
-            return HerokuLocalWrapper.MONITOR_STOP
+            return LocalProcfileWrapper.MONITOR_STOP
         return super(DebugDeployment, self).notify(message)
 
 
