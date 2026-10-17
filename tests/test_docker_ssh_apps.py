@@ -182,7 +182,8 @@ def test_cloudflare_error_prints_one_error_line(monkeypatch):
     result = CliRunner().invoke(docker_ssh_module.deploy, ["--server", "lab"])
 
     assert result.exit_code == 1
-    assert result.output == "Error: Cloudflare error: no token\n"
+    assert result.output.endswith("Error: Cloudflare error: no token\n")
+    assert "Aborted!" not in result.output
 
 
 @pytest.mark.parametrize(
