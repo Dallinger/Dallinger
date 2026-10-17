@@ -149,7 +149,7 @@ def test_cloudflare_deploy_without_token_stops_before_contacting_the_server(
         {"lab": {"host": "lab.example", "default_ingress": "cloudflare"}},
     )
     monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
-    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: {})
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: mock.Mock())
     monkeypatch.setattr(docker_ssh_module, "load_api_token", missing_token)
     monkeypatch.setattr(
         docker_ssh_module,
@@ -165,26 +165,25 @@ def test_cloudflare_deploy_without_token_stops_before_contacting_the_server(
 
 
 @pytest.mark.parametrize(
-    "default_ingress, expected", [("cloudflare", "from-c"), ("classic", None)]
+    "default_ingress, expected", [("cloudflare", "from-file"), ("classic", None)]
 )
-def test_preload_cloudflare_token_honours_config_overrides(
-    monkeypatch, default_ingress, expected
+def test_preload_cloudflare_token_reads_file_override(
+    monkeypatch, tmp_path, default_ingress, expected
 ):
+    monkeypatch.delenv("CLOUDFLARE_API_TOKEN", raising=False)
     monkeypatch.setattr(
         docker_ssh_module,
         "CONFIGURED_HOSTS",
-        {"lab": {"host": "lab.example", "default_ingress": default_ingress}},
+        {"lab.example.org": {"host": "lab", "default_ingress": default_ingress}},
     )
-    monkeypatch.setattr(
-        docker_ssh_module,
-        "load_api_token",
-        lambda config: config["cloudflare_api_token"],
-    )
-    config = mock.Mock()
-    config.canonical_key.side_effect = lambda key: key
-    config.get.return_value = "from-config"
+    token_file = tmp_path / "token"
+    token_file.write_text("from-file\n")
+    config = Configuration()
+    config.register("cloudflare_api_token", str)
+    config.extend({"cloudflare_api_token": "from-config"})
+    config.ready = True
     token = docker_ssh_module._preload_cloudflare_token(
-        config, "lab", None, (("cloudflare_api_token", "from-c"),)
+        config, "lab", None, (("cloudflare_api_token", f"file:{token_file}"),)
     )
     assert token == expected
 
@@ -700,6 +699,9 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"test-server": {"host": "test-server"}}
+    )
     with (
         mock.patch.object(
             docker_ssh_module, "get_experiment_files", return_value=source

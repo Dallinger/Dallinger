@@ -344,7 +344,8 @@
   stops before it connects to the server, builds the image there or removes
   the app's Redis and Postgres volumes. It fails with an `Error:` line that
   says how to provide the token (`CLOUDFLARE_API_TOKEN`, `cloudflare_api_token`
-  in the config or via `-c`, or a Keychain item, with a `security
+  in the config or via `-c`, including `-c cloudflare_api_token file:<path>`,
+  or a Keychain item, with a `security
   add-generic-password` command that stores it where the lookup finds it)
   instead of ending with a bare "Aborted!". Previously the reason went to
   stdout and, when output was piped, could appear after "Aborted!".

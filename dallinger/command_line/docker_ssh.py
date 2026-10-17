@@ -1086,25 +1086,29 @@ def _preload_cloudflare_token(config, server, ingress, config_options):
     """Return the API token for a Cloudflare deploy, or ``None`` for classic ingress.
 
     Called before the deploy connects to the server or builds an image there,
-    so a missing token stops it before anything changes. ``-c`` overrides of
-    the token settings apply, as they do later in the deploy.
+    so a missing token stops it before anything changes. ``-c`` overrides
+    apply to ``config`` here exactly as they do later in the deploy.
     """
-    if _resolve_ingress(CONFIGURED_HOSTS.get(server) or {}, ingress) != (
-        INGRESS_CLOUDFLARE
-    ):
+    if _resolve_ingress(_resolve_server_info(server), ingress) != INGRESS_CLOUDFLARE:
         return None
-    overrides = {
+    _apply_config_options(config, config_options)
+    try:
+        return load_api_token(config)
+    except CloudflareError as exc:
+        _abort_cloudflare(exc)
+
+
+def _apply_config_options(config, config_options):
+    """Apply ``-c`` options to ``config``, expanding ``file:`` values.
+
+    Returns the options keyed by their canonical config names.
+    """
+    config_options = {
         config.canonical_key(key): value
         for key, value in dict(config_options or ()).items()
     }
-    token_config = {
-        key: overrides.get(key, config.get(key, ""))
-        for key in ("cloudflare_api_token", "cloudflare_keychain_service")
-    }
-    try:
-        return load_api_token(token_config)
-    except CloudflareError as exc:
-        _abort_cloudflare(exc)
+    config.extend(config_options, cast_types=True)
+    return config_options
 
 
 def ensure_root_domain_ready(server, update):
@@ -1495,10 +1499,7 @@ def _deploy_in_mode(
 ):
     config = get_config(load=True)
     server = resolve_server_name(server, CONFIGURED_HOSTS)
-    config_options = {
-        config.canonical_key(key): value for key, value in dict(config_options).items()
-    }
-    config.extend(config_options, cast_types=True)
+    config_options = _apply_config_options(config, config_options)
 
     run_pre_launch_checks(**locals())
 
