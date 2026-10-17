@@ -26,7 +26,6 @@ from shlex import quote
 from socket import gethostbyname_ex, gethostname
 from typing import Dict, Literal
 from urllib.parse import quote as url_quote
-from urllib.parse import urlsplit
 from uuid import uuid4
 
 import click
@@ -2423,9 +2422,11 @@ def destroy(server, app):
     else:
         caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
         uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
+        # The root Caddyfile's site address is the DNS host deploy used.
+        site = re.search(r"^([^\s{#]\S*) \{$", caddyfile_content or "", re.MULTILINE)
+        dns_host = site.group(1) if site else resolve_dns_host(server_info) or ssh_host
         executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
         if uses_root_domain:
-            dns_host = _deployed_root_host(manifest, server_info)
             config = get_config(load=True)
             email_addr = config.get("contact_email_on_error")
             has_tls = not is_loopback_host(ssh_host)
@@ -2446,23 +2447,6 @@ def destroy(server, app):
     remove_unshared_experiment_image(executor, experiment_image, except_app=app)
     executor.run(f"rm -rf ~/dallinger/{app}/")
     print(f"App {app} removed")
-
-
-def _deployed_root_host(manifest, server_info):
-    """Return the Caddy host a root-domain classic app was deployed under.
-
-    A root-domain app is served at the DNS host itself, so the host in the
-    app's manifest is used when there is one. Otherwise the DNS host is
-    inferred as ``deploy`` does, with IPv6 addresses bracketed for Caddy.
-    """
-    origin = urlsplit(manifest.public_origin) if manifest else None
-    if origin and origin.hostname:
-        return origin.netloc
-    ssh_host = split_ssh_host_port(server_info["host"])[0]
-    dns_host = resolve_dns_host(server_info) or ssh_host
-    if dns_host == "nip.io":
-        return get_dns_host(ssh_host)
-    return f"[{dns_host}]" if ":" in dns_host else dns_host
 
 
 def _stop_cloudflare_connector(executor, app):

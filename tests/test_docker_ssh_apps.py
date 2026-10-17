@@ -777,46 +777,33 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "server_info, public_origin, expected",
+    "site, server_info, expected",
     [
-        ({"host": "1.2.3.4", "dns_host": "lab.org"}, None, "lab.org"),
-        ({"host": "1.2.3.4", "dns_host": "nip.io"}, None, "1.2.3.4.nip.io"),
-        ({"host": "[2001:db8::1]"}, None, "[2001:db8::1]"),
-        (
-            {"host": "1.2.3.4", "dns_host": "lab.org"},
-            "https://deploy.org",
-            "deploy.org",
-        ),
-        ({"host": "1.2.3.4", "dns_host": "lab.org"}, "deploy.org", "lab.org"),
-        ({"host": "1.2.3.4"}, "https://[2001:db8::1]", "[2001:db8::1]"),
+        ("1.2.3.4.nip.io", {"host": "1.2.3.4", "dns_host": "nip.io"}, "1.2.3.4.nip.io"),
+        ("deploy.org", {"host": "1.2.3.4", "dns_host": "lab.org"}, "deploy.org"),
+        ("[2001:db8::1]", {"host": "[2001:db8::1]"}, "[2001:db8::1]"),
+        (None, {"host": "1.2.3.4", "dns_host": "lab.org"}, "lab.org"),
     ],
 )
 def test_destroy_restores_caddyfile_under_the_deployed_dns_host(
-    monkeypatch, server_info, public_origin, expected
+    monkeypatch, site, server_info, expected
 ):
+    if site:
+        caddyfile = docker_ssh_module.CADDYFILE_ROOT.format(
+            host=site, tls="tls internal", backend="myapp_web:5000"
+        )
+    else:
+        caddyfile = "reverse_proxy myapp_web:5000"
     uploaded = []
 
     def run(cmd, raise_=True):
         if cmd.startswith("test -f") and "caddy.d" in cmd:
             return "Yes"
-        if cmd.startswith("test -f") and "docker-compose.yml" in cmd:
-            return ""
         if cmd == "cat ~/dallinger/Caddyfile":
-            return "https://1.2.3.4 {\n    reverse_proxy myapp_web:5000\n}\n"
+            return caddyfile
         return ""
 
     _patch_destroy_executor(monkeypatch, run, server_info)
-    monkeypatch.setattr(
-        docker_ssh_module, "gethostbyname_ex", lambda host: (host, [], ["1.2.3.4"])
-    )
-    manifests = {}
-    if public_origin:
-        manifests["myapp"] = docker_ssh_module.DeploymentManifest(
-            app="myapp", server="test-server", public_origin=public_origin
-        )
-    monkeypatch.setattr(
-        docker_ssh_module, "_load_remote_manifests", lambda executor, apps: manifests
-    )
     sftp = mock.Mock()
     sftp.putfo.side_effect = lambda buf, path: uploaded.append((buf.getvalue(), path))
     monkeypatch.setattr(docker_ssh_module, "get_sftp", lambda *a, **k: sftp)
@@ -826,8 +813,7 @@ def test_destroy_restores_caddyfile_under_the_deployed_dns_host(
 
     docker_ssh_module.destroy.callback(server="test-server", app="myapp")
 
-    assert len(uploaded) == 1
-    restored, path = uploaded[0]
+    [(restored, path)] = uploaded
     assert path == "dallinger/Caddyfile"
     assert f"\n{expected} {{" in restored.decode()
 

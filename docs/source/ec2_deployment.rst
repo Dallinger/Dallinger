@@ -218,7 +218,7 @@ Or by the instance's public AWS hostname::
 
 Teardown removes the server from Dallinger's server list and deletes the
 Route 53 records for the ``--dns-host`` it was provisioned with. Records that
-now point at a different server are kept. Servers provisioned with older
+point at another running EC2 instance or outside EC2 are kept. Servers provisioned with older
 Dallinger versions also need ``--dns-host <subdomain>.my-experiments.org`` to
 delete the Route 53 records.
 
