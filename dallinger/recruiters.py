@@ -1093,6 +1093,14 @@ class DevProlificRecruiter(DevRecruiter, ProlificRecruiter):
         super().__init__(*args, **kwargs)
         self.prolificservice = dev_prolific_service_from_config()
 
+    def open_recruitment(self, n: int = 1) -> dict:
+        """Create a simulated Study, saying that nothing was created on Prolific."""
+        response = super().open_recruitment(n)
+        response["message"] = (
+            "Prolific study simulated in debug mode; nothing was created on Prolific"
+        )
+        return response
+
     def external_submission_url(self, code_type: str) -> str:
         url = super().external_submission_url(code_type)
 

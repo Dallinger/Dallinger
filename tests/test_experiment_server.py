@@ -70,7 +70,7 @@ class TestAppConfiguration:
 
     def test_gunicorn_worker_config(self, webapp, active_config):
         with mock.patch("multiprocessing.cpu_count") as cpu_count:
-            active_config.extend({"threads": "auto"})
+            active_config.extend({"web_processes": "auto"})
             cpu_count.return_value = 2
             from dallinger.experiment_server.gunicorn import StandaloneServer
 
@@ -80,10 +80,11 @@ class TestAppConfiguration:
                 cpu_count.return_value = 4
                 server.load_user_config()
                 assert server.options["workers"] == "7"
-                active_config.extend({"worker_multiplier": 1.0})
+                with pytest.warns(FutureWarning, match="worker_multiplier"):
+                    active_config.extend({"worker_multiplier": 1.0})
                 server.load_user_config()
                 assert server.options["workers"] == "5"
-                active_config.extend({"threads": "2"})
+                active_config.extend({"web_processes": 2})
                 server.load_user_config()
                 assert server.options["workers"] == "2"
 
@@ -631,6 +632,63 @@ class TestSimpleGETRoutes:
         resp = webapp.get("/robots.txt")
         assert b"User-agent" in resp.data
         resp.close()
+
+    def test_health_returns_json(self, webapp):
+        resp = webapp.get("/health")
+        assert resp.status_code == 200
+        assert resp.json == {"status": "ok"}
+        resp.close()
+
+    def test_presence_returns_no_content(self, webapp):
+        assert webapp.post("/presence").status_code == 204
+
+    def test_idle_hibernation_waits_for_recruitment_and_participants(
+        self, a, webapp, active_config
+    ):
+        def answer():
+            data = webapp.get("/idle-hibernation").json
+            return data["stay_awake"], data["reason"]
+
+        active_config.extend({"auto_recruit": False})
+        assert answer() == (False, None)
+        participant = a.participant()
+        assert answer() == (True, "participants are still working")
+        participant.status = "approved"
+        active_config.extend({"auto_recruit": True})
+        assert answer() == (True, "auto_recruit is on")
+
+    @pytest.mark.parametrize(
+        "settings, timings",
+        [
+            ({}, None),
+            ({"docker_ssh_idle_hibernate": True}, (300_000, 3_600_000)),
+            (
+                {
+                    "docker_ssh_idle_hibernate": True,
+                    "docker_ssh_idle_hibernate_minutes": 1,
+                },
+                (20_000, 60_000),
+            ),
+        ],
+    )
+    def test_pages_ping_presence_only_with_idle_sleep(
+        self, webapp, active_config, settings, timings
+    ):
+        from pathlib import Path
+
+        import dallinger
+
+        layout = Path(dallinger.__file__).parent / "frontend/templates/base/layout.html"
+        active_config.extend(settings)
+        app = webapp.application
+        with app.test_request_context():
+            html = app.jinja_env.from_string(layout.read_text()).render()
+        if timings is None:
+            assert "presence.js" not in html
+        else:
+            assert "scripts/presence.js" in html
+            assert f"intervalMs: {timings[0]}," in html
+            assert f"activeWindowMs: {timings[1]}" in html
 
     def test_consent(self, webapp):
         resp = webapp.get(

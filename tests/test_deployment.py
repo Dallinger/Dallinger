@@ -1042,10 +1042,15 @@ class TestSetupExperiment:
         def fake_ensure(directory, extras=None):
             Path(directory).joinpath("constraints.txt").write_text(generated)
 
-        with mock.patch(
-            "dallinger.utils.ensure_constraints_file_presence",
-            side_effect=fake_ensure,
-        ) as ensure:
+        with (
+            mock.patch(
+                "dallinger.utils.ensure_constraints_file_presence",
+                side_effect=fake_ensure,
+            ) as ensure,
+            mock.patch(
+                "dallinger.utils.get_editable_dallinger_path", return_value=None
+            ),
+        ):
             _, destination = setup_experiment(log=mock.Mock(), local_checks=False)
 
         ensure.assert_called()
@@ -1648,6 +1653,17 @@ class Testhandle_launch_data:
             mock_post.return_value = result
             assert handler("/some-launch-url", error=log) == {"message": "msg!"}
 
+    def test_verify_argument(self, handler):
+        log = mock.Mock()
+        with mock.patch("dallinger.deployment.requests.post") as mock_post:
+            result = mock.Mock(
+                ok=True, json=mock.Mock(return_value={"message": "msg!"})
+            )
+            mock_post.return_value = result
+            handler("/some-launch-url", error=log, verify=False)
+
+        mock_post.assert_called_once_with("/some-launch-url", verify=False)
+
     def test_https_wait_progress_is_status_not_error(self):
         from dallinger.deployment import _HTTPS_WAIT_BAR_STYLE, _https_wait_progress
 
@@ -1901,6 +1917,26 @@ class Testhandle_launch_data:
             mock_print.assert_not_called()
 
 
+@pytest.mark.parametrize("preset", ["preset-key", "", None])
+def test_debug_deployment_keeps_preset_flask_secret_key(monkeypatch, preset):
+    from dallinger.deployment import DebugDeployment
+
+    if preset is None:
+        monkeypatch.delenv("FLASK_SECRET_KEY", raising=False)
+    else:
+        monkeypatch.setenv("FLASK_SECRET_KEY", preset)
+
+    debugger = DebugDeployment(
+        mock.Mock(), verbose=False, bot=False, proxy_port=None, exp_config={}
+    )
+
+    key = debugger.environ["FLASK_SECRET_KEY"]
+    if preset:
+        assert key == preset
+    else:
+        assert len(key) == 32
+
+
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")
 @pytest.mark.slow
 class TestDebugServer:
@@ -1963,18 +1999,83 @@ class TestDebugServer:
         debugger.notify(" New participant requested: http://example.com")
         assert debugger.new_recruit.called
 
-    def test_recruitment_closed(self, debugger_unpatched):
+    @pytest.fixture
+    def status_debugger(self, debugger_unpatched):
         debugger = debugger_unpatched
-        debugger.new_recruit = mock.Mock(return_value=None)
+        debugger.exp_id = "some-id"
+        debugger.status_poll_interval = 0.01
         debugger.heroku = mock.Mock()
+        with mock.patch(
+            "dallinger.deployment.get_base_url", return_value="http://localhost:5000"
+        ):
+            yield debugger
+
+    def test_recruitment_closed(self, status_debugger):
+        debugger = status_debugger
+        debugger.new_recruit = mock.Mock(return_value=None)
         response = mock.Mock(json=mock.Mock(return_value={"completed": True}))
-        with mock.patch("dallinger.deployment.requests") as mock_requests:
-            mock_requests.get.return_value = response
+        with mock.patch("dallinger.deployment.requests.get", return_value=response):
             debugger.notify(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX)
             debugger.status_thread.join()
 
         debugger.out.log.assert_called_with("Experiment completed, all nodes filled.")
         debugger.heroku.stop.assert_called_once()
+
+    def test_status_errors_are_reported_only_when_they_persist(self, status_debugger):
+        import requests
+
+        debugger = status_debugger
+        down = requests.exceptions.ConnectionError("refused")
+        done = mock.Mock(json=mock.Mock(return_value={"completed": True}))
+        pending = mock.Mock(json=mock.Mock(return_value={"completed": False}))
+        responses = [down, pending, down, down, down, down, done]
+        with mock.patch("dallinger.deployment.requests.get", side_effect=responses):
+            debugger.check_status()
+
+        [error] = debugger.out.error.call_args_list
+        assert "http://localhost:5000/summary (3 attempts in a row)" in error.args[0]
+        assert "refused" in error.args[0]
+        recoveries = [
+            c
+            for c in debugger.out.log.call_args_list
+            if c.args == ("Fetching experiment status works again.",)
+        ]
+        assert len(recoveries) == 1
+        debugger.heroku.stop.assert_called_once()
+
+    def test_status_checks_stop_quietly_on_cleanup(self, status_debugger):
+        import requests
+
+        debugger = status_debugger
+        debugger.status_failures_before_error = 1
+        done = mock.Mock(json=mock.Mock(return_value={"completed": True}))
+
+        def server_stops(*args, **kwargs):
+            debugger.cleanup()
+            raise requests.exceptions.ConnectionError("refused")
+
+        def finishes_after_cleanup(*args, **kwargs):
+            debugger.cleanup()
+            return done
+
+        for get in (server_stops, finishes_after_cleanup):
+            debugger._stop_status_checks.clear()
+            with mock.patch("dallinger.deployment.requests.get", side_effect=get):
+                debugger.check_status()
+
+        debugger.out.error.assert_not_called()
+        debugger.heroku.stop.assert_not_called()
+
+    def test_cleanup_interrupts_the_wait_between_status_checks(self, status_debugger):
+        debugger = status_debugger
+        debugger.status_poll_interval = 60
+        with mock.patch("dallinger.deployment.requests.get") as get:
+            debugger.recruitment_closed(None)
+            debugger.cleanup()
+            debugger.status_thread.join(timeout=5)
+
+        assert not debugger.status_thread.is_alive()
+        get.assert_not_called()
 
     def test_new_recruit(self, debugger_unpatched, browser):
         debugger_unpatched.notify(
@@ -2107,13 +2208,16 @@ class TestDockerServer:
             encoding="utf-8",
         )
         p.logfile = sys.stdout
+        # --verbose also echoes the server's own "New participant requested: <url>"
+        # line, so match only the debugger's double-colon line to see each URL once.
+        new_recruit = r"{}: (http://\S+)".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
         try:
             p.expect_exact("Server is running", timeout=180)
             p.expect_exact("Initial recruitment list:", timeout=30)
-            p.expect("New participant requested.*", 50)
-            Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
-            p.expect("New participant requested.*", 50)
-            Bot(re.search("http://[^ \n\r]+", p.after).group()).run_experiment()
+            p.expect(new_recruit, 50)
+            Bot(p.match.group(1)).run_experiment()
+            p.expect(new_recruit, 50)
+            Bot(p.match.group(1)).run_experiment()
             p.expect_exact("Recruitment is complete", timeout=240)
             p.expect_exact("'status': 'success'", timeout=120)
             p.expect_exact("Experiment completed", timeout=20)

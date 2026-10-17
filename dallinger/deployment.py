@@ -37,7 +37,8 @@ from dallinger.utils import (
 DEFAULT_DELAY = 1
 BACKOFF_FACTOR = 2
 MAX_ATTEMPTS = 6
-STARTUP_STATUS_CODES = frozenset({502, 503, 504})
+# 530 is Cloudflare's answer while a new tunnel's connector registers.
+STARTUP_STATUS_CODES = frozenset({502, 503, 504, 530})
 HTTPS_WAIT_MESSAGE = "Waiting for the experiment URL to become reachable"
 # Status, not an error: write to stdout. Only the bar is restyled; Rich's
 # default complete/pulse color is magenta-red.
@@ -104,6 +105,7 @@ def handle_launch_data(
     dns_host=None,
     dozzle_password=None,
     context=None,
+    verify=True,
 ):
     """POST to ``url`` (``/launch``), retrying with exponential backoff.
 
@@ -133,7 +135,7 @@ def handle_launch_data(
         for remaining_attempt in sorted(range(attempts), reverse=True):
             startup_failure = False
             try:
-                launch_request = requests.post(url)
+                launch_request = requests.post(url, verify=verify)
                 request_happened = True
             except requests.exceptions.RequestException as err:
                 request_happened = False
@@ -542,6 +544,13 @@ class DebugDeployment(HerokuLocalDeployment):
         r"[^\"]{} (.*)$".format(recruiters.NEW_RECRUIT_LOG_PREFIX): "new_recruit",
         r"{}".format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
     }
+    #: Seconds between checks of the ``/summary`` route once recruitment closes.
+    status_poll_interval = 10
+    #: Failed checks in a row before reporting an error, so that a single
+    #: slow or interrupted request doesn't look like a broken server.
+    status_failures_before_error = 3
+    #: Seconds to wait for one ``/summary`` response.
+    status_request_timeout = 5
 
     def __init__(
         self,
@@ -561,10 +570,14 @@ class DebugDeployment(HerokuLocalDeployment):
         self.original_dir = os.getcwd()
         self.complete = False
         self.status_thread = None
+        self._stop_status_checks = threading.Event()
         self.no_browsers = no_browsers
         self.experiment_files = experiment_files
+        if os.environ.get("FLASK_SECRET_KEY"):
+            self.out.log("Using FLASK_SECRET_KEY from the environment.")
         self.environ = {
-            "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
+            "FLASK_SECRET_KEY": os.environ.get("FLASK_SECRET_KEY")
+            or codecs.encode(os.urandom(16), "hex").decode("ascii"),
         }
 
     def with_proxy_port(self, url):
@@ -612,8 +625,9 @@ class DebugDeployment(HerokuLocalDeployment):
         return HerokuLocalWrapper.MONITOR_STOP
 
     def cleanup(self):
-        self.out.log("Completed debugging of experiment with id " + self.exp_id)
         self.complete = True
+        self._stop_status_checks.set()
+        self.out.log("Completed debugging of experiment with id " + self.exp_id)
 
     def new_recruit(self, match):
         """Dispatched to by notify(). If a recruitment request has been issued,
@@ -669,23 +683,41 @@ class DebugDeployment(HerokuLocalDeployment):
         """Check the output of the summary route until
         the experiment is complete, then we can stop monitoring Heroku
         subprocess output.
+
+        Stops as soon as the deployment is cleaned up, and reports an error
+        only after several failed checks in a row, so that shutting down the
+        server or one interrupted request doesn't print a spurious error.
         """
         self.out.log("Recruitment is complete. Waiting for experiment completion...")
         base_url = get_base_url()
         status_url = base_url + "/summary"
-        while not self.complete:
-            time.sleep(10)
+        failures = 0
+        while not self._stop_status_checks.wait(self.status_poll_interval):
+            error = None
             try:
-                resp = requests.get(status_url)
+                resp = requests.get(status_url, timeout=self.status_request_timeout)
                 exp_data = resp.json()
-            except (ValueError, requests.exceptions.RequestException):
-                self.out.error("Error fetching experiment status.")
-            else:
-                self.out.log("Experiment summary: {}".format(exp_data))
-                if exp_data.get("completed", False):
-                    self.out.log("Experiment completed, all nodes filled.")
-                    self.complete = True
-                    self.heroku.stop()
+            except (ValueError, requests.exceptions.RequestException) as e:
+                error = e
+            if self._stop_status_checks.is_set():
+                return
+            if error is not None:
+                failures += 1
+                if failures == self.status_failures_before_error:
+                    self.out.error(
+                        "Error fetching experiment status from {} ({} attempts in "
+                        "a row): {}".format(status_url, failures, error)
+                    )
+                continue
+            if failures >= self.status_failures_before_error:
+                self.out.log("Fetching experiment status works again.")
+            failures = 0
+            self.out.log("Experiment summary: {}".format(exp_data))
+            if exp_data.get("completed", False):
+                self.out.log("Experiment completed, all nodes filled.")
+                self.complete = True
+                self._stop_status_checks.set()
+                self.heroku.stop()
 
     def notify(self, message):
         """Monitor output from heroku process.

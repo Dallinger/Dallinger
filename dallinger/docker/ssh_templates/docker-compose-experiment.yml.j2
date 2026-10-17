@@ -1,4 +1,30 @@
+{%- set tunnel = ingress == "cloudflare" %}
 services:
+{%- if tunnel %}
+  postgresql:
+    restart: unless-stopped
+    image: postgres:12
+    command: postgres -c jit=off
+    container_name: {{ experiment_id }}_postgresql
+    environment:
+      POSTGRES_USER: {{ experiment_id }}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: {{ experiment_id }}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U {{ experiment_id }}"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 300s
+    stop_grace_period: 60s
+    networks:
+      app:
+        aliases:
+          - postgresql
+{%- endif %}
+
   redis:
     restart: unless-stopped
     image: redis
@@ -17,16 +43,27 @@ services:
   web:
     restart: unless-stopped
     image: {{ experiment_image }}
+{%- if run_as_ssh_user %}
     user: "${UID}:${GID}"
+{%- endif %}
     command: dallinger_heroku_web
+    # Each open websocket holds file descriptors in one gunicorn process.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     depends_on: &commondepends
       redis:
         condition: service_healthy
+{%- if tunnel %}
+      postgresql:
+        condition: service_healthy
+{%- endif %}
       pgbouncer:
-        condition: service_started
+        condition: service_healthy
     environment: &commonenv
       REDIS_URL: redis://{{ experiment_id }}_redis:6379
-      DATABASE_URL: postgresql://{{ experiment_id }}:{{ postgresql_password }}@{{ experiment_id }}_pgbouncer/{{ experiment_id }}
+      DATABASE_URL: postgresql://{{ experiment_id }}:${POSTGRES_PASSWORD}@{{ experiment_id }}_pgbouncer/{{ experiment_id }}
       HOME: /tmp
       HOST: 0.0.0.0
       PORT: 5000
@@ -35,9 +72,8 @@ services:
     {%- endfor %}
     networks:
       app:
-      dallinger:
         aliases:
-          - {{ experiment_id }}_web
+          - experiment-backend
     volumes:
       - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
     {%- if docker_volumes | length > 0 %}
@@ -46,16 +82,17 @@ services:
       {%- endfor %}
     {%- endif %}
 
-  {% set num_dynos = config["num_dynos_worker"] | default('1') | int %}
-  {%- for number in range(num_dynos) %}
+  {%- for number in range(worker_processes) %}
   worker_{{ number + 1 }}:
     restart: unless-stopped
     image: {{ experiment_image }}
     command: dallinger_heroku_worker
-    cpu_shares: {{ config["docker_worker_cpu_shares"] }}
+    cpu_shares: {{ worker_cpu_shares }}
     depends_on:
       <<: *commondepends
+{%- if run_as_ssh_user %}
     user: "${UID}:${GID}"
+{%- endif %}
     environment:
       <<: *commonenv
     networks:
@@ -73,29 +110,63 @@ services:
     restart: unless-stopped
     image: docker.io/bitnamilegacy/pgbouncer:1.24.1
     container_name: {{ experiment_id }}_pgbouncer
+{%- if tunnel %}
+    depends_on:
+      postgresql:
+        condition: service_healthy
+{%- endif %}
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/5432'"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
     networks:
       app:
         aliases:
           - {{ experiment_id }}_pgbouncer
+{%- if not tunnel %}
       dallinger:
+{%- endif %}
     environment:
       - POSTGRESQL_HOST=postgresql
       - PGBOUNCER_AUTH_TYPE=md5
       - PGBOUNCER_SET_DATABASE_USER=yes
       - PGBOUNCER_SET_DATABASE_PASSWORD=yes
       - POSTGRESQL_USERNAME={{ experiment_id }}
-      - POSTGRESQL_PASSWORD={{ postgresql_password }}
+      - POSTGRESQL_PASSWORD=${POSTGRES_PASSWORD}
       - PGBOUNCER_PORT=5432
       - PGBOUNCER_DATABASE={{ experiment_id }}
       - PGBOUNCER_POOL_MODE=transaction
+      # Each web and worker process keeps up to DATABASE_POOL_SIZE (default
+      # 20) idle client connections (more while busy), so the default of 100
+      # refuses connections under load. Client connections are cheap; Postgres
+      # only sees the server pool below. A connected client whose query is
+      # waiting for a server connection waits up to query_wait_timeout
+      # (120 s). See "Database connection pool" in
+      # docs/source/configuration.rst for the connection budget.
+      - PGBOUNCER_MAX_CLIENT_CONN=10000
+      # A server connection stays tied to a request for its whole transaction,
+      # including the Python work between queries, so the default pool of 20
+      # queues requests at about 200 participants while the CPU is mostly
+      # idle. An app with its own Postgres gets 80, below max_connections (100)
+      # to leave room for exports and admin sessions. Classic-ingress apps
+      # share one server-wide Postgres, so they keep the default of 20.
+      - PGBOUNCER_DEFAULT_POOL_SIZE={{ 80 if tunnel else 20 }}
       # Connections to postgres will be closed after 60 seconds of inactivity
       - PGBOUNCER_SERVER_IDLE_TIMEOUT=60
+    ulimits:
+      # Every client and server connection uses a file descriptor.
+      nofile:
+        soft: 16384
+        hard: 16384
 
 {%- if config["clock_on"] %}
   clock:
     restart: unless-stopped
     image: {{ experiment_image }}
+{%- if run_as_ssh_user %}
     user: "${UID}:${GID}"
+{%- endif %}
     command: dallinger_heroku_clock
     depends_on:
       <<: *commondepends
@@ -107,12 +178,36 @@ services:
     volumes:
       - ${HOME}/dallinger-data/{{ experiment_id }}:/var/lib/dallinger
 {%- endif %}
+{%- if tunnel %}
+
+  cloudflared:
+    restart: unless-stopped
+    image: cloudflare/cloudflared:2026.9.1
+    user: "${UID}:${GID}"
+    command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/secrets/cloudflare-tunnel-token"]
+    environment:
+      HOME: /tmp
+    depends_on:
+      frontdoor:
+        condition: service_started
+    volumes:
+      - ./secrets/cloudflare-tunnel-token:/run/secrets/cloudflare-tunnel-token:ro
+    networks:
+      - app
+{%- endif %}
+
+{% include "front-door-services.yml.j2" %}
 
 volumes:
   redis_data:
+{%- if tunnel %}
+  postgres_data:
+{%- endif %}
 
 networks:
   app:
     name: {{ experiment_id }}_app
+{%- if not tunnel %}
   dallinger:
     name: dallinger
+{%- endif %}
