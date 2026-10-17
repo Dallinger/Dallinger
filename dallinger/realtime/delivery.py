@@ -41,7 +41,22 @@ one more frame, on every page they have open:
 - ``view``: the player's final view
 
 It can arrive before the player's last ``realtime_view``, so a page can end on
-it alone.
+it alone. A page that joins just as its session ends may get no view at all,
+but it gets this frame.
+
+A page whose socket joins a session that has already ended gets no views. If
+the ending is saved, the socket gets the ``realtime_saved`` frame. Otherwise it
+gets a ``realtime_ended`` frame, and ``realtime_saved`` follows once the ending
+is saved:
+
+- ``type``: ``"realtime_ended"``
+- ``session_id``: the session that ended
+- ``reason``: why the session ended
+- ``view``: the player's final view
+
+The two frames can arrive in either order, so a page that has its session's
+``realtime_saved`` frame can ignore a later ``realtime_ended``. A page can also
+get ``realtime_saved`` twice.
 
 A view goes to the page it's for, named by the participant id and the scope
 the page's socket gave. A page that gave no scope is fine while a player has
@@ -84,29 +99,41 @@ def view_batch(origin, passes):
     return direct_envelope(origin, items)
 
 
-def publish_saved(origin, session_id, status, ending):
+def ending_payload(session_id, ending, participant):
+    """Return the payload that tells a player's page how its session ended:
+    a ``realtime_saved`` frame's if the ending is saved, otherwise a
+    ``realtime_ended`` frame's.
+
+    :param ending: the session's ending, as
+        :func:`~dallinger.realtime.store.load_ending` returns it
+    :param participant: the player's participant id, a string
+    """
+    payload = {
+        "type": "realtime_ended",
+        "session_id": session_id,
+        "reason": ending["reason"],
+        "view": ending["views"].get(participant),
+    }
+    if ending["status"] is not None:
+        payload.update(type="realtime_saved", status=ending["status"])
+    return json.dumps(payload)
+
+
+def publish_saved(origin, session_id, ending):
     """Tell each player's pages that the session's ending is saved, with the
-    session's ``status``, the ending's reason and the player's final view.
+    session's status, the ending's reason and the player's final view.
 
     :param origin: names the sender, a string
-    :param ending: the ``reason`` and final ``views`` of the session, as
-        :func:`~dallinger.realtime.store.load_ending` returns them
+    :param ending: the session's saved ending, as
+        :func:`~dallinger.realtime.store.load_ending` returns it
     """
     items = [
         {
             "participant_ids": [player],
             "scope": None,
-            "payload": json.dumps(
-                {
-                    "type": "realtime_saved",
-                    "session_id": session_id,
-                    "status": status,
-                    "reason": ending["reason"],
-                    "view": view,
-                }
-            ),
+            "payload": ending_payload(session_id, ending, player),
         }
-        for player, view in ending["views"].items()
+        for player in ending["views"]
     ]
     redis_conn.publish(DIRECT_CHANNEL, direct_envelope(origin, items))
 

@@ -86,6 +86,19 @@ def message(time, participant, payload, number=None, scope="page"):
     }
 
 
+def clock(time, participant, scope="page"):
+    return {
+        "type": "clock",
+        "time": time,
+        "participant": participant,
+        "scope": scope,
+        "browser_time": 5000.0 + time,
+        "server_time": 900.0 + time,
+        "round_trip": 0.04,
+        "received": 100.0 + time,
+    }
+
+
 def join(time, participant, scope="page", socket=None):
     return socket_entry("join", time, participant, scope, socket)
 

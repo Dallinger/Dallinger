@@ -145,8 +145,9 @@ class RealtimeGame(ABC):
     send_views_on_messages = True
 
     #: How many messages a second each connection from a page may send, on
-    #: average. The web process drops messages over the limit, before they
-    #: reach the session, and logs a warning.
+    #: average, counting the clock measurements the client helpers report.
+    #: The web process drops messages over the limit, before they reach the
+    #: session, and logs a warning.
     max_messages_per_second = 120
 
     #: How many messages a connection may send at once before

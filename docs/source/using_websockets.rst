@@ -27,8 +27,9 @@ channel subscribers (generally either participants or the experiment itself).
 When a client makes a WebSocket connection to the `/chat?channel=<channel>`
 route (see :doc:`The Web API <web_api>`) it opens a persistent connection to the
 experiment over which it can send messages (to any channel except the reserved
-`"dallinger_control"` and `"dallinger_direct"` channels) and will receive all
-messages published to the `channel` named in the initial request.
+`"dallinger_control"`, `"dallinger_direct"` and `"dallinger_time"` channels)
+and will receive all messages published to the `channel` named in the initial
+request.
 
 Additionally, Experiment classes can provide a
 :attr:`~dallinger.experiment.Experiment.channel` attribute which will
@@ -451,10 +452,12 @@ The ``send`` method takes a channel name and a payload, which will be encoded as
 JSON unless it is already a string. Messages may be sent to any channel, not
 just the one to which the connection is subscribed. The exceptions are
 ``"dallinger_control"``, which is reserved for the server's own connection and
-subscription events, and ``"dallinger_direct"``, which is reserved for directed
-messages. ``send`` refuses both names. The server also discards a message a
-client addresses to either and logs a warning, since the experiment treats
-anything arriving on the control channel as genuine.
+subscription events, ``"dallinger_direct"``, which is reserved for directed
+messages, and ``"dallinger_time"``, which carries the clock measurements of
+pages in real-time sessions. ``send`` refuses all three names. The server also
+discards a message a client addresses to either of the first two and logs a
+warning, since the experiment treats anything arriving on the control channel
+as genuine.
 
 Callbacks passed to ``onBroadcast`` and ``onDirect`` receive the payload parsed
 as JSON, or the payload string itself if it is not JSON, followed by the payload

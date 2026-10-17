@@ -17,7 +17,7 @@ from dallinger.realtime import store
 from dallinger.realtime.core import fail_session, run_pass
 from dallinger.realtime.jobs import write_ending, write_records
 from dallinger.realtime.utils import dump_json
-from tests.realtime.helpers import CLOCK, TurnTally, keys_expire, message
+from tests.realtime.helpers import CLOCK, TurnTally, clock, keys_expire, message
 
 pytestmark = pytest.mark.usefixtures("redis_conn", "realtime_experiment")
 
@@ -187,6 +187,32 @@ class TestWritingRecords:
         assert records_left(session_id) == 0
         assert store.mark_records_queued(session_id, 30)
 
+    def test_a_clock_measurement_becomes_an_event(self):
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        save(session_id, [clock(1, "1")], now=1)
+        assert store.mark_records_queued(session_id, 30)
+
+        write_records(session_id)
+
+        (measured,) = events(session_id)
+        assert (
+            measured.event_type,
+            measured.session_time,
+            measured.participant_id,
+            measured.scope,
+            measured.browser_time,
+            measured.payload,
+            measured.receive_time,
+        ) == (
+            "clock",
+            1,
+            1,
+            "page",
+            5001.0,
+            {"server_time": 901.0, "round_trip": 0.04},
+            datetime.fromtimestamp(101.0),
+        )
+
     def test_a_later_job_writes_only_the_records_added_since(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
         save(session_id, [message(1, "1", "up")], now=1)
@@ -288,9 +314,11 @@ class TestEnding:
         save(session_id, [message(1, "1", "up"), message(2, "1", "stop")], now=2)
         after = datetime.now()
         assert store.realtime_result(session_id) is None
+        assert store.load_ending(session_id)["status"] is None
 
         write_ending(session_id)
 
+        assert store.load_ending(session_id)["status"] == "ended"
         ended = row(session_id)
         assert (ended.status, ended.end_reason, ended.final_state, ended.error) == (
             "ended",

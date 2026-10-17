@@ -1,6 +1,5 @@
 import pytest
 
-from dallinger.db import CONTROL_CHANNEL
 from dallinger.realtime import RealtimeGame, validate_game_types
 
 
@@ -66,9 +65,10 @@ class TestInvalidGameTypes:
         with pytest.raises(ValueError, match="Duel's channel duel is the experiment's"):
             validate_game_types([Duel], experiment_channel="duel")
 
-    def test_reserved_channel(self):
+    @pytest.mark.parametrize("channel", ["dallinger_control", "dallinger_time"])
+    def test_reserved_channel(self, channel):
         with pytest.raises(ValueError, match="reserved for Dallinger's own use"):
-            validate_game_types([game_type(channel=CONTROL_CHANNEL)])
+            validate_game_types([game_type(channel=channel)])
 
     def test_settings_set_in_init_are_checked(self):
         class Configured(Duel):

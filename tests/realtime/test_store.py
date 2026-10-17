@@ -336,16 +336,17 @@ class TestSave:
         token = claim_token(session_id, "a", 30)
         store.end_realtime_session(session_id, "abandoned")
         result = play_entries(session_id, entries_of(session_id))
+        assert store.load_ending(session_id) is None
 
         store.save_passes([(session_id, token, entries_of(session_id), result)], 30)
         assert store.running_sessions() == []
         assert claim_ttl(session_id) == -2
         assert not store.redis_conn.exists(store.session_key(session_id, "unreleased"))
         assert claim_token(session_id, "b", 30) is None
-        final = store.redis_conn.get(store.session_key(session_id, "final"))
-        assert json.loads(final) == {
+        assert store.load_ending(session_id) == {
             "reason": "abandoned",
             "views": {"1": {"for": "1", "log": []}},
+            "status": None,
         }
         store.end_realtime_session(session_id, "again")
         assert entries_of(session_id) == []

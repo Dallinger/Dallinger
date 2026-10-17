@@ -13,6 +13,10 @@ Entries are dicts, each with a ``type`` and a ``time`` on the session clock:
   the channel prefix) and ``received`` (the server clock when it arrived)
 - ``join`` and ``leave``: ``participant``, ``scope`` and ``socket``, a string
   naming one socket, different for every socket in the deployment
+- ``clock``: a page's clock measurement, with ``participant``, ``scope``,
+  ``browser_time``, ``server_time``, ``round_trip`` and ``received``, as
+  :mod:`dallinger.realtime.session_sockets` describes. It's recorded, and no
+  game code sees it.
 - ``end``: ``reason``, a non-empty string
 
 A pass keeps each entry's time between the session's time before the pass and
@@ -76,6 +80,8 @@ class PassResult:
       ``number``, ``browser_time`` and ``view_time``, the clock time it was
       ``received``, its ``status`` (``"accepted"``, ``"rejected"`` or
       ``"failed"``) and the rejection's ``reason``
+    - ``clock``: a clock entry's ``participant``, ``scope``,
+      ``browser_time``, ``server_time``, ``round_trip`` and ``received``
     - ``effect``: the ``name`` and ``payload`` game code queued
     - ``checkpoint``: the ``state``
     - ``end``: the ``reason``, ``outcome``, final ``state`` and ``error``
@@ -232,7 +238,8 @@ def parse_message(data):
     """Return the payload and the :class:`~dallinger.realtime.game.Sent` of a
     game frame's ``data``.
 
-    Data that isn't JSON is a string payload. A frame without an envelope gets
+    Data that isn't JSON, or is nested too deeply to read, is a string
+    payload. A frame without an envelope gets
     a ``Sent`` whose values are all ``None``, and an envelope value that's
     missing or invalid is ``None``.
     """
@@ -240,7 +247,8 @@ def parse_message(data):
         value = json.loads(
             data, parse_constant=_refuse_constant, parse_float=_finite_float
         )
-    except ValueError:
+    # json.loads raises RecursionError for deeply nested arrays or objects.
+    except (ValueError, RecursionError):
         return data, Sent()
     if (
         isinstance(value, dict)
@@ -286,6 +294,20 @@ def _read_message(entry):
 
 def _read_socket(entry):
     return entry["participant"], entry["scope"], entry["socket"]
+
+
+_CLOCK_FIELDS = (
+    "participant",
+    "scope",
+    "browser_time",
+    "server_time",
+    "round_trip",
+    "received",
+)
+
+
+def _read_clock(entry):
+    return {name: entry[name] for name in _CLOCK_FIELDS}
 
 
 class _Pass:
@@ -376,9 +398,10 @@ class _Pass:
     def fail(self, entries, error):
         """End the session at its state from before the pass.
 
-        The pass's messages are recorded as failed and its joins and leaves
-        open and close pages, up to where the pass would have stopped. No game
-        code runs except ``outcome`` and ``view`` for the ending.
+        The pass's messages are recorded as failed, its clock measurements
+        are recorded, and its joins and leaves open and close pages, up to
+        where the pass would have stopped. No game code runs except
+        ``outcome`` and ``view`` for the ending.
         """
         self.failed = True
         for entry in entries:
@@ -394,6 +417,8 @@ class _Pass:
                 )
                 self.add_record("message", **record)
                 self.note_processed(participant, scope, sent, record)
+            elif kind == "clock":
+                self.add_record("clock", **_read_clock(entry))
             elif kind == "join":
                 self.open_page(*_read_socket(entry))
             elif kind == "leave":
@@ -507,6 +532,9 @@ class _Pass:
             if not isinstance(reason, str) or not reason:
                 raise ValueError("An end entry's reason must be a non-empty string.")
             self.end_reason = reason
+            return
+        if kind == "clock":
+            self.add_record("clock", **_read_clock(entry))
             return
         if kind == "message":
             self.apply(*_read_message(entry))

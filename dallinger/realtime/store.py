@@ -33,6 +33,7 @@ The real-time engine needs redis 7.0 or later.
 #   stop the next one being queued.
 # - final: once the session has ended, its ending's "reason" and the final
 #   "views" of the players who aren't bots, as JSON.
+# - saved: the session's status in Postgres, once its ending is saved there.
 #
 # Once an ended session's final job has run, the keys it still has expire.
 #
@@ -69,8 +70,8 @@ RUNNERS = "realtime:runners"
 #: :func:`~dallinger.realtime.jobs.write_ending` runs.
 ENDED_SESSION_TTL = 3600
 
-# The keys an ended session can have. The save that ends it deletes the
-# others.
+# The keys an ended session can have when its final job runs. The save that
+# ends it deletes the others, and "saved" is set later with its own expiry.
 _ENDED_SESSION_KEYS = (
     "entries",
     "state",
@@ -322,12 +323,27 @@ def player_game_channel(session_id, participant_id):
 
 
 def load_ending(session_id):
-    """Return an ended session's ``reason`` and the final ``views`` of its
-    players who aren't bots, a dict from each participant id, or ``None`` if
-    the session hasn't ended.
+    """Return an ended session's ending, or ``None`` if the session hasn't
+    ended.
+
+    The ending holds its ``reason``, the final ``views`` of the players who
+    aren't bots, a dict from each participant id, and the session's
+    ``status`` once the ending is saved in Postgres, otherwise ``None``.
     """
-    final = redis_conn.get(session_key(session_id, "final"))
-    return None if final is None else json.loads(final)
+    with redis_conn.pipeline(transaction=False) as pipe:
+        pipe.get(session_key(session_id, "final"))
+        pipe.get(session_key(session_id, "saved"))
+        final, status = pipe.execute()
+    if final is None:
+        return None
+    return {**json.loads(final), "status": None if status is None else status.decode()}
+
+
+def note_ending_saved(session_id, status):
+    """Note that an ended session's ending is saved in Postgres, with the
+    session's ``status``, for :data:`ENDED_SESSION_TTL` seconds.
+    """
+    redis_conn.set(session_key(session_id, "saved"), status, ex=ENDED_SESSION_TTL)
 
 
 def running_sessions():

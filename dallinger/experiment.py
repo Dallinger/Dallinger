@@ -639,8 +639,9 @@ class Experiment:
         :type data: str
         :param channel_name: the name of the channel to publish the data to
         :type channel_name: str
-        :raises ValueError: if ``channel_name`` is ``dallinger_control`` or
-            ``dallinger_direct``, which are reserved for Dallinger's own use
+        :raises ValueError: if ``channel_name`` is ``dallinger_control``,
+            ``dallinger_direct`` or ``dallinger_time``, which are reserved for
+            Dallinger's own use
         """
         if channel_name is None:
             channel_name = self.channel

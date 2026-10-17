@@ -70,9 +70,13 @@ def direct_envelope(origin, sends):
     return json.dumps({"origin": origin, "items": list(sends)})
 
 
-#: Channels Dallinger owns. A client may neither subscribe to one nor address
-#: a frame to it.
-RESERVED_CHANNELS = frozenset({CONTROL_CHANNEL, DIRECT_CHANNEL})
+#: Carries a real-time page's time requests, which the web process answers on
+#: the same socket, and the clock measurements the page reports.
+TIME_CHANNEL = "dallinger_time"
+
+#: Channels Dallinger owns. A client may not subscribe to one, and may only
+#: send frames on :data:`TIME_CHANNEL`, which the web process handles itself.
+RESERVED_CHANNELS = frozenset({CONTROL_CHANNEL, DIRECT_CHANNEL, TIME_CHANNEL})
 
 db_user_warning = """
 *********************************************************

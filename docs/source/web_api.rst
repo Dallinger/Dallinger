@@ -51,9 +51,12 @@ browser, ``dallinger.openChatSocket`` opens this connection.
 
 Clients may prefix outgoing messages with any channel name except
 ``dallinger_control``, which is reserved for the server's own connection and
-subscription events, and ``dallinger_direct``, which is reserved for directed
-messages. Messages a client addresses to either are discarded, and a
-``channel`` argument naming either is refused.
+subscription events, ``dallinger_direct``, which is reserved for directed
+messages, and ``dallinger_time``, which carries the clock measurements of pages
+in real-time sessions. Messages a client addresses to either of the first two
+are discarded. The server handles those on ``dallinger_time`` itself, for a
+connection in a real-time session, and drops them from any other. A
+``channel`` argument naming any of the three is refused.
 
 A connection which supplies a ``participant_id`` also receives any message sent
 to that participant with ``Experiment.publish_to_participants``, prefixed with

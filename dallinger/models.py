@@ -1946,7 +1946,7 @@ class RealtimeSession(Base):
 
 
 class RealtimeEvent(Base):
-    """One saved message, effect, checkpoint or ending of a
+    """One saved message, clock measurement, effect, checkpoint or ending of a
     :class:`RealtimeSession`. The columns an event type doesn't use are null.
     """
 
@@ -1961,35 +1961,39 @@ class RealtimeEvent(Base):
     #: its order among the session's events, counting from 1
     sequence = Column(Integer)
 
-    #: ``message``, ``effect``, ``checkpoint`` or ``end``
+    #: ``message``, ``clock``, ``effect``, ``checkpoint`` or ``end``
     event_type = Column(String, nullable=False)
 
     #: the session time it happened at
     session_time = Column(Float)
 
-    #: a message's sender
+    #: the player whose page sent a message or a clock measurement
     participant_id = Column(Integer)
 
-    #: the scope of the page that sent a message
+    #: the scope of the page that sent a message or a clock measurement
     scope = Column(String)
 
     #: an effect's name
     name = Column(String)
 
-    #: a message's or an effect's payload
+    #: a message's or an effect's payload, or a clock measurement's
+    #: ``server_time`` and ``round_trip``, as
+    #: :mod:`dallinger.realtime.session_sockets` describes them
     payload = Column(JSONB)
 
     #: the number the page gave a message
     number = Column(Integer)
 
-    #: the browser's clock when the page sent a message, as the page sent it
+    #: the browser's clock when the page sent a message, as the page sent it,
+    #: or the browser's clock a clock measurement pairs with its
+    #: ``server_time``
     browser_time = Column(Float)
 
     #: the session time of the view the page was showing when it sent a
     #: message
     view_time = Column(Float)
 
-    #: the time a message reached the server
+    #: the time a message or a clock measurement reached the server
     receive_time = Column(DateTime)
 
     #: whether a message was ``accepted``, ``rejected``, or ``failed`` because

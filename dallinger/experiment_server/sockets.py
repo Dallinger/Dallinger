@@ -23,6 +23,7 @@ from dallinger.db import (
     CONTROL_CHANNEL,
     DIRECT_CHANNEL,
     RESERVED_CHANNELS,
+    TIME_CHANNEL,
     direct_envelope,
     redis_conn,
     session,
@@ -594,7 +595,7 @@ class Client:
         #: The experiment's game types, a dict from each channel to its game
         #: type's instance.
         self.games = games or {}
-        #: Takes the connection's frames on game channels.
+        #: Takes the connection's frames on game channels and the time channel.
         self.session = session_sockets.NoSession(self.client_info())
 
         # This lock is used to make sure that multiple greenlets
@@ -705,16 +706,17 @@ class Client:
                         level="warning",
                     )
                     continue
-                if channel_name in RESERVED_CHANNELS:
+                if channel_name == TIME_CHANNEL or channel_name in self.games:
+                    answer = self.session.handle_frame(channel_name, data)
+                    if answer is not None:
+                        self.send(answer)
+                elif channel_name in RESERVED_CHANNELS:
                     log(
                         "Client {} may not publish to the reserved channel {}.".format(
                             self.client_info(), channel_name
                         ),
                         level="warning",
                     )
-                    continue
-                if channel_name in self.games:
-                    self.session.send(channel_name, data)
                 elif self.experiment is not None:
                     self.handle(channel_name, data)
                 else:
@@ -860,7 +862,9 @@ def _serve(ws, participant_id=None, experiment=None):
     A connection that asks for a real-time ``session`` is refused unless its
     participant is one of the session's players. Its session gets a join
     once the connection's direct listener is confirmed, so the view the
-    runner answers with can't miss it, and a leave when it closes.
+    runner answers with can't miss it, and a leave when it closes. A session
+    that has ended gets no join, and the connection gets its ending instead.
+    One whose keys expired after the check is refused like a non-member.
     """
     try:
         games = process_games()
@@ -903,7 +907,6 @@ def _serve(ws, participant_id=None, experiment=None):
     subscribed = client.subscribe(request.args.get("channel"))
     direct = chat_backend.register(client)
     chat_backend.open_clients.add(client)
-    joined = False
     try:
         # Checked only once the client is in open_clients, so a shutdown that
         # began while the connection was being set up closes it either way.
@@ -911,20 +914,24 @@ def _serve(ws, participant_id=None, experiment=None):
             client.close_going_away()
             return
         wait_until_listening(subscribed, direct)
-        if isinstance(client.session, session_sockets.SessionSocket):
-            if not ws.connected:
-                # Closed during the wait, by the browser or by a shutdown.
-                return
-            try:
-                client.session.join()
-            except RedisError:
-                log(
-                    "Could not add the join of {}.".format(client.client_info()),
-                    level="exception",
-                )
-                ws.close(UNAVAILABLE_CLOSE_CODE, "session join failed")
-                return
-            joined = True
+        session = client.session
+        if isinstance(session, session_sockets.SessionSocket) and not ws.connected:
+            # Closed during the wait, by the browser or by a shutdown.
+            return
+        try:
+            ending = session.join()
+        except session_sockets.SessionExpired:
+            ws.close(REFUSED_CLOSE_CODE, "not a player in this session")
+            return
+        except RedisError:
+            log(
+                "Could not join {} to its session.".format(client.client_info()),
+                level="exception",
+            )
+            ws.close(UNAVAILABLE_CLOSE_CODE, "session join failed")
+            return
+        if ending is not None:
+            client.send(ending)
         client.publish()
     finally:
         # The client is registered by the two calls above, and the wait hands
@@ -933,14 +940,13 @@ def _serve(ws, participant_id=None, experiment=None):
         # tolerates being called twice.
         chat_backend.unsubscribe(client)
         chat_backend.open_clients.discard(client)
-        if joined:
-            try:
-                client.session.leave()
-            except RedisError:
-                log(
-                    "Could not add the leave of {}.".format(client.client_info()),
-                    level="exception",
-                )
+        try:
+            client.session.leave()
+        except RedisError:
+            log(
+                "Could not add the leave of {}.".format(client.client_info()),
+                level="exception",
+            )
 
 
 def chat(ws):

@@ -57,11 +57,12 @@ def write_ending(session_id):
     does, then tell its players' pages that the ending is saved.
 
     The runner queues this job when it saves the session's ending. Once the
-    record is written, or has failed, each player who isn't a bot gets a
+    record is written, or has failed, the session's keys in redis expire after
+    :data:`~dallinger.realtime.store.ENDED_SESSION_TTL` seconds, redis notes
+    that the ending is saved, and each player who isn't a bot gets a
     ``realtime_saved`` frame with the session's status and the player's final
-    view, as :mod:`dallinger.realtime.delivery` describes, and the session's
-    keys in redis expire after :data:`~dallinger.realtime.store.ENDED_SESSION_TTL`
-    seconds. An error writing the record is raised again after that.
+    view, as :mod:`dallinger.realtime.delivery` describes. An error writing
+    the record is raised again after that.
     """
     try:
         write_records(session_id)
@@ -77,7 +78,10 @@ def _publish_saved(session_id):
         )
     finally:
         db.session.remove()
-    publish_saved("write_ending", session_id, status, store.load_ending(session_id))
+    # Noted before the frame goes out, so a page that joins in between and
+    # finds the ending unsaved is already listening for it.
+    store.note_ending_saved(session_id, status)
+    publish_saved("write_ending", session_id, store.load_ending(session_id))
 
 
 def _write(session_id):
@@ -182,6 +186,17 @@ def _event(session_id, record):
         # leaves the column out to keep it SQL NULL.
         if record["status"] == "rejected":
             fields["reason"] = record["reason"]
+    elif kind == "clock":
+        fields.update(
+            participant_id=int(record["participant"]),
+            scope=record["scope"],
+            browser_time=record["browser_time"],
+            receive_time=datetime.fromtimestamp(record["received"]),
+            payload={
+                "server_time": record["server_time"],
+                "round_trip": record["round_trip"],
+            },
+        )
     elif kind == "effect":
         fields.update(name=record["name"], payload=record["payload"])
     elif kind == "checkpoint":

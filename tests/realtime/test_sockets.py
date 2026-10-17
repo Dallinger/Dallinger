@@ -1,4 +1,5 @@
 import json
+import time
 from unittest.mock import Mock, patch
 
 import gevent
@@ -9,7 +10,9 @@ from simple_websocket import ConnectionClosed
 
 from dallinger.experiment_server import sockets as sockets_module
 from dallinger.realtime import session_sockets, store
-from tests.realtime.helpers import TurnTally
+from dallinger.realtime.core import run_pass
+from dallinger.realtime.jobs import write_ending
+from tests.realtime.helpers import CLOCK, TurnTally
 
 pytestmark = pytest.mark.usefixtures("redis_conn", "realtime_experiment")
 
@@ -124,6 +127,31 @@ def types_of(session_id):
 
 def session_of(game_type=TurnTally):
     return str(store.create_realtime_session(game_type, ["1", "2", "9"], bots=["9"]))
+
+
+def end_session(session_id):
+    """End a session as a runner would, saving a pass over an end entry."""
+    session_id = int(session_id)
+    token, _ = store.claim(session_id, "test", 30)
+    saved = store.load_session(session_id)["saved"]
+    ending = [{"type": "end", "time": 0, "reason": "abandoned"}]
+    result = run_pass(TurnTally(), saved, ending, 0, CLOCK)
+    assert store.save_passes([(session_id, token, [], result)], 30) == []
+
+
+def sent_frames(ws):
+    return [call.args[0] for call in ws.send.mock_calls]
+
+
+def time_frame(frame):
+    return "dallinger_time:" + json.dumps(frame)
+
+
+REQUEST = time_frame({"type": "request", "id": 7})
+
+REPORT = time_frame(
+    {"type": "clock", "browser_time": 5000, "server_time": 900.5, "round_trip": 0}
+)
 
 
 class TestSessionSockets:
@@ -350,13 +378,160 @@ class TestSessionSockets:
         assert "1" not in sockets.chat_backend.clients_by_participant
 
 
+class TestTimeChannel:
+    def test_a_time_request_is_answered_on_its_socket(self, sockets):
+        session_id = session_of()
+        ws = scripted(REQUEST)
+        before = time.time()
+
+        # Redis's clock, read once at the join, is 50 seconds ahead.
+        with patch.object(store, "server_time", lambda: time.time() + 50):
+            chat(sockets, ws, session=session_id, participant_id="1")
+
+        (sent,) = sent_frames(ws)
+        channel, _, answer = sent.partition(":")
+        answer = json.loads(answer)
+        assert (channel, answer["type"], answer["id"]) == ("dallinger_time", "time", 7)
+        assert before + 50 <= answer["clock"] <= time.time() + 50
+        assert types_of(session_id) == ["join", "leave"]
+        assert relayed(sockets) == []
+
+    def test_a_time_request_is_answered_without_redis(self):
+        page = session_sockets.SessionSocket(1, TurnTally(), "1", "page", "a page")
+
+        with patch.object(store, "redis_conn", Mock(spec=[])):
+            answer = page.handle_frame("dallinger_time", REQUEST.partition(":")[2])
+
+        assert json.loads(answer.partition(":")[2])["id"] == 7
+
+    def test_a_socket_with_no_session_gets_no_answer(self, sockets, warning):
+        ws = scripted(REQUEST, REPORT)
+
+        chat(sockets, ws, channel="custom", participant_id="1")
+
+        ws.send.assert_not_called()
+        assert relayed(sockets) == []
+        assert warning.call_count == 1
+
+    def test_a_clock_report_is_added_to_the_session(self, sockets):
+        session_id = session_of()
+        ws = scripted(REPORT)
+
+        chat(sockets, ws, session=session_id, participant_id="1", scope="page")
+
+        assert entries(session_id)[1] == {
+            "type": "clock",
+            "participant": "1",
+            "scope": "page",
+            "browser_time": 5000.0,
+            "server_time": 900.5,
+            "round_trip": 0.0,
+        }
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            "not json",
+            "[1]",
+            '{"type": "other", "browser_time": 1, "server_time": 2, "round_trip": 0}',
+            '{"type": "clock", "browser_time": 1, "server_time": 2}',
+            '{"type": "clock", "browser_time": "1", "server_time": 2, "round_trip": 0}',
+            '{"type": "clock", "browser_time": true, "server_time": 2, '
+            '"round_trip": 0}',
+            '{"type": "clock", "browser_time": NaN, "server_time": 2, "round_trip": 0}',
+            '{"type": "clock", "browser_time": 1' + "0" * 400 + ', "server_time": 2, '
+            '"round_trip": 0}',
+            '{"type": "clock", "browser_time": 1, "server_time": 2, '
+            '"round_trip": -0.5}',
+            "[" * 1000000,
+        ],
+        ids=[
+            "not JSON",
+            "not an object",
+            "unknown type",
+            "missing value",
+            "string",
+            "boolean",
+            "NaN",
+            "too large for a float",
+            "negative round trip",
+            "nested too deeply",
+        ],
+    )
+    def test_a_bad_frame_is_dropped_with_a_warning(self, sockets, warning, data):
+        session_id = session_of()
+        ws = scripted("dallinger_time:" + data)
+
+        chat(sockets, ws, session=session_id, participant_id="1")
+
+        ws.send.assert_not_called()
+        assert types_of(session_id) == ["join", "leave"]
+        assert warning.call_count == 1
+
+    def test_reports_count_against_the_rate_limit_and_requests_dont(
+        self, sockets, realtime_experiment, warning
+    ):
+        realtime_experiment.realtime_games = [Limited]
+        session_id = session_of(Limited)
+        ws = scripted("limited:0", REPORT, REPORT, REPORT, REQUEST)
+
+        chat(sockets, ws, session=session_id, participant_id="1")
+
+        assert types_of(session_id) == ["join", "message", "clock", "clock", "leave"]
+        assert len(sent_frames(ws)) == 1
+        assert "rate limit" in warning.call_args.args[-1]
+
+
+class TestEndedSessions:
+    @pytest.mark.parametrize("saved", [False, True], ids=["unsaved", "saved"])
+    def test_a_page_joining_an_ended_session_gets_its_ending(
+        self, sockets, warning, saved
+    ):
+        session_id = session_of()
+        end_session(session_id)
+        if saved:
+            write_ending(int(session_id))
+        ws = scripted("tally:late", REPORT)
+
+        chat(sockets, ws, session=session_id, participant_id="1")
+
+        (sent,) = sent_frames(ws)
+        channel, _, payload = sent.partition(":")
+        ending = {
+            "session_id": int(session_id),
+            "reason": "abandoned",
+            "view": {"for": "1", "log": []},
+        }
+        if saved:
+            ending.update(type="realtime_saved", status="ended")
+        else:
+            ending.update(type="realtime_ended")
+        assert (channel, json.loads(payload)) == ("dallinger_direct", ending)
+        assert entries(session_id) == []
+        ws.close.assert_not_called()
+        assert "has ended" in warning.call_args.args[-1]
+
+    def test_a_page_joining_a_session_whose_ending_expired_is_refused(self, sockets):
+        session_id = session_of()
+        end_session(session_id)
+        ws = scripted("tally:late")
+
+        with patch.object(store, "load_ending", return_value=None):
+            chat(sockets, ws, session=session_id, participant_id="1")
+
+        ws.close.assert_called_once_with(
+            sockets.REFUSED_CLOSE_CODE, "not a player in this session"
+        )
+        ws.send.assert_not_called()
+
+
 class TestRateLimit:
     def test_drops_are_warned_about_at_most_once_a_second(self, warning):
         now = [0.0]
         dropping = session_sockets.NoSession("a page")
         with patch.object(session_sockets.time, "monotonic", lambda: now[0]):
             for now[0] in (0.0, 0.5, 1.0):
-                dropping.send("tally", "up")
+                dropping.handle_frame("tally", "up")
 
         assert warning.call_count == 2
 

@@ -11,6 +11,7 @@ from tests.realtime.helpers import (
     Restless,
     Tally,
     TurnTally,
+    clock,
     error,
     join,
     leave,
@@ -84,6 +85,7 @@ class TestParseMessage:
             ("left", "left", Sent()),
             ("NaN", "NaN", Sent()),
             ("[1e999]", "[1e999]", Sent()),
+            ("[" * 1000000, "[" * 1000000, Sent()),
             (
                 '{"envelope": {}, "payload": 1, "extra": 2}',
                 {"envelope": {}, "payload": 1, "extra": 2},
@@ -834,6 +836,44 @@ class TestRecords:
 
         assert result.records[0]["payload"] == {"move": 1}
         assert session(result)["state"]["kept"] == {"move": 1, "kept": True}
+
+
+class TestClockMeasurements:
+    def test_a_measurement_is_recorded_and_nothing_else_happens(self):
+        game = Restless()
+        before = started(game, members=("1", "9"), bots=("9",))
+
+        result = play(game, before, [clock(1, "1")], 1)
+
+        assert result.records == [
+            {
+                # The bot's opening move is record 1.
+                "sequence": 2,
+                "type": "clock",
+                "time": 1,
+                "participant": "1",
+                "scope": "page",
+                "browser_time": 5001.0,
+                "server_time": 901.0,
+                "round_trip": 0.04,
+                "received": 101.0,
+            }
+        ]
+        assert session(result)["state"] == json.loads(before)["state"]
+        assert result.views == []
+
+    def test_a_failed_pass_records_its_measurements(self):
+        class Fragile(TurnTally):
+            def apply(self, state, player_id, message, now, sent):
+                raise RuntimeError("boom")
+
+        game = Fragile()
+        entries = [clock(1, "1"), message(2, "1", "up")]
+
+        result = play(game, started(game), entries, 2)
+
+        assert "RuntimeError: boom" in error(result)
+        assert [each["type"] for each in result.records] == ["clock", "message", "end"]
 
 
 class TestJsonRoundTrip:
