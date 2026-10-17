@@ -287,9 +287,6 @@ class TestEnding:
         before = datetime.now()
         save(session_id, [message(1, "1", "up"), message(2, "1", "stop")], now=2)
         after = datetime.now()
-        store.add_entry(session_id, {"type": "message", "participant": "1"})
-        time.sleep(0.05)
-        store.count_dropped(session_id)
         assert store.realtime_result(session_id) is None
 
         write_ending(session_id)

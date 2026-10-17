@@ -52,6 +52,7 @@ def sockets(redis):
     # use a separate ChatBackend for each test
     sockets.chat_backend = sockets.ChatBackend()
     sockets._process_experiment = None
+    sockets._process_games = {}
 
     yield sockets
 

@@ -198,10 +198,21 @@ class TestSessions:
         assert 10 <= len(kept) < 300
         assert kept == added[-len(kept) :]
 
-    def test_dropped_messages_are_counted(self):
+    def test_an_ended_session_takes_no_entries(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
-        assert store.count_dropped(session_id) == 1
-        assert store.count_dropped(session_id, 3) == 4
+        store.redis_conn.srem(store.RUNNING, session_id)
+
+        assert add_message(session_id, "1", "late") is None
+        store.end_realtime_session(session_id, "abandoned")
+        assert entries_of(session_id) == []
+
+    def test_only_a_player_who_isnt_a_bot_has_the_sessions_channel(self):
+        session_id = store.create_realtime_session(TurnTally, ["1", "9"], bots=["9"])
+
+        assert store.player_game_channel(session_id, "1") == TurnTally.channel
+        assert store.player_game_channel(session_id, "9") is None
+        assert store.player_game_channel(session_id, "2") is None
+        assert store.player_game_channel(session_id + 1, "1") is None
 
 
 class TestClaims:

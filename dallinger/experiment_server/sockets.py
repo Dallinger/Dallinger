@@ -27,6 +27,7 @@ from dallinger.db import (
     redis_conn,
     session,
 )
+from dallinger.realtime import session_sockets, store
 from dallinger.utils import normalized_participant_id
 
 from .experiment_server import Experiment, app
@@ -70,6 +71,10 @@ def process_token():
         _process_token_pid = pid
     return _process_token
 
+
+#: RFC 6455 going away. Sent to every connection when the web process shuts
+#: down, so the browser reconnects to another one.
+GOING_AWAY_CLOSE_CODE = 1001
 
 #: RFC 6455 policy violation, reported to the browser as ``event.code`` on
 #: ``onclose``. Dallinger's bundled ``ReconnectingWebSocket`` stops retrying on
@@ -115,6 +120,20 @@ def process_experiment():
             finally:
                 session.remove()
     return _process_experiment
+
+
+_process_games = None
+
+
+def process_games():
+    """The experiment's game types, as
+    :func:`~dallinger.realtime.store.experiment_games` returns them, loaded
+    once per process, when its gunicorn worker starts.
+    """
+    global _process_games
+    if _process_games is None:
+        _process_games = store.experiment_games()
+    return _process_games
 
 
 def publish_control_event(payload):
@@ -427,6 +446,11 @@ class ChatBackend:
         #: socket times out.
         self.clients_by_participant = {}
         self.direct_channel = None
+        #: Every client connected to this process, to close when it shuts
+        #: down.
+        self.open_clients = set()
+        #: Set by :meth:`close_all`, after which every connection is closed.
+        self.closing = False
 
     def subscribe(self, client, channel_name):
         """Register a new client to receive messages on a channel.
@@ -509,6 +533,21 @@ class ChatBackend:
                     continue
                 gevent.spawn(Channel._relay, client, frame)
 
+    def close_all(self):
+        """Close every connection this process holds, and every one it
+        accepts from now on, as it shuts down.
+
+        Each connection's handler then finishes, so its session gets its
+        leave, and the browser reconnects to another web process. Gunicorn's
+        worker goes on accepting connections for up to a second after
+        SIGTERM.
+        """
+        self.closing = True
+        for client in list(self.open_clients):
+            # A relay blocked on a browser that stopped reading holds that
+            # client's send lock, which its close waits for.
+            gevent.spawn(client.close_going_away)
+
     def forget(self, channel):
         """Drop a channel whose listener has stopped.
 
@@ -531,8 +570,10 @@ chat_backend = ChatBackend()
 class Client:
     """Represents a single websocket client.
 
-    A client holding an ``experiment`` hands it each inbound message. One
-    without publishes to redis for a subscriber to pick up.
+    A frame on one of the experiment's game channels goes to the client's
+    real-time session, if it has one. Otherwise a client holding an
+    ``experiment`` hands it each inbound message, and one without publishes to
+    redis for a subscriber to pick up.
     """
 
     def __init__(
@@ -542,6 +583,7 @@ class Client:
         participant_id=None,
         scope=None,
         experiment=None,
+        games=None,
     ):
         self.ws = ws
         self.worker_id = worker_id
@@ -549,6 +591,11 @@ class Client:
         self.addressable_id = normalized_participant_id(participant_id)
         self.scope = scope
         self.experiment = experiment
+        #: The experiment's game types, a dict from each channel to its game
+        #: type's instance.
+        self.games = games or {}
+        #: Takes the connection's frames on game channels.
+        self.session = session_sockets.NoSession(self.client_info())
 
         # This lock is used to make sure that multiple greenlets
         # cannot send to the same socket concurrently.
@@ -578,6 +625,17 @@ class Client:
                     raise
                 raise ConnectionClosed(self.ws.close_reason, self.ws.close_message)
             # log('Sent to {}: {}'.format(self, message), level='debug')
+
+    def close_going_away(self):
+        """Close the connection because the web process is shutting down."""
+        try:
+            with self.send_lock:
+                self.ws.close(GOING_AWAY_CLOSE_CODE, "server shutting down")
+        except ConnectionClosed:
+            return
+        # receive() waits on this event, and simple_websocket's reader thread
+        # sets it only once the browser answers the close.
+        self.ws.event.set()
 
     def subscribe(self, channel):
         """Start listening to messages on ``channel``, if there is one.
@@ -655,7 +713,9 @@ class Client:
                         level="warning",
                     )
                     continue
-                if self.experiment is not None:
+                if channel_name in self.games:
+                    self.session.send(channel_name, data)
+                elif self.experiment is not None:
                     self.handle(channel_name, data)
                 else:
                     redis_conn.publish(channel_name, data)
@@ -795,18 +855,76 @@ def wait_until_listening(*channels):
 
 
 def _serve(ws, participant_id=None, experiment=None):
-    """Subscribe a connection to its channel and relay until it closes."""
+    """Subscribe a connection to its channel and relay until it closes.
+
+    A connection that asks for a real-time ``session`` is refused unless its
+    participant is one of the session's players. Its session gets a join
+    once the connection's direct listener is confirmed, so the view the
+    runner answers with can't miss it, and a leave when it closes.
+    """
+    try:
+        games = process_games()
+    except Exception:
+        log("Could not load the experiment's game types.", level="exception")
+        ws.close(UNAVAILABLE_CLOSE_CODE, "experiment unavailable")
+        return
     client = Client(
         ws,
         worker_id=request.args.get("worker_id"),
         participant_id=participant_id,
         scope=request.args.get("scope"),
         experiment=experiment,
+        games=games,
     )
+    requested_session = request.args.get("session")
+    if requested_session is not None:
+        try:
+            session = session_sockets.open_session_socket(
+                requested_session,
+                client.addressable_id,
+                client.scope,
+                games,
+                client.client_info(),
+            )
+        except RedisError:
+            log("Could not look up a real-time session.", level="exception")
+            ws.close(UNAVAILABLE_CLOSE_CODE, "session lookup failed")
+            return
+        if session is None:
+            log(
+                "Refusing {} for real-time session {!r}.".format(
+                    client.client_info(), requested_session
+                ),
+                level="warning",
+            )
+            ws.close(REFUSED_CLOSE_CODE, "not a player in this session")
+            return
+        client.session = session
     subscribed = client.subscribe(request.args.get("channel"))
     direct = chat_backend.register(client)
+    chat_backend.open_clients.add(client)
+    joined = False
     try:
+        # Checked only once the client is in open_clients, so a shutdown that
+        # began while the connection was being set up closes it either way.
+        if chat_backend.closing:
+            client.close_going_away()
+            return
         wait_until_listening(subscribed, direct)
+        if isinstance(client.session, session_sockets.SessionSocket):
+            if not ws.connected:
+                # Closed during the wait, by the browser or by a shutdown.
+                return
+            try:
+                client.session.join()
+            except RedisError:
+                log(
+                    "Could not add the join of {}.".format(client.client_info()),
+                    level="exception",
+                )
+                ws.close(UNAVAILABLE_CLOSE_CODE, "session join failed")
+                return
+            joined = True
         client.publish()
     finally:
         # The client is registered by the two calls above, and the wait hands
@@ -814,6 +932,15 @@ def _serve(ws, participant_id=None, experiment=None):
         # registrations behind. ``unsubscribe`` also runs in ``publish``, and
         # tolerates being called twice.
         chat_backend.unsubscribe(client)
+        chat_backend.open_clients.discard(client)
+        if joined:
+            try:
+                client.session.leave()
+            except RedisError:
+                log(
+                    "Could not add the leave of {}.".format(client.client_info()),
+                    level="exception",
+                )
 
 
 def chat(ws):

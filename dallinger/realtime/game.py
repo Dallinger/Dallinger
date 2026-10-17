@@ -144,12 +144,14 @@ class RealtimeGame(ABC):
     #: player one when the state changes.
     send_views_on_messages = True
 
-    #: How many messages a second each page may send, on average. Messages
-    #: over the limit are dropped and counted.
+    #: How many messages a second each connection from a page may send, on
+    #: average. The web process drops messages over the limit, before they
+    #: reach the session, and logs a warning.
     max_messages_per_second = 120
 
-    #: How many messages a page may send at once, above
-    #: :attr:`max_messages_per_second`, before the limit applies.
+    #: How many messages a connection may send at once before
+    #: :attr:`max_messages_per_second` applies. A connection that has sent
+    #: nothing for a while can send this many in a burst.
     message_burst = 20
 
     #: Seconds the game type's methods may run for in total each time the

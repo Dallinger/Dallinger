@@ -33,7 +33,6 @@ The real-time engine needs redis 7.0 or later.
 #   stop the next one being queued.
 # - final: once the session has ended, its ending's "reason" and the final
 #   "views" of the players who aren't bots, as JSON.
-# - dropped: how many of the session's messages were over the rate limit.
 #
 # Once an ended session's final job has run, the keys it still has expire.
 #
@@ -79,7 +78,6 @@ _ENDED_SESSION_KEYS = (
     "epoch",
     "records",
     "final",
-    "dropped",
 )
 
 # Redis runs each script as one command, so nothing else reaches its keys
@@ -102,6 +100,17 @@ _claim = redis_conn.register_script(
     redis.call("set", KEYS[4], token)
     -- GET returns false for a missing key.
     return {token, tonumber(redis.call("get", KEYS[5]) or 0)}
+    """
+)
+_add_entry = redis_conn.register_script(
+    """
+    if redis.call("sismember", KEYS[2], ARGV[1]) == 0 then
+        return false
+    end
+    -- XADD returns the new entry's ID, "<milliseconds>-<sequence>" on redis's
+    -- clock. An approximate MAXLEN trims only whole blocks of old entries,
+    -- which is cheaper, so the stream can run a little over.
+    return redis.call("xadd", KEYS[1], "MAXLEN", "~", ARGV[2], "*", "entry", ARGV[3])
     """
 )
 _extend = redis_conn.register_script(
@@ -258,8 +267,7 @@ def end_realtime_session(session_id, reason):
         raise ValueError("An ending's reason must be a non-empty string.")
     if not redis_conn.exists(session_key(session_id, "state")):
         raise KeyError(session_id)
-    if redis_conn.sismember(RUNNING, session_id):
-        add_entry(session_id, {"type": "end", "reason": reason})
+    add_entry(session_id, {"type": "end", "reason": reason})
 
 
 def realtime_result(session_id):
@@ -299,6 +307,20 @@ def session_members(session_id):
     return {player.decode(): flag == b"1" for player, flag in members.items()}
 
 
+def player_game_channel(session_id, participant_id):
+    """Return the channel of the session's game type if ``participant_id`` is
+    one of its players other than a bot, or ``None``.
+    """
+    with redis_conn.pipeline(transaction=False) as pipe:
+        pipe.hget(session_key(session_id, "members"), participant_id)
+        pipe.hget(session_key(session_id, "state"), "game")
+        is_bot, channel = pipe.execute()
+    # HGET returns None for a missing key or field.
+    if is_bot != b"0" or channel is None:
+        return None
+    return channel.decode()
+
+
 def load_ending(session_id):
     """Return an ended session's ``reason`` and the final ``views`` of its
     players who aren't bots, a dict from each participant id, or ``None`` if
@@ -334,22 +356,22 @@ def load_session(session_id):
 
 
 def add_entry(session_id, entry):
-    """Add an entry to a session's stream and return its ID.
+    """Add an entry to a session's stream and return its ID, or return
+    ``None`` without adding it if the session has ended.
+
+    The check and the add run as one redis script, so an entry is never added
+    to an ended session, whose keys expire. Adding one after they had expired
+    would create a stream that never does.
 
     :param entry: a dict as :mod:`dallinger.realtime.core` describes, without
         its ``received``, which comes from the ID, or its ``time``, which
         the runner sets
     """
-    # XADD returns the new entry's ID, "<milliseconds>-<sequence>" on redis's
-    # clock. An approximate MAXLEN trims only whole blocks of old entries,
-    # which is cheaper, so the stream can run a little over.
-    entry_id = redis_conn.xadd(
-        session_key(session_id, "entries"),
-        {"entry": dump_json(entry)},
-        maxlen=MAX_ENTRIES,
-        approximate=True,
+    entry_id = _add_entry(
+        keys=[session_key(session_id, "entries"), RUNNING],
+        args=[session_id, MAX_ENTRIES, dump_json(entry)],
     )
-    return entry_id.decode()
+    return None if entry_id is None else entry_id.decode()
 
 
 def read_entries(positions, timeout, count=None):
@@ -416,12 +438,6 @@ def lost_entries(applied):
         session_id: info["entries-added"] - count - info["length"]
         for (session_id, count), info in zip(applied.items(), infos)
     }
-
-
-def count_dropped(session_id, count=1):
-    """Add ``count`` to the session's dropped messages and return the total."""
-    # INCRBY starts a missing counter at 0.
-    return redis_conn.incrby(session_key(session_id, "dropped"), count)
 
 
 def mark_records_queued(session_id, ttl):

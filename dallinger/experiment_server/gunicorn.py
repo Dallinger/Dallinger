@@ -1,7 +1,9 @@
 import logging
 import multiprocessing
 import os
+import signal
 
+import gevent
 from gunicorn import util
 from gunicorn.app.base import Application
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -36,7 +38,37 @@ def worker_exit(server, worker):
 
 
 def post_worker_init(worker):
+    from dallinger.experiment_server import sockets
+
+    # Raises for invalid game types, so the worker doesn't start.
+    sockets.process_games()
+    close_sockets_on_sigterm()
     return experiment_hook("gunicorn_post_worker_init", worker)
+
+
+def close_sockets_on_sigterm():
+    """Make SIGTERM close the worker's websockets, after running the handler
+    already installed for it.
+
+    Gunicorn's worker waits for its handlers to finish before it exits, and a
+    websocket handler never finishes by itself. Heroku and Docker kill the
+    process before gunicorn's wait runs out, so without this no handler would
+    finish and no real-time session would get its leaves.
+    """
+    from dallinger.experiment_server import sockets
+
+    previous = signal.getsignal(signal.SIGTERM)
+
+    def handle_sigterm(signum, frame):
+        if callable(previous):
+            previous(signum, frame)
+        # A signal handler interrupts whatever greenlet was running.
+        gevent.spawn(sockets.chat_backend.close_all)
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+    # signal.signal clears this, and gunicorn sets it so that system calls
+    # SIGTERM interrupts are restarted.
+    signal.siginterrupt(signal.SIGTERM, False)
 
 
 class StandaloneServer(Application):

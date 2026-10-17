@@ -258,7 +258,6 @@ class TestDataLocally:
                 outcome={"winner": 1},
                 final_state={"scores": [3, 1]},
                 checkpoint={"scores": [2, 1]},
-                dropped=4,
             )
         )
         db_session.flush()
