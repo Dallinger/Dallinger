@@ -507,7 +507,9 @@ def test_generated_dockerfile_uses_the_pinned_base_image(tmp_path):
         mock.patch("docker.client.from_env", return_value=client),
         mock.patch.object(tools, "check_output"),
     ):
-        tools.build_image(tmp_path, "exp", mock.Mock(), needs_chrome=True)
+        tools.build_image(
+            tmp_path, "exp", mock.Mock(), needs_chrome=True, image_tag="t"
+        )
     dockerfile = (tmp_path / "Dockerfile").read_text()
     assert "FROM ghcr.io/dallinger/dallinger-bot:12.0.0" in dockerfile
 
