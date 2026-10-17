@@ -332,6 +332,14 @@ def test_public_wait_stops_early_on_a_second_redirect_in_a_row(no_sleep, capsys)
     assert "redirected twice in a row" in capsys.readouterr().out
 
 
+def test_public_wait_stops_early_on_a_second_hibernating_answer(no_sleep):
+    events = []
+    with public_check(events, 200, text='{"status": "hibernating"}'):
+        with pytest.raises(click.ClickException, match="docker-ssh awaken"):
+            launch.wait_for_public_url(FakeExecutor(), TARGET)
+    assert events == ["check"] * 2
+
+
 @pytest.mark.parametrize(
     "error, name",
     [

@@ -318,6 +318,8 @@
   ``up -d`` and ``docker debug`` failures. To turn JIT off in an existing local ``dallinger_postgres``
   container, run ``dallinger docker stop-services`` and then
   ``start-services``; the data volume is kept.
+- docker-ssh hibernation now gives PostgreSQL 60 seconds to stop and other
+  containers 30.
 
 ### Deprecated
 
@@ -334,16 +336,19 @@
 
 ### Fixed
 
-- docker-ssh deploys now wait up to 15 minutes for ``/launch`` instead of 5,
-  and do not launch while the public ``/health`` reports a hibernating or
-  waking app. ``--server`` also accepts the short
-  name of a server registered as ``host:port``, such as ``pc04`` for
-  ``pc04:2200``. Hibernation gives PostgreSQL 60 seconds to stop and other
-  containers 30. ``dallinger debug`` counts an HTTP error from ``/summary``
-  as a failed status check. ``restore_state_from_replay`` closes its import
-  database connections when it fails. The Cloudflare Keychain error includes
-  what ``security`` reported, and invalid database pool settings name their
-  smallest allowed value, for example ``at least -1 (no limit)``.
+- docker-ssh deploys now wait up to 15 minutes for ``/launch`` instead of 5.
+- docker-ssh deploys no longer launch while the public ``/health`` reports a
+  hibernating or waking app. A hibernating app stops the wait after two
+  answers, with the ``docker-ssh awaken`` command to run.
+- ``--server`` accepts the short name of a server registered as
+  ``host:port``, such as ``pc04`` for ``pc04:2200``.
+- ``dallinger debug`` counts an HTTP error from ``/summary`` as a failed
+  status check.
+- ``restore_state_from_replay`` closes its import database connections when
+  it fails.
+- The Cloudflare Keychain error includes what ``security`` reported.
+- Invalid database pool settings name their smallest allowed value, for
+  example ``at least -1 (no limit)``.
 - docker-ssh apps no longer fail under load with ``no more connections
   allowed (max_client_conn)``: their pgbouncer now accepts up to 10,000
   client connections instead of 100.
