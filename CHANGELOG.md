@@ -340,6 +340,17 @@
 
 ### Fixed
 
+- Redis calls no longer fail with ``MaxConnectionsError`` once a process has
+  100 connections in use, redis-py's default limit since 8.0. Under load,
+  for example many participants waiting on their own websocket channel,
+  ``connect_to_redis()`` now waits up to 20 seconds for a free connection in
+  a pool of 1,000. Websocket channel subscriptions use a separate pool, so
+  many open channels no longer hold up publishing, job queueing and other
+  Redis calls in the same process. A websocket message that is not valid
+  UTF-8 is dropped with a warning instead of ending its channel's listener
+  and leaving the channel's clients without messages, and an error while
+  closing a channel's pubsub is logged instead of keeping the stopped channel
+  registered.
 - `dallinger debug` no longer prints "Error fetching experiment status" while
   the server shuts down or after a single failed request. Once recruitment
   closes, it reports an error only after three failed status checks in a row,
