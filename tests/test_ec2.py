@@ -545,6 +545,9 @@ def test_teardown_removes_the_registered_server_and_its_dns_records(dns_host):
             "ec2_instance_id": "i-123",
         },
         "bob.example.org": {"host": "bob.example.org", "ec2_instance_id": "i-456"},
+        "ec2-1-2-3-4.compute.amazonaws.com": {  # registered by older versions
+            "host": "ec2-1-2-3-4.compute.amazonaws.com"
+        },
     }
     with (
         mock.patch.object(ec2, "get_ec2_client") as get_ec2_client,
@@ -559,5 +562,8 @@ def test_teardown_removes_the_registered_server_and_its_dns_records(dns_host):
     get_ec2_client.return_value.terminate_instances.assert_called_once_with(
         InstanceIds=["i-123"]
     )
-    remove_host.assert_called_once_with("alice.example.org")
+    assert sorted(c.args[0] for c in remove_host.call_args_list) == [
+        "alice.example.org",
+        "ec2-1-2-3-4.compute.amazonaws.com",
+    ]
     remove_dns.assert_called_once_with("alice.example.org", remove_dallinger_host=False)
