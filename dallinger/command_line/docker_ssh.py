@@ -247,7 +247,13 @@ def list_servers():
     show_default=True,
     help="Default participant ingress for deploys that omit --ingress",
 )
-def add(host, user, default_ingress):
+@click.option(
+    "--dns-host",
+    help="DNS name that experiments on this server are served under. "
+    "Saved with the server so deployments don't need --dns-host; "
+    "needed when --host is an IP address.",
+)
+def add(host, user, default_ingress, dns_host):
     """Add a server to deploy experiments through ssh using docker.
     The server needs `docker` and `docker compose` usable by the current user.
     Classic Caddy ingress needs free ports 80 and 443. Cloudflare tunnel apps
@@ -265,8 +271,11 @@ def add(host, user, default_ingress):
     ``cloudflare_zone_id``, and ``cloudflare_dns_zone`` in Dallinger config.
     """
     prepare_server(host, user)
-    store_host({"host": host, "user": user, "default_ingress": default_ingress})
-    advice = default_ingress == INGRESS_CLASSIC and _private_network_advice(host, user)
+    server_info = {"host": host, "user": user, "default_ingress": default_ingress}
+    if dns_host:
+        server_info["dns_host"] = dns_host
+    store_host(server_info)
+    advice = default_ingress == INGRESS_CLASSIC and _private_network_advice(server_info)
     if advice:
         print(f"{RED}Warning: {advice}{END}")
 
@@ -779,12 +788,14 @@ def _resolve_ingress(server_info, ingress=None):
     return requested
 
 
-def _private_network_advice(host, user):
-    """Return advice against classic ingress if ``host`` has no public IPv4 address.
+def _private_network_advice(server_info):
+    """Return advice against classic ingress if the server has no public IPv4 address.
 
-    ``host`` may include an SSH port. Loopback and unspecified (``0.0.0.0``)
-    addresses count as public, for servers that are tunnelled to locally.
+    The server's ``host`` may include an SSH port. Loopback and unspecified
+    (``0.0.0.0``) addresses count as public, for servers that are tunnelled to
+    locally.
     """
+    host = server_info["host"]
     ip_addrs = _ipv4_addresses(split_ssh_host_port(host)[0])
     for ip_addr in ip_addrs:
         address = ipaddress.ip_address(ip_addr)
@@ -793,13 +804,12 @@ def _private_network_advice(host, user):
     if not ip_addrs:
         return None
     ip_addr = ip_addrs[0]
-    user_option = f" --user {user}" if user else ""
+    command = _servers_add_command(server_info, default_ingress=INGRESS_CLOUDFLARE)
     return (
         f"{host} has a private IP address ({ip_addr}), so Let's Encrypt cannot "
         "issue TLS certificates for it and participants outside its network "
         "cannot reach classic ingress. Deploy with --ingress cloudflare, or "
-        "re-register the server with `dallinger docker-ssh servers add "
-        f"--host {host}{user_option} --default-ingress cloudflare`. If the "
+        f"re-register the server with `{command}`. If the "
         "server's public DNS name points at a public IP that forwards ports 80 "
         "and 443 to it, deploy with --allow-private-ip instead."
     )
@@ -810,9 +820,7 @@ def _check_classic_ingress_reachable(server, ingress=None):
     server_info = CONFIGURED_HOSTS.get(server) or {}
     if _resolve_ingress(server_info, ingress) == INGRESS_CLOUDFLARE:
         return
-    advice = _private_network_advice(
-        server_info.get("host", server), server_info.get("user")
-    )
+    advice = _private_network_advice(server_info or {"host": server})
     if advice:
         print(f"{RED}Error: {advice}{END}")
         raise click.Abort()
@@ -1520,32 +1528,13 @@ def _deploy_in_mode(
             raise click.Abort
     tls = "tls internal" if not HAS_TLS else f"tls {email_addr}"
 
-    # Check if server is an IP address
-    try:
-        socket.inet_aton(ssh_host)
-        is_ip = True
-    except socket.error:
-        is_ip = False
-
+    dns_host = resolve_dns_host(server_info, dns_host)
     if not dns_host:
-        if is_ip:
-            print(
-                f"""{RED}Error: When using an IP address as server ({ssh_host}), you must specify a DNS host.{END}
-You have two options:
-1. Use nip.io:
-   --dns-host nip.io
-   {RED}Using nip.io as part of the hostname might cause problems:{END}
-   Some browsers might tell users this name is suspicious
-2. Use a custom domain (recommended):
-   Create a DNS A record pointing to {GREEN}{ssh_host}{END}
-   and use option --dns-host to deploy the experiment.
-   {BLUE}For instance to use the name experiment1.my-custom-domain.example.com
-   you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}"""
-            )
-            raise click.Abort()
-        else:
-            # Not an IP address, use the server value as DNS host
-            dns_host = ssh_host
+        print(
+            f"{RED}Error: When using an IP address as server ({ssh_host}), "
+            f"you must specify a DNS host.{END}\n{_missing_dns_host_advice(server_info)}"
+        )
+        raise click.Abort()
 
     # Check if we're using nip.io (either provided or generated)
     if dns_host == "nip.io":
@@ -2433,9 +2422,12 @@ def destroy(server, app):
     else:
         caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
         uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
-        dns_host = ssh_host
-        executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
         if uses_root_domain:
+            # The root Caddyfile's site address is the DNS host deploy used.
+            site = re.search(r"^([^\s{#]\S*) \{$", caddyfile_content, re.MULTILINE)
+            dns_host = (
+                site.group(1) if site else resolve_dns_host(server_info) or ssh_host
+            )
             config = get_config(load=True)
             email_addr = config.get("contact_email_on_error")
             has_tls = not is_loopback_host(ssh_host)
@@ -2447,6 +2439,7 @@ def destroy(server, app):
                 ),
                 "dallinger/Caddyfile",
             )
+        executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
         executor.reload_caddy()
         executor.run(
             f"docker compose -f ~/dallinger/{app}/docker-compose.yml down",
@@ -3168,6 +3161,86 @@ def _check_experiment_hostname_dns(
             "(up to about 5 minutes for Dallinger Route 53 records) and try again."
         )
     raise click.Abort()
+
+
+def resolve_dns_host(server_info, dns_host=None):
+    """Return the DNS name that experiments on a configured server are served under.
+
+    An explicit ``dns_host`` wins, then the DNS host saved with the server,
+    then the server's own name (without any SSH port) if it is a hostname
+    rather than an IP address.
+
+    Parameters
+    ----------
+    server_info : dict
+        Configured server entry with ``host`` and optionally ``dns_host``.
+    dns_host : str, optional
+        DNS host passed explicitly on the command line.
+
+    Returns
+    -------
+    str or None
+        ``None`` for servers registered by IP address without a saved DNS host.
+    """
+    if dns_host:
+        return dns_host
+    if server_info.get("dns_host"):
+        return server_info["dns_host"]
+    if _is_ip_address(server_info["host"]):
+        return None
+    return split_ssh_host_port(server_info["host"])[0]
+
+
+def _missing_dns_host_advice(server_info):
+    """Return the options for deploying to a server registered by IP address.
+
+    nip.io only maps names to IPv4 addresses, so it is not offered for IPv6.
+    """
+    ip_addr = split_ssh_host_port(server_info["host"])[0]
+    ipv6 = ":" in ip_addr
+    example = "my-custom-domain.example.com"
+    options = []
+    if not ipv6:
+        options.append(
+            f"""Use nip.io:
+   --dns-host nip.io
+   {RED}Using nip.io as part of the hostname might cause problems:{END}
+   Some browsers might tell users this name is suspicious"""
+        )
+    options += [
+        f"""Use a custom domain (recommended):
+   Create a DNS {"AAAA" if ipv6 else "A"} record pointing to {GREEN}{ip_addr}{END}
+   and use option --dns-host to deploy the experiment.
+   {BLUE}For instance to use the name experiment1.{example}
+   you can pass options --app experiment1 --dns-host {example}{END}""",
+        f"""Save the DNS host with the server so you don't need to pass it again:
+   {_servers_add_command(server_info, dns_host=example)}""",
+    ]
+    numbered = "\n".join(f"{i}. {option}" for i, option in enumerate(options, 1))
+    return f"You have {len(options)} options:\n{numbered}"
+
+
+def _servers_add_command(server_info, **changes):
+    """Return a ``servers add`` command that re-registers a server with ``changes``.
+
+    Parameters
+    ----------
+    server_info : dict
+        Configured server entry; the saved fields that ``servers add``
+        accepts are kept.
+    **changes
+        Fields to override, for example ``default_ingress="cloudflare"``.
+
+    Returns
+    -------
+    str
+    """
+    fields = {**server_info, **changes}
+    options = [f"--host {quote(fields['host'])}"]
+    for key in ("user", "default_ingress", "dns_host"):
+        if fields.get(key):
+            options.append(f"--{key.replace('_', '-')} {quote(fields[key])}")
+    return "dallinger docker-ssh servers add " + " ".join(options)
 
 
 def get_dns_host(ssh_host):

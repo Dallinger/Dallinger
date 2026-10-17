@@ -136,6 +136,11 @@ To provision an on-demand EC2 instance::
 
     dallinger ec2 provision --name <server_name> --region <region> --dns-host <subdomain>.my-experiments.org --type <type> --security_group_name <security_group>
 
+The server is registered under its ``--dns-host`` name, so later deployments
+can select it with ``--server <subdomain>.my-experiments.org`` or its short name
+``--server <subdomain>`` (or omit ``--server`` if it is your only server)
+without passing ``--dns-host`` again.
+
 Pick an instance name which is easy to recognize, for example
 `tapping-deployment-batch-2` is good but `melody123` would be bad::
 
@@ -203,13 +208,22 @@ teardown the instance make sure:
     * The experiment is stopped on the recruiter, e.g. in Prolific the experiment should be STOPPED and thus not active
     * Make sure you exported your data and run export.py to make sure your data is not faulty
 
-To teardown an on-demand EC2 instance ny server name::
+To teardown an on-demand EC2 instance by server name::
 
     dallinger ec2 teardown --name <server_name> --region <region>
 
-Or by DNS name::
+Or by the instance's public AWS hostname::
 
-    dallinger ec2 teardown --dns <subdomain>.my-experiments.org --region <region>
+    dallinger ec2 teardown --dns <aws_public_hostname> --region <region>
+
+Teardown removes the server from Dallinger's server list and deletes the
+Route 53 records for the ``--dns-host`` it was provisioned with, if they point
+at this instance. It warns about records that point elsewhere (for example a
+record left at an old hostname after ``ec2 stop`` and ``ec2 start``); check
+and delete those by hand. If Route 53 cleanup fails, teardown warns and still
+terminates the instance. Servers provisioned with older Dallinger versions
+also need ``--dns-host <subdomain>.my-experiments.org`` to delete the Route 53
+records.
 
 
 Listing Available Regions and Instance Types

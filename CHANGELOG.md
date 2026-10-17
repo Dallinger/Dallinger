@@ -175,6 +175,23 @@
 
 ### Changed
 
+- `dallinger ec2 provision --dns-host <name>` now registers the server once,
+  under its DNS name, instead of also registering the instance's public AWS
+  hostname. Deployments therefore no longer ask which of the two entries to
+  use, and infer the DNS host from the server. The entry records the
+  instance id, so `ec2 teardown` removes it and its Route 53 records without
+  `--dns-host`; it also still removes an AWS-hostname entry registered by
+  older versions. Teardown deletes only the Route 53 records that point at
+  the instance, warns about records that point elsewhere, and deletes them
+  before terminating the instance. If Route 53 cleanup fails (including a
+  missing hosted zone), it warns and still terminates the instance.
+- `dallinger docker-ssh servers add` accepts `--dns-host` and saves it with
+  the server, so servers added by IP address don't need `--dns-host` on every
+  deployment. `docker-ssh deploy` and `sandbox` use an explicit `--dns-host`,
+  then the saved DNS host, then the server's own name. Servers added by an
+  IPv6 address without a saved DNS host now need `--dns-host` (previously the
+  address itself was used). Classic-ingress `destroy` restores the server's
+  Caddyfile under the host the app was deployed with.
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and
