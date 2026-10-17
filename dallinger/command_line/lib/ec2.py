@@ -6,7 +6,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 import boto3
 import click
@@ -802,11 +802,33 @@ def _find_dns_records(route_53, zone_id, dns_host):
     return records
 
 
-def remove_dns_records(zone_id, dns_host, route_53=None, confirm=False):
-    """Delete the records for dns_host and its wildcard, optionally confirming first."""
+def remove_dns_records(zone_id, dns_host, route_53=None, confirm=False, target=None):
+    """Delete the records for dns_host and its wildcard, optionally confirming first.
+
+    With ``target``, only records pointing at that hostname are deleted, so
+    records another server has taken over are kept.
+    """
     if route_53 is None:
         route_53 = get_53_client()
     filtered_records = _find_dns_records(route_53, zone_id, dns_host)
+    if target is not None:
+        target = target.rstrip(".").lower()
+        kept = [
+            record
+            for record in filtered_records
+            if {
+                resource["Value"].rstrip(".").lower()
+                for resource in record.get("ResourceRecords", [])
+            }
+            != {target}
+        ]
+        for record in kept:
+            values = ", ".join(r["Value"] for r in record.get("ResourceRecords", []))
+            print(
+                f"Kept DNS record {record['Name']}: it points at "
+                f"{values or 'an unknown target'}, not {target}."
+            )
+        filtered_records = [r for r in filtered_records if r not in kept]
 
     if len(filtered_records) > 0:
         targets = sorted(
@@ -898,7 +920,9 @@ def prepare_instance(
     image_name: str,
     security_group_name: str,
     dns_host: str = None,
-    callback: Callable[[str, str, str, Executor], None] = None,
+    callback: Callable[
+        [str, str, str, Executor, Optional[str], str, str], None
+    ] = None,
 ):
     instance_df = get_all_instances(region_name)
     assert (
@@ -969,13 +993,24 @@ def create_dns_records(dns_host, user, host):
         create_dns_record("*." + dns_host, user, host)
 
 
-def remove_dns_record(dns_host, remove_dallinger_host=True):
-    if dns_host is not None:
-        route_53 = get_53_client()
-        filtered_ids = filter_zone_ids(get_domain(dns_host), route_53)
-        remove_dns_records(filtered_ids[0], dns_host, route_53)
-        if remove_dallinger_host:
-            dallinger_remove_host(dns_host)
+def remove_dns_record(dns_host, remove_dallinger_host=True, target=None):
+    """Delete the Route 53 records for ``dns_host``, warning if it has no hosted zone.
+
+    ``target`` is passed to :func:`remove_dns_records`.
+    """
+    if dns_host is None:
+        return
+    route_53 = get_53_client()
+    zone_ids = filter_zone_ids(get_domain(dns_host), route_53)
+    if zone_ids:
+        remove_dns_records(zone_ids[0], dns_host, route_53, target=target)
+    else:
+        print(
+            f"Warning: No Route 53 hosted zone found for {dns_host}; "
+            "no DNS records were removed."
+        )
+    if remove_dallinger_host:
+        dallinger_remove_host(dns_host)
 
 
 def prepare_docker_experiment_setup(
@@ -1140,17 +1175,23 @@ def teardown(region_name, instance_id, public_dns_name, dns_host):
 
     Entries are found by the instance id saved at provisioning, or by the
     instance's public AWS hostname (as registered by older versions). Without
-    ``dns_host``, the DNS host saved in a found entry is used.
+    ``dns_host``, the DNS host saved in an entry with this instance id is used.
+    Only DNS records pointing at ``public_dns_name`` are deleted.
     """
     logger.info(f"Terminating {instance_id} ({public_dns_name})...")
     get_ec2_client(region_name).terminate_instances(InstanceIds=[instance_id])
-    registered = {
-        host: info
-        for host, info in get_configured_hosts().items()
-        if host == public_dns_name or info.get("ec2_instance_id") == instance_id
-    }
-    for host, info in registered.items():
-        dallinger_remove_host(host)
-        dns_host = dns_host or info.get("dns_host")
-    remove_dns_record(dns_host, remove_dallinger_host=dns_host not in registered)
+    removed = set()
+    saved_dns_host = None
+    for host, info in get_configured_hosts().items():
+        owned = bool(instance_id) and info.get("ec2_instance_id") == instance_id
+        if owned or host == public_dns_name:
+            dallinger_remove_host(host)
+            removed.add(host)
+        if owned:
+            saved_dns_host = saved_dns_host or info.get("dns_host")
+    remove_dns_record(
+        dns_host or saved_dns_host,
+        remove_dallinger_host=bool(dns_host) and dns_host not in removed,
+        target=public_dns_name,
+    )
     logger.info(f"Termination of {instance_id} complete!")

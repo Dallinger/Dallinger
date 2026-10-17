@@ -777,19 +777,22 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "dns_host, public_origin, expected",
+    "server_info, public_origin, expected",
     [
-        ("lab.example.org", None, "lab.example.org"),
-        ("nip.io", "https://1.2.3.4.nip.io", "1.2.3.4.nip.io"),
+        ({"host": "1.2.3.4", "dns_host": "lab.org"}, None, "lab.org"),
+        ({"host": "1.2.3.4", "dns_host": "nip.io"}, None, "1.2.3.4.nip.io"),
+        ({"host": "[2001:db8::1]"}, None, "[2001:db8::1]"),
         (
-            "lab.example.org",
-            "https://deploy-time.example.org",
-            "deploy-time.example.org",
+            {"host": "1.2.3.4", "dns_host": "lab.org"},
+            "https://deploy.org",
+            "deploy.org",
         ),
+        ({"host": "1.2.3.4", "dns_host": "lab.org"}, "deploy.org", "lab.org"),
+        ({"host": "1.2.3.4"}, "https://[2001:db8::1]", "[2001:db8::1]"),
     ],
 )
 def test_destroy_restores_caddyfile_under_the_deployed_dns_host(
-    monkeypatch, dns_host, public_origin, expected
+    monkeypatch, server_info, public_origin, expected
 ):
     uploaded = []
 
@@ -802,10 +805,9 @@ def test_destroy_restores_caddyfile_under_the_deployed_dns_host(
             return "https://1.2.3.4 {\n    reverse_proxy myapp_web:5000\n}\n"
         return ""
 
-    _patch_destroy_executor(
-        monkeypatch,
-        run,
-        {"host": "1.2.3.4", "user": "ubuntu", "dns_host": dns_host},
+    _patch_destroy_executor(monkeypatch, run, server_info)
+    monkeypatch.setattr(
+        docker_ssh_module, "gethostbyname_ex", lambda host: (host, [], ["1.2.3.4"])
     )
     manifests = {}
     if public_origin:

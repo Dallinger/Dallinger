@@ -153,17 +153,22 @@ def test_resolve_dns_host(server_info, dns_host, expected):
 
 
 @pytest.mark.parametrize(
-    "host, record, offers_nip_io",
-    [("1.2.3.4:2222", "A", True), ("[2001:db8::1]:2222", "AAAA", False)],
+    "host, host_option, record, offers_nip_io",
+    [
+        ("1.2.3.4:2222", "1.2.3.4:2222", "A", True),
+        ("[2001:db8::1]:2222", "'[2001:db8::1]:2222'", "AAAA", False),
+    ],
 )
-def test_missing_dns_host_advice_suits_the_address_family(host, record, offers_nip_io):
+def test_missing_dns_host_advice_suits_the_address_family(
+    host, host_option, record, offers_nip_io
+):
     advice = docker_ssh_module._missing_dns_host_advice(
         {"host": host, "user": "ubuntu", "default_ingress": "classic"}
     )
     assert f"Create a DNS {record} record" in advice
     assert ("nip.io" in advice) == offers_nip_io
     assert (
-        f"servers add --host {host} --user ubuntu --default-ingress classic "
+        f"servers add --host {host_option} --user ubuntu --default-ingress classic "
         "--dns-host my-custom-domain.example.com" in advice
     )
 
