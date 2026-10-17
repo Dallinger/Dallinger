@@ -137,14 +137,16 @@ def load_api_token(config: Any | None = None) -> str:
     security = shutil.which("security")
     if not security:
         raise CloudflareError(
-            "Set CLOUDFLARE_API_TOKEN in the environment before a Cloudflare docker-ssh deploy."
+            "Set CLOUDFLARE_API_TOKEN in the environment or cloudflare_api_token "
+            "in your Dallinger config before a Cloudflare docker-ssh deploy."
         )
+    account = os.environ.get("USER") or getpass.getuser()
     service = config_str(config, "cloudflare_keychain_service")
     if service:
         account_args = []
     else:
         service = KEYCHAIN_SERVICE
-        account_args = ["-a", os.environ.get("USER") or getpass.getuser()]
+        account_args = ["-a", account]
     try:
         result = subprocess.run(
             [security, "find-generic-password", *account_args, "-s", service, "-w"],
@@ -160,9 +162,7 @@ def load_api_token(config: Any | None = None) -> str:
             + (f" ({detail})" if detail else "")
             + ". Set CLOUDFLARE_API_TOKEN in the environment, set "
             "cloudflare_api_token in your Dallinger config, or store the token "
-            "with `security add-generic-password "
-            + "".join(f"{arg} " for arg in account_args)
-            + f"-s {service} -w`."
+            f"with `security add-generic-password -a {account} -s {service} -w`."
         ) from exc
     token = result.stdout.strip()
     if not token:

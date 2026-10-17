@@ -436,6 +436,8 @@ def test_load_api_token_defaults_to_the_users_dallinger_item(security_calls, ser
 
 
 def test_load_api_token_failure_names_the_configured_item(security_calls, monkeypatch):
+    monkeypatch.setenv("USER", "alice")
+
     def run(args, **kwargs):
         raise subprocess.CalledProcessError(44, args, stderr="item not found\n")
 
@@ -447,7 +449,9 @@ def test_load_api_token_failure_names_the_configured_item(security_calls, monkey
         message
     )
     assert "Set CLOUDFLARE_API_TOKEN" in message
-    assert "add-generic-password -s org.example.cloudflare-token -w" in message
+    assert message.endswith(
+        "`security add-generic-password -a alice -s org.example.cloudflare-token -w`."
+    )
 
 
 def test_load_api_token_requires_a_source(monkeypatch):
@@ -455,5 +459,7 @@ def test_load_api_token_requires_a_source(monkeypatch):
     monkeypatch.setattr(cf.shutil, "which", lambda name: None)
     config = mock.Mock()
     config.get.return_value = ""
-    with pytest.raises(cf.CloudflareError, match="CLOUDFLARE_API_TOKEN"):
+    with pytest.raises(
+        cf.CloudflareError, match="CLOUDFLARE_API_TOKEN .* or cloudflare_api_token"
+    ):
         cf.load_api_token(config)

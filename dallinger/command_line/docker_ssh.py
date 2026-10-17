@@ -1082,6 +1082,31 @@ def _abort_cloudflare(exc):
     raise click.ClickException(f"Cloudflare error: {exc}") from exc
 
 
+def _preload_cloudflare_token(config, server, ingress, config_options):
+    """Return the API token for a Cloudflare deploy, or ``None`` for classic ingress.
+
+    Called before the deploy connects to the server or builds an image there,
+    so a missing token stops it before anything changes. ``-c`` overrides of
+    the token settings apply, as they do later in the deploy.
+    """
+    if _resolve_ingress(CONFIGURED_HOSTS.get(server) or {}, ingress) != (
+        INGRESS_CLOUDFLARE
+    ):
+        return None
+    overrides = {
+        config.canonical_key(key): value
+        for key, value in dict(config_options or ()).items()
+    }
+    token_config = {
+        key: overrides.get(key, config.get(key, ""))
+        for key in ("cloudflare_api_token", "cloudflare_keychain_service")
+    }
+    try:
+        return load_api_token(token_config)
+    except CloudflareError as exc:
+        _abort_cloudflare(exc)
+
+
 def ensure_root_domain_ready(server, update):
     if update:
         return True
@@ -1226,6 +1251,12 @@ def build_and_push_image(f):
         if not kwargs.get("allow_private_ip") and not kwargs.get("update"):
             _check_classic_ingress_reachable(kwargs["server"], kwargs.get("ingress"))
         config = get_config(load=True)
+        kwargs["cloudflare_api_token"] = _preload_cloudflare_token(
+            config,
+            kwargs["server"],
+            kwargs.get("ingress"),
+            kwargs.get("config_options"),
+        )
         image_name = config.get("docker_image_name", None)
         local_build = kwargs.get("local_build", False)
 
@@ -1460,6 +1491,7 @@ def _deploy_in_mode(
     preflight_root_clean,
     ingress=None,
     allow_private_ip=False,
+    cloudflare_api_token=None,
 ):
     config = get_config(load=True)
     server = resolve_server_name(server, CONFIGURED_HOSTS)
@@ -1504,6 +1536,7 @@ def _deploy_in_mode(
             server=server,
             server_info=server_info,
             update=update,
+            api_token=cloudflare_api_token,
         )
 
     # We deleted this because synchronizing configs between local and remote can cause problems especially when using
@@ -1799,11 +1832,12 @@ def _deploy_cloudflare_in_mode(
     server,
     server_info,
     update,
+    api_token=None,
 ):
     """Deploy an isolated Cloudflare-tunnel experiment on a docker-ssh host."""
     try:
         validate_app_dns_label(experiment_id)
-        api_token = load_api_token(config)
+        api_token = api_token or load_api_token(config)
     except CloudflareError as exc:
         _abort_cloudflare(exc)
 

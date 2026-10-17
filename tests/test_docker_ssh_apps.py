@@ -135,32 +135,58 @@ def test_root_domain_conflicts_ignore_cloudflare_apps():
     assert docker_ssh_module._host_caddy_apps(Executor()) == ["classic"]
 
 
-def test_cloudflare_deploy_without_token_explains_before_touching_the_server(
+def test_cloudflare_deploy_without_token_stops_before_contacting_the_server(
     monkeypatch,
 ):
+    pytest.importorskip("docker")
+
     def missing_token(config):
         raise CloudflareError("CLOUDFLARE_API_TOKEN is unset")
 
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"lab": {"host": "lab.example", "default_ingress": "cloudflare"}},
+    )
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: {})
     monkeypatch.setattr(docker_ssh_module, "load_api_token", missing_token)
     monkeypatch.setattr(
-        docker_ssh_module, "Executor", mock.Mock(side_effect=AssertionError)
+        docker_ssh_module,
+        "ensure_remote_host_in_known_hosts",
+        mock.Mock(side_effect=AssertionError("contacted the server")),
     )
+    deploy = mock.Mock()
+    wrapper = docker_ssh_module.build_and_push_image(deploy)
+
     with pytest.raises(click.ClickException, match="CLOUDFLARE_API_TOKEN is unset"):
-        docker_ssh_module._deploy_cloudflare_in_mode(
-            archive_path=None,
-            config={},
-            config_options={},
-            dashboard_password="pw",
-            dashboard_user="admin",
-            experiment_id="myapp",
-            experiment_uuid="uuid",
-            image_name="image",
-            mode="sandbox",
-            push_build=False,
-            server="lab",
-            server_info={"host": "lab.example"},
-            update=False,
-        )
+        wrapper(server="lab", app_name="myapp", update=False, local_build=False)
+    deploy.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "default_ingress, expected", [("cloudflare", "from-c"), ("classic", None)]
+)
+def test_preload_cloudflare_token_honours_config_overrides(
+    monkeypatch, default_ingress, expected
+):
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"lab": {"host": "lab.example", "default_ingress": default_ingress}},
+    )
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "load_api_token",
+        lambda config: config["cloudflare_api_token"],
+    )
+    config = mock.Mock()
+    config.canonical_key.side_effect = lambda key: key
+    config.get.return_value = "from-config"
+    token = docker_ssh_module._preload_cloudflare_token(
+        config, "lab", None, (("cloudflare_api_token", "from-c"),)
+    )
+    assert token == expected
 
 
 def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch):
