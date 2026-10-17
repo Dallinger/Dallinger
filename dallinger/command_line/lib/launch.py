@@ -523,6 +523,8 @@ def _abort_unreachable(executor, target, status, detail, waited):
     cloudflare = target.ingress == INGRESS_CLOUDFLARE
     last = _describe(status, detail)
     asleep = _is_asleep(detail)
+    hibernating = _stuck_reason(status, detail) == "hibernating"
+    awaken = f"dallinger docker-ssh awaken --server {target.server} --app {target.app}"
     if waited is None and asleep:
         print(
             f"{target.health_url} reported a hibernating app twice in a row. "
@@ -546,12 +548,11 @@ def _abort_unreachable(executor, target, status, detail, waited):
             "Cloudflare Access may be in front of the app. The deploy launches "
             "only once /health answers 2xx without a redirect."
         )
-    elif waited is None:
+    elif hibernating:
         reason = (
             f"The app is hibernating ({detail.strip()}); a hibernation marker "
             "left by an earlier app with the same name can cause this. Wake it "
-            f"with `dallinger docker-ssh awaken --server {target.server} "
-            f"--app {target.app}`."
+            f"with `{awaken}`."
         )
     elif asleep:
         reason = f"The app is hibernating or waking up ({detail.strip()})."
@@ -570,6 +571,9 @@ def _abort_unreachable(executor, target, status, detail, waited):
             "Caddy may still be getting a TLS certificate, or DNS may not "
             "point at the server yet."
         )
+    if hibernating:
+        print_bold("Wake the app:")
+        print(awaken)
     if asleep:
         print_bold("Check the public URL again (expect the app's own /health):")
     else:

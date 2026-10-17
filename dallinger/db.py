@@ -46,8 +46,9 @@ _POOL_SETTINGS = (
 def _check_number(name, value, minimum, cast):
     """Return ``value`` if it is a finite ``cast`` within ``minimum``.
 
-    ``int`` settings must be at least ``minimum``. ``float`` settings must be greater than ``minimum`` and also accept
-    integers. Otherwise raise a ``ValueError`` that names ``name``.
+    ``int`` settings must be at least ``minimum``. ``float`` settings must be
+    greater than ``minimum`` and also accept integers. Otherwise raise a
+    ``ValueError`` that names ``name``.
     """
     if cast is int:
         valid = isinstance(value, int) and value >= minimum
