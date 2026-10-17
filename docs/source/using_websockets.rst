@@ -615,6 +615,7 @@ fewer clients. Run ``CONFIG GET maxclients`` in ``redis-cli`` to check the
 limit of your Redis server.
 
 Each connection also uses a file descriptor in its web process, alongside the
-participant's websocket. Containers often have a soft limit of 1,024 open files
-per process, which caps each web process at about 500 participants with their
-own channel.
+participant's websocket. The web container of ``dallinger docker`` and
+``dallinger docker-ssh`` deployments allows 65,536 open files per process, but
+other containers and hosts often keep a soft limit of 1,024, which caps each
+web process at about 500 participants with their own channel.

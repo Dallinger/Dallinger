@@ -348,8 +348,9 @@
   many open channels no longer hold up publishing, job queueing and other
   Redis calls in the same process. A websocket message that is not valid
   UTF-8 is dropped with a warning instead of ending its channel's listener
-  and leaving the channel's clients without messages, and an error while closing a channel's
-  pubsub is logged instead of keeping the stopped channel registered.
+  and leaving the channel's clients without messages, and an error while
+  closing a channel's pubsub is logged instead of keeping the stopped channel
+  registered.
 - `dallinger debug` no longer prints "Error fetching experiment status" while
   the server shuts down or after a single failed request. Once recruitment
   closes, it reports an error only after three failed status checks in a row,
