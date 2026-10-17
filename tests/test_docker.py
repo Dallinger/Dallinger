@@ -470,7 +470,9 @@ def test_docker_debug_dotenv_treats_a_none_secret_key_as_empty(tmp_path, stub_co
     assert wrapper.env["FLASK_SECRET_KEY"] == ""
 
 
-def test_custom_dockerfile_reinstalls_a_staged_local_wheel(tmp_path, capsys):
+def test_custom_dockerfile_reinstalls_a_staged_local_wheel_without_base_image(
+    tmp_path, capsys
+):
     import docker
 
     from dallinger.docker import tools
@@ -491,6 +493,23 @@ def test_custom_dockerfile_reinstalls_a_staged_local_wheel(tmp_path, capsys):
     dockerfile = (tmp_path / "Dockerfile").read_text()
     assert tools.LOCAL_DALLINGER_WHEEL_SNIPPET in dockerfile
     assert "--force-reinstall --no-deps" in tools.LOCAL_DALLINGER_WHEEL_SNIPPET
+
+
+def test_generated_dockerfile_uses_the_pinned_base_image(tmp_path):
+    import docker
+
+    from dallinger.docker import tools
+
+    (tmp_path / "requirements.txt").write_text("dallinger==12.0.0\n")
+    client = mock.Mock()
+    client.api.inspect_image.side_effect = docker.errors.ImageNotFound("missing")
+    with (
+        mock.patch("docker.client.from_env", return_value=client),
+        mock.patch.object(tools, "check_output"),
+    ):
+        tools.build_image(tmp_path, "exp", mock.Mock(), needs_chrome=True)
+    dockerfile = (tmp_path / "Dockerfile").read_text()
+    assert "FROM ghcr.io/dallinger/dallinger-bot:12.0.0" in dockerfile
 
 
 def test_deploy_image_tag_is_unique_per_launch():
