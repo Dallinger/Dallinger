@@ -10,7 +10,7 @@ from unittest import mock
 import click
 import pytest
 
-from dallinger.command_line.lib.cloudflare import TunnelDeletion
+from dallinger.command_line.lib.cloudflare import CloudflareError, TunnelDeletion
 from dallinger.config import Configuration
 from dallinger.docker.tools import docker_tag_from_experiment_id
 
@@ -133,6 +133,89 @@ def test_root_domain_conflicts_ignore_cloudflare_apps():
             return "cf\t" + cloudflare.to_json().replace("\n", "") + "\n"
 
     assert docker_ssh_module._host_caddy_apps(Executor()) == ["classic"]
+
+
+def test_cloudflare_deploy_without_token_stops_before_contacting_the_server(
+    monkeypatch,
+):
+    pytest.importorskip("docker")
+
+    def missing_token(config):
+        raise CloudflareError("CLOUDFLARE_API_TOKEN is unset")
+
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"lab": {"host": "lab.example", "default_ingress": "cloudflare"}},
+    )
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: mock.MagicMock())
+    monkeypatch.setattr(docker_ssh_module, "load_api_token", missing_token)
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "ensure_remote_host_in_known_hosts",
+        mock.Mock(side_effect=AssertionError("contacted the server")),
+    )
+    deploy = mock.Mock()
+    wrapper = docker_ssh_module.build_and_push_image(deploy)
+
+    with pytest.raises(click.ClickException, match="CLOUDFLARE_API_TOKEN is unset"):
+        wrapper(server="lab", app_name="myapp", update=False, local_build=False)
+    deploy.assert_not_called()
+
+
+def test_cloudflare_error_prints_one_error_line(monkeypatch):
+    from click.testing import CliRunner
+
+    pytest.importorskip("docker")
+    hosts = {"lab": {"host": "lab.example", "default_ingress": "cloudflare"}}
+    monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", hosts)
+    monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: hosts)
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: mock.MagicMock())
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "load_api_token",
+        mock.Mock(side_effect=CloudflareError("no token")),
+    )
+
+    result = CliRunner().invoke(docker_ssh_module.deploy, ["--server", "lab"])
+
+    assert result.exit_code == 1
+    assert result.output.endswith("Error: Cloudflare error: no token\n")
+    assert "Aborted!" not in result.output
+
+
+@pytest.mark.parametrize(
+    "default_ingress, expected", [("cloudflare", "from-file"), ("classic", None)]
+)
+def test_preload_cloudflare_token_reads_file_override(
+    monkeypatch, tmp_path, default_ingress, expected
+):
+    monkeypatch.delenv("CLOUDFLARE_API_TOKEN", raising=False)
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"lab.example.org": {"host": "lab", "default_ingress": default_ingress}},
+    )
+    token_file = tmp_path / "token"
+    token_file.write_text("from-file\n")
+    config = Configuration()
+    config.register("cloudflare_api_token", str, ["CLOUDFLARE_API_TOKEN"])
+    config.register("other", str)
+    config.extend({"cloudflare_api_token": "from-config"})
+    config.ready = True
+    token = docker_ssh_module._preload_cloudflare_token(
+        config,
+        "lab",
+        None,
+        (
+            ("CLOUDFLARE_API_TOKEN", f"file:{token_file}"),
+            ("other", f"file:{tmp_path / 'missing'}"),
+        ),
+    )
+    assert token == expected
+    assert config.get("cloudflare_api_token") == "from-config"
 
 
 def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch):
@@ -646,6 +729,9 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"test-server": {"host": "test-server"}}
+    )
     with (
         mock.patch.object(
             docker_ssh_module, "get_experiment_files", return_value=source

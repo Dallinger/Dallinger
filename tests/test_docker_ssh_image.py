@@ -70,6 +70,9 @@ def test_deploy_failure_is_not_reported_as_a_registry_error(monkeypatch, capsys)
     monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
     monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
     monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"server": {"host": "server"}}
+    )
+    monkeypatch.setattr(
         docker_ssh_module,
         "get_config",
         lambda load=False: {"docker_image_name": "img:1"},

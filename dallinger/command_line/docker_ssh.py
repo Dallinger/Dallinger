@@ -1078,9 +1078,46 @@ def _install_tunnel_token(executor, sftp, app, connector_token, tunnel_id):
     executor.run(f"chmod 600 ~/dallinger/{app}/secrets/cloudflare-tunnel-token")
 
 
+_CLOUDFLARE_TOKEN_KEYS = ("cloudflare_api_token", "cloudflare_keychain_service")
+
+
 def _abort_cloudflare(exc):
-    print(f"{RED}Cloudflare error:{END} {exc}")
-    raise click.Abort()
+    raise click.ClickException(f"Cloudflare error: {exc}") from exc
+
+
+def _preload_cloudflare_token(config, server, ingress, config_options):
+    """Return the API token for a Cloudflare deploy, or ``None`` for classic ingress.
+
+    Called before the deploy connects to the server or builds an image there,
+    so a missing token stops it before anything changes. ``-c`` overrides of
+    the token settings apply here as they do later in the deploy, but only
+    for this check, so they don't leak into the image build.
+    """
+    if _resolve_ingress(_resolve_server_info(server), ingress) != INGRESS_CLOUDFLARE:
+        return None
+    token_options = {}
+    for key, value in dict(config_options or ()).items():
+        key = config.synonyms.get(key, key)
+        if key in _CLOUDFLARE_TOKEN_KEYS:
+            token_options[key] = value
+    try:
+        with config.override(token_options, cast_types=True):
+            return load_api_token(config)
+    except CloudflareError as exc:
+        _abort_cloudflare(exc)
+
+
+def _apply_config_options(config, config_options):
+    """Apply ``-c`` options to ``config``, expanding ``file:`` values.
+
+    Returns the options keyed by their canonical config names.
+    """
+    config_options = {
+        config.canonical_key(key): value
+        for key, value in dict(config_options or ()).items()
+    }
+    config.extend(config_options, cast_types=True)
+    return config_options
 
 
 def ensure_root_domain_ready(server, update):
@@ -1227,6 +1264,12 @@ def build_and_push_image(f):
         if not kwargs.get("allow_private_ip") and not kwargs.get("update"):
             _check_classic_ingress_reachable(kwargs["server"], kwargs.get("ingress"))
         config = get_config(load=True)
+        kwargs["cloudflare_api_token"] = _preload_cloudflare_token(
+            config,
+            kwargs["server"],
+            kwargs.get("ingress"),
+            kwargs.get("config_options"),
+        )
         image_name = config.get("docker_image_name", None)
         local_build = kwargs.get("local_build", False)
 
@@ -1461,15 +1504,15 @@ def _deploy_in_mode(
     preflight_root_clean,
     ingress=None,
     allow_private_ip=False,
+    cloudflare_api_token=None,
 ):
     config = get_config(load=True)
     server = resolve_server_name(server, CONFIGURED_HOSTS)
-    config_options = {
-        config.canonical_key(key): value for key, value in dict(config_options).items()
-    }
-    config.extend(config_options, cast_types=True)
+    config_options = _apply_config_options(config, config_options)
 
-    run_pre_launch_checks(**locals())
+    pre_launch_kwargs = dict(locals())
+    pre_launch_kwargs.pop("cloudflare_api_token")
+    run_pre_launch_checks(**pre_launch_kwargs)
 
     server_info = CONFIGURED_HOSTS[server]
     ssh_address = server_info["host"]
@@ -1505,6 +1548,7 @@ def _deploy_in_mode(
             server=server,
             server_info=server_info,
             update=update,
+            api_token=cloudflare_api_token,
         )
 
     # We deleted this because synchronizing configs between local and remote can cause problems especially when using
@@ -1800,10 +1844,12 @@ def _deploy_cloudflare_in_mode(
     server,
     server_info,
     update,
+    api_token=None,
 ):
     """Deploy an isolated Cloudflare-tunnel experiment on a docker-ssh host."""
     try:
         validate_app_dns_label(experiment_id)
+        api_token = api_token or load_api_token(config)
     except CloudflareError as exc:
         _abort_cloudflare(exc)
 
@@ -1836,7 +1882,6 @@ def _deploy_cloudflare_in_mode(
         own_tunnel_id = (manifest.cloudflare.get("tunnel_id") if manifest else "") or ""
     sftp = get_sftp(ssh_address, user=ssh_user)
     try:
-        api_token = load_api_token(config)
         tunnel = ensure_experiment_tunnel(
             account_id=settings["account_id"],
             zone_id=settings["zone_id"],
