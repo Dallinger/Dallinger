@@ -21,15 +21,15 @@ Start services needed by dallinger:
 .. code-block:: shell
 
     docker run -d --name dallinger_redis --network=dallinger -v dallinger_redis:/data redis redis-server --appendonly yes
-    docker run -d --name dallinger_postgres --network=dallinger -e POSTGRES_USER=dallinger -e POSTGRES_PASSWORD=dallinger -e POSTGRES_DB=dallinger -v dallinger_postgres:/var/lib/postgresql/data postgres:12
+    docker run -d --name dallinger_postgres --network=dallinger -e POSTGRES_USER=dallinger -e POSTGRES_PASSWORD=dallinger -e POSTGRES_DB=dallinger -v dallinger_postgres:/var/lib/postgresql/data postgres:12 postgres -c jit=off
 
 If you have these already created you can remove the existing ones and recreate them. To remove the existing ones run:
 
 .. code-block:: shell
 
-    # Needed if you want to recreate containers
-    docker rm dallinger_redis
-    docker rm dallinger_postgres
+    # Needed if you want to recreate containers (named volumes are kept)
+    docker stop dallinger_redis && docker rm dallinger_redis
+    docker stop dallinger_postgres && docker rm dallinger_postgres
 
 or you can start the containers you have:
 
@@ -37,6 +37,10 @@ or you can start the containers you have:
 
     # Needed if you want to start stopped containers
     docker start dallinger_redis dallinger_postgres
+
+A ``dallinger_postgres`` container created before Dallinger started passing
+``-c jit=off`` keeps JIT on when started this way. To turn JIT off, run
+``docker stop dallinger_postgres && docker rm dallinger_postgres`` and then the ``docker run`` command above.
 
 Start adminer:
 

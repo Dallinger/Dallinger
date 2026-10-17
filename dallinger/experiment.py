@@ -19,7 +19,7 @@ from typing import Any, List, Optional, Union
 
 import requests
 from flask import Blueprint, url_for
-from sqlalchemy import String, Table, and_, asc, cast, create_engine, desc, func, or_
+from sqlalchemy import String, Table, and_, asc, cast, desc, func, or_
 from sqlalchemy.orm import scoped_session, sessionmaker, undefer
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
@@ -42,6 +42,7 @@ from dallinger.data import (
 from dallinger.data import load as data_load
 from dallinger.db import (
     Base,
+    create_db_engine,
     db_url,
     get_mapped_class,
     get_polymorphic_mapping,
@@ -2080,19 +2081,23 @@ class Experiment:
         # of the experiment to be replayed and selectively import events
         # into the main database
         specific_db_url = db_url + "-import-" + app_id
-        import_engine = create_engine(specific_db_url)
+        import_engine = create_db_engine(specific_db_url)
         try:
             # Clear the temporary storage and import it
             init_db(drop_all=True, bind=import_engine)
         except Exception:
-            create_db_engine = create_engine(db_url)
-            conn = create_db_engine.connect()
-            conn.execute("COMMIT;")
-            conn.execute(
-                'CREATE DATABASE "{}"'.format(specific_db_url.rsplit("/", 1)[1])
-            )
-            conn.close()
-            import_engine = create_engine(specific_db_url)
+            import_engine.dispose()
+            admin_engine = create_db_engine(db_url)
+            try:
+                conn = admin_engine.connect()
+                conn.execute("COMMIT;")
+                conn.execute(
+                    'CREATE DATABASE "{}"'.format(specific_db_url.rsplit("/", 1)[1])
+                )
+                conn.close()
+            finally:
+                admin_engine.dispose()
+            import_engine = create_db_engine(specific_db_url)
             init_db(drop_all=True, bind=import_engine)
 
         self.import_session = scoped_session(
@@ -2125,6 +2130,7 @@ class Experiment:
         # Clear up global state
         self.import_session.rollback()
         self.import_session.close()
+        import_engine.dispose()
         db.session.rollback()
         db.session.close()
         config._reset(register_defaults=True)
