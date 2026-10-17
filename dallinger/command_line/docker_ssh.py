@@ -2422,11 +2422,12 @@ def destroy(server, app):
     else:
         caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
         uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
-        # The root Caddyfile's site address is the DNS host deploy used.
-        site = re.search(r"^([^\s{#]\S*) \{$", caddyfile_content or "", re.MULTILINE)
-        dns_host = site.group(1) if site else resolve_dns_host(server_info) or ssh_host
-        executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
         if uses_root_domain:
+            # The root Caddyfile's site address is the DNS host deploy used.
+            site = re.search(r"^([^\s{#]\S*) \{$", caddyfile_content, re.MULTILINE)
+            dns_host = (
+                site.group(1) if site else resolve_dns_host(server_info) or ssh_host
+            )
             config = get_config(load=True)
             email_addr = config.get("contact_email_on_error")
             has_tls = not is_loopback_host(ssh_host)
@@ -2438,6 +2439,7 @@ def destroy(server, app):
                 ),
                 "dallinger/Caddyfile",
             )
+        executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
         executor.reload_caddy()
         executor.run(
             f"docker compose -f ~/dallinger/{app}/docker-compose.yml down",

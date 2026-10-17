@@ -809,33 +809,30 @@ def _record_targets(record):
     return sorted({value.rstrip(".").lower() for value in values if value})
 
 
-def remove_dns_records(
-    zone_id, dns_host, route_53=None, confirm=False, other_servers=None
-):
+def remove_dns_records(zone_id, dns_host, route_53=None, confirm=False, target=None):
     """Delete the records for dns_host and its wildcard, optionally confirming first.
 
-    With ``other_servers`` (public hostnames of other live EC2 instances),
-    records pointing at one of them or at a non-EC2 target are kept, so only
-    this server's records and dangling ones are deleted.
+    With ``target``, only records pointing at that hostname are deleted; the
+    others are kept with a warning.
     """
     if route_53 is None:
         route_53 = get_53_client()
     filtered_records = _find_dns_records(route_53, zone_id, dns_host)
-    if other_servers is not None:
-        kept = []
-        for record in filtered_records:
+    if target is not None:
+        target = target.rstrip(".").lower()
+        kept = [r for r in filtered_records if _record_targets(r) != [target]]
+        for record in kept:
             targets = _record_targets(record)
-            if any(
-                target in other_servers
-                or not (target.startswith("ec2-") and target.endswith(".amazonaws.com"))
-                for target in targets
-            ):
-                kind = "alias record" if "AliasTarget" in record else "DNS record"
-                print(
-                    f"Kept {kind} {record['Name']}: it points at "
-                    f"{', '.join(targets)}, which another server may use."
-                )
-                kept.append(record)
+            stale = (
+                " It may be stale (for example after `ec2 stop`/`start`); "
+                "check it and delete it by hand if so."
+                if any(t.startswith("ec2-") for t in targets)
+                else ""
+            )
+            print(
+                f"Warning: Kept DNS record {record['Name']}, which points at "
+                f"{', '.join(targets) or 'an unknown target'}, not {target}.{stale}"
+            )
         filtered_records = [r for r in filtered_records if r not in kept]
 
     if len(filtered_records) > 0:
@@ -1001,17 +998,17 @@ def create_dns_records(dns_host, user, host):
         create_dns_record("*." + dns_host, user, host)
 
 
-def remove_dns_record(dns_host, remove_dallinger_host=True, other_servers=None):
+def remove_dns_record(dns_host, remove_dallinger_host=True, target=None):
     """Delete the Route 53 records for ``dns_host``, warning if it has no hosted zone.
 
-    ``other_servers`` is passed to :func:`remove_dns_records`.
+    ``target`` is passed to :func:`remove_dns_records`.
     """
     if dns_host is None:
         return
     route_53 = get_53_client()
     zone_ids = filter_zone_ids(get_domain(dns_host), route_53)
     if zone_ids:
-        remove_dns_records(zone_ids[0], dns_host, route_53, other_servers=other_servers)
+        remove_dns_records(zone_ids[0], dns_host, route_53, target=target)
     else:
         print(
             f"Warning: No Route 53 hosted zone found for {dns_host}; "
@@ -1184,9 +1181,9 @@ def teardown(region_name, instance_id, public_dns_name, dns_host):
     An entry belongs to the instance if it has the instance id saved at
     provisioning or, for entries without one (older versions), if it is named
     after ``public_dns_name`` or ``dns_host``. Without ``dns_host``, the DNS
-    host saved in an entry with this instance id is used. DNS records pointing
-    at another live instance or outside EC2 are kept. DNS comes first so that
-    teardown can be re-run if it fails.
+    host saved in an entry with this instance id is used. Only DNS records
+    pointing at ``public_dns_name`` are deleted. A Route 53 failure is reported
+    as a warning so that the instance is still terminated.
     """
     hosts = get_configured_hosts()
     owned = [
@@ -1199,15 +1196,14 @@ def teardown(region_name, instance_id, public_dns_name, dns_host):
         )
     ]
     saved = [hosts[h].get("dns_host") for h in owned if hosts[h].get("ec2_instance_id")]
-    instances = get_instances(region_name, show_spinner=False)
-    others = instances[
-        (instances.instance_id != instance_id) & (instances.state != "terminated")
-    ]
-    remove_dns_record(
-        dns_host or next(filter(None, saved), None),
-        remove_dallinger_host=False,
-        other_servers=set(others.public_dns_name.str.lower()),
-    )
+    dns_host = dns_host or next(filter(None, saved), None)
+    try:
+        remove_dns_record(dns_host, remove_dallinger_host=False, target=public_dns_name)
+    except (ClientError, click.ClickException) as e:
+        logger.warning(
+            f"Could not delete the Route 53 records for {dns_host} ({e}). Delete "
+            f"{dns_host} and *.{dns_host} by hand if they point at {public_dns_name}."
+        )
     logger.info(f"Terminating {instance_id} ({public_dns_name})...")
     get_ec2_client(region_name).terminate_instances(InstanceIds=[instance_id])
     for host in owned:

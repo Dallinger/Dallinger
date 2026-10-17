@@ -181,10 +181,10 @@
   use, and infer the DNS host from the server. The entry records the
   instance id, so `ec2 teardown` removes it and its Route 53 records without
   `--dns-host`; it also still removes an AWS-hostname entry registered by
-  older versions. Teardown deletes DNS records before terminating the
-  instance, keeps Route 53 records that point at another running instance or
-  outside EC2, and warns instead of failing when the DNS host has no hosted
-  zone.
+  older versions. Teardown deletes only the Route 53 records that point at
+  the instance, warns about records that point elsewhere, and deletes them
+  before terminating the instance. If Route 53 cleanup fails (including a
+  missing hosted zone), it warns and still terminates the instance.
 - `dallinger docker-ssh servers add` accepts `--dns-host` and saves it with
   the server, so servers added by IP address don't need `--dns-host` on every
   deployment. `docker-ssh deploy` and `sandbox` use an explicit `--dns-host`,

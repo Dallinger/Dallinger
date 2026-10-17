@@ -217,10 +217,13 @@ Or by the instance's public AWS hostname::
     dallinger ec2 teardown --dns <aws_public_hostname> --region <region>
 
 Teardown removes the server from Dallinger's server list and deletes the
-Route 53 records for the ``--dns-host`` it was provisioned with. Records that
-point at another running EC2 instance or outside EC2 are kept. Servers provisioned with older
-Dallinger versions also need ``--dns-host <subdomain>.my-experiments.org`` to
-delete the Route 53 records.
+Route 53 records for the ``--dns-host`` it was provisioned with, if they point
+at this instance. It warns about records that point elsewhere (for example a
+record left at an old hostname after ``ec2 stop`` and ``ec2 start``); check
+and delete those by hand. If Route 53 cleanup fails, teardown warns and still
+terminates the instance. Servers provisioned with older Dallinger versions
+also need ``--dns-host <subdomain>.my-experiments.org`` to delete the Route 53
+records.
 
 
 Listing Available Regions and Instance Types

@@ -106,7 +106,7 @@ class TestRemoveDnsRecords:
 
         assert _deleted_names(route_53) == ["exp.example.com."]
 
-    def test_keeps_records_other_servers_use(self, capsys):
+    def test_target_limits_deletion_to_this_instance(self, capsys):
         route_53 = _route_53_client(
             [
                 _record("exp.example.com.", "EC2-1-2-3-4.compute.amazonaws.com."),
@@ -122,12 +122,13 @@ class TestRemoveDnsRecords:
             "ZONE",
             "exp.example.com",
             route_53=route_53,
-            other_servers={"ec2-5-6-7-8.compute.amazonaws.com"},
+            target="ec2-1-2-3-4.compute.amazonaws.com",
         )
         assert _deleted_names(route_53) == ["exp.example.com."]
         output = capsys.readouterr().out
-        assert "*.exp.example.com." in output
-        assert "alias record exp.example.com.: it points at lb.example.net" in output
+        assert "*.exp.example.com., which points at ec2-5-6-7-8" in output
+        assert "may be stale" in output
+        assert "exp.example.com., which points at lb.example.net" in output
 
     def test_finds_records_beyond_the_first_page(self):
         route_53 = _route_53_client(
@@ -560,7 +561,6 @@ def test_provision_registers_one_server(dns_host, registered):
 AWS_HOSTNAME = "ec2-1-2-3-4.compute.amazonaws.com"
 
 
-OTHER_LIVE_HOSTNAME = "ec2-5-6-7-8.compute.amazonaws.com"
 HOSTS = {
     # Registered by older versions, with a DNS host saved by hand.
     AWS_HOSTNAME: {"host": AWS_HOSTNAME, "dns_host": "nip.io"},
@@ -572,9 +572,13 @@ HOSTS = {
     "bob.example.org": {"host": "bob.example.org", "ec2_instance_id": "i-456"},
     "old.example.org": {"host": "old.example.org"},  # older DNS-name entry
 }
+ALICE_RECORDS = [
+    _record("alice.example.org.", AWS_HOSTNAME),
+    _record("*.alice.example.org.", AWS_HOSTNAME),
+]
 
 
-def _teardown(instance_id, dns_host, records, hosts=HOSTS, zones=("example.org.",)):
+def _teardown(instance_id, dns_host, records, hosts=HOSTS, dns_error=None):
     """Run ``teardown`` against fake AWS clients.
 
     Returns the removed server entries, the deleted record names, and the
@@ -585,22 +589,15 @@ def _teardown(instance_id, dns_host, records, hosts=HOSTS, zones=("example.org."
     events = []
     route_53 = _route_53_client(records)
     route_53.list_hosted_zones_by_name.return_value = {
-        "HostedZones": [{"Id": f"Z-{name}", "Name": name} for name in zones]
+        "HostedZones": [{"Id": "Z1", "Name": "example.org."}]
     }
-    route_53.change_resource_record_sets.side_effect = lambda **_: events.append("dns")
+    route_53.change_resource_record_sets.side_effect = dns_error or (
+        lambda **_: events.append("dns")
+    )
     ec2_client = mock.Mock()
     ec2_client.terminate_instances.side_effect = lambda **_: events.append("ec2")
-    instances = pd.DataFrame(
-        [
-            ("i-123", "running", AWS_HOSTNAME),
-            ("i-456", "running", OTHER_LIVE_HOSTNAME),
-            ("i-789", "terminated", "ec2-9-9-9-9.compute.amazonaws.com"),
-        ],
-        columns=["instance_id", "state", "public_dns_name"],
-    )
     with (
         mock.patch.object(ec2, "get_ec2_client", return_value=ec2_client),
-        mock.patch.object(ec2, "get_instances", return_value=instances),
         mock.patch.object(ec2, "get_53_client", return_value=route_53),
         mock.patch.object(ec2, "get_configured_hosts", return_value=hosts),
         mock.patch.object(
@@ -626,25 +623,23 @@ def test_teardown_removes_only_this_instances_server_entries(dns_host, also_remo
     assert removed == sorted([AWS_HOSTNAME, "alice.example.org", *also_removed])
 
 
+def test_teardown_deletes_this_instances_records_then_terminates():
+    _, deleted, events = _teardown("i-123", None, ALICE_RECORDS)
+    assert deleted == ["alice.example.org.", "*.alice.example.org."]
+    assert events == ["dns", "dns", "ec2", AWS_HOSTNAME, "alice.example.org"]
+
+
 @pytest.mark.parametrize(
-    "target, deleted",
+    "records, dns_error",
     [
-        (AWS_HOSTNAME, True),
-        ("ec2-9-9-9-9.compute.amazonaws.com", True),  # stale, e.g. after stop/start
-        (OTHER_LIVE_HOSTNAME, False),  # taken over by another server
-        ("lb.example.net", False),
+        (ALICE_RECORDS, ClientError({"Error": {"Code": "Throttling"}}, "Change")),
+        ([*ALICE_RECORDS, {"Name": "alice.example.org.", "Type": "NS"}], None),
     ],
 )
-def test_teardown_deletes_dns_records_unless_another_server_uses_them(target, deleted):
-    records = [
-        _record("alice.example.org.", target),
-        _record("*.alice.example.org.", target),
-    ]
-    _, deleted_records, events = _teardown("i-123", None, records)
-    assert deleted_records == (
-        ["alice.example.org.", "*.alice.example.org."] if deleted else []
-    )
-    assert events.index("ec2") == events.count("dns")  # DNS first, then terminate
+def test_teardown_still_terminates_when_dns_cleanup_fails(records, dns_error, caplog):
+    _, _, events = _teardown("i-123", None, records, dns_error=dns_error)
+    assert events == ["ec2", AWS_HOSTNAME, "alice.example.org"]
+    assert "alice.example.org and *.alice.example.org" in caplog.text
 
 
 def test_teardown_without_instance_id_or_hosted_zone_does_not_guess(capsys):
