@@ -2378,7 +2378,7 @@ def load():
         raise
     except SyntaxError as e:
         # Develop directories symlink to the author's files; report the real path.
-        if e.filename:
+        if e.filename and not e.filename.startswith("<"):
             e.filename = os.path.realpath(e.filename)
         raise
 

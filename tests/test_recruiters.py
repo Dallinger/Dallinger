@@ -47,6 +47,12 @@ class TestModuleFunctions:
         r = mod.from_config(stub_config)
         assert isinstance(r, mod.HotAirRecruiter)
 
+    def test_class_from_config_returns_the_class_without_instantiating(
+        self, mod, stub_config
+    ):
+        stub_config.extend({"recruiter": "bots"})
+        assert mod.class_from_config(stub_config) is mod.BotRecruiter
+
     def test_recruiter_config_value_used_if_not_debug(self, mod, stub_config):
         stub_config.extend({"mode": "sandbox", "recruiter": "CLIRecruiter"})
         r = mod.from_config(stub_config)
@@ -178,6 +184,7 @@ class TestCLIRecruiter:
 
     def test_open_recruitment_describes_how_it_works(self, recruiter):
         result = recruiter.open_recruitment()
+        assert result["message"].startswith("Single recruitment link: http")
         assert 'Search for "New participant requested:"' in result["message"]
 
     def test_open_recruitment_multiple(self, recruiter):

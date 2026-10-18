@@ -176,9 +176,13 @@
 ### Changed
 
 - The HotAir recruiter's launch message is now just the single recruitment
-  link. `dallinger debug` says that new participants will open in browser
-  windows only when browsers are enabled, rather than claiming so even with
-  `--no-browsers` or in `dallinger develop debug`, which never opens them.
+  link, and the CLI and HotAir messages no longer start with a blank line.
+  `dallinger debug` says that new participants will open in browser windows
+  only when browsers are enabled and the recruiter is the CLI or HotAir
+  recruiter, rather than claiming so with `--no-browsers`, `--bot`, other
+  recruiters, or in `dallinger develop debug`, which never opens them. The new
+  `recruiters.class_from_config()` returns the recruiter class that
+  `from_config()` would build, without constructing it.
 
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by

@@ -76,7 +76,8 @@ def setup_warning_hooks():
     warnings.showwarning = show_warnings_once
     warnings.simplefilter("default", Warning)
     # Python ignores ResourceWarning by default; interrupted startup emits many.
-    warnings.simplefilter("ignore", ResourceWarning)
+    if not sys.warnoptions:
+        warnings.simplefilter("ignore", ResourceWarning)
     warnings.simplefilter("ignore", category=sa_exc.SAWarning)
 
 

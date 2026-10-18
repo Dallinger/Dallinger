@@ -1207,7 +1207,7 @@ class CLIRecruiter(Recruiter):
         logger.debug("Opening CLI recruitment for {} participants".format(n))
         recruitments = self.recruit(n)
         message = (
-            "\nSingle recruitment link: {}/ad?recruiter={}&generate_tokens=1&mode={}\n\n"
+            "Single recruitment link: {}/ad?recruiter={}&generate_tokens=1&mode={}\n\n"
             'Search for "{}" in the logs for subsequent recruitment URLs.\n'
             "Open the logs for this experiment with "
             '"dallinger logs --app {}"'.format(
@@ -2365,41 +2365,62 @@ def from_config(config) -> Recruiter:
     the bot recruiter, which can be used in debug mode)
     and the MTurkRecruiter in other modes.
     """
+    klass = class_from_config(config)
+    return klass() if klass is not None else None
+
+
+def class_from_config(config):
+    """Return the Recruiter class that :func:`from_config` would instantiate.
+
+    Unlike :func:`from_config`, this does not construct the recruiter, so it
+    has no side effects such as creating API clients.
+
+    Parameters
+    ----------
+    config : dallinger.config.Configuration
+        The loaded experiment configuration.
+
+    Returns
+    -------
+    type or None
+        A Recruiter subclass, or None if ``debug_recruiter`` names an
+        unknown recruiter.
+    """
     debug_mode = config.get("mode") == "debug"
     name = config.get("recruiter", None)
-    recruiter = None
+    klass = None
 
     # Special case 1: Don't use a configured recruiter in replay mode
     if config.get("replay"):
-        return HotAirRecruiter()
+        return HotAirRecruiter
 
     if name is not None:
-        recruiter = by_name(name)
+        klass = _class_by_name(name)
 
         # Special case 2: may run BotRecruiter or MultiRecruiter in any mode
         # (debug or not), so it trumps everything else:
-        if isinstance(recruiter, (BotRecruiter, MultiRecruiter)):
-            return recruiter
+        if klass is not None and issubclass(klass, (BotRecruiter, MultiRecruiter)):
+            return klass
 
     # Special case 3: if we're not using bots and we're in debug mode,
     # if present, use the configured debug_recruiter or else fallback to HotAirRecruiter:
     if debug_mode:
-        if isinstance(recruiter, MockRecruiter):
-            return recruiter
-        if isinstance(recruiter, ProlificRecruiter):
-            return by_name("devprolific")
+        if klass is not None and issubclass(klass, MockRecruiter):
+            return klass
+        if klass is not None and issubclass(klass, ProlificRecruiter):
+            return _class_by_name("devprolific")
 
-        return by_name(config.get("debug_recruiter", "HotAirRecruiter"))
+        return _class_by_name(config.get("debug_recruiter", "HotAirRecruiter"))
 
     # Configured recruiter:
-    if recruiter is not None:
-        return recruiter
+    if klass is not None:
+        return klass
 
-    if name and recruiter is None:
+    if name:
         raise NotImplementedError("No such recruiter {}".format(name))
 
     # Default if we're not in debug mode:
-    return MTurkRecruiter()
+    return MTurkRecruiter
 
 
 def _descendent_classes(cls):
@@ -2409,11 +2430,8 @@ def _descendent_classes(cls):
             yield cls
 
 
-def by_name(name, **kwargs):
-    """Attempt to return a recruiter class by name.
-
-    Actual class names and known nicknames are both supported.
-    """
+def _class_by_name(name):
+    """Return the most derived recruiter class with this name or nickname."""
     by_name = {}
     for cls in _descendent_classes(Recruiter):
         ids = [cls.nickname, cls.__name__]
@@ -2426,6 +2444,14 @@ def by_name(name, **kwargs):
             if should_overwrite:
                 by_name[id_] = cls
 
-    klass = by_name.get(name)
+    return by_name.get(name)
+
+
+def by_name(name, **kwargs):
+    """Attempt to return a recruiter class by name.
+
+    Actual class names and known nicknames are both supported.
+    """
+    klass = _class_by_name(name)
     if klass is not None:
         return klass(**kwargs)

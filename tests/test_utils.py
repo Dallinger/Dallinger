@@ -140,14 +140,21 @@ class TestShowDeprecationWarningsOnce:
         redis_conn.set.assert_called_once_with(warning, "Logged")
 
 
-def test_setup_warning_hooks_keeps_resource_warnings_hidden():
+@pytest.mark.parametrize(
+    "warnoptions, expected",
+    [([], [UserWarning]), (["default"], [ResourceWarning, UserWarning])],
+)
+def test_setup_warning_hooks_hides_resource_warnings_unless_opted_in(
+    monkeypatch, warnoptions, expected
+):
+    monkeypatch.setattr("sys.warnoptions", warnoptions)
     with warnings.catch_warnings():
         utils.setup_warning_hooks()
         with warnings.catch_warnings(record=True) as caught:
             warnings.warn("unclosed socket", ResourceWarning)
             warnings.warn("visible", UserWarning)
 
-    assert [w.category for w in caught] == [UserWarning]
+    assert [w.category for w in caught] == expected
 
 
 @pytest.mark.usefixtures("in_tempdir")
