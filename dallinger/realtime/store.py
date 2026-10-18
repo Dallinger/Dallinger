@@ -48,6 +48,8 @@ The real-time engine needs redis 7.0 or later.
 # watches it.
 
 import json
+import threading
+import time
 import traceback
 
 from redis import WatchError
@@ -391,9 +393,67 @@ def add_entry(session_id, entry):
     return None if entry_id is None else entry_id.decode()
 
 
+#: Seconds between the pings that end a blocking read once its timeout has
+#: passed.
+WAKE_INTERVAL = 0.002
+
+
+class _Waker:
+    """Pings redis, from a thread of its own, while a blocking read is past its
+    timeout.
+
+    Redis ends a blocking command whose timeout has passed only when its event
+    loop next runs, which, with no other traffic, is every 1/``hz`` seconds:
+    100 milliseconds at redis's default ``hz`` of 10. Any command runs the
+    loop, so the waker sends ``PING`` every :data:`WAKE_INTERVAL` from the
+    read's deadline until the read returns. It serves one blocking read at a
+    time, as a runner makes them.
+    """
+
+    def __init__(self):
+        self.condition = threading.Condition()
+        self.due = None
+        self.thread = None
+
+    def arm(self, deadline):
+        """Start pinging at ``deadline``, a time on :func:`time.monotonic`."""
+        with self.condition:
+            self.due = deadline
+            if self.thread is None:
+                self.thread = threading.Thread(
+                    target=self.run, name="redis-waker", daemon=True
+                )
+                self.thread.start()
+            self.condition.notify()
+
+    def disarm(self):
+        with self.condition:
+            self.due = None
+
+    def run(self):
+        while True:
+            with self.condition:
+                while self.due is None or self.due > time.monotonic():
+                    self.condition.wait(
+                        None if self.due is None else self.due - time.monotonic()
+                    )
+                self.due += WAKE_INTERVAL
+            try:
+                redis_conn.ping()
+            except Exception:
+                # The read reports redis's errors itself, and any error left
+                # to end this thread would end the pings for good.
+                pass
+
+
+_waker = _Waker()
+
+
 def read_entries(positions, timeout, count=None):
     """Wait up to ``timeout`` seconds for entries after the given positions,
-    in one ``XREAD`` across the sessions' streams.
+    in one ``XREAD`` across the sessions' streams. A thread pings redis once
+    the timeout has passed, so the read returns within a few milliseconds of
+    its timeout, whatever redis's ``hz``.
 
     :param positions: a dict from each session id to its stream position
     :param count: the most entries to read from each session's stream, or
@@ -408,9 +468,15 @@ def read_entries(positions, timeout, count=None):
     # them, waiting up to block milliseconds while none has any. It treats a
     # block of 0 as no timeout at all.
     block = _ms(timeout) if timeout > 0 else None
+    if block is not None:
+        _waker.arm(time.monotonic() + block / 1000)
+    try:
+        # COUNT applies to each stream.
+        replies = redis_conn.xread(streams, count=count, block=block)
+    finally:
+        _waker.disarm()
     read = {}
-    # COUNT applies to each stream.
-    for key, items in redis_conn.xread(streams, count=count, block=block) or []:
+    for key, items in replies or []:
         read[keys[key.decode()]] = [
             (entry_id.decode(), fields) for entry_id, fields in items
         ]

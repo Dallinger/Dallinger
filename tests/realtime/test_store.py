@@ -51,6 +51,28 @@ def epoch(token):
     return int(token.split(":")[0])
 
 
+@pytest.fixture
+def redis_hz_10():
+    """Run redis's background tasks at its default rate, 10 times a second."""
+    hz = store.redis_conn.config_get("hz")["hz"]
+    store.redis_conn.config_set("hz", 10)
+    yield
+    store.redis_conn.config_set("hz", hz)
+
+
+def timed_reads(session_id, count, timeout):
+    """Return how long ``count`` reads of a session with nothing new take."""
+    started = time.monotonic()
+    for _ in range(count):
+        assert store.read_entries({session_id: None}, timeout) == {}
+    return time.monotonic() - started
+
+
+def ping_calls():
+    stats = store.redis_conn.info("commandstats")
+    return stats.get("cmdstat_ping", {}).get("calls", 0)
+
+
 def play_entries(session_id, entry_ids, now=1):
     """Run a pass over a session's entries, as a runner would."""
     items = dict(store.redis_conn.xrange(store.session_key(session_id, "entries")))
@@ -472,6 +494,45 @@ class TestReading:
         reader.join(1)
 
         assert not reader.is_alive()
+
+    @pytest.mark.timeout(10)
+    def test_reads_return_on_time_while_redis_is_idle(self, redis_hz_10, monkeypatch):
+        """Redis checks for timed-out reads only every 1/hz seconds by itself,
+        so five 20 millisecond reads would take about half a second. A ping
+        that fails doesn't stop later reads returning on time.
+        """
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+
+        def refuse():
+            raise RuntimeError("refused")
+
+        with monkeypatch.context() as patched:
+            patched.setattr(store.redis_conn, "ping", refuse)
+            timed_reads(session_id, 1, 0.02)
+
+        assert timed_reads(session_id, 5, 0.02) < 0.3
+
+    @pytest.mark.timeout(10)
+    def test_pings_go_on_until_the_read_returns(self, redis_hz_10, monkeypatch):
+        """A ping that reaches redis before the read's timeout has passed
+        doesn't end the read.
+        """
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        arm = store._waker.arm
+        monkeypatch.setattr(store._waker, "arm", lambda deadline: arm(deadline - 0.015))
+
+        assert timed_reads(session_id, 5, 0.02) < 0.3
+
+    @pytest.mark.timeout(10)
+    def test_reads_leave_redis_alone_once_they_return(self, redis_hz_10):
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        timed_reads(session_id, 1, 0.02)
+        # A ping sent just as the read returned may still be on its way.
+        time.sleep(0.02)
+        pings = ping_calls()
+        time.sleep(0.1)
+
+        assert ping_calls() == pings
 
     def test_entries_dropped_unapplied_are_counted(self, monkeypatch):
         monkeypatch.setattr(store, "MAX_ENTRIES", 10)
