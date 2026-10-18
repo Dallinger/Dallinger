@@ -1,9 +1,11 @@
 """Real-time sessions, kept in redis while they're played.
 
-Experiment code starts a session with :func:`create_realtime_session`, reads
-its state with :func:`realtime_state`, ends it early with
-:func:`end_realtime_session` and reads its saved outcome with
-:func:`realtime_result`. The rest of this module is for the web process and
+Experiment code starts a session with
+:func:`~dallinger.realtime.create_realtime_session`, reads its state with
+:func:`~dallinger.realtime.realtime_state`, ends it early with
+:func:`~dallinger.realtime.end_realtime_session` and reads its saved outcome
+with :func:`~dallinger.realtime.realtime_result`. All four can be imported
+from ``dallinger.realtime``. The rest of this module is for the web process and
 the runners.
 
 The real-time engine needs redis 7.0 or later.
@@ -66,8 +68,8 @@ MAX_ENTRIES = 10000
 RUNNING = "realtime:running"
 RUNNERS = "realtime:runners"
 
-#: Seconds an ended session stays in redis after
-#: :func:`~dallinger.realtime.jobs.write_ending` runs.
+#: Seconds an ended session stays in redis after its record is written, or
+#: fails to be.
 ENDED_SESSION_TTL = 3600
 
 # The keys an ended session can have when its final job runs. The save that
@@ -143,7 +145,7 @@ def experiment_games():
     each channel to an instance of its game type.
 
     :raises ValueError: as
-        :func:`~dallinger.realtime.game.validate_game_types` does
+        :func:`~dallinger.realtime.validate_game_types` does
     """
     experiment_class = experiment.load()
     return validate_game_types(
@@ -160,14 +162,13 @@ def create_realtime_session(game_type, players, bots=()):
     this returns, whatever happens to the caller's transaction. A runner
     picks it up and plays it until it ends. If the session can't then be
     added to redis, its row is marked failed and the error is raised.
-    :mod:`dallinger.realtime.runner` says how to start one.
 
     :param game_type: one of the experiment's
         :attr:`~dallinger.experiment.Experiment.realtime_games`
     :param players: the participant ids of the session's players, bots
         included
     :param bots: the players the runner plays for, using
-        :meth:`~dallinger.realtime.game.RealtimeGame.bot`, in the order they
+        :meth:`~dallinger.realtime.RealtimeGame.bot`, in the order they
         move
     :raises ValueError: if ``game_type`` isn't one of the experiment's game
         types, those game types are invalid, ``players`` is empty,
@@ -255,14 +256,14 @@ def end_realtime_session(session_id, reason):
 
     The session ends after the messages that arrived before this call, and
     ``reason`` is passed to
-    :meth:`~dallinger.realtime.game.RealtimeGame.outcome`. A session that has
+    :meth:`~dallinger.realtime.RealtimeGame.outcome`. A session that has
     already ended keeps its ending.
 
     :param reason: why the session ended, a non-empty string
     :raises ValueError: if ``reason`` isn't a non-empty string
     :raises KeyError: if there is no session ``session_id`` in redis. An
-        ended session's keys expire :data:`ENDED_SESSION_TTL` seconds after
-        its record is written.
+        ended session stays there for
+        :data:`~dallinger.realtime.store.ENDED_SESSION_TTL` seconds.
     """
     if not isinstance(reason, str) or not reason:
         raise ValueError("An ending's reason must be a non-empty string.")
@@ -273,7 +274,7 @@ def end_realtime_session(session_id, reason):
 
 def realtime_result(session_id):
     """Return a session's outcome, as
-    :meth:`~dallinger.realtime.game.RealtimeGame.outcome` returned it, once
+    :meth:`~dallinger.realtime.RealtimeGame.outcome` returned it, once
     its ending is saved in Postgres. Until then, and for a session whose
     record couldn't be written, return ``None``. An outcome can be ``None``
     too, so the session's :attr:`~dallinger.models.RealtimeSession.status`
@@ -294,7 +295,7 @@ def realtime_result(session_id):
 def realtime_state(session_id):
     """Return a session's state as a runner last saved it, which can be a
     moment behind the game. An ended session's state is kept for
-    :data:`ENDED_SESSION_TTL` seconds after its record is written.
+    :data:`~dallinger.realtime.store.ENDED_SESSION_TTL` seconds.
 
     :raises KeyError: if there is no session ``session_id``
     """

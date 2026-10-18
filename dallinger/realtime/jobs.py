@@ -22,7 +22,7 @@ def write_records(session_id):
     records, and :func:`write_ending` runs it once the session has ended. In
     one transaction, the job adds a :class:`~dallinger.models.RealtimeEvent`
     for each record, passes each effect to the game type's
-    :meth:`~dallinger.realtime.game.RealtimeGame.handle_effect`, and keeps the
+    :meth:`~dallinger.realtime.RealtimeGame.handle_effect`, and keeps the
     latest checkpoint on the session's
     :class:`~dallinger.models.RealtimeSession`. The job that writes the
     session's end record also saves the ending on the row, with the status

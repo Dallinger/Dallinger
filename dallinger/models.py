@@ -1924,10 +1924,10 @@ class RealtimeSession(Base):
     end_time = Column(DateTime)
 
     #: why the session ended, as
-    #: :meth:`~dallinger.realtime.game.RealtimeGame.outcome` receives it
+    #: :meth:`~dallinger.realtime.RealtimeGame.outcome` receives it
     end_reason = Column(String)
 
-    #: what :meth:`~dallinger.realtime.game.RealtimeGame.outcome` returned
+    #: what :meth:`~dallinger.realtime.RealtimeGame.outcome` returned
     outcome = Column(JSONB)
 
     #: the state when the session ended
@@ -2003,7 +2003,7 @@ class RealtimeEvent(Base):
     #: why a message was rejected, or why the session ended
     reason = Column(JSONB)
 
-    #: what :meth:`~dallinger.realtime.game.RealtimeGame.outcome` returned,
+    #: what :meth:`~dallinger.realtime.RealtimeGame.outcome` returned,
     #: for an ending
     outcome = Column(JSONB)
 

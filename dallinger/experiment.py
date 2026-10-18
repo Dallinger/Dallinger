@@ -98,12 +98,12 @@ class Experiment:
     channel = None
 
     #: The real-time game types the experiment plays, as a list of
-    #: :class:`~dallinger.realtime.game.RealtimeGame` subclasses. Runners play
+    #: :class:`~dallinger.realtime.RealtimeGame` subclasses. Runners play
     #: sessions of these game types, and
-    #: :func:`~dallinger.realtime.store.create_realtime_session` only starts
+    #: :func:`~dallinger.realtime.create_realtime_session` only starts
     #: sessions of them. Each needs a channel of its own, which can't be the
-    #: experiment's own ``channel``. An experiment with game types needs a
-    #: runner process, which :mod:`dallinger.realtime.runner` describes.
+    #: experiment's own ``channel``. When the list isn't empty, each of the
+    #: experiment's worker processes starts a runner beside it.
     realtime_games = []
 
     #: Constructor for Participant objects. Callable returning an instance of

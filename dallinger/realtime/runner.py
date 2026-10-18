@@ -1,4 +1,4 @@
-"""The runner, the process that plays real-time sessions.
+"""Runners are the processes that play real-time sessions.
 
 An experiment with :attr:`~dallinger.experiment.Experiment.realtime_games`
 needs a runner beside its web and worker processes. Each worker process
@@ -136,7 +136,7 @@ class Runner:
     type's instance, until :meth:`stop` is called.
 
     A runner in the main thread enforces each game type's
-    :attr:`~dallinger.realtime.game.RealtimeGame.time_limit`. One in another
+    :attr:`~dallinger.realtime.RealtimeGame.time_limit`. One in another
     thread can't, because the limit uses a signal.
     """
 

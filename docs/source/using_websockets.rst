@@ -99,8 +99,10 @@ incoming message goes straight to the
 :func:`~dallinger.experiment.Experiment.handle_websocket_message` method, on the
 web process that owns the socket, before the next message is read. Nothing is
 published to redis on the way. Use it when a participant's action has to be
-acted on immediately, such as a move in a turn-based game. The
-``dallinger.openExperimentSocket`` function opens such a connection, and is
+acted on immediately, such as a move in a turn-based game. Games in which
+players act at the same time, or which run on a timer, are better written for
+the real-time engine, which :doc:`Real-Time Games <realtime_games>` describes.
+The ``dallinger.openExperimentSocket`` function opens such a connection, and is
 described along with the rest of the client library in its own section below::
 
     var socket = dallinger.openExperimentSocket({channel: 'game_7'});
@@ -110,6 +112,12 @@ described along with the rest of the client library in its own section below::
 An experiment socket subscribes to ``channel`` just as a ``/chat`` connection
 does, so broadcasts to that channel reach the browser the same way. Only the
 inbound direction differs.
+
+A socket on either route that joins a real-time session sends the frames on
+its game type's channel to that session alone. They never reach
+:func:`~dallinger.experiment.Experiment.handle_websocket_message`, or any other
+subscriber, so a game's hidden information stays hidden. Frames on its other
+channels are handled as they would be without a session.
 
 ``channel`` is optional. A connection that leaves it out subscribes to nothing
 and receives nothing, which suits a game socket that only reports moves. It can
@@ -283,7 +291,21 @@ participants enrolled is not. Send that work to a worker with
 ``dallinger.db.get_queue()``, which is what the default
 :func:`~dallinger.experiment.Experiment.handle_websocket_message` does. An
 experiment that opens an experiment socket without overriding the method gets
-the same asynchronous handling ``/chat`` gives.
+the same asynchronous handling ``/chat`` gives. A game that has to answer
+moves at once can be written for the real-time engine instead, which keeps the
+game's state in redis and needs no database work on the web process.
+
+Calling redis while holding a row lock can stall other processes too. Code
+locks a row by updating it or with ``with_for_update()``, and keeps the lock
+until it commits. If it calls redis in between, including through
+:func:`~dallinger.experiment.Experiment.publish_to_participants` or
+:func:`~dallinger.experiment.Experiment.publish_to_subscribers`, the lock is
+held for as long as redis takes to answer, which can be seconds if redis is
+busy or unreachable. A web process that needs the same row waits all that
+time, and every socket and request it serves waits with it. A job on a worker
+process waits too, though the worker's other jobs carry on. Sending the message
+with :func:`dallinger.db.run_after_commit` releases the lock before redis is
+called.
 
 A handler will typically dispatch on the message type, doing the work that has
 to happen immediately and queueing the rest::

@@ -1,9 +1,10 @@
-"""Keeping a runner going beside the worker.
+"""Each worker keeps a runner going beside it.
 
 When the experiment has game types, each ``dallinger_heroku_worker`` process
 starts a runner as a child process, and starts another :data:`RESTART_DELAY`
 seconds after each time it exits. The platform restarts a worker that stops,
-but not a process the worker started.
+but not a process the worker started. A worker that can't load the experiment
+logs the error and starts no runner.
 
 When the worker gets ``SIGTERM`` or ``SIGINT``, it sends its runner
 ``SIGTERM`` at once, so the runner gives up its sessions while the worker

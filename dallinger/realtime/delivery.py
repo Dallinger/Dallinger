@@ -1,8 +1,8 @@
-"""How views reach players' pages.
+"""Views reach players' pages on the ``dallinger_direct`` channel.
 
 Runners send each player's page its views over the websocket the page opened
-to join its session, on the ``dallinger_direct`` channel. Each view arrives as
-a frame whose payload is a JSON object:
+to join its session. Each view arrives as a frame whose payload is a JSON
+object:
 
 - ``type``: ``"realtime_view"``
 - ``session_id``: the session the view is from
@@ -10,7 +10,7 @@ a frame whose payload is a JSON object:
   needs to know about it:
 
   - ``view``: the player's view of the state, from
-    :meth:`~dallinger.realtime.game.RealtimeGame.view`
+    :meth:`~dallinger.realtime.RealtimeGame.view`
   - ``time``: the session time the view shows
   - ``number``: counts the times the session has sent views, so a later view
     has a higher number
@@ -19,15 +19,15 @@ a frame whose payload is a JSON object:
   - ``last_processed``: the number of the latest message from this page that
     the game has applied or refused, or ``null``
   - ``rejected``: the messages from this page that
-    :meth:`~dallinger.realtime.game.RealtimeGame.apply` refused since the
+    :meth:`~dallinger.realtime.RealtimeGame.apply` refused since the
     page's last view, each a ``{"number", "reason"}`` object with the reason
-    it gave :class:`~dallinger.realtime.game.Reject`
+    it gave :class:`~dallinger.realtime.Reject`
   - ``ended``: why the session ended, once it has, otherwise ``null``
   - ``clock``: the runner's clock when it sent the view, in seconds since
     1970
 
-A message's number is the one the client helpers put in its envelope, as
-:class:`~dallinger.realtime.game.Sent` describes.
+A message's number is the one its page put in the message's envelope, as
+:mod:`dallinger.realtime.session_sockets` describes.
 
 Once a session's ending is saved in Postgres, each player who isn't a bot gets
 one more frame, on every page they have open:

@@ -94,6 +94,13 @@ try again later.
 ``scope`` is passed to ``handle_websocket_message`` as well as being reported in
 control channel events.
 
+Either route also takes a ``session`` argument, the id of a real-time session
+for the connection to join, as :doc:`Real-Time Games <realtime_games>`
+describes. A connection that names a session must also carry a
+``participant_id`` of one of the session's players, or the server closes it
+with code ``1008``, and with ``1013`` if the session can't be looked up. Frames
+it sends on the session's game channel go to the session, and to nothing else.
+
 Experiment routes
 ^^^^^^^^^^^^^^^^^
 

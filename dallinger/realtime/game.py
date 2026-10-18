@@ -27,24 +27,28 @@ from dataclasses import dataclass
 from dallinger.db import RESERVED_CHANNELS
 from dallinger.realtime.utils import copy_json, is_number
 
-#: The reason passed to :meth:`RealtimeGame.outcome` when
-#: :meth:`~RealtimeGame.is_over` returned true.
+#: The reason passed to :meth:`~dallinger.realtime.RealtimeGame.outcome` when
+#: :meth:`~dallinger.realtime.RealtimeGame.is_over` returned true.
 FINISHED = "finished"
 
-#: The reason passed to :meth:`RealtimeGame.outcome` when the session clock
-#: reached :attr:`~RealtimeGame.max_duration`.
+#: The reason passed to :meth:`~dallinger.realtime.RealtimeGame.outcome` when
+#: the session clock reached
+#: :attr:`~dallinger.realtime.RealtimeGame.max_duration`.
 MAX_DURATION = "max_duration"
 
-#: The reason passed to :meth:`RealtimeGame.outcome` when no player other than
-#: a bot opened the game's page within :attr:`~RealtimeGame.join_timeout`.
+#: The reason passed to :meth:`~dallinger.realtime.RealtimeGame.outcome` when
+#: no player other than a bot opened the game's page within
+#: :attr:`~dallinger.realtime.RealtimeGame.join_timeout`.
 NOT_JOINED = "not_joined"
 
-#: The reason passed to :meth:`RealtimeGame.outcome` when the session failed.
+#: The reason passed to :meth:`~dallinger.realtime.RealtimeGame.outcome` when
+#: the session failed.
 FAILED = "failed"
 
-#: The largest :attr:`RealtimeGame.time_limit` allowed, in seconds. Game code
-#: can run for up to twice its limit before the runner gives up on it, and
-#: that has to end before the runner's claims on its sessions expire.
+#: The largest :attr:`~dallinger.realtime.RealtimeGame.time_limit` allowed,
+#: in seconds. Game code can run for up to twice its limit before the runner
+#: gives up on it, and that has to end before the runner's claims on its
+#: sessions expire.
 MAX_TIME_LIMIT = 1
 
 # The list effects are queued in while the session core calls game code.
@@ -72,7 +76,8 @@ class Reject(Exception):
 class Sent:
     """What a player's page said about a message it sent.
 
-    The client helpers wrap each message in an envelope with these values.
+    A page sends these values in each message's envelope, as
+    :mod:`dallinger.realtime.session_sockets` describes.
     ``number`` counts the messages the page has sent, ``browser_time`` is the
     browser's clock when it sent this one, and ``view_time`` is the session
     time of the view the page was showing. Each is ``None`` when the page
@@ -102,8 +107,8 @@ class RealtimeGame(ABC):
     messages and ticks in batches, and a failure discards the whole batch:
     the session goes back to its state from before the batch, the batch's
     effects are dropped, and the session ends there with the reason
-    :data:`FAILED`. The batch's messages are still saved, marked as failed.
-    Other sessions carry on.
+    :data:`~dallinger.realtime.game.FAILED`. The batch's messages are still
+    saved, marked as failed. Other sessions carry on.
 
     Each session keeps a record in Postgres, in the order things happened:
 
@@ -145,7 +150,7 @@ class RealtimeGame(ABC):
     send_views_on_messages = True
 
     #: How many messages a second each connection from a page may send, on
-    #: average, counting the clock measurements the client helpers report.
+    #: average, counting the clock measurements the page reports.
     #: The web process drops messages over the limit, before they reach the
     #: session, and logs a warning.
     max_messages_per_second = 120
@@ -160,7 +165,8 @@ class RealtimeGame(ABC):
     #: never finishes. A failed session gets :meth:`outcome` and its final
     #: views from the time that's left, and gets ``None`` for any it runs
     #: out of time for. A runner plays all of its sessions in turn, so a slow
-    #: session holds up the others. At most :data:`MAX_TIME_LIMIT`.
+    #: session holds up the others. At most
+    #: :data:`~dallinger.realtime.game.MAX_TIME_LIMIT`.
     #:
     #: Code that catches every exception in a loop, with a bare ``except:``,
     #: can't be stopped this way. If it's still running after twice the
@@ -237,10 +243,13 @@ class RealtimeGame(ABC):
         """Return the session's result, saved in Postgres when the session
         ends.
 
-        :param reason: why the session ended: :data:`FINISHED`,
-            :data:`MAX_DURATION`, :data:`NOT_JOINED`, :data:`FAILED`, or the
-            reason the experiment gave when it ended the session. A session
-            that failed passes the state from before the failure.
+        :param reason: why the session ended:
+            :data:`~dallinger.realtime.game.FINISHED`,
+            :data:`~dallinger.realtime.game.MAX_DURATION`,
+            :data:`~dallinger.realtime.game.NOT_JOINED`,
+            :data:`~dallinger.realtime.game.FAILED`, or the reason the
+            experiment gave when it ended the session. A session that failed
+            passes the state from before the failure.
         """
         return None
 
@@ -329,8 +338,9 @@ class RealtimeGame(ABC):
 
         If this raises, nothing from the job is saved, and the session fails:
         its record stops there, and a game still being played ends with the
-        reason :data:`FAILED`. By default it raises :class:`NotImplementedError`, so a
-        game type that queues effects has to define it.
+        reason :data:`~dallinger.realtime.game.FAILED`. By default it raises
+        :class:`NotImplementedError`, so a game type that queues effects has
+        to define it.
 
         :param name: the effect's name
         :param payload: the effect's payload

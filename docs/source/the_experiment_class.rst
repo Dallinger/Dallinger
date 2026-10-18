@@ -51,6 +51,9 @@ what to do with the database when the server receives requests from outside.
   .. autoattribute:: channel
     :annotation:
 
+  .. autoattribute:: realtime_games
+    :annotation:
+
   .. attribute:: public_properties
 
      dictionary, the properties of this experiment that are exposed

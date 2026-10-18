@@ -165,7 +165,9 @@
   session's id as a `session` query parameter, on `/chat` or
   `/experiment-socket`, and sends its moves on the game type's channel, within
   a per-socket rate limit the game type sets. The engine needs Redis 7.0 or
-  later.
+  later. `RealtimeGame`, `Reject` and the session functions import from
+  `dallinger.realtime`, and the new "Real-Time Games" docs page describes the
+  engine.
 - `Experiment.accept_websocket_connection(participant_id, scope)` lets an
   experiment refuse an `/experiment-socket` connection when it opens. A falsy
   return closes the socket with code `1008`, and Dallinger's client helpers

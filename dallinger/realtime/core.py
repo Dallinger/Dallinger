@@ -93,8 +93,8 @@ class PassResult:
 
     ``next_due`` is the session time of the session's next tick, or of the
     time it ends at, from
-    :attr:`~dallinger.realtime.game.RealtimeGame.max_duration` or
-    :attr:`~dallinger.realtime.game.RealtimeGame.join_timeout`, if that comes
+    :attr:`~dallinger.realtime.RealtimeGame.max_duration` or
+    :attr:`~dallinger.realtime.RealtimeGame.join_timeout`, if that comes
     first: the time by which the session needs another pass even if no entry
     arrives. It's ``None`` if neither is coming, or the session has ended.
     """
@@ -112,7 +112,7 @@ def new_session(game, members, bots=()):
     :param members: the participant ids of the session's players, bots
         included
     :param bots: the players the runner plays for, using
-        :meth:`~dallinger.realtime.game.RealtimeGame.bot`
+        :meth:`~dallinger.realtime.RealtimeGame.bot`
     """
     members = [str(member) for member in members]
     bots = [str(bot) for bot in bots]
@@ -235,7 +235,7 @@ def _bare_failure(saved, error):
 
 
 def parse_message(data):
-    """Return the payload and the :class:`~dallinger.realtime.game.Sent` of a
+    """Return the payload and the :class:`~dallinger.realtime.Sent` of a
     game frame's ``data``.
 
     Data that isn't JSON, or is nested too deeply to read, is a string

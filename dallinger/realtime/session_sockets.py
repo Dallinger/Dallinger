@@ -1,11 +1,31 @@
-"""How a page's websocket takes part in a real-time session.
+"""A page's websocket can take part in a real-time session.
 
 A page joins a session by opening a websocket with the session's id in the
 ``session`` query parameter. The web process adds a join to the session when
 the socket is ready, a message for each frame the page sends on the game
 type's channel, and a leave when the socket closes. Frames on a game channel
 are never broadcast or passed to
-:meth:`~dallinger.experiment.Experiment.handle_websocket_message`.
+:meth:`~dallinger.experiment.Experiment.handle_websocket_message`. The runner
+answers each join with the player's current view, so a page that opens or
+reopens its socket gets one without asking.
+
+A page sends each message as a JSON object with two keys, so the game knows
+what the page said about it and the page's views can acknowledge it:
+
+- ``payload``: the message, which
+  :meth:`~dallinger.realtime.RealtimeGame.apply` receives
+- ``envelope``: an object holding the values
+  :class:`~dallinger.realtime.Sent` describes. ``number`` counts the
+  page's messages, a whole number from 0 to 2147483647 that goes up by one
+  with each message. Views report the number of the latest message the game
+  processed rather than the highest, so a page can count again from the
+  start when it reloads. ``browser_time`` is a number read from the
+  browser's clock, and ``view_time`` is the ``time`` of the view the page was
+  showing.
+
+Any other frame is still applied, with ``None`` for each of the ``Sent``
+values, and no view acknowledges it. A frame that is JSON is passed to
+``apply`` as it is, and any other text as a string.
 
 A page whose session has already ended gets no join. Its socket gets the
 session's ending instead, as :mod:`dallinger.realtime.delivery` describes.
@@ -33,8 +53,11 @@ A page measures its clock against the server's with frames on
 A socket with no session gets no answers, and its reports are dropped.
 
 The web process only checks that the participant the socket names is one of
-the session's players. Dallinger's sockets don't authenticate anyone, so a
-page that names another player's participant id can play as that player. An
+the session's players, and closes the socket with code ``1008`` and the reason
+``not a player in this session`` if not. If redis fails while the session is
+looked up or joined, it closes the socket with ``1013``, which tells the page
+to try again later. Dallinger's sockets don't authenticate anyone, so a page
+that names another player's participant id can play as that player. An
 experiment can check ``/experiment-socket`` connections itself with
 :func:`~dallinger.experiment.Experiment.accept_websocket_connection`, but a
 ``/chat`` connection can join a session without that check.
@@ -131,8 +154,8 @@ class SessionSocket(NoSession):
     messages, clock reports and leave to the session's entries.
 
     Each connection has its own rate limit, from the game type's
-    :attr:`~dallinger.realtime.game.RealtimeGame.max_messages_per_second`
-    and :attr:`~dallinger.realtime.game.RealtimeGame.message_burst`.
+    :attr:`~dallinger.realtime.RealtimeGame.max_messages_per_second`
+    and :attr:`~dallinger.realtime.RealtimeGame.message_burst`.
     """
 
     def __init__(self, session_id, game, participant, scope, describe):
