@@ -611,16 +611,21 @@ def test_heroku_local_monitor_is_quiet_after_requested_stop(wrapper):
     wrapper.out.error.assert_not_called()
 
 
-def test_heroku_local_cancels_timeout_when_boot_fails(wrapper):
+def test_heroku_local_cancels_timeout_before_cleaning_up_a_failed_boot(wrapper):
+    calls = []
     with (
         mock.patch("dallinger.heroku.tools.signal.signal"),
-        mock.patch("dallinger.heroku.tools.signal.alarm") as alarm,
+        mock.patch(
+            "dallinger.heroku.tools.signal.alarm",
+            side_effect=lambda secs: calls.append(("alarm", secs)),
+        ),
         mock.patch.object(wrapper, "_boot", side_effect=OSError),
+        mock.patch.object(wrapper, "stop", side_effect=lambda: calls.append("stop")),
         pytest.raises(OSError),
     ):
         wrapper.start(timeout_secs=12)
 
-    assert alarm.call_args_list == [mock.call(12), mock.call(0)]
+    assert calls[:3] == [("alarm", 12), ("alarm", 0), "stop"]
 
 
 def test_heroku_local_start_raises_without_home_dir_set(wrapper):
