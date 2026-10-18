@@ -14,8 +14,15 @@
 - Stopping the local server now waits for the Procfile processes to exit and
   kills any that remain. Previously `heroku local` exited straight away and
   left gunicorn processes running. Pressing Ctrl+C during startup, or
-  sending SIGTERM (e.g. `kill <pid>` or an IDE stop button) to a local debug
-  session, now also stops these processes.
+  sending SIGTERM or SIGHUP (e.g. `kill <pid>`, an IDE stop button, or
+  closing the terminal) to a local debug session, now also stops these
+  processes.
+- `dallinger develop debug` (used by `psynet debug local`) now runs the
+  Flask server in its own process group and stops that whole group when
+  interrupted. Ctrl+C prints "Local server stopped." instead of several
+  tracebacks, and SIGTERM or SIGHUP also stops the server, worker and clock.
+  If the server exits with an error, for example because the port is in
+  use, the command now exits with a non-zero status instead of 0.
 - Migration notes for code that builds on local debugging:
   - The wrapper class is now `LocalProcfileWrapper`. `HerokuLocalWrapper`
     remains as an alias.

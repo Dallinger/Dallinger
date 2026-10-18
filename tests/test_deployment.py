@@ -1937,18 +1937,20 @@ def test_debug_deployment_keeps_preset_flask_secret_key(monkeypatch, preset):
         assert len(key) == 32
 
 
-def test_sigterm_stops_local_server_like_ctrl_c():
+@pytest.mark.parametrize("signame", ["SIGTERM", "SIGHUP"])
+def test_signal_stops_local_server_like_ctrl_c(signame):
     import signal
     import time
 
     from dallinger.deployment import _sigterm_raises_keyboard_interrupt
 
-    if signal.getsignal(signal.SIGTERM) != signal.SIG_DFL:
-        pytest.skip("SIGTERM already has a handler")
+    signum = getattr(signal, signame)
+    if signal.getsignal(signum) != signal.SIG_DFL:
+        pytest.skip(f"{signame} already has a handler")
     with raises(KeyboardInterrupt), _sigterm_raises_keyboard_interrupt():
-        os.kill(os.getpid(), signal.SIGTERM)
+        os.kill(os.getpid(), signum)
         time.sleep(5)
-    assert signal.getsignal(signal.SIGTERM) == signal.SIG_DFL
+    assert signal.getsignal(signum) == signal.SIG_DFL
 
 
 @pytest.mark.usefixtures("bartlett_dir", "clear_workers", "env")

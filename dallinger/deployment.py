@@ -460,25 +460,31 @@ class DevelopmentDeployment:
 
 @contextmanager
 def _sigterm_raises_keyboard_interrupt():
-    """Treat SIGTERM like Ctrl-C, so ``kill <pid>`` also stops the local server.
+    """Treat SIGTERM and SIGHUP like Ctrl-C, so ``kill <pid>`` or closing the
+    terminal also stops the local server.
 
-    Does nothing outside the main thread or if SIGTERM already has a handler.
+    Does nothing outside the main thread, and leaves alone any of these
+    signals that already has a handler or is ignored.
     """
-    if (
-        threading.current_thread() is not threading.main_thread()
-        or signal.getsignal(signal.SIGTERM) != signal.SIG_DFL
-    ):
+    if threading.current_thread() is not threading.main_thread():
         yield
         return
 
     def _interrupt(signum, frame):
         raise KeyboardInterrupt
 
-    signal.signal(signal.SIGTERM, _interrupt)
+    signums = [
+        signum
+        for signum in (signal.SIGTERM, signal.SIGHUP)
+        if signal.getsignal(signum) == signal.SIG_DFL
+    ]
+    for signum in signums:
+        signal.signal(signum, _interrupt)
     try:
         yield
     finally:
-        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        for signum in signums:
+            signal.signal(signum, signal.SIG_DFL)
 
 
 class HerokuLocalDeployment:

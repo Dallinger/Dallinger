@@ -502,6 +502,60 @@ class TestDevelopCommand:
         assert result.exit_code == 0, result.output
         assert builder.call_count == 1
 
+    def test_debug_fails_when_server_fails(self, develop, monkeypatch):
+        monkeypatch.setenv("FLASK_OPTIONS", "--no-such-option")
+        with mock.patch("dallinger.command_line.develop.Queue"):
+            result = CliRunner().invoke(develop, ["debug", "--no-browsers"])
+
+        assert result.exit_code == 1
+        assert "The local server exited with status 2" in result.output
+
+
+def test_dev_server_stops_quietly_on_ctrl_c(tmp_path):
+    import signal
+
+    pid_file = tmp_path / "grandchild.pid"
+    grandchild = (
+        "import os, signal, sys, time\n"
+        "def report(signum, frame):\n"
+        "    print('got', signal.Signals(signum).name, flush=True)\n"
+        "    if signum == signal.SIGTERM: sys.exit()\n"
+        "signal.signal(signal.SIGINT, report)\n"
+        "signal.signal(signal.SIGTERM, report)\n"
+        f"open({str(pid_file)!r}, 'w').write(str(os.getpid()))\n"
+        "time.sleep(60)\n"
+    )
+    server = [
+        sys.executable,
+        "-c",
+        f"import subprocess, sys; subprocess.run([sys.executable, '-c', {grandchild!r}])",
+    ]
+    parent = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "from dallinger.command_line.develop import _run_dev_server\n"
+            f"_run_dev_server({server!r}, {str(tmp_path)!r})",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
+    )
+    for _ in range(300):
+        if pid_file.exists() and pid_file.read_text():
+            break
+        sleep(0.1)
+    os.killpg(parent.pid, signal.SIGINT)
+    output = parent.communicate(timeout=30)[0]
+
+    assert parent.returncode == 0, output
+    assert "got SIGTERM" in output
+    for unwanted in ("Traceback", "Aborted!", "got SIGINT"):
+        assert unwanted not in output
+    with pytest.raises(ProcessLookupError):
+        os.kill(int(pid_file.read_text()), 0)
+
 
 @pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")
 class TestDebugCommand:

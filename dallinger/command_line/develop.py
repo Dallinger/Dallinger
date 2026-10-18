@@ -1,3 +1,5 @@
+import os
+import signal
 import subprocess
 import threading
 import time
@@ -8,7 +10,6 @@ from rq import Queue
 
 from dallinger.command_line.utils import (
     Output,
-    error,
     get_experiment_files,
     header,
     log,
@@ -16,7 +17,11 @@ from dallinger.command_line.utils import (
 )
 from dallinger.config import get_config
 from dallinger.db import redis_conn
-from dallinger.deployment import DevelopmentDeployment, handle_launch_data
+from dallinger.deployment import (
+    DevelopmentDeployment,
+    _sigterm_raises_keyboard_interrupt,
+    handle_launch_data,
+)
 from dallinger.utils import (
     develop_target_path,
     open_browser,
@@ -96,10 +101,51 @@ def debug(port, skip_flask, no_browsers=False):
         config = get_config()
         develop_dir = develop_target_path(config)
         try:
-            subprocess.check_call(["./run.sh"], cwd=develop_dir)
-        except subprocess.CalledProcessError as ex:
+            _run_dev_server(["./run.sh"], develop_dir)
+        except click.ClickException:
             job.cancel()
-            error("Failed to run flask: {} See traceback above for details.".format(ex))
+            raise
+
+
+def _run_dev_server(cmd, cwd):
+    """Run the local server until it exits or this process is interrupted.
+
+    The server runs in its own session, so Ctrl-C reaches only this process,
+    which then stops the server's whole process group. SIGTERM and SIGHUP
+    are treated like Ctrl-C.
+
+    Parameters
+    ----------
+    cmd : list of str
+        Command that starts the server.
+    cwd : str
+        Directory to run ``cmd`` in.
+
+    Raises
+    ------
+    click.ClickException
+        If the server exits with a non-zero status of its own accord.
+    """
+    try:
+        with _sigterm_raises_keyboard_interrupt():
+            proc = subprocess.Popen(cmd, cwd=cwd, start_new_session=True)
+            try:
+                code = proc.wait()
+            finally:
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+    except KeyboardInterrupt:
+        log("Local server stopped.")
+        return
+    if code:
+        raise click.ClickException(
+            f"The local server exited with status {code}; see its output above."
+        )
 
 
 @develop.command()
