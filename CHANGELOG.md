@@ -7,7 +7,9 @@
 - `dallinger docker-ssh destroy --remove-data` also deletes the app's data
   folder `~/dallinger-data/<app>`, using a root container when the SSH user
   can't. It shows the folder's size and asks before tearing anything down;
-  `--yes` skips the question. It works after the app has been destroyed.
+  `--yes` skips the question and is required in non-interactive sessions. It
+  won't delete the folder while the app's containers run, and only unlinks a
+  symlink. It works after the app has been destroyed.
   Without the flag, destroy keeps the folder and prints where it is and how
   to delete it.
 - Added the `cloudflare_keychain_service` config key, which names the macOS

@@ -579,8 +579,11 @@ delete the data folder, export anything you need, then run destroy with
 
 Destroy then shows the folder's size and asks you to confirm before it removes
 anything, so answering no leaves a running app untouched. Add ``--yes`` to skip
-the question. The folder is not deleted while the app's containers are still
-running.
+the question; in a non-interactive session, such as a script, ``--yes`` is
+required. The folder is not deleted while the app's containers are still
+running, or if Dallinger can't check whether they are. If
+``~/dallinger-data/$APP_ID`` is a symlink, only the link is removed and its
+target is kept.
 
 The data folder's parent is often owned by root, so if the SSH user can't
 delete the folder, Dallinger deletes it with a short-lived root ``alpine``

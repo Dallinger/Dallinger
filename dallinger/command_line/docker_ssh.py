@@ -2423,60 +2423,101 @@ def _inspect_container_env(executor, container):
     return env
 
 
-def _app_data_exists(executor, app):
-    """True if ``~/dallinger-data/<app>`` exists, even as a dangling symlink."""
+def _app_data_link_target(executor, app):
+    """Return ``(exists, symlink_target)`` for ``~/dallinger-data/<app>``.
+
+    ``symlink_target`` is None unless the path is a symlink, dangling or not.
+    """
     path = f"~/dallinger-data/{quote(app)}"
-    return bool(
-        executor.run(f"{{ [ -e {path} ] || [ -L {path} ]; }} && echo Yes", raise_=False)
+    out = executor.run(
+        f'if [ -L {path} ]; then echo "symlink $(readlink {path})"; '
+        f"elif [ -e {path} ]; then echo dir; fi",
+        raise_=False,
     )
+    out = (out or "").strip()
+    if out.startswith("symlink"):
+        return True, out[len("symlink") :].strip()
+    return out == "dir", None
+
+
+def _app_data_size(executor, app):
+    """Return a human-readable size for the app's data folder, or None.
+
+    ``du`` is capped at 15 seconds; a size from a ``du`` that hit unreadable
+    files is reported as a lower bound.
+    """
+    out = executor.run(
+        f'timeout 15 du -sh ~/dallinger-data/{quote(app)} 2>/dev/null; echo "rc=$?"',
+        raise_=False,
+    )
+    lines = (out or "").strip().splitlines()
+    if len(lines) < 2 or not lines[-1].startswith("rc="):
+        return None
+    size, rc = lines[0].split("\t")[0].strip(), lines[-1][3:]
+    if not size or rc in ("124", "127"):
+        return None
+    return size if rc == "0" else f"at least {size}"
+
+
+def _stdin_is_tty():
+    """True if a user can answer a confirmation prompt."""
+    return sys.stdin.isatty()
 
 
 def _confirm_app_data_removal(executor, app, ssh_host):
     """Ask before deleting an app's data folder; abort if the user declines."""
-    if not _app_data_exists(executor, app):
+    exists, link_target = _app_data_link_target(executor, app)
+    if not exists:
         return
-    size = (
-        executor.run(
-            f"du -sh ~/dallinger-data/{quote(app)} 2>/dev/null | cut -f1",
-            raise_=False,
+    path = f"~/dallinger-data/{app}"
+    if link_target is not None:
+        question = (
+            f"Delete the symlink {path} (symlink to {link_target}) on {ssh_host}? "
+            "Only the link is removed; its target is kept."
         )
-        or ""
-    ).strip()
-    size_part = f" ({size})" if size else ""
-    click.confirm(
-        f"Delete ~/dallinger-data/{app}{size_part} on {ssh_host}? "
-        "This cannot be undone.",
-        default=False,
-        abort=True,
-    )
+    else:
+        size = _app_data_size(executor, app)
+        size_part = f" ({size})" if size else ""
+        question = f"Delete {path}{size_part} on {ssh_host}? This cannot be undone."
+    click.confirm(question, default=False, abort=True)
 
 
 def _remove_app_data(executor, app):
     """Delete ``~/dallinger-data/<app>``, falling back to a root container.
 
     The parent folder is usually root-owned, so the SSH user cannot unlink
-    the app folder itself. Skipped while the app's containers still run.
+    the app folder itself. Refuses unless Docker confirms that none of the
+    app's containers are running. A symlink is unlinked; its target is kept.
     """
     path = f"~/dallinger-data/{app}"
-    project = re.sub(r"[^a-z0-9_-]", "", app.lower())
-    running = executor.run(
-        f"docker compose -p {quote(project)} ps -q 2>/dev/null", raise_=False
+    label = f"com.docker.compose.project={_compose_project(app)}"
+    status, running, stderr = executor.run_with_status(
+        f"docker ps -q --filter {quote(label)}"
     )
+    if status != 0:
+        print(
+            f"Warning: not removing {path}: could not check whether containers "
+            f"of {app} are running. {(stderr or '').strip()}"
+        )
+        return
     if (running or "").strip():
         print(f"Warning: not removing {path}: containers of {app} are still running.")
         return
     status, stdout, stderr = executor.run_with_status(
-        f'app={quote(app)}; parent="$HOME/dallinger-data"; '
-        'if [ ! -e "$parent/$app" ] && [ ! -L "$parent/$app" ]; then '
-        "echo absent; exit 0; fi; "
-        'rm -rf "$parent/$app" 2>/dev/null || '
+        f'app={quote(app)}; parent="$HOME/dallinger-data"; p="$parent/$app"; '
+        'if [ -L "$p" ]; then kind="symlink $(readlink "$p")"; '
+        'elif [ -e "$p" ]; then kind=dir; else echo absent; exit 0; fi; '
+        'rm -rf "$p" 2>/dev/null || '
         'docker run --rm -v "$parent:/data" alpine:3.20 rm -rf "/data/$app"; '
-        'if [ -e "$parent/$app" ] || [ -L "$parent/$app" ]; then echo failed; '
-        "else echo removed; fi"
+        'if [ -e "$p" ] || [ -L "$p" ]; then echo failed; '
+        'else echo "removed $kind"; fi'
     )
     result = (stdout or "").strip()
-    if result == "removed":
+    if result == "removed dir":
         print(f"Removed {path}")
+    elif result.startswith("removed symlink"):
+        target = result[len("removed symlink") :].strip()
+        print(f"Removed the symlink {path}; its target {target} was kept.")
     elif result == "absent":
         print(f"No data folder {path} to remove")
     else:
@@ -2504,6 +2545,10 @@ def destroy(server, app, remove_data=False, yes=False):
     """Tear down an experiment run on a server you control via ssh."""
     if not APP_NAME_PATTERN.fullmatch(app):
         raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
+    if remove_data and not yes and not _stdin_is_tty():
+        raise click.UsageError(
+            "--remove-data needs confirmation; pass --yes in non-interactive sessions."
+        )
     server_info = _resolve_server_info(server)
     ssh_address = server_info["host"]
     ssh_host, _ = split_ssh_host_port(ssh_address)
@@ -2596,7 +2641,7 @@ def destroy(server, app, remove_data=False, yes=False):
     print(f"App {app} removed")
     if remove_data:
         _remove_app_data(executor, app)
-    elif _app_data_exists(executor, app):
+    elif _app_data_link_target(executor, app)[0]:
         print(
             f"Kept the app's data folder ~/dallinger-data/{app} on {ssh_host}. "
             "To delete it, run: dallinger docker-ssh destroy "
@@ -3051,6 +3096,14 @@ class Executor:
                     break
 
 
+def _compose_project(app):
+    """Return the Compose project name for ``app``, as Compose normalizes it.
+
+    Compose labels the app's containers with this name.
+    """
+    return re.sub(r"[^a-z0-9_-]", "", app.lower())
+
+
 def get_docker_compose_yml(
     config: Dict[str, str],
     experiment_id: str,
@@ -3084,8 +3137,7 @@ def get_docker_compose_yml(
         idle_enabled=str(idle_enabled).lower(),
         idle_minutes=idle_minutes,
         controller_image=CONTROLLER_IMAGE,
-        # Compose's own project-name normalization, which its labels use.
-        compose_project=re.sub(r"[^a-z0-9_-]", "", experiment_id.lower()),
+        compose_project=_compose_project(experiment_id),
         run_as_ssh_user=run_as_ssh_user,
     )
 
