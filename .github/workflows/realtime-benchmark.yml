@@ -56,14 +56,14 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/benchmark" results
           echo "TMPDIR=$RUNNER_TEMP/benchmark" >> "$GITHUB_ENV"
-      - name: Run the benchmark
+      - name: Run the engine and the store simulation back to back
         run: |
-          for run in $(seq "$REPEATS"); do
-            python benchmarks/realtime.py $ARGS --output "results/realtime-$run.json"
+          for run in 1 2; do
+            python benchmarks/realtime.py --sessions 10 --cpu-load off --output "results/realtime-$run.json"
+            python benchmarks/realtime_store_sim.py --sessions 10 --output "results/sim-$run.json"
           done
-      - name: Run the benchmark at its default load
-        if: github.event_name == 'push' || inputs.default_load
-        run: python benchmarks/realtime.py --output results/realtime-default.json
+      - name: Run the store simulation at 20 sessions
+        run: python benchmarks/realtime_store_sim.py --output results/sim-20.json
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
