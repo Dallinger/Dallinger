@@ -157,8 +157,10 @@ class RealtimeGame(ABC):
 
     #: How many messages a connection may send at once before
     #: :attr:`max_messages_per_second` applies. A connection that has sent
-    #: nothing for a while can send this many in a burst.
-    message_burst = 20
+    #: nothing for a while can send this many in a burst. Messages that wait
+    #: while the web process is busy reach it together, so a burst well above
+    #: a page's steady rate keeps them from being dropped.
+    message_burst = 120
 
     #: Seconds the game type's methods may run for in total each time the
     #: runner plays a session, before the session fails. It catches code that

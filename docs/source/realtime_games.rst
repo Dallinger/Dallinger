@@ -177,8 +177,11 @@ it.
 
 Each page may send up to
 :attr:`~dallinger.realtime.RealtimeGame.max_messages_per_second` messages a
-second on average, 120 by default, with short bursts allowed. Dallinger drops
-the messages over the limit and logs a warning.
+second on average, 120 by default, and up to
+:attr:`~dallinger.realtime.RealtimeGame.message_burst` at once, also 120 by
+default. Dallinger drops the messages over the limit and logs a warning. The
+burst allows for messages that queue up while the web process is busy and
+then reach it all at once.
 
 Joins, Leaves and Bots
 ~~~~~~~~~~~~~~~~~~~~~~

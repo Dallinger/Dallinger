@@ -267,6 +267,16 @@ class TestSessionSockets:
         (call,) = warning.call_args_list
         assert "rate limit" in call.args[-1]
 
+    def test_a_backlog_a_busy_web_process_reads_at_once_is_kept(self, sockets):
+        """Two seconds of messages at 50 a second, all handled together."""
+        session_id = session_of()
+        ws = scripted(*["tally:{}".format(n) for n in range(100)])
+
+        chat(sockets, ws, session=session_id, participant_id="1")
+
+        messages = [e for e in entries(session_id) if e["type"] == "message"]
+        assert len(messages) == 100
+
     def test_a_message_redis_refuses_is_dropped_and_the_socket_kept(
         self, sockets, warning
     ):
