@@ -670,6 +670,24 @@ def test_run_with_status_reconnects_once_when_connection_died(monkeypatch):
     dead.close.assert_called_once()
 
 
+def test_forgetting_a_stale_client_keeps_its_replacement_until_close(monkeypatch):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    old, new = mock.Mock(), mock.Mock()
+    connect = mock.Mock(side_effect=[old, new])
+    monkeypatch.setattr(docker_ssh, "_connect_ssh_client", connect)
+    executor = docker_ssh.Executor("example.com")
+    old.get_transport.return_value.is_active.return_value = False
+    assert executor.client is new
+
+    docker_ssh._forget_ssh_client("example.com", None, old)
+    assert executor.client is new
+    new.close.assert_not_called()
+
+    executor.close()
+    new.close.assert_called_once()
+    assert connect.call_count == 2
+
+
 def test_run_with_status_keeps_a_live_connection_that_refuses_a_channel(monkeypatch):
     docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
     refused = docker_ssh.paramiko.ChannelException(2, "MaxSessions")
