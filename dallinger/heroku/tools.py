@@ -676,7 +676,7 @@ class HerokuLocalWrapper:
 
 
 def local_worker_processes(database_url=None):
-    """Return running local ``dallinger_heroku_*`` processes for one database.
+    """Return running local Dallinger processes for one database.
 
     Parameters
     ----------
@@ -687,9 +687,10 @@ def local_worker_processes(database_url=None):
     Returns
     -------
     list of psutil.Process
-        Web and worker processes started by ``heroku local`` whose
-        ``DATABASE_URL`` matches. Processes whose details can't be read are
-        treated as someone else's and left out.
+        Web and worker processes started by ``heroku local``, and the
+        real-time runners the workers start, whose ``DATABASE_URL`` matches.
+        Processes whose details can't be read are treated as someone else's
+        and left out.
     """
     from dallinger.db import corrected_db_url, db_url_default
 
@@ -712,12 +713,14 @@ def local_worker_processes(database_url=None):
 
 def _is_local_worker_process(process):
     name = process.name()
-    # Linux names the process after its truncated entry-point script.
-    if name.startswith("dallinger_herok"):
+    # Linux names the process after its entry-point script, cut to 15
+    # characters.
+    if name.startswith(("dallinger_herok", "dallinger_realt")):
         return True
     # macOS names it after the Python interpreter running the script.
     return "python" in name.lower() and any(
         os.path.basename(argument).startswith("dallinger_heroku_")
+        or os.path.basename(argument) == "dallinger_realtime"
         for argument in process.cmdline()[:2]
     )
 

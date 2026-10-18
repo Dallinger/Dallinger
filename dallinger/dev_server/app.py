@@ -7,6 +7,7 @@ import codecs  # noqa: E402
 import os  # noqa: E402
 import subprocess  # noqa: E402
 
+import psutil  # noqa: E402
 import werkzeug  # noqa: E402
 
 from dallinger.experiment_server.experiment_server import app  # noqa: E402, F401
@@ -18,6 +19,12 @@ if werkzeug.serving.is_running_from_reloader():
     clock = subprocess.Popen(["dallinger_heroku_clock"])
 
     def cleanup():
+        # A killed worker can't stop its real-time runner.
+        try:
+            for child in psutil.Process(worker.pid).children(recursive=True):
+                child.kill()
+        except psutil.NoSuchProcess:
+            pass
         worker.kill()
         clock.kill()
 

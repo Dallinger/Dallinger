@@ -32,6 +32,13 @@ def _process(name, cmdline, env=None):
             ),
             True,
         ),
+        (_process("dallinger_realt", ["dallinger_realtime"]), True),
+        (
+            _process(
+                "python3.13", ["/venv/bin/python", "/venv/bin/dallinger_realtime"]
+            ),
+            True,
+        ),
         (
             _process(
                 "dallinger_herok", [], {"DATABASE_URL": "postgres://x@localhost/other"}

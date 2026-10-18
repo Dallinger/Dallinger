@@ -1,7 +1,8 @@
 """Runners in processes of their own, stopped and killed while they play.
 
 Each runner imports Dallinger and, except where a test runs the
-``dallinger_realtime`` script itself, plays with claims that last a second.
+``dallinger_realtime`` or ``dallinger_heroku_worker`` script, plays with
+claims that last a second.
 """
 
 import json
@@ -11,10 +12,11 @@ import subprocess
 import sys
 import time
 
+import psutil
 import pytest
 
-from dallinger.db import DIRECT_CHANNEL
-from dallinger.realtime import store
+from dallinger.db import DIRECT_CHANNEL, get_queue
+from dallinger.realtime import store, supervisor
 from dallinger.realtime.game import FAILED
 from dallinger.realtime.runner import owner
 from tests.realtime.helpers import add, handovers, join, message
@@ -74,7 +76,10 @@ from dallinger_scripts.realtime import main
 main()
 """
 
-SCRIPT = os.path.join(os.path.dirname(sys.executable), "dallinger_realtime")
+# The worker finds dallinger_realtime on PATH, as the Procfile finds the worker.
+BIN = os.path.dirname(sys.executable)
+SCRIPT = os.path.join(BIN, "dallinger_realtime")
+WORKER = os.path.join(BIN, "dallinger_heroku_worker")
 
 scratch = {}
 exec(SCRATCH_EXPERIMENT, scratch)
@@ -83,9 +88,9 @@ Counter, Looper = scratch["Counter"], scratch["Looper"]
 
 @pytest.fixture
 def start_runner(tmp_path, realtime_experiment, redis_conn):
-    """Return a function that starts a runner process and waits for it to
-    count as running. The runners are killed before redis is emptied, so none
-    leaves a key behind.
+    """Return a function that starts a runner process, or a worker, and waits
+    for its runner to count as running. The processes are killed before redis
+    is emptied, so none leaves a key behind.
     """
     realtime_experiment.realtime_games = [Counter, Looper]
     (tmp_path / "__init__.py").write_text("")
@@ -97,16 +102,22 @@ def start_runner(tmp_path, realtime_experiment, redis_conn):
         log_path = tmp_path / "runner-{}.log".format(len(processes))
         with open(log_path, "w") as log:
             process = subprocess.Popen(
-                command, cwd=tmp_path, stdout=log, stderr=subprocess.STDOUT
+                command,
+                cwd=tmp_path,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                env={**os.environ, "PATH": BIN + os.pathsep + os.environ["PATH"]},
             )
         process.log_path = log_path
         processes.append(process)
-        wait_until(lambda: process.pid in map(pid_of, runner_names()))
+        wait_until(lambda: runner_pids(process))
         return process
 
     yield start
     for process in processes:
         if process.poll() is None:
+            for child in psutil.Process(process.pid).children():
+                child.kill()
             process.send_signal(signal.SIGCONT)
             process.kill()
         process.wait()
@@ -122,6 +133,14 @@ def wait_until(condition, timeout=20):
 def pid_of(runner):
     # A runner is named <host>-<pid>-<random>.
     return int(runner.rsplit("-", 2)[1])
+
+
+def runner_pids(process):
+    """The pids of the running runners that are the process or its children."""
+    pids = {process.pid} | {
+        child.pid for child in psutil.Process(process.pid).children()
+    }
+    return pids & set(map(pid_of, runner_names()))
 
 
 def runner_names():
@@ -196,6 +215,35 @@ def test_the_runner_script_plays_with_time_limits_until_it_is_stopped(start_runn
     log = process.log_path.read_text()
     assert "Session {} of counter failed".format(spinning) in log
     assert "TimeLimitExceeded: Counter.apply was running" in log
+
+
+def test_the_worker_restarts_its_runner_and_waits_for_it_to_stop(start_runner):
+    worker = start_runner([WORKER])
+    [killed] = runner_pids(worker)
+    os.kill(killed, signal.SIGKILL)
+    wait_until(lambda: runner_pids(worker) - {killed}, timeout=30)
+    [stopped] = runner_pids(worker) - {killed}
+
+    worker.send_signal(signal.SIGTERM)
+    assert worker.wait(10) == 0
+    assert not psutil.pid_exists(stopped)
+    assert stopped not in map(pid_of, runner_names())
+
+
+@pytest.mark.parametrize("signum", [signal.SIGTERM, signal.SIGINT])
+def test_the_worker_passes_its_stop_signal_on_while_it_finishes_a_job(
+    start_runner, signum
+):
+    worker = start_runner([WORKER])
+    [stopped] = runner_pids(worker)
+    job = get_queue().enqueue("time.sleep", 60)
+    wait_until(lambda: job.get_status() == "started")
+
+    worker.send_signal(signum)
+    wait_until(lambda: stopped not in map(pid_of, runner_names()), timeout=10)
+    time.sleep(supervisor.RESTART_DELAY + 0.5)
+    assert worker.poll() is None
+    assert psutil.Process(worker.pid).children() == []
 
 
 def test_a_killed_runners_sessions_play_on_without_losing_a_message(start_runner):

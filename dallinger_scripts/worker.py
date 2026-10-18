@@ -52,7 +52,46 @@ def main():
     # Default to log.warn because rq logs extremely verbosely at the info
     # level
     worker.log.info = worker.log.debug
-    worker.work(logging_level=log_level)
+
+    supervisor = None
+    if has_realtime_games():
+        import signal
+
+        import gevent
+
+        from dallinger.realtime.supervisor import RunnerSupervisor
+
+        supervisor = RunnerSupervisor()
+        # gevent runs every handler registered for a signal, so these run
+        # beside the ones the worker registers.
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            gevent.signal_handler(signum, supervisor.stop)
+        supervisor.start()
+    try:
+        worker.work(logging_level=log_level)
+    finally:
+        if supervisor is not None:
+            supervisor.stop()
+            # A container's other processes are killed when its first one
+            # exits, so the runner must give up its sessions first.
+            supervisor.join()
+
+
+def has_realtime_games():
+    """Whether the experiment has game types, so the worker should keep a
+    runner going. An experiment that can't be loaded is logged, and has none.
+    """
+    import logging
+
+    from dallinger import experiment
+
+    try:
+        return bool(experiment.load().realtime_games)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "Couldn't load the experiment, so no real-time runner is started."
+        )
+        return False
 
 
 if __name__ == "__main__":  # pragma: nocover
