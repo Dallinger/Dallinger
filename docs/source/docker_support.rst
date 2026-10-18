@@ -564,7 +564,8 @@ Destroy removes the app's containers, its ``~/dallinger/$APP_ID/`` folder,
 its Caddy configuration or Cloudflare tunnel,
 and its experiment image unless another app still uses that image. When you
 redeploy an app with ``--update``, the image it ran before is removed in the
-same way once the new containers are up.
+same way once the new containers are up. If the update fails before then, the
+old image stays on the server.
 
 Destroy keeps the app's data folder ``~/dallinger-data/$APP_ID``, because it
 may hold files the experiment saved (see the note below), and prints its
@@ -575,6 +576,11 @@ delete the data folder, export anything you need, then run destroy with
 .. code-block:: shell
 
     dallinger docker-ssh destroy --app $APP_ID --remove-data
+
+Destroy then shows the folder's size and asks you to confirm before it removes
+anything, so answering no leaves a running app untouched. Add ``--yes`` to skip
+the question. The folder is not deleted while the app's containers are still
+running.
 
 The data folder's parent is often owned by root, so if the SSH user can't
 delete the folder, Dallinger deletes it with a short-lived root ``alpine``

@@ -651,7 +651,7 @@ def _ssh_config_user(host, port=22):
     """Return the user ``ssh -G`` resolves for ``host``, or None if unknown."""
     try:
         result = subprocess.run(
-            ["ssh", "-G", "-p", str(port), host],
+            ["ssh", "-G", "-p", str(port), "--", host],
             capture_output=True,
             text=True,
             timeout=10,
@@ -1012,9 +1012,16 @@ def _upload_app_stack(
 
 
 def _remove_replaced_image(executor, app, previous_image, image_name):
-    """After an update, remove the app's previous image unless another app pins it."""
-    if previous_image and previous_image != image_name:
+    """After an update, remove the app's previous image unless another app pins it.
+
+    The update has already succeeded, so a cleanup failure only warns.
+    """
+    if not previous_image or previous_image == image_name:
+        return
+    try:
         remove_unshared_experiment_image(executor, previous_image, except_app=app)
+    except Exception as exc:
+        print(f"Warning: could not remove the previous image {previous_image}: {exc}")
 
 
 def _image_runs_as_ssh_user(executor, image_name):
@@ -2035,8 +2042,17 @@ def remove_experiment_image(executor, image_name: str | None) -> None:
     """
     if not image_name:
         return
-    print(f"Removing experiment image {image_name}")
-    executor.run(f"docker rmi {quote(image_name)}", raise_=False)
+    image = quote(image_name)
+    result = executor.run(
+        f"if docker rmi {image} >/dev/null 2>&1; then echo removed; "
+        f"elif docker image inspect {image} >/dev/null 2>&1; then echo kept; fi",
+        raise_=False,
+    )
+    result = (result or "").strip()
+    if result == "removed":
+        print(f"Removed experiment image {image_name}")
+    elif result == "kept":
+        print(f"Kept experiment image {image_name} (still in use)")
 
 
 def remove_unshared_experiment_image(
@@ -2407,30 +2423,66 @@ def _inspect_container_env(executor, container):
     return env
 
 
+def _app_data_exists(executor, app):
+    """True if ``~/dallinger-data/<app>`` exists, even as a dangling symlink."""
+    path = f"~/dallinger-data/{quote(app)}"
+    return bool(
+        executor.run(f"{{ [ -e {path} ] || [ -L {path} ]; }} && echo Yes", raise_=False)
+    )
+
+
+def _confirm_app_data_removal(executor, app, ssh_host):
+    """Ask before deleting an app's data folder; abort if the user declines."""
+    if not _app_data_exists(executor, app):
+        return
+    size = (
+        executor.run(
+            f"du -sh ~/dallinger-data/{quote(app)} 2>/dev/null | cut -f1",
+            raise_=False,
+        )
+        or ""
+    ).strip()
+    size_part = f" ({size})" if size else ""
+    click.confirm(
+        f"Delete ~/dallinger-data/{app}{size_part} on {ssh_host}? "
+        "This cannot be undone.",
+        default=False,
+        abort=True,
+    )
+
+
 def _remove_app_data(executor, app):
     """Delete ``~/dallinger-data/<app>``, falling back to a root container.
 
     The parent folder is usually root-owned, so the SSH user cannot unlink
-    the app folder itself.
+    the app folder itself. Skipped while the app's containers still run.
     """
-    if not app or "/" in app or app in (".", ".."):
-        raise click.UsageError(f"Invalid app name {app!r}.")
-    status = executor.run(
+    path = f"~/dallinger-data/{app}"
+    project = re.sub(r"[^a-z0-9_-]", "", app.lower())
+    running = executor.run(
+        f"docker compose -p {quote(project)} ps -q 2>/dev/null", raise_=False
+    )
+    if (running or "").strip():
+        print(f"Warning: not removing {path}: containers of {app} are still running.")
+        return
+    status, stdout, stderr = executor.run_with_status(
         f'app={quote(app)}; parent="$HOME/dallinger-data"; '
-        'if [ ! -e "$parent/$app" ]; then echo absent; exit 0; fi; '
+        'if [ ! -e "$parent/$app" ] && [ ! -L "$parent/$app" ]; then '
+        "echo absent; exit 0; fi; "
         'rm -rf "$parent/$app" 2>/dev/null || '
         'docker run --rm -v "$parent:/data" alpine:3.20 rm -rf "/data/$app"; '
-        'if [ -e "$parent/$app" ]; then echo failed; else echo removed; fi',
-        raise_=False,
+        'if [ -e "$parent/$app" ] || [ -L "$parent/$app" ]; then echo failed; '
+        "else echo removed; fi"
     )
-    path = f"~/dallinger-data/{app}"
-    status = (status or "").strip()
-    if status == "removed":
+    result = (stdout or "").strip()
+    if result == "removed":
         print(f"Removed {path}")
-    elif status == "absent":
+    elif result == "absent":
         print(f"No data folder {path} to remove")
     else:
         print(f"{RED}Could not remove {path}. Remove it on the server by hand.{END}")
+        if (stderr or "").strip():
+            print(stderr.strip())
 
 
 @docker_ssh.command()
@@ -2440,36 +2492,49 @@ def _remove_app_data(executor, app):
     is_flag=True,
     help=(
         "Also delete the app's data folder ~/dallinger-data/<app>. "
-        "This cannot be undone. Works after the app has been destroyed."
+        "Asks for confirmation unless --yes is given. "
+        "Works after the app has been destroyed."
     ),
 )
+@click.option(
+    "--yes", is_flag=True, help="Don't ask before deleting data with --remove-data."
+)
 @option_server
-def destroy(server, app, remove_data=False):
+def destroy(server, app, remove_data=False, yes=False):
     """Tear down an experiment run on a server you control via ssh."""
+    if not APP_NAME_PATTERN.fullmatch(app):
+        raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
     server_info = _resolve_server_info(server)
     ssh_address = server_info["host"]
     ssh_host, _ = split_ssh_host_port(ssh_address)
     ssh_user = server_info.get("user")
     executor = Executor(ssh_address, user=ssh_user, app=app)
+    quoted_app = quote(app)
 
     caddy_config_exists = executor.run(
-        f"test -f ~/dallinger/caddy.d/{app} && echo Yes", raise_=False
+        f"test -f ~/dallinger/caddy.d/{quoted_app} && echo Yes", raise_=False
     )
     docker_compose_exists = executor.run(
-        f"test -f ~/dallinger/{app}/docker-compose.yml && echo Yes", raise_=False
+        f"test -f ~/dallinger/{quoted_app}/docker-compose.yml && echo Yes",
+        raise_=False,
     )
     # A Cloudflare deploy that failed after creating its tunnel leaves only
     # the connector token behind.
     tunnel_token_exists = executor.run(
-        f"test -f ~/dallinger/{app}/secrets/cloudflare-tunnel-token && echo Yes",
+        f"test -f ~/dallinger/{quoted_app}/secrets/cloudflare-tunnel-token && echo Yes",
         raise_=False,
     )
-    if not (caddy_config_exists or docker_compose_exists or tunnel_token_exists):
+    deployed = caddy_config_exists or docker_compose_exists or tunnel_token_exists
+    if not deployed:
         print(f"App {app} is not deployed")
-        if remove_data:
-            _remove_app_data(executor, app)
-            return
-        raise click.Abort()
+        if not remove_data:
+            raise click.Abort()
+    # Ask before teardown, so declining leaves a live app untouched.
+    if remove_data and not yes:
+        _confirm_app_data_removal(executor, app, ssh_host)
+    if not deployed:
+        _remove_app_data(executor, app)
+        return
 
     manifest = _load_remote_manifests(executor, [app]).get(app)
     if manifest:
@@ -2488,7 +2553,8 @@ def destroy(server, app, remove_data=False):
             _stop_cloudflare_connector(executor, app)
         own_tunnel_id = (
             executor.run(
-                f"cat ~/dallinger/{app}/secrets/cloudflare-tunnel-id", raise_=False
+                f"cat ~/dallinger/{quoted_app}/secrets/cloudflare-tunnel-id",
+                raise_=False,
             )
             or ""
         ).strip() or (manifest.cloudflare.get("tunnel_id") if manifest else None)
@@ -2499,14 +2565,14 @@ def destroy(server, app, remove_data=False):
             )
             raise click.Abort()
         executor.run(
-            f"docker compose -f ~/dallinger/{app}/docker-compose.yml down -v",
+            f"docker compose -f ~/dallinger/{quoted_app}/docker-compose.yml down -v",
             raise_=False,
         )
     else:
         caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
         uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
         dns_host = ssh_host
-        executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
+        executor.run(f"rm -f ~/dallinger/caddy.d/{quoted_app}")
         if uses_root_domain:
             config = get_config(load=True)
             email_addr = config.get("contact_email_on_error")
@@ -2521,18 +2587,16 @@ def destroy(server, app, remove_data=False):
             )
         executor.reload_caddy()
         executor.run(
-            f"docker compose -f ~/dallinger/{app}/docker-compose.yml down",
+            f"docker compose -f ~/dallinger/{quoted_app}/docker-compose.yml down",
             raise_=False,
         )
 
     remove_unshared_experiment_image(executor, experiment_image, except_app=app)
-    executor.run(f"rm -rf ~/dallinger/{app}/")
+    executor.run(f"rm -rf ~/dallinger/{quoted_app}/")
     print(f"App {app} removed")
     if remove_data:
         _remove_app_data(executor, app)
-    elif executor.run(
-        f"test -d ~/dallinger-data/{quote(app)} && echo Yes", raise_=False
-    ):
+    elif _app_data_exists(executor, app):
         print(
             f"Kept the app's data folder ~/dallinger-data/{app} on {ssh_host}. "
             "To delete it, run: dallinger docker-ssh destroy "
