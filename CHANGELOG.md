@@ -159,12 +159,13 @@
   starts one with the new `dallinger_realtime` command, and starts another
   whenever it exits. Each session's messages, clock measurements, effects,
   checkpoints and ending are saved in the new `realtime_session` and
-  `realtime_event` tables, which exports include. Several runners can share an experiment's sessions,
-  and a session carries on from its last save if its runner dies. A page joins
-  a session by opening its websocket with the session's id as a `session`
-  query parameter, on `/chat` or `/experiment-socket`, and sends its moves on
-  the game type's channel, within a per-socket rate limit the game type sets.
-  The engine needs Redis 7.0 or later.
+  `realtime_event` tables, which exports include. Several runners can share
+  an experiment's sessions, and a session carries on from its last save if its
+  runner dies. A page joins a session by opening its websocket with the
+  session's id as a `session` query parameter, on `/chat` or
+  `/experiment-socket`, and sends its moves on the game type's channel, within
+  a per-socket rate limit the game type sets. The engine needs Redis 7.0 or
+  later.
 - `Experiment.accept_websocket_connection(participant_id, scope)` lets an
   experiment refuse an `/experiment-socket` connection when it opens. A falsy
   return closes the socket with code `1008`, and Dallinger's client helpers

@@ -9,9 +9,8 @@ import time
 import pytest
 
 from dallinger import experiment
-from dallinger.realtime import supervisor
 from dallinger.realtime.supervisor import RunnerSupervisor
-from dallinger_scripts.worker import has_realtime_games
+from dallinger_scripts.worker import experiment_has_realtime_games
 
 pytestmark = pytest.mark.timeout(10)
 
@@ -37,15 +36,19 @@ def supervise(tmp_path):
     started = []
 
     def start(script):
-        each = RunnerSupervisor([sys.executable, "-c", script, str(path)])
-        each.start()
-        started.append(each)
-        return each, path
+        supervisor = RunnerSupervisor([sys.executable, "-c", script, str(path)])
+        supervisor.start()
+        started.append(supervisor)
+        return supervisor, path
 
     yield start
-    for each in started:
-        each.stop()
-        each.join()
+    for supervisor in started:
+        stop(supervisor)
+
+
+@pytest.fixture
+def quick_restarts(monkeypatch):
+    monkeypatch.setattr("dallinger.realtime.supervisor.RESTART_DELAY", 0.01)
 
 
 def lines(path):
@@ -59,58 +62,56 @@ def wait_until(condition, timeout=10):
         time.sleep(0.01)
 
 
-def stop(each):
-    each.stop()
-    each.join()
+def stop(supervisor):
+    supervisor.stop()
+    supervisor.join()
 
 
-def test_a_runner_that_exits_is_started_again(supervise, monkeypatch, caplog):
-    monkeypatch.setattr(supervisor, "RESTART_DELAY", 0.01)
-    each, path = supervise(EXITS)
+def test_a_runner_that_exits_is_started_again(supervise, quick_restarts, caplog):
+    supervisor, path = supervise(EXITS)
 
     wait_until(lambda: len(lines(path)) >= 3)
-    stop(each)
+    stop(supervisor)
     assert len(set(lines(path))) == len(lines(path))
     assert "The real-time runner exited with code 0." in caplog.text
 
 
 def test_stop_passes_sigterm_on_and_starts_no_more(supervise, caplog):
-    each, path = supervise(WAITS_FOR_SIGTERM)
+    supervisor, path = supervise(WAITS_FOR_SIGTERM)
     wait_until(lambda: len(lines(path)) == 1)
 
-    stop(each)
+    stop(supervisor)
     assert lines(path)[1:] == ["stopped"]
     assert "Starting another" not in caplog.text
 
 
 def test_a_supervisor_stopped_before_it_starts_starts_nothing(tmp_path):
     path = tmp_path / "started"
-    each = RunnerSupervisor([sys.executable, "-c", EXITS, str(path)])
-    each.stop()
-    each.start()
+    supervisor = RunnerSupervisor([sys.executable, "-c", EXITS, str(path)])
+    supervisor.stop()
+    supervisor.start()
 
-    each.join()
+    supervisor.join()
     assert not path.exists()
 
 
 def test_stop_during_the_restart_delay_starts_no_more(supervise, monkeypatch, caplog):
-    monkeypatch.setattr(supervisor, "RESTART_DELAY", 60)
-    each, path = supervise(EXITS)
+    monkeypatch.setattr("dallinger.realtime.supervisor.RESTART_DELAY", 60)
+    supervisor, path = supervise(EXITS)
     wait_until(lambda: "Starting another in 60 second(s)." in caplog.text)
 
-    stop(each)
+    stop(supervisor)
     assert len(lines(path)) == 1
 
 
-def test_a_runner_that_cannot_start_is_tried_again(monkeypatch, caplog):
-    monkeypatch.setattr(supervisor, "RESTART_DELAY", 0.01)
-    each = RunnerSupervisor(["/nonexistent/dallinger_realtime"])
-    each.start()
+def test_a_runner_that_cannot_start_is_tried_again(quick_restarts, caplog):
+    supervisor = RunnerSupervisor(["/nonexistent/dallinger_realtime"])
+    supervisor.start()
 
     try:
         wait_until(lambda: caplog.text.count("Couldn't start the real-time") >= 2)
     finally:
-        stop(each)
+        stop(supervisor)
     assert "The real-time runner couldn't start." in caplog.text
 
 
@@ -136,5 +137,5 @@ def test_the_worker_supervises_a_runner_when_the_experiment_has_game_types(
     monkeypatch.setattr(experiment, "load", load)
     caplog.set_level(logging.ERROR)
 
-    assert has_realtime_games() is expected
+    assert experiment_has_realtime_games() is expected
     assert ("no experiment here" in caplog.text) is (load is broken)

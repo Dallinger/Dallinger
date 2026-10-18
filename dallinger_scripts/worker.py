@@ -53,20 +53,7 @@ def main():
     # level
     worker.log.info = worker.log.debug
 
-    supervisor = None
-    if has_realtime_games():
-        import signal
-
-        import gevent
-
-        from dallinger.realtime.supervisor import RunnerSupervisor
-
-        supervisor = RunnerSupervisor()
-        # gevent runs every handler registered for a signal, so these run
-        # beside the ones the worker registers.
-        for signum in (signal.SIGTERM, signal.SIGINT):
-            gevent.signal_handler(signum, supervisor.stop)
-        supervisor.start()
+    supervisor = start_runner_supervisor()
     try:
         worker.work(logging_level=log_level)
     finally:
@@ -77,7 +64,32 @@ def main():
             supervisor.join()
 
 
-def has_realtime_games():
+def start_runner_supervisor():
+    """Start keeping a real-time runner going, and return its
+    :class:`~dallinger.realtime.supervisor.RunnerSupervisor`, if the
+    experiment has game types. Return ``None`` if it has none.
+
+    ``SIGTERM`` and ``SIGINT`` stop the supervisor and its runner.
+    """
+    if not experiment_has_realtime_games():
+        return None
+
+    import signal
+
+    import gevent
+
+    from dallinger.realtime.supervisor import RunnerSupervisor
+
+    supervisor = RunnerSupervisor()
+    # gevent runs every handler registered for a signal, so these run
+    # beside the ones the worker registers.
+    for signum in (signal.SIGTERM, signal.SIGINT):
+        gevent.signal_handler(signum, supervisor.stop)
+    supervisor.start()
+    return supervisor
+
+
+def experiment_has_realtime_games():
     """Whether the experiment has game types, so the worker should keep a
     runner going. An experiment that can't be loaded is logged, and has none.
     """
