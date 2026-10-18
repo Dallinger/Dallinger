@@ -2153,16 +2153,27 @@ class TestDebugServer:
         )
 
 
+class QuietCLIRecruiter(recruiters.CLIRecruiter):
+    nickname = "quietcli"
+    opens_participant_browsers = False
+
+
 @pytest.mark.parametrize(
-    "recruiter, no_browsers, mentions_browsers",
-    [("hotair", False, True), ("hotair", True, False), ("bots", False, False)],
+    "recruiter_config, no_browsers, mentions_browsers",
+    [
+        ({"recruiter": "hotair"}, False, True),
+        ({"recruiter": "hotair"}, True, False),
+        ({"recruiter": "bots"}, False, False),
+        ({"debug_recruiter": "quietcli"}, False, False),
+        ({"recruiter": "multi", "recruiters": "bots: 1, hotair: 1"}, False, True),
+    ],
 )
 def test_debug_launch_mentions_browser_windows_only_if_they_will_open(
-    active_config, output, recruiter, no_browsers, mentions_browsers
+    active_config, output, recruiter_config, no_browsers, mentions_browsers
 ):
     from dallinger.deployment import DebugDeployment
 
-    active_config.extend({"mode": "debug", "recruiter": recruiter})
+    active_config.extend({"mode": "debug", **recruiter_config})
     debugger = DebugDeployment(output, False, False, None, {}, no_browsers=no_browsers)
     debugger.display_dashboard_access_details = mock.Mock()
     debugger.async_open_dashboard = mock.Mock()

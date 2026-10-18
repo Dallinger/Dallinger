@@ -169,6 +169,9 @@ class Recruiter:
     entry_params = ("hitId", "assignmentId", "workerId")
     external_submission_url = None  # MTurkRecruiter, for one, overides this
     supports_delayed_publishing = False
+    # True if recruit() logs NEW_RECRUIT_LOG_PREFIX lines, which the debug
+    # deployment turns into browser windows.
+    opens_participant_browsers = False
 
     def __call__(self):
         """For backward compatibility with experiments invoking recruiter()
@@ -1174,6 +1177,7 @@ class CLIRecruiter(Recruiter):
     """
 
     nickname = "cli"
+    opens_participant_browsers = True
 
     def __init__(self):
         super(CLIRecruiter, self).__init__()
@@ -2254,13 +2258,12 @@ class MultiRecruiter(Recruiter):
 
         Example: recruiters = bots: 5, mturk: 1
         """
-        recruiters = []
-        spec = get_config().get("recruiters")
-        for match in self.SPEC_RE.finditer(spec):
-            name = match.group(1)
-            count = int(match.group(2))
-            recruiters.append((name, count))
-        return recruiters
+        return self._parse_spec(get_config().get("recruiters"))
+
+    @classmethod
+    def _parse_spec(cls, spec):
+        """Return ``(name, count)`` pairs from a ``recruiters`` spec string."""
+        return [(m.group(1), int(m.group(2))) for m in cls.SPEC_RE.finditer(spec)]
 
     def recruiters(self, n=1):
         """Iterator that provides recruiters along with the participant
@@ -2421,6 +2424,32 @@ def class_from_config(config):
 
     # Default if we're not in debug mode:
     return MTurkRecruiter
+
+
+def opens_participant_browsers(config):
+    """Return whether the configured recruiter opens participant browsers.
+
+    A MultiRecruiter counts if any recruiter in its ``recruiters`` spec does.
+    No recruiter is constructed.
+
+    Parameters
+    ----------
+    config : dallinger.config.Configuration
+        The loaded experiment configuration.
+
+    Returns
+    -------
+    bool
+        True if recruitment logs new-participant URLs that a debug
+        deployment opens in browser windows.
+    """
+    klass = class_from_config(config)
+    if klass is not None and issubclass(klass, MultiRecruiter):
+        spec = MultiRecruiter._parse_spec(config.get("recruiters", ""))
+        classes = [_class_by_name(name) for name, _ in spec]
+    else:
+        classes = [klass]
+    return any(c is not None and c.opens_participant_browsers for c in classes)
 
 
 def _descendent_classes(cls):

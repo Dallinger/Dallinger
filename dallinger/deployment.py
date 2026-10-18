@@ -606,7 +606,9 @@ class DebugDeployment(HerokuLocalDeployment):
         else:
             if result["status"] == "success":
                 self.out.log(result["recruitment_msg"])
-                if not self.no_browsers and self._recruiter_requests_new_participants():
+                if not self.no_browsers and recruiters.opens_participant_browsers(
+                    get_config()
+                ):
                     self.out.log(
                         "New participants requested by the experiment will open "
                         "in browser windows automatically."
@@ -625,13 +627,6 @@ class DebugDeployment(HerokuLocalDeployment):
                     "Monitoring the Heroku Local server for recruitment or completion..."
                 )
                 heroku.monitor(listener=self.notify)
-
-    def _recruiter_requests_new_participants(self):
-        """Return whether the recruiter logs new-participant URLs for ``new_recruit``."""
-        recruiter_class = recruiters.class_from_config(get_config())
-        return recruiter_class is not None and issubclass(
-            recruiter_class, recruiters.CLIRecruiter
-        )
 
     def launch_request_complete(self, match):
         return HerokuLocalWrapper.MONITOR_STOP
